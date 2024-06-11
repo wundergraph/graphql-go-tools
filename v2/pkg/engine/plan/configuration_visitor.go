@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
+
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -37,12 +39,13 @@ type configurationVisitor struct {
 	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // nodeSuggestionHints holds information about suggested data sources for key fields
 
-	parentTypeNodes    []ast.Node          // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
-	arrayFields        []arrayField        // arrayFields is a stack of array fields - used to plan nested queries
-	selectionSetRefs   []int               // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs     []int               // skipFieldsRefs holds required field refs added by planner and should not be added to user response
-	missingPathTracker map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
-	addedPathTracker   []pathConfiguration // addedPathTracker is a list of paths which were added
+	parentTypeNodes               []ast.Node          // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
+	arrayFields                   []arrayField        // arrayFields is a stack of array fields - used to plan nested queries
+	selectionSetRefs              []int               // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	skipFieldsRefs                []int               // skipFieldsRefs holds required field refs added by planner and should not be added to user response
+	missingPathTracker            map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
+	potentiallyMissingPathTracker map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
+	addedPathTracker              []pathConfiguration // addedPathTracker is a list of paths which were added
 
 	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
 	processedFieldNotHavingRequires   map[int]struct{}                        // processedFieldNotHavingRequires is a map[FieldRef] of already processed fields which do not have @requires directive
@@ -280,6 +283,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	c.missingPathTracker = make(map[string]struct{})
+	c.potentiallyMissingPathTracker = make(map[string]struct{})
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 
 	c.pendingRequiredFields = make(map[int]selectionSetPendingRequirements)
@@ -293,6 +297,13 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
+	for path := range c.potentiallyMissingPathTracker {
+		if _, ok := c.addedPathDSHash(path); ok {
+			continue
+		}
+		c.addMissingPath(path)
+	}
+	c.potentiallyMissingPathTracker = make(map[string]struct{})
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -598,7 +609,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 				return plannerIdx, true
 			}
 
-			if isProvided || isChildNode || (isRootNode && planningBehaviour.MergeAliasedRootNodes) {
+			if isProvided || (isRootNode && planningBehaviour.MergeAliasedRootNodes) || isChildNode {
 				c.addPath(plannerIdx, pathConfiguration{
 					parentPath:       parentPath,
 					path:             currentPath,
@@ -944,6 +955,8 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 		if planned {
 			// __typename field on a union could not have a suggestion
 			return
+		} else {
+			c.potentiallyMissingPathTracker[currentPath] = struct{}{}
 		}
 	}
 
@@ -1055,8 +1068,8 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 	if config == nil {
 		c.processedFieldNotHavingRequires[fieldRef] = struct{}{}
 		// if we could not find a datasource for the field
-		// something wrong, and we will not be able to plan a query
-		return false
+		// potentially we could plan it later
+		return true
 	}
 
 	requiresConfiguration, exists := config.RequiredFieldsByRequires(typeName, fieldName)

@@ -100,10 +100,11 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
-	ReasonStage3SelectAvailableLeafNode                        = "stage3: select first available leaf node"
-	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
-	ReasonStage3SelectRootNodeWithEnabledEntityResolver        = "stage3: first available node with enabled entity resolver"
-	ReasonStage3SelectFirstParentRootNode                      = "stage3: first available parent node with enabled entity resolver"
+	ReasonStage3SelectAvailableLeafNode                               = "stage3: select first available leaf node"
+	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource        = "stage3: select non leaf node which have possible child selections on the same source"
+	ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
+	ReasonStage3SelectParentRootNodeWithEnabledEntityResolver         = "stage3: first available parent node with enabled entity resolver"
+	ReasonStage3SelectNodeUnderFirstParentRootNode                    = "stage3: node under first available parent node with enabled entity resolver"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
@@ -224,6 +225,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 		}
 
 		itemIDs := treeNode.GetData()
+		if len(itemIDs) == 1 {
+			// such node already selected as unique
+			continue
+		}
 
 		for _, i := range itemIDs {
 			if f.nodes.items[i].Selected {
@@ -231,6 +236,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			}
 
 			if f.nodes.isSelectedOnOtherSource(i) {
+				continue
+			}
+
+			if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsKeyField && !f.nodes.items[i].IsProvided {
 				continue
 			}
 
@@ -291,9 +300,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 				foundPossibleDuplicate := false
 				for _, duplicateIdx := range nodeDuplicates {
 					if !f.nodes.items[duplicateIdx].DisabledEntityResolver {
-						f.nodes.items[duplicateIdx].selectWithReason(ReasonStage3SelectRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
-						foundPossibleDuplicate = true
-						break
+						if f.selectWithExternalCheck(duplicateIdx, ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver) {
+							foundPossibleDuplicate = true
+							break
+						}
 					}
 				}
 				if foundPossibleDuplicate {
@@ -306,37 +316,34 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			// when we haven't found a possible duplicate
 			// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
 
-			treeNode := f.nodes.treeNode(i)
-			parent := treeNode.GetParent()
-
-			foundPossibleParent := false
-			for parent != nil {
-				parentNodeIndexes := parent.GetData()
-
-				for _, parentIdx := range parentNodeIndexes {
-					if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
-						f.nodes.items[parentIdx].selectWithReason(ReasonStage3SelectFirstParentRootNode, f.enableSelectionReasons)
-						foundPossibleParent = true
+			currentCheckIdx := i
+			parents, ok := f.findPossibleParents(i)
+			if !ok {
+				for _, duplicateIdx := range nodeDuplicates {
+					currentCheckIdx = duplicateIdx
+					parents, ok = f.findPossibleParents(duplicateIdx)
+					if ok {
 						break
 					}
 				}
-
-				if foundPossibleParent {
-					break
-				}
-
-				parent = parent.GetParent()
 			}
+			if len(parents) > 0 {
+				if f.selectWithExternalCheck(currentCheckIdx, ReasonStage3SelectNodeUnderFirstParentRootNode) {
+					for _, parent := range parents {
+						f.nodes.items[parent].selectWithReason(ReasonStage3SelectParentRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
+					}
 
-			if foundPossibleParent {
-				continue
+					// continue to the next node
+					continue
+				}
 			}
 
 			// If we still haven't selected the node -
 			// 3. we could select first available node only in case it is a leaf node
 			if f.nodes.isLeaf(i) {
-				f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableLeafNode, f.enableSelectionReasons)
-				continue
+				if f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode) {
+					continue
+				}
 			}
 
 			// 4. then we try to select a node which could provide more selections on the same source
@@ -351,9 +358,26 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 				}
 			}
 
-			f.nodes.items[currentIdx].selectWithReason(ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource, f.enableSelectionReasons)
+			f.selectWithExternalCheck(currentIdx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
 		}
 	}
+}
+
+func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int, ok bool) {
+	nodesIdsToSelect := make([]int, 0, 2)
+
+	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
+	for parentIdx != -1 {
+		nodesIdsToSelect = append(nodesIdsToSelect, parentIdx)
+
+		if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
+			return nodesIdsToSelect, true
+		}
+
+		parentIdx, ok = f.nodes.parentNodeOnSameSource(parentIdx)
+	}
+
+	return nil, false
 }
 
 func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool)) (nodeIsSelected bool) {
@@ -370,12 +394,12 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 	childs := f.nodes.childNodesOnSameSource(i)
 	for _, child := range childs {
 		if f.nodes.items[child].Selected {
-			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild, f.enableSelectionReasons)
-			nodeIsSelected = true
-			break
+			if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedChild) {
+				return true
+			}
 		}
 	}
-	return
+	return false
 }
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
@@ -385,23 +409,49 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 		return false
 	}
 
+	parentIdx, hasParentOnSameSource := f.nodes.parentNodeOnSameSource(i)
+	if hasParentOnSameSource && f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
+		return false
+	}
+
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
 		if f.nodes.items[sibling].Selected {
-			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling, f.enableSelectionReasons)
-			nodeIsSelected = true
-			break
+			if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedSibling) {
+				return true
+			}
 		}
 	}
-	return
+
+	return false
 }
 
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
-	if ok && f.nodes.items[parentIdx].Selected {
-		f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent, f.enableSelectionReasons)
-		nodeIsSelected = true
+	if !ok {
+		return false
 	}
 
-	return
+	if !f.nodes.items[parentIdx].Selected {
+		return false
+	}
+
+	// if selected parent is external and selected
+	// but current node is not provided, we can't select it as it is external
+	// it means that there was provided some sibling, but not the current field
+	parentIsExternal := f.nodes.items[parentIdx].IsExternal
+	if parentIsExternal && !f.nodes.items[i].IsProvided {
+		return false
+	}
+
+	return f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedParent)
+}
+
+func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIsSelected bool) {
+	if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+		return false
+	}
+
+	f.nodes.items[i].selectWithReason(reason, f.enableSelectionReasons)
+	return true
 }

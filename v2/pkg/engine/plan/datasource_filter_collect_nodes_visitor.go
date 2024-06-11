@@ -3,7 +3,6 @@ package plan
 import (
 	"fmt"
 	"slices"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -44,7 +43,6 @@ func (c *nodesCollector) collectNodes() {
 
 	for _, dataSource := range c.dataSources {
 		visitor.dataSource = dataSource
-		visitor.externalPaths = make(map[string]struct{})
 		visitor.keyPaths = make(map[string]struct{})
 		walker.Walk(c.operation, c.definition, c.report)
 		if c.report.HasErrors() {
@@ -115,8 +113,7 @@ type collectNodesVisitor struct {
 	dataSource DataSource
 	nodes      *NodeSuggestions
 
-	externalPaths map[string]struct{}
-	keyPaths      map[string]struct{}
+	keyPaths map[string]struct{}
 }
 
 func (f *collectNodesVisitor) hasSuggestionForField(itemIds []int, ref int) bool {
@@ -177,7 +174,7 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 
 	providesFieldSet, report := providesFragment(fieldTypeName, providesSelectionSet, f.definition)
 	if report.HasErrors() {
-		f.walker.StopWithInternalErr(fmt.Errorf("failed to parse provides fields for %s.%s at path %s: %s", typeName, fieldName, currentPath, report.Error()))
+		f.walker.StopWithInternalErr(fmt.Errorf("failed to parse provides fields for %s.%s at path %s: %v", typeName, fieldName, currentPath, report))
 		return
 	}
 
@@ -199,7 +196,7 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 	}
 	suggestions := providesSuggestions(input)
 	if report.HasErrors() {
-		f.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %s", typeName, fieldName, currentPath, report.Error()))
+		f.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report))
 		return
 	}
 
@@ -279,12 +276,6 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 
 	f.handleProvidesSuggestions(ref, typeName, fieldName, currentPath)
 
-	for externalPath := range f.externalPaths {
-		if strings.HasPrefix(currentPath, externalPath) {
-			return
-		}
-	}
-
 	if isTypeName && f.isInterfaceObject(typeName) {
 		// we should not add a typename on the interface object
 		// to not select it during node suggestions calculation
@@ -297,29 +288,27 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	hasRootNode := f.dataSource.HasRootNode(typeName, fieldName) || (isTypeName && f.dataSource.HasRootNodeWithTypename(typeName))
 	hasChildNode := f.dataSource.HasChildNode(typeName, fieldName) || (isTypeName && f.dataSource.HasChildNodeWithTypename(typeName))
 
-	isExternalRootNode := f.dataSource.HasExternalRootNode(typeName, fieldName) && !hasRootNode
-	isExternalChildNode := f.dataSource.HasExternalChildNode(typeName, fieldName)
-
-	// if field under the current path is marked as external we record such path as external
-	// and do not add possible suggestions for this field
-	if isExternalRootNode || isExternalChildNode {
-		f.externalPaths[currentPath] = struct{}{}
-		return
-	}
+	isExternalRootNode := !hasRootNode && f.dataSource.HasExternalRootNode(typeName, fieldName)
+	isExternalChildNode := !hasChildNode && f.dataSource.HasExternalChildNode(typeName, fieldName)
+	isExternal := isExternalRootNode || isExternalChildNode
 
 	currentNodeId := TreeNodeID(ref)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
 
 	if f.hasSuggestionForField(itemIds, ref) {
+		for _, idx := range itemIds {
+			if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
+				f.nodes.items[idx].IsExternal = isExternal
+			}
+		}
+
 		return
 	}
 
-	isKey := f.isFieldPartOfKey(typeName, currentPath, parentPath)
-
-	if hasRootNode || hasChildNode {
-		hasDisabledEntityResolver := f.hasDisabledEntityResolver(typeName)
-		disabledEntityResolver := hasRootNode && hasDisabledEntityResolver
+	if hasRootNode || hasChildNode || isExternal {
+		isKey := f.isFieldPartOfKey(typeName, currentPath, parentPath)
+		disabledEntityResolver := hasRootNode && f.hasDisabledEntityResolver(typeName)
 
 		node := NodeSuggestion{
 			TypeName:                  typeName,
@@ -335,6 +324,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
 			IsKeyField:                isKey,
+			IsExternal:                isExternal,
 		}
 
 		f.nodes.addSuggestion(&node)
