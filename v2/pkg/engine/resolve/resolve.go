@@ -29,7 +29,7 @@ type Reporter interface {
 }
 
 type AsyncErrorWriter interface {
-	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer)
+	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer)
 }
 
 type Resolver struct {
@@ -197,7 +197,15 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		fetchTree = response.Data
 	}
 
-	return t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, writer)
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
+	if err != nil {
+		return err
+	}
+	_, err = buf.WriteTo(writer)
+	return err
 }
 
 type trigger struct {
@@ -239,10 +247,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
 		sub.mux.Lock()
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		sub.pendingUpdates--
 		sub.mux.Unlock()
 		if r.options.Debug {
@@ -254,10 +260,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		return
 	}
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
 		sub.mux.Lock()
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		sub.pendingUpdates--
 		sub.mux.Unlock()
 		if r.options.Debug {
@@ -278,9 +282,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		return // subscription was already closed by the client
 	}
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.FetchTree, sub.writer); err != nil {
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -409,9 +411,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
 		}
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
-		r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer, buf)
+		r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
 		return
 	}
 	if r.options.Debug {
@@ -502,9 +502,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		c, s := c, s
 		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
 		if err != nil {
-			buf := pool.BytesBuffer.Get()
-			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer, buf)
-			pool.BytesBuffer.Put(buf)
+			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
 			continue
 		}
 		if skip {

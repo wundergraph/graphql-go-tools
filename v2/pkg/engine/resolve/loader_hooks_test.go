@@ -3,12 +3,13 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 )
 
 type TestLoaderHooks struct {

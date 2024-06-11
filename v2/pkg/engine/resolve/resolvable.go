@@ -114,9 +114,9 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	if r.storage.NodeIsDefined(data) {
 		r.storage.MergeNodesWithPath(r.dataRoot, data, postProcessing.MergePath)
 	}
-	errors := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-	if r.storage.NodeIsDefined(errors) {
-		r.storage.MergeArrays(r.errorsRoot, errors)
+	errs := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
+	if r.storage.NodeIsDefined(errs) {
+		r.storage.MergeArrays(r.errorsRoot, errs)
 	}
 	return
 }
@@ -399,16 +399,6 @@ func (r *Resolvable) walkObject(obj *Object, ref int) (nodeRef int, hasError boo
 		objectNodeRef, _ = r.storage.AppendObject(emptyObject)
 	}
 	for i := range obj.Fields {
-		if obj.Fields[i].SkipDirectiveDefined {
-			if r.skipField(obj.Fields[i].SkipVariableName) {
-				continue
-			}
-		}
-		if obj.Fields[i].IncludeDirectiveDefined {
-			if r.excludeField(obj.Fields[i].IncludeVariableName) {
-				continue
-			}
-		}
 		if obj.Fields[i].OnTypeNames != nil {
 			if r.skipFieldOnTypeNames(ref, obj.Fields[i]) {
 				continue

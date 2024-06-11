@@ -68,17 +68,13 @@ func (_ *EmptyObject) Equals(n Node) bool {
 }
 
 type Field struct {
-	Name                    []byte
-	Value                   Node
-	Position                Position
-	Defer                   *DeferField
-	Stream                  *StreamField
-	OnTypeNames             [][]byte
-	SkipDirectiveDefined    bool
-	SkipVariableName        string
-	IncludeDirectiveDefined bool
-	IncludeVariableName     string
-	Info                    *FieldInfo
+	Name        []byte
+	Value       Node
+	Position    Position
+	Defer       *DeferField
+	Stream      *StreamField
+	OnTypeNames [][]byte
+	Info        *FieldInfo
 }
 
 func (f *Field) Equals(n *Field) bool {

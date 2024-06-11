@@ -194,10 +194,10 @@ func WithNormalizeDefinition() Option {
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 6)
 
-	directivesIncludeSkip := astvisitor.NewWalker(48)
+	directivesIncludeSkip := astvisitor.NewWalker(8)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
-	cleanup := astvisitor.NewWalker(48)
+	cleanup := astvisitor.NewWalker(8)
 	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
 	if o.options.removeUnusedVariables {
@@ -219,7 +219,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(48)
+		fragmentInline := astvisitor.NewWalker(8)
 		fragmentSpreadInline(&fragmentInline)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
@@ -228,7 +228,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	if o.options.extractVariables {
-		extractVariablesWalker := astvisitor.NewWalker(48)
+		extractVariablesWalker := astvisitor.NewWalker(8)
 		o.variablesExtraction = extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
@@ -236,7 +236,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	other := astvisitor.NewWalker(48)
+	other := astvisitor.NewWalker(8)
 	removeSelfAliasing(&other)
 	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -244,7 +244,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &other,
 	})
 
-	mergeInlineFragments := astvisitor.NewWalker(48)
+	mergeInlineFragments := astvisitor.NewWalker(8)
 	mergeInlineFragmentSelections(&mergeInlineFragments)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
@@ -252,7 +252,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.removeFragmentDefinitions {
-		removeFragments := astvisitor.NewWalker(48)
+		removeFragments := astvisitor.NewWalker(8)
 		removeFragmentDefinitions(&removeFragments)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -267,7 +267,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.extractVariables {
-		variablesProcessing := astvisitor.NewWalker(48)
+		variablesProcessing := astvisitor.NewWalker(8)
 		inputCoercionForList(&variablesProcessing)
 		o.variablesDefaultValuesExtraction = extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)

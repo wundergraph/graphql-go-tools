@@ -269,19 +269,13 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
-
 	onTypeNames := v.resolveOnTypeNames(ref)
 
 	v.currentField = &resolve.Field{
-		Name:                    fieldAliasOrName,
-		OnTypeNames:             onTypeNames,
-		Position:                v.resolveFieldPosition(ref),
-		SkipDirectiveDefined:    skipIncludeInfo.skip,
-		SkipVariableName:        skipIncludeInfo.skipVariableName,
-		IncludeDirectiveDefined: skipIncludeInfo.include,
-		IncludeVariableName:     skipIncludeInfo.includeVariableName,
-		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		Name:        fieldAliasOrName,
+		OnTypeNames: onTypeNames,
+		Position:    v.resolveFieldPosition(ref),
+		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -405,27 +399,6 @@ func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
 	}
 
 	return skipIncludeInfo{}, false
-}
-
-func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
-	if info, ok := v.resolveSkipIncludeOnParent(); ok {
-		return info
-	}
-
-	directiveRefs := v.Operation.Fields[fieldRef].Directives.Refs
-	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directiveRefs)
-	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directiveRefs)
-
-	if skip || include {
-		return skipIncludeInfo{
-			skip:                skip,
-			skipVariableName:    skipVariableName,
-			include:             include,
-			includeVariableName: includeVariableName,
-		}
-	}
-
-	return skipIncludeInfo{}
 }
 
 func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {

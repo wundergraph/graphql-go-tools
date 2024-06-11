@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -153,13 +153,19 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 		return err
 	}
 
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+
 	if !enableTrace {
-		_, err = io.Copy(out, respReader)
+		_, err = buf.ReadFrom(respReader)
+		if err != nil {
+			return
+		}
+		_, err = buf.WriteTo(out)
 		return
 	}
 
-	buf := &bytes.Buffer{}
-	_, err = io.Copy(buf, respReader)
+	_, err = buf.ReadFrom(respReader)
 	if err != nil {
 		return err
 	}

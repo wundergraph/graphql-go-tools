@@ -176,9 +176,6 @@ func (j *JSON) SetObjectFieldKeyBytes(nodeRef, setFieldNodeRef int, key []byte) 
 }
 
 func (j *JSON) AppendArrayValue(arrayNodeRef, newItemRef int) {
-	if j.Nodes[arrayNodeRef].ArrayValues == nil {
-		j.Nodes[arrayNodeRef].ArrayValues = j.getIntSlice()
-	}
 	j.Nodes[arrayNodeRef].ArrayValues = append(j.Nodes[arrayNodeRef].ArrayValues, newItemRef)
 }
 
@@ -412,11 +409,11 @@ func (j *JSON) Reset() {
 func (j *JSON) InitResolvable(initialData []byte) (dataRoot, errorsRoot int, err error) {
 	j.RootNode = j.appendNode(Node{
 		Kind:         NodeKindObject,
-		ObjectFields: j.getIntSlice(),
+		ObjectFields: make([]int, 0, 2),
 	})
 	dataRoot = j.appendNode(Node{
 		Kind:         NodeKindObject,
-		ObjectFields: j.getIntSlice(),
+		ObjectFields: make([]int, 0, 1),
 	})
 	if len(initialData) != 0 {
 		mergeWithDataRoot, err := j.AppendObject(initialData)
@@ -426,8 +423,7 @@ func (j *JSON) InitResolvable(initialData []byte) (dataRoot, errorsRoot int, err
 		j.MergeNodes(dataRoot, mergeWithDataRoot)
 	}
 	errorsRoot = j.appendNode(Node{
-		Kind:        NodeKindArray,
-		ArrayValues: j.getIntSlice(),
+		Kind: NodeKindArray,
 	})
 	dataStart, dataEnd := j.appendString("data")
 	errorsStart, errorsEnd := j.appendString("errors")
@@ -457,7 +453,7 @@ func (j *JSON) appendErrorPath(errorPath []PathElement) int {
 	errPathStart, errPathEnd := j.appendString("path")
 	errPathArray := j.appendNode(Node{
 		Kind:        NodeKindArray,
-		ArrayValues: j.getIntSlice(),
+		ArrayValues: make([]int, 0, 1),
 	})
 	for _, elem := range errorPath {
 		if elem.Name != "" {
@@ -488,7 +484,7 @@ func (j *JSON) appendErrorPath(errorPath []PathElement) int {
 func (j *JSON) AppendNonNullableFieldIsNullErr(fieldPath string, errorPath []PathElement) int {
 	errObject := j.appendNode(Node{
 		Kind:         NodeKindObject,
-		ObjectFields: j.getIntSlice(),
+		ObjectFields: make([]int, 0, 2),
 	})
 	errMessageStart, errMessageEnd := j.appendString("message")
 	errMessageValueStart, errMessageValueEnd := j.appendString(fmt.Sprintf("Cannot return null for non-nullable field '%s'.", fieldPath))
@@ -511,7 +507,7 @@ func (j *JSON) AppendNonNullableFieldIsNullErr(fieldPath string, errorPath []Pat
 func (j *JSON) AppendErrorWithMessage(message string, errorPath []PathElement) int {
 	errObject := j.appendNode(Node{
 		Kind:         NodeKindObject,
-		ObjectFields: j.getIntSlice(),
+		ObjectFields: make([]int, 0, 2),
 	})
 	errMessageStart, errMessageEnd := j.appendString("message")
 	errMessageValueStart, errMessageValueEnd := j.appendString(message)
@@ -591,7 +587,8 @@ func (j *JSON) findKeyEnd(pos int) int {
 
 func (j *JSON) parseArray(array []byte, start int) (ref int, parseArrayErr error) {
 	node := Node{
-		Kind: NodeKindArray,
+		Kind:        NodeKindArray,
+		ArrayValues: j.getIntSlice(),
 	}
 	// nolint:staticcheck
 	_, err := jsonparser.ArrayEach(array, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
@@ -603,9 +600,6 @@ func (j *JSON) parseArray(array []byte, start int) (ref int, parseArrayErr error
 		if err != nil {
 			parseArrayErr = err
 			return
-		}
-		if node.ArrayValues == nil {
-			node.ArrayValues = j.getIntSlice()
 		}
 		node.ArrayValues = append(node.ArrayValues, valueNodeRef)
 	})
@@ -912,7 +906,7 @@ func (j *JSON) buildObjectPath(path []string) (root, child int) {
 		fieldRef := j.appendNode(field)
 		object := Node{
 			Kind:         NodeKindObject,
-			ObjectFields: j.getIntSlice(),
+			ObjectFields: make([]int, 0, 1),
 		}
 		object.ObjectFields = append(object.ObjectFields, fieldRef)
 		objectRef := j.appendNode(object)
@@ -985,8 +979,7 @@ func (n *Node) applyOffset(storage, node int) {
 
 func (j *JSON) MergeObjects(nodeRefs []int) int {
 	out := j.appendNode(Node{
-		Kind:         NodeKindObject,
-		ObjectFields: j.getIntSlice(),
+		Kind: NodeKindObject,
 	})
 	for _, nodeRef := range nodeRefs {
 		j.MergeNodes(out, nodeRef)

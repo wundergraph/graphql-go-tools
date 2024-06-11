@@ -7790,18 +7790,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"a"},
 										},
-										SkipDirectiveDefined: true,
-										SkipVariableName:     "skipA",
-										OnTypeNames:          [][]byte{[]byte("Query")},
+										OnTypeNames: [][]byte{[]byte("Query")},
 									},
 									{
 										Name: []byte("b"),
 										Value: &resolve.String{
 											Path: []string{"b"},
 										},
-										IncludeDirectiveDefined: true,
-										IncludeVariableName:     "includeB",
-										OnTypeNames:             [][]byte{[]byte("Query")},
+										OnTypeNames: [][]byte{[]byte("Query")},
 									},
 								},
 							},
@@ -7878,18 +7874,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Value: &resolve.String{
 											Path: []string{"a"},
 										},
-										SkipDirectiveDefined: true,
-										SkipVariableName:     "skipA",
-										OnTypeNames:          [][]byte{[]byte("Query")},
+										OnTypeNames: [][]byte{[]byte("Query")},
 									},
 									{
 										Name: []byte("b"),
 										Value: &resolve.String{
 											Path: []string{"b"},
 										},
-										IncludeDirectiveDefined: true,
-										IncludeVariableName:     "includeB",
-										OnTypeNames:             [][]byte{[]byte("Query")},
+										OnTypeNames: [][]byte{[]byte("Query")},
 									},
 								},
 							},
@@ -8022,8 +8014,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"a"},
 													},
-													SkipDirectiveDefined: true,
-													SkipVariableName:     "skipA",
 												},
 											},
 											Fetch: &resolve.SingleFetch{
@@ -8062,9 +8052,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											},
 										},
-										OnTypeNames:          [][]byte{[]byte("Query")},
-										SkipDirectiveDefined: true,
-										SkipVariableName:     "skipA",
+										OnTypeNames: [][]byte{[]byte("Query")},
 									},
 									{
 										Name: []byte("currentUser"),
@@ -8077,8 +8065,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Value: &resolve.String{
 														Path: []string{"b"},
 													},
-													IncludeDirectiveDefined: true,
-													IncludeVariableName:     "includeB",
 												},
 											},
 											Fetch: &resolve.SingleFetch{
@@ -8117,9 +8103,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											},
 										},
-										OnTypeNames:             [][]byte{[]byte("Query")},
-										IncludeDirectiveDefined: true,
-										IncludeVariableName:     "includeB",
+										OnTypeNames: [][]byte{[]byte("Query")},
 									},
 								},
 							},
