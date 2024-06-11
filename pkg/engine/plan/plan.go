@@ -272,6 +272,10 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	config := p.config
 
+	// clean objects and current fields from previous invocation
+	p.planningVisitor.objects = p.planningVisitor.objects[:0]
+	p.planningVisitor.currentFields = p.planningVisitor.currentFields[:0]
+
 	// select operation
 
 	p.selectOperation(operation, operationName, report)
