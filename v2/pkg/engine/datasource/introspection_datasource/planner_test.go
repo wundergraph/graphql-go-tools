@@ -376,7 +376,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 								Fetch: &resolve.ParallelFetch{
 									Fetches: []resolve.Fetch{
 										&resolve.SingleFetch{
-											FetchID:              1,
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID: 1,
+											},
 											DataSourceIdentifier: dataSourceIdentifier,
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
@@ -397,7 +399,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											},
 										},
 										&resolve.SingleFetch{
-											FetchID:              2,
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID: 2,
+											},
 											DataSourceIdentifier: dataSourceIdentifier,
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,

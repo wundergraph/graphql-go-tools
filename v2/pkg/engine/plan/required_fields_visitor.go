@@ -52,7 +52,7 @@ func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requ
 	return visitor.skipFieldRefs, visitor.requiredFieldRefs
 }
 
-func testRequiredFields(input *addRequiredFieldsInput) (allPresent bool) {
+func testRequiredFields(input *addRequiredFieldsInput) (allRequiredFieldsAddedToOperation bool, requiredFieldRefs []int) {
 	walker := astvisitor.NewWalker(48)
 
 	visitor := &requiredFieldsVisitor{
@@ -69,7 +69,7 @@ func testRequiredFields(input *addRequiredFieldsInput) (allPresent bool) {
 
 	walker.Walk(input.key, input.definition, input.report)
 
-	return visitor.allFieldsPresent
+	return visitor.allFieldsPresent, visitor.requiredFieldRefs
 }
 
 type requiredFieldsVisitor struct {

@@ -31,11 +31,18 @@ type DebugConfiguration struct {
 	PrintOperationEnableASTRefs   bool
 	PrintPlanningPaths            bool
 	PrintQueryPlans               bool
-	PrintNodeSuggestions          bool
+
+	PrintNodeSuggestions bool
+	NodeSuggestion       NodeSuggestionDebugConfiguration
 
 	ConfigurationVisitor bool
 	PlanningVisitor      bool
 	DatasourceVisitor    bool
+}
+
+type NodeSuggestionDebugConfiguration struct {
+	SelectionReasons  bool
+	FilterNotSelected bool
 }
 
 type TypeConfigurations []TypeConfiguration

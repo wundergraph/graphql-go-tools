@@ -1,5 +1,9 @@
 package plan
 
+import (
+	"encoding/json"
+)
+
 type FederationMetaData struct {
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
@@ -37,10 +41,15 @@ type EntityInterfaceConfiguration struct {
 }
 
 type FederationFieldConfiguration struct {
-	TypeName              string
-	FieldName             string
-	SelectionSet          string
-	DisableEntityResolver bool // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	TypeName              string `json:"type_name"`
+	FieldName             string `json:"field_name,omitempty"`
+	SelectionSet          string `json:"selection_set"`
+	DisableEntityResolver bool   `json:"-"` // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+}
+
+func (f FederationFieldConfiguration) String() string {
+	b, _ := json.Marshal(f)
+	return string(b)
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
