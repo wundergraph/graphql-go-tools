@@ -204,6 +204,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	if err != nil {
 		return err
 	}
+
 	_, err = buf.WriteTo(writer)
 	return err
 }
