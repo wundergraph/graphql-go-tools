@@ -198,7 +198,7 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	}
 
 	if p.config.Debug.PrintPlanningPaths {
-		p.debugMessage(fmt.Sprintf("Planning paths after initial run"))
+		p.debugMessage("Planning paths after initial run")
 		p.printRevisitInfo()
 		p.printPlanningPaths()
 	}

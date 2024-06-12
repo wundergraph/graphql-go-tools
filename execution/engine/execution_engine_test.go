@@ -1379,6 +1379,18 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						},
 						ChildNodes: []plan.TypeField{
 							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunction", "friends"},
+							},
+							{
+								TypeName:   "Starship",
+								FieldNames: []string{"name", "length"},
+							},
+							{
 								TypeName:   "Character",
 								FieldNames: []string{"name"},
 							},

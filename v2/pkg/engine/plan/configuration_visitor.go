@@ -1147,12 +1147,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 	if waitingForDependency {
 		// if we are waiting for dependency it means that we have processed requires configuration,
 		// so we could check if required fields were planned
-		if c.hasPlannedFieldsRequiredByRequires(currentSelectionSet, requiresConfiguration.SelectionSet, typeName, fieldName, currentPath) {
-			return true
-		}
-
-		// we have processed requires config, but fields not yet planned
-		return false
+		return c.hasPlannedFieldsRequiredByRequires(currentSelectionSet, requiresConfiguration.SelectionSet, typeName, fieldName, currentPath)
 	}
 
 	// we should plan adding required fields for the field
