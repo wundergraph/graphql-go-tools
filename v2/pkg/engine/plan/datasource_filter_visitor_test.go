@@ -45,6 +45,11 @@ func (b *dsBuilder) KeysMetadata(keys FederationFieldConfigurations) *dsBuilder 
 	return b
 }
 
+func (b *dsBuilder) WithMetadata(f func(data *FederationMetaData)) *dsBuilder {
+	f(&b.ds.FederationMetaData)
+	return b
+}
+
 func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
 	b.ds.hash = hash
 	return b

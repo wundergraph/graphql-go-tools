@@ -298,7 +298,13 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 	// when we do not have fragments
 	if !selectionSetInfo.hasInlineFragmentsOnInterfaces && !selectionSetInfo.hasInlineFragmentsOnObjects {
 		// check that all types implementing the interface have a root node with the requested fields
-		return !r.allEntitiesHaveFieldsAsRootNode(entityNames, selectionSetInfo.fields)
+		if !r.allEntitiesHaveFieldsAsRootNode(entityNames, selectionSetInfo.fields) {
+			return true
+		}
+
+		return slices.ContainsFunc(entityNames, func(entityName string) bool {
+			return r.hasRequiresConfigurationForField(entityName, selectionSetInfo.fields)
+		})
 	}
 
 	if selectionSetInfo.hasInlineFragmentsOnObjects {

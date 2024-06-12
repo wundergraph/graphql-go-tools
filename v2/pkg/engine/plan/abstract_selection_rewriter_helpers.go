@@ -182,10 +182,6 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 		return true
 	}
 
-	if !inlineFragment.selectionSetInfo.hasInlineFragmentsOnInterfaces && !inlineFragment.selectionSetInfo.hasInlineFragmentsOnObjects {
-		return false
-	}
-
 	// if interface fragment has inline fragments on objects
 	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
 	// check each fragment for the presence of other interface fragments
@@ -212,8 +208,13 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 	}
 
 	if inlineFragment.selectionSetInfo.hasFields {
+		// NOTE: maybe we need to filter this typenames by parentSelectionValidTypes?
 		for _, typeName := range inlineFragment.typeNamesImplementingInterfaceInCurrentDS {
 			if !r.typeHasAllFieldLocal(typeName, inlineFragment.selectionSetInfo.fields) {
+				return true
+			}
+
+			if r.hasRequiresConfigurationForField(typeName, inlineFragment.selectionSetInfo.fields) {
 				return true
 			}
 		}
@@ -230,6 +231,18 @@ func (r *fieldSelectionRewriter) typeHasAllFieldLocal(typeName string, fields []
 	}
 
 	return true
+}
+
+func (r *fieldSelectionRewriter) hasRequiresConfigurationForField(typeName string, fields []fieldSelection) bool {
+	return slices.ContainsFunc(r.dsConfiguration.FederationConfiguration().Requires, func(cfg FederationFieldConfiguration) bool {
+		if cfg.TypeName != typeName {
+			return false
+		}
+
+		return slices.ContainsFunc(fields, func(fieldSelection fieldSelection) bool {
+			return cfg.FieldName == fieldSelection.fieldName
+		})
+	})
 }
 
 func (r *fieldSelectionRewriter) allFragmentTypesImplementsInterfaceTypes(inlineFragments []inlineFragmentSelection, interfaceTypes []string) bool {
