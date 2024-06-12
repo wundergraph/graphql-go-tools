@@ -15,8 +15,9 @@ import (
 )
 
 type configurationVisitor struct {
-	logger abstractlogger.Logger
-	debug  bool
+	logger                             abstractlogger.Logger
+	debug                              bool
+	suggestionsSelectionReasonsEnabled bool
 
 	operationName         string        // graphql query name
 	operation, definition *ast.Document // graphql operation and schema documents
@@ -39,6 +40,7 @@ type configurationVisitor struct {
 
 	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
 	fieldsWithProcessedRequires       map[int]struct{}                        // fieldsWithProcessedRequires is a map[FieldRef] of already processed fields which we check for @requires directive
+	fieldsWithProcessedProvides       map[int]struct{}                        // fieldsWithProcessedProvides is a map[FieldRef] of already processed fields which we check for @provides directive
 	visitedFieldsAbstractChecks       map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
 	fieldDependenciesForPlanners      map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
 	fieldsPlannedOn                   map[int][]int                           // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
@@ -293,6 +295,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.fieldWaitingForRequiresDependency = make(map[int][]int)
 
 	c.fieldsWithProcessedRequires = make(map[int]struct{})
+	c.fieldsWithProcessedProvides = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 }
 
@@ -968,8 +971,8 @@ func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) as
 
 // handleMissingPath - records missing path for the case when we don't yet have a planner for the field
 func (c *configurationVisitor) handleMissingPath(typeName string, fieldName string, currentPath string) {
-	suggestedDataSourceHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
-	if len(suggestedDataSourceHashes) > 0 {
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	if len(suggestions) > 0 {
 		parentPath, found := c.findPreviousRootPath(currentPath)
 		if found {
 			c.addMissingPath(currentPath, parentPath)
@@ -978,7 +981,9 @@ func (c *configurationVisitor) handleMissingPath(typeName string, fieldName stri
 
 		allPlannersHasPath := true
 		for i := range c.planners {
-			if slices.Contains(suggestedDataSourceHashes, c.planners[i].DataSourceConfiguration().Hash()) {
+			if slices.ContainsFunc(suggestions, func(suggestion *NodeSuggestion) bool {
+				return suggestion.DataSourceHash == c.planners[i].DataSourceConfiguration().Hash()
+			}) {
 				if !c.planners[i].HasPath(currentPath) {
 					allPlannersHasPath = false
 					break
