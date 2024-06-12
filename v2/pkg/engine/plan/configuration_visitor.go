@@ -581,14 +581,17 @@ func (c *configurationVisitor) handleProvidesSuggestions(ref int, typeName, fiel
 }
 
 func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (plannerIdx int, planned bool) {
-	dsHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for plannerIdx, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
 		currentPlannerDSHash := dsConfiguration.Hash()
 		_, isProvided := plannerConfig.ProvidedFields().HasSuggestionForPath(typeName, fieldName, currentPath)
-		hasSuggestion := slices.Contains(dsHashes, currentPlannerDSHash)
+		suggestionIdx := slices.IndexFunc(suggestions, func(suggestion *NodeSuggestion) bool {
+			return suggestion.DataSourceHash == currentPlannerDSHash
+		})
+		hasSuggestion := suggestionIdx != -1
 
 		// On a union we will never get a node suggestion because union type is not in the root or child nodes
 		shouldHandleTypeNameOnUnion :=
@@ -657,13 +660,15 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 }
 
 func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) DataSource {
-	dsHashes := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
-	if len(dsHashes) == 0 {
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	if len(suggestions) == 0 {
 		return nil
 	}
 
 	for _, dsCfg := range c.dataSources {
-		if !slices.Contains(dsHashes, dsCfg.Hash()) {
+		if !slices.ContainsFunc(suggestions, func(suggestion *NodeSuggestion) bool {
+			return suggestion.DataSourceHash == dsCfg.Hash()
+		}) {
 			continue
 		}
 
