@@ -97,7 +97,7 @@ func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) {
 	f.items = append(f.items, node)
 }
 
-func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (dsHashes []DSHash) {
+func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (suggestions []*NodeSuggestion) {
 	items, ok := f.pathSuggestions[path]
 	if !ok {
 		return nil
@@ -105,11 +105,11 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 
 	for i := range items {
 		if typeName == items[i].TypeName && fieldName == items[i].FieldName {
-			dsHashes = append(dsHashes, items[i].DataSourceHash)
+			suggestions = append(suggestions, items[i])
 		}
 	}
 
-	return dsHashes
+	return suggestions
 }
 
 func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string) (dsHash DSHash, ok bool) {
@@ -244,6 +244,7 @@ func (f *NodeSuggestions) printNodes(msg string) {
 
 func (f *NodeSuggestions) populateHasSuggestions() map[DSHash]struct{} {
 	unique := make(map[DSHash]struct{})
+	f.pathSuggestions = make(map[string][]*NodeSuggestion, len(f.pathSuggestions))
 
 	for i := range f.items {
 		if !f.items[i].Selected {

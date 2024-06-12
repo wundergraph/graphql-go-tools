@@ -939,6 +939,60 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: false,
 		},
 		{
+			name:               "all fields local but one of the fields has requires directive. query without fragments",
+			definition:         definition,
+			upstreamDefinition: definition,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name").
+				RootNode("Admin", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				WithMetadata(func(md *FederationMetaData) {
+					md.Requires = []FederationFieldConfiguration{
+						{
+							TypeName:     "User",
+							FieldName:    "name",
+							SelectionSet: "any",
+						},
+					}
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						name
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					iface {
+						... on Admin {
+							name
+						}
+						... on ImplementsNodeNotInUnion {
+							name
+						}
+						... on Moderator {
+							name
+						}
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name:               "all fields local. query has user fragment",
 			definition:         definition,
 			upstreamDefinition: definition,
@@ -1315,15 +1369,44 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name:               "Union with interface fragment: no entity fragments, all fields local",
-			definition:         definition,
-			upstreamDefinition: definition,
+			name:       "Union with interface fragment: no entity fragments, all fields local",
+			definition: definition,
+			upstreamDefinition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String!
+				}
+			
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+				
+				union Account = User | Admin | Moderator
+		
+				type Query {
+					iface: Node!
+					accounts: [Account!]!
+				}
+			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id", "name").
 				RootNode("Moderator", "id", "name", "isModerator").
-				RootNode("Node", "id", "name").
+				ChildNode("Node", "id", "name").
 				KeysMetadata(FederationFieldConfigurations{
 					{
 						TypeName:     "User",
@@ -1357,6 +1440,95 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					}
 				}`,
 			shouldRewrite: false,
+		},
+		{
+			name:       "Union with interface fragment: no entity fragments, all fields local - but one of the fields has requires",
+			definition: definition,
+			upstreamDefinition: `
+				interface Node {
+					id: ID!
+					name: String!
+				}
+				
+				type User implements Node {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements Node {
+					id: ID!
+					name: String! @requires(fields: "importantNote")
+					importantNote: String! @external
+				}
+			
+				type Moderator implements Node {
+					id: ID!
+					name: String!
+					isModerator: Boolean!
+				}
+				
+				union Account = User | Admin | Moderator
+		
+				type Query {
+					iface: Node!
+					accounts: [Account!]!
+				}
+			`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface", "accounts").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id", "name").
+				RootNode("Moderator", "id", "name", "isModerator").
+				ChildNode("Node", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Moderator",
+						SelectionSet: "id",
+					},
+				}).
+				WithMetadata(func(meta *FederationMetaData) {
+					meta.Requires = []FederationFieldConfiguration{
+						{
+							TypeName:     "Admin",
+							FieldName:    "name",
+							SelectionSet: "importantNote",
+						},
+					}
+				}).
+				DS(),
+			fieldName: "accounts",
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					accounts {
+						... on Admin {
+							name
+						}
+						... on Moderator {
+							name
+						}
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
 		},
 		{
 			name:       "Union with interface fragment: no entity fragments, user.name is local, admin.name and moderator.name is external",

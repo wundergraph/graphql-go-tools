@@ -119,7 +119,8 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
-	ReasonStage3SelectAvailableNode = "stage3: select first available node"
+	ReasonStage3SelectAvailableNode                            = "stage3: select first available node"
+	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 )
@@ -265,16 +266,36 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			continue
 		}
 
+		if !secondRun {
+			continue
+		}
 		// if after all checks node was not selected, select it
 		// this could happen in case choises are fully equal
-		if secondRun {
-			// in case current node suggestion is an entity root node, and it contains key with disabled resolver
-			// it makes such node less preferable for selection
-			if f.nodes.items[i].LessPreferable {
-				continue
-			}
-			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
+
+		// in case current node suggestion is an entity root node, and it contains key with disabled resolver
+		// it makes such node less preferable for selection
+		if f.nodes.items[i].LessPreferable {
+			continue
 		}
+
+		// we could select first available node only in case it is a leaf node
+		if f.nodes.isLeaf(i) {
+			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
+			continue
+		}
+
+		currentIdx := i
+		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(i))
+
+		for _, duplicateIdx := range nodeDuplicates {
+			duplicateChildNodeCount := len(f.nodes.childNodesOnSameSource(duplicateIdx))
+			if duplicateChildNodeCount > currentChildNodeCount {
+				currentIdx = duplicateIdx
+				currentChildNodeCount = duplicateChildNodeCount
+			}
+		}
+
+		f.nodes.items[currentIdx].selectWithReason(ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource, f.enableSelectionReasons)
 	}
 }
 

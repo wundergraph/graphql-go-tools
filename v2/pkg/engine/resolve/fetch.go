@@ -33,12 +33,18 @@ func (_ *MultiFetch) FetchKind() FetchKind {
 
 type SingleFetch struct {
 	FetchConfiguration
-	FetchID              int
-	DependsOnFetchIDs    []int
+	FetchDependencies
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+}
+
+// FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
+// e.g. should be fetched only after all dependent fetches are fetched
+type FetchDependencies struct {
+	FetchID           int
+	DependsOnFetchIDs []int
 }
 
 type PostProcessingConfiguration struct {
@@ -86,8 +92,8 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
 
-// ParallelFetch - TODO: document better
-// should be used only for object fields which could be fetched parallel
+// ParallelFetch - contains fetches which not depends on each other
+// Fetches - will always contain only SingleFetch
 type ParallelFetch struct {
 	Fetches []Fetch
 	Trace   *DataSourceLoadTrace
@@ -97,8 +103,8 @@ func (_ *ParallelFetch) FetchKind() FetchKind {
 	return FetchKindParallel
 }
 
-// SerialFetch - TODO: document better
-// should be used only for object fields which should be fetched serial
+// SerialFetch - contains fetches which depends on each other and should be executed in a specific order
+// Fetches - will contain ParallelFetch or SingleFetch
 type SerialFetch struct {
 	Fetches []Fetch
 	Trace   *DataSourceLoadTrace
@@ -108,9 +114,11 @@ func (_ *SerialFetch) FetchKind() FetchKind {
 	return FetchKindSerial
 }
 
-// BatchEntityFetch - TODO: document better
+// BatchEntityFetch - represents nested entity fetch on array field
 // allows to join nested fetches to the same subgraph into a single fetch
+// representations variable will contain multiple items according to amount of entities matching this query
 type BatchEntityFetch struct {
+	FetchDependencies
 	Input                BatchInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
@@ -138,7 +146,10 @@ func (_ *BatchEntityFetch) FetchKind() FetchKind {
 	return FetchKindEntityBatch
 }
 
+// EntityFetch - represents nested entity fetch on object field
+// representations variable will contain single item
 type EntityFetch struct {
+	FetchDependencies
 	Input                EntityInput
 	DataSource           DataSource
 	PostProcessing       PostProcessingConfiguration
