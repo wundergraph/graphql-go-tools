@@ -2357,7 +2357,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 		}
 
 		report := operationreport.Report{}
-		cachedPlan := engine.getCachedPlan(firstInternalExecCtx.postProcessor, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx.postProcessor, &gqlRequest, &schema.document, gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -2368,7 +2368,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"123abc"},
 		}
 
-		cachedPlan = engine.getCachedPlan(secondInternalExecCtx.postProcessor, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx.postProcessor, &gqlRequest, &schema.document, gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -2385,7 +2385,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 		}
 
 		report := operationreport.Report{}
-		cachedPlan := engine.getCachedPlan(firstInternalExecCtx.postProcessor, &gqlRequest.document, &schema.document, gqlRequest.OperationName, &report)
+		cachedPlan := engine.getCachedPlan(firstInternalExecCtx.postProcessor, &gqlRequest, &schema.document, gqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ := engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 1, engine.executionPlanCache.Len())
@@ -2396,7 +2396,7 @@ func TestExecutionEngineV2_GetCachedPlan(t *testing.T) {
 			http.CanonicalHeaderKey("Authorization"): []string{"xyz098"},
 		}
 
-		cachedPlan = engine.getCachedPlan(secondInternalExecCtx.postProcessor, &differentGqlRequest.document, &schema.document, differentGqlRequest.OperationName, &report)
+		cachedPlan = engine.getCachedPlan(secondInternalExecCtx.postProcessor, &differentGqlRequest, &schema.document, differentGqlRequest.OperationName, &report)
 		_, oldestCachedPlan, _ = engine.executionPlanCache.GetOldest()
 		assert.False(t, report.HasErrors())
 		assert.Equal(t, 2, engine.executionPlanCache.Len())
@@ -2863,5 +2863,71 @@ func BenchmarkExecutionEngineV2_Execute(b *testing.B) {
 		execCtx, execCtxCancel := context.WithCancel(context.Background())
 		_ = engine.Execute(execCtx, &operation, &resultWriter)
 		execCtxCancel()
+	}
+}
+
+func BenchmarkExecutionEngineV2_Execute_AstDocumentPool(b *testing.B) {
+	b.ResetTimer()   // Reset the benchmark timer before starting the loop
+	b.ReportAllocs() // Report memory allocations
+
+	schemaString := `type Query {
+	hello: String!
+}`
+	schema, _ := NewSchemaFromString(schemaString)
+
+	operation := Request{
+		OperationName: "",
+		Variables:     nil,
+		Query:         "{ hello }",
+	}
+
+	dataSources := []plan.DataSourceConfiguration{
+		{
+			RootNodes: []plan.TypeField{
+				{
+					TypeName:   "Query",
+					FieldNames: []string{"hello"},
+				},
+			},
+			ChildNodes: []plan.TypeField{},
+			Factory: &rest_datasource.Factory{
+				Client: &http.Client{
+					Transport: benchmarkRoundTripper{},
+				},
+			},
+			Custom: rest_datasource.ConfigJSON(rest_datasource.Configuration{
+				Fetch: rest_datasource.FetchConfiguration{
+					URL:    "https://example.com/",
+					Method: "GET",
+				},
+			}),
+		},
+	}
+	fields := []plan.FieldConfiguration{
+		{
+			TypeName:  "Query",
+			FieldName: "hello",
+			Arguments: []plan.ArgumentConfiguration{},
+		},
+	}
+
+	engineConf := NewEngineV2Configuration(schema)
+	engineConf.SetDataSources(dataSources)
+	engineConf.SetFieldConfigurations(fields)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	engine, _ := NewExecutionEngineV2(ctx, abstractlogger.Noop{}, engineConf)
+	for n := 0; n < b.N; n++ {
+		resultWriter := NewEngineResultWriter()
+		execCtx, execCtxCancel := context.WithCancel(context.Background())
+		_ = engine.Execute(execCtx, &operation, &resultWriter)
+		execCtxCancel()
+
+		operation.Cleanup()
+		// Force the engine to parse and normalize the query again
+		operation.isParsed = false
+		operation.isNormalized = false
+		operation.isDocumentRecyclable = false
 	}
 }

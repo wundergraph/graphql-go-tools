@@ -7,6 +7,8 @@ package ast
 
 const InvalidRef = -1
 
+var astDocumentPool = newDocumentPool()
+
 type Document struct {
 	Input                        Input
 	RootNodes                    []Node
@@ -55,7 +57,7 @@ type Document struct {
 	Index                        Index
 }
 
-func NewDocument() *Document {
+func newDocumentWithPreAllocation() *Document {
 	return &Document{
 		RootNodes:                    make([]Node, 0, 48),
 		RootOperationTypeDefinitions: make([]RootOperationTypeDefinition, 0, 3),
@@ -104,6 +106,14 @@ func NewDocument() *Document {
 			nodes: make(map[uint64][]Node, 48),
 		},
 	}
+}
+
+func NewDocument() *Document {
+	return astDocumentPool.Get()
+}
+
+func (d *Document) Recycle() {
+	astDocumentPool.Put(d)
 }
 
 func (d *Document) Reset() {

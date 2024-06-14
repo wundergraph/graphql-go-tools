@@ -663,9 +663,10 @@ func (p *Planner) updateRepresentationsVariable(fieldConfig *plan.FieldConfigura
 	}
 
 	// "variables\":{\"representations\":[{\"upc\":\$$0$$\,\"__typename\":\"Product\"}]}}
-	parser := astparser.NewParser()
 	doc := ast.NewDocument()
 	doc.Input.ResetInputString(p.config.Federation.ServiceSDL)
+
+	parser := astparser.NewParser()
 	report := &operationreport.Report{}
 	parser.Parse(doc, report)
 	if report.HasErrors() {

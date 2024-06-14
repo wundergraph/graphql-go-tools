@@ -289,7 +289,7 @@ func (e *ExecutionEngineV2) Setup(ctx context.Context, postProcessor *postproces
 }
 
 func (e *ExecutionEngineV2) Plan(postProcessor *postprocess.Processor, operation *Request, report *operationreport.Report) (plan.Plan, error) {
-	cachedPlan := e.getCachedPlan(postProcessor, &operation.document, &e.config.schema.document, operation.OperationName, report)
+	cachedPlan := e.getCachedPlan(postProcessor, operation, &e.config.schema.document, operation.OperationName, report)
 	if report.HasErrors() {
 		return nil, report
 	}
@@ -317,12 +317,12 @@ func (e *ExecutionEngineV2) Execute(ctx context.Context, operation *Request, wri
 	return e.customExecutionEngineExecutor.Execute(ctx, operation, writer, options...)
 }
 
-func (e *ExecutionEngineV2) getCachedPlan(postProcessor *postprocess.Processor, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
+func (e *ExecutionEngineV2) getCachedPlan(postProcessor *postprocess.Processor, request *Request, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
 
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)
-	err := astprinter.Print(operation, definition, hash)
+	err := astprinter.Print(&request.document, definition, hash)
 	if err != nil {
 		report.AddInternalError(err)
 		return nil
@@ -332,13 +332,14 @@ func (e *ExecutionEngineV2) getCachedPlan(postProcessor *postprocess.Processor, 
 
 	if cached, ok := e.executionPlanCache.Get(cacheKey); ok {
 		if p, ok := cached.(plan.Plan); ok {
+			request.isDocumentRecyclable = true
 			return p
 		}
 	}
 
 	e.plannerMu.Lock()
 	defer e.plannerMu.Unlock()
-	planResult := e.planner.Plan(operation, definition, operationName, report)
+	planResult := e.planner.Plan(&request.document, definition, operationName, report)
 	if report.HasErrors() {
 		return nil
 	}
