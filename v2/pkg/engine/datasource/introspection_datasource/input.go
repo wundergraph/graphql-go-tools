@@ -29,16 +29,17 @@ type introspectionInput struct {
 }
 
 var (
-	lBrace                 = []byte("{")
-	rBrace                 = []byte("}")
-	comma                  = []byte(",")
-	requestTypeField       = []byte(`"request_type":`)
-	onTypeField            = []byte(`"on_type_name":"{{ .object.name }}"`)
-	typeNameField          = []byte(`"type_name":"{{ .arguments.name }}"`)
-	includeDeprecatedField = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
+	lBrace                         = []byte("{")
+	rBrace                         = []byte("}")
+	comma                          = []byte(",")
+	requestTypeField               = []byte(`"request_type":`)
+	onTypeField                    = []byte(`"on_type_name":"{{ .object.name }}"`)
+	typeNameField                  = []byte(`"type_name":"{{ .arguments.name }}"`)
+	includeDeprecatedFieldArgument = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
+	includeDeprecatedFalse         = []byte(`"include_deprecated":false`)
 )
 
-func buildInput(fieldName string) string {
+func buildInput(fieldName string, hasIncludeDeprecatedArgument bool) string {
 	buf := &bytes.Buffer{}
 	buf.Write(lBrace)
 
@@ -49,10 +50,10 @@ func buildInput(fieldName string) string {
 		buf.Write(typeNameField)
 	case fieldsFieldName:
 		writeRequestTypeField(buf, TypeFieldsRequestType)
-		writeOnTypeFields(buf)
+		writeOnTypeFields(buf, hasIncludeDeprecatedArgument)
 	case enumValuesFieldName:
 		writeRequestTypeField(buf, TypeEnumValuesRequestType)
-		writeOnTypeFields(buf)
+		writeOnTypeFields(buf, hasIncludeDeprecatedArgument)
 	default:
 		writeRequestTypeField(buf, SchemaRequestType)
 	}
@@ -67,9 +68,13 @@ func writeRequestTypeField(buf *bytes.Buffer, inputType requestType) {
 	buf.Write([]byte(strconv.Itoa(int(inputType))))
 }
 
-func writeOnTypeFields(buf *bytes.Buffer) {
+func writeOnTypeFields(buf *bytes.Buffer, hasIncludeDeprecatedArgument bool) {
 	buf.Write(comma)
 	buf.Write(onTypeField)
 	buf.Write(comma)
-	buf.Write(includeDeprecatedField)
+	if hasIncludeDeprecatedArgument {
+		buf.Write(includeDeprecatedFieldArgument)
+	} else {
+		buf.Write(includeDeprecatedFalse)
+	}
 }

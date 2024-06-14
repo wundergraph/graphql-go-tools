@@ -14,12 +14,13 @@ type Configuration struct {
 }
 
 type Planner[T Configuration] struct {
-	introspectionData *introspection.Data
-	v                 *plan.Visitor
-	rootField         int
-	rootFieldName     string
-	rootFielPath      string
-	isArrayItem       bool
+	introspectionData            *introspection.Data
+	v                            *plan.Visitor
+	rootField                    int
+	rootFieldName                string
+	rootFielPath                 string
+	hasIncludeDeprecatedArgument bool
+	isArrayItem                  bool
 }
 
 func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
@@ -50,7 +51,11 @@ func (p *Planner[T]) EnterField(ref int) {
 	fieldName := p.v.Operation.FieldNameString(ref)
 	fieldAliasOrName := p.v.Operation.FieldAliasOrNameString(ref)
 	switch fieldName {
-	case typeFieldName, fieldsFieldName, enumValuesFieldName, schemaFieldName:
+	case fieldsFieldName, enumValuesFieldName:
+		p.hasIncludeDeprecatedArgument = p.v.Operation.FieldHasArguments(ref)
+
+		fallthrough
+	case typeFieldName, schemaFieldName:
 		p.rootField = ref
 		p.rootFieldName = fieldName
 		p.rootFielPath = fieldAliasOrName
@@ -58,7 +63,7 @@ func (p *Planner[T]) EnterField(ref int) {
 }
 
 func (p *Planner[T]) configureInput() string {
-	return buildInput(p.rootFieldName)
+	return buildInput(p.rootFieldName, p.hasIncludeDeprecatedArgument)
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
