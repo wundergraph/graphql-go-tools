@@ -9,7 +9,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 func extractVariablesDefaultValue(walker *astvisitor.Walker) *variablesDefaultValueExtractionVisitor {
@@ -81,15 +80,12 @@ func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
 
 	for _, definitionInputValueDefRef := range v.definition.FieldDefinitions[fieldDefRef].ArgumentsDefinition.Refs {
 		operationArgRef, exists := v.operation.FieldArgument(ref, v.definition.InputValueDefinitionNameBytes(definitionInputValueDefRef))
-
 		if exists {
 			operationArgValue := v.operation.ArgumentValue(operationArgRef)
 			if v.operation.ValueContainsVariable(operationArgValue) {
 				defTypeRef := v.definition.InputValueDefinitions[definitionInputValueDefRef].Type
 				v.traverseValue(operationArgValue, defTypeRef)
 			}
-		} else {
-			v.processDefaultFieldArguments(ref, definitionInputValueDefRef)
 		}
 	}
 }
@@ -224,30 +220,6 @@ func (v *variablesDefaultValueExtractionVisitor) saveArgumentsWithTypeNotNull(op
 	}
 
 	v.variablesNamesUsedInPositionsExpectingNonNullType = append(v.variablesNamesUsedInPositionsExpectingNonNullType, v.operation.VariableValueNameBytes(operationVariableValueRef))
-}
-
-func (v *variablesDefaultValueExtractionVisitor) processDefaultFieldArguments(operationFieldRef, definitionInputValueDefRef int) {
-	if !v.definition.InputValueDefinitionHasDefaultValue(definitionInputValueDefRef) {
-		return
-	}
-
-	variableNameBytes := v.operation.GenerateUnusedVariableDefinitionName(v.Ancestors[0].Ref)
-	valueBytes, err := v.definition.ValueToJSON(v.definition.InputValueDefinitionDefaultValue(definitionInputValueDefRef))
-	if err != nil {
-		return
-	}
-	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, unsafebytes.BytesToString(variableNameBytes), valueBytes)
-	if err != nil {
-		v.StopWithInternalErr(err)
-		return
-	}
-
-	variableValueRef, argRef := v.operation.ImportVariableValueArgument(v.definition.InputValueDefinitionNameBytes(definitionInputValueDefRef), variableNameBytes)
-	defType := v.definition.InputValueDefinitions[definitionInputValueDefRef].Type
-	importedDefType := v.importer.ImportType(defType, v.definition, v.operation)
-
-	v.operation.AddArgumentToField(operationFieldRef, argRef)
-	v.operation.AddVariableDefinitionToOperationDefinition(v.operationRef, variableValueRef, importedDefType)
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterDocument(operation, definition *ast.Document) {

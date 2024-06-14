@@ -53,9 +53,9 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				mutation simple {
 			  		simple
 				}`, "", `
-				mutation simple($a: String) {
-					simple(input: $a)
-				}`, ``, `{"a":"foo"}`)
+				mutation simple {
+					simple
+				}`, ``, ``)
 		})
 
 		t.Run("value provided", func(t *testing.T) {
@@ -73,9 +73,9 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 				mutation simple($a: String) {
 			  		mixed(a: $a, b: "bar")
 				}`, "", `
-				mutation simple($a: String, $b: String, $c: String!, $d: String) {
-			  		mixed(a: $a, b: "bar", input: $b, nonNullInput: $c, nullableWithNullDefault: $d)
-				}`, `{"a":"aaa"}`, `{"d":null,"c":"bar","b":"foo","a":"aaa"}`)
+				mutation simple($a: String) {
+			  		mixed(a: $a, b: "bar")
+				}`, `{"a":"aaa"}`, `{"a":"aaa"}`)
 		})
 	})
 
@@ -264,9 +264,9 @@ func TestVariablesDefaultValueExtraction(t *testing.T) {
 			mutation simple($a: String = "bar", $b: String = "bazz") {
 				mixed(a: $a, b: $b)
 			}`, "", `
-			mutation simple($a: String, $b: String, $c: String, $d: String!, $e: String) {
-				mixed(a: $a, b: $b, input: $c, nonNullInput: $d, nullableWithNullDefault: $e)
-			}`, `{"a":"aaa"}`, `{"e":null,"d":"bar","c":"foo","b":"bazz","a":"aaa"}`)
+			mutation simple($a: String, $b: String) {
+				mixed(a: $a, b: $b)
+			}`, `{"a":"aaa"}`, `{"b":"bazz","a":"aaa"}`)
 
 	})
 

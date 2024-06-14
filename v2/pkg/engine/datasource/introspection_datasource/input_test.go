@@ -9,18 +9,20 @@ import (
 )
 
 func TestBuildInput(t *testing.T) {
-	run := func(fieldName string, expectedJson string) func(t *testing.T) {
+	run := func(fieldName string, expectedJson string, hasDeprecatedArg bool) func(t *testing.T) {
 		t.Helper()
 		return func(t *testing.T) {
-			actualResult := buildInput(fieldName)
+			actualResult := buildInput(fieldName, hasDeprecatedArg)
 			assert.Equal(t, expectedJson, actualResult)
 		}
 	}
 
-	t.Run("schema introspection", run(schemaFieldName, `{"request_type":1}`))
-	t.Run("type introspection", run(typeFieldName, `{"request_type":2,"type_name":"{{ .arguments.name }}"}`))
-	t.Run("type fields", run(fieldsFieldName, `{"request_type":3,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`))
-	t.Run("type enum values", run(enumValuesFieldName, `{"request_type":4,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`))
+	t.Run("schema introspection", run(schemaFieldName, `{"request_type":1}`, false))
+	t.Run("type introspection", run(typeFieldName, `{"request_type":2,"type_name":"{{ .arguments.name }}"}`, false))
+	t.Run("type fields", run(fieldsFieldName, `{"request_type":3,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`, true))
+	t.Run("type enum values", run(enumValuesFieldName, `{"request_type":4,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`, true))
+	t.Run("type fields default for include deprecated", run(fieldsFieldName, `{"request_type":3,"on_type_name":"{{ .object.name }}","include_deprecated":false}`, false))
+	t.Run("type enum values for include deprecated", run(enumValuesFieldName, `{"request_type":4,"on_type_name":"{{ .object.name }}","include_deprecated":false}`, false))
 }
 
 func TestUnmarshalIntrospectionInput(t *testing.T) {
