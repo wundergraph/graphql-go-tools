@@ -240,9 +240,9 @@ func TestNormalizeOperation(t *testing.T) {
 		run(t, testDefinition, `
 			query {
 				simple
-			}`, `query($a: String) {
-			  simple(input: $a)
-			}`, ``, `{"a":"foo"}`)
+			}`, `query {
+			  simple
+			}`, ``, ``)
 	})
 	t.Run("input list coercion inline", func(t *testing.T) {
 		run(t, inputCoercionForListDefinition, `
@@ -285,10 +285,10 @@ func TestNormalizeOperation(t *testing.T) {
 			fragment D on Dog {
 				name
 			}
-			query ($a: String) {
-				simple(input: $a)
+			query {
+				simple
 				...D
-			}`, ``, `{"a":"foo"}`)
+			}`, ``, ``)
 	})
 
 }
@@ -679,7 +679,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
 	})
 
-	t.Run("should properly extract default values and remove unmatched query", func(t *testing.T) {
+	t.Run("should not extract default values from query body and remove unmatched query", func(t *testing.T) {
 		schema := `
 			type Query {
 				operationA(input: String = "foo"): String
@@ -694,8 +694,8 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 				operationB
 			}`
 
-		expectedQuery := `query B($a: String){
-  operationB(input: $a)
+		expectedQuery := `query B {
+  operationB
 }`
 
 		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
@@ -708,7 +708,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
 		assert.Equal(t, expectedQuery, actual)
 
-		expectedVariables := `{"a":"bar"}`
+		expectedVariables := ``
 		assert.Equal(t, expectedVariables, string(operation.Input.Variables))
 	})
 }

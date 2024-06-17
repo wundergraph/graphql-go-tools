@@ -2927,7 +2927,9 @@ func TestGraphQLDataSource(t *testing.T) {
 						Fetch: &resolve.ParallelFetch{
 							Fetches: []resolve.Fetch{
 								&resolve.SingleFetch{
-									FetchID: 0,
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID: 0,
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
 										DataSource: &Source{},
@@ -2946,7 +2948,9 @@ func TestGraphQLDataSource(t *testing.T) {
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								&resolve.SingleFetch{
-									FetchID: 2,
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID: 2,
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
 										DataSource: &Source{},
@@ -2972,9 +2976,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"serviceOne"},
-
 									Fetch: &resolve.SingleFetch{
-										FetchID: 1,
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 1,
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											DataSource:     &Source{},
 											Input:          `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
@@ -3015,7 +3020,9 @@ func TestGraphQLDataSource(t *testing.T) {
 									Nullable: true,
 									Path:     []string{"serviceTwo"},
 									Fetch: &resolve.SingleFetch{
-										FetchID: 3,
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 3,
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											DataSource: &Source{},
 											Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
@@ -3963,8 +3970,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} __typename upc}}}}}","variables":{"representations":[$$0$$]}}}`,
 										Variables: []resolve.Variable{
@@ -4051,8 +4060,10 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.Object{
 															Path: []string{"product"},
 															Fetch: &resolve.SingleFetch{
-																FetchID:           2,
-																DependsOnFetchIDs: []int{1},
+																FetchDependencies: resolve.FetchDependencies{
+																	FetchID:           2,
+																	DependsOnFetchIDs: []int{1},
+																},
 																FetchConfiguration: resolve.FetchConfiguration{
 																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[$$0$$]}}}`,
 																	DataSource: &Source{},
@@ -4332,7 +4343,9 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetch: &resolve.ParallelFetch{
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
-								FetchID: 0,
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
 									DataSource: &Source{},
@@ -4347,7 +4360,9 @@ func TestGraphQLDataSource(t *testing.T) {
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
 							&resolve.SingleFetch{
-								FetchID: 1,
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 1,
+								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
 									DataSource: &Source{},
@@ -4545,8 +4560,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityFetch: true,
 										Input:               `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
@@ -4905,8 +4922,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
 										Variables: []resolve.Variable{
@@ -5203,6 +5222,419 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
+	t.Run("federation with variables", RunTest(federationTestSchema,
+		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
+						me {
+							reviews {
+								body
+								notes @skip(if: $someSkipCondition)
+								likes(filterToPublicOnly: $publicOnly)
+							}
+						}
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("me"),
+							Value: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+											},
+											&resolve.ResolvableObjectVariable{
+												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.String{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												}),
+											},
+										),
+										DataSource:                            &Source{},
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("reviews"),
+										Value: &resolve.Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+													},
+													{
+														Name: []byte("notes"),
+														Value: &resolve.String{
+															Path:     []string{"notes"},
+															Nullable: true,
+														},
+														SkipDirectiveDefined: true,
+														SkipVariableName:     "someSkipCondition",
+													},
+													{
+														Name: []byte("likes"),
+														Value: &resolve.String{
+															Path: []string{"likes"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://user.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+							},
+							"type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+						),
+					}),
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"reviews", "id"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"body", "notes", "likes"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://review.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+							},
+							"type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+						),
+					}),
+				),
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Review",
+					FieldName: "likes",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "filterToPublicOnly",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		}))
+
+	t.Run("federation with variables and renamed types", RunTest(federationTestSchema,
+		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
+						me {
+							reviews {
+								body
+								notes @skip(if: $someSkipCondition)
+								likes(filterToPublicOnly: $publicOnly)
+							}
+						}
+					}`,
+		"MyReviews",
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id}}"}}`,
+							DataSource:     &Source{},
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					},
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("me"),
+							Value: &resolve.Object{
+								Fetch: &resolve.SingleFetch{
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
+									FetchConfiguration: resolve.FetchConfiguration{
+										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
+										Variables: resolve.NewVariables(
+											&resolve.ContextVariable{
+												Path:     []string{"someSkipCondition"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+											},
+											&resolve.ContextVariable{
+												Path:     []string{"publicOnly"},
+												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+											},
+											resolve.NewResolvableObjectVariable(
+												&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
+														},
+													},
+												},
+											),
+										),
+										DataSource:                            &Source{},
+										RequiresEntityFetch:                   true,
+										PostProcessing:                        SingleEntityPostProcessingConfiguration,
+										SetTemplateOutputToNullOnVariableNull: true,
+									},
+									DataSourceIdentifier: []byte("graphql_datasource.Source"),
+								},
+								Path:     []string{"me"},
+								Nullable: true,
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("reviews"),
+										Value: &resolve.Array{
+											Path:     []string{"reviews"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("body"),
+														Value: &resolve.String{
+															Path: []string{"body"},
+														},
+													},
+													{
+														Name: []byte("notes"),
+														Value: &resolve.String{
+															Path:     []string{"notes"},
+															Nullable: true,
+														},
+														SkipDirectiveDefined: true,
+														SkipVariableName:     "someSkipCondition",
+													},
+													{
+														Name: []byte("likes"),
+														Value: &resolve.String{
+															Path: []string{"likes"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-1",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"me"},
+							},
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://user.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
+							},
+							federationTestSchemaWithRename,
+						),
+					}),
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "reviews"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Review",
+								FieldNames: []string{"body", "notes", "likes"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: []plan.FederationFieldConfiguration{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "http://review.service",
+						},
+						SchemaConfiguration: mustSchema(t,
+							&FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: "scalar XBoolean type Review { body: String! notes: String likes(filterToPublicOnly: XBoolean!): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
+							},
+							federationTestSchemaWithRename,
+						),
+					}),
+				),
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Review",
+					FieldName: "likes",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:         "filterToPublicOnly",
+							SourceType:   plan.FieldArgumentSource,
+							RenameTypeTo: "XBoolean",
+						},
+					},
+				},
+			},
+			DisableResolveFieldPositions: true,
+		}))
+
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
 		`	query QueryWithRequiredFields {
 						serviceOne {
@@ -5228,8 +5660,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("serviceOne"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										// The required fields are present in the representations.
 										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[$$0$$]}}}`,
@@ -5425,8 +5859,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("api_me"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[$$0$$]}}}`,
 										Variables: resolve.NewVariables(
@@ -5939,8 +6375,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Name: []byte("me"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
@@ -6062,8 +6500,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Name: []byte("self"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
@@ -6192,8 +6632,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Name: []byte("self"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body attachment {__typename ... on Image {extension} ... on Video {length}}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
@@ -6456,8 +6898,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Name: []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
@@ -6618,8 +7062,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Name: []byte("user"),
 								Value: &resolve.Object{
 									Fetch: &resolve.SingleFetch{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
@@ -6814,8 +7260,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											SetTemplateOutputToNullOnVariableNull: true,
 											RequiresEntityFetch:                   true,
 										},
-										FetchID:              1,
-										DependsOnFetchIDs:    []int{0},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
@@ -6959,8 +7407,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("user"),
 							Value: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
+									FetchDependencies: resolve.FetchDependencies{
+										FetchID:           1,
+										DependsOnFetchIDs: []int{0},
+									},
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[$$0$$]}}}`,
 										Variables: resolve.NewVariables(
@@ -7237,8 +7687,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Item: &resolve.Object{
 												Fetch: &resolve.SingleFetch{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
+													FetchDependencies: resolve.FetchDependencies{
+														FetchID:           1,
+														DependsOnFetchIDs: []int{0},
+													},
 													FetchConfiguration: resolve.FetchConfiguration{
 														Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: []resolve.Variable{

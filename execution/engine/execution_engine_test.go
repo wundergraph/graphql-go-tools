@@ -1165,7 +1165,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							testNetHttpClient(t, roundTripperTestCase{
 								expectedHost:     "example.com",
 								expectedPath:     "/",
-								expectedBody:     `{"query":"query($a: String, $b: String!){heroDefault(name: $a) heroDefaultRequired(name: $b)}","variables":{"b":"AnyRequired","a":"Any"}}`,
+								expectedBody:     `{"query":"{heroDefault heroDefaultRequired}"}`,
 								sendResponseBody: `{"data":{"heroDefault":"R2D2","heroDefaultRequired":"R2D2"}}`,
 								sendStatusCode:   200,
 							}),
@@ -1378,6 +1378,18 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							},
 						},
 						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunction", "friends"},
+							},
+							{
+								TypeName:   "Starship",
+								FieldNames: []string{"name", "length"},
+							},
 							{
 								TypeName:   "Character",
 								FieldNames: []string{"name"},
