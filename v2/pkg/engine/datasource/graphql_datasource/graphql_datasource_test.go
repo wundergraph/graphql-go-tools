@@ -5316,8 +5316,6 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path:     []string{"notes"},
 															Nullable: true,
 														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "someSkipCondition",
 													},
 													{
 														Name: []byte("likes"),
@@ -5522,8 +5520,6 @@ func TestGraphQLDataSource(t *testing.T) {
 															Path:     []string{"notes"},
 															Nullable: true,
 														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "someSkipCondition",
 													},
 													{
 														Name: []byte("likes"),
