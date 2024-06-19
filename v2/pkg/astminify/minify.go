@@ -20,6 +20,8 @@ type Minifier struct {
 	def  *ast.Document
 	hs   xxhash.Digest
 
+	opts MinifyOptions
+
 	fragmentDefinitionCount int
 }
 
@@ -41,10 +43,13 @@ func NewMinifier(operation, definition string) (*Minifier, error) {
 }
 
 type MinifyOptions struct {
-	Pretty bool
+	Pretty    bool
+	Threshold int
 }
 
 func (m *Minifier) Minify(options MinifyOptions) (string, error) {
+
+	m.opts = options
 
 	err := m.validate()
 	if err != nil {
@@ -87,7 +92,7 @@ func (m *Minifier) setupAst() {
 
 func (m *Minifier) apply(vis *minifyVisitor) {
 	for _, s := range vis.s {
-		if s.count > 1 && s.size > 12 {
+		if s.count > 1 && s.size > m.opts.Threshold {
 			content := string(s.content)
 			if len(content) > 100 {
 				content = content[:100] + "..."
@@ -132,11 +137,11 @@ func (m *Minifier) replaceItems(s *stats) {
 	}
 	m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
 	spreadRef := len(m.out.FragmentSpreads) - 1
-	for _, i := range s.items {
+	for x, i := range s.items {
 		switch i.ancestor.Kind {
 		case ast.NodeKindInlineFragment:
 			for j := range m.out.Selections {
-				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[0].selectionSet {
+				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].selectionSet {
 					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
 					m.out.Selections[j].Ref = spreadRef
 					break
@@ -144,7 +149,7 @@ func (m *Minifier) replaceItems(s *stats) {
 			}
 		case ast.NodeKindField:
 			for j := range m.out.Selections {
-				if m.out.Selections[j].Kind == ast.SelectionKindField && m.out.Selections[j].Ref == s.items[0].selectionSet {
+				if m.out.Selections[j].Kind == ast.SelectionKindField && m.out.Selections[j].Ref == s.items[x].selectionSet {
 					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
 					m.out.Selections[j].Ref = spreadRef
 					break
