@@ -7,6 +7,8 @@ type Query {
     # merge data test cases
     interfaceUnion(which: Which! = A): AB
     abstractList: [AbstractListItem]
+    titleName: TitleName
+    cds: [CD]
 }
 
 type Cat {
@@ -110,4 +112,40 @@ type SomeType1 implements OtherInterface {
 type SomeType2 implements OtherInterface {
     name: String!
     height: Float!
+}
+
+type TitleName implements Title & Name {
+    a: String!
+    b: String!
+    c: String!
+    title: String!
+    name: String!
+}
+
+interface Title {
+    title: String!
+}
+
+interface Name {
+    name: String!
+}
+
+union CD = C | D
+
+type C implements CDer {
+    name: CDerObj
+}
+
+type D implements CDer {
+    name: CDerObj
+}
+
+interface CDer {
+    name: CDerObj
+}
+
+type CDerObj {
+    first: String!
+    middle: String!
+    last: String!
 }

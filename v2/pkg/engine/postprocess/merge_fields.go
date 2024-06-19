@@ -20,6 +20,10 @@ func (m *MergeFields) ProcessSubscription(node resolve.Node, trigger *resolve.Gr
 func (m *MergeFields) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
+		if len(n.Fields) == 1 {
+			m.traverseNode(n.Fields[0].Value)
+			return
+		}
 		for i := 0; i < len(n.Fields); i++ {
 			// 1. duplicate fields with multiple onTypeNames so they can be merged
 			if len(n.Fields[i].OnTypeNames) >= 1 {
@@ -29,7 +33,7 @@ func (m *MergeFields) traverseNode(node resolve.Node) {
 				for j := 0; j < len(additionalTypeNames); j++ {
 					additionalField := &resolve.Field{
 						Name:        n.Fields[i].Name,
-						Value:       n.Fields[i].Value,
+						Value:       n.Fields[i].Value.Copy(),
 						Position:    n.Fields[i].Position,
 						OnTypeNames: [][]byte{additionalTypeNames[j]},
 						Info:        n.Fields[i].Info,
@@ -104,6 +108,8 @@ func (m *MergeFields) traverseNode(node resolve.Node) {
 					j--
 				}
 			}
+		}
+		for i := 0; i < len(n.Fields); i++ {
 			m.traverseNode(n.Fields[i].Value)
 		}
 	case *resolve.Array:

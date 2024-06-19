@@ -77,6 +77,37 @@ func (r *queryResolver) AbstractList(ctx context.Context) ([]model.AbstractListI
 	}, nil
 }
 
+// TitleName is the resolver for the titleName field.
+func (r *queryResolver) TitleName(ctx context.Context) (*model.TitleName, error) {
+	return &model.TitleName{
+		Title: "Title",
+		Name:  "Name",
+		A:     "A",
+		B:     "B",
+		C:     "C",
+	}, nil
+}
+
+// Cds is the resolver for the cds field.
+func (r *queryResolver) Cds(ctx context.Context) ([]model.Cd, error) {
+	return []model.Cd{
+		&model.C{
+			Name: &model.CDerObj{
+				First:  "Leonie",
+				Middle: "Johanna",
+				Last:   "Neuse",
+			},
+		},
+		&model.D{
+			Name: &model.CDerObj{
+				First:  "Jannik",
+				Middle: "",
+				Last:   "Neuse",
+			},
+		},
+	}, nil
+}
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 

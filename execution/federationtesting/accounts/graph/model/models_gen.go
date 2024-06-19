@@ -17,6 +17,15 @@ type AbstractListItem interface {
 	GetObj() OtherInterface
 }
 
+type Cd interface {
+	IsCd()
+}
+
+type CDer interface {
+	IsCDer()
+	GetName() *CDerObj
+}
+
 type History interface {
 	IsHistory()
 }
@@ -29,6 +38,11 @@ type Identifiable interface {
 type Info interface {
 	IsInfo()
 	GetQuantity() int
+}
+
+type Name interface {
+	IsName()
+	GetName() string
 }
 
 type Namer interface {
@@ -44,6 +58,11 @@ type OtherInterface interface {
 type Store interface {
 	IsStore()
 	GetLocation() string
+}
+
+type Title interface {
+	IsTitle()
+	GetTitle() string
 }
 
 type Wallet interface {
@@ -70,6 +89,21 @@ func (B) IsAb() {}
 func (B) IsNamer()             {}
 func (this B) GetName() string { return this.Name }
 
+type C struct {
+	Name *CDerObj `json:"name"`
+}
+
+func (C) IsCd() {}
+
+func (C) IsCDer()                {}
+func (this C) GetName() *CDerObj { return this.Name }
+
+type CDerObj struct {
+	First  string `json:"first"`
+	Middle string `json:"middle"`
+	Last   string `json:"last"`
+}
+
 type Cat struct {
 	Name string `json:"name"`
 }
@@ -87,6 +121,15 @@ type ConcreteListItem2 struct {
 
 func (ConcreteListItem2) IsAbstractListItem()         {}
 func (this ConcreteListItem2) GetObj() OtherInterface { return this.Obj }
+
+type D struct {
+	Name *CDerObj `json:"name"`
+}
+
+func (D) IsCd() {}
+
+func (D) IsCDer()                {}
+func (this D) GetName() *CDerObj { return this.Name }
 
 type Product struct {
 	Upc string `json:"upc"`
@@ -131,6 +174,20 @@ type SomeType2 struct {
 
 func (SomeType2) IsOtherInterface()    {}
 func (this SomeType2) GetName() string { return this.Name }
+
+type TitleName struct {
+	A     string `json:"a"`
+	B     string `json:"b"`
+	C     string `json:"c"`
+	Title string `json:"title"`
+	Name  string `json:"name"`
+}
+
+func (TitleName) IsTitle()              {}
+func (this TitleName) GetTitle() string { return this.Title }
+
+func (TitleName) IsName()              {}
+func (this TitleName) GetName() string { return this.Name }
 
 type User struct {
 	ID       string    `json:"id"`

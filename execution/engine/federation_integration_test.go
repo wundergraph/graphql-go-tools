@@ -422,6 +422,30 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
+	t.Run("Multiple nested interfaces", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/titlename.graphql"), nil, t)
+		expected := `{"data":{"titleName":{"__typename":"TitleName","title":"Title","a":"A","b":"B","name":"Name","c":"C"}}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Multiple nested unions", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/cd.graphql"), nil, t)
+		expected := `{"data":{"cds":[{"name":{"first":"Leonie","middle":"Johanna"}},{"name":{"first":"Jannik","last":"Neuse"}}]}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
 	t.Run("More complex nesting typename variant", func(t *testing.T) {
 		setup := federationtesting.NewFederationSetup(addGateway(false))
 		defer setup.Close()

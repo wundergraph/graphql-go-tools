@@ -12,6 +12,14 @@ func (_ *Array) NodeKind() NodeKind {
 	return NodeKindArray
 }
 
+func (a *Array) Copy() Node {
+	return &Array{
+		Path:     a.Path,
+		Nullable: a.Nullable,
+		Item:     a.Item.Copy(),
+	}
+}
+
 func (a *Array) NodePath() []string {
 	return a.Path
 }
@@ -38,6 +46,10 @@ func (a *Array) Equals(n Node) bool {
 }
 
 type EmptyArray struct{}
+
+func (_ *EmptyArray) Copy() Node {
+	return &EmptyArray{}
+}
 
 func (_ *EmptyArray) NodeKind() NodeKind {
 	return NodeKindEmptyArray
