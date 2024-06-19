@@ -405,60 +405,56 @@ func TestFederationIntegrationTest(t *testing.T) {
 		gqlClient := NewGraphqlClient(http.DefaultClient)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/complex_nesting.graphql"), nil, t)
+		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"upc":"top-2","name":"Fedora"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","upc":"top-1","body":"How do I turn it on?"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("More complex nesting", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/more_complex_nesting.graphql"), nil, t)
-		expected := `
-{
-  "data": {
-    "me": {
-      "id": "1234",
-      "username": "Me",
-      "history": [
-        {
-          "wallet": {
-            "currency": "USD"
-          }
-        },
-        {
-          "location": "Germany",
-          "product": {
-			"name": "Fedora",
-            "upc": "top-2"
-          }
-        },
-        {
-          "wallet": {
-            "currency": "USD"
-          }
-        }
-      ],
-      "reviews": [
-        {
-          "__typename": "Review",
-          "attachments": [
-            {
-              "upc": "top-1",
-              "body": "How do I turn it on?"
-            }
-          ]
-        },
-        {
-          "__typename": "Review",
-          "attachments": [
-            {
-              "upc": "top-2",
-              "body": "The best hat I have ever bought in my life."
-            },
-            {
-              "upc": "top-2",
-              "size": 13.37
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-`
+		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"name":"Fedora","upc":"top-2"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","upc":"top-1","body":"How do I turn it on?"}],"comment":{"__typename":"Question","subject":"Life"}},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}],"comment":{"__typename":"Question","subject":"Life"}}]}}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("More complex nesting typename variant", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/more_complex_nesting_typename_variant.graphql"), nil, t)
+		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"name":"Fedora","upc":"top-2"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","upc":"top-1","body":"How do I turn it on?"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Abstract object", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object.graphql"), nil, t)
+		expected := `{"data":{"abstractList":[{"__typename":"ConcreteListItem1","obj":{"__typename":"SomeType1","name":"1","age":1}},{"__typename":"ConcreteListItem2","obj":{"__typename":"SomeType2","name":"2","height":2}}]}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Abstract interface field", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/ab.graphql"), nil, t)
+		expected := `{"data":{"interfaceUnion":{"__typename":"A","name":"A"}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
@@ -469,34 +465,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/merged_field.graphql"), nil, t)
-		expected := `
-{
-	"data": {
-		"cat": {
-			"name": "Pepper"
-		},
-		"me": {
-			"id": "1234",
-			"username": "Me",
-			"realName": "User Usington",
-			"reviews": [
-				{
-					"body": "A highly effective form of birth control."
-				},
-				{
-					"body": "Fedoras are one of the most fashionable hats around and can look great with a variety of outfits."
-				}
-			],
-			"history": [
-				{},
-				{
-					"rating": 5
-				},
-				{}
-			]
-		}
-	}
-}`
+		expected := `{"data":{"cat":{"name":"Pepper"},"me":{"id":"1234","username":"Me","realName":"User Usington","reviews":[{"body":"A highly effective form of birth control."},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits."}],"history":[{},{"rating":5},{}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 }

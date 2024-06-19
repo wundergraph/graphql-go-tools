@@ -22,6 +22,7 @@ query ComplexNesting {
         reviews {
             __typename
             attachments {
+                __typename
                 ... on Comment {
                     upc
                     ... on Rating {

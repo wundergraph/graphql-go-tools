@@ -1,0 +1,17 @@
+query AB {
+    interfaceUnion(which: A){
+        __typename
+        ... on Namer {
+            name
+            ... on A {
+                name
+            }
+        }
+        ... on A {
+            name
+        }
+        ... on B {
+            name
+        }
+    }
+}

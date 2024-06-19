@@ -2,6 +2,21 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
+type Ab interface {
+	IsAb()
+}
+
+type AbstractListItem interface {
+	IsAbstractListItem()
+	GetObj() OtherInterface
+}
+
 type History interface {
 	IsHistory()
 }
@@ -16,6 +31,16 @@ type Info interface {
 	GetQuantity() int
 }
 
+type Namer interface {
+	IsNamer()
+	GetName() string
+}
+
+type OtherInterface interface {
+	IsOtherInterface()
+	GetName() string
+}
+
 type Store interface {
 	IsStore()
 	GetLocation() string
@@ -27,9 +52,41 @@ type Wallet interface {
 	GetAmount() float64
 }
 
+type A struct {
+	Name string `json:"name"`
+}
+
+func (A) IsAb() {}
+
+func (A) IsNamer()             {}
+func (this A) GetName() string { return this.Name }
+
+type B struct {
+	Name string `json:"name"`
+}
+
+func (B) IsAb() {}
+
+func (B) IsNamer()             {}
+func (this B) GetName() string { return this.Name }
+
 type Cat struct {
 	Name string `json:"name"`
 }
+
+type ConcreteListItem1 struct {
+	Obj OtherInterface `json:"obj"`
+}
+
+func (ConcreteListItem1) IsAbstractListItem()         {}
+func (this ConcreteListItem1) GetObj() OtherInterface { return this.Obj }
+
+type ConcreteListItem2 struct {
+	Obj OtherInterface `json:"obj"`
+}
+
+func (ConcreteListItem2) IsAbstractListItem()         {}
+func (this ConcreteListItem2) GetObj() OtherInterface { return this.Obj }
 
 type Product struct {
 	Upc string `json:"upc"`
@@ -58,6 +115,22 @@ func (Sale) IsHistory() {}
 
 func (Sale) IsStore()                 {}
 func (this Sale) GetLocation() string { return this.Location }
+
+type SomeType1 struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+}
+
+func (SomeType1) IsOtherInterface()    {}
+func (this SomeType1) GetName() string { return this.Name }
+
+type SomeType2 struct {
+	Name   string  `json:"name"`
+	Height float64 `json:"height"`
+}
+
+func (SomeType2) IsOtherInterface()    {}
+func (this SomeType2) GetName() string { return this.Name }
 
 type User struct {
 	ID       string    `json:"id"`
@@ -90,3 +163,44 @@ type WalletType2 struct {
 func (WalletType2) IsWallet()                {}
 func (this WalletType2) GetCurrency() string { return this.Currency }
 func (this WalletType2) GetAmount() float64  { return this.Amount }
+
+type Which string
+
+const (
+	WhichA Which = "A"
+	WhichB Which = "B"
+)
+
+var AllWhich = []Which{
+	WhichA,
+	WhichB,
+}
+
+func (e Which) IsValid() bool {
+	switch e {
+	case WhichA, WhichB:
+		return true
+	}
+	return false
+}
+
+func (e Which) String() string {
+	return string(e)
+}
+
+func (e *Which) UnmarshalGQL(v interface{}) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = Which(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid Which", str)
+	}
+	return nil
+}
+
+func (e Which) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}

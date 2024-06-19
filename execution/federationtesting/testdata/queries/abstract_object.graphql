@@ -1,0 +1,29 @@
+query AbstractObject {
+    abstractList {
+        __typename
+        obj {
+            __typename
+            name
+        }
+        ... on ConcreteListItem1 {
+            obj {
+                __typename
+                name
+                ... on SomeType1 {
+                    name
+                    age
+                }
+            }
+        }
+        ... on ConcreteListItem2 {
+            obj {
+                __typename
+                name
+                ... on SomeType2 {
+                    name
+                    height
+                }
+            }
+        }
+    }
+}

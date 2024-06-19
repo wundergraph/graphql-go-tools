@@ -27,6 +27,7 @@
           "__typename": "Review",
           "attachments": [
             {
+              "__typename": "Question",
               "upc": "top-1",
               "body": "How do I turn it on?"
             }
@@ -36,10 +37,12 @@
           "__typename": "Review",
           "attachments": [
             {
+              "__typename": "Rating",
               "upc": "top-2",
               "body": "The best hat I have ever bought in my life."
             },
             {
+              "__typename": "Video",
               "upc": "top-2",
               "size": 13.37
             }

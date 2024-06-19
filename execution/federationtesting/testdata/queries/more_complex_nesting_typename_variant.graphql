@@ -28,24 +28,21 @@ query ComplexNesting {
             attachments {
                 __typename
                 ... on Comment {
+                    __typename
                     upc
                     ... on Rating {
+                        __typename
                         body
                     }
                 }
                 ... on Question {
+                    __typename
                     body
                 }
                 ... on Video {
+                    __typename
                     upc
                     size
-                }
-            }
-            comment {
-                __typename
-                ... on Iface {
-                    __typename
-                    subject
                 }
             }
         }

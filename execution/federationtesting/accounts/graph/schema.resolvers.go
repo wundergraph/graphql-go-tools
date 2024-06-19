@@ -6,6 +6,7 @@ package graph
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/generated"
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting/accounts/graph/model"
@@ -40,6 +41,39 @@ func (r *queryResolver) Histories(ctx context.Context) ([]model.History, error) 
 func (r *queryResolver) Cat(ctx context.Context) (*model.Cat, error) {
 	return &model.Cat{
 		Name: "Pepper",
+	}, nil
+}
+
+// InterfaceUnion is the resolver for the interfaceUnion field.
+func (r *queryResolver) InterfaceUnion(ctx context.Context, which model.Which) (model.Ab, error) {
+	switch which {
+	case model.WhichA:
+		return &model.A{
+			Name: "A",
+		}, nil
+	case model.WhichB:
+		return &model.B{
+			Name: "B",
+		}, nil
+	}
+	return nil, fmt.Errorf("unknown which: %v", which)
+}
+
+// AbstractList is the resolver for the abstractList field.
+func (r *queryResolver) AbstractList(ctx context.Context) ([]model.AbstractListItem, error) {
+	return []model.AbstractListItem{
+		&model.ConcreteListItem1{
+			Obj: &model.SomeType1{
+				Name: "1",
+				Age:  1,
+			},
+		},
+		&model.ConcreteListItem2{
+			Obj: &model.SomeType2{
+				Name:   "2",
+				Height: 2.0,
+			},
+		},
 	}, nil
 }
 
