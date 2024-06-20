@@ -1,0 +1,32 @@
+type Query {
+    query: [Interface!]!
+}
+
+interface Interface {
+    name: String!
+    age: Int!
+}
+
+type ObjectA implements Interface {
+    name: String!
+    age: Int!
+    aField: ObjectA
+    bField: ObjectB
+    cField: ObjectC
+}
+
+type ObjectB implements Interface {
+    name: String!
+    age: Int!
+    aField: ObjectA
+    bField: ObjectB
+    cField: ObjectC
+}
+
+type ObjectC implements Interface {
+    name: String!
+    age: Int!
+    aField: ObjectA
+    bField: ObjectB
+    cField: ObjectC
+}

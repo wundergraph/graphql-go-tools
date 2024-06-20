@@ -1,6 +1,6 @@
 {
   query {
-    ... on A {
+    ... on ObjectA {
       __typename
       age
       aField {
@@ -20,7 +20,7 @@
       }
       name
     }
-    ... on B {
+    ... on ObjectB {
       __typename
       age
       aField {
@@ -40,7 +40,7 @@
       }
       name
     }
-    ... on C {
+    ... on ObjectC {
       __typename
       age
       aField {

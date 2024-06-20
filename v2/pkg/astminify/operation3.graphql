@@ -1,0 +1,23 @@
+{
+  query {
+    ... on ObjectA {
+      __typename
+      age
+      name
+    }
+    ... on ObjectB {
+      aField {
+        __typename
+        age
+        name
+      }
+    }
+    ... on ObjectC {
+      aField {
+        __typename
+        age
+        name
+      }
+    }
+  }
+}

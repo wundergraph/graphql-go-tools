@@ -12,7 +12,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -41,7 +40,12 @@ func NewMinifier(operation, definition string) (*Minifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Minifier{out: &out, temp: &temp, def: &def}, nil
+	return &Minifier{
+			out:                     &out,
+			temp:                    &temp,
+			def:                     &def,
+			fragmentDefinitionCount: -1},
+		nil
 }
 
 type MinifyOptions struct {
@@ -64,6 +68,7 @@ func (m *Minifier) Minify(options MinifyOptions) (string, error) {
 		w:         &walker,
 		out:       m.out,
 		temp:      m.temp,
+		def:       m.def,
 		s:         make(map[uint64]*stats),
 		buf:       &bytes.Buffer{},
 		h:         xxhash.New(),
@@ -111,7 +116,6 @@ func (m *Minifier) apply(vis *minifyVisitor) {
 
 func (m *Minifier) replaceItems(s *stats) {
 	fragmentName := m.out.Input.AppendInputString(m.fragmentName())
-	m.fragmentDefinitionCount++
 
 	typeName := s.items[0].enclosingType.NameString(m.def)
 	typeDef := ast.Type{
@@ -125,7 +129,7 @@ func (m *Minifier) replaceItems(s *stats) {
 		Name: fragmentName,
 		//HasDirectives:   false,
 		//Directives:      ast.DirectiveList{},
-		SelectionSet:  s.items[0].selectionSet,
+		SelectionSet:  m.out.CopySelectionSet(s.items[0].selectionSet),
 		HasSelections: true,
 		TypeCondition: ast.TypeCondition{
 			Type: typeRef,
@@ -138,34 +142,40 @@ func (m *Minifier) replaceItems(s *stats) {
 		Kind: ast.NodeKindFragmentDefinition,
 		Ref:  fragRef,
 	})
-	spread := ast.FragmentSpread{
-		FragmentName: fragmentName,
-	}
-	m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
-	spreadRef := len(m.out.FragmentSpreads) - 1
 	for x, i := range s.items {
 		switch i.ancestor.Kind {
 		case ast.NodeKindInlineFragment:
 			for j := range m.out.Selections {
 				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].selectionSet {
 					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
+
+					spread := ast.FragmentSpread{
+						FragmentName: fragmentName,
+					}
+					m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
+					spreadRef := len(m.out.FragmentSpreads) - 1
 					m.out.Selections[j].Ref = spreadRef
 					break
 				}
 			}
 		case ast.NodeKindField:
-			for j := range m.out.Selections {
-				if m.out.Selections[j].Kind == ast.SelectionKindField && m.out.Selections[j].Ref == s.items[x].selectionSet {
-					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
-					m.out.Selections[j].Ref = spreadRef
-					break
-				}
+			set := m.out.Fields[i.ancestor.Ref].SelectionSet
+
+			spread := ast.FragmentSpread{
+				FragmentName: fragmentName,
 			}
+			m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
+			spreadRef := len(m.out.FragmentSpreads) - 1
+
+			m.out.Selections = append(m.out.Selections, ast.Selection{
+				Kind: ast.SelectionKindFragmentSpread,
+				Ref:  spreadRef,
+			})
+			selection := len(m.out.Selections) - 1
+			m.out.SelectionSets[set].SelectionRefs = []int{selection}
 		default:
 			fmt.Printf("Unknown ancestor kind: %s\n", i.ancestor.Kind.String())
 		}
-		state := unsafeprinter.PrettyPrint(m.out, m.def)
-		fmt.Printf("State: %s\n", state)
 	}
 }
 
@@ -193,6 +203,7 @@ type minifyVisitor struct {
 	w    *astvisitor.Walker
 	out  *ast.Document
 	temp *ast.Document
+	def  *ast.Document
 
 	s         map[uint64]*stats
 	threshold int
@@ -243,13 +254,17 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 
 	m.temp.OperationDefinitions[0].SelectionSet = ref
 
+	tempName := m.w.EnclosingTypeDefinition.NameBytes(m.def)
+	enclosingTypeName := make([]byte, len(tempName))
+	copy(enclosingTypeName, tempName)
+
 	printer := astprinter.NewPrinter(nil)
 	m.buf.Reset()
 	err := printer.Print(m.temp, nil, m.buf)
 	if err != nil {
 		return
 	}
-	data := m.buf.Bytes()
+	data := append(append(enclosingTypeName, []byte("::")...), m.buf.Bytes()...)
 	if len(data) < m.threshold {
 		return
 	}
@@ -269,10 +284,12 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 		s.items = append(s.items, i)
 		return
 	}
-	m.s[key] = &stats{
+	s := &stats{
 		count:   1,
 		size:    len(data),
-		content: data,
 		items:   []item{i},
+		content: make([]byte, len(data)),
 	}
+	copy(s.content, data)
+	m.s[key] = s
 }
