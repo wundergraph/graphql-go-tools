@@ -69,47 +69,77 @@ func TestMinifier_MinifyCosmoSorted(t *testing.T) {
 }
 
 func TestMinifier_Minify(t *testing.T) {
+
 	operation, err := os.ReadFile("cosmo-sorted.graphql")
 	assert.NoError(t, err)
 
 	schema, err := os.ReadFile("tsb-us-in.graphql")
 	assert.NoError(t, err)
 
-	m, err := NewMinifier(string(operation), string(schema))
-	assert.NoError(t, err)
-	opts := MinifyOptions{
-		Pretty:    true,
-		Threshold: 0,
-	}
-	minified, err := m.Minify(opts)
-	assert.NoError(t, err)
+	runs := 1000
 
-	assert.NoError(t, err)
-	goldie.Assert(t, "cosmo-sorted.min.graphql", []byte(minified))
-
+	bestCompression := 1.0
+	bestMinified := ""
 	in := unsafeparser.ParseGraphqlDocumentString(string(operation))
 	inPrint := unsafeprinter.Print(&in, nil)
-	out := unsafeparser.ParseGraphqlDocumentString(minified)
-	outPrint := unsafeprinter.Print(&out, nil)
 
-	opts.Threshold = 12
+	for i := 0; i < runs; i++ {
+		m, err := NewMinifier(string(operation), string(schema))
+		assert.NoError(t, err)
+		opts := MinifyOptions{
+			Pretty:    true,
+			Threshold: 0,
+		}
+		minified, err := m.Minify(opts)
+		assert.NoError(t, err)
 
-	m, err = NewMinifier(minified, string(schema))
+		assert.NoError(t, err)
+
+		out := unsafeparser.ParseGraphqlDocumentString(minified)
+		outPrint := unsafeprinter.Print(&out, nil)
+
+		//fmt.Printf("(run:%d) originalSize: %d, minifiedSize: %d, compression: %f\n", i, len(inPrint), len(outPrint), float64(len(outPrint))/float64(len(inPrint)))
+
+		if float64(len(outPrint))/float64(len(inPrint)) < bestCompression {
+			bestCompression = float64(len(outPrint)) / float64(len(inPrint))
+			bestMinified = minified
+		}
+	}
+
+	def := unsafeparser.ParseGraphqlDocumentString(string(schema))
+	err = asttransform.MergeDefinitionWithBaseSchema(&def)
 	assert.NoError(t, err)
-	minified, err = m.Minify(opts)
-	assert.NoError(t, err)
 
-	out = unsafeparser.ParseGraphqlDocumentString(minified)
-	outPrint2 := unsafeprinter.Print(&out, nil)
-	goldie.Assert(t, "cosmo-sorted.min.min.graphql", []byte(minified))
+	best := unsafeparser.ParseGraphqlDocumentString(string(bestMinified))
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
+		astnormalization.WithRemoveUnusedVariables(),
+	)
+	rep := &operationreport.Report{}
+	normalizer.NormalizeNamedOperation(&best, &def, []byte(`MyQuery`), rep)
+	if rep.HasErrors() {
+		t.Fatal(rep.Error())
+	}
+	bestNormalized := unsafeprinter.PrettyPrint(&best, &def)
 
-	fmt.Printf("(run1) originalSize: %d, minifiedSize: %d, compression: %f\n", len(inPrint), len(outPrint), float64(len(outPrint))/float64(len(inPrint)))
-	fmt.Printf("(run2) originalSize: %d, minifiedSize: %d, compression: %f\n", len(outPrint), len(outPrint2), float64(len(outPrint2))/float64(len(outPrint)))
+	orig := unsafeparser.ParseGraphqlDocumentString(string(operation))
+	normalizer.NormalizeNamedOperation(&orig, &def, []byte(`MyQuery`), rep)
+	if rep.HasErrors() {
+		t.Fatal(rep.Error())
+	}
+	origNormalized := unsafeprinter.PrettyPrint(&orig, &def)
 
+	goldie.Assert(t, "cosmo-sorted.min.graphql", []byte(bestMinified))
+	goldie.Assert(t, "cosmo-sorted.min.normalized.graphql", []byte(bestNormalized))
+	goldie.Assert(t, "cosmo-sorted.normalized.graphql", []byte(origNormalized))
+	fmt.Printf("\n\nbest run - originalSize: %d, minifiedSize: %d, compression: %f\n", len(inPrint), len(bestMinified), bestCompression)
 }
 
 func TestMinifier_MinifyMultipleRuns(t *testing.T) {
-	original, err := os.ReadFile("cosmo.graphql")
+	original, err := os.ReadFile("cosmo-sorted.graphql")
 	assert.NoError(t, err)
 
 	schema, err := os.ReadFile("tsb-us-in.graphql")

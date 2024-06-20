@@ -232,25 +232,10 @@ type item struct {
 func (m *minifyVisitor) EnterSelectionSet(ref int) {
 
 	ancestor := m.w.Ancestor()
-	if ancestor.Kind == ast.NodeKindFragmentDefinition {
-		return
-	}
-
-	/*hasNestedSelections := false
-
-	for _, i := range m.out.SelectionSets[ref].SelectionRefs {
-		if m.out.Selections[i].Kind == ast.SelectionKindField {
-			if m.out.Fields[m.out.Selections[i].Ref].HasSelections {
-				hasNestedSelections = true
-				break
-			}
-		}
-	}
-
-	if !hasNestedSelections {
-		return
-	}
-	*/
+	/*
+		if ancestor.Kind == ast.NodeKindFragmentDefinition {
+			return
+		}*/
 
 	m.temp.OperationDefinitions[0].SelectionSet = ref
 
@@ -285,11 +270,11 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 	s := &stats{
-		count:   1,
-		size:    len(data),
-		items:   []item{i},
-		content: make([]byte, len(data)),
+		count: 1,
+		size:  len(data),
+		items: []item{i},
+		//content: make([]byte, len(data)),
 	}
-	copy(s.content, data)
+	//copy(s.content, data)
 	m.s[key] = s
 }
