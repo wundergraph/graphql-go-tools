@@ -2,7 +2,6 @@ package plan
 
 import (
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"slices"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -1161,7 +1161,7 @@ func (c *configurationVisitor) handleFieldRequiredByRequires(fieldRef int, typeN
 func (c *configurationVisitor) hasPlannedFieldsRequiredByRequires(selectionSetRef int, fieldSelections string, typeName, fieldName, currentPath string) bool {
 	key, report := RequiredFieldsFragment(typeName, fieldSelections, false)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse/check field requirements %s for %s field of %s type at path %s", fieldSelections, fieldName, typeName, currentPath))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse/check field requirements %s for %s field of %s type at path %s: %v", fieldSelections, fieldName, typeName, currentPath, report))
 		return false
 	}
 
@@ -1175,7 +1175,7 @@ func (c *configurationVisitor) hasPlannedFieldsRequiredByRequires(selectionSetRe
 
 	allRequiredFieldsAddedToOperation, requiredFieldRefs := testRequiredFields(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to check field requirements %s for %s field of %s type at path %s", fieldSelections, fieldName, typeName, currentPath))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to check field requirements %s for %s field of %s type at path %s: %v", fieldSelections, fieldName, typeName, currentPath, report))
 		return false
 	}
 
@@ -1214,6 +1214,17 @@ func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, parentP
 	}
 
 	requiredFieldsForType := plannerConfig.DataSourceConfiguration().RequiredFieldsByKey(typeName)
+
+	if len(requiredFieldsForType) == 0 && hasRequiresCondition {
+		// required fields could be of zero length in case type is not entity
+		// or when entity has disabled entity resolver
+		// When entity has disabled entity resolver, but we have field with requires directive on this entity
+		// we should add key fields for the field with requires - to pass them into field resolver
+
+		keys := plannerConfig.DataSourceConfiguration().FederationConfiguration().Keys
+		requiredFieldsForType = keys.FilterByTypeAndResolvability(typeName, false)
+	}
+
 	if len(requiredFieldsForType) > 0 {
 		isInterfaceObject := false
 		for _, interfaceObjCfg := range plannerConfig.DataSourceConfiguration().FederationConfiguration().InterfaceObjects {
@@ -1337,7 +1348,7 @@ func (c *configurationVisitor) addRequiredFieldsToOperation(selectionSetRef int,
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	key, report := RequiredFieldsFragment(typeName, requiredFieldsCfg.fieldSelections, !requiredFieldsCfg.skipTypename)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", requiredFieldsCfg.fieldSelections, typeName, requiredFieldsCfg.path))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s: %v", requiredFieldsCfg.fieldSelections, typeName, requiredFieldsCfg.path, report))
 		return
 	}
 
@@ -1351,7 +1362,7 @@ func (c *configurationVisitor) addRequiredFieldsToOperation(selectionSetRef int,
 
 	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
 	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", requiredFieldsCfg.fieldSelections, typeName, requiredFieldsCfg.path))
+		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s: %v", requiredFieldsCfg.fieldSelections, typeName, requiredFieldsCfg.path, report))
 		return
 	}
 
