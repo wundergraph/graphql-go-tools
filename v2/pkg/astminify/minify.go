@@ -12,6 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -163,6 +164,8 @@ func (m *Minifier) replaceItems(s *stats) {
 		default:
 			fmt.Printf("Unknown ancestor kind: %s\n", i.ancestor.Kind.String())
 		}
+		state := unsafeprinter.PrettyPrint(m.out, m.def)
+		fmt.Printf("State: %s\n", state)
 	}
 }
 
@@ -200,7 +203,6 @@ type minifyVisitor struct {
 
 func (m *minifyVisitor) EnterFragmentDefinition(ref int) {
 	m.w.SkipNode()
-	panic("implement me")
 }
 
 type stats struct {
