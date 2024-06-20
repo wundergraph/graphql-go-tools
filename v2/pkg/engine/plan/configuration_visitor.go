@@ -1214,6 +1214,17 @@ func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, parentP
 	}
 
 	requiredFieldsForType := plannerConfig.DataSourceConfiguration().RequiredFieldsByKey(typeName)
+
+	if len(requiredFieldsForType) == 0 && hasRequiresCondition {
+		// required fields could be of zero length in case type is not entity
+		// or when entity has disabled entity resolver
+		// When entity has disabled entity resolver, but we have field with requires directive on this entity
+		// we should add key fields for the field with requires - to pass them into field resolver
+
+		keys := plannerConfig.DataSourceConfiguration().FederationConfiguration().Keys
+		requiredFieldsForType = keys.FilterByTypeAndResolvability(typeName, false)
+	}
+
 	if len(requiredFieldsForType) > 0 {
 		isInterfaceObject := false
 		for _, interfaceObjCfg := range plannerConfig.DataSourceConfiguration().FederationConfiguration().InterfaceObjects {
