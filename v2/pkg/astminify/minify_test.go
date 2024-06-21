@@ -1,6 +1,7 @@
 package astminify
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"testing"
@@ -22,23 +23,24 @@ func BenchmarkMinify(b *testing.B) {
 	assert.NoError(b, err)
 
 	opts := MinifyOptions{
-		Pretty:  true,
 		SortAST: true,
 	}
+
+	buf := &bytes.Buffer{}
+	m := NewMinifier()
 
 	b.ReportAllocs()
 	b.SetBytes(int64(len(operation)))
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		m := NewMinifier()
-		assert.NoError(b, err)
-		minified, err := m.Minify(operation, schema, opts)
+		buf.Reset()
+		err := m.Minify(operation, schema, opts, buf)
 		if err != nil {
 			b.Fatal(err)
 		}
-		if len(minified) != 14655 {
-			b.Fatal("invalid minified length")
+		if buf.Len() != 10366 {
+			b.Fatalf("unexpected length: %d, run: %d", buf.Len(), i)
 		}
 	}
 }
@@ -128,8 +130,10 @@ func TestMinifier_Minify(t *testing.T) {
 			opts := MinifyOptions{
 				Pretty: true,
 			}
-			minified, err := m.Minify(operation, schema, opts)
+			buf := &bytes.Buffer{}
+			err = m.Minify(operation, schema, opts, buf)
 			assert.NoError(t, err)
+			minified := buf.String()
 
 			assert.NoError(t, err)
 

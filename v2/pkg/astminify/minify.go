@@ -2,6 +2,7 @@ package astminify
 
 import (
 	"errors"
+	"io"
 	"slices"
 	"strings"
 	"sync"
@@ -53,9 +54,7 @@ var (
 )
 
 func NewMinifier() *Minifier {
-	return &Minifier{
-		fragmentDefinitionCount: -1,
-	}
+	return &Minifier{}
 }
 
 type MinifyOptions struct {
@@ -63,8 +62,9 @@ type MinifyOptions struct {
 	SortAST bool
 }
 
-func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions) (string, error) {
+func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions, out io.Writer) error {
 	m.opts = options
+	m.fragmentDefinitionCount = -1
 
 	k := kitPool.Get().(*kit)
 	defer func() {
@@ -86,11 +86,11 @@ func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions) (
 	k.parser.Parse(k.temp, k.report)
 	k.parser.Parse(k.def, k.report)
 	if k.report.HasErrors() {
-		return "", k.report
+		return k.report
 	}
 	err := asttransform.MergeDefinitionWithBaseSchema(k.def)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	m.out = k.out
@@ -100,7 +100,7 @@ func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions) (
 
 	err = m.validate()
 	if err != nil {
-		return "", err
+		return err
 	}
 	m.setupAst()
 
@@ -119,13 +119,14 @@ func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions) (
 	report := &operationreport.Report{}
 	walker.Walk(m.out, m.def, report)
 	if report.HasErrors() {
-		return "", report
+		return report
 	}
 	m.apply(v)
 	if options.Pretty {
-		return astprinter.PrintStringIndent(m.out, nil, "  ")
+		p := astprinter.NewPrinter([]byte("  "))
+		return p.Print(m.out, m.def, out)
 	}
-	return astprinter.PrintString(m.out, nil)
+	return k.printer.Print(m.out, m.def, out)
 }
 
 func (m *Minifier) validate() error {
@@ -237,20 +238,6 @@ func (m *Minifier) replaceItems(s *stats) {
 					break
 				}
 			}
-
-			/*for j := range m.out.Selections {
-				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].ancestor.Ref {
-					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
-					spread := ast.FragmentSpread{
-						FragmentName: fragmentName,
-					}
-					m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
-					spreadRef := len(m.out.FragmentSpreads) - 1
-
-					m.out.Selections[j].Ref = spreadRef
-					break
-				}
-			}*/
 
 		case ast.NodeKindField:
 			set := m.out.Fields[i.ancestor.Ref].SelectionSet
