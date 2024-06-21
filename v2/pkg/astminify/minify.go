@@ -50,7 +50,8 @@ func NewMinifier(operation, definition string) (*Minifier, error) {
 }
 
 type MinifyOptions struct {
-	Pretty bool
+	Pretty  bool
+	SortAST bool
 }
 
 func (m *Minifier) Minify(options MinifyOptions) (string, error) {
@@ -104,6 +105,32 @@ func (m *Minifier) setupAst() {
 	m.temp.OperationDefinitions[0].Name = ast.ByteSliceReference{
 		Start: 0,
 		End:   0,
+	}
+	if m.opts.SortAST {
+		m.sortAst(m.temp)
+		m.sortAst(m.out)
+	}
+}
+
+func (m *Minifier) sortAst(doc *ast.Document) {
+	for i := range doc.SelectionSets {
+		slices.SortFunc(doc.SelectionSets[i].SelectionRefs, func(a, b int) int {
+			left := doc.Selections[a]
+			right := doc.Selections[b]
+			if left.Kind == ast.SelectionKindInlineFragment && right.Kind == ast.SelectionKindField {
+				return 1
+			}
+			if left.Kind == ast.SelectionKindField && right.Kind == ast.SelectionKindInlineFragment {
+				return -1
+			}
+			if left.Kind == ast.SelectionKindField && right.Kind == ast.SelectionKindField {
+				return strings.Compare(doc.FieldNameString(left.Ref), doc.FieldNameString(right.Ref))
+			}
+			if left.Kind == ast.SelectionKindInlineFragment && right.Kind == ast.SelectionKindInlineFragment {
+				return strings.Compare(doc.InlineFragmentTypeConditionNameString(left.Ref), doc.InlineFragmentTypeConditionNameString(right.Ref))
+			}
+			return 0
+		})
 	}
 }
 

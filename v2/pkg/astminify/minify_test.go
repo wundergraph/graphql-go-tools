@@ -19,6 +19,7 @@ type testCase struct {
 	operationFile string
 	operationName string
 	schemaFile    string
+	sort          bool
 }
 
 func TestMinifier_Minify(t *testing.T) {
@@ -28,28 +29,54 @@ func TestMinifier_Minify(t *testing.T) {
 			operationFile: "operation1.graphql",
 			operationName: "MyQuery",
 			schemaFile:    "simpleschema.graphql",
+			sort:          true,
 		},
 		{
 			name:          "operation2",
 			operationFile: "operation2.graphql",
 			operationName: "MyQuery",
 			schemaFile:    "simpleschema.graphql",
+			sort:          true,
 		},
 		{
 			name:          "operation3",
 			operationFile: "operation3.graphql",
 			operationName: "MyQuery",
 			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
+		{
+			name:          "operation4",
+			operationFile: "operation4.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
 		},
 	}
 
 	if os.Getenv("WG_INTERNAL") == "true" {
 		testCases = append(testCases, testCase{
-			name:          "cosmo-sorted",
+			name:          "cosmo-presorted",
 			operationFile: "cosmo-sorted.graphql",
 			operationName: "MyQuery",
 			schemaFile:    "tsb-us-in.graphql",
-		})
+			sort:          true,
+		},
+			testCase{
+				name:          "cosmo-nosort",
+				operationFile: "cosmo.graphql",
+				operationName: "MyQuery",
+				schemaFile:    "tsb-us-in.graphql",
+				sort:          false,
+			},
+			testCase{
+				name:          "cosmo-sorted",
+				operationFile: "cosmo.graphql",
+				operationName: "MyQuery",
+				schemaFile:    "tsb-us-in.graphql",
+				sort:          true,
+			},
+		)
 	}
 
 	for _, tc := range testCases {
@@ -99,7 +126,9 @@ func TestMinifier_Minify(t *testing.T) {
 			}
 			origNormalized := unsafeprinter.PrettyPrint(&orig, &def)
 
-			assert.Equal(t, origNormalized, bestNormalized)
+			if !tc.sort {
+				assert.Equal(t, origNormalized, bestNormalized)
+			}
 			goldie.Assert(t, fmt.Sprintf("%s.min.graphql", tc.name), []byte(minified))
 			goldie.Assert(t, fmt.Sprintf("%s.min.normalized.graphql", tc.name), []byte(bestNormalized))
 			goldie.Assert(t, fmt.Sprintf("%s.normalized.graphql", tc.name), []byte(origNormalized))
