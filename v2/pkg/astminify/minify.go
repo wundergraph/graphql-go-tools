@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash"
+	"slices"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -99,18 +100,29 @@ func (m *Minifier) validate() error {
 func (m *Minifier) setupAst() {
 	m.temp.OperationDefinitions[0].VariableDefinitions.Refs = nil
 	m.temp.OperationDefinitions[0].HasVariableDefinitions = false
+	m.temp.OperationDefinitions[0].VariableDefinitions.Refs = nil
+	m.temp.OperationDefinitions[0].HasVariableDefinitions = false
+	m.temp.OperationDefinitions[0].Directives.Refs = nil
+	m.temp.OperationDefinitions[0].HasDirectives = false
+	m.temp.OperationDefinitions[0].Name = ast.ByteSliceReference{
+		Start: 0,
+		End:   0,
+	}
 }
 
 func (m *Minifier) apply(vis *minifyVisitor) {
+	replacements := make([]*stats, 0, len(vis.s))
 	for _, s := range vis.s {
 		if s.count > 1 {
-			content := string(s.content)
-			if len(content) > 100 {
-				content = content[:100] + "..."
-			}
-			//fmt.Printf("SelectionSet with %d occurences, size: %d, content: %s\n\n", s.count, s.size, content)
-			m.replaceItems(s)
+			replacements = append(replacements, s)
 		}
+	}
+	// sort by depth
+	slices.SortFunc(replacements, func(a, b *stats) int {
+		return b.depth - a.depth
+	})
+	for _, s := range replacements {
+		m.replaceItems(s)
 	}
 }
 
@@ -217,10 +229,10 @@ func (m *minifyVisitor) EnterFragmentDefinition(ref int) {
 }
 
 type stats struct {
-	count   int
-	size    int
-	items   []item
-	content []byte
+	count int
+	size  int
+	items []item
+	depth int
 }
 
 type item struct {
@@ -232,10 +244,6 @@ type item struct {
 func (m *minifyVisitor) EnterSelectionSet(ref int) {
 
 	ancestor := m.w.Ancestor()
-	/*
-		if ancestor.Kind == ast.NodeKindFragmentDefinition {
-			return
-		}*/
 
 	m.temp.OperationDefinitions[0].SelectionSet = ref
 
@@ -247,6 +255,9 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	m.buf.Reset()
 	err := printer.Print(m.temp, nil, m.buf)
 	if err != nil {
+		return
+	}
+	if m.buf.Len() < m.threshold {
 		return
 	}
 	data := append(append(enclosingTypeName, []byte("::")...), m.buf.Bytes()...)
@@ -267,14 +278,16 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	if s, ok := m.s[key]; ok {
 		s.count++
 		s.items = append(s.items, i)
+		if m.w.Depth > s.depth {
+			s.depth = m.w.Depth
+		}
 		return
 	}
 	s := &stats{
 		count: 1,
 		size:  len(data),
 		items: []item{i},
-		//content: make([]byte, len(data)),
+		depth: m.w.Depth,
 	}
-	//copy(s.content, data)
 	m.s[key] = s
 }

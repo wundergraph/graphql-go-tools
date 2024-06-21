@@ -1,0 +1,21 @@
+query MyQuery {
+    query {
+        ...A
+        ... on ObjectB {
+            aField {
+                ...A
+            }
+        }
+        ... on ObjectC {
+            aField {
+                ...A
+            }
+        }
+    }
+}
+
+fragment A on ObjectA {
+    __typename
+    age
+    name
+}
