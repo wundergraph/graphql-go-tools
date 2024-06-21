@@ -154,22 +154,24 @@ func (m *Minifier) replaceItems(s *stats) {
 		Kind: ast.NodeKindFragmentDefinition,
 		Ref:  fragRef,
 	})
-	for x, i := range s.items {
+	for _, i := range s.items {
 		switch i.ancestor.Kind {
 		case ast.NodeKindInlineFragment:
-			for j := range m.out.Selections {
-				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].selectionSet {
-					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
 
-					spread := ast.FragmentSpread{
-						FragmentName: fragmentName,
-					}
-					m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
-					spreadRef := len(m.out.FragmentSpreads) - 1
-					m.out.Selections[j].Ref = spreadRef
-					break
-				}
+			set := m.out.InlineFragments[i.ancestor.Ref].SelectionSet
+			spread := ast.FragmentSpread{
+				FragmentName: fragmentName,
 			}
+			m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
+			spreadRef := len(m.out.FragmentSpreads) - 1
+
+			m.out.Selections = append(m.out.Selections, ast.Selection{
+				Kind: ast.SelectionKindFragmentSpread,
+				Ref:  spreadRef,
+			})
+			selection := len(m.out.Selections) - 1
+			m.out.SelectionSets[set].SelectionRefs = []int{selection}
+
 		case ast.NodeKindField:
 			set := m.out.Fields[i.ancestor.Ref].SelectionSet
 
