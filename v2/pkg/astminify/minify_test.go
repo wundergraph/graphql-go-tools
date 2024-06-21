@@ -14,6 +14,35 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/goldie"
 )
 
+func BenchmarkMinify(b *testing.B) {
+	operation, err := os.ReadFile("cosmo.graphql")
+	assert.NoError(b, err)
+
+	schema, err := os.ReadFile("tsb-us-in.graphql")
+	assert.NoError(b, err)
+
+	opts := MinifyOptions{
+		Pretty:  true,
+		SortAST: true,
+	}
+
+	b.ReportAllocs()
+	b.SetBytes(int64(len(operation)))
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		m := NewMinifier()
+		assert.NoError(b, err)
+		minified, err := m.Minify(operation, schema, opts)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(minified) != 14655 {
+			b.Fatal("invalid minified length")
+		}
+	}
+}
+
 type testCase struct {
 	name          string
 	operationFile string
@@ -48,6 +77,13 @@ func TestMinifier_Minify(t *testing.T) {
 		{
 			name:          "operation4",
 			operationFile: "operation4.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
+		{
+			name:          "operation5",
+			operationFile: "operation5.graphql",
 			operationName: "MyQuery",
 			schemaFile:    "simpleschema.graphql",
 			sort:          true,
@@ -87,12 +123,12 @@ func TestMinifier_Minify(t *testing.T) {
 			schema, err := os.ReadFile(tc.schemaFile)
 			assert.NoError(t, err)
 
-			m, err := NewMinifier(string(operation), string(schema))
+			m := NewMinifier()
 			assert.NoError(t, err)
 			opts := MinifyOptions{
 				Pretty: true,
 			}
-			minified, err := m.Minify(opts)
+			minified, err := m.Minify(operation, schema, opts)
 			assert.NoError(t, err)
 
 			assert.NoError(t, err)

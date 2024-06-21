@@ -1,11 +1,10 @@
 package astminify
 
 import (
-	"bytes"
 	"errors"
-	"hash"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -20,33 +19,43 @@ type Minifier struct {
 	out  *ast.Document
 	temp *ast.Document
 	def  *ast.Document
-	hs   xxhash.Digest
+	hs   *xxhash.Digest
 
 	opts MinifyOptions
 
 	fragmentDefinitionCount int
 }
 
-func NewMinifier(operation, definition string) (*Minifier, error) {
-	out, rep := astparser.ParseGraphqlDocumentString(operation)
-	if rep.HasErrors() {
-		return nil, rep
+type kit struct {
+	out     *ast.Document
+	temp    *ast.Document
+	def     *ast.Document
+	report  *operationreport.Report
+	hs      *xxhash.Digest
+	parser  *astparser.Parser
+	printer *astprinter.Printer
+}
+
+var (
+	kitPool = sync.Pool{
+		New: func() interface{} {
+			return &kit{
+				parser:  astparser.NewParser(),
+				printer: astprinter.NewPrinter(nil),
+				def:     ast.NewSmallDocument(),
+				temp:    ast.NewSmallDocument(),
+				out:     ast.NewSmallDocument(),
+				report:  &operationreport.Report{},
+				hs:      xxhash.New(),
+			}
+		},
 	}
-	temp, _ := astparser.ParseGraphqlDocumentString(operation)
-	def, rep := astparser.ParseGraphqlDocumentString(definition)
-	if rep.HasErrors() {
-		return nil, rep
-	}
-	err := asttransform.MergeDefinitionWithBaseSchema(&def)
-	if err != nil {
-		return nil, err
-	}
+)
+
+func NewMinifier() *Minifier {
 	return &Minifier{
-			out:                     &out,
-			temp:                    &temp,
-			def:                     &def,
-			fragmentDefinitionCount: -1},
-		nil
+		fragmentDefinitionCount: -1,
+	}
 }
 
 type MinifyOptions struct {
@@ -54,11 +63,42 @@ type MinifyOptions struct {
 	SortAST bool
 }
 
-func (m *Minifier) Minify(options MinifyOptions) (string, error) {
-
+func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions) (string, error) {
 	m.opts = options
 
-	err := m.validate()
+	k := kitPool.Get().(*kit)
+	defer func() {
+		m.hs = nil
+		m.out = nil
+		m.temp = nil
+		m.def = nil
+		k.out.Reset()
+		k.temp.Reset()
+		k.def.Reset()
+		kitPool.Put(k)
+	}()
+
+	k.out.Input.ResetInputBytes(operation)
+	k.temp.Input.ResetInputBytes(operation)
+	k.def.Input.ResetInputBytes(definition)
+	k.report.Reset()
+	k.parser.Parse(k.out, k.report)
+	k.parser.Parse(k.temp, k.report)
+	k.parser.Parse(k.def, k.report)
+	if k.report.HasErrors() {
+		return "", k.report
+	}
+	err := asttransform.MergeDefinitionWithBaseSchema(k.def)
+	if err != nil {
+		return "", err
+	}
+
+	m.out = k.out
+	m.temp = k.temp
+	m.def = k.def
+	m.hs = k.hs
+
+	err = m.validate()
 	if err != nil {
 		return "", err
 	}
@@ -66,13 +106,13 @@ func (m *Minifier) Minify(options MinifyOptions) (string, error) {
 
 	walker := astvisitor.Walker{}
 	v := &minifyVisitor{
-		w:    &walker,
-		out:  m.out,
-		temp: m.temp,
-		def:  m.def,
-		s:    make(map[uint64]*stats),
-		buf:  &bytes.Buffer{},
-		h:    xxhash.New(),
+		w:       &walker,
+		printer: k.printer,
+		out:     m.out,
+		temp:    m.temp,
+		def:     m.def,
+		s:       make(map[uint64]*stats),
+		h:       m.hs,
 	}
 	walker.RegisterEnterSelectionSetVisitor(v)
 	walker.RegisterEnterFragmentDefinitionVisitor(v)
@@ -144,10 +184,7 @@ func (m *Minifier) apply(vis *minifyVisitor) {
 	// sort by depth
 	slices.SortStableFunc(replacements, func(a, b *stats) int {
 		if a.depth == b.depth {
-			if b.size == a.size {
-				return strings.Compare(b.enclosingTypeName, a.enclosingTypeName)
-			}
-			return b.size - a.size
+			return strings.Compare(b.enclosingTypeName, a.enclosingTypeName)
 		}
 		return b.depth - a.depth
 	})
@@ -183,10 +220,25 @@ func (m *Minifier) replaceItems(s *stats) {
 		Kind: ast.NodeKindFragmentDefinition,
 		Ref:  fragRef,
 	})
-	for x, i := range s.items {
+	for _, i := range s.items {
 		switch i.ancestor.Kind {
 		case ast.NodeKindInlineFragment:
-			for j := range m.out.Selections {
+
+			for _, selection := range m.out.SelectionSets[i.parentSelectionSet].SelectionRefs {
+				if m.out.Selections[selection].Kind == ast.SelectionKindInlineFragment && m.out.Selections[selection].Ref == i.ancestor.Ref {
+					m.out.Selections[selection].Kind = ast.SelectionKindFragmentSpread
+					spread := ast.FragmentSpread{
+						FragmentName: fragmentName,
+					}
+					m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
+					spreadRef := len(m.out.FragmentSpreads) - 1
+
+					m.out.Selections[selection].Ref = spreadRef
+					break
+				}
+			}
+
+			/*for j := range m.out.Selections {
 				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].ancestor.Ref {
 					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
 					spread := ast.FragmentSpread{
@@ -198,7 +250,7 @@ func (m *Minifier) replaceItems(s *stats) {
 					m.out.Selections[j].Ref = spreadRef
 					break
 				}
-			}
+			}*/
 
 		case ast.NodeKindField:
 			set := m.out.Fields[i.ancestor.Ref].SelectionSet
@@ -241,15 +293,15 @@ func (m *Minifier) fragmentName() string {
 }
 
 type minifyVisitor struct {
-	w    *astvisitor.Walker
-	out  *ast.Document
-	temp *ast.Document
-	def  *ast.Document
+	w       *astvisitor.Walker
+	out     *ast.Document
+	temp    *ast.Document
+	def     *ast.Document
+	printer *astprinter.Printer
 
 	s map[uint64]*stats
 
-	buf *bytes.Buffer
-	h   hash.Hash64
+	h *xxhash.Digest
 }
 
 func (m *minifyVisitor) EnterFragmentDefinition(_ int) {
@@ -258,16 +310,16 @@ func (m *minifyVisitor) EnterFragmentDefinition(_ int) {
 
 type stats struct {
 	count             int
-	size              int
 	items             []item
 	depth             int
 	enclosingTypeName string
 }
 
 type item struct {
-	selectionSet int
-	directives   ast.DirectiveList
-	ancestor     ast.Node
+	parentSelectionSet int
+	selectionSet       int
+	directives         ast.DirectiveList
+	ancestor           ast.Node
 }
 
 func (m *minifyVisitor) EnterSelectionSet(ref int) {
@@ -280,13 +332,11 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	enclosingTypeName := make([]byte, len(tempName))
 	copy(enclosingTypeName, tempName)
 
-	printer := astprinter.NewPrinter(nil)
-	m.buf.Reset()
-	err := printer.Print(m.temp, nil, m.buf)
+	m.h.Reset()
+	err := m.printer.Print(m.temp, nil, m.h)
 	if err != nil {
 		return
 	}
-	data := append(enclosingTypeName, m.buf.Bytes()...)
 
 	i := item{
 		selectionSet: ref,
@@ -298,11 +348,11 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 		i.directives = m.out.Fields[ancestor.Ref].Directives
 	case ast.NodeKindInlineFragment:
 		i.directives = m.out.InlineFragments[ancestor.Ref].Directives
+		i.parentSelectionSet = m.w.Ancestors[len(m.w.Ancestors)-2].Ref
 	}
 
-	m.h.Reset()
 	// write data to hash
-	_, _ = m.h.Write(data)
+	_, _ = m.h.Write(enclosingTypeName)
 	// print directives to hash
 	// this ensures that selection sets with different directives are not merged
 	for _, j := range i.directives.Refs {
@@ -320,7 +370,6 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	}
 	s := &stats{
 		count:             1,
-		size:              len(data),
 		items:             []item{i},
 		depth:             m.w.Depth,
 		enclosingTypeName: string(enclosingTypeName),
