@@ -50,8 +50,7 @@ func NewMinifier(operation, definition string) (*Minifier, error) {
 }
 
 type MinifyOptions struct {
-	Pretty    bool
-	Threshold int
+	Pretty bool
 }
 
 func (m *Minifier) Minify(options MinifyOptions) (string, error) {
@@ -66,14 +65,13 @@ func (m *Minifier) Minify(options MinifyOptions) (string, error) {
 
 	walker := astvisitor.Walker{}
 	v := &minifyVisitor{
-		w:         &walker,
-		out:       m.out,
-		temp:      m.temp,
-		def:       m.def,
-		s:         make(map[uint64]*stats),
-		buf:       &bytes.Buffer{},
-		h:         xxhash.New(),
-		threshold: options.Threshold,
+		w:    &walker,
+		out:  m.out,
+		temp: m.temp,
+		def:  m.def,
+		s:    make(map[uint64]*stats),
+		buf:  &bytes.Buffer{},
+		h:    xxhash.New(),
 	}
 	walker.RegisterEnterSelectionSetVisitor(v)
 	walker.RegisterEnterFragmentDefinitionVisitor(v)
@@ -154,23 +152,38 @@ func (m *Minifier) replaceItems(s *stats) {
 		Kind: ast.NodeKindFragmentDefinition,
 		Ref:  fragRef,
 	})
-	for _, i := range s.items {
+	for x, i := range s.items {
 		switch i.ancestor.Kind {
 		case ast.NodeKindInlineFragment:
+			for j := range m.out.Selections {
+				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].ancestor.Ref {
+					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
 
-			set := m.out.InlineFragments[i.ancestor.Ref].SelectionSet
-			spread := ast.FragmentSpread{
-				FragmentName: fragmentName,
+					spread := ast.FragmentSpread{
+						FragmentName: fragmentName,
+					}
+					m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
+					spreadRef := len(m.out.FragmentSpreads) - 1
+					m.out.Selections[j].Ref = spreadRef
+					break
+				}
 			}
-			m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
-			spreadRef := len(m.out.FragmentSpreads) - 1
 
-			m.out.Selections = append(m.out.Selections, ast.Selection{
-				Kind: ast.SelectionKindFragmentSpread,
-				Ref:  spreadRef,
-			})
-			selection := len(m.out.Selections) - 1
-			m.out.SelectionSets[set].SelectionRefs = []int{selection}
+			/*
+				set := m.out.InlineFragments[i.ancestor.Ref].SelectionSet
+				spread := ast.FragmentSpread{
+					FragmentName: fragmentName,
+				}
+				m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
+				spreadRef := len(m.out.FragmentSpreads) - 1
+
+				m.out.Selections = append(m.out.Selections, ast.Selection{
+					Kind: ast.SelectionKindFragmentSpread,
+					Ref:  spreadRef,
+				})
+				selection := len(m.out.Selections) - 1
+				m.out.SelectionSets[set].SelectionRefs = []int{selection}
+			*/
 
 		case ast.NodeKindField:
 			set := m.out.Fields[i.ancestor.Ref].SelectionSet
@@ -219,8 +232,7 @@ type minifyVisitor struct {
 	temp *ast.Document
 	def  *ast.Document
 
-	s         map[uint64]*stats
-	threshold int
+	s map[uint64]*stats
 
 	buf *bytes.Buffer
 	h   hash.Hash64
@@ -259,13 +271,7 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	if err != nil {
 		return
 	}
-	if m.buf.Len() < m.threshold {
-		return
-	}
-	data := append(append(enclosingTypeName, []byte("::")...), m.buf.Bytes()...)
-	if len(data) < m.threshold {
-		return
-	}
+	data := append(enclosingTypeName, m.buf.Bytes()...)
 
 	m.h.Reset()
 	_, _ = m.h.Write(data)

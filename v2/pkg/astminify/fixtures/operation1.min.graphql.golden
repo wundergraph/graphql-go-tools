@@ -4,13 +4,13 @@ query MyQuery {
             __typename
             age
             aField {
-                ...C
+                ...B
             }
             bField {
-                ...A
+                ...C
             }
             cField {
-                ...B
+                ...A
             }
             name
         }
@@ -18,13 +18,13 @@ query MyQuery {
             __typename
             age
             aField {
-                ...C
+                ...B
             }
             bField {
-                ...A
+                ...C
             }
             cField {
-                ...B
+                ...A
             }
             name
         }
@@ -32,32 +32,32 @@ query MyQuery {
             __typename
             age
             aField {
-                ...C
+                ...B
             }
             bField {
-                ...A
+                ...C
             }
             cField {
-                ...B
+                ...A
             }
             name
         }
     }
 }
 
-fragment A on ObjectB {
+fragment A on ObjectC {
     __typename
     age
     name
 }
 
-fragment B on ObjectC {
+fragment B on ObjectA {
     __typename
     age
     name
 }
 
-fragment C on ObjectA {
+fragment C on ObjectB {
     __typename
     age
     name

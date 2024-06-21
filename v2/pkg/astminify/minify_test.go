@@ -60,8 +60,7 @@ func TestMinifier_Minify(t *testing.T) {
 			m, err := NewMinifier(string(operation), string(schema))
 			assert.NoError(t, err)
 			opts := MinifyOptions{
-				Pretty:    true,
-				Threshold: 0,
+				Pretty: true,
 			}
 			minified, err := m.Minify(opts)
 			assert.NoError(t, err)
@@ -97,6 +96,7 @@ func TestMinifier_Minify(t *testing.T) {
 			}
 			origNormalized := unsafeprinter.PrettyPrint(&orig, &def)
 
+			assert.Equal(t, origNormalized, bestNormalized)
 			goldie.Assert(t, fmt.Sprintf("%s.min.graphql", tc.name), []byte(minified))
 			goldie.Assert(t, fmt.Sprintf("%s.min.normalized.graphql", tc.name), []byte(bestNormalized))
 			goldie.Assert(t, fmt.Sprintf("%s.normalized.graphql", tc.name), []byte(origNormalized))
