@@ -24,12 +24,6 @@ type testCase struct {
 func TestMinifier_Minify(t *testing.T) {
 	testCases := []testCase{
 		{
-			name:          "cosmo-sorted",
-			operationFile: "cosmo-sorted.graphql",
-			operationName: "MyQuery",
-			schemaFile:    "tsb-us-in.graphql",
-		},
-		{
 			name:          "operation1",
 			operationFile: "operation1.graphql",
 			operationName: "MyQuery",
@@ -47,6 +41,15 @@ func TestMinifier_Minify(t *testing.T) {
 			operationName: "MyQuery",
 			schemaFile:    "simpleschema.graphql",
 		},
+	}
+
+	if os.Getenv("WG_INTERNAL") == "true" {
+		testCases = append(testCases, testCase{
+			name:          "cosmo-sorted",
+			operationFile: "cosmo-sorted.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "tsb-us-in.graphql",
+		})
 	}
 
 	for _, tc := range testCases {

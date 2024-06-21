@@ -3,9 +3,9 @@ package astminify
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"hash"
 	"slices"
+	"strings"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -92,7 +92,6 @@ func (m *Minifier) validate() error {
 		return errors.New("AST must have exactly one operation definition")
 	}
 	return nil
-
 }
 
 func (m *Minifier) setupAst() {
@@ -116,7 +115,13 @@ func (m *Minifier) apply(vis *minifyVisitor) {
 		}
 	}
 	// sort by depth
-	slices.SortFunc(replacements, func(a, b *stats) int {
+	slices.SortStableFunc(replacements, func(a, b *stats) int {
+		if a.depth == b.depth {
+			if b.size == a.size {
+				return strings.Compare(b.enclosingTypeName, a.enclosingTypeName)
+			}
+			return b.size - a.size
+		}
 		return b.depth - a.depth
 	})
 	for _, s := range replacements {
@@ -125,20 +130,19 @@ func (m *Minifier) apply(vis *minifyVisitor) {
 }
 
 func (m *Minifier) replaceItems(s *stats) {
-	fragmentName := m.out.Input.AppendInputString(m.fragmentName())
 
-	typeName := s.items[0].enclosingType.NameString(m.def)
+	fragmentName := m.out.Input.AppendInputString(m.fragmentName())
 	typeDef := ast.Type{
 		TypeKind: ast.TypeKindNamed,
-		Name:     m.out.Input.AppendInputString(typeName),
+		Name:     m.out.Input.AppendInputString(s.enclosingTypeName),
 	}
 	m.out.Types = append(m.out.Types, typeDef)
 	typeRef := len(m.out.Types) - 1
 
 	frag := ast.FragmentDefinition{
-		Name: fragmentName,
-		//HasDirectives:   false,
-		//Directives:      ast.DirectiveList{},
+		Name:          fragmentName,
+		Directives:    m.out.CopyDirectiveList(s.items[0].directives),
+		HasDirectives: len(s.items[0].directives.Refs) > 0,
 		SelectionSet:  m.out.CopySelectionSet(s.items[0].selectionSet),
 		HasSelections: true,
 		TypeCondition: ast.TypeCondition{
@@ -158,32 +162,16 @@ func (m *Minifier) replaceItems(s *stats) {
 			for j := range m.out.Selections {
 				if m.out.Selections[j].Kind == ast.SelectionKindInlineFragment && m.out.Selections[j].Ref == s.items[x].ancestor.Ref {
 					m.out.Selections[j].Kind = ast.SelectionKindFragmentSpread
-
 					spread := ast.FragmentSpread{
 						FragmentName: fragmentName,
 					}
 					m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
 					spreadRef := len(m.out.FragmentSpreads) - 1
+
 					m.out.Selections[j].Ref = spreadRef
 					break
 				}
 			}
-
-			/*
-				set := m.out.InlineFragments[i.ancestor.Ref].SelectionSet
-				spread := ast.FragmentSpread{
-					FragmentName: fragmentName,
-				}
-				m.out.FragmentSpreads = append(m.out.FragmentSpreads, spread)
-				spreadRef := len(m.out.FragmentSpreads) - 1
-
-				m.out.Selections = append(m.out.Selections, ast.Selection{
-					Kind: ast.SelectionKindFragmentSpread,
-					Ref:  spreadRef,
-				})
-				selection := len(m.out.Selections) - 1
-				m.out.SelectionSets[set].SelectionRefs = []int{selection}
-			*/
 
 		case ast.NodeKindField:
 			set := m.out.Fields[i.ancestor.Ref].SelectionSet
@@ -199,9 +187,8 @@ func (m *Minifier) replaceItems(s *stats) {
 				Ref:  spreadRef,
 			})
 			selection := len(m.out.Selections) - 1
+
 			m.out.SelectionSets[set].SelectionRefs = []int{selection}
-		default:
-			fmt.Printf("Unknown ancestor kind: %s\n", i.ancestor.Kind.String())
 		}
 	}
 }
@@ -238,21 +225,22 @@ type minifyVisitor struct {
 	h   hash.Hash64
 }
 
-func (m *minifyVisitor) EnterFragmentDefinition(ref int) {
+func (m *minifyVisitor) EnterFragmentDefinition(_ int) {
 	m.w.SkipNode()
 }
 
 type stats struct {
-	count int
-	size  int
-	items []item
-	depth int
+	count             int
+	size              int
+	items             []item
+	depth             int
+	enclosingTypeName string
 }
 
 type item struct {
-	selectionSet  int
-	ancestor      ast.Node
-	enclosingType ast.Node
+	selectionSet int
+	directives   ast.DirectiveList
+	ancestor     ast.Node
 }
 
 func (m *minifyVisitor) EnterSelectionSet(ref int) {
@@ -273,15 +261,27 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	}
 	data := append(enclosingTypeName, m.buf.Bytes()...)
 
-	m.h.Reset()
-	_, _ = m.h.Write(data)
-	key := m.h.Sum64()
-
 	i := item{
-		selectionSet:  ref,
-		ancestor:      ancestor,
-		enclosingType: m.w.EnclosingTypeDefinition,
+		selectionSet: ref,
+		ancestor:     ancestor,
 	}
+
+	switch ancestor.Kind {
+	case ast.NodeKindField:
+		i.directives = m.out.Fields[ancestor.Ref].Directives
+	case ast.NodeKindInlineFragment:
+		i.directives = m.out.InlineFragments[ancestor.Ref].Directives
+	}
+
+	m.h.Reset()
+	// write data to hash
+	_, _ = m.h.Write(data)
+	// print directives to hash
+	// this ensures that selection sets with different directives are not merged
+	for _, j := range i.directives.Refs {
+		_ = m.out.PrintDirective(j, m.h)
+	}
+	key := m.h.Sum64()
 
 	if s, ok := m.s[key]; ok {
 		s.count++
@@ -292,10 +292,11 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 	s := &stats{
-		count: 1,
-		size:  len(data),
-		items: []item{i},
-		depth: m.w.Depth,
+		count:             1,
+		size:              len(data),
+		items:             []item{i},
+		depth:             m.w.Depth,
+		enclosingTypeName: string(enclosingTypeName),
 	}
 	m.s[key] = s
 }
