@@ -11,7 +11,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -30,7 +29,6 @@ type Minifier struct {
 type kit struct {
 	out     *ast.Document
 	temp    *ast.Document
-	def     *ast.Document
 	report  *operationreport.Report
 	hs      *xxhash.Digest
 	parser  *astparser.Parser
@@ -43,7 +41,6 @@ var (
 			return &kit{
 				parser:  astparser.NewParser(),
 				printer: astprinter.NewPrinter(nil),
-				def:     ast.NewSmallDocument(),
 				temp:    ast.NewSmallDocument(),
 				out:     ast.NewSmallDocument(),
 				report:  &operationreport.Report{},
@@ -62,7 +59,8 @@ type MinifyOptions struct {
 	SortAST bool
 }
 
-func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions, out io.Writer) error {
+func (m *Minifier) Minify(operation []byte, definition *ast.Document, options MinifyOptions, out io.Writer) error {
+	m.def = definition
 	m.opts = options
 	m.fragmentDefinitionCount = -1
 
@@ -74,31 +72,24 @@ func (m *Minifier) Minify(operation, definition []byte, options MinifyOptions, o
 		m.def = nil
 		k.out.Reset()
 		k.temp.Reset()
-		k.def.Reset()
 		kitPool.Put(k)
+		m.def = nil
 	}()
 
 	k.out.Input.ResetInputBytes(operation)
 	k.temp.Input.ResetInputBytes(operation)
-	k.def.Input.ResetInputBytes(definition)
 	k.report.Reset()
 	k.parser.Parse(k.out, k.report)
 	k.parser.Parse(k.temp, k.report)
-	k.parser.Parse(k.def, k.report)
 	if k.report.HasErrors() {
 		return k.report
-	}
-	err := asttransform.MergeDefinitionWithBaseSchema(k.def)
-	if err != nil {
-		return err
 	}
 
 	m.out = k.out
 	m.temp = k.temp
-	m.def = k.def
 	m.hs = k.hs
 
-	err = m.validate()
+	err := m.validate()
 	if err != nil {
 		return err
 	}

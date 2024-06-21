@@ -22,6 +22,8 @@ func BenchmarkMinify(b *testing.B) {
 	schema, err := os.ReadFile("tsb-us-in.graphql")
 	assert.NoError(b, err)
 
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(string(schema))
+
 	opts := MinifyOptions{
 		SortAST: true,
 	}
@@ -35,7 +37,7 @@ func BenchmarkMinify(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
-		err := m.Minify(operation, schema, opts, buf)
+		err := m.Minify(operation, &definition, opts, buf)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -130,8 +132,9 @@ func TestMinifier_Minify(t *testing.T) {
 			opts := MinifyOptions{
 				Pretty: true,
 			}
+			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(string(schema))
 			buf := &bytes.Buffer{}
-			err = m.Minify(operation, schema, opts, buf)
+			err = m.Minify(operation, &definition, opts, buf)
 			assert.NoError(t, err)
 			minified := buf.String()
 
