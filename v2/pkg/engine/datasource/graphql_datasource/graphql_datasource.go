@@ -9,13 +9,14 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"sync"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/tidwall/sjson"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -79,6 +80,14 @@ type Planner[T Configuration] struct {
 
 	// tmp
 	upstreamSchema *ast.Document
+
+	minifier      *astminify.Minifier
+	minifyOptions astminify.MinifyOptions
+}
+
+func (p *Planner[T]) EnableSubgraphRequestMinifier(options astminify.MinifyOptions) {
+	p.minifier = astminify.NewMinifier()
+	p.minifyOptions = options
 }
 
 type onTypeInlineFragment struct {
@@ -1297,30 +1306,14 @@ func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
 
 // printOperation - prints normalized upstream operation
 func (p *Planner[T]) printOperation() []byte {
-	buf := &bytes.Buffer{}
 
-	err := astprinter.PrintIndent(p.upstreamOperation, nil, []byte("  "), buf)
-	if err != nil {
-		return nil
-	}
-
-	rawQuery := buf.Bytes()
+	kit := p.getKit()
+	defer p.releaseKit(kit)
 
 	// create empty operation and definition documents
-	operation := ast.NewSmallDocument()
 	definition, err := p.config.UpstreamSchema()
 	if err != nil {
 		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
-		return nil
-	}
-
-	report := &operationreport.Report{}
-	operationParser := astparser.NewParser()
-
-	operation.Input.ResetInputBytes(rawQuery)
-	operationParser.Parse(operation, report)
-	if report.HasErrors() {
-		p.stopWithError(parseDocumentFailedErrMsg, "operation")
 		return nil
 	}
 
@@ -1329,31 +1322,47 @@ func (p *Planner[T]) printOperation() []byte {
 	p.replaceQueryType(definition)
 
 	// normalize upstream operation
-	if !p.normalizeOperation(operation, definition, report) {
-		p.stopWithError(normalizationFailedErrMsg, report.Error())
+	kit.normalizer.NormalizeOperation(p.upstreamOperation, definition, kit.report)
+	if kit.report.HasErrors() {
+		p.stopWithError(normalizationFailedErrMsg, kit.report.Error())
 		return nil
 	}
 
-	validator := astvalidation.DefaultOperationValidator()
-	validator.Validate(operation, definition, report)
-	if report.HasErrors() {
-		p.stopWithError(validationFailedErrMsg, report.Error())
+	kit.validator.Validate(p.upstreamOperation, definition, kit.report)
+	if kit.report.HasErrors() {
+		p.stopWithError(validationFailedErrMsg, kit.report.Error())
 		return nil
 	}
 
 	// p.printQueryPlan(p.upstreamOperation) // uncomment to print upstream operation before normalization
-	p.printQueryPlan(operation)
-
-	buf.Reset()
+	p.printQueryPlan(kit.doc)
 
 	// print upstream operation
-	err = astprinter.Print(operation, p.visitor.Definition, buf)
+	err = kit.printer.Print(p.upstreamOperation, p.visitor.Definition, kit.buf)
 	if err != nil {
-		p.stopWithError(printOperationFailedErrMsg, report.Error())
+		p.stopWithError(printOperationFailedErrMsg, kit.report.Error())
 		return nil
 	}
 
-	return buf.Bytes()
+	rawOperationBytes := kit.buf.Bytes()
+	rawOperationBytesCopy := make([]byte, len(rawOperationBytes))
+	copy(rawOperationBytesCopy, rawOperationBytes)
+
+	if p.minifier != nil {
+		kit.buf.Reset()
+		err = p.minifier.Minify(rawOperationBytesCopy, definition, p.minifyOptions, kit.buf)
+		if err != nil {
+			p.stopWithError(printOperationFailedErrMsg, err)
+			return nil
+		}
+		minifiedOperationBytes := kit.buf.Bytes()
+		if len(minifiedOperationBytes) < len(rawOperationBytes) {
+			return minifiedOperationBytes
+		}
+		return rawOperationBytes
+	}
+
+	return kit.buf.Bytes()
 }
 
 func (p *Planner[T]) stopWithError(msg string, args ...interface{}) {
@@ -1526,6 +1535,38 @@ func (p *Planner[T]) addField(ref int) (upstreamFieldRef int) {
 
 type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
 
+type printKit struct {
+	buf        *bytes.Buffer
+	parser     *astparser.Parser
+	printer    *astprinter.Printer
+	validator  *astvalidation.OperationValidator
+	doc        *ast.Document
+	normalizer *astnormalization.OperationNormalizer
+	report     *operationreport.Report
+}
+
+var (
+	printKitPool = &sync.Pool{
+		New: func() any {
+			return &printKit{
+				buf:       &bytes.Buffer{},
+				parser:    astparser.NewParser(),
+				printer:   astprinter.NewPrinter(nil),
+				doc:       ast.NewSmallDocument(),
+				validator: astvalidation.DefaultOperationValidator(),
+				normalizer: astnormalization.NewWithOpts(
+					// we should not extract variables from the upstream operation as they will be lost
+					// cause when we are building an input we use our own variables
+					astnormalization.WithRemoveFragmentDefinitions(),
+					astnormalization.WithRemoveUnusedVariables(),
+					astnormalization.WithInlineFragmentSpreads(),
+				),
+				report: &operationreport.Report{},
+			}
+		},
+	}
+)
+
 type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
@@ -1551,6 +1592,16 @@ func NewFactory(executionContext context.Context, httpClient *http.Client, subsc
 		httpClient:         httpClient,
 		subscriptionClient: subscriptionClient,
 	}, nil
+}
+
+func (p *Planner[T]) getKit() *printKit {
+	return printKitPool.Get().(*printKit)
+}
+
+func (p *Planner[T]) releaseKit(kit *printKit) {
+	kit.buf.Reset()
+	kit.report.Reset()
+	printKitPool.Put(kit)
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
