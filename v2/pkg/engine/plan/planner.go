@@ -132,7 +132,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	for key := range p.planningVisitor.planners {
 		if p.config.MinifySubgraphOperations {
 			if dataSourceWithMinify, ok := p.planningVisitor.planners[key].Planner().(SubgraphRequestMinifier); ok {
-				dataSourceWithMinify.EnableSubgraphRequestMinifier(p.config.MinifySubgraphOperationsOptions)
+				dataSourceWithMinify.EnableSubgraphRequestMinifier()
 			}
 		}
 		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {

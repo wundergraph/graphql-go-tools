@@ -2,8 +2,6 @@ package plan
 
 import (
 	"github.com/jensneuse/abstractlogger"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -26,8 +24,7 @@ type Configuration struct {
 	// This information is required to compute the schema usage info from a plan
 	IncludeInfo bool
 
-	MinifySubgraphOperations        bool
-	MinifySubgraphOperationsOptions astminify.MinifyOptions
+	MinifySubgraphOperations bool
 }
 
 type DebugConfiguration struct {

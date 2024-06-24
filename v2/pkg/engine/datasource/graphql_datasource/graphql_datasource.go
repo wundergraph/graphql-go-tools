@@ -81,13 +81,11 @@ type Planner[T Configuration] struct {
 	// tmp
 	upstreamSchema *ast.Document
 
-	minifier      *astminify.Minifier
-	minifyOptions astminify.MinifyOptions
+	minifier *astminify.Minifier
 }
 
-func (p *Planner[T]) EnableSubgraphRequestMinifier(options astminify.MinifyOptions) {
+func (p *Planner[T]) EnableSubgraphRequestMinifier() {
 	p.minifier = astminify.NewMinifier()
-	p.minifyOptions = options
 }
 
 type onTypeInlineFragment struct {
@@ -1334,8 +1332,7 @@ func (p *Planner[T]) printOperation() []byte {
 		return nil
 	}
 
-	// p.printQueryPlan(p.upstreamOperation) // uncomment to print upstream operation before normalization
-	p.printQueryPlan(kit.doc)
+	p.printQueryPlan(p.upstreamOperation)
 
 	// print upstream operation
 	err = kit.printer.Print(p.upstreamOperation, p.visitor.Definition, kit.buf)
@@ -1350,7 +1347,10 @@ func (p *Planner[T]) printOperation() []byte {
 
 	if p.minifier != nil {
 		kit.buf.Reset()
-		err = p.minifier.Minify(rawOperationBytesCopy, definition, p.minifyOptions, kit.buf)
+		err = p.minifier.Minify(rawOperationBytesCopy, definition, astminify.MinifyOptions{
+			SortAST: true,
+			Pretty:  false,
+		}, kit.buf)
 		if err != nil {
 			p.stopWithError(printOperationFailedErrMsg, err)
 			return nil
@@ -1540,7 +1540,6 @@ type printKit struct {
 	parser     *astparser.Parser
 	printer    *astprinter.Printer
 	validator  *astvalidation.OperationValidator
-	doc        *ast.Document
 	normalizer *astnormalization.OperationNormalizer
 	report     *operationreport.Report
 }
@@ -1552,7 +1551,6 @@ var (
 				buf:       &bytes.Buffer{},
 				parser:    astparser.NewParser(),
 				printer:   astprinter.NewPrinter(nil),
-				doc:       ast.NewSmallDocument(),
 				validator: astvalidation.DefaultOperationValidator(),
 				normalizer: astnormalization.NewWithOpts(
 					// we should not extract variables from the upstream operation as they will be lost
