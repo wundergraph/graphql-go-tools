@@ -52,7 +52,9 @@ func mustDataSourceConfiguration(t *testing.T, id string, metadata *plan.DataSou
 func mustDataSourceConfigurationWithHttpClient(t *testing.T, id string, metadata *plan.DataSourceMetadata, config Configuration) plan.DataSource {
 	t.Helper()
 
-	dsCfg, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{httpClient: http.DefaultClient}, metadata, config)
+	dsCfg, err := plan.NewDataSourceConfiguration[Configuration](id, &Factory[Configuration]{
+		httpClient: http.DefaultClient,
+	}, metadata, config)
 	require.NoError(t, err)
 
 	return dsCfg
