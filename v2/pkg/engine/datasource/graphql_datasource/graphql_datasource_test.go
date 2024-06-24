@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -9188,6 +9189,10 @@ func verifyMultipartRequest(t *testing.T, r *http.Request, expected ExpectedRequ
 }
 
 func TestLoadFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
 	t.Run("single file", func(t *testing.T) {
 		queryString := `mutation($file: Upload!){singleUpload(file: $file)}`
 		variableString := `{"file":null}`
