@@ -130,6 +130,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningWalker.RegisterInlineFragmentVisitor(p.planningVisitor)
 
 	for key := range p.planningVisitor.planners {
+		if p.config.MinifySubgraphOperations {
+			if dataSourceWithMinify, ok := p.planningVisitor.planners[key].Planner().(SubgraphRequestMinifier); ok {
+				dataSourceWithMinify.EnableSubgraphRequestMinifier()
+			}
+		}
 		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {
 			plannerWithId.SetID(key)
 		}

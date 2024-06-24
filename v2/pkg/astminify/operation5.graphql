@@ -1,0 +1,18 @@
+query MyQuery {
+  query {
+    ... on ObjectB {
+      aField(a: "a", b: "b") {
+        age
+        __typename
+        name
+      }
+    }
+    ... on ObjectC {
+      aField(b: "b" a: "a") {
+        __typename
+        name
+        age
+      }
+    }
+  }
+}
