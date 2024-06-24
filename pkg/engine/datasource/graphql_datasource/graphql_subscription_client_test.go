@@ -288,6 +288,8 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	assert.Eventuallyf(t, func() bool {
+		client.handlersMu.Lock()
+		defer client.handlersMu.Unlock()
 		return len(client.handlers) == 0
 	}, time.Second, time.Millisecond, "client handlers not 0")
 }
