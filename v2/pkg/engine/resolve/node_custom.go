@@ -18,6 +18,14 @@ func (_ *CustomNode) NodeKind() NodeKind {
 	return NodeKindCustom
 }
 
+func (c *CustomNode) Copy() Node {
+	return &CustomNode{
+		CustomResolve: c.CustomResolve,
+		Nullable:      c.Nullable,
+		Path:          c.Path,
+	}
+}
+
 func (c *CustomNode) NodePath() []string {
 	return c.Path
 }

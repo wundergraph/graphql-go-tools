@@ -456,8 +456,32 @@ func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 			onTypeNames = append(onTypeNames, v.Definition.ObjectTypeDefinitionNameBytes(objectTypeDefinitionRef))
 		}
 	}
-	if len(onTypeNames) < 1 {
+	if len(onTypeNames) == 0 {
 		return nil
+	}
+	if len(v.Walker.TypeDefinitions) > 1 {
+		grandParent := v.Walker.TypeDefinitions[len(v.Walker.TypeDefinitions)-2]
+		if grandParent.Kind == ast.NodeKindUnionTypeDefinition {
+			for i := 0; i < len(onTypeNames); i++ {
+				possibleMember, exists := v.Definition.Index.FirstNodeByNameStr(string(onTypeNames[i]))
+				if !exists {
+					continue
+				}
+				if !v.Definition.NodeIsUnionMember(possibleMember, grandParent) {
+					onTypeNames = append(onTypeNames[:i], onTypeNames[i+1:]...)
+					i--
+				}
+			}
+		}
+		if grandParent.Kind == ast.NodeKindInterfaceTypeDefinition {
+			objectTypesImplementingGrandParent, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(grandParent.Ref)
+			for i := 0; i < len(onTypeNames); i++ {
+				if !slices.Contains(objectTypesImplementingGrandParent, string(onTypeNames[i])) {
+					onTypeNames = append(onTypeNames[:i], onTypeNames[i+1:]...)
+					i--
+				}
+			}
+		}
 	}
 
 	return onTypeNames

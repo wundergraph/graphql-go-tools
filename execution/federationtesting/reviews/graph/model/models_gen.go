@@ -12,18 +12,45 @@ type Comment interface {
 	GetBody() string
 }
 
+type Iface interface {
+	IsIface()
+	GetSubject() string
+}
+
 type Cat struct {
 	Name string `json:"name"`
 }
 
-type Question struct {
+type DetatchedQuestion struct {
 	Upc  string `json:"upc"`
 	Body string `json:"body"`
+}
+
+func (DetatchedQuestion) IsComment()           {}
+func (this DetatchedQuestion) GetUpc() string  { return this.Upc }
+func (this DetatchedQuestion) GetBody() string { return this.Body }
+
+type OtherQuestion struct {
+	Upc  string `json:"upc"`
+	Body string `json:"body"`
+}
+
+func (OtherQuestion) IsComment()           {}
+func (this OtherQuestion) GetUpc() string  { return this.Upc }
+func (this OtherQuestion) GetBody() string { return this.Body }
+
+type Question struct {
+	Upc     string `json:"upc"`
+	Body    string `json:"body"`
+	Subject string `json:"subject"`
 }
 
 func (Question) IsComment()           {}
 func (this Question) GetUpc() string  { return this.Upc }
 func (this Question) GetBody() string { return this.Body }
+
+func (Question) IsIface()                {}
+func (this Question) GetSubject() string { return this.Subject }
 
 func (Question) IsAttachment() {}
 
@@ -40,8 +67,12 @@ func (this Rating) GetBody() string { return this.Body }
 func (Rating) IsAttachment() {}
 
 type Video struct {
-	Upc  string  `json:"upc"`
-	Size float64 `json:"size"`
+	Upc     string  `json:"upc"`
+	Size    float64 `json:"size"`
+	Subject string  `json:"subject"`
 }
+
+func (Video) IsIface()                {}
+func (this Video) GetSubject() string { return this.Subject }
 
 func (Video) IsAttachment() {}

@@ -85,7 +85,7 @@ type Walker struct {
 	definition      *ast.Document
 	visitors        visitors
 	Depth           int
-	typeDefinitions []ast.Node
+	TypeDefinitions []ast.Node
 	stop            bool
 	skip            bool
 	revisit         bool
@@ -98,7 +98,7 @@ func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
 		Path:            make([]ast.PathItem, 0, ancestorSize),
-		typeDefinitions: make([]ast.Node, 0, ancestorSize),
+		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
 		deferred:        make([]func(), 0, 8),
 	}
 }
@@ -1343,7 +1343,7 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	}
 	w.Ancestors = w.Ancestors[:0]
 	w.Path = w.Path[:0]
-	w.typeDefinitions = w.typeDefinitions[:0]
+	w.TypeDefinitions = w.TypeDefinitions[:0]
 	w.document = document
 	w.definition = definition
 	w.Depth = 0
@@ -1432,7 +1432,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		if bytes.Equal(fieldName, literal.TYPENAME) {
 			typeName = literal.STRING
 		}
-		fields := w.definition.NodeFieldDefinitions(w.typeDefinitions[len(w.typeDefinitions)-1])
+		fields := w.definition.NodeFieldDefinitions(w.TypeDefinitions[len(w.TypeDefinitions)-1])
 		for _, i := range fields {
 			if bytes.Equal(fieldName, w.definition.FieldDefinitionNameBytes(i)) {
 				typeName = w.definition.ResolveTypeNameBytes(w.definition.FieldDefinitionType(i))
@@ -1440,7 +1440,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			}
 		}
 		if typeName == nil {
-			typeName := w.definition.NodeNameBytes(w.typeDefinitions[len(w.typeDefinitions)-1])
+			typeName := w.definition.NodeNameBytes(w.TypeDefinitions[len(w.TypeDefinitions)-1])
 			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 			return
 		}
@@ -1461,7 +1461,7 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 		return
 	}
 
-	w.typeDefinitions = append(w.typeDefinitions, w.EnclosingTypeDefinition)
+	w.TypeDefinitions = append(w.TypeDefinitions, w.EnclosingTypeDefinition)
 }
 
 func (w *Walker) removeLastAncestor() {
@@ -1472,19 +1472,19 @@ func (w *Walker) removeLastAncestor() {
 	switch ancestor.Kind {
 	case ast.NodeKindOperationDefinition, ast.NodeKindFragmentDefinition:
 		w.Path = w.Path[:len(w.Path)-1]
-		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
+		w.TypeDefinitions = w.TypeDefinitions[:len(w.TypeDefinitions)-1]
 		w.EnclosingTypeDefinition.Kind = ast.NodeKindUnknown
 		w.EnclosingTypeDefinition.Ref = -1
 	case ast.NodeKindInlineFragment:
 		if w.document.InlineFragmentHasTypeCondition(ancestor.Ref) {
 			w.Path = w.Path[:len(w.Path)-1]
-			w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
-			w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
+			w.TypeDefinitions = w.TypeDefinitions[:len(w.TypeDefinitions)-1]
+			w.EnclosingTypeDefinition = w.TypeDefinitions[len(w.TypeDefinitions)-1]
 		}
 	case ast.NodeKindField:
 		w.Path = w.Path[:len(w.Path)-1]
-		w.typeDefinitions = w.typeDefinitions[:len(w.typeDefinitions)-1]
-		w.EnclosingTypeDefinition = w.typeDefinitions[len(w.typeDefinitions)-1]
+		w.TypeDefinitions = w.TypeDefinitions[:len(w.TypeDefinitions)-1]
+		w.EnclosingTypeDefinition = w.TypeDefinitions[len(w.TypeDefinitions)-1]
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition:
 		w.EnclosingTypeDefinition.Ref = -1
 		w.EnclosingTypeDefinition.Kind = ast.NodeKindUnknown
@@ -3911,7 +3911,7 @@ func (w *Walker) ArgumentInputValueDefinition(argument int) (definition int, exi
 	switch ancestor.Kind {
 	case ast.NodeKindField:
 		fieldName := w.document.FieldNameBytes(ancestor.Ref)
-		fieldTypeDef := w.typeDefinitions[len(w.typeDefinitions)-2]
+		fieldTypeDef := w.TypeDefinitions[len(w.TypeDefinitions)-2]
 		definition = w.definition.NodeFieldDefinitionArgumentDefinitionByName(fieldTypeDef, fieldName, argumentName)
 		exits = definition != -1
 	case ast.NodeKindDirective:

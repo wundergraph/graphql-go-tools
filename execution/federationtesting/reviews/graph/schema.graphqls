@@ -17,9 +17,25 @@ type Review {
     author: User! @provides(fields: "username")
     product: Product!
     attachments: [Attachment]
+    comment: Comment
 }
 
-type Question implements Comment {
+interface Iface {
+    subject: String!
+}
+
+type Question implements Comment & Iface {
+    upc: String!
+    body: String!
+    subject: String!
+}
+
+type OtherQuestion implements Comment {
+    upc: String!
+    body: String!
+}
+
+type DetatchedQuestion implements Comment {
     upc: String!
     body: String!
 }
@@ -30,9 +46,10 @@ type Rating implements Comment {
     score: Int!
 }
 
-type Video {
+type Video implements Iface {
     upc: String!
     size: Float!
+    subject: String!
 }
 
 union Attachment = Question | Rating | Video

@@ -53,6 +53,11 @@ type ComplexityRoot struct {
 		Name func(childComplexity int) int
 	}
 
+	DetatchedQuestion struct {
+		Body func(childComplexity int) int
+		Upc  func(childComplexity int) int
+	}
+
 	Entity struct {
 		FindProductByUpc func(childComplexity int, upc string) int
 		FindUserByID     func(childComplexity int, id string) int
@@ -60,6 +65,11 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		AddReview func(childComplexity int, authorID string, upc string, review string) int
+	}
+
+	OtherQuestion struct {
+		Body func(childComplexity int) int
+		Upc  func(childComplexity int) int
 	}
 
 	Product struct {
@@ -75,8 +85,9 @@ type ComplexityRoot struct {
 	}
 
 	Question struct {
-		Body func(childComplexity int) int
-		Upc  func(childComplexity int) int
+		Body    func(childComplexity int) int
+		Subject func(childComplexity int) int
+		Upc     func(childComplexity int) int
 	}
 
 	Rating struct {
@@ -89,6 +100,7 @@ type ComplexityRoot struct {
 		Attachments func(childComplexity int) int
 		Author      func(childComplexity int) int
 		Body        func(childComplexity int) int
+		Comment     func(childComplexity int) int
 		Product     func(childComplexity int) int
 	}
 
@@ -100,8 +112,9 @@ type ComplexityRoot struct {
 	}
 
 	Video struct {
-		Size func(childComplexity int) int
-		Upc  func(childComplexity int) int
+		Size    func(childComplexity int) int
+		Subject func(childComplexity int) int
+		Upc     func(childComplexity int) int
 	}
 
 	_Service struct {
@@ -125,6 +138,7 @@ type QueryResolver interface {
 }
 type ReviewResolver interface {
 	Attachments(ctx context.Context, obj *model.Review) ([]model.Attachment, error)
+	Comment(ctx context.Context, obj *model.Review) (model.Comment, error)
 }
 type UserResolver interface {
 	Username(ctx context.Context, obj *model.User) (string, error)
@@ -153,6 +167,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Cat.Name(childComplexity), true
+
+	case "DetatchedQuestion.body":
+		if e.complexity.DetatchedQuestion.Body == nil {
+			break
+		}
+
+		return e.complexity.DetatchedQuestion.Body(childComplexity), true
+
+	case "DetatchedQuestion.upc":
+		if e.complexity.DetatchedQuestion.Upc == nil {
+			break
+		}
+
+		return e.complexity.DetatchedQuestion.Upc(childComplexity), true
 
 	case "Entity.findProductByUpc":
 		if e.complexity.Entity.FindProductByUpc == nil {
@@ -189,6 +217,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.AddReview(childComplexity, args["authorID"].(string), args["upc"].(string), args["review"].(string)), true
+
+	case "OtherQuestion.body":
+		if e.complexity.OtherQuestion.Body == nil {
+			break
+		}
+
+		return e.complexity.OtherQuestion.Body(childComplexity), true
+
+	case "OtherQuestion.upc":
+		if e.complexity.OtherQuestion.Upc == nil {
+			break
+		}
+
+		return e.complexity.OtherQuestion.Upc(childComplexity), true
 
 	case "Product.reviews":
 		if e.complexity.Product.Reviews == nil {
@@ -244,6 +286,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Question.Body(childComplexity), true
 
+	case "Question.subject":
+		if e.complexity.Question.Subject == nil {
+			break
+		}
+
+		return e.complexity.Question.Subject(childComplexity), true
+
 	case "Question.upc":
 		if e.complexity.Question.Upc == nil {
 			break
@@ -293,6 +342,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Review.Body(childComplexity), true
 
+	case "Review.comment":
+		if e.complexity.Review.Comment == nil {
+			break
+		}
+
+		return e.complexity.Review.Comment(childComplexity), true
+
 	case "Review.product":
 		if e.complexity.Review.Product == nil {
 			break
@@ -334,6 +390,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Video.Size(childComplexity), true
+
+	case "Video.subject":
+		if e.complexity.Video.Subject == nil {
+			break
+		}
+
+		return e.complexity.Video.Subject(childComplexity), true
 
 	case "Video.upc":
 		if e.complexity.Video.Upc == nil {
@@ -435,9 +498,25 @@ type Review {
     author: User! @provides(fields: "username")
     product: Product!
     attachments: [Attachment]
+    comment: Comment
 }
 
-type Question implements Comment {
+interface Iface {
+    subject: String!
+}
+
+type Question implements Comment & Iface {
+    upc: String!
+    body: String!
+    subject: String!
+}
+
+type OtherQuestion implements Comment {
+    upc: String!
+    body: String!
+}
+
+type DetatchedQuestion implements Comment {
     upc: String!
     body: String!
 }
@@ -448,9 +527,10 @@ type Rating implements Comment {
     score: Int!
 }
 
-type Video {
+type Video implements Iface {
     upc: String!
     size: Float!
+    subject: String!
 }
 
 union Attachment = Question | Rating | Video
@@ -684,6 +764,94 @@ func (ec *executionContext) fieldContext_Cat_name(ctx context.Context, field gra
 	return fc, nil
 }
 
+func (ec *executionContext) _DetatchedQuestion_upc(ctx context.Context, field graphql.CollectedField, obj *model.DetatchedQuestion) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DetatchedQuestion_upc(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Upc, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DetatchedQuestion_upc(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DetatchedQuestion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _DetatchedQuestion_body(ctx context.Context, field graphql.CollectedField, obj *model.DetatchedQuestion) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DetatchedQuestion_body(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Body, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DetatchedQuestion_body(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DetatchedQuestion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Entity_findProductByUpc(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Entity_findProductByUpc(ctx, field)
 	if err != nil {
@@ -857,6 +1025,8 @@ func (ec *executionContext) fieldContext_Mutation_addReview(ctx context.Context,
 				return ec.fieldContext_Review_product(ctx, field)
 			case "attachments":
 				return ec.fieldContext_Review_attachments(ctx, field)
+			case "comment":
+				return ec.fieldContext_Review_comment(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Review", field.Name)
 		},
@@ -871,6 +1041,94 @@ func (ec *executionContext) fieldContext_Mutation_addReview(ctx context.Context,
 	if fc.Args, err = ec.field_Mutation_addReview_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OtherQuestion_upc(ctx context.Context, field graphql.CollectedField, obj *model.OtherQuestion) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OtherQuestion_upc(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Upc, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OtherQuestion_upc(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OtherQuestion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OtherQuestion_body(ctx context.Context, field graphql.CollectedField, obj *model.OtherQuestion) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OtherQuestion_body(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Body, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OtherQuestion_body(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OtherQuestion",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -963,6 +1221,8 @@ func (ec *executionContext) fieldContext_Product_reviews(ctx context.Context, fi
 				return ec.fieldContext_Review_product(ctx, field)
 			case "attachments":
 				return ec.fieldContext_Review_attachments(ctx, field)
+			case "comment":
+				return ec.fieldContext_Review_comment(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Review", field.Name)
 		},
@@ -1386,6 +1646,50 @@ func (ec *executionContext) fieldContext_Question_body(ctx context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _Question_subject(ctx context.Context, field graphql.CollectedField, obj *model.Question) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Question_subject(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Subject, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Question_subject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Question",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Rating_upc(ctx context.Context, field graphql.CollectedField, obj *model.Rating) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Rating_upc(ctx, field)
 	if err != nil {
@@ -1707,6 +2011,47 @@ func (ec *executionContext) fieldContext_Review_attachments(ctx context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _Review_comment(ctx context.Context, field graphql.CollectedField, obj *model.Review) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Review_comment(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Review().Comment(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(model.Comment)
+	fc.Result = res
+	return ec.marshalOComment2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐComment(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Review_comment(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Review",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("FieldContext.Child cannot be called on type INTERFACE")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_id(ctx, field)
 	if err != nil {
@@ -1839,6 +2184,8 @@ func (ec *executionContext) fieldContext_User_reviews(ctx context.Context, field
 				return ec.fieldContext_Review_product(ctx, field)
 			case "attachments":
 				return ec.fieldContext_Review_attachments(ctx, field)
+			case "comment":
+				return ec.fieldContext_Review_comment(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Review", field.Name)
 		},
@@ -1973,6 +2320,50 @@ func (ec *executionContext) fieldContext_Video_size(ctx context.Context, field g
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Video_subject(ctx context.Context, field graphql.CollectedField, obj *model.Video) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Video_subject(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Subject, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Video_subject(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Video",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3837,6 +4228,20 @@ func (ec *executionContext) _Comment(ctx context.Context, sel ast.SelectionSet, 
 			return graphql.Null
 		}
 		return ec._Question(ctx, sel, obj)
+	case model.OtherQuestion:
+		return ec._OtherQuestion(ctx, sel, &obj)
+	case *model.OtherQuestion:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._OtherQuestion(ctx, sel, obj)
+	case model.DetatchedQuestion:
+		return ec._DetatchedQuestion(ctx, sel, &obj)
+	case *model.DetatchedQuestion:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._DetatchedQuestion(ctx, sel, obj)
 	case model.Rating:
 		return ec._Rating(ctx, sel, &obj)
 	case *model.Rating:
@@ -3844,6 +4249,29 @@ func (ec *executionContext) _Comment(ctx context.Context, sel ast.SelectionSet, 
 			return graphql.Null
 		}
 		return ec._Rating(ctx, sel, obj)
+	default:
+		panic(fmt.Errorf("unexpected type %T", obj))
+	}
+}
+
+func (ec *executionContext) _Iface(ctx context.Context, sel ast.SelectionSet, obj model.Iface) graphql.Marshaler {
+	switch obj := (obj).(type) {
+	case nil:
+		return graphql.Null
+	case model.Question:
+		return ec._Question(ctx, sel, &obj)
+	case *model.Question:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._Question(ctx, sel, obj)
+	case model.Video:
+		return ec._Video(ctx, sel, &obj)
+	case *model.Video:
+		if obj == nil {
+			return graphql.Null
+		}
+		return ec._Video(ctx, sel, obj)
 	default:
 		panic(fmt.Errorf("unexpected type %T", obj))
 	}
@@ -3889,6 +4317,41 @@ func (ec *executionContext) _Cat(ctx context.Context, sel ast.SelectionSet, obj 
 		case "name":
 
 			out.Values[i] = ec._Cat_name(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var detatchedQuestionImplementors = []string{"DetatchedQuestion", "Comment"}
+
+func (ec *executionContext) _DetatchedQuestion(ctx context.Context, sel ast.SelectionSet, obj *model.DetatchedQuestion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, detatchedQuestionImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("DetatchedQuestion")
+		case "upc":
+
+			out.Values[i] = ec._DetatchedQuestion_upc(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "body":
+
+			out.Values[i] = ec._DetatchedQuestion_body(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -4004,6 +4467,41 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addReview(ctx, field)
 			})
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch()
+	if invalids > 0 {
+		return graphql.Null
+	}
+	return out
+}
+
+var otherQuestionImplementors = []string{"OtherQuestion", "Comment"}
+
+func (ec *executionContext) _OtherQuestion(ctx context.Context, sel ast.SelectionSet, obj *model.OtherQuestion) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, otherQuestionImplementors)
+	out := graphql.NewFieldSet(fields)
+	var invalids uint32
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OtherQuestion")
+		case "upc":
+
+			out.Values[i] = ec._OtherQuestion_upc(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "body":
+
+			out.Values[i] = ec._OtherQuestion_body(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -4192,7 +4690,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 	return out
 }
 
-var questionImplementors = []string{"Question", "Comment", "Attachment"}
+var questionImplementors = []string{"Question", "Comment", "Iface", "Attachment"}
 
 func (ec *executionContext) _Question(ctx context.Context, sel ast.SelectionSet, obj *model.Question) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, questionImplementors)
@@ -4212,6 +4710,13 @@ func (ec *executionContext) _Question(ctx context.Context, sel ast.SelectionSet,
 		case "body":
 
 			out.Values[i] = ec._Question_body(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "subject":
+
+			out.Values[i] = ec._Question_subject(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -4317,6 +4822,23 @@ func (ec *executionContext) _Review(ctx context.Context, sel ast.SelectionSet, o
 				return innerFunc(ctx)
 
 			})
+		case "comment":
+			field := field
+
+			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Review_comment(ctx, field, obj)
+				return res
+			}
+
+			out.Concurrently(i, func() graphql.Marshaler {
+				return innerFunc(ctx)
+
+			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -4413,7 +4935,7 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 	return out
 }
 
-var videoImplementors = []string{"Video", "Attachment"}
+var videoImplementors = []string{"Video", "Iface", "Attachment"}
 
 func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, obj *model.Video) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, videoImplementors)
@@ -4433,6 +4955,13 @@ func (ec *executionContext) _Video(ctx context.Context, sel ast.SelectionSet, ob
 		case "size":
 
 			out.Values[i] = ec._Video_size(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "subject":
+
+			out.Values[i] = ec._Video_subject(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -5350,6 +5879,13 @@ func (ec *executionContext) marshalOCat2ᚖgithubᚗcomᚋwundergraphᚋgraphql�
 		return graphql.Null
 	}
 	return ec._Cat(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOComment2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐComment(ctx context.Context, sel ast.SelectionSet, v model.Comment) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._Comment(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalOReview2ᚕᚖgithubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋreviewsᚋgraphᚋmodelᚐReview(ctx context.Context, sel ast.SelectionSet, v []*model.Review) graphql.Marshaler {

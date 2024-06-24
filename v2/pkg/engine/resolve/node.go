@@ -21,6 +21,7 @@ type Node interface {
 	NodePath() []string
 	NodeNullable() bool
 	Equals(Node) bool
+	Copy() Node
 }
 
 type NodeKind int

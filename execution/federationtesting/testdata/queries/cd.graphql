@@ -1,0 +1,19 @@
+query CD {
+    cds {
+        ... on CDer {
+            name {
+                first
+            }
+        }
+        ... on C {
+            name {
+                middle
+            }
+        }
+        ... on D {
+            name {
+                last
+            }
+        }
+    }
+}

@@ -11,24 +11,28 @@ type PostProcessor interface {
 }
 
 type Processor struct {
-	postProcessors       []PostProcessor
+	processFetchTree     []PostProcessor
+	processData          []PostProcessor
 	enableExtractFetches bool
 }
 
 func NewProcessor(postProcessors []PostProcessor, extractFetches bool) *Processor {
 	return &Processor{
-		postProcessors:       postProcessors,
+		processFetchTree:     postProcessors,
 		enableExtractFetches: extractFetches,
 	}
 }
 
 func DefaultProcessor() *Processor {
 	return &Processor{
-		postProcessors: []PostProcessor{
+		processFetchTree: []PostProcessor{
 			&CreateMultiFetchTypes{},
 			&DeduplicateMultiFetch{}, // this processor must be called after CreateMultiFetchTypes, when we remove duplicates we may lack of dependency id, which required to create proper multi fetch types
 			&ResolveInputTemplates{},
 			&CreateConcreteSingleFetchTypes{},
+		},
+		processData: []PostProcessor{
+			&MergeFields{},
 		},
 		enableExtractFetches: true,
 	}
@@ -38,22 +42,28 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 	switch t := pre.(type) {
 	case *plan.SynchronousResponsePlan:
 		p.extractFetches(t.Response)
-		for i := range p.postProcessors {
+		for i := range p.processFetchTree {
 			if p.enableExtractFetches {
-				p.postProcessors[i].Process(t.Response.FetchTree)
+				p.processFetchTree[i].Process(t.Response.FetchTree)
 			} else {
-				p.postProcessors[i].Process(t.Response.Data)
+				p.processFetchTree[i].Process(t.Response.Data)
 			}
+		}
+		for i := range p.processData {
+			p.processData[i].Process(t.Response.Data)
 		}
 
 	case *plan.SubscriptionResponsePlan:
 		p.extractFetches(t.Response.Response)
-		for i := range p.postProcessors {
+		for i := range p.processFetchTree {
 			if p.enableExtractFetches {
-				p.postProcessors[i].ProcessSubscription(t.Response.Response.FetchTree, &t.Response.Trigger)
+				p.processFetchTree[i].ProcessSubscription(t.Response.Response.FetchTree, &t.Response.Trigger)
 			} else {
-				p.postProcessors[i].ProcessSubscription(t.Response.Response.Data, &t.Response.Trigger)
+				p.processFetchTree[i].Process(t.Response.Response.Data)
 			}
+		}
+		for i := range p.processData {
+			p.processData[i].ProcessSubscription(t.Response.Response.Data, &t.Response.Trigger)
 		}
 	}
 

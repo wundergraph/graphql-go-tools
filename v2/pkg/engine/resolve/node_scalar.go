@@ -12,6 +12,14 @@ func (_ *Scalar) NodeKind() NodeKind {
 	return NodeKindScalar
 }
 
+func (s *Scalar) Copy() Node {
+	return &Scalar{
+		Path:     s.Path,
+		Nullable: s.Nullable,
+		Export:   s.Export,
+	}
+}
+
 func (s *Scalar) NodePath() []string {
 	return s.Path
 }
@@ -43,6 +51,16 @@ type String struct {
 	Export               *FieldExport `json:"export,omitempty"`
 	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
 	IsTypeName           bool         `json:"is_type_name,omitempty"`
+}
+
+func (s *String) Copy() Node {
+	return &String{
+		Path:                 s.Path,
+		Nullable:             s.Nullable,
+		Export:               s.Export,
+		UnescapeResponseJson: s.UnescapeResponseJson,
+		IsTypeName:           s.IsTypeName,
+	}
 }
 
 func (s *String) Equals(n Node) bool {
@@ -95,6 +113,13 @@ func (s *StaticString) NodePath() []string {
 	return s.Path
 }
 
+func (s *StaticString) Copy() Node {
+	return &StaticString{
+		Path:  s.Path,
+		Value: s.Value,
+	}
+}
+
 func (s *StaticString) NodeNullable() bool {
 	return false
 }
@@ -124,6 +149,14 @@ type Boolean struct {
 
 func (_ *Boolean) NodeKind() NodeKind {
 	return NodeKindBoolean
+}
+
+func (b *Boolean) Copy() Node {
+	return &Boolean{
+		Path:     b.Path,
+		Nullable: b.Nullable,
+		Export:   b.Export,
+	}
 }
 
 func (b *Boolean) NodePath() []string {
@@ -169,6 +202,14 @@ func (f *Float) NodeNullable() bool {
 	return f.Nullable
 }
 
+func (f *Float) Copy() Node {
+	return &Float{
+		Path:     f.Path,
+		Nullable: f.Nullable,
+		Export:   f.Export,
+	}
+}
+
 func (f *Float) Equals(n Node) bool {
 	other, ok := n.(*Float)
 	if !ok {
@@ -204,6 +245,14 @@ func (i *Integer) NodeNullable() bool {
 	return i.Nullable
 }
 
+func (i *Integer) Copy() Node {
+	return &Integer{
+		Path:     i.Path,
+		Nullable: i.Nullable,
+		Export:   i.Export,
+	}
+}
+
 func (i *Integer) Equals(n Node) bool {
 	other, ok := n.(*Integer)
 	if !ok {
@@ -230,6 +279,14 @@ type BigInt struct {
 
 func (_ *BigInt) NodeKind() NodeKind {
 	return NodeKindBigInt
+}
+
+func (b *BigInt) Copy() Node {
+	return &BigInt{
+		Path:     b.Path,
+		Nullable: b.Nullable,
+		Export:   b.Export,
+	}
 }
 
 func (b *BigInt) NodePath() []string {
@@ -271,6 +328,10 @@ func (_ *Null) NodePath() []string {
 
 func (_ *Null) NodeNullable() bool {
 	return true
+}
+
+func (_ *Null) Copy() Node {
+	return &Null{}
 }
 
 func (_ *Null) Equals(n Node) bool {

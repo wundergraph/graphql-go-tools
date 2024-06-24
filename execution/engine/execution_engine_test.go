@@ -1811,6 +1811,18 @@ func newFederationEngineStaticConfig(ctx context.Context, setup *federationtesti
 					TypeName:   "WalletType2",
 					FieldNames: []string{"currency", "amount", "specialField2"},
 				},
+				{
+					TypeName:   "Namer",
+					FieldNames: []string{"name"},
+				},
+				{
+					TypeName:   "A",
+					FieldNames: []string{"name"},
+				},
+				{
+					TypeName:   "B",
+					FieldNames: []string{"name"},
+				},
 			},
 			FederationMetaData: plan.FederationMetaData{
 				Keys: plan.FederationFieldConfigurations{
