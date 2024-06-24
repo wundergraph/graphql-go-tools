@@ -11,8 +11,6 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-//go:generate ./gen.sh
-
 func main() {
 	currDir, _ := os.Getwd()
 	println(currDir)

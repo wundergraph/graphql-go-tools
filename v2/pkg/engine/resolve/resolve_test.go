@@ -1,7 +1,5 @@
 package resolve
 
-// go:generate mockgen -package resolve -destination resolve_mock_test.go . DataSource,BeforeFetchHook,AfterFetchHook,DataSourceBatch,DataSourceBatchFactory
-
 import (
 	"bytes"
 	"context"
@@ -20,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
 
@@ -31,6 +30,19 @@ type _fakeDataSource struct {
 }
 
 func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+	if f.artificialLatency != 0 {
+		time.Sleep(f.artificialLatency)
+	}
+	if f.input != nil {
+		if !bytes.Equal(f.input, input) {
+			require.Equal(f.t, string(f.input), string(input), "input mismatch")
+		}
+	}
+	_, err = w.Write(f.data)
+	return
+}
+
+func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
