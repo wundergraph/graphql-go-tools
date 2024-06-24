@@ -3,6 +3,7 @@ package introspection_datasource
 import (
 	"context"
 	"encoding/json"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
@@ -32,6 +33,10 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 	}
 
 	return json.NewEncoder(w).Encode(s.schemaWithoutTypeInfo())
+}
+
+func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+	panic("not implemented")
 }
 
 func (s *Source) schemaWithoutTypeInfo() introspection.Schema {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"io"
 )
@@ -77,4 +78,8 @@ func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte, w io.Wr
 	}
 	_, err = io.WriteString(w, `{"success": true}`)
 	return err
+}
+
+func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+	panic("not implemented")
 }

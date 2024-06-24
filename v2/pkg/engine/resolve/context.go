@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"go.uber.org/atomic"
 )
 
 type Context struct {
 	ctx              context.Context
 	Variables        []byte
+	Files            []httpclient.File
 	Request          Request
 	RenameTypeNames  []RenameTypeName
 	TracingOptions   TraceOptions
@@ -141,6 +143,7 @@ func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
 	cpy.Variables = append([]byte(nil), c.Variables...)
+	cpy.Files = append([]httpclient.File(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
 	return &cpy
@@ -149,6 +152,7 @@ func (c *Context) clone(ctx context.Context) *Context {
 func (c *Context) Free() {
 	c.ctx = nil
 	c.Variables = nil
+	c.Files = nil
 	c.Request.Header = nil
 	c.RenameTypeNames = nil
 	c.TracingOptions.DisableAll()

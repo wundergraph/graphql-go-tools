@@ -7,6 +7,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -68,4 +69,8 @@ type Source struct{}
 func (Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
 	_, err = w.Write(input)
 	return
+}
+
+func (Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+	panic("not implemented")
 }
