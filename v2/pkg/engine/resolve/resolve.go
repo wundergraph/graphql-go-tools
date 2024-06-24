@@ -413,7 +413,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 
 		err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
-
 		if err != nil {
 			cancel()
 
