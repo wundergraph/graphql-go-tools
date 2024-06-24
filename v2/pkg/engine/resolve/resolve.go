@@ -402,25 +402,38 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
 
-	err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
-	if err != nil {
-		cancel()
-		delete(r.triggers, triggerID)
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
-		}
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
-		r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer, buf)
-		return
-	}
-	if r.options.Debug {
-		fmt.Printf("resolver:trigger:started:%d\n", triggerID)
-	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
 		r.reporter.TriggerCountInc(1)
 	}
+
+	go func() {
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
+		}
+
+		err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
+
+		if err != nil {
+			cancel()
+
+			if r.options.Debug {
+				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
+			}
+			buf := pool.BytesBuffer.Get()
+			defer pool.BytesBuffer.Put(buf)
+
+			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer, buf)
+
+			updater.Done()
+			return
+		}
+
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:started:%d\n", triggerID)
+		}
+	}()
+
 }
 
 func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
@@ -768,7 +781,6 @@ type addSubscription struct {
 	resolve *GraphQLSubscription
 	writer  SubscriptionResponseWriter
 	id      SubscriptionIdentifier
-	done    func()
 }
 
 type subscriptionEventKind int
@@ -783,6 +795,8 @@ const (
 )
 
 type SubscriptionUpdater interface {
+	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// Done also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Done.
 	Done()
 }
