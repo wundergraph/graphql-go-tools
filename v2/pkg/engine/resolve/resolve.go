@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel/attribute"
 	"io"
 	"sync"
 	"time"
@@ -28,6 +29,10 @@ type Reporter interface {
 	TriggerCountDec(count int)
 }
 
+type Metrics interface {
+	MeasureActiveSubscriptions(ctx context.Context, count int, attr ...attribute.KeyValue)
+}
+
 type AsyncErrorWriter interface {
 	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer)
 }
@@ -48,6 +53,7 @@ type Resolver struct {
 
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
+	metrics          Metrics
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
@@ -80,10 +86,10 @@ type ResolverOptions struct {
 
 	MaxSubscriptionWorkers int
 
-	Debug bool
-
+	Debug            bool
 	Reporter         Reporter
 	AsyncErrorWriter AsyncErrorWriter
+	Metrics          Metrics
 
 	// PropagateSubgraphErrors adds Subgraph Errors to the response
 	PropagateSubgraphErrors bool
@@ -130,6 +136,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		reporter:         options.Reporter,
 		asyncErrorWriter: options.AsyncErrorWriter,
 		triggerUpdateBuf: bytes.NewBuffer(make([]byte, 0, 1024)),
+		metrics:          options.Metrics,
 	}
 	if options.MaxConcurrency > 0 {
 		semaphore := make(chan struct{}, options.MaxConcurrency)
@@ -357,6 +364,9 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 			r.reporter.SubscriptionCountDec(subscriptionCount)
 			r.reporter.TriggerCountDec(1)
 		}
+		if r.metrics != nil {
+			r.metrics.MeasureActiveSubscriptions(r.ctx, -subscriptionCount)
+		}
 	}()
 }
 
@@ -377,6 +387,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		trig.subscriptions[add.ctx] = s
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountInc(1)
+		}
+		if r.metrics != nil {
+			r.metrics.MeasureActiveSubscriptions(r.ctx, 1)
 		}
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
@@ -405,6 +418,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
 		r.reporter.TriggerCountInc(1)
+	}
+	if r.metrics != nil {
+		r.metrics.MeasureActiveSubscriptions(r.ctx, 1)
 	}
 
 	go func() {
@@ -466,6 +482,9 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
 	}
+	if r.metrics != nil {
+		r.metrics.MeasureActiveSubscriptions(r.ctx, -removed)
+	}
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
@@ -497,6 +516,9 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(removed)
+	}
+	if r.metrics != nil {
+		r.metrics.MeasureActiveSubscriptions(r.ctx, -removed)
 	}
 }
 
@@ -557,6 +579,9 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(count)
 		r.reporter.TriggerCountDec(1)
+	}
+	if r.metrics != nil {
+		r.metrics.MeasureActiveSubscriptions(r.ctx, -count)
 	}
 }
 
