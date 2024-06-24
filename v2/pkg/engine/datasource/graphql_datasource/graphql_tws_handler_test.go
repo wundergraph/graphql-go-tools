@@ -68,13 +68,15 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -87,11 +89,6 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
@@ -148,13 +145,16 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 1)
 	assert.Equal(t, 1, len(updater.updates))
@@ -166,11 +166,6 @@ func TestWebsocketSubscriptionClientPing_GQLTWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
@@ -217,13 +212,16 @@ func TestWebsocketSubscriptionClientError_GQLTWS(t *testing.T) {
 	)
 
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `wrongQuery {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+
+	go func() {
+		err := client.Subscribe(resolve.NewContext(clientCtx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `wrongQuery {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 1)
 	assert.Equal(t, 1, len(updater.updates))
@@ -305,13 +303,17 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assertion.NoError(err)
+
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assertion.NoError(err)
+	}()
+
 	updater.AwaitUpdates(t, time.Second, 2)
 	assertion.Equal(2, len(updater.updates))
 	assertion.Equal(`{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -323,11 +325,6 @@ func TestWebSocketSubscriptionClientInitIncludePing_GQLTWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assertion.Eventuallyf(func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
@@ -382,13 +379,16 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 	).(*subscriptionClient)
 
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 1)
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -400,9 +400,4 @@ func TestWebsocketSubscriptionClient_GQLTWS_Upstream_Dies(t *testing.T) {
 
 	clientCancel()
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }

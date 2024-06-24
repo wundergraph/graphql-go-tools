@@ -1,13 +1,18 @@
 package httpclient
 
 import (
+	"bufio"
 	"bytes"
 	"compress/flate"
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"time"
@@ -78,11 +83,40 @@ func setResponseStatusCode(ctx context.Context, statusCode int) {
 	}
 }
 
-func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+var headersToRedact = []string{
+	"authorization",
+	"www-authenticate",
+	"proxy-authenticate",
+	"proxy-authorization",
+	"cookie",
+	"set-cookie",
+}
 
-	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+func redactHeaders(headers http.Header) http.Header {
+	redactedHeaders := make(http.Header)
+	for key, values := range headers {
+		if slices.Contains(headersToRedact, strings.ToLower(key)) {
+			redactedHeaders[key] = []string{"****"}
+		} else {
+			redactedHeaders[key] = values
+		}
+	}
+	return redactedHeaders
+}
 
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
+func respBodyReader(res *http.Response) (io.Reader, error) {
+	switch res.Header.Get(ContentEncodingHeader) {
+	case EncodingGzip:
+		return gzip.NewReader(res.Body)
+	case EncodingDeflate:
+		return flate.NewReader(res.Body), nil
+	default:
+		return res.Body, nil
+	}
+}
+
+func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out io.Writer, contentType string) (err error) {
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
 		return err
 	}
@@ -136,7 +170,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	}
 
 	request.Header.Add(AcceptHeader, ContentTypeJSON)
-	request.Header.Add(ContentTypeHeader, ContentTypeJSON)
+	request.Header.Add(ContentTypeHeader, contentType)
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
 
@@ -188,34 +222,150 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	return err
 }
 
-var headersToRedact = []string{
-	"authorization",
-	"www-authenticate",
-	"proxy-authenticate",
-	"proxy-authorization",
-	"cookie",
-	"set-cookie",
+func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
 }
 
-func redactHeaders(headers http.Header) http.Header {
-	redactedHeaders := make(http.Header)
-	for key, values := range headers {
-		if slices.Contains(headersToRedact, strings.ToLower(key)) {
-			redactedHeaders[key] = []string{"****"}
+func DoMultipartForm(
+	client *http.Client, ctx context.Context, requestInput []byte, files []File, out io.Writer,
+) (err error) {
+	if len(files) == 0 {
+		return errors.New("no files provided")
+	}
+
+	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	formValues := map[string]io.Reader{
+		"operations": bytes.NewReader(body),
+	}
+
+	var fileMap string
+	var tempFiles []*os.File
+	for i, file := range files {
+		if len(fileMap) == 0 {
+			if len(files) == 1 {
+				fileMap = fmt.Sprintf(`"%d" : ["variables.file"]`, i)
+			} else {
+				fileMap = fmt.Sprintf(`"%d" : ["variables.files.%d"]`, i, i)
+			}
 		} else {
-			redactedHeaders[key] = values
+			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
+		}
+		key := fmt.Sprintf("%d", i)
+		temporaryFile, err := os.Open(file.Path())
+		tempFiles = append(tempFiles, temporaryFile)
+		if err != nil {
+			return err
+		}
+		formValues[key] = bufio.NewReader(temporaryFile)
+	}
+	formValues["map"] = strings.NewReader("{ " + fileMap + " }")
+
+	multipartBody, contentType, err := multipartBytes(formValues, files)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		multipartBody.Close()
+		for _, file := range tempFiles {
+			if err := file.Close(); err != nil {
+				return
+			}
+			if err = os.Remove(file.Name()); err != nil {
+				return
+			}
+		}
+	}()
+
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
+}
+
+func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, string, error) {
+	byteBuf := &bytes.Buffer{}
+	mpWriter := multipart.NewWriter(byteBuf)
+	contentType := mpWriter.FormDataContentType()
+
+	// First create the fields to control the file upload
+	valuesInOrder := []string{"operations", "map"}
+	for _, key := range valuesInOrder {
+		r := values[key]
+		fw, err := mpWriter.CreateFormField(key)
+		if err != nil {
+			return nil, contentType, err
+		}
+		if _, err = io.Copy(fw, r); err != nil {
+			return nil, contentType, err
 		}
 	}
-	return redactedHeaders
-}
 
-func respBodyReader(res *http.Response) (io.Reader, error) {
-	switch res.Header.Get(ContentEncodingHeader) {
-	case EncodingGzip:
-		return gzip.NewReader(res.Body)
-	case EncodingDeflate:
-		return flate.NewReader(res.Body), nil
-	default:
-		return res.Body, nil
+	// Insert parts for files
+	boundaries := make([][]byte, 0, len(files))
+	for i, file := range files {
+		key := fmt.Sprintf("%d", i)
+		_, err := mpWriter.CreateFormFile(key, file.Name())
+		if err != nil {
+			return nil, contentType, err
+		}
+
+		// We read the files using pipe later
+		// So we need to keep store boundaries to insert contents in the correct place
+		lengthOfBufferTillBoundary := byteBuf.Len()
+		boundary := make([]byte, lengthOfBufferTillBoundary)
+		if _, err = byteBuf.Read(boundary); err != nil {
+			return nil, contentType, err
+		}
+		boundaries = append(boundaries, boundary)
 	}
+
+	err := mpWriter.Close()
+	if err != nil {
+		return nil, contentType, err
+	}
+
+	rd, wr := io.Pipe()
+
+	go func() {
+		defer func() {
+			err := wr.Close()
+			if err != nil {
+				fmt.Println("Error closing pipe: ", err)
+			}
+		}()
+
+		// 4MB chunks
+		buf := make([]byte, 2048*2048)
+		for i, file := range files {
+			if _, err = wr.Write(boundaries[i]); err != nil {
+				return
+			}
+
+			f, err := os.Open(file.Path())
+			if err != nil {
+				return
+			}
+
+			for {
+				n, err := f.Read(buf)
+				if err != nil && err == io.EOF {
+					break
+				} else if err != nil {
+					return
+				}
+
+				if _, err = wr.Write(buf[:n]); err != nil {
+					return
+				}
+			}
+			if err := f.Close(); err != nil {
+				return
+			}
+		}
+		// Write last boundary
+		_, _ = wr.Write(byteBuf.Bytes())
+	}()
+
+	return rd, contentType, nil
 }
