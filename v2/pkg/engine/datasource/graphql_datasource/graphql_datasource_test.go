@@ -8850,8 +8850,11 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -8872,8 +8875,11 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(ctx, chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -8954,8 +8960,11 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -8977,8 +8986,11 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(ctx, chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"

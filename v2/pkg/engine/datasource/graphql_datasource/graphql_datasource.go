@@ -1737,6 +1737,7 @@ type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
 }
 
+// Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
 func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)

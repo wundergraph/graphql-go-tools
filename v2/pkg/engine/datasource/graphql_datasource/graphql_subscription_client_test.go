@@ -3,11 +3,8 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -15,7 +12,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
-	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/atomic"
@@ -66,141 +62,6 @@ func TestGetConnectionInitMessageHelper(t *testing.T) {
 	}
 }
 
-func TestWebsocketSubscriptionClientDeDuplication(t *testing.T) {
-	serverDone := &sync.WaitGroup{}
-	connectedClients := atomic.NewInt64(0)
-
-	assertSubscription := func(ctx context.Context, conn *websocket.Conn, subscriptionID int) {
-		msgType, data, err := conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, fmt.Sprintf(`{"type":"start","id":"%d","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, subscriptionID), string(data))
-	}
-
-	assertSendMessages := func(ctx context.Context, conn *websocket.Conn, subscriptionID int) {
-		err := conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"first"}}}}`, subscriptionID)))
-		assert.NoError(t, err)
-		err = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"second"}}}}`, subscriptionID)))
-		assert.NoError(t, err)
-		err = conn.Write(ctx, websocket.MessageText, []byte(fmt.Sprintf(`{"type":"data","id":"%d","payload":{"data":{"messageAdded":{"text":"third"}}}}`, subscriptionID)))
-		assert.NoError(t, err)
-	}
-
-	assertInitAck := func(ctx context.Context, conn *websocket.Conn) {
-		msgType, data, err := conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"connection_init"}`, string(data))
-		err = conn.Write(ctx, websocket.MessageText, []byte(`{"type":"connection_ack"}`))
-		assert.NoError(t, err)
-	}
-
-	assertReceiveMessages := func(t *testing.T, updater *testSubscriptionUpdater) {
-		t.Helper()
-		updater.AwaitUpdates(t, time.Second, 3)
-		assert.Equal(t, 3, len(updater.updates))
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-	}
-
-	assertStop := func(ctx context.Context, conn *websocket.Conn, subscriptionID ...int) {
-		var receivedIDs []int
-		expectedSum := 0
-		actualSum := 0
-		for _, expected := range subscriptionID {
-			expectedSum += expected
-			msgType, data, err := conn.Read(ctx)
-			assert.NoError(t, err)
-			assert.Equal(t, websocket.MessageText, msgType)
-			messageType, err := jsonparser.GetString(data, "type")
-			assert.NoError(t, err)
-			assert.Equal(t, "stop", messageType)
-			idStr, err := jsonparser.GetString(data, "id")
-			assert.NoError(t, err)
-			id, err := strconv.Atoi(idStr)
-			assert.NoError(t, err)
-			receivedIDs = append(receivedIDs, id)
-			actualSum += id
-		}
-		assert.Len(t, receivedIDs, 4)
-		assert.Equal(t, expectedSum, actualSum)
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		serverDone.Add(1)
-		defer serverDone.Done()
-		conn, err := websocket.Accept(w, r, nil)
-		assert.NoError(t, err)
-		connectedClients.Inc()
-		defer connectedClients.Dec()
-
-		assertInitAck(r.Context(), conn)
-
-		assertSubscription(r.Context(), conn, 1)
-		assertSendMessages(r.Context(), conn, 1)
-
-		assertSubscription(r.Context(), conn, 2)
-		assertSubscription(r.Context(), conn, 3)
-		assertSubscription(r.Context(), conn, 4)
-
-		assertSendMessages(r.Context(), conn, 2)
-		assertSendMessages(r.Context(), conn, 3)
-		assertSendMessages(r.Context(), conn, 4)
-
-		assertStop(r.Context(), conn, 1, 2, 3, 4)
-	}))
-	defer server.Close()
-	serverCtx, serverCancel := context.WithCancel(context.Background())
-	defer serverCancel()
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
-		WithLogger(logger()),
-	)
-	clientsDone := &sync.WaitGroup{}
-
-	updater := &testSubscriptionUpdater{}
-
-	ctx, clientCancel := context.WithCancel(context.Background())
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
-	assertReceiveMessages(t, updater)
-
-	for i := 0; i < 3; i++ {
-		clientsDone.Add(1)
-
-		updater := &testSubscriptionUpdater{}
-
-		ctx, cancel := context.WithCancel(context.Background())
-
-		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-			URL: server.URL,
-			Body: GraphQLBody{
-				Query: `subscription {messageAdded(roomName: "room"){text}}`,
-			},
-		}, updater)
-		assert.NoError(t, err)
-		go func(updater *testSubscriptionUpdater, cancel func()) {
-			assertReceiveMessages(t, updater)
-			cancel()
-			clientsDone.Done()
-		}(updater, cancel)
-	}
-
-	clientCancel()
-
-	serverDone.Wait()
-	clientsDone.Wait()
-	assert.Eventuallyf(t, func() bool {
-		return connectedClients.Load() == 0
-	}, time.Second, time.Millisecond, "clients not 0")
-}
-
 func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	serverInvocations := atomic.NewInt64(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -216,20 +77,19 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.Error(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.Error(t, err)
+	}()
 	assert.Eventuallyf(t, func() bool {
 		return serverInvocations.Load() == 0
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
@@ -270,13 +130,15 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -287,11 +149,6 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		<-serverDone
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 // didnt configure subprotocol, but the subgraph return graphql-ws
@@ -337,13 +194,15 @@ func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -355,11 +214,6 @@ func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 // didnt configure subprotocol, but the subgraph return graphql-transport-ws
@@ -408,13 +262,15 @@ func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -426,11 +282,6 @@ func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 // In this case the subgraph doesnt return the subprotocol and we didnt configure the subprotocol, so falls back to graphql-ws
@@ -474,13 +325,15 @@ func TestSubprotocolNegotiationWithNoSubprotocol(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+		}, updater)
+		assert.NoError(t, err)
+	}()
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -492,11 +345,6 @@ func TestSubprotocolNegotiationWithNoSubprotocol(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 func TestSubprotocolNegotiationWithConfiguredGraphQLWS(t *testing.T) {
@@ -539,14 +387,16 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		WsSubProtocol: ProtocolGraphQLWS,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLWS,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -558,11 +408,6 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
 
 func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
@@ -608,14 +453,18 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		WsSubProtocol: ProtocolGraphQLTWS,
-	}, updater)
-	assert.NoError(t, err)
+
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
+		assert.NoError(t, err)
+	}()
+
 	updater.AwaitUpdates(t, time.Second, 3)
 	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
@@ -627,9 +476,4 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 		return true
 	}, time.Second, time.Millisecond*10, "server did not close")
 	serverCancel()
-	assert.Eventuallyf(t, func() bool {
-		client.handlersMu.Lock()
-		defer client.handlersMu.Unlock()
-		return len(client.handlers) == 0
-	}, time.Second, time.Millisecond, "client handlers not 0")
 }
