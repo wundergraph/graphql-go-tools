@@ -470,6 +470,18 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
+	t.Run("Abstract object mixed", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_mixed.graphql"), nil, t)
+		expected := `{"data":{"abstractList":[{},{"obj":{"names":["3","4"],"__typename":"SomeType2","height":2}}]}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
 	t.Run("Abstract interface field", func(t *testing.T) {
 		setup := federationtesting.NewFederationSetup(addGateway(false))
 		defer setup.Close()

@@ -1,0 +1,14 @@
+query AbstractObject {
+    abstractList {
+        ... on ConcreteListItem2 {
+            obj {
+                names
+                ... on SomeType2 {
+                    __typename
+                    names
+                    height
+                }
+            }
+        }
+    }
+}

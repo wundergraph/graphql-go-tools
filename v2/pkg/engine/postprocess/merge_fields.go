@@ -50,7 +50,6 @@ func (m *MergeFields) traverseNode(node resolve.Node) {
 		// 2.2. if the source and target fields are objects, all fields from the source will be merged into the target
 		// This means that objects with no onTypeNames will be merged into objects with onTypeNames
 		for i := 0; i < len(n.Fields); i++ {
-			removeI := false
 			if n.Fields[i].OnTypeNames != nil {
 				continue
 			}
@@ -62,18 +61,10 @@ func (m *MergeFields) traverseNode(node resolve.Node) {
 					continue
 				}
 				if bytes.Equal(n.Fields[i].Name, n.Fields[j].Name) {
-					if m.nodeIsScalar(n.Fields[i].Value) {
-						n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
-						j--
-					} else {
-						removeI = true
-						m.mergeValues(n.Fields[j].Value, n.Fields[i].Value)
-					}
+					m.mergeValues(n.Fields[i].Value, n.Fields[j].Value)
+					n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
+					j--
 				}
-			}
-			if removeI {
-				n.Fields = append(n.Fields[:i], n.Fields[i+1:]...)
-				i--
 			}
 		}
 		// 3. merge sibling object fields
