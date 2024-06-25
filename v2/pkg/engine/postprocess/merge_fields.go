@@ -76,30 +76,7 @@ func (m *MergeFields) traverseNode(node resolve.Node) {
 				i--
 			}
 		}
-		// 3. merge sibling scalar fields that have onTypeNames
-		for i := 0; i < len(n.Fields); i++ {
-			if n.Fields[i].OnTypeNames == nil {
-				continue
-			}
-			if !m.nodeIsScalar(n.Fields[i].Value) {
-				continue
-			}
-			for j := i + 1; j < len(n.Fields); j++ {
-				if n.Fields[j].OnTypeNames == nil {
-					continue
-				}
-				if !m.nodeIsScalar(n.Fields[j].Value) {
-					continue
-				}
-				if bytes.Equal(n.Fields[i].Name, n.Fields[j].Name) {
-					n.Fields[i].OnTypeNames = append(n.Fields[i].OnTypeNames, n.Fields[j].OnTypeNames...)
-					n.Fields = append(n.Fields[:j], n.Fields[j+1:]...)
-					j--
-				}
-			}
-			n.Fields[i].OnTypeNames = m.deduplicateOnTypeNames(n.Fields[i].OnTypeNames)
-		}
-		// 4. merge sibling object fields
+		// 3. merge sibling object fields
 		for i := 0; i < len(n.Fields); i++ {
 			for j := i + 1; j < len(n.Fields); j++ {
 				if m.fieldsCanMerge(n.Fields[i], n.Fields[j]) {
