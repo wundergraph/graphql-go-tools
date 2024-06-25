@@ -102,16 +102,19 @@ type ConcreteListItem2 implements AbstractListItem {
 
 interface OtherInterface {
     name: String!
+    names: [String!]!
 }
 
 type SomeType1 implements OtherInterface {
     name: String!
     age: Int!
+    names: [String!]!
 }
 
 type SomeType2 implements OtherInterface {
     name: String!
     height: Float!
+    names: [String!]!
 }
 
 type TitleName implements Title & Name {

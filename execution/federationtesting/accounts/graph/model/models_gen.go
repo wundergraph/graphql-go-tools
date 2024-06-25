@@ -53,6 +53,7 @@ type Namer interface {
 type OtherInterface interface {
 	IsOtherInterface()
 	GetName() string
+	GetNames() []string
 }
 
 type Store interface {
@@ -160,20 +161,42 @@ func (Sale) IsStore()                 {}
 func (this Sale) GetLocation() string { return this.Location }
 
 type SomeType1 struct {
-	Name string `json:"name"`
-	Age  int    `json:"age"`
+	Name  string   `json:"name"`
+	Age   int      `json:"age"`
+	Names []string `json:"names"`
 }
 
 func (SomeType1) IsOtherInterface()    {}
 func (this SomeType1) GetName() string { return this.Name }
+func (this SomeType1) GetNames() []string {
+	if this.Names == nil {
+		return nil
+	}
+	interfaceSlice := make([]string, 0, len(this.Names))
+	for _, concrete := range this.Names {
+		interfaceSlice = append(interfaceSlice, concrete)
+	}
+	return interfaceSlice
+}
 
 type SomeType2 struct {
-	Name   string  `json:"name"`
-	Height float64 `json:"height"`
+	Name   string   `json:"name"`
+	Height float64  `json:"height"`
+	Names  []string `json:"names"`
 }
 
 func (SomeType2) IsOtherInterface()    {}
 func (this SomeType2) GetName() string { return this.Name }
+func (this SomeType2) GetNames() []string {
+	if this.Names == nil {
+		return nil
+	}
+	interfaceSlice := make([]string, 0, len(this.Names))
+	for _, concrete := range this.Names {
+		interfaceSlice = append(interfaceSlice, concrete)
+	}
+	return interfaceSlice
+}
 
 type TitleName struct {
 	A     string `json:"a"`

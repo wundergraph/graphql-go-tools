@@ -113,13 +113,15 @@ type ComplexityRoot struct {
 	}
 
 	SomeType1 struct {
-		Age  func(childComplexity int) int
-		Name func(childComplexity int) int
+		Age   func(childComplexity int) int
+		Name  func(childComplexity int) int
+		Names func(childComplexity int) int
 	}
 
 	SomeType2 struct {
 		Height func(childComplexity int) int
 		Name   func(childComplexity int) int
+		Names  func(childComplexity int) int
 	}
 
 	TitleName struct {
@@ -408,6 +410,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.SomeType1.Name(childComplexity), true
 
+	case "SomeType1.names":
+		if e.complexity.SomeType1.Names == nil {
+			break
+		}
+
+		return e.complexity.SomeType1.Names(childComplexity), true
+
 	case "SomeType2.height":
 		if e.complexity.SomeType2.Height == nil {
 			break
@@ -421,6 +430,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.SomeType2.Name(childComplexity), true
+
+	case "SomeType2.names":
+		if e.complexity.SomeType2.Names == nil {
+			break
+		}
+
+		return e.complexity.SomeType2.Names(childComplexity), true
 
 	case "TitleName.a":
 		if e.complexity.TitleName.A == nil {
@@ -690,16 +706,19 @@ type ConcreteListItem2 implements AbstractListItem {
 
 interface OtherInterface {
     name: String!
+    names: [String!]!
 }
 
 type SomeType1 implements OtherInterface {
     name: String!
     age: Int!
+    names: [String!]!
 }
 
 type SomeType2 implements OtherInterface {
     name: String!
     height: Float!
+    names: [String!]!
 }
 
 type TitleName implements Title & Name {
@@ -2385,6 +2404,50 @@ func (ec *executionContext) fieldContext_SomeType1_age(ctx context.Context, fiel
 	return fc, nil
 }
 
+func (ec *executionContext) _SomeType1_names(ctx context.Context, field graphql.CollectedField, obj *model.SomeType1) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SomeType1_names(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Names, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SomeType1_names(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SomeType1",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _SomeType2_name(ctx context.Context, field graphql.CollectedField, obj *model.SomeType2) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_SomeType2_name(ctx, field)
 	if err != nil {
@@ -2468,6 +2531,50 @@ func (ec *executionContext) fieldContext_SomeType2_height(ctx context.Context, f
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SomeType2_names(ctx context.Context, field graphql.CollectedField, obj *model.SomeType2) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SomeType2_names(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Names, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SomeType2_names(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SomeType2",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5908,6 +6015,13 @@ func (ec *executionContext) _SomeType1(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "names":
+
+			out.Values[i] = ec._SomeType1_names(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5939,6 +6053,13 @@ func (ec *executionContext) _SomeType2(ctx context.Context, sel ast.SelectionSet
 		case "height":
 
 			out.Values[i] = ec._SomeType2_height(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "names":
+
+			out.Values[i] = ec._SomeType2_names(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -6633,6 +6754,38 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNUser2githubᚗcomᚋwundergraphᚋgraphqlᚑgoᚑtoolsᚋexecutionᚋfederationtestingᚋaccountsᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v model.User) graphql.Marshaler {

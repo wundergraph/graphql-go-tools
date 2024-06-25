@@ -64,14 +64,16 @@ func (r *queryResolver) AbstractList(ctx context.Context) ([]model.AbstractListI
 	return []model.AbstractListItem{
 		&model.ConcreteListItem1{
 			Obj: &model.SomeType1{
-				Name: "1",
-				Age:  1,
+				Name:  "1",
+				Age:   1,
+				Names: []string{"1", "2"},
 			},
 		},
 		&model.ConcreteListItem2{
 			Obj: &model.SomeType2{
 				Name:   "2",
 				Height: 2.0,
+				Names:  []string{"3", "4"},
 			},
 		},
 	}, nil
