@@ -80,6 +80,12 @@ type Planner[T Configuration] struct {
 
 	// tmp
 	upstreamSchema *ast.Document
+
+	minifier *astminify.Minifier
+}
+
+func (p *Planner[T]) EnableSubgraphRequestMinifier() {
+	p.minifier = astminify.NewMinifier()
 }
 
 type onTypeInlineFragment struct {
