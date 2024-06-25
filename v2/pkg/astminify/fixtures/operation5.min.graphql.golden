@@ -2,17 +2,19 @@ query MyQuery {
     query {
         ... on ObjectB {
             aField(a: "a", b: "b"){
-                age
-                __typename
-                name
+                ...A
             }
         }
         ... on ObjectC {
             aField(b: "b", a: "a"){
-                __typename
-                name
-                age
+                ...A
             }
         }
     }
+}
+
+fragment A on ObjectA {
+    __typename
+    age
+    name
 }

@@ -1341,13 +1341,12 @@ func (p *Planner[T]) printOperation() []byte {
 		return nil
 	}
 
-	rawOperationBytes := kit.buf.Bytes()
-	rawOperationBytesCopy := make([]byte, len(rawOperationBytes))
-	copy(rawOperationBytesCopy, rawOperationBytes)
+	rawOperationBytes := make([]byte, kit.buf.Len())
+	copy(rawOperationBytes, kit.buf.Bytes())
 
-	if p.minifier != nil {
+	if p.minifier != nil && len(rawOperationBytes) > 140 {
 		kit.buf.Reset()
-		err = p.minifier.Minify(rawOperationBytesCopy, definition, astminify.MinifyOptions{
+		madeReplacements, err := p.minifier.Minify(rawOperationBytes, definition, astminify.MinifyOptions{
 			SortAST: true,
 			Pretty:  false,
 		}, kit.buf)
@@ -1355,14 +1354,13 @@ func (p *Planner[T]) printOperation() []byte {
 			p.stopWithError(printOperationFailedErrMsg, err)
 			return nil
 		}
-		minifiedOperationBytes := kit.buf.Bytes()
-		if len(minifiedOperationBytes) < len(rawOperationBytes) {
-			return minifiedOperationBytes
+		if madeReplacements && kit.buf.Len() < len(rawOperationBytes) {
+			rawOperationBytes = rawOperationBytes[:kit.buf.Len()]
+			copy(rawOperationBytes, kit.buf.Bytes())
 		}
-		return rawOperationBytes
 	}
 
-	return kit.buf.Bytes()
+	return rawOperationBytes
 }
 
 func (p *Planner[T]) stopWithError(msg string, args ...interface{}) {

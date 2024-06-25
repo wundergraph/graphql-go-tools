@@ -2,12 +2,12 @@ query MyQuery {
     query {
         ... on ObjectA {
             __typename
-            age
             aField {
                 __typename
                 age
                 name
             }
+            age
             bField {
                 __typename
                 age
@@ -22,12 +22,12 @@ query MyQuery {
         }
         ... on ObjectB {
             __typename
-            age
             aField {
                 __typename
                 age
                 name
             }
+            age
             bField {
                 __typename
                 age
@@ -42,12 +42,12 @@ query MyQuery {
         }
         ... on ObjectC {
             __typename
-            age
             aField {
                 __typename
                 age
                 name
             }
+            age
             bField {
                 __typename
                 age
