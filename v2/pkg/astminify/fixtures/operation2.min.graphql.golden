@@ -3,18 +3,18 @@ query MyQuery {
         ...A
         ... on ObjectB {
             __typename
-            age
             aField {
                 ...A
             }
+            age
             name
         }
         ... on ObjectC {
             __typename
-            age
             aField {
                 ...A
             }
+            age
             name
         }
     }

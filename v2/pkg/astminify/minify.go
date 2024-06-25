@@ -59,7 +59,7 @@ type MinifyOptions struct {
 	SortAST bool
 }
 
-func (m *Minifier) Minify(operation []byte, definition *ast.Document, options MinifyOptions, out io.Writer) error {
+func (m *Minifier) Minify(operation []byte, definition *ast.Document, options MinifyOptions, out io.Writer) (madeReplacements bool, err error) {
 	m.def = definition
 	m.opts = options
 	m.fragmentDefinitionCount = -1
@@ -82,16 +82,16 @@ func (m *Minifier) Minify(operation []byte, definition *ast.Document, options Mi
 	k.parser.Parse(k.out, k.report)
 	k.parser.Parse(k.temp, k.report)
 	if k.report.HasErrors() {
-		return k.report
+		return false, k.report
 	}
 
 	m.out = k.out
 	m.temp = k.temp
 	m.hs = k.hs
 
-	err := m.validate()
+	err = m.validate()
 	if err != nil {
-		return err
+		return false, err
 	}
 	m.setupAst()
 
@@ -110,14 +110,17 @@ func (m *Minifier) Minify(operation []byte, definition *ast.Document, options Mi
 	report := &operationreport.Report{}
 	walker.Walk(m.out, m.def, report)
 	if report.HasErrors() {
-		return report
+		return false, report
 	}
-	m.apply(v)
+	madeReplacements = m.apply(v)
+	if !madeReplacements {
+		return
+	}
 	if options.Pretty {
 		p := astprinter.NewPrinter([]byte("  "))
-		return p.Print(m.out, m.def, out)
+		return true, p.Print(m.out, m.def, out)
 	}
-	return k.printer.Print(m.out, m.def, out)
+	return true, k.printer.Print(m.out, m.def, out)
 }
 
 func (m *Minifier) validate() error {
@@ -166,12 +169,15 @@ func (m *Minifier) sortAst(doc *ast.Document) {
 	}
 }
 
-func (m *Minifier) apply(vis *minifyVisitor) {
+func (m *Minifier) apply(vis *minifyVisitor) (madeReplacements bool) {
 	replacements := make([]*stats, 0, len(vis.s))
 	for _, s := range vis.s {
 		if s.count > 1 {
 			replacements = append(replacements, s)
 		}
+	}
+	if len(replacements) == 0 {
+		return false
 	}
 	// sort by depth
 	slices.SortStableFunc(replacements, func(a, b *stats) int {
@@ -183,6 +189,7 @@ func (m *Minifier) apply(vis *minifyVisitor) {
 	for _, s := range replacements {
 		m.replaceItems(s)
 	}
+	return true
 }
 
 func (m *Minifier) replaceItems(s *stats) {

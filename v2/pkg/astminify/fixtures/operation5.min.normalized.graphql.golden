@@ -2,16 +2,16 @@ query MyQuery($a: String, $b: String){
     query {
         ... on ObjectB {
             aField(a: $a, b: $b){
-                age
                 __typename
+                age
                 name
             }
         }
         ... on ObjectC {
             aField(b: $b, a: $a){
                 __typename
-                name
                 age
+                name
             }
         }
     }

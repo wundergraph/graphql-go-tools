@@ -37,7 +37,7 @@ func BenchmarkMinify(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		buf.Reset()
-		err := m.Minify(operation, &definition, opts, buf)
+		_, err = m.Minify(operation, &definition, opts, buf)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -130,11 +130,12 @@ func TestMinifier_Minify(t *testing.T) {
 			m := NewMinifier()
 			assert.NoError(t, err)
 			opts := MinifyOptions{
-				Pretty: true,
+				Pretty:  true,
+				SortAST: tc.sort,
 			}
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(string(schema))
 			buf := &bytes.Buffer{}
-			err = m.Minify(operation, &definition, opts, buf)
+			_, err = m.Minify(operation, &definition, opts, buf)
 			assert.NoError(t, err)
 			minified := buf.String()
 

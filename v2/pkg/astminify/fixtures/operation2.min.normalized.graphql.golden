@@ -7,22 +7,22 @@ query MyQuery {
         }
         ... on ObjectB {
             __typename
-            age
             aField {
                 __typename
                 age
                 name
             }
+            age
             name
         }
         ... on ObjectC {
             __typename
-            age
             aField {
                 __typename
                 age
                 name
             }
+            age
             name
         }
     }
