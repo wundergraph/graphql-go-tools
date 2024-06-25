@@ -6,9 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -8846,8 +8850,11 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -8868,8 +8875,11 @@ func TestSubscriptionSource_Start(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(ctx, chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -8950,8 +8960,11 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -8973,8 +8986,11 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
+
+		go func() {
+			err := source.Start(ctx, chatSubscriptionOptions, updater)
+			require.NoError(t, err)
+		}()
 
 		username := "myuser"
 		message := "hello world!"
@@ -9149,6 +9165,155 @@ func TestSource_Load(t *testing.T) {
 			require.NoError(t, src.Load(ctx, input, buf))
 			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
 		})
+	})
+}
+
+type ExpectedFile struct {
+	Name string
+	Size int64
+}
+
+type ExpectedRequest struct {
+	Operations string
+	Map        string
+	Files      []ExpectedFile
+}
+
+func verifyMultipartRequest(t *testing.T, r *http.Request, expected ExpectedRequest) {
+	err := r.ParseMultipartForm(10 << 20)
+	require.NoError(t, err)
+
+	for key, values := range r.MultipartForm.Value {
+		switch key {
+		case "operations":
+			assert.Equal(t, expected.Operations, values[0])
+		case "map":
+			assert.Equal(t, expected.Map, values[0])
+		}
+	}
+
+	for i, expectedFile := range expected.Files {
+		values, exists := r.MultipartForm.File[strconv.Itoa(i)]
+		if !exists {
+			t.Fatalf("expected file %s not found in MultipartForm.File", expectedFile.Name)
+		}
+		assert.Equal(t, values[0].Filename, expectedFile.Name)
+		assert.Equal(t, values[0].Size, expectedFile.Size)
+	}
+}
+
+func TestLoadFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	t.Run("single file", func(t *testing.T) {
+		queryString := `mutation($file: Upload!){singleUpload(file: $file)}`
+		variableString := `{"file":null}`
+		fileName := uuid.NewString()
+		fileContent := "hello"
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			expectedFiles := []ExpectedFile{{
+				Name: fileName,
+				Size: int64(len(fileContent)),
+			}}
+			verifyMultipartRequest(t, r.Clone(r.Context()), ExpectedRequest{
+				Operations: fmt.Sprintf(`{"query":"%s","variables":%s}`, queryString, variableString),
+				Map:        `{ "0" : ["variables.file"] }`,
+				Files:      expectedFiles,
+			})
+			body, _ := io.ReadAll(r.Body)
+			_, _ = fmt.Fprint(w, string(body))
+		}))
+		defer ts.Close()
+
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(variableString)
+			query     = []byte(queryString)
+		)
+
+		dir := t.TempDir()
+		f, err := os.CreateTemp(dir, fileName)
+		assert.NoError(t, err)
+		err = os.WriteFile(f.Name(), []byte(fileContent), 0644)
+		assert.NoError(t, err)
+
+		var input []byte
+		input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+		input = httpclient.SetInputBodyWithPath(input, query, "query")
+		input = httpclient.SetInputURL(input, []byte(serverUrl))
+		buf := bytes.NewBuffer(nil)
+
+		ctx := context.Background()
+		require.NoError(t, src.LoadWithFiles(
+			ctx,
+			input,
+			[]httpclient.File{httpclient.NewFile(f.Name(), fileName)},
+			buf,
+		))
+	})
+
+	t.Run("multiple files", func(t *testing.T) {
+		queryString := `mutation($files: [Upload!]!) { multipleUpload(files: $files)}`
+		variableString := `{"files":[null,null]}`
+
+		file1Name := uuid.NewString()
+		file2Name := uuid.NewString()
+		file1Content := "test"
+		file2Content := "hello"
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			expectedFiles := []ExpectedFile{{
+				Name: file1Name,
+				Size: int64(len(file1Content)),
+			}, {
+				Name: file2Name,
+				Size: int64(len(file2Content)),
+			}}
+			verifyMultipartRequest(t, r.Clone(r.Context()), ExpectedRequest{
+				Operations: fmt.Sprintf(`{"query":"%s","variables":%s}`, queryString, variableString),
+				Map:        `{ "0" : ["variables.files.0"], "1" : ["variables.files.1"] }`,
+				Files:      expectedFiles,
+			})
+			body, _ := io.ReadAll(r.Body)
+			_, _ = fmt.Fprint(w, string(body))
+		}))
+		defer ts.Close()
+
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(variableString)
+			query     = []byte(queryString)
+		)
+
+		var input []byte
+		input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+		input = httpclient.SetInputBodyWithPath(input, query, "query")
+		input = httpclient.SetInputURL(input, []byte(serverUrl))
+		buf := bytes.NewBuffer(nil)
+
+		dir := t.TempDir()
+		f1, err := os.CreateTemp(dir, file1Name)
+		assert.NoError(t, err)
+		err = os.WriteFile(f1.Name(), []byte(file1Content), 0644)
+		assert.NoError(t, err)
+
+		f2, err := os.CreateTemp(dir, file2Name)
+		assert.NoError(t, err)
+		err = os.WriteFile(f2.Name(), []byte(file2Content), 0644)
+		assert.NoError(t, err)
+
+		ctx := context.Background()
+		require.NoError(t, src.LoadWithFiles(
+			ctx,
+			input,
+			[]httpclient.File{httpclient.NewFile(f1.Name(), file1Name), httpclient.NewFile(f2.Name(), file2Name)},
+			buf,
+		))
 	})
 }
 

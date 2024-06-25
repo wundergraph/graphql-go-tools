@@ -12,6 +12,19 @@ type Object struct {
 	Fetch    Fetch
 }
 
+func (o *Object) Copy() Node {
+	fields := make([]*Field, len(o.Fields))
+	for i, f := range o.Fields {
+		fields[i] = f.Copy()
+	}
+	return &Object{
+		Nullable: o.Nullable,
+		Path:     o.Path,
+		Fields:   fields,
+		Fetch:    o.Fetch,
+	}
+}
+
 func (_ *Object) NodeKind() NodeKind {
 	return NodeKindObject
 }
@@ -67,6 +80,10 @@ func (_ *EmptyObject) Equals(n Node) bool {
 	return ok
 }
 
+func (_ *EmptyObject) Copy() Node {
+	return &EmptyObject{}
+}
+
 type Field struct {
 	Name                    []byte
 	Value                   Node
@@ -79,6 +96,22 @@ type Field struct {
 	IncludeDirectiveDefined bool
 	IncludeVariableName     string
 	Info                    *FieldInfo
+}
+
+func (f *Field) Copy() *Field {
+	return &Field{
+		Name:                    f.Name,
+		Value:                   f.Value.Copy(),
+		Position:                f.Position,
+		Defer:                   f.Defer,
+		Stream:                  f.Stream,
+		OnTypeNames:             f.OnTypeNames,
+		SkipDirectiveDefined:    f.SkipDirectiveDefined,
+		SkipVariableName:        f.SkipVariableName,
+		IncludeDirectiveDefined: f.IncludeDirectiveDefined,
+		IncludeVariableName:     f.IncludeVariableName,
+		Info:                    f.Info,
+	}
 }
 
 func (f *Field) Equals(n *Field) bool {

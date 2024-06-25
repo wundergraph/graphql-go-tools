@@ -76,6 +76,15 @@ func (r *reviewResolver) Attachments(ctx context.Context, obj *model.Review) ([]
 	return res, nil
 }
 
+// Comment is the resolver for the comment field.
+func (r *reviewResolver) Comment(ctx context.Context, obj *model.Review) (model.Comment, error) {
+	return &model.Question{
+		Body:    "What is the meaning of life?",
+		Upc:     obj.Product.Upc,
+		Subject: "Life",
+	}, nil
+}
+
 // Username is the resolver for the username field.
 func (r *userResolver) Username(ctx context.Context, obj *model.User) (string, error) {
 	username := fmt.Sprintf("User %s", obj.ID)

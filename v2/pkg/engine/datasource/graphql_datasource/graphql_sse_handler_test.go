@@ -57,14 +57,16 @@ func TestGraphQLSubscriptionClientSubscribe_SSE(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 2)
 	assert.Equal(t, 2, len(updater.updates))
@@ -98,14 +100,17 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_RequestAbort(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: "http://dummy",
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: "http://dummy",
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
+
 	updater.AwaitDone(t, time.Second)
 }
 
@@ -158,13 +163,15 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_POST(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err = client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL:           server.URL,
-		Body:          postReqBody,
-		UseSSE:        true,
-		SSEMethodPost: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err = client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL:           server.URL,
+			Body:          postReqBody,
+			UseSSE:        true,
+			SSEMethodPost: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 2)
 	assert.Equal(t, 2, len(updater.updates))
@@ -219,14 +226,16 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_WithEvents(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 2)
 	assert.Equal(t, 2, len(updater.updates))
@@ -275,14 +284,16 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 1)
 	assert.Equal(t, 1, len(updater.updates))
@@ -330,14 +341,16 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 1)
 	assert.Equal(t, 1, len(updater.updates))
@@ -390,17 +403,19 @@ func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query:         `subscription($a: Int!){countdown(from: $a)}`,
-			OperationName: "CountDown",
-			Variables:     []byte(`{"a":5}`),
-			Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query:         `subscription($a: Int!){countdown(from: $a)}`,
+				OperationName: "CountDown",
+				Variables:     []byte(`{"a":5}`),
+				Extensions:    []byte(`{"persistedQuery":{"version":1,"sha256Hash":"d41d8cd98f00b204e9800998ecf8427e"}}`),
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 1)
 	assert.Equal(t, 1, len(updater.updates))
@@ -524,14 +539,16 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Upstream_Dies(t *testing.T) {
 
 	updater := &testSubscriptionUpdater{}
 
-	err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		UseSSE: true,
-	}, updater)
-	assert.NoError(t, err)
+	go func() {
+		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			UseSSE: true,
+		}, updater)
+		assert.NoError(t, err)
+	}()
 
 	updater.AwaitUpdates(t, time.Second, 2)
 	assert.Equal(t, 2, len(updater.updates))

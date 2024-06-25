@@ -125,12 +125,13 @@ func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 }
 
 func (v *variablesVisitor) traverseOperationType(jsonFieldRef int, operationTypeRef int) {
+	varTypeName := v.operation.ResolveTypeNameBytes(operationTypeRef)
 	if v.operation.TypeIsNonNull(operationTypeRef) {
 		if jsonFieldRef == -1 {
 			v.renderVariableRequiredError(v.currentVariableName, operationTypeRef)
 			return
 		}
-		if v.variables.Nodes[jsonFieldRef].Kind == astjson.NodeKindNull {
+		if v.variables.Nodes[jsonFieldRef].Kind == astjson.NodeKindNull && varTypeName.String() != "Upload" {
 			v.renderVariableInvalidNullError(v.currentVariableName, operationTypeRef)
 			return
 		}
@@ -142,8 +143,6 @@ func (v *variablesVisitor) traverseOperationType(jsonFieldRef int, operationType
 	if !v.variables.NodeIsDefined(jsonFieldRef) {
 		return
 	}
-
-	varTypeName := v.operation.ResolveTypeNameBytes(operationTypeRef)
 
 	if v.operation.TypeIsList(operationTypeRef) {
 		if v.variables.Nodes[jsonFieldRef].Kind != astjson.NodeKindArray {

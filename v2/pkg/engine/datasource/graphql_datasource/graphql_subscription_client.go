@@ -28,8 +28,6 @@ type subscriptionClient struct {
 	engineCtx                  context.Context
 	log                        abstractlogger.Logger
 	hashPool                   sync.Pool
-	handlers                   map[uint64]ConnectionHandler
-	handlersMu                 sync.Mutex
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
 	readTimeout time.Duration
@@ -104,7 +102,6 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		httpClient:      httpClient,
 		streamingClient: streamingClient,
 		engineCtx:       engineCtx,
-		handlers:        make(map[uint64]ConnectionHandler),
 		log:             op.log,
 		readTimeout:     op.readTimeout,
 		hashPool: sync.Pool{
@@ -162,9 +159,7 @@ func (c *subscriptionClient) subscribeSSE(reqCtx *resolve.Context, options Graph
 
 	handler := newSSEConnectionHandler(reqCtx, c.streamingClient, options, c.log)
 
-	go func() {
-		handler.StartBlocking(sub)
-	}()
+	handler.StartBlocking(sub)
 
 	return nil
 }
@@ -180,49 +175,14 @@ func (c *subscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQ
 		updater: updater,
 	}
 
-	// each WS connection to an origin is uniquely identified by the Hash(URL,Headers,Body)
-	handlerID, err := c.generateHandlerIDHash(reqCtx, options)
+	handler, err := c.newWSConnectionHandler(reqCtx.Context(), options)
 	if err != nil {
 		return err
 	}
 
-	c.handlersMu.Lock()
-	defer c.handlersMu.Unlock()
-	handler, exists := c.handlers[handlerID]
-	if exists {
-		select {
-		case handler.SubscribeCH() <- sub:
-		case <-reqCtx.Context().Done():
-		}
-		return nil
-	}
-
-	handler, err = c.newWSConnectionHandler(reqCtx.Context(), options)
-	if err != nil {
-		return err
-	}
-
-	c.handlers[handlerID] = handler
-
-	go func(handlerID uint64) {
-		handler.StartBlocking(sub)
-		c.handlersMu.Lock()
-		delete(c.handlers, handlerID)
-		c.handlersMu.Unlock()
-	}(handlerID)
+	handler.StartBlocking(sub)
 
 	return nil
-}
-
-func (c *subscriptionClient) generateHandlerIDHash(ctx *resolve.Context, options GraphQLSubscriptionOptions) (uint64, error) {
-	xxh := c.hashPool.Get().(*xxhash.Digest)
-	defer c.hashPool.Put(xxh)
-	xxh.Reset()
-	err := c.requestHash(ctx, options, xxh)
-	if err != nil {
-		return 0, err
-	}
-	return xxh.Sum64(), nil
 }
 
 // generateHandlerIDHash generates a Hash based on: URL and Headers to uniquely identify Upgrade Requests
