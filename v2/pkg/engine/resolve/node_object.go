@@ -91,11 +91,17 @@ type Field struct {
 	Defer                   *DeferField
 	Stream                  *StreamField
 	OnTypeNames             [][]byte
+	ParentOnTypeNames       []ParentOnTypeNames
 	SkipDirectiveDefined    bool
 	SkipVariableName        string
 	IncludeDirectiveDefined bool
 	IncludeVariableName     string
 	Info                    *FieldInfo
+}
+
+type ParentOnTypeNames struct {
+	Depth int
+	Names [][]byte
 }
 
 func (f *Field) Copy() *Field {

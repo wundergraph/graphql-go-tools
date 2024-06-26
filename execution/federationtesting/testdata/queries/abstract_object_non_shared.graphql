@@ -1,14 +1,16 @@
 query AbstractObject {
     otherInterfaces {
-        someObject {
-            a
-        }
         ... on SomeType1 {
+            someObject {
+                a
+            }
+        }
+        ... on SomeType2 {
             someObject {
                 b
             }
         }
-        ... on SomeType2 {
+        ... on SomeType3 {
             someObject {
                 c
             }

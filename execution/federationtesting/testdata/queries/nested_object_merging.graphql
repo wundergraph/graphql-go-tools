@@ -1,0 +1,17 @@
+query NestedObjectMerging {
+    interfaceField {
+        object {
+            a
+        }
+        ... on A {
+            object {
+                b
+            }
+        }
+        ... on B {
+            object {
+                c
+            }
+        }
+    }
+}

@@ -1,0 +1,48 @@
+query AbstractObject {
+    someNestedInterfaces {
+        __typename
+        ... on SomeNestedType1 {
+            otherInterfaces {
+                __typename
+                someObject {
+                    a
+                }
+                ... on SomeType1 {
+                    someObject {
+                        c
+                        b
+                        a
+                    }
+                }
+                ... on SomeType2 {
+                    someObject {
+                        c
+                    }
+                }
+            }
+        }
+        ... on SomeNestedType2 {
+            otherInterfaces {
+                __typename
+                someObject {
+                    c
+                }
+                ... on SomeType1 {
+                    someObject {
+                        b
+                    }
+                }
+                ... on SomeType2 {
+                    someObject {
+                        a
+                    }
+                }
+            }
+        }
+        otherInterfaces {
+            someObject {
+                a
+            }
+        }
+    }
+}

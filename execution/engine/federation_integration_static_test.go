@@ -77,7 +77,7 @@ subscription UpdatedPrice {
 }`
 
 			gqlRequest := &graphql.Request{
-				OperationName: "",
+				OperationName: "UpdatedPrice",
 				Variables:     nil,
 				Query:         query,
 			}
@@ -96,7 +96,8 @@ subscription UpdatedPrice {
 			})
 
 			go func() {
-				_ = engine.Execute(execCtx, gqlRequest, &resultWriter)
+				err := engine.Execute(execCtx, gqlRequest, &resultWriter)
+				require.NoError(t, err)
 			}()
 
 			assert.Eventuallyf(t, func() bool {

@@ -466,7 +466,43 @@ func TestFederationIntegrationTest(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object.graphql"), nil, t)
-		expected := `{"data":{"abstractList":[{"__typename":"ConcreteListItem1","obj":{"__typename":"SomeType1","name":"1","age":1}},{"__typename":"ConcreteListItem2","obj":{"__typename":"SomeType2","name":"2","height":2}}]}}`
+		expected := `{"data":{"otherInterfaces":[{"someObject":{"a":"A","b":"B"}},{"someObject":{"a":"AA","c":"CC"}},{"someObject":{"a":"AAA"}}]}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Abstract object non shared", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_non_shared.graphql"), nil, t)
+		expected := `{"data":{"otherInterfaces":[{"someObject":{"a":"A"}},{"someObject":{"b":"BB"}},{"someObject":{"c":"CCC"}}]}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Abstract object nested", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_nested.graphql"), nil, t)
+		expected := `{"data":{"someNestedInterfaces":[{"__typename":"SomeNestedType1","otherInterfaces":[{"__typename":"SomeType1","someObject":{"a":"1.A","c":"1.C","b":"1.B"}},{"__typename":"SomeType2","someObject":{"a":"1.AA","c":"1.CC"}},{"__typename":"SomeType3","someObject":{"a":"1.AAA"}}]},{"__typename":"SomeNestedType2","otherInterfaces":[{"__typename":"SomeType1","someObject":{"a":"2.A","c":"2.C","b":"2.B"}},{"__typename":"SomeType2","someObject":{"a":"2.AA","c":"2.CC"}},{"__typename":"SomeType3","someObject":{"a":"2.AAA"}}]}]}}`
+		assert.Equal(t, compact(expected), string(resp))
+	})
+
+	t.Run("Abstract object nested reverse", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		defer setup.Close()
+
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/abstract_object_nested_reverse.graphql"), nil, t)
+		expected := `{"data":{"someNestedInterfaces":[{"__typename":"SomeNestedType1","otherInterfaces":[{"someObject":{"a":"1.A","c":"1.C","b":"1.B"},"__typename":"SomeType1"},{"someObject":{"a":"1.AA","c":"1.CC"},"__typename":"SomeType2"},{"someObject":{"a":"1.AAA"},"__typename":"SomeType3"}]},{"__typename":"SomeNestedType2","otherInterfaces":[{"someObject":{"a":"2.A","c":"2.C","b":"2.B"},"__typename":"SomeType1"},{"someObject":{"a":"2.AA","c":"2.CC"},"__typename":"SomeType2"},{"someObject":{"a":"2.AAA"},"__typename":"SomeType3"}]}]}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 

@@ -9,6 +9,8 @@ type Query {
     abstractList: [AbstractListItem]
     titleName: TitleName
     cds: [CD]
+    otherInterfaces: [SomeInterface]
+    someNestedInterfaces: [SomeNestedInterface]
 }
 
 type Cat {
@@ -105,16 +107,44 @@ interface OtherInterface {
     names: [String!]!
 }
 
-type SomeType1 implements OtherInterface {
+interface SomeNestedInterface {
+    otherInterfaces: [SomeInterface]
+}
+
+type SomeNestedType1 implements SomeNestedInterface {
+    otherInterfaces: [SomeInterface]
+}
+
+type SomeNestedType2 implements SomeNestedInterface {
+    otherInterfaces: [SomeInterface]
+}
+
+interface SomeInterface {
+    someObject: SomeObject!
+}
+
+type SomeType1 implements OtherInterface & SomeInterface {
     name: String!
     age: Int!
     names: [String!]!
+    someObject: SomeObject!
 }
 
-type SomeType2 implements OtherInterface {
+type SomeType2 implements OtherInterface & SomeInterface {
     name: String!
     height: Float!
     names: [String!]!
+    someObject: SomeObject!
+}
+
+type SomeType3 implements SomeInterface {
+    someObject: SomeObject!
+}
+
+type SomeObject {
+    a: String!
+    b: String!
+    c: String!
 }
 
 type TitleName implements Title & Name {
