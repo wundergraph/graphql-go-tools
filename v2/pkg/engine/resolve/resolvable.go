@@ -578,15 +578,23 @@ WithNext:
 	for i := range field.ParentOnTypeNames {
 		typeName := r.typeNames[len(r.typeNames)-1-field.ParentOnTypeNames[i].Depth]
 		if typeName == nil {
+			// The field has a condition but the JSON response object does not have a __typename field
+			// We skip this field
 			return true
 		}
 		for j := range field.ParentOnTypeNames[i].Names {
 			if bytes.Equal(typeName, field.ParentOnTypeNames[i].Names[j]) {
+				// on each layer of depth, we only need to match one of the names
+				// merge_fields.go ensures that we only have on ParentOnTypeNames per depth layer
+				// If we have a match, we continue WithNext condition until all layers have been checked
 				continue WithNext
 			}
 		}
+		// No match at this depth layer, we skip this field
 		return true
 	}
+	// all layers have at least one matching typeName
+	// we don't skip this field (we return false)
 	return false
 }
 
