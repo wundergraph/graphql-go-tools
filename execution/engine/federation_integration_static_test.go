@@ -77,7 +77,7 @@ subscription UpdatedPrice {
 }`
 
 			gqlRequest := &graphql.Request{
-				OperationName: "",
+				OperationName: "UpdatedPrice",
 				Variables:     nil,
 				Query:         query,
 			}

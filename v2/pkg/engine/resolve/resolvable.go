@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pkg/errors"
-
 	"github.com/cespare/xxhash/v2"
+	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -42,6 +41,8 @@ type Resolvable struct {
 
 	wroteErrors bool
 	wroteData   bool
+
+	typeNames [][]byte
 }
 
 func NewResolvable() *Resolvable {
@@ -55,6 +56,7 @@ func NewResolvable() *Resolvable {
 
 func (r *Resolvable) Reset() {
 	r.storage.Reset()
+	r.typeNames = r.typeNames[:0]
 	r.wroteErrors = false
 	r.wroteData = false
 	r.dataRoot = -1
@@ -396,6 +398,11 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
+	typeName := r.getObjectTypeName(ref)
+	r.typeNames = append(r.typeNames, typeName)
+	defer func() {
+		r.typeNames = r.typeNames[:len(r.typeNames)-1]
+	}()
 	for i := range obj.Fields {
 		if obj.Fields[i].SkipDirectiveDefined {
 			if r.skipField(obj.Fields[i].SkipVariableName) {
@@ -407,8 +414,13 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 				continue
 			}
 		}
+		if obj.Fields[i].ParentOnTypeNames != nil {
+			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
+				continue
+			}
+		}
 		if obj.Fields[i].OnTypeNames != nil {
-			if r.skipFieldOnTypeNames(ref, obj.Fields[i]) {
+			if r.skipFieldOnTypeNames(obj.Fields[i]) {
 				continue
 			}
 		}
@@ -553,17 +565,46 @@ func (r *Resolvable) objectFieldTypeName(ref int, field *Field) string {
 	return field.Info.ExactParentTypeName
 }
 
-func (r *Resolvable) skipFieldOnTypeNames(ref int, field *Field) bool {
+func (r *Resolvable) getObjectTypeName(ref int) []byte {
 	typeName := r.storage.GetObjectField(ref, "__typename")
-	if !r.storage.NodeIsDefined(typeName) {
+	if r.storage.NodeIsDefined(typeName) && r.storage.Nodes[typeName].Kind == astjson.NodeKindString {
+		return r.storage.Nodes[typeName].ValueBytes(r.storage)
+	}
+	return nil
+}
+
+func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
+WithNext:
+	for i := range field.ParentOnTypeNames {
+		typeName := r.typeNames[len(r.typeNames)-1-field.ParentOnTypeNames[i].Depth]
+		if typeName == nil {
+			// The field has a condition but the JSON response object does not have a __typename field
+			// We skip this field
+			return true
+		}
+		for j := range field.ParentOnTypeNames[i].Names {
+			if bytes.Equal(typeName, field.ParentOnTypeNames[i].Names[j]) {
+				// on each layer of depth, we only need to match one of the names
+				// merge_fields.go ensures that we only have on ParentOnTypeNames per depth layer
+				// If we have a match, we continue WithNext condition until all layers have been checked
+				continue WithNext
+			}
+		}
+		// No match at this depth layer, we skip this field
 		return true
 	}
-	if r.storage.Nodes[typeName].Kind != astjson.NodeKindString {
+	// all layers have at least one matching typeName
+	// we don't skip this field (we return false)
+	return false
+}
+
+func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {
+	typeName := r.typeNames[len(r.typeNames)-1]
+	if typeName == nil {
 		return true
 	}
-	value := r.storage.Nodes[typeName].ValueBytes(r.storage)
 	for i := range field.OnTypeNames {
-		if bytes.Equal(value, field.OnTypeNames[i]) {
+		if bytes.Equal(typeName, field.OnTypeNames[i]) {
 			return false
 		}
 	}

@@ -56,6 +56,16 @@ type OtherInterface interface {
 	GetNames() []string
 }
 
+type SomeInterface interface {
+	IsSomeInterface()
+	GetSomeObject() *SomeObject
+}
+
+type SomeNestedInterface interface {
+	IsSomeNestedInterface()
+	GetOtherInterfaces() []SomeInterface
+}
+
 type Store interface {
 	IsStore()
 	GetLocation() string
@@ -160,10 +170,49 @@ func (Sale) IsHistory() {}
 func (Sale) IsStore()                 {}
 func (this Sale) GetLocation() string { return this.Location }
 
+type SomeNestedType1 struct {
+	OtherInterfaces []SomeInterface `json:"otherInterfaces"`
+}
+
+func (SomeNestedType1) IsSomeNestedInterface() {}
+func (this SomeNestedType1) GetOtherInterfaces() []SomeInterface {
+	if this.OtherInterfaces == nil {
+		return nil
+	}
+	interfaceSlice := make([]SomeInterface, 0, len(this.OtherInterfaces))
+	for _, concrete := range this.OtherInterfaces {
+		interfaceSlice = append(interfaceSlice, concrete)
+	}
+	return interfaceSlice
+}
+
+type SomeNestedType2 struct {
+	OtherInterfaces []SomeInterface `json:"otherInterfaces"`
+}
+
+func (SomeNestedType2) IsSomeNestedInterface() {}
+func (this SomeNestedType2) GetOtherInterfaces() []SomeInterface {
+	if this.OtherInterfaces == nil {
+		return nil
+	}
+	interfaceSlice := make([]SomeInterface, 0, len(this.OtherInterfaces))
+	for _, concrete := range this.OtherInterfaces {
+		interfaceSlice = append(interfaceSlice, concrete)
+	}
+	return interfaceSlice
+}
+
+type SomeObject struct {
+	A string `json:"a"`
+	B string `json:"b"`
+	C string `json:"c"`
+}
+
 type SomeType1 struct {
-	Name  string   `json:"name"`
-	Age   int      `json:"age"`
-	Names []string `json:"names"`
+	Name       string      `json:"name"`
+	Age        int         `json:"age"`
+	Names      []string    `json:"names"`
+	SomeObject *SomeObject `json:"someObject"`
 }
 
 func (SomeType1) IsOtherInterface()    {}
@@ -179,10 +228,14 @@ func (this SomeType1) GetNames() []string {
 	return interfaceSlice
 }
 
+func (SomeType1) IsSomeInterface()                {}
+func (this SomeType1) GetSomeObject() *SomeObject { return this.SomeObject }
+
 type SomeType2 struct {
-	Name   string   `json:"name"`
-	Height float64  `json:"height"`
-	Names  []string `json:"names"`
+	Name       string      `json:"name"`
+	Height     float64     `json:"height"`
+	Names      []string    `json:"names"`
+	SomeObject *SomeObject `json:"someObject"`
 }
 
 func (SomeType2) IsOtherInterface()    {}
@@ -197,6 +250,16 @@ func (this SomeType2) GetNames() []string {
 	}
 	return interfaceSlice
 }
+
+func (SomeType2) IsSomeInterface()                {}
+func (this SomeType2) GetSomeObject() *SomeObject { return this.SomeObject }
+
+type SomeType3 struct {
+	SomeObject *SomeObject `json:"someObject"`
+}
+
+func (SomeType3) IsSomeInterface()                {}
+func (this SomeType3) GetSomeObject() *SomeObject { return this.SomeObject }
 
 type TitleName struct {
 	A     string `json:"a"`

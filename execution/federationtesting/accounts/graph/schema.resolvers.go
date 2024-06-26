@@ -110,6 +110,107 @@ func (r *queryResolver) Cds(ctx context.Context) ([]model.Cd, error) {
 	}, nil
 }
 
+// OtherInterfaces is the resolver for the otherInterfaces field.
+func (r *queryResolver) OtherInterfaces(ctx context.Context) ([]model.SomeInterface, error) {
+	return []model.SomeInterface{
+		&model.SomeType1{
+			Name:  "1",
+			Age:   1,
+			Names: []string{"1", "2"},
+			SomeObject: &model.SomeObject{
+				A: "A",
+				B: "B",
+				C: "C",
+			},
+		},
+		&model.SomeType2{
+			Name:   "2",
+			Height: 2.0,
+			Names:  []string{"3", "4"},
+			SomeObject: &model.SomeObject{
+				A: "AA",
+				B: "BB",
+				C: "CC",
+			},
+		},
+		&model.SomeType3{
+			SomeObject: &model.SomeObject{
+				A: "AAA",
+				B: "BBB",
+				C: "CCC",
+			},
+		},
+	}, nil
+}
+
+// SomeNestedInterfaces is the resolver for the someNestedInterfaces field.
+func (r *queryResolver) SomeNestedInterfaces(ctx context.Context) ([]model.SomeNestedInterface, error) {
+	return []model.SomeNestedInterface{
+		&model.SomeNestedType1{
+			OtherInterfaces: []model.SomeInterface{
+				&model.SomeType1{
+					Name:  "1.1",
+					Age:   1,
+					Names: []string{"1.1", "1.2"},
+					SomeObject: &model.SomeObject{
+						A: "1.A",
+						B: "1.B",
+						C: "1.C",
+					},
+				},
+				&model.SomeType2{
+					Name:   "1.2",
+					Height: 2.0,
+					Names:  []string{"1.3", "1.4"},
+					SomeObject: &model.SomeObject{
+						A: "1.AA",
+						B: "1.BB",
+						C: "1.CC",
+					},
+				},
+				&model.SomeType3{
+					SomeObject: &model.SomeObject{
+						A: "1.AAA",
+						B: "1.BBB",
+						C: "1.CCC",
+					},
+				},
+			},
+		},
+		&model.SomeNestedType2{
+			OtherInterfaces: []model.SomeInterface{
+				&model.SomeType1{
+					Name:  "2.1",
+					Age:   1,
+					Names: []string{"2.1", "2.2"},
+					SomeObject: &model.SomeObject{
+						A: "2.A",
+						B: "2.B",
+						C: "2.C",
+					},
+				},
+				&model.SomeType2{
+					Name:   "2.2",
+					Height: 2.0,
+					Names:  []string{"2.3", "2.4"},
+					SomeObject: &model.SomeObject{
+						A: "2.AA",
+						B: "2.BB",
+						C: "2.CC",
+					},
+				},
+				&model.SomeType3{
+					SomeObject: &model.SomeObject{
+						A: "2.AAA",
+						B: "2.BBB",
+						C: "2.CCC",
+					},
+				},
+			},
+		},
+	}, nil
+}
+
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
