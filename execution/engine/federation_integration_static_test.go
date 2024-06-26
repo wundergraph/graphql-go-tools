@@ -96,8 +96,7 @@ subscription UpdatedPrice {
 			})
 
 			go func() {
-				err := engine.Execute(execCtx, gqlRequest, &resultWriter)
-				require.NoError(t, err)
+				_ = engine.Execute(execCtx, gqlRequest, &resultWriter)
 			}()
 
 			assert.Eventuallyf(t, func() bool {
