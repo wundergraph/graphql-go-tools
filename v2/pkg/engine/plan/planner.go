@@ -221,6 +221,11 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		return
 	}
 
+	// walk ends in 2 cases:
+	// - we have finished visiting document
+	// - walker.Stop was called and visiting was halted
+	p.configurationVisitor.populateMissingPahts()
+
 	if p.config.Debug.PrintOperationTransformations {
 		p.debugMessage("Operation after initial run:")
 		p.printOperation(operation)

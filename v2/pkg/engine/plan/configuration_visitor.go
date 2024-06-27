@@ -245,6 +245,17 @@ func (c *configurationVisitor) hasMissingPaths() bool {
 	return len(c.missingPathTracker) > 0
 }
 
+// handleMissingPath - checks if the path was planned and if not, adds the path to the missing path tracker
+func (c *configurationVisitor) populateMissingPahts() {
+	for path := range c.potentiallyMissingPathTracker {
+		if _, ok := c.addedPathDSHash(path); ok {
+			continue
+		}
+		c.addMissingPath(path)
+	}
+	c.potentiallyMissingPathTracker = make(map[string]struct{})
+}
+
 func (c *configurationVisitor) removeMissingPath(path string) {
 	delete(c.missingPathTracker, path)
 }
@@ -308,13 +319,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
-	for path := range c.potentiallyMissingPathTracker {
-		if _, ok := c.addedPathDSHash(path); ok {
-			continue
-		}
-		c.addMissingPath(path)
-	}
-	c.potentiallyMissingPathTracker = make(map[string]struct{})
+
 }
 
 func (c *configurationVisitor) EnterOperationDefinition(ref int) {
@@ -968,6 +973,8 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 			// __typename field on a union could not have a suggestion
 			return
 		} else {
+			fmt.Println("Adding potentially missing path", currentPath)
+
 			c.potentiallyMissingPathTracker[currentPath] = struct{}{}
 		}
 	}
