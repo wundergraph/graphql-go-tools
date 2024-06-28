@@ -268,6 +268,7 @@ func TestPlanner_Plan(t *testing.T) {
 		t.Run("should successfully plan unnamed query with fragment", test(testDefinition, `
 				fragment CharacterFields on Character {
 					name
+					__typename
 				}
 				query {
 					hero {
