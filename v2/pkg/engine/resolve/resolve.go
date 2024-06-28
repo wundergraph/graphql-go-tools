@@ -336,9 +336,19 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerDone(event.triggerID)
 	case subscriptionEventKindTriggerInitialized:
 		r.handleTriggerInit(event.triggerID)
+	case subscriptionEventKindTriggerShutdown:
+		r.handleTriggerShutdown(event)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
 	}
+}
+
+func (r *Resolver) handleTriggerShutdown(s subscriptionEvent) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:shutdown:%d:%d\n", s.triggerID, s.id.SubscriptionID)
+	}
+
+	r.shutdownTrigger(s.triggerID)
 }
 
 func (r *Resolver) handleTriggerInit(triggerID uint64) {
@@ -362,8 +372,6 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 	isInitialized := trig.initialized
 	wg := trig.inFlight
 	subscriptionCount := len(trig.subscriptions)
-
-	trig.cancel()
 
 	delete(r.triggers, triggerID)
 
@@ -438,11 +446,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer, buf)
 
-			updater.Done()
+			r.emitTriggerShutdown(triggerID)
 			return
 		}
 
-		r.handleTriggerInitialized(triggerID)
+		r.emitTriggerInitialized(triggerID)
 
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:started:%d\n", triggerID)
@@ -451,7 +459,22 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 }
 
-func (r *Resolver) handleTriggerInitialized(triggerID uint64) {
+func (r *Resolver) emitTriggerShutdown(triggerID uint64) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:error:%d\n", triggerID)
+	}
+
+	select {
+	case <-r.ctx.Done():
+		return
+	case r.events <- subscriptionEvent{
+		triggerID: triggerID,
+		kind:      subscriptionEventKindTriggerShutdown,
+	}:
+	}
+}
+
+func (r *Resolver) emitTriggerInitialized(triggerID uint64) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:initialized:%d\n", triggerID)
 	}
@@ -585,7 +608,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:done:%d\n", trig.id)
 	}
-	if r.reporter != nil {
+	if r.reporter != nil && trig.initialized {
 		r.reporter.SubscriptionCountDec(count)
 		r.reporter.TriggerCountDec(1)
 	}
@@ -823,6 +846,7 @@ const (
 	subscriptionEventKindRemoveSubscription
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
+	subscriptionEventKindTriggerShutdown
 )
 
 type SubscriptionUpdater interface {
