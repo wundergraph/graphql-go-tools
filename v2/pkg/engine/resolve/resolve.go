@@ -335,7 +335,7 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 	case subscriptionEventKindTriggerDone:
 		r.handleTriggerDone(event.triggerID)
 	case subscriptionEventKindTriggerInitialized:
-		r.handleTriggerInit(event.triggerID)
+		r.handleTriggerInitialized(event.triggerID)
 	case subscriptionEventKindTriggerShutdown:
 		r.handleTriggerShutdown(event)
 	case subscriptionEventKindUnknown:
@@ -351,7 +351,7 @@ func (r *Resolver) handleTriggerShutdown(s subscriptionEvent) {
 	r.shutdownTrigger(s.triggerID)
 }
 
-func (r *Resolver) handleTriggerInit(triggerID uint64) {
+func (r *Resolver) handleTriggerInitialized(triggerID uint64) {
 	trig, ok := r.triggers[triggerID]
 	if !ok {
 		return
