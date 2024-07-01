@@ -21,10 +21,15 @@ import (
 )
 
 type Reporter interface {
+	// Called when a new subscription update is sent
 	SubscriptionUpdateSent()
+	// Increased when a new subscription is added to a trigger, this includes inflight subscriptions
 	SubscriptionCountInc(count int)
+	// Decreased when a subscription is removed from a trigger e.g. on shutdown
 	SubscriptionCountDec(count int)
+	// Increased when a new trigger is added e.g. when a trigger is started and initialized
 	TriggerCountInc(count int)
+	// Decreased when a trigger is removed e.g. when a trigger is shutdown
 	TriggerCountDec(count int)
 }
 
@@ -359,7 +364,6 @@ func (r *Resolver) handleTriggerInitialized(triggerID uint64) {
 	trig.initialized = true
 
 	if r.reporter != nil {
-		r.reporter.SubscriptionCountInc(1)
 		r.reporter.TriggerCountInc(1)
 	}
 }
@@ -382,9 +386,11 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 		for _, s := range trig.subscriptions {
 			s.writer.Complete()
 		}
-		if r.reporter != nil && isInitialized {
+		if r.reporter != nil {
 			r.reporter.SubscriptionCountDec(subscriptionCount)
-			r.reporter.TriggerCountDec(1)
+			if isInitialized {
+				r.reporter.TriggerCountDec(1)
+			}
 		}
 	}()
 }
@@ -412,6 +418,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 		return
 	}
+
 	if r.options.Debug {
 		fmt.Printf("resolver:create:trigger:%d\n", triggerID)
 	}
@@ -430,6 +437,10 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
+
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountInc(1)
+	}
 
 	go func() {
 		if r.options.Debug {
@@ -608,9 +619,11 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:done:%d\n", trig.id)
 	}
-	if r.reporter != nil && trig.initialized {
+	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(count)
-		r.reporter.TriggerCountDec(1)
+		if trig.initialized {
+			r.reporter.TriggerCountDec(1)
+		}
 	}
 }
 
