@@ -58,6 +58,62 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 	return visitor.rootObject, nil
 }
 
+func mergeFields(left, right *resolve.Field) *resolve.Field {
+	switch left.Value.NodeKind() {
+	case resolve.NodeKindObject:
+		left.Value = mergeObjects(left.Value, right.Value)
+	case resolve.NodeKindArray:
+		left.Value = mergeArrays(left.Value, right.Value)
+	default:
+	}
+
+	return left
+}
+
+func mergeArrays(left, right resolve.Node) resolve.Node {
+	leftArray, _ := left.(*resolve.Array)
+	rightArray, _ := right.(*resolve.Array)
+
+	leftArray.Item = mergeObjects(leftArray.Item, rightArray.Item)
+	return leftArray
+}
+
+func mergeObjects(left, right resolve.Node) resolve.Node {
+	leftObject, _ := left.(*resolve.Object)
+	rightObject, _ := right.(*resolve.Object)
+
+	for _, field := range rightObject.Fields {
+		if i, ok := fieldsHasField(leftObject.Fields, field); ok {
+			leftObject.Fields[i] = mergeFields(leftObject.Fields[i], field)
+		} else {
+			leftObject.Fields = append(leftObject.Fields, field)
+		}
+	}
+
+	return leftObject
+}
+
+func isOnTypeEqual(a, b [][]byte) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !bytes.Equal(a[i], b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func fieldsHasField(fields []*resolve.Field, field *resolve.Field) (int, bool) {
+	for i, f := range fields {
+		if bytes.Equal(f.Name, field.Name) && isOnTypeEqual(f.OnTypeNames, field.OnTypeNames) {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
 func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object {
 	fieldCount := 0
 	for _, object := range objects {
@@ -66,30 +122,11 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 
 	fields := make([]*resolve.Field, 0, fieldCount)
 
-	isOnTypeEqual := func(a, b [][]byte) bool {
-		if len(a) != len(b) {
-			return false
-		}
-		for i := range a {
-			if !bytes.Equal(a[i], b[i]) {
-				return false
-			}
-		}
-		return true
-	}
-
-	isAdded := func(field *resolve.Field) bool {
-		for _, f := range fields {
-			if bytes.Equal(f.Name, field.Name) && isOnTypeEqual(f.OnTypeNames, field.OnTypeNames) {
-				return true
-			}
-		}
-		return false
-	}
-
 	for _, object := range objects {
 		for _, field := range object.Fields {
-			if !isAdded(field) {
+			if i, ok := fieldsHasField(fields, field); ok {
+				fields[i] = mergeFields(fields[i], field)
+			} else {
 				fields = append(fields, field)
 			}
 		}
