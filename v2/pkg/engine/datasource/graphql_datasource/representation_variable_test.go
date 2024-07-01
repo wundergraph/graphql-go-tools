@@ -291,7 +291,7 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 		require.Equal(t, expected, merged)
 	})
 
-	t.Run("same entity deeply nested fields", func(t *testing.T) {
+	t.Run("same entity nested fields - merge on depth 1 and 2", func(t *testing.T) {
 		userKeyRepresentation := &resolve.Object{
 			Fields: []*resolve.Field{
 				{
@@ -415,6 +415,232 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 												Name: []byte("street"),
 												Value: &resolve.String{
 													Path: []string{"street"},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("type"),
+								Value: &resolve.String{
+									Path: []string{"type"},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		require.Equal(t, expected, merged)
+	})
+
+	t.Run("same entity nested fields - merge on depth 1,2,3", func(t *testing.T) {
+		userKeyRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("userInfo"),
+					Value: &resolve.Object{
+						Path: []string{"userInfo"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("kind"),
+								Value: &resolve.String{
+									Path: []string{"kind"},
+								},
+							},
+							{
+								Name: []byte("addresses"),
+								Value: &resolve.Array{
+									Path: []string{"addresses"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("zipInfo"),
+												Value: &resolve.Object{
+													Path: []string{"zipInfo"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("zip1"),
+															Value: &resolve.String{
+																Path: []string{"zip1"},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("streetInfo"),
+												Value: &resolve.Object{
+													Path: []string{"streetInfo"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("street1"),
+															Value: &resolve.String{
+																Path: []string{"street1"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		userRequiresRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("userInfo"),
+					Value: &resolve.Object{
+						Path: []string{"userInfo"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("type"),
+								Value: &resolve.String{
+									Path: []string{"type"},
+								},
+							},
+							{
+								Name: []byte("addresses"),
+								Value: &resolve.Array{
+									Path: []string{"addresses"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("zipInfo"),
+												Value: &resolve.Object{
+													Path: []string{"zipInfo"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("zip2"),
+															Value: &resolve.String{
+																Path: []string{"zip2"},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("streetInfo"),
+												Value: &resolve.Object{
+													Path: []string{"streetInfo"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("street2"),
+															Value: &resolve.String{
+																Path: []string{"street2"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		expected := &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("userInfo"),
+					Value: &resolve.Object{
+						Path: []string{"userInfo"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("kind"),
+								Value: &resolve.String{
+									Path: []string{"kind"},
+								},
+							},
+							{
+								Name: []byte("addresses"),
+								Value: &resolve.Array{
+									Path: []string{"addresses"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("zipInfo"),
+												Value: &resolve.Object{
+													Path: []string{"zipInfo"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("zip1"),
+															Value: &resolve.String{
+																Path: []string{"zip1"},
+															},
+														},
+														{
+															Name: []byte("zip2"),
+															Value: &resolve.String{
+																Path: []string{"zip2"},
+															},
+														},
+													},
+												},
+											},
+											{
+												Name: []byte("streetInfo"),
+												Value: &resolve.Object{
+													Path: []string{"streetInfo"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("street1"),
+															Value: &resolve.String{
+																Path: []string{"street1"},
+															},
+														},
+														{
+															Name: []byte("street2"),
+															Value: &resolve.String{
+																Path: []string{"street2"},
+															},
+														},
+													},
 												},
 											},
 										},
