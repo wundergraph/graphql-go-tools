@@ -193,50 +193,255 @@ func TestBuildRepresentationVariableNode(t *testing.T) {
 }
 
 func TestMergeRepresentationVariableNodes(t *testing.T) {
-	userRepresentation := &resolve.Object{
-		Fields: []*resolve.Field{
-			{
-				Name: []byte("id"),
-				Value: &resolve.String{
-					Path: []string{"id"},
+	t.Run("different entities", func(t *testing.T) {
+		userRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
 				},
-				OnTypeNames: [][]byte{[]byte("User")},
 			},
-		},
-	}
+		}
 
-	adminRepresentation := &resolve.Object{
-		Fields: []*resolve.Field{
-			{
-				Name: []byte("id"),
-				Value: &resolve.String{
-					Path: []string{"id"},
+		adminRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("Admin")},
 				},
-				OnTypeNames: [][]byte{[]byte("Admin")},
 			},
-		},
-	}
+		}
 
-	expected := &resolve.Object{
-		Nullable: true,
-		Fields: []*resolve.Field{
-			{
-				Name: []byte("id"),
-				Value: &resolve.String{
-					Path: []string{"id"},
+		expected := &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
 				},
-				OnTypeNames: [][]byte{[]byte("User")},
-			},
-			{
-				Name: []byte("id"),
-				Value: &resolve.String{
-					Path: []string{"id"},
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("Admin")},
 				},
-				OnTypeNames: [][]byte{[]byte("Admin")},
 			},
-		},
-	}
+		}
 
-	merged := mergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
-	require.Equal(t, expected, merged)
+		merged := mergeRepresentationVariableNodes([]*resolve.Object{userRepresentation, adminRepresentation})
+		require.Equal(t, expected, merged)
+	})
+
+	t.Run("same entity plain fields", func(t *testing.T) {
+		userKeyRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		userRequiresRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		expected := &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		require.Equal(t, expected, merged)
+	})
+
+	t.Run("same entity deeply nested fields", func(t *testing.T) {
+		userKeyRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("userInfo"),
+					Value: &resolve.Object{
+						Path: []string{"userInfo"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("kind"),
+								Value: &resolve.String{
+									Path: []string{"kind"},
+								},
+							},
+							{
+								Name: []byte("addresses"),
+								Value: &resolve.Array{
+									Path: []string{"addresses"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("zip"),
+												Value: &resolve.String{
+													Path: []string{"zip"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		userRequiresRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("userInfo"),
+					Value: &resolve.Object{
+						Path: []string{"userInfo"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("type"),
+								Value: &resolve.String{
+									Path: []string{"type"},
+								},
+							},
+							{
+								Name: []byte("addresses"),
+								Value: &resolve.Array{
+									Path: []string{"addresses"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("street"),
+												Value: &resolve.String{
+													Path: []string{"street"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		expected := &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("id"),
+					Value: &resolve.String{
+						Path: []string{"id"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("userInfo"),
+					Value: &resolve.Object{
+						Path: []string{"userInfo"},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("kind"),
+								Value: &resolve.String{
+									Path: []string{"kind"},
+								},
+							},
+							{
+								Name: []byte("addresses"),
+								Value: &resolve.Array{
+									Path: []string{"addresses"},
+									Item: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("zip"),
+												Value: &resolve.String{
+													Path: []string{"zip"},
+												},
+											},
+											{
+												Name: []byte("street"),
+												Value: &resolve.String{
+													Path: []string{"street"},
+												},
+											},
+										},
+									},
+								},
+							},
+							{
+								Name: []byte("type"),
+								Value: &resolve.String{
+									Path: []string{"type"},
+								},
+							},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+				{
+					Name: []byte("name"),
+					Value: &resolve.String{
+						Path: []string{"name"},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		require.Equal(t, expected, merged)
+	})
 }
