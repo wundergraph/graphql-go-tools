@@ -461,7 +461,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 func (r *Resolver) emitTriggerShutdown(triggerID uint64) {
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:error:%d\n", triggerID)
+		fmt.Printf("resolver:trigger:shutdown:%d\n", triggerID)
 	}
 
 	select {
