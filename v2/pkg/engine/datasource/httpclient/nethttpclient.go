@@ -15,10 +15,10 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
@@ -115,6 +115,23 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
+var (
+	requestBufferPool = &sync.Pool{
+		New: func() any {
+			return &bytes.Buffer{}
+		},
+	}
+)
+
+func getBuffer() *bytes.Buffer {
+	return requestBufferPool.Get().(*bytes.Buffer)
+}
+
+func releaseBuffer(buf *bytes.Buffer) {
+	buf.Reset()
+	requestBufferPool.Put(buf)
+}
+
 func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out io.Writer, contentType string) (err error) {
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
@@ -187,13 +204,19 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		return err
 	}
 
+	buf := getBuffer()
+	defer releaseBuffer(buf)
+
 	if !enableTrace {
-		_, err = io.Copy(out, respReader)
+		_, err = buf.ReadFrom(respReader)
+		if err != nil {
+			return err
+		}
+		_, err = buf.WriteTo(out)
 		return
 	}
 
-	buf := &bytes.Buffer{}
-	_, err = io.Copy(buf, respReader)
+	_, err = buf.ReadFrom(respReader)
 	if err != nil {
 		return err
 	}
