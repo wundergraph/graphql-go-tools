@@ -159,7 +159,7 @@ func (c *subscriptionClient) subscribeSSE(reqCtx *resolve.Context, options Graph
 
 	handler := newSSEConnectionHandler(reqCtx, c.streamingClient, options, c.log)
 
-	handler.StartBlocking(sub)
+	go handler.StartBlocking(sub)
 
 	return nil
 }
@@ -180,7 +180,7 @@ func (c *subscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQ
 		return err
 	}
 
-	handler.StartBlocking(sub)
+	go handler.StartBlocking(sub)
 
 	return nil
 }
