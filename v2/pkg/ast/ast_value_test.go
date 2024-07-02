@@ -83,9 +83,19 @@ func TestDocument_ValueToJSON(t *testing.T) {
 			Ref:  1,
 		}
 	}, `true`))
-	t.Run("ValueKindString", run(func(doc *Document) Value {
+	t.Run("ValueKindString - non-block", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
-			Content: doc.Input.AppendInputString("foo\nbar\tbaz\"qux"),
+			Content: doc.Input.AppendInputString(`foo\nbar\tbaz\"qux`),
+		})
+		return Value{
+			Kind: ValueKindString,
+			Ref:  0,
+		}
+	}, `"foo\nbar\tbaz\"qux"`))
+	t.Run("ValueKindString - block", run(func(doc *Document) Value {
+		doc.StringValues = append(doc.StringValues, StringValue{
+			BlockString: true,
+			Content:     doc.Input.AppendInputString("foo\nbar\tbaz\"qux"),
 		})
 		return Value{
 			Kind: ValueKindString,
