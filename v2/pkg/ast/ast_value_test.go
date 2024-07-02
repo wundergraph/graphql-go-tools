@@ -85,13 +85,13 @@ func TestDocument_ValueToJSON(t *testing.T) {
 	}, `true`))
 	t.Run("ValueKindString", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
-			Content: doc.Input.AppendInputString("foo"),
+			Content: doc.Input.AppendInputString("foo\nbar\tbaz\"qux"),
 		})
 		return Value{
 			Kind: ValueKindString,
 			Ref:  0,
 		}
-	}, `"foo"`))
+	}, `"foo\nbar\tbaz\"qux"`))
 	t.Run("ValueKindList", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
 			Content: doc.Input.AppendInputString("foo"),
