@@ -113,6 +113,13 @@ func TestMinifier_Minify(t *testing.T) {
 			schemaFile:    "simpleschema.graphql",
 			sort:          true,
 		},
+		{
+			name:          "operation9",
+			operationFile: "operation9.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
 	}
 
 	if os.Getenv("WG_INTERNAL") == "true" {
@@ -200,4 +207,59 @@ func TestMinifier_Minify(t *testing.T) {
 			fmt.Printf("originalSize: %d, minifiedSize: %d, compression: %f\n", len(operation), len(minified), float64(len(minified))/float64(len(operation)))
 		})
 	}
+}
+
+func TestMinifier_MinifyWithVariables(t *testing.T) {
+	apolloDoc := unsafeparser.ParseGraphqlDocumentFile("apolloSubgraphOperation.graphql")
+	apolloSmall := unsafeprinter.Print(&apolloDoc, nil)
+	cosmoDoc := unsafeparser.ParseGraphqlDocumentFile("fixtures/cosmo-sorted.min.graphql.golden")
+	cosmoSmall := unsafeprinter.Print(&cosmoDoc, nil)
+	fmt.Printf("apollo: %d, cosmo: %d\n", len(apolloSmall), len(cosmoSmall))
+
+	normalizer := astnormalization.NewWithOpts(
+		astnormalization.WithExtractVariables(),
+		astnormalization.WithInlineFragmentSpreads(),
+		astnormalization.WithRemoveFragmentDefinitions(),
+		astnormalization.WithRemoveNotMatchingOperationDefinitions(),
+		astnormalization.WithRemoveUnusedVariables(),
+	)
+
+	def := unsafeparser.ParseGraphqlDocumentFile("tsb-us-in.graphql")
+	err := asttransform.MergeDefinitionWithBaseSchema(&def)
+	assert.NoError(t, err)
+
+	rep := &operationreport.Report{}
+	normalizer.NormalizeNamedOperation(&apolloDoc, &def, []byte("Page"), rep)
+	if rep.HasErrors() {
+		t.Fatal(rep.Error())
+	}
+	normalizer.NormalizeNamedOperation(&cosmoDoc, &def, []byte("MyQuery"), rep)
+	if rep.HasErrors() {
+		t.Fatal(rep.Error())
+	}
+
+	apolloNormalized := unsafeprinter.PrettyPrint(&apolloDoc, &def)
+	cosmoNormalized := unsafeprinter.PrettyPrint(&cosmoDoc, &def)
+	fmt.Printf("apolloNormalized: %d, cosmoNormalized: %d\n", len(apolloNormalized), len(cosmoNormalized))
+
+	opts := MinifyOptions{
+		SortAST: true,
+	}
+
+	buf := &bytes.Buffer{}
+	m := NewMinifier()
+	_, err = m.Minify([]byte(apolloNormalized), &def, opts, buf)
+	assert.NoError(t, err)
+
+	apolloMinified := buf.String()
+	fmt.Printf("apolloMinified: %d\n", len(apolloMinified))
+	apollodoc := unsafeparser.ParseGraphqlDocumentString(apolloMinified)
+	apolloMinifiedPretty := unsafeprinter.PrettyPrint(&apollodoc, nil)
+	fmt.Printf("apolloMinifiedPretty: %d\n", len(apolloMinifiedPretty))
+	normalizer.NormalizeNamedOperation(&apollodoc, &def, []byte("Page"), rep)
+	if rep.HasErrors() {
+		t.Fatal(rep.Error())
+	}
+	apolloMinifiedNormalized := unsafeprinter.PrettyPrint(&apollodoc, &def)
+	fmt.Printf("apolloMinifiedNormalized: %d\n", len(apolloMinifiedNormalized))
 }

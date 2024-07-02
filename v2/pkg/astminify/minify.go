@@ -159,7 +159,11 @@ func (m *Minifier) sortAst(doc *ast.Document) {
 				return -1
 			}
 			if left.Kind == ast.SelectionKindField && right.Kind == ast.SelectionKindField {
-				return strings.Compare(doc.FieldNameString(left.Ref), doc.FieldNameString(right.Ref))
+				names := strings.Compare(doc.FieldNameString(left.Ref), doc.FieldNameString(right.Ref))
+				if names != 0 {
+					return names
+				}
+				return strings.Compare(doc.FieldAliasString(left.Ref), doc.FieldAliasString(right.Ref))
 			}
 			if left.Kind == ast.SelectionKindInlineFragment && right.Kind == ast.SelectionKindInlineFragment {
 				return strings.Compare(doc.InlineFragmentTypeConditionNameString(left.Ref), doc.InlineFragmentTypeConditionNameString(right.Ref))
