@@ -973,7 +973,9 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 			// __typename field on a union could not have a suggestion
 			return
 		} else {
-			fmt.Println("Adding potentially missing path", currentPath)
+			if c.debug.PrintPlanningPaths {
+				fmt.Println("Adding potentially missing path", currentPath)
+			}
 
 			c.potentiallyMissingPathTracker[currentPath] = struct{}{}
 		}
@@ -1217,6 +1219,11 @@ func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSourc
 		}
 
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
+			if possibleRequiredFieldConfig.DisableEntityResolver {
+				// we could not jump into subgraph when entity resolver is disabled
+				continue
+			}
+
 			if c.planners[i].DataSourceConfiguration().HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
 				return true
 			}
@@ -1241,6 +1248,11 @@ func (c *configurationVisitor) planKeyRequiredFields(currentPlannerIdx int, type
 			continue
 		}
 		for _, possibleRequiredFieldConfig := range possibleRequiredFields {
+			if possibleRequiredFieldConfig.DisableEntityResolver {
+				// we could not jump into subgraph when entity resolver is disabled
+				continue
+			}
+
 			if c.planners[i].DataSourceConfiguration().HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
 
 				isInterfaceObject := slices.ContainsFunc(c.planners[i].DataSourceConfiguration().FederationConfiguration().InterfaceObjects, func(interfaceObjCfg EntityInterfaceConfiguration) bool {

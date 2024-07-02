@@ -54,7 +54,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 1,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       0,
+					FieldRef:       0,
 					TypeName:       "Info",
 					FieldName:      "age",
 					DataSourceHash: 2023,
@@ -64,7 +64,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       1,
+					FieldRef:       1,
 					TypeName:       "User",
 					FieldName:      "info",
 					DataSourceHash: 2023,
@@ -88,7 +88,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 1,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       2,
+					FieldRef:       2,
 					TypeName:       "Info",
 					FieldName:      "age",
 					DataSourceHash: 2023,
@@ -98,7 +98,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       1,
+					FieldRef:       1,
 					TypeName:       "Info",
 					FieldName:      "__typename",
 					DataSourceHash: 2023,
@@ -108,7 +108,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       3,
+					FieldRef:       3,
 					TypeName:       "User",
 					FieldName:      "info",
 					DataSourceHash: 2023,
@@ -118,7 +118,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       0,
+					FieldRef:       0,
 					TypeName:       "User",
 					FieldName:      "__typename",
 					DataSourceHash: 2023,
@@ -153,7 +153,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 1,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       0,
+					FieldRef:       0,
 					TypeName:       "User",
 					FieldName:      "name",
 					DataSourceHash: 2023,
@@ -163,7 +163,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       1,
+					FieldRef:       1,
 					TypeName:       "Info",
 					FieldName:      "age",
 					DataSourceHash: 2023,
@@ -173,7 +173,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       2,
+					FieldRef:       2,
 					TypeName:       "User",
 					FieldName:      "info",
 					DataSourceHash: 2023,
@@ -195,7 +195,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 1,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       0,
+					FieldRef:       0,
 					TypeName:       "Address",
 					FieldName:      "street",
 					DataSourceHash: 2023,
@@ -205,7 +205,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       1,
+					FieldRef:       1,
 					TypeName:       "User",
 					FieldName:      "address",
 					DataSourceHash: 2023,
@@ -258,7 +258,7 @@ func TestProvidesSuggestions(t *testing.T) {
 			selectionSetRef: 2,
 			expected: []*NodeSuggestion{
 				{
-					fieldRef:       0,
+					FieldRef:       0,
 					TypeName:       "User",
 					FieldName:      "name",
 					DataSourceHash: 2023,
@@ -268,7 +268,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       1,
+					FieldRef:       1,
 					TypeName:       "Info",
 					FieldName:      "age",
 					DataSourceHash: 2023,
@@ -278,7 +278,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       2,
+					FieldRef:       2,
 					TypeName:       "User",
 					FieldName:      "info",
 					DataSourceHash: 2023,
@@ -288,7 +288,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       3,
+					FieldRef:       3,
 					TypeName:       "Address",
 					FieldName:      "street",
 					DataSourceHash: 2023,
@@ -298,7 +298,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       4,
+					FieldRef:       4,
 					TypeName:       "Address",
 					FieldName:      "zip",
 					DataSourceHash: 2023,
@@ -308,7 +308,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 				},
 				{
-					fieldRef:       5,
+					FieldRef:       5,
 					TypeName:       "User",
 					FieldName:      "address",
 					DataSourceHash: 2023,

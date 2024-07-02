@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/kingledion/go-tools/tree"
@@ -9,29 +10,30 @@ import (
 const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
-	TypeName                  string
-	FieldName                 string
-	DataSourceHash            DSHash
-	DataSourceID              string
-	Path                      string
-	ParentPath                string
-	IsRootNode                bool
-	IsProvided                bool
-	DisabledEntityResolver    bool // is true in case the node is an entity root node and has a key with disabled resolver
-	IsEntityInterfaceTypeName bool
-	IsKeyField                bool
-	IsExternal                bool
+	DataSourceID              string `json:"dsID"`
+	DataSourceHash            DSHash `json:"-"`
+	Path                      string `json:"path"`
+	TypeName                  string `json:"typeName"`
+	FieldName                 string `json:"fieldName"`
+	FieldRef                  int    `json:"fieldRef"`
+	ParentPath                string `json:"-"`
+	IsRootNode                bool   `json:"isRootNode"`
+	IsProvided                bool   `json:"isProvided"`
+	DisabledEntityResolver    bool   `json:"disabledEntityResolver"` // is true in case the node is an entity root node and has a key with disabled resolver
+	IsEntityInterfaceTypeName bool   `json:"-"`
+	IsExternal                bool   `json:"isExternal"`
+	IsKeyField                bool   `json:"isKeyField"`
+	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
+	IsRequiredField           bool   `json:"IsRequiredField"`
 
 	parentPathWithoutFragment *string
 	onFragment                bool
-	Selected                  bool
-	SelectionReasons          []string
-
-	fieldRef int
+	Selected                  bool     `json:"isSelected"`
+	SelectionReasons          []string `json:"selectReason"`
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
-	return TreeNodeID(n.fieldRef)
+	return TreeNodeID(n.FieldRef)
 }
 
 func (n *NodeSuggestion) appendSelectionReason(reason string, saveReason bool) {
@@ -53,8 +55,8 @@ func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 }
 
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"dsID":"%2s","path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t,"isProvided":%t,"IsKeyField":%t,"DisabledEntityResolver":%t,"isExternal":%t,"isSelected":%v,"selectReason":%v}`,
-		n.DataSourceID, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.IsProvided, n.IsKeyField, n.DisabledEntityResolver, n.IsExternal, n.Selected, n.SelectionReasons)
+	j, _ := json.Marshal(n)
+	return string(j)
 }
 
 type NodeSuggestionHint struct {
