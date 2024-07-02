@@ -1,0 +1,22 @@
+query MyQuery($skip: Boolean!, $include: Boolean!){
+    query {
+        ... on ObjectB {
+            ... on Interface {
+                ...B
+            }
+        }
+        ...B
+    }
+}
+
+fragment A on ObjectA {
+    __typename
+    age
+    name
+}
+
+fragment B on ObjectC @include(if: $include) @skip(if: $skip) {
+    aField {
+        ...A
+    }
+}

@@ -1,0 +1,22 @@
+query MyQuery {
+    query {
+        ... on ObjectB {
+            ... on Interface {
+                ... on ObjectC {
+                    aField {
+                        __typename
+                        age
+                        name
+                    }
+                }
+            }
+        }
+        ... on ObjectC {
+            aField {
+                __typename
+                age
+                name
+            }
+        }
+    }
+}

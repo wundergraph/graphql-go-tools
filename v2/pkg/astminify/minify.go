@@ -167,6 +167,19 @@ func (m *Minifier) sortAst(doc *ast.Document) {
 			return 0
 		})
 	}
+	for i := range doc.Fields {
+		slices.SortFunc(doc.Fields[i].Directives.Refs, func(a, b int) int {
+			return strings.Compare(doc.DirectiveNameString(a), doc.DirectiveNameString(b))
+		})
+		slices.SortFunc(doc.Fields[i].Arguments.Refs, func(a, b int) int {
+			return strings.Compare(doc.ArgumentNameString(a), doc.ArgumentNameString(b))
+		})
+	}
+	for i := range doc.InlineFragments {
+		slices.SortFunc(doc.InlineFragments[i].Directives.Refs, func(a, b int) int {
+			return strings.Compare(doc.DirectiveNameString(a), doc.DirectiveNameString(b))
+		})
+	}
 }
 
 func (m *Minifier) apply(vis *minifyVisitor) (madeReplacements bool) {
