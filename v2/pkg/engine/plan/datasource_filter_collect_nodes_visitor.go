@@ -119,7 +119,7 @@ type collectNodesVisitor struct {
 func (f *collectNodesVisitor) hasSuggestionForField(itemIds []int, ref int) bool {
 	return slices.ContainsFunc(itemIds, func(i int) bool {
 		suggestion := f.nodes.items[i]
-		return suggestion.fieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
+		return suggestion.FieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
 	})
 }
 
@@ -201,7 +201,7 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 	}
 
 	for _, suggestion := range suggestions {
-		nodeID := TreeNodeID(suggestion.fieldRef)
+		nodeID := TreeNodeID(suggestion.FieldRef)
 		treeNode, _ := f.nodes.responseTree.Find(nodeID)
 
 		nodesIndexes := treeNode.GetData()
@@ -259,10 +259,10 @@ func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath
 	return ok
 }
 
-func (f *collectNodesVisitor) EnterField(ref int) {
+func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
-	fieldName := f.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
+	fieldName := f.operation.FieldNameUnsafeString(fieldRef)
+	fieldAliasOrName := f.operation.FieldAliasOrNameString(fieldRef)
 
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
@@ -274,7 +274,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	}
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	f.handleProvidesSuggestions(ref, typeName, fieldName, currentPath)
+	f.handleProvidesSuggestions(fieldRef, typeName, fieldName, currentPath)
 
 	if isTypeName && f.isInterfaceObject(typeName) {
 		// we should not add a typename on the interface object
@@ -288,15 +288,15 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 	hasRootNode := f.dataSource.HasRootNode(typeName, fieldName) || (isTypeName && f.dataSource.HasRootNodeWithTypename(typeName))
 	hasChildNode := f.dataSource.HasChildNode(typeName, fieldName) || (isTypeName && f.dataSource.HasChildNodeWithTypename(typeName))
 
-	isExternalRootNode := !hasRootNode && f.dataSource.HasExternalRootNode(typeName, fieldName)
-	isExternalChildNode := !hasChildNode && f.dataSource.HasExternalChildNode(typeName, fieldName)
+	isExternalRootNode := f.dataSource.HasExternalRootNode(typeName, fieldName)
+	isExternalChildNode := f.dataSource.HasExternalChildNode(typeName, fieldName)
 	isExternal := isExternalRootNode || isExternalChildNode
 
 	currentNodeId := TreeNodeID(ref)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
 
-	if f.hasSuggestionForField(itemIds, ref) {
+	if f.hasSuggestionForField(itemIds, fieldRef) {
 		for _, idx := range itemIds {
 			if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
 				f.nodes.items[idx].IsExternal = isExternal
@@ -320,7 +320,7 @@ func (f *collectNodesVisitor) EnterField(ref int) {
 			IsRootNode:                hasRootNode,
 			onFragment:                onFragment,
 			parentPathWithoutFragment: parentPathWithoutFragment,
-			fieldRef:                  ref,
+			FieldRef:                  fieldRef,
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
 			IsKeyField:                isKey,

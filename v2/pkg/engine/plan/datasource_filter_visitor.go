@@ -19,6 +19,7 @@ type DataSourceFilter struct {
 	nodes *NodeSuggestions
 
 	enableSelectionReasons bool
+	secondaryRun           bool
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -49,6 +50,7 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 		}
 	}
 
+	f.secondaryRun = true
 	return used, suggestions
 }
 
@@ -215,7 +217,7 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 //
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not chosen by previous stages, so we just pick first available datasource
-func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
+func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 	treeNodes := f.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
 
@@ -230,6 +232,14 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 			continue
 		}
 
+		isKeyInSomeDatasource := false
+		for _, i := range itemIDs {
+			if f.nodes.items[i].IsKeyField {
+				isKeyInSomeDatasource = true
+				break
+			}
+		}
+
 		for _, i := range itemIDs {
 			if f.nodes.items[i].Selected {
 				continue
@@ -239,7 +249,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 				continue
 			}
 
-			if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsKeyField && !f.nodes.items[i].IsProvided {
+			if f.nodes.items[i].IsExternal && !(f.nodes.items[i].IsProvided || f.nodes.items[i].IsKeyField) {
 				continue
 			}
 
@@ -273,18 +283,21 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 				continue
 			}
 
-			if f.checkNodeSiblings(i) {
-				continue
-			}
-			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
-				continue
-			}
-
-			if !secondRun {
+			// do not select key field on the stage of initial nodes selection
+			if !f.secondaryRun && isKeyInSomeDatasource {
 				continue
 			}
 
-			if f.nodes.items[i].IsKeyField {
+			if !f.nodes.items[i].IsRequiredKeyField {
+				if f.checkNodeSiblings(i) {
+					continue
+				}
+				if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
+					continue
+				}
+			}
+
+			if !secondPass {
 				continue
 			}
 
@@ -403,12 +416,6 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
-	if f.nodes.items[i].IsKeyField {
-		// we select based on siblings only in case node is not part of a key
-		// check for selected siblings of a current node or its duplicates
-		return false
-	}
-
 	parentIdx, hasParentOnSameSource := f.nodes.parentNodeOnSameSource(i)
 	if hasParentOnSameSource && f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
 		return false
@@ -448,7 +455,7 @@ func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIsSelected bool) {
-	if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+	if f.nodes.items[i].IsExternal && !(f.nodes.items[i].IsProvided || f.nodes.items[i].IsKeyField) {
 		return false
 	}
 

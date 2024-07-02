@@ -158,7 +158,7 @@ func (v *providesVisitor) EnterField(ref int) {
 	}
 
 	suggestion := &NodeSuggestion{
-		fieldRef:       operationFieldRef,
+		FieldRef:       operationFieldRef,
 		TypeName:       typeName,
 		FieldName:      fieldName,
 		DataSourceHash: v.input.dataSourceHash,

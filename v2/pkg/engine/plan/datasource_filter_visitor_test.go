@@ -925,7 +925,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 
 		// zero field refs
 		for i := range planned.items {
-			planned.items[i].fieldRef = 0
+			planned.items[i].FieldRef = 0
 		}
 
 		// remove not selected items
