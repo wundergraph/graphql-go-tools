@@ -184,6 +184,11 @@ func (m *Minifier) sortAst(doc *ast.Document) {
 			return strings.Compare(doc.DirectiveNameString(a), doc.DirectiveNameString(b))
 		})
 	}
+	for i := range doc.Directives {
+		slices.SortFunc(doc.Directives[i].Arguments.Refs, func(a, b int) int {
+			return strings.Compare(doc.ArgumentNameString(a), doc.ArgumentNameString(b))
+		})
+	}
 }
 
 func (m *Minifier) apply(vis *minifyVisitor) (madeReplacements bool) {

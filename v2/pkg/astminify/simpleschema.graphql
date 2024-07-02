@@ -30,3 +30,5 @@ type ObjectC implements Interface {
     bField(a: String b: String c: String): ObjectB
     cField(a: String b: String c: String): ObjectC
 }
+
+directive @abc(a: String b: String c: String) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
