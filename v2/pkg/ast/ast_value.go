@@ -2,6 +2,7 @@ package ast
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -144,7 +145,18 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 			buf.Write(literal.TRUE)
 		}
 	case ValueKindString:
-		buf.Write(quotes.WrapBytes(d.StringValueContentBytes(value.Ref)))
+		s := d.StringValueContentString(value.Ref)
+
+		enc := json.NewEncoder(buf)
+		enc.SetEscapeHTML(false)
+		err := enc.Encode(s)
+		if err != nil {
+			return err
+		}
+
+		// Remove the extra newline that Encode adds
+		buf.Truncate(buf.Len() - 1)
+
 	case ValueKindList:
 		buf.WriteByte(literal.LBRACK_BYTE)
 		for ii, ref := range d.ListValues[value.Ref].Refs {
