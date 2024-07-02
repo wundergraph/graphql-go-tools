@@ -1,10 +1,14 @@
 query MyQuery($a: String, $b: String){
     query {
         ... on ObjectB {
-            aField(a: $a, b: $b){
-                __typename
-                age
-                name
+            ... on Interface {
+                ... on ObjectC {
+                    aField(a: $a, b: $b){
+                        __typename
+                        age
+                        name
+                    }
+                }
             }
         }
         ... on ObjectC {

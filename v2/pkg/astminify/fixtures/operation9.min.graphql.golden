@@ -1,12 +1,13 @@
 query MyQuery {
     query {
+        ...A
         ... on ObjectB {
-            aField(a: "a", b: "b"){
+            aField {
                 ...A
             }
         }
         ... on ObjectC {
-            aField(a: "a", b: "b"){
+            aField {
                 ...A
             }
         }
@@ -15,6 +16,8 @@ query MyQuery {
 
 fragment A on ObjectA {
     __typename
-    age
-    name
+    a: age
+    b: age
+    c: name
+    d: name
 }
