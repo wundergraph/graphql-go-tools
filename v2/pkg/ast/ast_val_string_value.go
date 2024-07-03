@@ -83,9 +83,8 @@ func (d *Document) BlockStringValueContentBytes(ref int) []byte {
 		if i == 0 {
 			continue
 		}
-		length := len(line)
 		indent := leadingWhitespaceCount(line)
-		if indent < length {
+		if indent < len(line) {
 			if commonIndent == -1 || indent < commonIndent {
 				commonIndent = indent
 			}
