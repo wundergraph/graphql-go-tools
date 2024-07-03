@@ -146,9 +146,11 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 		}
 	case ValueKindString:
 		if d.StringValueIsBlockString(value.Ref) {
+			content := d.BlockStringValueContentString(value.Ref)
+
 			enc := json.NewEncoder(buf)
 			enc.SetEscapeHTML(false)
-			if err := enc.Encode(d.StringValueContentString(value.Ref)); err != nil {
+			if err := enc.Encode(content); err != nil {
 				return err
 			}
 
