@@ -105,26 +105,26 @@ func (d *Document) BlockStringValueContentBytes(ref int) []byte {
 		}
 	}
 
-	// remove leading whitespace-only lines
-	for len(lines) > 0 {
-		if leadingWhitespaceCount(lines[0]) == len(lines[0]) {
-			lines = lines[1:]
-		} else {
+	// find first non-whitespace-only line
+	firstLine := 0
+	for i, line := range lines {
+		if leadingWhitespaceCount(line) != len(line) {
+			firstLine = i
 			break
 		}
 	}
 
-	// remove trailing whitespace-only lines
-	for len(lines) > 0 {
-		if leadingWhitespaceCount(lines[len(lines)-1]) == len(lines[len(lines)-1]) {
-			lines = lines[:len(lines)-1]
-		} else {
+	// find last non-whitespace-only line
+	lastLine := len(lines) - 1
+	for i := len(lines) - 1; i >= 0; i-- {
+		if leadingWhitespaceCount(lines[i]) != len(lines[i]) {
+			lastLine = i
 			break
 		}
 	}
 
-	// join the lines and return the result
-	return bytes.Join(lines, []byte{'\n'})
+	// join the lines to keep and return the result
+	return bytes.Join(lines[firstLine:lastLine+1], []byte{'\n'})
 }
 
 func (d *Document) BlockStringValueContentString(ref int) string {
