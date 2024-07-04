@@ -125,17 +125,25 @@ func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
 		}
 
 		itemIndexes := treeNode.GetData()
+
+		itemIsSelectedOnTheOtherDataSource := false
+		itemIdxWithMatchingDS := -1
 		for _, itemIdx := range itemIndexes {
-			if f.nodes.items[itemIdx].DataSourceHash != hint.dsHash {
-				if f.nodes.items[itemIdx].Selected {
-					// if the node was already selected by another datasource
-					// we unselect it
-					f.nodes.items[itemIdx].Selected = false
-					f.nodes.items[itemIdx].SelectionReasons = nil
-				}
-			} else {
-				f.nodes.items[itemIdx].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
+			if f.nodes.items[itemIdx].DataSourceHash == hint.dsHash {
+				itemIdxWithMatchingDS = itemIdx
+				continue
 			}
+
+			if f.nodes.items[itemIdx].Selected {
+				// if the node was already selected by another datasource
+				// we do not change it
+				itemIsSelectedOnTheOtherDataSource = true
+				break
+			}
+		}
+
+		if !itemIsSelectedOnTheOtherDataSource && itemIdxWithMatchingDS != -1 {
+			f.nodes.items[itemIdxWithMatchingDS].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
 		}
 	}
 }
@@ -232,13 +240,13 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		isKeyInSomeDatasource := false
-		for _, i := range itemIDs {
-			if f.nodes.items[i].IsKeyField {
-				isKeyInSomeDatasource = true
-				break
-			}
-		}
+		// isKeyInSomeDatasource := false
+		// for _, i := range itemIDs {
+		// 	if f.nodes.items[i].IsKeyField {
+		// 		isKeyInSomeDatasource = true
+		// 		break
+		// 	}
+		// }
 
 		for _, i := range itemIDs {
 			if f.nodes.items[i].Selected {
@@ -283,10 +291,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				continue
 			}
 
-			// do not select key field on the stage of initial nodes selection
-			if !f.secondaryRun && isKeyInSomeDatasource {
-				continue
-			}
+			// // do not select key field on the stage of initial nodes selection
+			// if !f.secondaryRun && isKeyInSomeDatasource {
+			// 	continue
+			// }
 
 			if !f.nodes.items[i].IsRequiredKeyField {
 				if f.checkNodeSiblings(i) {
