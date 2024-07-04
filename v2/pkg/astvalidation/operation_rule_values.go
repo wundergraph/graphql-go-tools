@@ -53,7 +53,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 		variableName := v.operation.VariableValueNameBytes(value.Ref)
 		variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
 		if !exists {
-			operationName := v.operation.NodeNameBytes(v.Ancestors[0])
+			operationName := v.operation.OperationDefinitionNameBytes(v.Ancestors[0].Ref)
 			v.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnOperation(variableName, operationName))
 			return
 		}

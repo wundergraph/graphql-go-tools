@@ -14,6 +14,8 @@ func DefaultOperationValidator() *OperationValidator {
 		walker: astvisitor.NewWalker(48),
 	}
 
+	validator.RegisterRule(AllVariablesUsed())
+	validator.RegisterRule(AllVariableUsesDefined())
 	validator.RegisterRule(DocumentContainsExecutableOperation())
 	validator.RegisterRule(OperationNameUniqueness())
 	validator.RegisterRule(LoneAnonymousOperation())
@@ -31,8 +33,6 @@ func DefaultOperationValidator() *OperationValidator {
 	validator.RegisterRule(VariableUniqueness())
 	validator.RegisterRule(DirectivesAreUniquePerLocation())
 	validator.RegisterRule(VariablesAreInputTypes())
-	validator.RegisterRule(AllVariableUsesDefined())
-	validator.RegisterRule(AllVariablesUsed())
 
 	return &validator
 }
