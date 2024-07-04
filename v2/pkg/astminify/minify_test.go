@@ -92,6 +92,41 @@ func TestMinifier_Minify(t *testing.T) {
 			schemaFile:    "simpleschema.graphql",
 			sort:          true,
 		},
+		{
+			name:          "operation6",
+			operationFile: "operation6.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
+		{
+			name:          "operation7",
+			operationFile: "operation7.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
+		{
+			name:          "operation8",
+			operationFile: "operation8.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
+		{
+			name:          "operation9",
+			operationFile: "operation9.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
+		{
+			name:          "operation10",
+			operationFile: "operation10.graphql",
+			operationName: "MyQuery",
+			schemaFile:    "simpleschema.graphql",
+			sort:          true,
+		},
 	}
 
 	if os.Getenv("WG_INTERNAL") == "true" {
