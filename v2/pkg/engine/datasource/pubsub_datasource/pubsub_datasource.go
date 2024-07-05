@@ -318,18 +318,9 @@ func buildEventDataBytes(ref int, visitor *plan.Visitor, variables *resolve.Vari
 		}
 		argValue := visitor.Operation.ArgumentValue(arg)
 		variableName := visitor.Operation.VariableValueNameBytes(argValue.Ref)
-		variableDefinition, ok := visitor.Operation.VariableDefinitionByNameAndOperation(visitor.Walker.Ancestors[0].Ref, variableName)
-		if !ok {
-			return nil, fmt.Errorf("expected definition to exist for variable \"%s\"", variableName)
-		}
-		variableTypeRef := visitor.Operation.VariableDefinitions[variableDefinition].Type
-		renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(visitor.Operation, visitor.Definition, variableTypeRef, string(variableName))
-		if err != nil {
-			return nil, err
-		}
 		contextVariable := &resolve.ContextVariable{
 			Path:     []string{string(variableName)},
-			Renderer: renderer,
+			Renderer: resolve.NewPlainVariableRenderer(),
 		}
 		variablePlaceHolder, _ := variables.AddVariable(contextVariable)
 		argumentName := visitor.Operation.ArgumentNameString(arg)

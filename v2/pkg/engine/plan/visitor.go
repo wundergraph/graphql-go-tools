@@ -959,33 +959,21 @@ func (v *Visitor) resolveInputTemplates(config *objectFetchConfiguration, input 
 					case RenderArgumentAsArrayCSV:
 						variable.Renderer = resolve.NewCSVVariableRendererFromTypeRef(v.Operation, v.Definition, variableTypeRef)
 					case RenderArgumentDefault:
-						renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef, variablePath...)
-						if err != nil {
-							break
-						}
-						variable.Renderer = renderer
+						variable.Renderer = resolve.NewPlainVariableRenderer()
 					case RenderArgumentAsGraphQLValue:
-						renderer, err := resolve.NewGraphQLVariableRendererFromTypeRef(v.Operation, v.Definition, variableTypeRef)
+						renderer, err := resolve.NewGraphQLVariableRendererFromTypeRefWithoutValidation(v.Operation, v.Definition, variableTypeRef)
 						if err != nil {
 							break
 						}
 						variable.Renderer = renderer
 					case RenderArgumentAsJSONValue:
-						renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef)
-						if err != nil {
-							break
-						}
-						variable.Renderer = renderer
+						variable.Renderer = resolve.NewJSONVariableRenderer()
 					}
 				}
 			}
 
 			if variable.Renderer == nil {
-				renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(v.Operation, v.Definition, variableTypeRef, variablePath...)
-				if err != nil {
-					break
-				}
-				variable.Renderer = renderer
+				variable.Renderer = resolve.NewPlainVariableRenderer()
 			}
 
 			variableName, _ = variables.AddVariable(variable)
@@ -1046,14 +1034,9 @@ func (v *Visitor) renderJSONValueTemplate(value ast.Value, variables *resolve.Va
 		out += "}"
 	case ast.ValueKindVariable:
 		variablePath := v.Operation.VariableValueNameString(value.Ref)
-		inputType := v.Definition.InputValueDefinitions[inputValueDefinition].Type
-		renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(v.Definition, v.Definition, inputType)
-		if err != nil {
-			renderer = resolve.NewJSONVariableRenderer()
-		}
 		variableName, _ := variables.AddVariable(&resolve.ContextVariable{
 			Path:     []string{variablePath},
-			Renderer: renderer,
+			Renderer: resolve.NewJSONVariableRenderer(),
 		})
 		out += variableName
 	}
