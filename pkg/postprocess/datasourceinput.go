@@ -93,7 +93,13 @@ func correctGraphQLVariableTypes(variables resolve.Variables, input string) stri
 			if variableTemplateSegment.Renderer == nil {
 				continue
 			}
-			// Get the variable type from its renderer. If the type isn't a string, remove double quotes
+			isVariable = false
+
+			// Get the variable type from its renderer. If the type isn't a string, remove double quotes.
+			// If root value type is Unknown or NotExits, we render the variables as a string.
+			//
+			// Note: graphql-go-tools assigns NotExists root value type for IDs.
+			// See this: https://spec.graphql.org/October2021/#sec-ID
 			//
 			// Possible types:
 			// 	* NotExist
@@ -104,12 +110,22 @@ func correctGraphQLVariableTypes(variables resolve.Variables, input string) stri
 			//	* Boolean
 			//	* Null
 			//	* Unknown
-			if variableTemplateSegment.Renderer.GetRootValueType().Value != jsonparser.String {
-				newVariable := fmt.Sprintf("$$%s$$", seg)
-				oldVariable := fmt.Sprintf("\"%s\"", newVariable)
-				input = strings.Replace(input, oldVariable, newVariable, 1)
+
+			rootValueType := variableTemplateSegment.Renderer.GetRootValueType().Value
+			if rootValueType == jsonparser.String || rootValueType == jsonparser.Unknown || rootValueType == jsonparser.NotExist {
+				// Keep the double quotes for those variables. Thus, those variables will be rendered as a string.
+				continue
 			}
-			isVariable = false
+			// Remove the double quotes for these variables to preserve the data type.
+			//
+			// * Number
+			// * Object
+			// * Array
+			// * Boolean
+			// * Null
+			newVariable := fmt.Sprintf("$$%s$$", seg)
+			oldVariable := fmt.Sprintf("\"%s\"", newVariable)
+			input = strings.Replace(input, oldVariable, newVariable, 1)
 		default:
 			isVariable = true
 		}
