@@ -1,8 +1,8 @@
 package staticdatasource
 
 import (
+	"bytes"
 	"context"
-	"io"
 
 	"github.com/jensneuse/abstractlogger"
 
@@ -66,11 +66,11 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 
 type Source struct{}
 
-func (Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
-	_, err = w.Write(input)
+func (Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+	_, err = out.Write(input)
 	return
 }
 
-func (Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	panic("not implemented")
 }

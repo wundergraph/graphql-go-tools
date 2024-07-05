@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"slices"
@@ -1697,14 +1696,14 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, writer io.Writer) (err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, writer)
+	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, out)
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
+func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.Do(s.httpClient, ctx, input, writer)
+	return httpclient.Do(s.httpClient, ctx, input, out)
 }
 
 type GraphQLSubscriptionClient interface {

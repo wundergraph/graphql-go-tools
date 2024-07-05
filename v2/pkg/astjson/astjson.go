@@ -50,6 +50,10 @@ type JSON struct {
 	_intSlicePos int
 }
 
+func (j *JSON) Size() int {
+	return len(j.storage)
+}
+
 func (j *JSON) Get(nodeRef int, path []string) int {
 	if len(path) == 0 {
 		return nodeRef

@@ -11,17 +11,19 @@ import (
 	"net/http/httptrace"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -39,6 +41,25 @@ type LoaderHooks interface {
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
 	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
+}
+
+var (
+	loaderBufPool = sync.Pool{}
+	loaderBufSize = atomic.NewInt32(128)
+)
+
+func acquireLoaderBuf() *bytes.Buffer {
+	v := loaderBufPool.Get()
+	if v == nil {
+		return bytes.NewBuffer(make([]byte, 0, loaderBufSize.Load()))
+	}
+	return v.(*bytes.Buffer)
+}
+
+func releaseLoaderBuf(buf *bytes.Buffer) {
+	loaderBufSize.Store(int32(buf.Cap()))
+	buf.Reset()
+	loaderBufPool.Put(buf)
 }
 
 type Loader struct {
@@ -210,9 +231,8 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
-			out: pool.BytesBuffer.Get(),
+			out: acquireLoaderBuf(),
 		}
-
 		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
 			return err
@@ -288,7 +308,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: pool.BytesBuffer.Get(),
+				out: acquireLoaderBuf(),
 			}
 			g.Go(func() error {
 				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
@@ -309,7 +329,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		}
 	case *EntityFetch:
 		res := &result{
-			out: pool.BytesBuffer.Get(),
+			out: acquireLoaderBuf(),
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
@@ -322,7 +342,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 		return err
 	case *BatchEntityFetch:
 		res := &result{
-			out: pool.BytesBuffer.Get(),
+			out: acquireLoaderBuf(),
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, f, items, res)
 		if err != nil {
@@ -340,7 +360,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		res.out = pool.BytesBuffer.Get()
+		res.out = acquireLoaderBuf()
 		return l.loadSingleFetch(ctx, f, items, res)
 	case *SerialFetch:
 		return fmt.Errorf("serial fetch must not be nested")
@@ -355,7 +375,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: pool.BytesBuffer.Get(),
+				out: acquireLoaderBuf(),
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -376,17 +396,17 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 		res.nestedMergeItems = results
 		return nil
 	case *EntityFetch:
-		res.out = pool.BytesBuffer.Get()
+		res.out = acquireLoaderBuf()
 		return l.loadEntityFetch(ctx, f, items, res)
 	case *BatchEntityFetch:
-		res.out = pool.BytesBuffer.Get()
+		res.out = acquireLoaderBuf()
 		return l.loadBatchEntityFetch(ctx, f, items, res)
 	}
 	return nil
 }
 
 func (l *Loader) mergeResult(res *result, items []int) error {
-	defer pool.BytesBuffer.Put(res.out)
+	defer releaseLoaderBuf(res.out)
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(res, failedToFetchNoReason)
 	}
@@ -467,8 +487,8 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 
 	withPostProcessing := res.postProcessing.ResponseTemplate != nil
 	if withPostProcessing && len(items) <= 1 {
-		postProcessed := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(postProcessed)
+		postProcessed := acquireLoaderBuf()
+		defer releaseLoaderBuf(postProcessed)
 		res.out.Reset()
 		err = l.data.PrintNode(l.data.Nodes[node], res.out)
 		if err != nil {
@@ -497,10 +517,10 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 			rendered      *bytes.Buffer
 		)
 		if withPostProcessing {
-			postProcessed = pool.BytesBuffer.Get()
-			defer pool.BytesBuffer.Put(postProcessed)
-			rendered = pool.BytesBuffer.Get()
-			defer pool.BytesBuffer.Put(rendered)
+			postProcessed = acquireLoaderBuf()
+			defer releaseLoaderBuf(postProcessed)
+			rendered = acquireLoaderBuf()
+			defer releaseLoaderBuf(rendered)
 			for i, stats := range res.batchStats {
 				postProcessed.Reset()
 				rendered.Reset()
@@ -608,8 +628,8 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 
 	path := l.renderPath()
 
-	responseErrorsBuf := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(responseErrorsBuf)
+	responseErrorsBuf := acquireLoaderBuf()
+	defer releaseLoaderBuf(responseErrorsBuf)
 
 	// print them into the buffer to be able to parse them
 	err := l.data.PrintNode(l.data.Nodes[ref], responseErrorsBuf)
@@ -946,29 +966,57 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 	return l.rateLimitFetch(input, info, res)
 }
 
+var (
+	singleFetchPool              = sync.Pool{}
+	singleFetchInputSize         = atomic.NewInt32(32)
+	singleFetchPreparedInputSize = atomic.NewInt32(32)
+)
+
+type singleFetchBuffer struct {
+	input         *bytes.Buffer
+	preparedInput *bytes.Buffer
+}
+
+func acquireSingleFetchBuffer() *singleFetchBuffer {
+	buf := singleFetchPool.Get()
+	if buf == nil {
+		return &singleFetchBuffer{
+			input:         bytes.NewBuffer(make([]byte, 0, int(singleFetchInputSize.Load()))),
+			preparedInput: bytes.NewBuffer(make([]byte, 0, int(singleFetchPreparedInputSize.Load()))),
+		}
+	}
+	return buf.(*singleFetchBuffer)
+}
+
+func releaseSingleFetchBuffer(buf *singleFetchBuffer) {
+	singleFetchInputSize.Store(int32(buf.input.Cap()))
+	singleFetchPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
+	buf.input.Reset()
+	buf.preparedInput.Reset()
+	singleFetchPool.Put(buf)
+}
+
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	input := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(input)
-	preparedInput := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(preparedInput)
-	err := l.itemsData(items, input)
+	buf := acquireSingleFetchBuffer()
+	defer releaseSingleFetchBuffer(buf)
+	err := l.itemsData(items, buf.input)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			inputCopy := make([]byte, input.Len())
-			copy(inputCopy, input.Bytes())
+			inputCopy := make([]byte, buf.input.Len())
+			copy(inputCopy, buf.input.Bytes())
 			fetch.Trace.RawInputData = inputCopy
 		}
 	}
-	err = fetch.InputTemplate.Render(l.ctx, input.Bytes(), preparedInput)
+	err = fetch.InputTemplate.Render(l.ctx, buf.input.Bytes(), buf.preparedInput)
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	fetchInput := preparedInput.Bytes()
+	fetchInput := buf.preparedInput.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
 		return err
@@ -980,15 +1028,46 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	return nil
 }
 
+var (
+	entityFetchPool              = sync.Pool{}
+	entityFetchItemDataSize      = atomic.NewInt32(32)
+	entityFetchPreparedInputSize = atomic.NewInt32(32)
+	entityFetchItemSize          = atomic.NewInt32(32)
+)
+
+type entityFetchBuffer struct {
+	itemData      *bytes.Buffer
+	preparedInput *bytes.Buffer
+	item          *bytes.Buffer
+}
+
+func acquireEntityFetchBuffer() *entityFetchBuffer {
+	buf := entityFetchPool.Get()
+	if buf == nil {
+		return &entityFetchBuffer{
+			itemData:      bytes.NewBuffer(make([]byte, 0, int(entityFetchItemDataSize.Load()))),
+			preparedInput: bytes.NewBuffer(make([]byte, 0, int(entityFetchPreparedInputSize.Load()))),
+			item:          bytes.NewBuffer(make([]byte, 0, int(entityFetchItemSize.Load()))),
+		}
+	}
+	return buf.(*entityFetchBuffer)
+}
+
+func releaseEntityFetchBuffer(buf *entityFetchBuffer) {
+	entityFetchItemDataSize.Store(int32(buf.itemData.Cap()))
+	entityFetchPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
+	entityFetchItemSize.Store(int32(buf.item.Cap()))
+	buf.itemData.Reset()
+	buf.preparedInput.Reset()
+	buf.item.Reset()
+	entityFetchPool.Put(buf)
+}
+
 func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	itemData := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(itemData)
-	preparedInput := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(preparedInput)
-	item := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(item)
-	err := l.itemsData(items, itemData)
+	buf := acquireEntityFetchBuffer()
+	defer releaseEntityFetchBuffer(buf)
+	err := l.itemsData(items, buf.itemData)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -996,20 +1075,20 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			itemDataCopy := make([]byte, itemData.Len())
-			copy(itemDataCopy, itemData.Bytes())
+			itemDataCopy := make([]byte, buf.itemData.Len())
+			copy(itemDataCopy, buf.itemData.Bytes())
 			fetch.Trace.RawInputData = itemDataCopy
 		}
 	}
 
 	var undefinedVariables []string
 
-	err = fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err = fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = fetch.Input.Item.Render(l.ctx, itemData.Bytes(), item)
+	err = fetch.Input.Item.Render(l.ctx, buf.itemData.Bytes(), buf.item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			err = nil // nolint:ineffassign
@@ -1021,7 +1100,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		}
 		return errors.WithStack(err)
 	}
-	renderedItem := item.Bytes()
+	renderedItem := buf.item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchSkipped = true
@@ -1040,17 +1119,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 			return nil
 		}
 	}
-	_, _ = item.WriteTo(preparedInput)
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	_, _ = buf.item.WriteTo(buf.preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := preparedInput.Bytes()
+	fetchInput := buf.preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchInput, fetch.Trace)
@@ -1068,8 +1147,49 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	return nil
 }
 
+var (
+	batchEntityFetchPool         = sync.Pool{}
+	batchEntityPreparedInputSize = atomic.NewInt32(32)
+	batchEntityItemDataSize      = atomic.NewInt32(32)
+	batchEntityItemInputSize     = atomic.NewInt32(32)
+)
+
+type batchEntityFetchBuffer struct {
+	preparedInput *bytes.Buffer
+	itemData      *bytes.Buffer
+	itemInput     *bytes.Buffer
+	keyGen        *xxhash.Digest
+}
+
+func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
+	buf := batchEntityFetchPool.Get()
+	if buf == nil {
+		return &batchEntityFetchBuffer{
+			preparedInput: bytes.NewBuffer(make([]byte, 0, int(batchEntityPreparedInputSize.Load()))),
+			itemData:      bytes.NewBuffer(make([]byte, 0, int(batchEntityItemDataSize.Load()))),
+			itemInput:     bytes.NewBuffer(make([]byte, 0, int(batchEntityItemInputSize.Load()))),
+			keyGen:        xxhash.New(),
+		}
+	}
+	return buf.(*batchEntityFetchBuffer)
+}
+
+func releaseBatchEntityFetchBuffer(buf *batchEntityFetchBuffer) {
+	batchEntityPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
+	batchEntityItemDataSize.Store(int32(buf.itemData.Cap()))
+	batchEntityItemInputSize.Store(int32(buf.itemInput.Cap()))
+	buf.preparedInput.Reset()
+	buf.itemData.Reset()
+	buf.itemInput.Reset()
+	buf.keyGen.Reset()
+	batchEntityFetchPool.Put(buf)
+}
+
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
+
+	buf := acquireBatchEntityFetchBuffer()
+	defer releaseBatchEntityFetchBuffer(buf)
 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1083,12 +1203,9 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFet
 		}
 	}
 
-	preparedInput := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(preparedInput)
-
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -1097,25 +1214,16 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFet
 	batchItemIndex := 0
 	addSeparator := false
 
-	keyGen := pool.Hash64.Get()
-	defer pool.Hash64.Put(keyGen)
-
-	itemData := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(itemData)
-
-	itemInput := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(itemInput)
-
 WithNextItem:
 	for i, item := range items {
-		itemData.Reset()
-		err = l.data.PrintNode(l.data.Nodes[item], itemData)
+		buf.itemData.Reset()
+		err = l.data.PrintNode(l.data.Nodes[item], buf.itemData)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		for j := range fetch.Input.Items {
-			itemInput.Reset()
-			err = fetch.Input.Items[j].Render(l.ctx, itemData.Bytes(), itemInput)
+			buf.itemInput.Reset()
+			err = fetch.Input.Items[j].Render(l.ctx, buf.itemData.Bytes(), buf.itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					err = nil // nolint:ineffassign
@@ -1127,18 +1235,18 @@ WithNextItem:
 				}
 				return errors.WithStack(err)
 			}
-			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
+			if fetch.Input.SkipNullItems && buf.itemInput.Len() == 4 && bytes.Equal(buf.itemInput.Bytes(), null) {
 				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
-			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
+			if fetch.Input.SkipEmptyObjectItems && buf.itemInput.Len() == 2 && bytes.Equal(buf.itemInput.Bytes(), emptyObject) {
 				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
 
-			keyGen.Reset()
-			_, _ = keyGen.Write(itemInput.Bytes())
-			itemHash := keyGen.Sum64()
+			buf.keyGen.Reset()
+			_, _ = buf.keyGen.Write(buf.itemInput.Bytes())
+			itemHash := buf.keyGen.Sum64()
 			for k := range itemHashes {
 				if itemHashes[k] == itemHash {
 					res.batchStats[i] = append(res.batchStats[i], k)
@@ -1147,12 +1255,12 @@ WithNextItem:
 			}
 			itemHashes = append(itemHashes, itemHash)
 			if addSeparator {
-				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+				err = fetch.Input.Separator.Render(l.ctx, nil, buf.preparedInput)
 				if err != nil {
 					return errors.WithStack(err)
 				}
 			}
-			_, _ = itemInput.WriteTo(preparedInput)
+			_, _ = buf.itemInput.WriteTo(buf.preparedInput)
 			res.batchStats[i] = append(res.batchStats[i], batchItemIndex)
 			batchItemIndex++
 			addSeparator = true
@@ -1169,16 +1277,16 @@ WithNextItem:
 		}
 	}
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := preparedInput.Bytes()
+	fetchInput := buf.preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchInput, fetch.Trace)
@@ -1275,7 +1383,6 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []b
 	if l.ctx.Files != nil {
 		return source.LoadWithFiles(ctx, input, l.ctx.Files, res.out)
 	}
-
 	return source.Load(ctx, input, res.out)
 }
 
