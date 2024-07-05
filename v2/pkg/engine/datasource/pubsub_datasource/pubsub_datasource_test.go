@@ -299,15 +299,15 @@ func TestPubSub(t *testing.T) {
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a", "tenantId"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"a", "id"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["object"],"properties":{"id":{"type":["integer"]},"tenantId":{"type":["integer"]}},"required":["id","tenantId"],"additionalProperties":false}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 							},
 							DataSource: &NatsRequestDataSource{
@@ -355,15 +355,15 @@ func TestPubSub(t *testing.T) {
 							Variables: resolve.Variables{
 								&resolve.ContextVariable{
 									Path:     []string{"a", "tenantId"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"a", "id"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["object"],"properties":{"id":{"type":["integer"]},"tenantId":{"type":["integer"]}},"required":["id","tenantId"],"additionalProperties":false}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 							},
 							DataSource: &NatsPublishDataSource{
@@ -391,11 +391,11 @@ func TestPubSub(t *testing.T) {
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a", "tenantId"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"a", "id"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 					},
 					Source: &NatsSubscriptionSource{
@@ -442,19 +442,19 @@ func TestPubSub(t *testing.T) {
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a", "tenantId"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"a", "id"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"b", "tenantId"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 						&resolve.ContextVariable{
 							Path:     []string{"b", "id"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 					},
 					Source: &NatsSubscriptionSource{
@@ -542,7 +542,7 @@ func TestPubSub(t *testing.T) {
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a", "user", "id"},
-							Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["integer"]}`),
+							Renderer: resolve.NewPlainVariableRenderer(),
 						},
 					},
 					Source: &NatsSubscriptionSource{

@@ -132,7 +132,7 @@ func releaseBuffer(buf *bytes.Buffer) {
 	requestBufferPool.Put(buf)
 }
 
-func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out io.Writer, contentType string) (err error) {
+func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
 		return err
@@ -204,17 +204,13 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		return err
 	}
 
-	buf := getBuffer()
-	defer releaseBuffer(buf)
-
 	if !enableTrace {
-		_, err = buf.ReadFrom(respReader)
-		if err != nil {
-			return err
-		}
-		_, err = buf.WriteTo(out)
+		_, err = out.ReadFrom(respReader)
 		return
 	}
+
+	buf := getBuffer()
+	defer releaseBuffer(buf)
 
 	_, err = buf.ReadFrom(respReader)
 	if err != nil {
@@ -245,14 +241,14 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	return err
 }
 
-func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Writer) (err error) {
+func Do(client *http.Client, ctx context.Context, requestInput []byte, out *bytes.Buffer) (err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
 
 	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
 }
 
 func DoMultipartForm(
-	client *http.Client, ctx context.Context, requestInput []byte, files []File, out io.Writer,
+	client *http.Client, ctx context.Context, requestInput []byte, files []File, out *bytes.Buffer,
 ) (err error) {
 	if len(files) == 0 {
 		return errors.New("no files provided")

@@ -29,7 +29,7 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
-func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (f *_fakeDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -38,11 +38,11 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (
 			require.Equal(f.t, string(f.input), string(input), "input mismatch")
 		}
 	}
-	_, err = w.Write(f.data)
+	_, err = out.Write(f.data)
 	return
 }
 
-func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -51,7 +51,7 @@ func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files
 			require.Equal(f.t, string(f.input), string(input), "input mismatch")
 		}
 	}
-	_, err = w.Write(f.data)
+	_, err = out.Write(f.data)
 	return
 }
 
@@ -72,7 +72,7 @@ func fakeDataSourceWithInputCheck(t TestingTB, input []byte, data []byte) *_fake
 type TestErrorWriter struct {
 }
 
-func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer) {
+func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer) {
 	_, err = w.Write([]byte(fmt.Sprintf(`{"errors":[{"message":"%s"}],"data":null}`, err.Error())))
 	if err != nil {
 		panic(err)

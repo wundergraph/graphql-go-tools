@@ -1,13 +1,15 @@
 package pubsub_datasource
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"io"
 )
 
 type NatsStreamConfiguration struct {
@@ -73,7 +75,7 @@ type NatsPublishDataSource struct {
 	pubSub NatsPubSub
 }
 
-func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {
 	var publishConfiguration NatsPublishAndRequestEventConfiguration
 	err := json.Unmarshal(input, &publishConfiguration)
 	if err != nil {
@@ -81,15 +83,15 @@ func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, w io.Wri
 	}
 
 	if err := s.pubSub.Publish(ctx, publishConfiguration); err != nil {
-		_, err = io.WriteString(w, `{"success": false}`)
+		_, err = io.WriteString(out, `{"success": false}`)
 		return err
 	}
 
-	_, err = io.WriteString(w, `{"success": true}`)
+	_, err = io.WriteString(out, `{"success": true}`)
 	return err
 }
 
-func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) error {
+func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) error {
 	panic("not implemented")
 }
 
@@ -97,16 +99,16 @@ type NatsRequestDataSource struct {
 	pubSub NatsPubSub
 }
 
-func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {
 	var subscriptionConfiguration NatsPublishAndRequestEventConfiguration
 	err := json.Unmarshal(input, &subscriptionConfiguration)
 	if err != nil {
 		return err
 	}
 
-	return s.pubSub.Request(ctx, subscriptionConfiguration, w)
+	return s.pubSub.Request(ctx, subscriptionConfiguration, out)
 }
 
-func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) error {
+func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) error {
 	panic("not implemented")
 }

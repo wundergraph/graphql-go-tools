@@ -1,10 +1,12 @@
 package introspection_datasource
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"io"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
@@ -17,7 +19,7 @@ type Source struct {
 	introspectionData *introspection.Data
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
 		return err
@@ -25,17 +27,17 @@ func (s *Source) Load(ctx context.Context, input []byte, w io.Writer) (err error
 
 	switch req.RequestType {
 	case TypeRequestType:
-		return s.singleType(w, req.TypeName)
+		return s.singleType(out, req.TypeName)
 	case TypeEnumValuesRequestType:
-		return s.enumValuesForType(w, req.OnTypeName, req.IncludeDeprecated)
+		return s.enumValuesForType(out, req.OnTypeName, req.IncludeDeprecated)
 	case TypeFieldsRequestType:
-		return s.fieldsForType(w, req.OnTypeName, req.IncludeDeprecated)
+		return s.fieldsForType(out, req.OnTypeName, req.IncludeDeprecated)
 	}
 
-	return json.NewEncoder(w).Encode(s.schemaWithoutTypeInfo())
+	return json.NewEncoder(out).Encode(s.schemaWithoutTypeInfo())
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	panic("not implemented")
 }
 

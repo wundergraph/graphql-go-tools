@@ -8485,11 +8485,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ContextVariable{
 												Path:     []string{"skipA"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"includeB"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 										),
 									},
@@ -8561,7 +8561,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Variables: resolve.NewVariables(
 													&resolve.ContextVariable{
 														Path:     []string{"skipA"},
-														Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+														Renderer: resolve.NewJSONVariableRenderer(),
 													},
 												),
 											},
@@ -8578,7 +8578,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Variables: resolve.NewVariables(
 													&resolve.ContextVariable{
 														Path:     []string{"includeB"},
-														Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+														Renderer: resolve.NewJSONVariableRenderer(),
 													},
 												),
 											},
@@ -8715,11 +8715,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ContextVariable{
 												Path:     []string{"skipA"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"includeB"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 										),
 									},

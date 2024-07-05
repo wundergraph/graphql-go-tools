@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
@@ -174,7 +175,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -255,7 +256,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.HeaderVariable{
 								Path: []string{"Authorization"},
@@ -442,7 +443,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.HeaderVariable{
 								Path: []string{"Authorization"},
@@ -935,7 +936,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"skip"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 					},
@@ -1021,7 +1022,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip) tn2: __typename @include(if: $skip)}}","variables":{"skip":$$0$$}}}`,
 						Variables: resolve.NewVariables(&resolve.ContextVariable{
 							Path:     []string{"skip"},
-							Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+							Renderer: resolve.NewJSONVariableRenderer(),
 						}),
 						PostProcessing: DefaultPostProcessingConfiguration,
 					},
@@ -1125,7 +1126,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"skip"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 					},
@@ -1217,7 +1218,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"include"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 					},
@@ -1457,7 +1458,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"include"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 					},
@@ -1777,7 +1778,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
@@ -1875,7 +1876,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"heroId"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -1998,11 +1999,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"heroName"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.HeaderVariable{
 								Path: []string{"Authorization"},
@@ -2236,15 +2237,15 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"input"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["object"],"properties":{"name":{"type":["string","null"]},"options":{}},"additionalProperties":false}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"options"},
@@ -2555,7 +2556,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"representations"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["object"],"additionalProperties":true}}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
@@ -2719,7 +2720,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"droidIDs"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["array"],"items":{"type":["string","integer"]}}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -2778,7 +2779,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"droidID"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -2832,7 +2833,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"birthdate"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -2883,7 +2884,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -2992,11 +2993,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -3107,11 +3108,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -3233,11 +3234,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -3400,11 +3401,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ContextVariable{
 												Path:     []string{"firstArg"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"thirdArg"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["integer","null"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 										),
 										PostProcessing: DefaultPostProcessingConfiguration,
@@ -3421,11 +3422,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ContextVariable{
 												Path:     []string{"secondArg"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"fourthArg"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["number","null"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 										),
 										PostProcessing: DefaultPostProcessingConfiguration,
@@ -3493,7 +3494,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											Variables: resolve.NewVariables(
 												&resolve.ObjectVariable{
 													Path:     []string{"serviceOneField"},
-													Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+													Renderer: resolve.NewJSONVariableRenderer(),
 												},
 											),
 											PostProcessing: DefaultPostProcessingConfiguration,
@@ -3754,15 +3755,15 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"title"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"completed"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -3907,11 +3908,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
 										Path:     []string{"id"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"name"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -4037,11 +4038,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"personal"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -4191,11 +4192,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 								&resolve.ContextVariable{
 									Path:     []string{"personal"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -4330,7 +4331,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Variables: resolve.NewVariables(
 					&resolve.ContextVariable{
 						Path:     []string{"a"},
-						Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+						Renderer: resolve.NewJSONVariableRenderer(),
 					},
 				),
 				Source: &SubscriptionSource{
@@ -4816,7 +4817,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ContextVariable{
 											Path:     []string{"a"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+											Renderer: resolve.NewJSONVariableRenderer(),
 										},
 									),
 									PostProcessing: DefaultPostProcessingConfiguration,
@@ -4833,7 +4834,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									Variables: resolve.NewVariables(
 										&resolve.ContextVariable{
 											Path:     []string{"b"},
-											Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string"]}`),
+											Renderer: resolve.NewJSONVariableRenderer(),
 										},
 									),
 									PostProcessing: DefaultPostProcessingConfiguration,
@@ -5012,7 +5013,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ObjectVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -5374,7 +5375,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ObjectVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
 							PostProcessing: DefaultPostProcessingConfiguration,
@@ -5722,11 +5723,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ContextVariable{
 												Path:     []string{"someSkipCondition"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"publicOnly"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ResolvableObjectVariable{
 												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -5928,11 +5929,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Variables: resolve.NewVariables(
 											&resolve.ContextVariable{
 												Path:     []string{"someSkipCondition"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											&resolve.ContextVariable{
 												Path:     []string{"publicOnly"},
-												Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+												Renderer: resolve.NewJSONVariableRenderer(),
 											},
 											resolve.NewResolvableObjectVariable(
 												&resolve.Object{
@@ -8416,11 +8417,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"droidId"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"reviewId"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.HeaderVariable{
 								Path: []string{"Authorization"},
@@ -8584,7 +8585,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Variables: resolve.NewVariables(
 							&resolve.ContextVariable{
 								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
@@ -8851,10 +8852,8 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		go func() {
-			err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
-			require.NoError(t, err)
-		}()
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
@@ -8876,10 +8875,8 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		go func() {
-			err := source.Start(ctx, chatSubscriptionOptions, updater)
-			require.NoError(t, err)
-		}()
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
@@ -8961,10 +8958,8 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		source := newSubscriptionSource(resolverLifecycle)
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		go func() {
-			err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
-			require.NoError(t, err)
-		}()
+		err := source.Start(resolve.NewContext(subscriptionLifecycle), chatSubscriptionOptions, updater)
+		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"
@@ -8987,10 +8982,8 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		source := newSubscriptionSource(ctx.Context())
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		go func() {
-			err := source.Start(ctx, chatSubscriptionOptions, updater)
-			require.NoError(t, err)
-		}()
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		require.NoError(t, err)
 
 		username := "myuser"
 		message := "hello world!"

@@ -21,23 +21,27 @@ import (
 )
 
 type Reporter interface {
+	// Called when a new subscription update is sent
 	SubscriptionUpdateSent()
+	// Increased when a new subscription is added to a trigger, this includes inflight subscriptions
 	SubscriptionCountInc(count int)
+	// Decreased when a subscription is removed from a trigger e.g. on shutdown
 	SubscriptionCountDec(count int)
+	// Increased when a new trigger is added e.g. when a trigger is started and initialized
 	TriggerCountInc(count int)
+	// Decreased when a trigger is removed e.g. when a trigger is shutdown
 	TriggerCountDec(count int)
 }
 
 type AsyncErrorWriter interface {
-	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer, buf *bytes.Buffer)
+	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer)
 }
 
 type Resolver struct {
-	ctx                 context.Context
-	options             ResolverOptions
-	toolPool            sync.Pool
-	limitMaxConcurrency bool
-	maxConcurrency      chan struct{}
+	ctx            context.Context
+	options        ResolverOptions
+	bufPool        sync.Pool
+	maxConcurrency chan struct{}
 
 	triggers          map[uint64]*trigger
 	events            chan subscriptionEvent
@@ -51,6 +55,8 @@ type Resolver struct {
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
+
+	tools *sync.Pool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -105,13 +111,21 @@ type ResolverOptions struct {
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
 func New(ctx context.Context, options ResolverOptions) *Resolver {
 	// options.Debug = true
+	if options.MaxConcurrency <= 0 {
+		options.MaxConcurrency = 32
+	}
 	resolver := &Resolver{
 		ctx:                          ctx,
 		options:                      options,
 		propagateSubgraphErrors:      options.PropagateSubgraphErrors,
 		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
-		toolPool: sync.Pool{
-			New: func() interface{} {
+		events:                       make(chan subscriptionEvent),
+		triggers:                     make(map[uint64]*trigger),
+		reporter:                     options.Reporter,
+		asyncErrorWriter:             options.AsyncErrorWriter,
+		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
+		tools: &sync.Pool{
+			New: func() any {
 				return &tools{
 					resolvable: NewResolvable(),
 					loader: &Loader{
@@ -125,19 +139,10 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 				}
 			},
 		},
-		events:           make(chan subscriptionEvent),
-		triggers:         make(map[uint64]*trigger),
-		reporter:         options.Reporter,
-		asyncErrorWriter: options.AsyncErrorWriter,
-		triggerUpdateBuf: bytes.NewBuffer(make([]byte, 0, 1024)),
 	}
-	if options.MaxConcurrency > 0 {
-		semaphore := make(chan struct{}, options.MaxConcurrency)
-		for i := 0; i < options.MaxConcurrency; i++ {
-			semaphore <- struct{}{}
-		}
-		resolver.limitMaxConcurrency = true
-		resolver.maxConcurrency = semaphore
+	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
+	for i := 0; i < options.MaxConcurrency; i++ {
+		resolver.maxConcurrency <- struct{}{}
 	}
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
@@ -155,20 +160,28 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 }
 
 func (r *Resolver) getTools() *tools {
-	if r.limitMaxConcurrency {
-		<-r.maxConcurrency
-	}
-	t := r.toolPool.Get().(*tools)
-	return t
+	<-r.maxConcurrency
+	return r.tools.Get().(*tools)
 }
 
 func (r *Resolver) putTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset()
-	r.toolPool.Put(t)
-	if r.limitMaxConcurrency {
-		r.maxConcurrency <- struct{}{}
+	r.tools.Put(t)
+	r.maxConcurrency <- struct{}{}
+}
+
+func (r *Resolver) getBuffer(preferredSize int) *bytes.Buffer {
+	maybeBuffer := r.bufPool.Get()
+	if maybeBuffer == nil {
+		return bytes.NewBuffer(make([]byte, 0, preferredSize))
 	}
+	return maybeBuffer.(*bytes.Buffer)
+}
+
+func (r *Resolver) releaseBuffer(buf *bytes.Buffer) {
+	buf.Reset()
+	r.bufPool.Put(buf)
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
@@ -179,15 +192,16 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	t := r.getTools()
-	defer r.putTools(t)
 
 	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
+		r.putTools(t)
 		return err
 	}
 
 	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 	if err != nil {
+		r.putTools(t)
 		return err
 	}
 
@@ -197,7 +211,15 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		fetchTree = response.Data
 	}
 
-	return t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, writer)
+	buf := r.getBuffer(t.resolvable.storage.Size())
+	defer r.releaseBuffer(buf)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
+	r.putTools(t)
+	if err != nil {
+		return err
+	}
+	_, err = buf.WriteTo(writer)
+	return err
 }
 
 type trigger struct {
@@ -205,6 +227,7 @@ type trigger struct {
 	cancel        context.CancelFunc
 	subscriptions map[*Context]*sub
 	inFlight      *sync.WaitGroup
+	initialized   bool
 }
 
 func (t *trigger) hasPendingUpdates() bool {
@@ -239,10 +262,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
 		sub.mux.Lock()
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		sub.pendingUpdates--
 		sub.mux.Unlock()
 		if r.options.Debug {
@@ -254,10 +275,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		return
 	}
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
 		sub.mux.Lock()
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		sub.pendingUpdates--
 		sub.mux.Unlock()
 		if r.options.Debug {
@@ -278,9 +297,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		return // subscription was already closed by the client
 	}
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.FetchTree, sub.writer); err != nil {
-		buf := pool.BytesBuffer.Get()
-		defer pool.BytesBuffer.Put(buf)
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer, buf)
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -333,8 +350,32 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerUpdate(event.triggerID, event.data)
 	case subscriptionEventKindTriggerDone:
 		r.handleTriggerDone(event.triggerID)
+	case subscriptionEventKindTriggerInitialized:
+		r.handleTriggerInitialized(event.triggerID)
+	case subscriptionEventKindTriggerShutdown:
+		r.handleTriggerShutdown(event)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
+	}
+}
+
+func (r *Resolver) handleTriggerShutdown(s subscriptionEvent) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:shutdown:%d:%d\n", s.triggerID, s.id.SubscriptionID)
+	}
+
+	r.shutdownTrigger(s.triggerID)
+}
+
+func (r *Resolver) handleTriggerInitialized(triggerID uint64) {
+	trig, ok := r.triggers[triggerID]
+	if !ok {
+		return
+	}
+	trig.initialized = true
+
+	if r.reporter != nil {
+		r.reporter.TriggerCountInc(1)
 	}
 }
 
@@ -343,9 +384,12 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 	if !ok {
 		return
 	}
-	delete(r.triggers, triggerID)
+	isInitialized := trig.initialized
 	wg := trig.inFlight
 	subscriptionCount := len(trig.subscriptions)
+
+	delete(r.triggers, triggerID)
+
 	go func() {
 		if wg != nil {
 			wg.Wait()
@@ -355,7 +399,9 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountDec(subscriptionCount)
-			r.reporter.TriggerCountDec(1)
+			if isInitialized {
+				r.reporter.TriggerCountDec(1)
+			}
 		}
 	}()
 }
@@ -383,6 +429,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 		return
 	}
+
 	if r.options.Debug {
 		fmt.Printf("resolver:create:trigger:%d\n", triggerID)
 	}
@@ -393,7 +440,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		ch:        r.events,
 		ctx:       ctx,
 	}
-	clone := add.ctx.clone(ctx)
+	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
 		id:            triggerID,
 		subscriptions: make(map[*Context]*sub),
@@ -404,7 +451,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
-		r.reporter.TriggerCountInc(1)
 	}
 
 	go func() {
@@ -412,27 +458,53 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 
-		err = add.resolve.Trigger.Source.Start(clone, add.input, updater)
+		err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
 		if err != nil {
-			cancel()
-
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
 			}
-			buf := pool.BytesBuffer.Get()
-			defer pool.BytesBuffer.Put(buf)
-
-			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer, buf)
-
-			updater.Done()
+			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			r.emitTriggerShutdown(triggerID)
 			return
 		}
+
+		r.emitTriggerInitialized(triggerID)
 
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:started:%d\n", triggerID)
 		}
 	}()
 
+}
+
+func (r *Resolver) emitTriggerShutdown(triggerID uint64) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:shutdown:%d\n", triggerID)
+	}
+
+	select {
+	case <-r.ctx.Done():
+		return
+	case r.events <- subscriptionEvent{
+		triggerID: triggerID,
+		kind:      subscriptionEventKindTriggerShutdown,
+	}:
+	}
+}
+
+func (r *Resolver) emitTriggerInitialized(triggerID uint64) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:initialized:%d\n", triggerID)
+	}
+
+	select {
+	case <-r.ctx.Done():
+		return
+	case r.events <- subscriptionEvent{
+		triggerID: triggerID,
+		kind:      subscriptionEventKindTriggerInitialized,
+	}:
+	}
 }
 
 func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
@@ -514,9 +586,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		c, s := c, s
 		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
 		if err != nil {
-			buf := pool.BytesBuffer.Get()
-			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer, buf)
-			pool.BytesBuffer.Put(buf)
+			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
 			continue
 		}
 		if skip {
@@ -556,7 +626,9 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountDec(count)
-		r.reporter.TriggerCountDec(1)
+		if trig.initialized {
+			r.reporter.TriggerCountDec(1)
+		}
 	}
 }
 
@@ -791,6 +863,8 @@ const (
 	subscriptionEventKindAddSubscription
 	subscriptionEventKindRemoveSubscription
 	subscriptionEventKindRemoveClient
+	subscriptionEventKindTriggerInitialized
+	subscriptionEventKindTriggerShutdown
 )
 
 type SubscriptionUpdater interface {
