@@ -11,6 +11,7 @@ const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
 	DataSourceID              string `json:"dsID"`
+	DataSourceName            string `json:"dsName"`
 	DataSourceHash            DSHash `json:"-"`
 	Path                      string `json:"path"`
 	TypeName                  string `json:"typeName"`

@@ -1221,7 +1221,7 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 }
 
 func (p *Planner[T]) debugPrintln(args ...interface{}) {
-	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_id: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Id(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
+	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }

@@ -364,7 +364,8 @@ func (p *Planner) printPlanningPaths() {
 	for i, planner := range p.configurationVisitor.planners {
 		fmt.Printf("\nPlanner id: %d\n", i)
 		fmt.Printf("Parent path: %s\n", planner.ParentPath())
-		fmt.Printf("Datasource id: %s hash: %d\n", planner.DataSourceConfiguration().Id(), planner.DataSourceConfiguration().Hash())
+		ds := planner.DataSourceConfiguration()
+		fmt.Printf("Datasource id: %s name: %s hash: %d\n", ds.Id(), ds.Name(), ds.Hash())
 		fmt.Printf("Depends on planner ids: %v\n", planner.ObjectFetchConfiguration().dependsOnFetchIDs)
 
 		requiredFields := planner.RequiredFields()
