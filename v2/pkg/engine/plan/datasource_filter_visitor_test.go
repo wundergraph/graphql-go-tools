@@ -35,7 +35,7 @@ func (b *dsBuilder) ChildNode(typeName string, fieldNames ...string) *dsBuilder 
 
 func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
-	b.ds.Factory = &FakeFactory[any]{upstreamSchema: &def}
+	b.ds.factory = &FakeFactory[any]{upstreamSchema: &def}
 
 	return b
 }

@@ -15,6 +15,7 @@ type providesInput struct {
 	parentPath                              string
 	dataSourceID                            string
 	dataSourceHash                          DSHash
+	dataSourceName                          string
 }
 
 type addTypenamesVisitor struct {
@@ -163,6 +164,7 @@ func (v *providesVisitor) EnterField(ref int) {
 		FieldName:      fieldName,
 		DataSourceHash: v.input.dataSourceHash,
 		DataSourceID:   v.input.dataSourceID,
+		DataSourceName: v.input.dataSourceName,
 		Path:           currentPath,
 		ParentPath:     parentPath,
 		Selected:       false,
