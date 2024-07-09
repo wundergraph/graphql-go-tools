@@ -3,12 +3,13 @@ package pubsub_datasource
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 const (
@@ -73,11 +74,7 @@ func isValidNatsSubject(subject string) bool {
 	return true
 }
 
-func (p *NatsEventManager) addContextVariableByArgumentRef(
-	argumentRef int,
-	argumentPath []string,
-	finalInputValueTypeRef int,
-) (string, error) {
+func (p *NatsEventManager) addContextVariableByArgumentRef(argumentRef int, argumentPath []string) (string, error) {
 	variablePath, err := p.visitor.Operation.VariablePathByArgumentRefAndArgumentPath(argumentRef, argumentPath, p.visitor.Walker.Ancestors[0].Ref)
 	if err != nil {
 		return "", err
@@ -85,13 +82,9 @@ func (p *NatsEventManager) addContextVariableByArgumentRef(
 	/* The definition is passed as both definition and operation below because getJSONRootType resolves the type
 	 * from the first argument, but finalInputValueTypeRef comes from the definition
 	 */
-	renderer, err := resolve.NewPlainVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, finalInputValueTypeRef, variablePath...)
-	if err != nil {
-		return "", err
-	}
 	contextVariable := &resolve.ContextVariable{
 		Path:     variablePath,
-		Renderer: renderer,
+		Renderer: resolve.NewPlainVariableRenderer(),
 	}
 	variablePlaceHolder, _ := p.variables.AddVariable(contextVariable)
 	return variablePlaceHolder, nil
@@ -128,9 +121,7 @@ func (p *NatsEventManager) extractEventSubject(fieldRef int, subject string) (st
 			return "", fmt.Errorf(`operation field "%s" does not define argument "%s"`, fieldNameBytes, argumentNameBytes)
 		}
 		// variablePlaceholder has the form $$0$$, $$1$$, etc.
-		variablePlaceholder, err := p.addContextVariableByArgumentRef(
-			argumentRef, validationResult.ArgumentPath, validationResult.FinalInputValueTypeRef,
-		)
+		variablePlaceholder, err := p.addContextVariableByArgumentRef(argumentRef, validationResult.ArgumentPath)
 		if err != nil {
 			return "", fmt.Errorf(`failed to retrieve variable placeholder for argument ""%s" defined on operation field "%s": %w`, argumentNameBytes, fieldNameBytes, err)
 		}

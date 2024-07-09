@@ -134,7 +134,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 							),
 							PostProcessing: resolve.PostProcessingConfiguration{
@@ -355,7 +355,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["string"]}`),
+									Renderer: resolve.NewPlainVariableRenderer(),
 								},
 							),
 							PostProcessing: resolve.PostProcessingConfiguration{
@@ -390,7 +390,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 													},
 													&resolve.ContextVariable{
 														Path:     []string{"b"},
-														Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+														Renderer: resolve.NewPlainVariableRenderer(),
 													},
 												),
 												PostProcessing: resolve.PostProcessingConfiguration{
@@ -413,7 +413,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 													},
 													&resolve.ContextVariable{
 														Path:     []string{"b"},
-														Renderer: resolve.NewPlainVariableRendererWithValidation(`{"type":["boolean","null"]}`),
+														Renderer: resolve.NewPlainVariableRenderer(),
 													},
 												),
 												PostProcessing: resolve.PostProcessingConfiguration{

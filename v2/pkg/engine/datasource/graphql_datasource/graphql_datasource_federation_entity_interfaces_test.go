@@ -693,7 +693,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Variables: []resolve.Variable{
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								},
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -794,7 +794,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Variables: []resolve.Variable{
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								},
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -951,7 +951,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Variables: []resolve.Variable{
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								},
 								PostProcessing: DefaultPostProcessingConfiguration,
@@ -1052,7 +1052,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Variables: []resolve.Variable{
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRendererWithValidation(`{"type":["string","integer"]}`),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								},
 								PostProcessing: DefaultPostProcessingConfiguration,

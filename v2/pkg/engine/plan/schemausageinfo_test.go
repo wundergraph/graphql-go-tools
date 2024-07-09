@@ -3,7 +3,6 @@ package plan
 import (
 	"bytes"
 	"context"
-	"io"
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
@@ -487,10 +486,10 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte, w io.Writer) (err error) {
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	return
 }
 
-func (f *FakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (f *FakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	return
 }

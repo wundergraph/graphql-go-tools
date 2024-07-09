@@ -1,13 +1,15 @@
 package pubsub_datasource
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"io"
+
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"io"
 )
 
 type KafkaEventConfiguration struct {
@@ -65,7 +67,7 @@ type KafkaPublishDataSource struct {
 	pubSub KafkaPubSub
 }
 
-func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte, w io.Writer) error {
+func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {
 	var publishConfiguration KafkaPublishEventConfiguration
 	err := json.Unmarshal(input, &publishConfiguration)
 	if err != nil {
@@ -73,13 +75,13 @@ func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte, w io.Wr
 	}
 
 	if err := s.pubSub.Publish(ctx, publishConfiguration); err != nil {
-		_, err = io.WriteString(w, `{"success": false}`)
+		_, err = io.WriteString(out, `{"success": false}`)
 		return err
 	}
-	_, err = io.WriteString(w, `{"success": true}`)
+	_, err = io.WriteString(out, `{"success": true}`)
 	return err
 }
 
-func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, w io.Writer) (err error) {
+func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	panic("not implemented")
 }

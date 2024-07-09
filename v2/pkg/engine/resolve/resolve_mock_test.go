@@ -5,8 +5,8 @@
 package resolve
 
 import (
+	bytes "bytes"
 	context "context"
-	io "io"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -37,7 +37,7 @@ func (m *MockDataSource) EXPECT() *MockDataSourceMockRecorder {
 }
 
 // Load mocks base method.
-func (m *MockDataSource) Load(arg0 context.Context, arg1 []byte, arg2 io.Writer) error {
+func (m *MockDataSource) Load(arg0 context.Context, arg1 []byte, arg2 *bytes.Buffer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -51,7 +51,7 @@ func (mr *MockDataSourceMockRecorder) Load(arg0, arg1, arg2 interface{}) *gomock
 }
 
 // LoadWithFiles mocks base method.
-func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 []byte, arg2 []httpclient.File, arg3 io.Writer) error {
+func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 []byte, arg2 []httpclient.File, arg3 *bytes.Buffer) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "LoadWithFiles", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)

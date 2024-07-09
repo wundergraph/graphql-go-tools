@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"regexp"
 	"slices"
@@ -203,14 +202,9 @@ func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
 			variableType := p.visitor.Operation.VariableDefinitions[i].Type
 			typeName := p.visitor.Operation.ResolveTypeNameString(variableType)
 
-			renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableType)
-			if err != nil {
-				continue
-			}
-
 			contextVariable := &resolve.ContextVariable{
 				Path:     []string{string(variableName)},
-				Renderer: renderer,
+				Renderer: resolve.NewJSONVariableRenderer(),
 			}
 
 			// Try to add the variable to the set of upstream variables.
@@ -1001,22 +995,9 @@ func (p *Planner[T]) configureFieldArgumentSource(upstreamFieldRef, downstreamFi
 	variableName := p.visitor.Operation.VariableValueNameBytes(value.Ref)
 	variableNameStr := p.visitor.Operation.VariableValueNameString(value.Ref)
 
-	fieldName := p.visitor.Operation.FieldNameBytes(downstreamFieldRef)
-	argumentDefinition := p.visitor.Definition.NodeFieldDefinitionArgumentDefinitionByName(p.visitor.Walker.EnclosingTypeDefinition, fieldName, []byte(argumentConfiguration.Name))
-
-	if argumentDefinition == -1 {
-		return
-	}
-
-	argumentType := p.visitor.Definition.InputValueDefinitionType(argumentDefinition)
-	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
-	if err != nil {
-		return
-	}
-
 	contextVariable := &resolve.ContextVariable{
 		Path:     []string{variableNameStr},
-		Renderer: renderer,
+		Renderer: resolve.NewJSONVariableRenderer(),
 	}
 
 	contextVariableName, exists := p.variables.AddVariable(contextVariable)
@@ -1120,13 +1101,9 @@ func (p *Planner[T]) addVariableDefinitionsRecursively(value ast.Value, sourcePa
 	variableDefinitionTypeName = p.visitor.Config.Types.RenameTypeNameOnMatchStr(variableDefinitionTypeName)
 
 	contextVariable := &resolve.ContextVariable{
-		Path: append(sourcePath, variableNameStr),
+		Path:     append(sourcePath, variableNameStr),
+		Renderer: resolve.NewJSONVariableRenderer(),
 	}
-	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Operation, p.visitor.Definition, variableDefinitionTypeRef)
-	if err != nil {
-		return
-	}
-	contextVariable.Renderer = renderer
 	contextVariableName, variableExists := p.variables.AddVariable(contextVariable)
 	if variableExists {
 		return
@@ -1173,14 +1150,9 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 	importedType := p.visitor.Importer.ImportTypeWithRename(argumentType, p.visitor.Definition, p.upstreamOperation, typeName)
 	p.upstreamOperation.AddVariableDefinitionToOperationDefinition(p.nodes[0].Ref, variableValue, importedType)
 
-	renderer, err := resolve.NewJSONVariableRendererWithValidationFromTypeRef(p.visitor.Definition, p.visitor.Definition, argumentType)
-	if err != nil {
-		return
-	}
-
 	variable := &resolve.ObjectVariable{
 		Path:     argumentConfiguration.SourcePath,
-		Renderer: renderer,
+		Renderer: resolve.NewJSONVariableRenderer(),
 	}
 
 	objectVariableName, exists := p.variables.AddVariable(variable)
@@ -1697,17 +1669,18 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, writer io.Writer) (err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, writer)
+	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, out)
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, writer io.Writer) (err error) {
+func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.Do(s.httpClient, ctx, input, writer)
+	return httpclient.Do(s.httpClient, ctx, input, out)
 }
 
 type GraphQLSubscriptionClient interface {
+	// Subscribes to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 }
