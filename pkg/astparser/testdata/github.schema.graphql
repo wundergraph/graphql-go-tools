@@ -5950,7 +5950,7 @@ enum GitSignatureState {
     NO_USER
 
     """
-    Valid siganture, though certificate revocation check failed
+    Valid signature, though certificate revocation check failed
     """
     OCSP_ERROR
 
@@ -11884,7 +11884,7 @@ type OrgRestoreMemberAuditEntry implements AuditEntry & Node & OrganizationAudit
     restoredCustomEmailRoutingsCount: Int
 
     """
-    The number of issue assignemnts for the restored member.
+    The number of issue assignments for the restored member.
     """
     restoredIssueAssignmentsCount: Int
 
@@ -13371,7 +13371,7 @@ type OrganizationIdentityProvider implements Node {
     id: ID!
 
     """
-    The x509 certificate used by the Identity Provder to sign assertions and responses.
+    The x509 certificate used by the Identity Provider to sign assertions and responses.
     """
     idpCertificate: X509Certificate
 
@@ -13774,7 +13774,7 @@ type PinnedEvent implements Node {
 }
 
 """
-An ISO-8601 encoded UTC date string with millisecond precison.
+An ISO-8601 encoded UTC date string with millisecond precision.
 """
 scalar PreciseDateTime
 
@@ -18111,7 +18111,7 @@ type ReferencedEvent implements Node {
 }
 
 """
-Any referencable object
+Any referenceable object
 """
 union ReferencedSubject = Issue | PullRequest
 

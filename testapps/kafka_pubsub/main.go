@@ -35,8 +35,8 @@ Simple test tool to generate test data
 
 Options:
   -h, --help          Print this message and exit.
-  -b  --brokers       Comma seperated list of broker addresses (default: localhost:9092).
-  -p, --products      Comma seperated list of products.
+  -b  --brokers       Comma separated list of broker addresses (default: localhost:9092).
+  -p, --products      Comma separated list of products.
       --enable-sasl   Enable Simple Authentication and Security Layer (SASL)
       --sasl-user     User for SASL
       --sasl-password Password for SASL

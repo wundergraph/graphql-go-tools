@@ -310,7 +310,7 @@ func (c *Converter) transformLine(line string) (out string, skip bool) {
 		// handles js multiline strings
 	case strings.Contains(line, "`"):
 		if strings.Contains(line, "to.deep.equal") {
-			// in case string contains chai comparison proceed with a different convertion
+			// in case string contains chai comparison proceed with a different conversion
 			out, skip = c.transformLine(line)
 		} else {
 			// change insideMultilineString in case we are at start or end of js multiline string

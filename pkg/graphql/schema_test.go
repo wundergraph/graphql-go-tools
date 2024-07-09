@@ -16,7 +16,7 @@ import (
 )
 
 func TestNewSchemaFromReader(t *testing.T) {
-	t.Run("should return error when an error occures internally", func(t *testing.T) {
+	t.Run("should return error when an error occurs internally", func(t *testing.T) {
 		schemaBytes := []byte("query: Query")
 		schemaReader := bytes.NewBuffer(schemaBytes)
 		schema, err := NewSchemaFromReader(schemaReader)
@@ -36,7 +36,7 @@ func TestNewSchemaFromReader(t *testing.T) {
 }
 
 func TestNewSchemaFromString(t *testing.T) {
-	t.Run("should return error when an error occures internally", func(t *testing.T) {
+	t.Run("should return error when an error occurs internally", func(t *testing.T) {
 		schemaBytes := []byte("query: Query")
 		schema, err := NewSchemaFromString(string(schemaBytes))
 
@@ -84,7 +84,7 @@ func TestSchema_HasQueryType(t *testing.T) {
 		}
 	}
 
-	t.Run("schema without base defition", func(t *testing.T) {
+	t.Run("schema without base definition", func(t *testing.T) {
 		t.Run("should return false when there is no query type present", run(`
 				schema {
 					mutation: Mutation
@@ -310,7 +310,7 @@ func TestValidateSchemaString(t *testing.T) {
 		}
 	}
 
-	t.Run("should successfuly validate broken schema as invalid", run(
+	t.Run("should successfully validate broken schema as invalid", run(
 		`type Query {`,
 		false,
 		1,
@@ -1281,7 +1281,7 @@ type Planet implements Node {
   terrains: [String]
 
   """
-  The percentage of the planet surface that is naturally occuring water or bodies
+  The percentage of the planet surface that is naturally occurring water or bodies
   of water.
   """
   surfaceWater: Float

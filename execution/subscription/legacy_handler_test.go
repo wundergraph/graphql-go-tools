@@ -65,7 +65,7 @@ func TestHandler_Handle(t *testing.T) {
 				return ctx, nil
 			})
 
-			t.Run("should send connection error message when error on read occurrs", func(t *testing.T) {
+			t.Run("should send connection error message when error on read occurs", func(t *testing.T) {
 				client.prepareConnectionInitMessage().withError().and().send()
 
 				ctx, cancelFunc := context.WithCancel(context.Background())
@@ -98,7 +98,7 @@ func TestHandler_Handle(t *testing.T) {
 				assert.Contains(t, messagesFromServer, expectedMessage)
 			})
 
-			t.Run("should send connection error message when error on check initial payload occurrs", func(t *testing.T) {
+			t.Run("should send connection error message when error on check initial payload occurs", func(t *testing.T) {
 				initPayloadAuthorization = "123"
 				defer func() { initPayloadAuthorization = "" }()
 

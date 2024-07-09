@@ -79,7 +79,7 @@ enum HTTP_METHOD {
 
 "PARAMETER_SOURCE defines the source of a dyanmic parameter"
 enum PARAMETER_SOURCE {
-    "parameter from the context object which could be pupulated by the http wrapper"
+    "parameter from the context object which could be populated by the http wrapper"
     CONTEXT_VARIABLE
     """
     parameter from the parent object
@@ -92,7 +92,7 @@ enum PARAMETER_SOURCE {
     }
     }
     Using the PARAMETER_SOURCE 'OBJECT_VARIABLE_ARGUMENT' with sourceName 'userID' returns the userID for user with id 1 at runtime.
-    This way you can dynamically build a query to the friends ressource using the userID at runtime and inject it into the second query.
+    This way you can dynamically build a query to the friends resource using the userID at runtime and inject it into the second query.
     """
     OBJECT_VARIABLE_ARGUMENT
     """
@@ -105,7 +105,7 @@ enum PARAMETER_SOURCE {
     }
     }
     Using the PARAMETER_SOURCE 'FIELD_ARGUMENTS' with sourceName 'id' returns 1 at runtime.
-    This way you can render the ressource url for /user/:id to /user/1 at runtime dynamically.
+    This way you can render the resource url for /user/:id to /user/1 at runtime dynamically.
     """
     FIELD_ARGUMENTS
 }

@@ -151,7 +151,7 @@ func (v *variablesDefaultValueExtractionVisitor) traverseValue(value ast.Value, 
 			}
 
 			listTypeRef := defTypeRef
-			// ommit not null to get to list itself
+			// omit not null to get to list itself
 			if v.definition.Types[listTypeRef].TypeKind == ast.TypeKindNonNull {
 				listTypeRef = v.definition.Types[listTypeRef].OfType
 			}
