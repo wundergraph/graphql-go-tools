@@ -982,6 +982,9 @@ const shareableDefinition = `
 	type User {
 		id: ID!
 		details: Details!
+		first: String
+		second: String
+		third: String
 	}
 
 	type Details {
@@ -1018,7 +1021,7 @@ const shareableDS1Schema = `
 
 var shareableDS1 = dsb().Hash(11).Schema(shareableDS1Schema).
 	RootNode("Query", "me").
-	RootNode("User", "id", "details").
+	RootNode("User", "id", "details", "first").
 	ChildNode("Details", "forename", "middlename").
 	DS()
 
@@ -1026,6 +1029,7 @@ const shareableDS2Schema = `
 	type User @key(fields: "id") {
 		id: ID!
 		details: Details! @shareable
+		second: String
 	}
 
 	type Details {
@@ -1040,7 +1044,7 @@ const shareableDS2Schema = `
 
 var shareableDS2 = dsb().Hash(22).Schema(shareableDS2Schema).
 	RootNode("Query", "me").
-	RootNode("User", "id", "details").
+	RootNode("User", "id", "details", "second").
 	ChildNode("Details", "forename", "surname").
 	DS()
 
@@ -1048,6 +1052,7 @@ const shareableDS3Schema = `
 	type User @key(fields: "id") {
 		id: ID!
 		details: Details! @shareable
+		third: String
 	}
 
 	type Details {
@@ -1061,7 +1066,7 @@ const shareableDS3Schema = `
 `
 
 var shareableDS3 = dsb().Hash(33).Schema(shareableDS3Schema).
-	RootNode("User", "id", "details").
+	RootNode("User", "id", "details", "third").
 	ChildNode("Details", "age", "pets").
 	ChildNode("Pet", "name").
 	DS()
@@ -1231,8 +1236,521 @@ var conflictingShareablePathsRelayStyleDefinition = `
 		street: String!
 		residents: PaginatedUser!
 	}
-	
+
 	type Query {
 		users: PaginatedUser!
 		address(id: ID!): Address!
 	}`
+
+func TestDataSourceFilter_applySuggestionHints(t *testing.T) {
+	type fields struct {
+		definition  string
+		query       string
+		datasources []DataSource
+		existing    []NodeSuggestion
+	}
+	type args struct {
+		hints []NodeSuggestionHint
+	}
+	tests := []struct {
+		name     string
+		fields   fields
+		args     args
+		expected []*NodeSuggestion
+	}{
+		{
+			name: "no hints",
+			args: args{},
+			fields: fields{
+				definition:  shareableDefinition,
+				query:       "{ me { id } }",
+				datasources: []DataSource{shareableDS1, shareableDS2, shareableDS3},
+				existing:    []NodeSuggestion{},
+			},
+			expected: []*NodeSuggestion{
+				{
+					TypeName:                  "Query",
+					FieldName:                 "me",
+					DataSourceHash:            11,
+					Path:                      "query.me",
+					ParentPath:                "query",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage3: select non leaf node which have possible child selections on the same source"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "id",
+					DataSourceHash:            11,
+					Path:                      "query.me.id",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected parent"},
+					fieldRef:                  0,
+				},
+			},
+		},
+		{
+			name: "hint field not found",
+			fields: fields{
+				definition:  shareableDefinition,
+				query:       "{ me { id } }",
+				datasources: []DataSource{shareableDS1, shareableDS2, shareableDS3},
+			},
+			args: args{
+				hints: []NodeSuggestionHint{
+					{
+						fieldRef:   999,
+						dsHash:     11,
+						fieldName:  "me",
+						parentPath: "query",
+					},
+				},
+			},
+			expected: []*NodeSuggestion{
+				{
+					TypeName:                  "Query",
+					FieldName:                 "me",
+					DataSourceHash:            11,
+					Path:                      "query.me",
+					ParentPath:                "query",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage3: select non leaf node which have possible child selections on the same source"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "id",
+					DataSourceHash:            11,
+					Path:                      "query.me.id",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected parent"},
+					fieldRef:                  0,
+				},
+			},
+		},
+		{
+			name: "hint for selected datasource",
+			fields: fields{
+				definition:  shareableDefinition,
+				query:       "{ me { id details { middlename surname } } }",
+				datasources: []DataSource{shareableDS1, shareableDS2, shareableDS3},
+			},
+			args: args{
+				hints: []NodeSuggestionHint{
+					{
+						fieldRef:   1,
+						dsHash:     11,
+						fieldName:  "name",
+						parentPath: "query",
+					},
+				},
+			},
+			expected: []*NodeSuggestion{
+				{
+					TypeName:                  "Query",
+					FieldName:                 "me",
+					DataSourceHash:            11,
+					Path:                      "query.me",
+					ParentPath:                "query",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected child"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "id",
+					DataSourceHash:            11,
+					Path:                      "query.me.id",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected parent"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "details",
+					DataSourceHash:            11,
+					Path:                      "query.me.details",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: same source parent of unique node"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "details",
+					DataSourceHash:            22,
+					Path:                      "query.me.details",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: same source parent of unique node"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "Details",
+					FieldName:                 "middlename",
+					DataSourceHash:            11,
+					Path:                      "query.me.details.middlename",
+					ParentPath:                "query.me.details",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: unique"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "Details",
+					FieldName:                 "surname",
+					DataSourceHash:            22,
+					Path:                      "query.me.details.surname",
+					ParentPath:                "query.me.details",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: unique"},
+					fieldRef:                  0,
+				},
+			},
+		},
+		{
+			name: "hint for other datasource",
+			fields: fields{
+				definition:  shareableDefinition,
+				query:       "{ me { id details { middlename surname } } }",
+				datasources: []DataSource{shareableDS1, shareableDS2, shareableDS3},
+			},
+			args: args{
+				hints: []NodeSuggestionHint{
+					{
+						fieldRef:   1,
+						dsHash:     33,
+						fieldName:  "middlename",
+						parentPath: "query.details",
+					},
+				},
+			},
+			expected: []*NodeSuggestion{
+				{
+					TypeName:                  "Query",
+					FieldName:                 "me",
+					DataSourceHash:            11,
+					Path:                      "query.me",
+					ParentPath:                "query",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected child"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "id",
+					DataSourceHash:            11,
+					Path:                      "query.me.id",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected parent"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "details",
+					DataSourceHash:            11,
+					Path:                      "query.me.details",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: same source parent of unique node"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "details",
+					DataSourceHash:            22,
+					Path:                      "query.me.details",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: same source parent of unique node"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "Details",
+					FieldName:                 "surname",
+					DataSourceHash:            22,
+					Path:                      "query.me.details.surname",
+					ParentPath:                "query.me.details",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: unique"},
+					fieldRef:                  0,
+				},
+			},
+		},
+		{
+			name: "__typename from existing node suggestions",
+			fields: fields{
+				definition:  shareableDefinition,
+				query:       "{ me { id details { middlename surname __typename } second __typename } }",
+				datasources: []DataSource{shareableDS1, shareableDS2, shareableDS3},
+				existing: []NodeSuggestion{
+					{
+						TypeName:                  "User",
+						FieldName:                 "id",
+						DataSourceHash:            22,
+						Path:                      "query.me.id",
+						ParentPath:                "query.me",
+						IsRootNode:                false,
+						LessPreferable:            false,
+						parentPathWithoutFragment: nil,
+						onFragment:                false,
+						Selected:                  false,
+						SelectionReasons:          []string{"stage2: node on the same source as selected parent"},
+						fieldRef:                  0,
+					},
+				},
+			},
+			args: args{
+				hints: []NodeSuggestionHint{
+					{
+						fieldRef:   0,
+						dsHash:     22,
+						fieldName:  "second",
+						parentPath: "query.me",
+					},
+					{
+						fieldRef:   6,
+						dsHash:     33,
+						fieldName:  "__typename",
+						parentPath: "query.me",
+					},
+				},
+			},
+			expected: []*NodeSuggestion{
+				{
+					TypeName:                  "User",
+					FieldName:                 "id",
+					DataSourceHash:            22,
+					Path:                      "query.me.id",
+					ParentPath:                "query.me",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons: []string{
+						"stage2: node on the same source as selected parent",
+						"stage2: node on the same source as selected sibling",
+					},
+					fieldRef: 0,
+				},
+				{
+					TypeName:                  "Query",
+					FieldName:                 "me",
+					DataSourceHash:            11,
+					Path:                      "query.me",
+					ParentPath:                "query",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected child"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "id",
+					DataSourceHash:            22,
+					Path:                      "query.me.id",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"provided by planner as required by @key"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "details",
+					DataSourceHash:            11,
+					Path:                      "query.me.details",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: same source parent of unique node"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "details",
+					DataSourceHash:            22,
+					Path:                      "query.me.details",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: same source parent of unique node"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "Details",
+					FieldName:                 "middlename",
+					DataSourceHash:            11,
+					Path:                      "query.me.details.middlename",
+					ParentPath:                "query.me.details",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: unique"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "Details",
+					FieldName:                 "surname",
+					DataSourceHash:            22,
+					Path:                      "query.me.details.surname",
+					ParentPath:                "query.me.details",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: unique"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "Details",
+					FieldName:                 "__typename",
+					DataSourceHash:            11,
+					Path:                      "query.me.details.__typename",
+					ParentPath:                "query.me.details",
+					IsRootNode:                false,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage2: node on the same source as selected parent"},
+					fieldRef:                  0,
+				},
+				{
+					TypeName:                  "User",
+					FieldName:                 "second",
+					DataSourceHash:            22,
+					Path:                      "query.me.second",
+					ParentPath:                "query.me",
+					IsRootNode:                true,
+					LessPreferable:            false,
+					parentPathWithoutFragment: nil,
+					onFragment:                false,
+					Selected:                  true,
+					SelectionReasons:          []string{"stage1: unique"},
+					fieldRef:                  0,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tt.fields.definition)
+			operation := unsafeparser.ParseGraphqlDocumentString(tt.fields.query)
+			report := operationreport.Report{}
+
+			astvalidation.DefaultOperationValidator().Validate(&operation, &definition, &report)
+			if report.HasErrors() {
+				t.Fatal(report.Error())
+			}
+
+			dsFilter := NewDataSourceFilter(&operation, &definition, &report)
+			if report.HasErrors() {
+				t.Fatal(report.Error())
+			}
+			dsFilter.EnableSelectionReasons()
+
+			existing := NewNodeSuggestions()
+			for _, n := range tt.fields.existing {
+				existing.AddItems(&n)
+			}
+			_, _ = dsFilter.findBestDataSourceSet(tt.fields.datasources, existing)
+			if report.HasErrors() {
+				t.Fatal(report.Error())
+			}
+
+			dsFilter.applySuggestionHints(tt.args.hints)
+
+			// zero field refs
+			for i := range dsFilter.nodes.items {
+				dsFilter.nodes.items[i].fieldRef = 0
+			}
+
+			// remove not selected items
+			actualItems := slices.DeleteFunc(dsFilter.nodes.items, func(n *NodeSuggestion) bool {
+				return n.Selected == false
+			})
+
+			assert.Equal(t, tt.expected, actualItems)
+		})
+	}
+}

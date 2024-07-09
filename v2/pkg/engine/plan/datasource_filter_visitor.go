@@ -147,7 +147,9 @@ func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
 					f.nodes.items[itemIdx].SelectionReasons = nil
 				}
 			} else {
-				f.nodes.items[itemIdx].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
+				if f.nodes.items[itemIdx].FieldName != typeNameField {
+					f.nodes.items[itemIdx].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
+				}
 			}
 		}
 	}
