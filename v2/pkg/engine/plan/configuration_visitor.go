@@ -501,7 +501,7 @@ func (c *configurationVisitor) hasFieldsWaitingForDependency() bool {
 
 // addFieldDependencies adds dependencies between planners based on @requires directive
 // in case current field has @requires directive, and we were able to plan it - it means that all fields from requires selection set was planned before that.
-// So we need to notify planner of current fieldRef about dependencie on those other fields
+// So we need to notify planner of current fieldRef about dependencies on those other fields
 // we know where fields were planned, because we record planner id of each planned field
 func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
 	fieldRefs, mappingExists := c.fieldWaitingForRequiresDependency[fieldRef]
@@ -1243,7 +1243,7 @@ func (c *configurationVisitor) handleFieldsRequiredByKey(plannerIdx int, parentP
 	}
 }
 
-// couldHandleFieldsRequiredByKey - checks wether we could plan the field now according to it's key requirements
+// couldHandleFieldsRequiredByKey - checks whether we could plan the field now according to it's key requirements
 // if no existing planners datasources could provide us with the required fields we should postpone planning of the field
 func (c *configurationVisitor) couldHandleFieldsRequiredByKey(dsConfig DataSource, typeName string, parentPath string) bool {
 	possibleRequiredFields := dsConfig.RequiredFieldsByKey(typeName)
@@ -1401,7 +1401,7 @@ func (c *configurationVisitor) addNodeSuggestionHint(fieldRef int, plannerIdx in
 	/*
 		Here we add hints for the node suggestions filter
 		to be able to select a proper datasource for the key field
-		It is required to make jumps via diffrerent keys between different subgraphs
+		It is required to make jumps via different keys between different subgraphs
 	*/
 
 	// but we should not add hints for a __typename field cause it collides with

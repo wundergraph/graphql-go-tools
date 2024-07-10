@@ -304,13 +304,13 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 	}
 }
 
-func (v *variablesVisitor) traverseFieldDefitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, typeRef int, fieldVariablesJsonNodeRef int) {
+func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, typeRef int, fieldVariablesJsonNodeRef int) {
 	if v.definition.TypeIsNonNull(typeRef) {
 		if !v.variables.NodeIsDefined(fieldVariablesJsonNodeRef) {
 			v.renderVariableRequiredNotProvidedError(fieldName, typeRef)
 		}
 
-		v.traverseFieldDefitionType(fieldTypeDefinitionNodeKind, fieldName, v.definition.Types[typeRef].OfType, fieldVariablesJsonNodeRef)
+		v.traverseFieldDefinitionType(fieldTypeDefinitionNodeKind, fieldName, v.definition.Types[typeRef].OfType, fieldVariablesJsonNodeRef)
 
 		return
 	}
@@ -332,7 +332,7 @@ func (v *variablesVisitor) traverseFieldDefitionType(fieldTypeDefinitionNodeKind
 
 		for i, arrayValue := range v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues {
 			v.pushArrayPath(i)
-			v.traverseFieldDefitionType(fieldTypeDefinitionNodeKind, fieldName, v.definition.Types[typeRef].OfType, arrayValue)
+			v.traverseFieldDefinitionType(fieldTypeDefinitionNodeKind, fieldName, v.definition.Types[typeRef].OfType, arrayValue)
 			v.popPath()
 			continue
 		}
@@ -366,7 +366,7 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 			fieldVariablesJsonNodeRef := v.variables.GetObjectFieldBytes(jsonNodeRef, fieldName)
 
 			v.pushObjectPath(fieldName)
-			v.traverseFieldDefitionType(fieldTypeDefinitionNode.Kind, fieldName, fieldTypeRef, fieldVariablesJsonNodeRef)
+			v.traverseFieldDefinitionType(fieldTypeDefinitionNode.Kind, fieldName, fieldTypeRef, fieldVariablesJsonNodeRef)
 			v.popPath()
 		}
 		// validate that all fields present in object are defined in the input object definition
