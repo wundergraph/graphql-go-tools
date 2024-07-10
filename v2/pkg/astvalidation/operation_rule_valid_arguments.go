@@ -71,6 +71,11 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 		return
 	}
 
+	if operationTypeRef == ast.InvalidRef {
+		// variable is not defined
+		return
+	}
+
 	printedValue, err := v.operation.PrintValueBytes(value, nil)
 	if v.HandleInternalErr(err) {
 		return
@@ -79,11 +84,6 @@ func (v *validArgumentsVisitor) validateIfValueSatisfiesInputFieldDefinition(val
 	typeRef := v.definition.InputValueDefinitionType(inputValueDefinitionRef)
 	expectedTypeName, err := v.definition.PrintTypeBytes(typeRef, nil)
 	if v.HandleInternalErr(err) {
-		return
-	}
-
-	if operationTypeRef == ast.InvalidRef {
-		// variable is not defined
 		return
 	}
 
