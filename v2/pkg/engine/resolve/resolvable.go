@@ -11,6 +11,8 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/valyala/fastjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -19,10 +21,12 @@ import (
 )
 
 type Resolvable struct {
-	storage            *astjson.JSON
-	dataRoot           int
-	errorsRoot         int
-	variablesRoot      int
+	data      *fastjson.Value
+	errors    *fastjson.Value
+	variables *fastjson.Value
+
+	parsers []*fastjson.Parser
+
 	print              bool
 	out                io.Writer
 	printErr           error
@@ -47,21 +51,34 @@ type Resolvable struct {
 
 func NewResolvable() *Resolvable {
 	return &Resolvable{
-		storage:            &astjson.JSON{},
 		xxh:                xxhash.New(),
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
 	}
 }
 
+var (
+	parsers = &fastjson.ParserPool{}
+)
+
+func (r *Resolvable) parseJSON(data []byte) (*fastjson.Value, error) {
+	parser := parsers.Get()
+	r.parsers = append(r.parsers, parser)
+	return parser.ParseBytes(data)
+}
+
 func (r *Resolvable) Reset() {
-	r.storage.Reset()
+	for i := range r.parsers {
+		parsers.Put(r.parsers[i])
+		r.parsers[i] = nil
+	}
+	r.parsers = r.parsers[:0]
 	r.typeNames = r.typeNames[:0]
 	r.wroteErrors = false
 	r.wroteData = false
-	r.dataRoot = -1
-	r.errorsRoot = -1
-	r.variablesRoot = -1
+	r.data = nil
+	r.errors = nil
+	r.variables = nil
 	r.depth = 0
 	r.print = false
 	r.out = nil
@@ -84,12 +101,24 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
+	root, err := r.parseJSON([]byte(`{"data":{}, "errors":[]}`))
 	if err != nil {
 		return
 	}
+	r.data = root.Get("data")
+	r.errors = root.Get("errors")
+	if initialData != nil {
+		initialValue, err := r.parseJSON(initialData)
+		if err != nil {
+			return err
+		}
+		r.data, _ = fastjsonext.MergeValues(r.data, initialValue)
+	}
 	if len(ctx.Variables) != 0 {
-		r.variablesRoot, err = r.storage.AppendAnyJSONBytes(ctx.Variables)
+		r.variables, err = r.parseJSON(ctx.Variables)
+		if err != nil {
+			return
+		}
 	}
 	return
 }
@@ -99,26 +128,30 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if len(ctx.Variables) != 0 {
-		r.variablesRoot, err = r.storage.AppendObject(ctx.Variables)
+		r.variables, err = r.parseJSON(ctx.Variables)
 		if err != nil {
 			return
 		}
 	}
-	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
+	root, err := r.parseJSON([]byte(`{"data":{}, "errors":[]}`))
 	if err != nil {
 		return
 	}
-	raw, err := r.storage.AppendObject(initialData)
-	if err != nil {
-		return err
-	}
-	data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
-	if r.storage.NodeIsDefined(data) {
-		r.storage.MergeNodesWithPath(r.dataRoot, data, postProcessing.MergePath)
-	}
-	errs := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-	if r.storage.NodeIsDefined(errs) {
-		r.storage.MergeArrays(r.errorsRoot, errs)
+	r.data = root.Get("data")
+	r.errors = root.Get("errors")
+	if initialData != nil {
+		initialValue, err := r.parseJSON(initialData)
+		if err != nil {
+			return err
+		}
+		selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
+		if selectedInitialValue != nil {
+			r.data, _ = fastjsonext.MergeValues(r.data, selectedInitialValue)
+		}
+		selectedInitialErrors := initialValue.Get(postProcessing.SelectResponseErrorsPath...)
+		if selectedInitialErrors != nil {
+			r.errors, _ = fastjsonext.MergeValues(r.errors, selectedInitialErrors)
+		}
 	}
 	return
 }
@@ -133,7 +166,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *O
 	 * For example, if a fetch fails, only propagate that the fetch has failed; do not propagate nested non-null errors.
 	 */
 
-	err := r.walkObject(rootData, r.dataRoot)
+	err := r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -169,7 +202,7 @@ func (r *Resolvable) printErrors() {
 	r.printBytes(literalErrors)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printNode(r.errorsRoot)
+	r.printNode(r.errors)
 	r.printBytes(comma)
 	r.wroteErrors = true
 }
@@ -181,7 +214,7 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 	r.print = true
-	_ = r.walkObject(root, r.dataRoot)
+	_ = r.walkObject(root, r.data)
 	r.print = false
 	r.printBytes(rBrace)
 	r.wroteData = true
@@ -284,18 +317,18 @@ func (r *Resolvable) WroteErrorsWithoutData() bool {
 }
 
 func (r *Resolvable) hasErrors() bool {
-	return r.storage.NodeIsDefined(r.errorsRoot) &&
-		len(r.storage.Nodes[r.errorsRoot].ArrayValues) > 0
+	return r.storage.NodeIsDefined(r.errors) &&
+		len(r.storage.Nodes[r.errors].ArrayValues) > 0
 }
 
 func (r *Resolvable) hasData() bool {
-	if !r.storage.NodeIsDefined(r.dataRoot) {
+	if !r.storage.NodeIsDefined(r.data) {
 		return false
 	}
-	if r.storage.Nodes[r.dataRoot].Kind != astjson.NodeKindObject {
+	if r.storage.Nodes[r.data].Kind != astjson.NodeKindObject {
 		return false
 	}
-	return len(r.storage.Nodes[r.dataRoot].ObjectFields) > 0
+	return len(r.storage.Nodes[r.data].ObjectFields) > 0
 }
 
 func (r *Resolvable) printBytes(b []byte) {
@@ -373,23 +406,19 @@ func (r *Resolvable) walkNode(node Node, ref int) bool {
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, ref int) bool {
-	ref = r.storage.Get(ref, obj.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
+	v = v.Get(obj.Path...)
+	if v == nil || v.Type() == fastjson.TypeNull {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, obj.Path)
+		r.addNonNullableFieldError(-1, obj.Path)
 		return r.err()
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
 	defer r.popNodePathElement(obj.Path)
-
-	if r.storage.Nodes[ref].Kind == astjson.NodeKindNull {
-		return r.walkNull()
-	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindObject {
+	if v.Type() != fastjson.TypeObject {
 		r.addError("Object cannot represent non-object value.", obj.Path)
 		return r.err()
 	}
@@ -398,7 +427,7 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
-	typeName := r.getObjectTypeName(ref)
+	typeName := v.GetStringBytes("__typename")
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
@@ -425,14 +454,14 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 			}
 		}
 		if !r.print {
-			skip := r.authorizeField(ref, obj.Fields[i])
+			skip := r.authorizeField(v, obj.Fields[i])
 			if skip {
 				if obj.Fields[i].Value.NodeNullable() {
 					// if the field value is nullable, we can just set it to null
 					// we already set an error in authorizeField
-					field := r.storage.Get(ref, obj.Fields[i].Value.NodePath())
-					if r.storage.NodeIsDefined(field) {
-						r.storage.Nodes[field].Kind = astjson.NodeKindNull
+					field := v.Get(obj.Fields[i].Value.NodePath()...)
+					if field != nil {
+
 					}
 				} else if obj.Nullable {
 					// if the field value is not nullable, but the object is nullable
@@ -550,27 +579,16 @@ func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Fie
 		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
 	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage), NewSubgraphError(dataSourceID, fieldPath, reason, 0)))
-
-	ref := r.storage.AppendErrorWithMessage(errorMessage, r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	fastjsonext.AppendErrorWithMessage(r.errors, errorMessage)
 	r.popNodePathElement(nodePath)
 }
 
-func (r *Resolvable) objectFieldTypeName(ref int, field *Field) string {
-	typeName := r.storage.GetObjectField(ref, "__typename")
-	if r.storage.NodeIsDefined(typeName) && r.storage.Nodes[typeName].Kind == astjson.NodeKindString {
-		name := r.storage.Nodes[typeName].ValueBytes(r.storage)
-		return unsafebytes.BytesToString(name)
+func (r *Resolvable) objectFieldTypeName(v *fastjson.Value, field *Field) string {
+	typeName := v.GetStringBytes("__typename")
+	if typeName != nil {
+		return unsafebytes.BytesToString(typeName)
 	}
 	return field.Info.ExactParentTypeName
-}
-
-func (r *Resolvable) getObjectTypeName(ref int) []byte {
-	typeName := r.storage.GetObjectField(ref, "__typename")
-	if r.storage.NodeIsDefined(typeName) && r.storage.Nodes[typeName].Kind == astjson.NodeKindString {
-		return r.storage.Nodes[typeName].ValueBytes(r.storage)
-	}
-	return nil
 }
 
 func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
@@ -612,7 +630,7 @@ func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {
 }
 
 func (r *Resolvable) skipField(skipVariableName string) bool {
-	field := r.storage.GetObjectField(r.variablesRoot, skipVariableName)
+	field := r.storage.GetObjectField(r.variables, skipVariableName)
 	if !r.storage.NodeIsDefined(field) {
 		return false
 	}
@@ -624,7 +642,7 @@ func (r *Resolvable) skipField(skipVariableName string) bool {
 }
 
 func (r *Resolvable) excludeField(includeVariableName string) bool {
-	field := r.storage.GetObjectField(r.variablesRoot, includeVariableName)
+	field := r.storage.GetObjectField(r.variables, includeVariableName)
 	if !r.storage.NodeIsDefined(field) {
 		return true
 	}
@@ -881,7 +899,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldRef int, fieldPath []string) 
 	}
 	r.pushNodePathElement(fieldPath)
 	ref := r.storage.AppendNonNullableFieldIsNullErr(r.renderFieldPath(), r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	r.storage.Nodes[r.errors].ArrayValues = append(r.storage.Nodes[r.errors].ArrayValues, ref)
 	r.popNodePathElement(fieldPath)
 }
 
@@ -908,6 +926,6 @@ func (r *Resolvable) renderFieldPath() string {
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
 	ref := r.storage.AppendErrorWithMessage(message, r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	r.storage.Nodes[r.errors].ArrayValues = append(r.storage.Nodes[r.errors].ArrayValues, ref)
 	r.popNodePathElement(fieldPath)
 }

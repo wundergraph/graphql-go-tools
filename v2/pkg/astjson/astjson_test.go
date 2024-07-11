@@ -6,6 +6,8 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
+	"github.com/valyala/fastjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 func TestJSON_ParsePrint(t *testing.T) {
@@ -401,6 +403,190 @@ func BenchmarkJSON_ParsePrint(b *testing.B) {
 	}
 }
 
+func BenchmarkFastJSON(b *testing.B) {
+	var p fastjson.Parser
+	input := []byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
+	expectedOut := []byte(`{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}`)
+	res := make([]byte, 0, 1024)
+	b.SetBytes(int64(len(input)))
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		v, err := p.ParseBytes(input)
+		if err != nil {
+			b.Fatal(err)
+		}
+		out := v.Get("data")
+		res = out.MarshalTo(res)
+		if !bytes.Equal(expectedOut, res) {
+			b.Fatal("not equal")
+		}
+		res = res[:0]
+	}
+}
+
+func fastJsonMerge(a, b *fastjson.Value) (*fastjson.Value, bool) {
+	if a == nil {
+		return b, true
+	}
+	if b == nil {
+		return a, false
+	}
+	if a.Type() != b.Type() {
+		return a, false
+	}
+	switch a.Type() {
+	case fastjson.TypeObject:
+		ao, _ := a.Object()
+		bo, _ := b.Object()
+		ao.Visit(func(key []byte, l *fastjson.Value) {
+			sKey := unsafebytes.BytesToString(key)
+			r := bo.Get(sKey)
+			if r == nil {
+				return
+			}
+			merged, changed := fastJsonMerge(l, r)
+			if changed {
+				ao.Set(unsafebytes.BytesToString(key), merged)
+			}
+		})
+		bo.Visit(func(key []byte, r *fastjson.Value) {
+			sKey := unsafebytes.BytesToString(key)
+			if ao.Get(sKey) != nil {
+				return
+			}
+			ao.Set(sKey, r)
+		})
+		return a, false
+	case fastjson.TypeArray:
+		aa, _ := a.Array()
+		ba, _ := b.Array()
+		for i := 0; i < len(ba); i++ {
+			a.SetArrayItem(len(aa)+i, ba[i])
+		}
+		return a, false
+	case fastjson.TypeFalse:
+		if b.Type() == fastjson.TypeTrue {
+			return b, true
+		}
+		return a, false
+	case fastjson.TypeTrue:
+		if b.Type() == fastjson.TypeFalse {
+			return b, true
+		}
+		return a, false
+	case fastjson.TypeNull:
+		if b.Type() != fastjson.TypeNull {
+			return b, true
+		}
+		return a, false
+	case fastjson.TypeNumber:
+		af, _ := a.Float64()
+		bf, _ := b.Float64()
+		if af != bf {
+			return b, true
+		}
+		return a, false
+	case fastjson.TypeString:
+		as, _ := a.StringBytes()
+		bs, _ := b.StringBytes()
+		if !bytes.Equal(as, bs) {
+			return b, true
+		}
+		return a, false
+	default:
+		return b, true
+	}
+}
+
+func TestFastJsonMerge(t *testing.T) {
+	a, err := fastjson.ParseBytes([]byte(`{"a":1,"b":2}`))
+	assert.NoError(t, err)
+	b, err := fastjson.ParseBytes([]byte(`{"c":3}`))
+	assert.NoError(t, err)
+	merged, _ := fastJsonMerge(a, b)
+	out := merged.MarshalTo(nil)
+	assert.Equal(t, `{"a":1,"b":2,"c":3}`, string(out))
+}
+
+func TestFastJsonMergeNested(t *testing.T) {
+	a, err := fastjson.ParseBytes([]byte(`{"a":1,"b":2,"c":{"d":4,"e":4}}`))
+	assert.NoError(t, err)
+	b, err := fastjson.ParseBytes([]byte(`{"c":{"e":5}}`))
+	assert.NoError(t, err)
+	merged, _ := fastJsonMerge(a, b)
+	out := merged.MarshalTo(nil)
+	assert.Equal(t, `{"a":1,"b":2,"c":{"d":4,"e":5}}`, string(out))
+}
+
+func BenchmarkFastParse(b *testing.B) {
+	var p fastjson.Parser
+
+	b.SetBytes(int64(len(bigJSON)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		v, err := p.ParseBytes(bigJSON)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if v == nil {
+			b.Fatal("nil")
+		}
+	}
+}
+
+func BenchmarkParse(b *testing.B) {
+	fs := &JSON{}
+	b.SetBytes(int64(len(bigJSON)))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fs.Reset()
+		ref, err := fs.AppendAnyJSONBytes(bigJSON)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if ref == -1 {
+			b.Fatal("nil")
+		}
+	}
+}
+
+func BenchmarkFastJsonMerge(t *testing.B) {
+	var (
+		p1, p2, p3 fastjson.Parser
+		out        = make([]byte, 0, 1024)
+	)
+	first := []byte(`{"a":1,"b":2,"c":{"d":4,"e":5,"f":6,"g":7,"h":8,"i":9,"j":10,"k":11,"l":12,"m":13,"n":14,"o":15,"p":16,"q":17,"r":18,"s":19,"t":20,"u":21,"v":22,"w":23,"x":24,"y":25,"z":26}}`)
+	second := []byte(`{"c":{"e":5,"f":6,"g":7,"h":8,"i":9,"j":10,"k":11,"l":12,"m":13,"n":14,"o":15,"p":16,"q":17,"r":18,"s":19,"t":20,"u":21,"v":22,"w":23,"x":24,"y":25,"z":26}}`)
+	third := []byte(`{"c":{"e":6,"f":7,"g":8,"h":9,"i":10,"j":11,"k":true,"l":13,"m":"Cosmo Rocks!","n":15,"o":16,"p":17,"q":18,"r":19,"s":20,"t":21,"u":22,"v":23,"w":24,"x":25,"y":26,"z":28}}`)
+	expected := []byte(`{"a":1,"b":2,"c":{"d":4,"e":6,"f":7,"g":8,"h":9,"i":10,"j":11,"k":11,"l":13,"m":13,"n":15,"o":16,"p":17,"q":18,"r":19,"s":20,"t":21,"u":22,"v":23,"w":24,"x":25,"y":26,"z":28}}`)
+	t.SetBytes(int64(len(first) + len(second) + len(third)))
+	t.ReportAllocs()
+	t.ResetTimer()
+	for i := 0; i < t.N; i++ {
+		a, err := p1.ParseBytes(first)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := p2.ParseBytes(second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err := p3.ParseBytes(third)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ab, _ := fastJsonMerge(a, b)
+		abc, _ := fastJsonMerge(ab, c)
+		out = abc.MarshalTo(out[:0])
+		if !bytes.Equal(expected, out) {
+			t.Fatal("not equal")
+		}
+
+	}
+}
+
 func BenchmarkJSON_MergeNodesNested(b *testing.B) {
 	js := &JSON{}
 	first := []byte(`{"a":1,"b":2,"c":{"d":4,"e":5,"f":6,"g":7,"h":8,"i":9,"j":10,"k":11,"l":12,"m":13,"n":14,"o":15,"p":16,"q":17,"r":18,"s":19,"t":20,"u":21,"v":22,"w":23,"x":24,"y":25,"z":26}}`)
@@ -467,3 +653,7 @@ func BenchmarkJSON_MergeNodesWithPath(b *testing.B) {
 		}
 	}
 }
+
+var (
+	bigJSON = []byte(`{"data":{"employees":[{"id":1,"details":{"forename":"Jens","surname":"Neuse"}},{"id":2,"details":{"forename":"Dustin","surname":"Deus"}},{"id":3,"details":{"forename":"Stefan","surname":"Avram"}},{"id":4,"details":{"forename":"Björn","surname":"Schwenzer"}},{"id":5,"details":{"forename":"Sergiy","surname":"Petrunin"}},{"id":7,"details":{"forename":"Suvij","surname":"Surya"}},{"id":8,"details":{"forename":"Nithin","surname":"Kumar"}},{"id":10,"details":{"forename":"Eelco","surname":"Wiersma"}},{"id":11,"details":{"forename":"Alexandra","surname":"Neuse"}},{"id":12,"details":{"forename":"David","surname":"Stutt"}}]}}`)
+)

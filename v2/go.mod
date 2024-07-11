@@ -24,6 +24,7 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.0
 	github.com/tidwall/sjson v1.2.5
+	github.com/valyala/fastjson v1.6.4
 	github.com/vektah/gqlparser/v2 v2.5.11
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.26.0

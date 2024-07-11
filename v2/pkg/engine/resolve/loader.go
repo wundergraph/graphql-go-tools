@@ -89,8 +89,8 @@ func (l *Loader) Free() {
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
 	l.data = resolvable.storage
-	l.dataRoot = resolvable.dataRoot
-	l.errorsRoot = resolvable.errorsRoot
+	l.dataRoot = resolvable.data
+	l.errorsRoot = resolvable.errors
 	l.ctx = ctx
 	l.info = response.Info
 
@@ -100,7 +100,7 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 		fetchTree = response.Data
 	}
 
-	return l.walkNode(fetchTree, []int{resolvable.dataRoot})
+	return l.walkNode(fetchTree, []int{resolvable.data})
 }
 
 func (l *Loader) walkNode(node Node, items []int) error {
