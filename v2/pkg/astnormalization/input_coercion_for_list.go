@@ -161,7 +161,7 @@ we analyzing json:
 
 variants:
 
-- array - find correspoding type and go to an each object
+- array - find corresponding type and go to an each object
 - object - find corresponding type and do deep field analysis
 - plain: - do nothing
 

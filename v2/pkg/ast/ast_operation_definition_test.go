@@ -41,7 +41,7 @@ func TestDocument_OperationNameExists(t *testing.T) {
 		true,
 	))
 
-	t.Run("found on a document with preceeding root nodes of not operation type", run(
+	t.Run("found on a document with preceding root nodes of not operation type", run(
 		"fragment F on T {field} query MyOperation {}",
 		"MyOperation",
 		true,
