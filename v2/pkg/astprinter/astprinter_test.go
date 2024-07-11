@@ -2,12 +2,11 @@ package astprinter
 
 import (
 	"bytes"
-	"os"
-	"testing"
-
 	"github.com/jensneuse/diffview"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"os"
+	"testing"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
