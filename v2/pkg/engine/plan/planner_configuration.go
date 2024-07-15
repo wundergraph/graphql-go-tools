@@ -29,7 +29,6 @@ type PlannerConfiguration interface {
 	Debugger() (d DataSourceDebugger, ok bool)
 	Planner() any
 	Register(visitor *Visitor) error
-	UpstreamSchema() (doc *ast.Document, ok bool)
 }
 
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
@@ -41,10 +40,6 @@ func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
-}
-
-func (p *plannerConfiguration[T]) UpstreamSchema() (doc *ast.Document, ok bool) {
-	return p.planner.UpstreamSchema(p.dataSourceConfiguration)
 }
 
 func (p *plannerConfiguration[T]) Planner() any {

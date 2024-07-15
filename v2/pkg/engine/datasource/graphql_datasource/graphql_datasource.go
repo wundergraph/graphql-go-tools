@@ -92,17 +92,6 @@ type onTypeInlineFragment struct {
 	SelectionSet  int
 }
 
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	cfg := Configuration(dataSourceConfig.CustomConfiguration())
-
-	schema, err := cfg.UpstreamSchema()
-	if err != nil {
-		return nil, false
-	}
-
-	return schema, true
-}
-
 func (p *Planner[T]) SetID(id int) {
 	p.id = id
 }
@@ -1626,6 +1615,17 @@ func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanne
 
 func (f *Factory[T]) Context() context.Context {
 	return f.executionContext
+}
+
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	cfg := Configuration(dataSourceConfig.CustomConfiguration())
+
+	schema, err := cfg.UpstreamSchema()
+	if err != nil {
+		return nil, false
+	}
+
+	return schema, true
 }
 
 type Source struct {

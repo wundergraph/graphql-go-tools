@@ -1396,7 +1396,7 @@ func (c *configurationVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	}
 	c.visitedFieldsAbstractChecks[fieldRef] = struct{}{}
 
-	upstreamSchema, ok := c.planners[plannerIdx].UpstreamSchema()
+	upstreamSchema, ok := c.planners[plannerIdx].DataSourceConfiguration().UpstreamSchema()
 	if !ok {
 		return
 	}

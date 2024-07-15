@@ -23,6 +23,7 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
 }
 
 type DataSourceMetadata struct {
@@ -191,10 +192,15 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
+type DataSourceUpstreamSchema interface {
+	UpstreamSchema() (*ast.Document, bool)
+}
+
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
+	DataSourceUpstreamSchema
 	Id() string
 	Name() string
 	Hash() DSHash
@@ -219,6 +225,10 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 	}
 
 	return plannerConfig
+}
+
+func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
+	return d.factory.UpstreamSchema(d)
 }
 
 func (d *dataSourceConfiguration[T]) Id() string {
@@ -355,7 +365,6 @@ type DataSourcePlanner[T any] interface {
 	DataSourceFetchPlanner
 	DataSourceBehavior
 	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
-	UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (doc *ast.Document, ok bool)
 }
 
 type SubscriptionConfiguration struct {
