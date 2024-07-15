@@ -278,10 +278,6 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(_ int) (alias string, exists b
 	return "", false
 }
 
-func (p *Planner[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return nil, false
-}
-
 func NewFactory[T Configuration](executionContext context.Context, natsPubSubByProviderID map[string]NatsPubSub, kafkaPubSubByProviderID map[string]KafkaPubSub) *Factory[T] {
 	return &Factory[T]{
 		executionContext:        executionContext,
@@ -305,6 +301,10 @@ func (f *Factory[T]) Planner(_ abstractlogger.Logger) plan.DataSourcePlanner[T] 
 
 func (f *Factory[T]) Context() context.Context {
 	return f.executionContext
+}
+
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
 }
 
 func buildEventDataBytes(ref int, visitor *plan.Visitor, variables *resolve.Variables) ([]byte, error) {

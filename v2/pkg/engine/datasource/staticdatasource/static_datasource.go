@@ -26,12 +26,12 @@ func (f *Factory[T]) Context() context.Context {
 	return context.TODO()
 }
 
-type Planner[T Configuration] struct {
-	config Configuration
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
 }
 
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return nil, false
+type Planner[T Configuration] struct {
+	config Configuration
 }
 
 func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
