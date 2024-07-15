@@ -2,6 +2,7 @@ package plan
 
 import (
 	"encoding/json"
+	"slices"
 )
 
 type FederationMetaData struct {
@@ -17,6 +18,7 @@ type FederationInfo interface {
 	RequiredFieldsByKey(typeName string) []FederationFieldConfiguration
 	RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool)
 	HasEntity(typeName string) bool
+	HasInterfaceObject(typeName string) bool
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -33,6 +35,12 @@ func (d *FederationMetaData) HasEntity(typeName string) bool {
 
 func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool) {
 	return d.Requires.FirstByTypeAndField(typeName, fieldName)
+}
+
+func (d *FederationMetaData) HasInterfaceObject(typeName string) bool {
+	return slices.ContainsFunc(d.InterfaceObjects, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
+		return slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
+	})
 }
 
 type EntityInterfaceConfiguration struct {

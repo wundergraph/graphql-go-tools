@@ -34,6 +34,7 @@ type DebugConfiguration struct {
 	PrintNodeSuggestions bool
 	NodeSuggestion       NodeSuggestionDebugConfiguration
 
+	NodeSelectionVisitor bool
 	ConfigurationVisitor bool
 	PlanningVisitor      bool
 	DatasourceVisitor    bool
