@@ -2,6 +2,8 @@ package fastjsonext
 
 import (
 	"bytes"
+	"fmt"
+	"strconv"
 
 	"github.com/valyala/fastjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
@@ -95,13 +97,58 @@ func MergeValuesWithPath(a, b *fastjson.Value, path ...string) (*fastjson.Value,
 	return MergeValues(a, root)
 }
 
-func AppendErrorWithMessage(v *fastjson.Value, msg string) {
+func AppendErrorToArray(v *fastjson.Value, msg string, path []PathElement) {
 	if v.Type() != fastjson.TypeArray {
 		return
 	}
-	items, err := v.Array()
-	if err != nil {
-		return
+	errorObject := CreateErrorObjectWithPath(msg, path)
+	items, _ := v.Array()
+	v.SetArrayItem(len(items), errorObject)
+}
+
+func SetNull(v *fastjson.Value, path ...string) {
+	// iterate until one element is left
+	for i := 0; i < len(path)-1; i++ {
+		v = v.Get(path[i])
+		if v == nil {
+			return
+		}
 	}
-	v.SetArrayItem(len(items), fastjson.MustParse(`{"message":"`+msg+`"}`))
+	v.Set(path[len(path)-1], fastjson.MustParse(`null`))
+}
+
+func ValueIsNonNull(v *fastjson.Value) bool {
+	if v == nil {
+		return false
+	}
+	if v.Type() == fastjson.TypeNull {
+		return false
+	}
+	return true
+}
+
+func ValueIsNull(v *fastjson.Value) bool {
+	return !ValueIsNonNull(v)
+}
+
+type PathElement struct {
+	Name string
+	Idx  int
+}
+
+func CreateErrorObjectWithPath(message string, path []PathElement) *fastjson.Value {
+	errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"%s"}`, message))
+	if len(path) == 0 {
+		return errorObject
+	}
+	errorPath := fastjson.MustParse(`[]`)
+	for i := range path {
+		if path[i].Name != "" {
+			errorPath.SetArrayItem(i, fastjson.MustParse(fmt.Sprintf(`"%s"`, path[i].Name)))
+		} else {
+			errorPath.SetArrayItem(i, fastjson.MustParse(strconv.FormatInt(int64(path[i].Idx), 10)))
+		}
+	}
+	errorObject.Set("path", errorPath)
+	return errorObject
 }

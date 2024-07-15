@@ -15,7 +15,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -30,7 +29,7 @@ type Resolvable struct {
 	print              bool
 	out                io.Writer
 	printErr           error
-	path               []astjson.PathElement
+	path               []fastjsonext.PathElement
 	depth              int
 	operationType      ast.OperationType
 	renameTypeNames    []RenameTypeName
@@ -39,9 +38,6 @@ type Resolvable struct {
 	xxh                *xxhash.Digest
 	authorizationAllow map[uint64]struct{}
 	authorizationDeny  map[uint64]string
-
-	authorizationBuf          *bytes.Buffer
-	authorizationBufObjectRef int
 
 	wroteErrors bool
 	wroteData   bool
@@ -88,7 +84,6 @@ func (r *Resolvable) Reset() {
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
 	r.xxh.Reset()
-	r.authorizationBufObjectRef = -1
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
 	}
@@ -317,18 +312,25 @@ func (r *Resolvable) WroteErrorsWithoutData() bool {
 }
 
 func (r *Resolvable) hasErrors() bool {
-	return r.storage.NodeIsDefined(r.errors) &&
-		len(r.storage.Nodes[r.errors].ArrayValues) > 0
+	if r.errors == nil {
+		return false
+	}
+	values, err := r.errors.Array()
+	if err != nil {
+		return false
+	}
+	return len(values) > 0
 }
 
 func (r *Resolvable) hasData() bool {
-	if !r.storage.NodeIsDefined(r.data) {
+	if r.data == nil {
 		return false
 	}
-	if r.storage.Nodes[r.data].Kind != astjson.NodeKindObject {
+	obj, err := r.data.Object()
+	if err != nil {
 		return false
 	}
-	return len(r.storage.Nodes[r.data].ObjectFields) > 0
+	return obj.Len() > 0
 }
 
 func (r *Resolvable) printBytes(b []byte) {
@@ -338,16 +340,20 @@ func (r *Resolvable) printBytes(b []byte) {
 	_, r.printErr = r.out.Write(b)
 }
 
-func (r *Resolvable) printNode(ref int) {
+func (r *Resolvable) printNode(value *fastjson.Value) {
 	if r.printErr != nil {
 		return
 	}
-	r.printErr = r.storage.PrintNode(r.storage.Nodes[ref], r.out)
+	var (
+		buf [1024]byte // 1kb buffer
+	)
+	errorsJSON := value.MarshalTo(buf[:0])
+	_, r.printErr = r.out.Write(errorsJSON)
 }
 
 func (r *Resolvable) pushArrayPathElement(index int) {
-	r.path = append(r.path, astjson.PathElement{
-		ArrayIndex: index,
+	r.path = append(r.path, fastjsonext.PathElement{
+		Idx: index,
 	})
 }
 
@@ -358,7 +364,7 @@ func (r *Resolvable) popArrayPathElement() {
 func (r *Resolvable) pushNodePathElement(path []string) {
 	r.depth++
 	for i := range path {
-		r.path = append(r.path, astjson.PathElement{
+		r.path = append(r.path, fastjsonext.PathElement{
 			Name: path[i],
 		})
 	}
@@ -369,7 +375,7 @@ func (r *Resolvable) popNodePathElement(path []string) {
 	r.depth--
 }
 
-func (r *Resolvable) walkNode(node Node, ref int) bool {
+func (r *Resolvable) walkNode(node Node, value *fastjson.Value) bool {
 	if r.authorizationError != nil {
 		return true
 	}
@@ -378,41 +384,42 @@ func (r *Resolvable) walkNode(node Node, ref int) bool {
 	}
 	switch n := node.(type) {
 	case *Object:
-		return r.walkObject(n, ref)
+		return r.walkObject(n, value)
 	case *Array:
-		return r.walkArray(n, ref)
+		return r.walkArray(n, value)
 	case *Null:
 		return r.walkNull()
 	case *String:
-		return r.walkString(n, ref)
+		return r.walkString(n, value)
 	case *Boolean:
-		return r.walkBoolean(n, ref)
+		return r.walkBoolean(n, value)
 	case *Integer:
-		return r.walkInteger(n, ref)
+		return r.walkInteger(n, value)
 	case *Float:
-		return r.walkFloat(n, ref)
+		return r.walkFloat(n, value)
 	case *BigInt:
-		return r.walkBigInt(n, ref)
+		return r.walkBigInt(n, value)
 	case *Scalar:
-		return r.walkScalar(n, ref)
+		return r.walkScalar(n, value)
 	case *EmptyObject:
 		return r.walkEmptyObject(n)
 	case *EmptyArray:
 		return r.walkEmptyArray(n)
 	case *CustomNode:
-		return r.walkCustom(n, ref)
+		return r.walkCustom(n, value)
 	default:
 		return false
 	}
 }
 
 func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
+	parent := v
 	v = v.Get(obj.Path...)
 	if v == nil || v.Type() == fastjson.TypeNull {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(-1, obj.Path)
+		r.addNonNullableFieldError(obj.Path)
 		return r.err()
 	}
 	r.pushNodePathElement(obj.Path)
@@ -459,14 +466,15 @@ func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
 				if obj.Fields[i].Value.NodeNullable() {
 					// if the field value is nullable, we can just set it to null
 					// we already set an error in authorizeField
-					field := v.Get(obj.Fields[i].Value.NodePath()...)
+					path := obj.Fields[i].Value.NodePath()
+					field := v.Get(path...)
 					if field != nil {
-
+						fastjsonext.SetNull(v, path...)
 					}
 				} else if obj.Nullable {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
-					r.storage.Nodes[ref].Kind = astjson.NodeKindNull
+					fastjsonext.SetNull(parent, obj.Path...)
 				} else {
 					// if the field value is not nullable and the object is not nullable
 					// we return true to indicate an error
@@ -484,10 +492,10 @@ func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
-		err := r.walkNode(obj.Fields[i].Value, ref)
+		err := r.walkNode(obj.Fields[i].Value, v)
 		if err {
 			if obj.Nullable {
-				r.storage.Nodes[ref].Kind = astjson.NodeKindNull
+				fastjsonext.SetNull(parent, obj.Path...)
 				return false
 			}
 			return err
@@ -500,7 +508,7 @@ func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
+func (r *Resolvable) authorizeField(value *fastjson.Value, field *Field) (skipField bool) {
 	if field.Info == nil {
 		return false
 	}
@@ -514,13 +522,13 @@ func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
 		return false
 	}
 	dataSourceID := field.Info.Source.IDs[0]
-	typeName := r.objectFieldTypeName(ref, field)
+	typeName := r.objectFieldTypeName(value, field)
 	fieldName := unsafebytes.BytesToString(field.Name)
 	gc := GraphCoordinate{
 		TypeName:  typeName,
 		FieldName: fieldName,
 	}
-	result, authErr := r.authorize(ref, dataSourceID, gc)
+	result, authErr := r.authorize(value, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
 		return true
@@ -532,7 +540,7 @@ func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
 	return false
 }
 
-func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+func (r *Resolvable) authorize(value *fastjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 	r.xxh.Reset()
 	_, _ = r.xxh.WriteString(dataSourceID)
 	_, _ = r.xxh.WriteString(coordinate.TypeName)
@@ -544,18 +552,11 @@ func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate Gr
 	if reason, ok := r.authorizationDeny[decisionID]; ok {
 		return &AuthorizationDeny{Reason: reason}, nil
 	}
-	if r.authorizationBufObjectRef != objectRef {
-		if r.authorizationBuf == nil {
-			r.authorizationBuf = bytes.NewBuffer(nil)
-		}
-		r.authorizationBuf.Reset()
-		err = r.storage.PrintObjectFlat(objectRef, r.authorizationBuf)
-		if err != nil {
-			return nil, err
-		}
-		r.authorizationBufObjectRef = objectRef
-	}
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.authorizationBuf.Bytes(), coordinate)
+	var (
+		buf [1024]byte
+	)
+	objectData := value.MarshalTo(buf[:0])
+	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, objectData, coordinate)
 	if err != nil {
 		return nil, err
 	}
@@ -579,7 +580,7 @@ func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Fie
 		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
 	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage), NewSubgraphError(dataSourceID, fieldPath, reason, 0)))
-	fastjsonext.AppendErrorWithMessage(r.errors, errorMessage)
+	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
 	r.popNodePathElement(nodePath)
 }
 
@@ -630,57 +631,51 @@ func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {
 }
 
 func (r *Resolvable) skipField(skipVariableName string) bool {
-	field := r.storage.GetObjectField(r.variables, skipVariableName)
-	if !r.storage.NodeIsDefined(field) {
+	variable := r.variables.Get(skipVariableName)
+	if variable == nil {
 		return false
 	}
-	if r.storage.Nodes[field].Kind != astjson.NodeKindBoolean {
-		return false
-	}
-	value := r.storage.Nodes[field].ValueBytes(r.storage)
-	return bytes.Equal(value, literalTrue)
+	return variable.Type() == fastjson.TypeTrue
 }
 
 func (r *Resolvable) excludeField(includeVariableName string) bool {
-	field := r.storage.GetObjectField(r.variables, includeVariableName)
-	if !r.storage.NodeIsDefined(field) {
+	variable := r.variables.Get(includeVariableName)
+	if variable == nil {
 		return true
 	}
-	if r.storage.Nodes[field].Kind != astjson.NodeKindBoolean {
-		return true
-	}
-	value := r.storage.Nodes[field].ValueBytes(r.storage)
-	return bytes.Equal(value, literalFalse)
+	return variable.Type() == fastjson.TypeFalse
 }
 
-func (r *Resolvable) walkArray(arr *Array, ref int) bool {
-	ref = r.storage.Get(ref, arr.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
+	parent := value
+	value = value.Get(arr.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if arr.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, arr.Path)
+		r.addNonNullableFieldError(arr.Path)
 		return r.err()
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindArray {
+	if value.Type() != fastjson.TypeArray {
 		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
 	}
 	if r.print {
 		r.printBytes(lBrack)
 	}
-	for i, value := range r.storage.Nodes[ref].ArrayValues {
+	values := value.GetArray()
+	for i, arrayValue := range values {
 		if r.print && i != 0 {
 			r.printBytes(comma)
 		}
 		r.pushArrayPathElement(i)
-		err := r.walkNode(arr.Item, value)
+		err := r.walkNode(arr.Item, arrayValue)
 		r.popArrayPathElement()
 		if err {
 			if arr.Nullable {
-				r.storage.Nodes[ref].Kind = astjson.NodeKindNull
+				fastjsonext.SetNull(parent, arr.Path...)
 				return false
 			}
 			return err
@@ -700,155 +695,158 @@ func (r *Resolvable) walkNull() bool {
 	return false
 }
 
-func (r *Resolvable) walkString(s *String, ref int) bool {
+func (r *Resolvable) walkString(s *String, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, s.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(s.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, s.Path)
+		r.addNonNullableFieldError(s.Path)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindString {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", value), s.Path)
+	if value.Type() != fastjson.TypeString {
+		var (
+			buf [1024]byte
+		)
+		out := value.MarshalTo(buf[:0])
+		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(out)), s.Path)
 		return r.err()
 	}
 	if r.print {
 		if s.IsTypeName {
-			value := r.storage.Nodes[ref].ValueBytes(r.storage)
+			content := value.GetStringBytes()
 			for i := range r.renameTypeNames {
-				if bytes.Equal(value, r.renameTypeNames[i].From) {
+				if bytes.Equal(content, r.renameTypeNames[i].From) {
 					r.printBytes(quote)
 					r.printBytes(r.renameTypeNames[i].To)
 					r.printBytes(quote)
 					return false
 				}
 			}
-			r.printNode(ref)
+			r.printNode(value)
 			return false
 		}
 		if s.UnescapeResponseJson {
-			value := r.storage.Nodes[ref].ValueBytes(r.storage)
-			value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
-			if !gjson.ValidBytes(value) {
+			content := value.GetStringBytes()
+			content = bytes.ReplaceAll(content, []byte(`\"`), []byte(`"`))
+			if !gjson.ValidBytes(content) {
 				r.printBytes(quote)
-				r.printBytes(value)
+				r.printBytes(content)
 				r.printBytes(quote)
 			} else {
-				r.printBytes(value)
+				r.printBytes(content)
 			}
 		} else {
-			r.printNode(ref)
+			r.printNode(value)
 		}
 	}
 	return false
 }
 
-func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
+func (r *Resolvable) walkBoolean(b *Boolean, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, b.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(b.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, b.Path)
+		r.addNonNullableFieldError(b.Path)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindBoolean {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", value), b.Path)
+	if value.Type() != fastjson.TypeTrue && value.Type() != fastjson.TypeFalse {
+		out := value.MarshalTo(nil)
+		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", string(out)), b.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
+func (r *Resolvable) walkInteger(i *Integer, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, i.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(i.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if i.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, i.Path)
+		r.addNonNullableFieldError(i.Path)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", value), i.Path)
+	if value.Type() != fastjson.TypeNumber {
+		out := value.MarshalTo(nil)
+		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", string(out)), i.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkFloat(f *Float, ref int) bool {
+func (r *Resolvable) walkFloat(f *Float, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, f.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(f.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if f.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, f.Path)
+		r.addNonNullableFieldError(f.Path)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", value), f.Path)
+	if value.Type() != fastjson.TypeNumber {
+		out := value.MarshalTo(nil)
+		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", string(out)), f.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
+func (r *Resolvable) walkBigInt(b *BigInt, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, b.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(b.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, b.Path)
+		r.addNonNullableFieldError(b.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
+func (r *Resolvable) walkScalar(s *Scalar, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, s.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(s.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, s.Path)
+		r.addNonNullableFieldError(s.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
@@ -869,20 +867,20 @@ func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
 	return false
 }
 
-func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
+func (r *Resolvable) walkCustom(c *CustomNode, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	ref = r.storage.Get(ref, c.Path)
-	if !r.storage.NodeIsDefined(ref) {
+	value = value.Get(c.Path...)
+	if fastjsonext.ValueIsNull(value) {
 		if c.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, c.Path)
+		r.addNonNullableFieldError(c.Path)
 		return r.err()
 	}
-	value := r.storage.Nodes[ref].ValueBytes(r.storage)
-	resolved, err := c.Resolve(r.ctx, value)
+	content := value.MarshalTo(nil)
+	resolved, err := c.Resolve(r.ctx, content)
 	if err != nil {
 		r.addError(err.Error(), c.Path)
 		return r.err()
@@ -893,13 +891,10 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 	return false
 }
 
-func (r *Resolvable) addNonNullableFieldError(fieldRef int, fieldPath []string) {
-	if fieldRef != -1 && r.storage.Nodes[fieldRef].Kind == astjson.NodeKindNullSkipError {
-		return
-	}
+func (r *Resolvable) addNonNullableFieldError(fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	ref := r.storage.AppendNonNullableFieldIsNullErr(r.renderFieldPath(), r.path)
-	r.storage.Nodes[r.errors].ArrayValues = append(r.storage.Nodes[r.errors].ArrayValues, ref)
+	errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
 	r.popNodePathElement(fieldPath)
 }
 
@@ -925,7 +920,6 @@ func (r *Resolvable) renderFieldPath() string {
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	ref := r.storage.AppendErrorWithMessage(message, r.path)
-	r.storage.Nodes[r.errors].ArrayValues = append(r.storage.Nodes[r.errors].ArrayValues, ref)
+	fastjsonext.AppendErrorToArray(r.errors, message, r.path)
 	r.popNodePathElement(fieldPath)
 }

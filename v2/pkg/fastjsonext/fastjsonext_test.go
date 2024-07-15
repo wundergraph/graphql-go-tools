@@ -56,3 +56,47 @@ func TestGetArray(t *testing.T) {
 	jannik := arr[1].MarshalTo(nil)
 	require.Equal(t, `{"name":"Jannik"}`, string(jannik))
 }
+
+func TestSetNull(t *testing.T) {
+	a := fastjson.MustParse(`{"name":"Jens"}`)
+	SetNull(a, "name")
+	out := a.MarshalTo(nil)
+	require.Equal(t, `{"name":null}`, string(out))
+
+	b := fastjson.MustParse(`{"person":{"name":"Jens"}}`)
+	SetNull(b, "person", "name")
+	out = b.MarshalTo(nil)
+	require.Equal(t, `{"person":{"name":null}}`, string(out))
+}
+
+func TestAppendErrorWithMessage(t *testing.T) {
+	a := fastjson.MustParse(`[]`)
+	AppendErrorToArray(a, "error", nil)
+	out := a.MarshalTo(nil)
+	require.Equal(t, `[{"message":"error"}]`, string(out))
+
+	AppendErrorToArray(a, "error2", []PathElement{{Name: "a"}})
+	out = a.MarshalTo(nil)
+	require.Equal(t, `[{"message":"error"},{"message":"error2","path":["a"]}]`, string(out))
+}
+
+func TestCreateErrorObjectWithPath(t *testing.T) {
+	v := CreateErrorObjectWithPath("my error message", []PathElement{
+		{Name: "a"},
+	})
+	out := v.MarshalTo(nil)
+	require.Equal(t, `{"message":"my error message","path":["a"]}`, string(out))
+	v = CreateErrorObjectWithPath("my error message", []PathElement{
+		{Name: "a"},
+		{Idx: 1},
+		{Name: "b"},
+	})
+	out = v.MarshalTo(nil)
+	require.Equal(t, `{"message":"my error message","path":["a",1,"b"]}`, string(out))
+	v = CreateErrorObjectWithPath("my error message", []PathElement{
+		{Name: "a"},
+		{Name: "b"},
+	})
+	out = v.MarshalTo(nil)
+	require.Equal(t, `{"message":"my error message","path":["a","b"]}`, string(out))
+}
