@@ -43,6 +43,11 @@ type Resolvable struct {
 	wroteData   bool
 
 	typeNames [][]byte
+
+	// maxSize is the sum of all responses to get the possible maximum size of the response
+	maxSize int
+
+	marshalBuf []byte
 }
 
 func NewResolvable() *Resolvable {
@@ -63,11 +68,16 @@ func (r *Resolvable) parseJSON(data []byte) (*fastjson.Value, error) {
 	return parser.ParseBytes(data)
 }
 
+func (r *Resolvable) MaxSize() int {
+	return r.maxSize
+}
+
 func (r *Resolvable) Reset() {
 	for i := range r.parsers {
 		parsers.Put(r.parsers[i])
 		r.parsers[i] = nil
 	}
+	r.maxSize = 0
 	r.parsers = r.parsers[:0]
 	r.typeNames = r.typeNames[:0]
 	r.wroteErrors = false
@@ -96,24 +106,14 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	root, err := r.parseJSON([]byte(`{"data":{}, "errors":[]}`))
-	if err != nil {
-		return
-	}
-	r.data = root.Get("data")
-	r.errors = root.Get("errors")
-	if initialData != nil {
-		initialValue, err := r.parseJSON(initialData)
-		if err != nil {
-			return err
-		}
-		r.data, _ = fastjsonext.MergeValues(r.data, initialValue)
-	}
+	r.data = fastjson.MustParse(`{}`)
+	r.errors = fastjson.MustParse(`[]`)
 	if len(ctx.Variables) != 0 {
-		r.variables, err = r.parseJSON(ctx.Variables)
-		if err != nil {
-			return
-		}
+		r.variables = fastjson.MustParseBytes(ctx.Variables)
+	}
+	if initialData != nil {
+		initialValue := fastjson.MustParseBytes(initialData)
+		r.data, _ = fastjsonext.MergeValues(r.data, initialValue)
 	}
 	return
 }
@@ -123,22 +123,12 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if len(ctx.Variables) != 0 {
-		r.variables, err = r.parseJSON(ctx.Variables)
-		if err != nil {
-			return
-		}
+		r.variables = fastjson.MustParseBytes(ctx.Variables)
 	}
-	root, err := r.parseJSON([]byte(`{"data":{}, "errors":[]}`))
-	if err != nil {
-		return
-	}
-	r.data = root.Get("data")
-	r.errors = root.Get("errors")
+	r.data = fastjson.MustParse(`{}`)
+	r.errors = fastjson.MustParse(`[]`)
 	if initialData != nil {
-		initialValue, err := r.parseJSON(initialData)
-		if err != nil {
-			return err
-		}
+		initialValue := fastjson.MustParseBytes(initialData)
 		selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
 		if selectedInitialValue != nil {
 			r.data, _ = fastjsonext.MergeValues(r.data, selectedInitialValue)
@@ -344,11 +334,8 @@ func (r *Resolvable) printNode(value *fastjson.Value) {
 	if r.printErr != nil {
 		return
 	}
-	var (
-		buf [1024]byte // 1kb buffer
-	)
-	errorsJSON := value.MarshalTo(buf[:0])
-	_, r.printErr = r.out.Write(errorsJSON)
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	_, r.printErr = r.out.Write(r.marshalBuf)
 }
 
 func (r *Resolvable) pushArrayPathElement(index int) {
@@ -412,20 +399,19 @@ func (r *Resolvable) walkNode(node Node, value *fastjson.Value) bool {
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
-	parent := v
-	v = v.Get(obj.Path...)
-	if v == nil || v.Type() == fastjson.TypeNull {
+func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
+	value := parent.Get(obj.Path...)
+	if value == nil || value.Type() == fastjson.TypeNull {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(obj.Path)
+		r.addNonNullableFieldError(obj.Path, parent)
 		return r.err()
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
 	defer r.popNodePathElement(obj.Path)
-	if v.Type() != fastjson.TypeObject {
+	if value.Type() != fastjson.TypeObject {
 		r.addError("Object cannot represent non-object value.", obj.Path)
 		return r.err()
 	}
@@ -434,7 +420,7 @@ func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
 		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
-	typeName := v.GetStringBytes("__typename")
+	typeName := value.GetStringBytes("__typename")
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
@@ -461,15 +447,15 @@ func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
 			}
 		}
 		if !r.print {
-			skip := r.authorizeField(v, obj.Fields[i])
+			skip := r.authorizeField(value, obj.Fields[i])
 			if skip {
 				if obj.Fields[i].Value.NodeNullable() {
 					// if the field value is nullable, we can just set it to null
 					// we already set an error in authorizeField
 					path := obj.Fields[i].Value.NodePath()
-					field := v.Get(path...)
+					field := value.Get(path...)
 					if field != nil {
-						fastjsonext.SetNull(v, path...)
+						fastjsonext.SetNull(value, path...)
 					}
 				} else if obj.Nullable {
 					// if the field value is not nullable, but the object is nullable
@@ -492,11 +478,13 @@ func (r *Resolvable) walkObject(obj *Object, v *fastjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
-		err := r.walkNode(obj.Fields[i].Value, v)
+		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
 			if obj.Nullable {
-				fastjsonext.SetNull(parent, obj.Path...)
-				return false
+				if len(obj.Path) > 0 {
+					fastjsonext.SetNull(parent, obj.Path...)
+					return false
+				}
 			}
 			return err
 		}
@@ -552,11 +540,8 @@ func (r *Resolvable) authorize(value *fastjson.Value, dataSourceID string, coord
 	if reason, ok := r.authorizationDeny[decisionID]; ok {
 		return &AuthorizationDeny{Reason: reason}, nil
 	}
-	var (
-		buf [1024]byte
-	)
-	objectData := value.MarshalTo(buf[:0])
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, objectData, coordinate)
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.marshalBuf, coordinate)
 	if err != nil {
 		return nil, err
 	}
@@ -653,7 +638,7 @@ func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
 		if arr.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(arr.Path)
+		r.addNonNullableFieldError(arr.Path, parent)
 		return r.err()
 	}
 	r.pushNodePathElement(arr.Path)
@@ -674,6 +659,10 @@ func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
 		err := r.walkNode(arr.Item, arrayValue)
 		r.popArrayPathElement()
 		if err {
+			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
+				value.SetArrayItem(i, fastjson.MustParse(`null`))
+				continue
+			}
 			if arr.Nullable {
 				fastjsonext.SetNull(parent, arr.Path...)
 				return false
@@ -699,20 +688,18 @@ func (r *Resolvable) walkString(s *String, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(s.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path)
+		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
 	if value.Type() != fastjson.TypeString {
-		var (
-			buf [1024]byte
-		)
-		out := value.MarshalTo(buf[:0])
-		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(out)), s.Path)
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(r.marshalBuf)), s.Path)
 		return r.err()
 	}
 	if r.print {
@@ -750,17 +737,18 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(b.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path)
+		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
 	if value.Type() != fastjson.TypeTrue && value.Type() != fastjson.TypeFalse {
-		out := value.MarshalTo(nil)
-		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", string(out)), b.Path)
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", string(r.marshalBuf)), b.Path)
 		return r.err()
 	}
 	if r.print {
@@ -773,17 +761,18 @@ func (r *Resolvable) walkInteger(i *Integer, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(i.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if i.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(i.Path)
+		r.addNonNullableFieldError(i.Path, parent)
 		return r.err()
 	}
 	if value.Type() != fastjson.TypeNumber {
-		out := value.MarshalTo(nil)
-		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", string(out)), i.Path)
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", string(r.marshalBuf)), i.Path)
 		return r.err()
 	}
 	if r.print {
@@ -796,17 +785,18 @@ func (r *Resolvable) walkFloat(f *Float, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(f.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if f.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(f.Path)
+		r.addNonNullableFieldError(f.Path, parent)
 		return r.err()
 	}
 	if value.Type() != fastjson.TypeNumber {
-		out := value.MarshalTo(nil)
-		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", string(out)), f.Path)
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", string(r.marshalBuf)), f.Path)
 		return r.err()
 	}
 	if r.print {
@@ -819,12 +809,13 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(b.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(b.Path)
+		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
 	if r.print {
@@ -837,12 +828,13 @@ func (r *Resolvable) walkScalar(s *Scalar, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(s.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(s.Path)
+		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
 	if r.print {
@@ -871,16 +863,17 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *fastjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
+	parent := value
 	value = value.Get(c.Path...)
 	if fastjsonext.ValueIsNull(value) {
 		if c.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(c.Path)
+		r.addNonNullableFieldError(c.Path, parent)
 		return r.err()
 	}
-	content := value.MarshalTo(nil)
-	resolved, err := c.Resolve(r.ctx, content)
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	resolved, err := c.Resolve(r.ctx, r.marshalBuf)
 	if err != nil {
 		r.addError(err.Error(), c.Path)
 		return r.err()
@@ -891,7 +884,12 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) addNonNullableFieldError(fieldPath []string) {
+func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *fastjson.Value) {
+	if ancestor := parent.Get(fieldPath[:len(fieldPath)-1]...); ancestor != nil {
+		if ancestor.Exists("__skipErrors") {
+			return
+		}
+	}
 	r.pushNodePathElement(fieldPath)
 	errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
 	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)

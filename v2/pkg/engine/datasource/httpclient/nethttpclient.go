@@ -20,6 +20,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -132,8 +133,25 @@ func releaseBuffer(buf *bytes.Buffer) {
 	requestBufferPool.Put(buf)
 }
 
-func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
+type bodyHashContextKey struct{}
+
+func BodyHashFromContext(ctx context.Context) (uint64, bool) {
+	value := ctx.Value(bodyHashContextKey{})
+	if value == nil {
+		return 0, false
+	}
+	return value.(uint64), true
+}
+
+func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams, body []byte, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
+
+	h := pool.Hash64.Get()
+	_, _ = h.Write(body)
+	bodyHash := h.Sum64()
+	pool.Hash64.Put(h)
+	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
+
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -243,8 +261,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out *bytes.Buffer) (err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, body, enableTrace, out, ContentTypeJSON)
 }
 
 func DoMultipartForm(
@@ -299,7 +316,7 @@ func DoMultipartForm(
 		}
 	}()
 
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, nil, enableTrace, out, contentType)
 }
 
 func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, string, error) {

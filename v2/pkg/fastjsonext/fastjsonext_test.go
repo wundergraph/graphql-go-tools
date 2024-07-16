@@ -69,6 +69,13 @@ func TestSetNull(t *testing.T) {
 	require.Equal(t, `{"person":{"name":null}}`, string(out))
 }
 
+func TestSetWithNonExistingPath(t *testing.T) {
+	a := fastjson.MustParse(`{}`)
+	SetValue(a, fastjson.MustParse(`1`), "a", "b")
+	out := a.MarshalTo(nil)
+	require.Equal(t, `{"a":{"b":1}}`, string(out))
+}
+
 func TestAppendErrorWithMessage(t *testing.T) {
 	a := fastjson.MustParse(`[]`)
 	AppendErrorToArray(a, "error", nil)
@@ -99,4 +106,11 @@ func TestCreateErrorObjectWithPath(t *testing.T) {
 	})
 	out = v.MarshalTo(nil)
 	require.Equal(t, `{"message":"my error message","path":["a","b"]}`, string(out))
+}
+
+func TestAppendToArray(t *testing.T) {
+	a := fastjson.MustParse(`[1,2]`)
+	AppendToArray(a, fastjson.MustParse(`3`))
+	out := a.MarshalTo(nil)
+	require.Equal(t, `[1,2,3]`, string(out))
 }

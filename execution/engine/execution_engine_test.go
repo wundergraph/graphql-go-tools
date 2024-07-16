@@ -749,7 +749,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.hero'.","path":["hero"]}],"data":null}`,
+		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query', Reason: invalid JSON."},{"message":"Cannot return null for non-nullable field 'Query.hero'.","path":["hero"]}],"data":null}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{

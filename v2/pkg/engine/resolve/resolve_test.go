@@ -1438,7 +1438,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":{"id":1}}`
+		}, Context{ctx: context.Background()}, `{"data":{"id":"1"}}`
 	}))
 	t.Run("custom nullable", testGraphQLErrFn(func(t *testing.T, r *Resolver, ctrl *gomock.Controller) (node *Object, ctx Context, expectedErr string) {
 		return &Object{
@@ -2868,7 +2868,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: reviewsService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -2911,7 +2911,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 																	FetchConfiguration: FetchConfiguration{
 																		DataSource: productService,
 																		PostProcessing: PostProcessingConfiguration{
-																			SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+																			SelectResponseDataPath: []string{"data", "_entities", "0"},
 																		},
 																	},
 																	InputTemplate: InputTemplate{
@@ -3070,7 +3070,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: reviewsService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -3271,7 +3271,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: reviewsService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -3481,7 +3481,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: reviewsService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -3691,7 +3691,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: reviewsService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -3881,7 +3881,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: reviewsService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -4138,7 +4138,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 												FetchConfiguration: FetchConfiguration{
 													DataSource: timeService,
 													PostProcessing: PostProcessingConfiguration{
-														SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+														SelectResponseDataPath: []string{"data", "_entities", "0"},
 													},
 												},
 											},
@@ -4178,7 +4178,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									FetchConfiguration: FetchConfiguration{
 										DataSource: employeeService,
 										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+											SelectResponseDataPath: []string{"data", "_entities", "0"},
 										},
 									},
 								},
@@ -5309,7 +5309,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 																	{
 																		Name: []byte("age"),
 																		Value: &Integer{
-																			Path: []string{"[0]", "age"},
+																			Path: []string{"0", "age"},
 																		},
 																	},
 																},
@@ -5322,7 +5322,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 																	{
 																		Name: []byte("line1"),
 																		Value: &String{
-																			Path: []string{"[1]", "line1"},
+																			Path: []string{"1", "line1"},
 																		},
 																	},
 																},

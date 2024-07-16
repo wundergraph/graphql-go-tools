@@ -109,7 +109,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 													),
 													Input: `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
 													PostProcessing: PostProcessingConfiguration{
-														SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+														SelectResponseDataPath: []string{"data", "_entities", "0"},
 													},
 												},
 												InputTemplate: InputTemplate{
@@ -280,7 +280,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 												SetTemplateOutputToNullOnVariableNull: true,
 												DataSource:                            secondService,
 												PostProcessing: PostProcessingConfiguration{
-													SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+													SelectResponseDataPath: []string{"data", "_entities", "0"},
 												},
 											},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -322,7 +322,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 												SetTemplateOutputToNullOnVariableNull: true,
 												DataSource:                            thirdService,
 												PostProcessing: PostProcessingConfiguration{
-													SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+													SelectResponseDataPath: []string{"data", "_entities", "0"},
 												},
 											},
 											DataSourceIdentifier: []byte("graphql_datasource.Source"),

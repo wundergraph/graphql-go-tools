@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http/httptrace"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,11 +19,13 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/valyala/fastjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -63,9 +66,7 @@ func releaseLoaderBuf(buf *bytes.Buffer) {
 }
 
 type Loader struct {
-	data       *astjson.JSON
-	dataRoot   int
-	errorsRoot int
+	resolvable *Resolvable
 	ctx        *Context
 	path       []string
 	info       *GraphQLResponseInfo
@@ -81,16 +82,12 @@ type Loader struct {
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
-	l.data = nil
-	l.dataRoot = -1
-	l.errorsRoot = -1
+	l.resolvable = nil
 	l.path = l.path[:0]
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
-	l.data = resolvable.storage
-	l.dataRoot = resolvable.data
-	l.errorsRoot = resolvable.errors
+	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
 
@@ -100,10 +97,10 @@ func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse
 		fetchTree = response.Data
 	}
 
-	return l.walkNode(fetchTree, []int{resolvable.data})
+	return l.walkNode(fetchTree, []*fastjson.Value{resolvable.data})
 }
 
-func (l *Loader) walkNode(node Node, items []int) error {
+func (l *Loader) walkNode(node Node, items []*fastjson.Value) error {
 	switch n := node.(type) {
 	case *Object:
 		return l.walkObject(n, items)
@@ -153,7 +150,7 @@ func (l *Loader) renderPath() string {
 	return builder.String()
 }
 
-func (l *Loader) walkObject(object *Object, parentItems []int) (err error) {
+func (l *Loader) walkObject(object *Object, parentItems []*fastjson.Value) (err error) {
 	l.pushPath(object.Path)
 	defer l.popPath(object.Path)
 	objectItems := l.selectNodeItems(parentItems, object.Path)
@@ -172,7 +169,7 @@ func (l *Loader) walkObject(object *Object, parentItems []int) (err error) {
 	return nil
 }
 
-func (l *Loader) walkArray(array *Array, parentItems []int) error {
+func (l *Loader) walkArray(array *Array, parentItems []*fastjson.Value) error {
 	l.pushPath(array.Path)
 	l.pushArrayPath()
 	nodeItems := l.selectNodeItems(parentItems, array.Path)
@@ -182,7 +179,7 @@ func (l *Loader) walkArray(array *Array, parentItems []int) error {
 	return err
 }
 
-func (l *Loader) selectNodeItems(parentItems []int, path []string) (items []int) {
+func (l *Loader) selectNodeItems(parentItems []*fastjson.Value, path []string) (items []*fastjson.Value) {
 	if parentItems == nil {
 		return nil
 	}
@@ -190,44 +187,53 @@ func (l *Loader) selectNodeItems(parentItems []int, path []string) (items []int)
 		return parentItems
 	}
 	if len(parentItems) == 1 {
-		field := l.data.Get(parentItems[0], path)
-		if field == -1 {
+		field := parentItems[0].Get(path...)
+		if field == nil {
 			return nil
 		}
-		if l.data.Nodes[field].Kind == astjson.NodeKindArray {
-			return l.data.Nodes[field].ArrayValues
+		if field.Type() == fastjson.TypeArray {
+			return field.GetArray()
 		}
-		return []int{field}
+		return []*fastjson.Value{field}
 	}
-	items = make([]int, 0, len(parentItems))
+	items = make([]*fastjson.Value, 0, len(parentItems))
 	for _, parent := range parentItems {
-		field := l.data.Get(parent, path)
-		if field == -1 {
+		field := parent.Get(path...)
+		if field == nil {
 			continue
 		}
-		if l.data.Nodes[field].Kind == astjson.NodeKindArray {
-			items = append(items, l.data.Nodes[field].ArrayValues...)
-		} else {
-			items = append(items, field)
+		if field.Type() == fastjson.TypeArray {
+			items = append(items, field.GetArray()...)
+			continue
 		}
+		items = append(items, field)
 	}
 	return
 }
 
-func (l *Loader) itemsData(items []int, out io.Writer) error {
+func (l *Loader) itemsData(items []*fastjson.Value, out io.Writer) {
 	if len(items) == 0 {
-		return nil
+		return
 	}
 	if len(items) == 1 {
-		return l.data.PrintNode(l.data.Nodes[items[0]], out)
+		data := items[0].MarshalTo(nil)
+		_, _ = out.Write(data)
+		return
 	}
-	return l.data.PrintNode(astjson.Node{
-		Kind:        astjson.NodeKindArray,
-		ArrayValues: items,
-	}, out)
+	_, _ = out.Write(lBrack)
+	var data []byte
+	for i, item := range items {
+		if i != 0 {
+			_, _ = out.Write(comma)
+		}
+		data = item.MarshalTo(data[:0])
+		_, _ = out.Write(data)
+	}
+	_, _ = out.Write(rBrack)
+	return
 }
 
-func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
+func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res := &result{
@@ -357,7 +363,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []int) error {
 	return nil
 }
 
-func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *result) error {
+func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []*fastjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res.out = acquireLoaderBuf()
@@ -405,7 +411,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []int, res *r
 	return nil
 }
 
-func (l *Loader) mergeResult(res *result, items []int) error {
+func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 	defer releaseLoaderBuf(res.out)
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(res, failedToFetchNoReason)
@@ -415,12 +421,12 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		if err != nil {
 			return err
 		}
+		trueValue := fastjson.MustParse(`true`)
+		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
+		copy(skipErrorsPath, res.postProcessing.MergePath)
+		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
 		for _, item := range items {
-			l.data.Nodes = append(l.data.Nodes, astjson.Node{
-				Kind: astjson.NodeKindNullSkipError,
-			})
-			ref := len(l.data.Nodes) - 1
-			l.data.MergeNodesWithPath(item, ref, res.postProcessing.MergePath)
+			fastjsonext.SetValue(item, trueValue, skipErrorsPath...)
 		}
 		return nil
 	}
@@ -429,12 +435,12 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 		if err != nil {
 			return err
 		}
+		trueValue := fastjson.MustParse(`true`)
+		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
+		copy(skipErrorsPath, res.postProcessing.MergePath)
+		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
 		for _, item := range items {
-			l.data.Nodes = append(l.data.Nodes, astjson.Node{
-				Kind: astjson.NodeKindNullSkipError,
-			})
-			ref := len(l.data.Nodes) - 1
-			l.data.MergeNodesWithPath(item, ref, res.postProcessing.MergePath)
+			fastjsonext.SetValue(item, trueValue, skipErrorsPath...)
 		}
 		return nil
 	}
@@ -444,8 +450,8 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 	if res.out.Len() == 0 {
 		return l.renderErrorsFailedToFetch(res, emptyGraphQLResponse)
 	}
-
-	node, err := l.data.AppendAnyJSONBytes(res.out.Bytes())
+	l.resolvable.maxSize += res.out.Len()
+	value, err := l.resolvable.parseJSON(res.out.Bytes())
 	if err != nil {
 		return l.renderErrorsFailedToFetch(res, invalidGraphQLResponse)
 	}
@@ -454,11 +460,12 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 
 	// We check if the subgraph response has errors
 	if res.postProcessing.SelectResponseErrorsPath != nil {
-		ref := l.data.Get(node, res.postProcessing.SelectResponseErrorsPath)
-		if ref != -1 {
-			hasErrors = l.data.NodeIsDefined(ref) && len(l.data.Nodes[ref].ArrayValues) > 0
+		errorsValue := value.Get(res.postProcessing.SelectResponseErrorsPath...)
+		if fastjsonext.ValueIsNonNull(errorsValue) {
+			errorObjects := errorsValue.GetArray()
+			hasErrors = len(errorObjects) > 0
 			// Look for errors in the response and merge them into the errors array
-			err = l.mergeErrors(res, ref)
+			err = l.mergeErrors(res, errorsValue, errorObjects)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -467,9 +474,9 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 
 	// We also check if any data is there to processed
 	if res.postProcessing.SelectResponseDataPath != nil {
-		node = l.data.Get(node, res.postProcessing.SelectResponseDataPath)
+		value = value.Get(res.postProcessing.SelectResponseDataPath...)
 		// Check if the not set or null
-		if !l.data.NodeIsDefined(node) {
+		if fastjsonext.ValueIsNull(value) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
 			if !hasErrors {
@@ -478,49 +485,46 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 			// no data
 			return nil
 		}
-
-		// If the data is set, it must be an object according to GraphQL over HTTP spec
-		if l.data.Nodes[l.data.RootNode].Kind != astjson.NodeKindObject {
-			return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
-		}
 	}
 
 	withPostProcessing := res.postProcessing.ResponseTemplate != nil
 	if withPostProcessing && len(items) <= 1 {
-		postProcessed := acquireLoaderBuf()
-		defer releaseLoaderBuf(postProcessed)
-		res.out.Reset()
-		err = l.data.PrintNode(l.data.Nodes[node], res.out)
+		postProcessed := &bytes.Buffer{}
+		valueJSON := value.MarshalTo(nil)
+		err = res.postProcessing.ResponseTemplate.Render(l.ctx, valueJSON, postProcessed)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		err = res.postProcessing.ResponseTemplate.Render(l.ctx, res.out.Bytes(), postProcessed)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		node, err = l.data.AppendObject(postProcessed.Bytes())
+		value, err = l.resolvable.parseJSON(postProcessed.Bytes())
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	}
 	if len(items) == 0 {
-		l.data.RootNode = node
+		// If the data is set, it must be an object according to GraphQL over HTTP spec
+		if value.Type() != fastjson.TypeObject {
+			return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
+		}
+		l.resolvable.data = value
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		l.data.MergeNodesWithPath(items[0], node, res.postProcessing.MergePath)
+		fastjsonext.MergeValuesWithPath(items[0], value, res.postProcessing.MergePath...)
 		return nil
+	}
+	batch := value.GetArray()
+	if batch == nil {
+		return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
 	}
 	if res.batchStats != nil {
 		var (
 			postProcessed *bytes.Buffer
 			rendered      *bytes.Buffer
+			itemBuffer    = make([]byte, 0, 1024)
 		)
 		if withPostProcessing {
-			postProcessed = acquireLoaderBuf()
-			defer releaseLoaderBuf(postProcessed)
-			rendered = acquireLoaderBuf()
-			defer releaseLoaderBuf(rendered)
+			postProcessed = &bytes.Buffer{}
+			rendered = &bytes.Buffer{}
 			for i, stats := range res.batchStats {
 				postProcessed.Reset()
 				rendered.Reset()
@@ -535,10 +539,8 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 						addComma = true
 						continue
 					}
-					err = l.data.PrintNode(l.data.Nodes[l.data.Nodes[node].ArrayValues[item]], rendered)
-					if err != nil {
-						return errors.WithStack(err)
-					}
+					itemBuffer = batch[item].MarshalTo(itemBuffer[:0])
+					_, _ = rendered.Write(itemBuffer)
 					addComma = true
 				}
 				_, _ = rendered.Write(rBrack)
@@ -546,11 +548,8 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 				if err != nil {
 					return errors.WithStack(err)
 				}
-				nodeProcessed, err := l.data.AppendObject(postProcessed.Bytes())
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				l.data.MergeNodesWithPath(items[i], nodeProcessed, res.postProcessing.MergePath)
+				nodeProcessed := fastjson.MustParseBytes(postProcessed.Bytes())
+				fastjsonext.MergeValuesWithPath(items[i], nodeProcessed, res.postProcessing.MergePath...)
 			}
 		} else {
 			for i, stats := range res.batchStats {
@@ -558,13 +557,13 @@ func (l *Loader) mergeResult(res *result, items []int) error {
 					if item == -1 {
 						continue
 					}
-					l.data.MergeNodesWithPath(items[i], l.data.Nodes[node].ArrayValues[item], res.postProcessing.MergePath)
+					fastjsonext.MergeValuesWithPath(items[i], batch[item], res.postProcessing.MergePath...)
 				}
 			}
 		}
 	} else {
 		for i, item := range items {
-			l.data.MergeNodesWithPath(item, l.data.Nodes[node].ArrayValues[i], res.postProcessing.MergePath)
+			fastjsonext.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
 		}
 	}
 	return nil
@@ -618,30 +617,16 @@ func (l *Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
 	return nil
 }
 
-func (l *Loader) mergeErrors(res *result, ref int) error {
-	if l.errorsRoot == -1 {
-		l.data.Nodes = append(l.data.Nodes, astjson.Node{
-			Kind: astjson.NodeKindArray,
-		})
-		l.errorsRoot = len(l.data.Nodes) - 1
-	}
-
+func (l *Loader) mergeErrors(res *result, value *fastjson.Value, values []*fastjson.Value) error {
 	path := l.renderPath()
 
-	responseErrorsBuf := acquireLoaderBuf()
-	defer releaseLoaderBuf(responseErrorsBuf)
-
-	// print them into the buffer to be able to parse them
-	err := l.data.PrintNode(l.data.Nodes[ref], responseErrorsBuf)
-	if err != nil {
-		return err
-	}
-
 	// Serialize subgraph errors from the response
-	// and append them to the subgraph downsteam errors
-	if len(l.data.Nodes[ref].ArrayValues) > 0 {
-		graphqlErrors := make([]GraphQLError, 0, len(l.data.Nodes[ref].ArrayValues))
-		err = json.Unmarshal(responseErrorsBuf.Bytes(), &graphqlErrors)
+	// and append them to the subgraph downstream errors
+	if len(values) > 0 {
+		// print them into the buffer to be able to parse them
+		errorsJSON := value.MarshalTo(nil)
+		graphqlErrors := make([]GraphQLError, 0, len(values))
+		err := json.Unmarshal(errorsJSON, &graphqlErrors)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -656,141 +641,94 @@ func (l *Loader) mergeErrors(res *result, ref int) error {
 		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
 	}
 
-	l.optionallyOmitErrorExtensions(ref)
-	l.optionallyOmitErrorLocations(ref)
-	l.optionallyRewriteErrorPaths(ref)
+	l.optionallyOmitErrorExtensions(values)
+	l.optionallyOmitErrorLocations(values)
+	l.optionallyRewriteErrorPaths(values)
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
-		l.data.MergeArrays(l.errorsRoot, ref)
+		fastjsonext.MergeValues(l.resolvable.errors, value)
 		return nil
 	}
 
-	errorObject, err := l.data.AppendObject([]byte(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason)))
-	if err != nil {
-		return errors.WithStack(err)
-	}
-
-	if !l.propagateSubgraphErrors {
-		l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
-		return nil
-	}
-
-	extensions := l.data.Get(errorObject, []string{"extensions"})
-	if extensions == -1 {
-		extensions, _ = l.data.AppendObject([]byte(`{}`))
-		_ = l.data.SetObjectField(errorObject, extensions, "extensions")
-	}
-	_ = l.data.SetObjectField(extensions, ref, "errors")
+	errorObject := fastjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason))
 	l.setSubgraphStatusCode(errorObject, res.statusCode)
-	l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+	if l.propagateSubgraphErrors {
+		fastjsonext.SetValue(errorObject, value, "extensions", "errors")
+	}
 
+	fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
-func (l *Loader) optionallyOmitErrorExtensions(ref int) {
+func (l *Loader) optionallyOmitErrorExtensions(values []*fastjson.Value) {
 	if !l.omitSubgraphErrorExtensions {
 		return
 	}
-WithNextError:
-	for _, i := range l.data.Nodes[ref].ArrayValues {
-		if l.data.Nodes[i].Kind != astjson.NodeKindObject {
-			continue
-		}
-		fields := l.data.Nodes[i].ObjectFields
-		for j, k := range fields {
-			key := l.data.ObjectFieldKey(k)
-			if !bytes.Equal(key, literalExtensions) {
-				continue
-			}
-			l.data.Nodes[i].ObjectFields = append(fields[:j], fields[j+1:]...)
-			continue WithNextError
+	for _, value := range values {
+		if value.Exists("extensions") {
+			value.Del("extensions")
 		}
 	}
 }
 
-func (l *Loader) optionallyOmitErrorLocations(ref int) {
+func (l *Loader) optionallyOmitErrorLocations(values []*fastjson.Value) {
 	if !l.omitSubgraphErrorLocations {
 		return
 	}
-WithNextError:
-	for _, i := range l.data.Nodes[ref].ArrayValues {
-		if l.data.Nodes[i].Kind != astjson.NodeKindObject {
-			continue
-		}
-		fields := l.data.Nodes[i].ObjectFields
-		for j, k := range fields {
-			key := l.data.ObjectFieldKey(k)
-			if !bytes.Equal(key, literalLocations) {
-				continue
-			}
-			l.data.Nodes[i].ObjectFields = append(fields[:j], fields[j+1:]...)
-			continue WithNextError
+	for _, value := range values {
+		if value.Exists("locations") {
+			value.Del("locations")
 		}
 	}
 }
 
-func (l *Loader) optionallyRewriteErrorPaths(ref int) {
+func (l *Loader) optionallyRewriteErrorPaths(values []*fastjson.Value) {
 	if !l.rewriteSubgraphErrorPaths {
 		return
 	}
-	pathPrefix := make([]int, len(l.path))
-	for i := range l.path {
-		str := l.data.AppendString(l.path[i])
-		pathPrefix[i] = str
-	}
+	pathPrefix := make([]string, 0, len(l.path))
+	copy(pathPrefix, l.path)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
 	// errors, like fetches, are attached to objects, not arrays
 	if len(l.path) != 0 && l.path[len(l.path)-1] == "@" {
 		pathPrefix = pathPrefix[:len(pathPrefix)-1]
 	}
-WithNextError:
-	for _, i := range l.data.Nodes[ref].ArrayValues {
-		if l.data.Nodes[i].Kind != astjson.NodeKindObject {
+	for _, value := range values {
+		errorPath := value.Get("path")
+		if fastjsonext.ValueIsNull(errorPath) {
 			continue
 		}
-		fields := l.data.Nodes[i].ObjectFields
-		for _, j := range fields {
-			key := l.data.ObjectFieldKey(j)
-			if !bytes.Equal(key, literalPath) {
-				continue
+		if errorPath.Type() != fastjson.TypeArray {
+			continue
+		}
+		pathItems := errorPath.GetArray()
+		if len(pathItems) == 0 {
+			continue
+		}
+		for i, item := range pathItems {
+			if unsafebytes.BytesToString(item.GetStringBytes()) == "_entities" {
+				// rewrite the path to pathPrefix + pathItems after _entities
+				newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
+				newPath = append(newPath, pathPrefix...)
+				for j := i + 1; j < len(pathItems); j++ {
+					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
+				}
+				newPathJSON, _ := json.Marshal(newPath)
+				value.Set("path", fastjson.MustParseBytes(newPathJSON))
+				break
 			}
-			value := l.data.ObjectFieldValue(j)
-			if l.data.Nodes[value].Kind != astjson.NodeKindArray {
-				continue
-			}
-			if len(l.data.Nodes[value].ArrayValues) == 0 {
-				continue WithNextError
-			}
-			v := l.data.Nodes[value].ArrayValues[0]
-			if l.data.Nodes[v].Kind != astjson.NodeKindString {
-				continue WithNextError
-			}
-			elem := l.data.Nodes[v].ValueBytes(l.data)
-			if !bytes.Equal(elem, literalUnderscoreEntities) {
-				continue WithNextError
-			}
-			l.data.Nodes[value].ArrayValues = append(pathPrefix, l.data.Nodes[value].ArrayValues[1:]...)
 		}
 	}
 }
 
-func (l *Loader) setSubgraphStatusCode(errorObjectRef, statusCode int) {
+func (l *Loader) setSubgraphStatusCode(errorObject *fastjson.Value, statusCode int) {
 	if !l.propagateSubgraphStatusCodes {
 		return
 	}
 	if statusCode == 0 {
 		return
 	}
-	ref := l.data.AppendInt(statusCode)
-	if ref == -1 {
-		return
-	}
-	extensions := l.data.Get(errorObjectRef, []string{"extensions"})
-	if extensions == -1 {
-		extensions, _ = l.data.AppendObject([]byte(`{}`))
-		_ = l.data.SetObjectField(errorObjectRef, extensions, "extensions")
-	}
-	_ = l.data.SetObjectField(extensions, ref, "statusCode")
+	fastjsonext.SetValue(errorObject, fastjson.MustParse(strconv.FormatInt(int64(statusCode), 10)), "extensions", "statusCode")
 }
 
 const (
@@ -803,12 +741,9 @@ const (
 func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 	path := l.renderPath()
 	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, path, reason, res.statusCode)))
-	errorObject, err := l.data.AppendObject([]byte(l.renderSubgraphBaseError(res.subgraphName, path, reason)))
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	errorObject := fastjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, path, reason))
+	fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 	l.setSubgraphStatusCode(errorObject, res.statusCode)
-	l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
 	return nil
 }
 
@@ -833,33 +768,21 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	if res.subgraphName == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s'."}`, path)))
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s'."}`, path))
+				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s', Reason: %s."}`, path, reason)))
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s', Reason: %s."}`, path, reason))
+				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			}
 		}
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s'."}`, res.subgraphName, path)))
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s'."}`, res.subgraphName, path))
+				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, reason)))
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, reason))
+				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			}
 		}
 	}
@@ -872,31 +795,19 @@ func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
 
 	if res.subgraphName == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s'."}`, path)))
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s'."}`, path))
+			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s', Reason: %s."}`, path, res.rateLimitRejectedReason)))
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s', Reason: %s."}`, path, res.rateLimitRejectedReason))
+			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s'."}`, res.subgraphName, path)))
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s'."}`, res.subgraphName, path))
+			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := l.data.AppendObject([]byte(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, res.rateLimitRejectedReason)))
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			l.data.Nodes[l.errorsRoot].ArrayValues = append(l.data.Nodes[l.errorsRoot].ArrayValues, errorObject)
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, res.rateLimitRejectedReason))
+			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	}
 	return nil
@@ -966,57 +877,24 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 	return l.rateLimitFetch(input, info, res)
 }
 
-var (
-	singleFetchPool              = sync.Pool{}
-	singleFetchInputSize         = atomic.NewInt32(32)
-	singleFetchPreparedInputSize = atomic.NewInt32(32)
-)
-
-type singleFetchBuffer struct {
-	input         *bytes.Buffer
-	preparedInput *bytes.Buffer
-}
-
-func acquireSingleFetchBuffer() *singleFetchBuffer {
-	buf := singleFetchPool.Get()
-	if buf == nil {
-		return &singleFetchBuffer{
-			input:         bytes.NewBuffer(make([]byte, 0, int(singleFetchInputSize.Load()))),
-			preparedInput: bytes.NewBuffer(make([]byte, 0, int(singleFetchPreparedInputSize.Load()))),
-		}
-	}
-	return buf.(*singleFetchBuffer)
-}
-
-func releaseSingleFetchBuffer(buf *singleFetchBuffer) {
-	singleFetchInputSize.Store(int32(buf.input.Cap()))
-	singleFetchPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
-	buf.input.Reset()
-	buf.preparedInput.Reset()
-	singleFetchPool.Put(buf)
-}
-
-func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []int, res *result) error {
+func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	buf := acquireSingleFetchBuffer()
-	defer releaseSingleFetchBuffer(buf)
-	err := l.itemsData(items, buf.input)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	inputBuf := &bytes.Buffer{}
+	preparedInputBuf := &bytes.Buffer{}
+	l.itemsData(items, inputBuf)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			inputCopy := make([]byte, buf.input.Len())
-			copy(inputCopy, buf.input.Bytes())
+			inputCopy := make([]byte, inputBuf.Len())
+			copy(inputCopy, inputBuf.Bytes())
 			fetch.Trace.RawInputData = inputCopy
 		}
 	}
-	err = fetch.InputTemplate.Render(l.ctx, buf.input.Bytes(), buf.preparedInput)
+	err := fetch.InputTemplate.Render(l.ctx, inputBuf.Bytes(), preparedInputBuf)
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	fetchInput := buf.preparedInput.Bytes()
+	fetchInput := preparedInputBuf.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
 		return err
@@ -1028,67 +906,30 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	return nil
 }
 
-var (
-	entityFetchPool              = sync.Pool{}
-	entityFetchItemDataSize      = atomic.NewInt32(32)
-	entityFetchPreparedInputSize = atomic.NewInt32(32)
-	entityFetchItemSize          = atomic.NewInt32(32)
-)
-
-type entityFetchBuffer struct {
-	itemData      *bytes.Buffer
-	preparedInput *bytes.Buffer
-	item          *bytes.Buffer
-}
-
-func acquireEntityFetchBuffer() *entityFetchBuffer {
-	buf := entityFetchPool.Get()
-	if buf == nil {
-		return &entityFetchBuffer{
-			itemData:      bytes.NewBuffer(make([]byte, 0, int(entityFetchItemDataSize.Load()))),
-			preparedInput: bytes.NewBuffer(make([]byte, 0, int(entityFetchPreparedInputSize.Load()))),
-			item:          bytes.NewBuffer(make([]byte, 0, int(entityFetchItemSize.Load()))),
-		}
-	}
-	return buf.(*entityFetchBuffer)
-}
-
-func releaseEntityFetchBuffer(buf *entityFetchBuffer) {
-	entityFetchItemDataSize.Store(int32(buf.itemData.Cap()))
-	entityFetchPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
-	entityFetchItemSize.Store(int32(buf.item.Cap()))
-	buf.itemData.Reset()
-	buf.preparedInput.Reset()
-	buf.item.Reset()
-	entityFetchPool.Put(buf)
-}
-
-func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []int, res *result) error {
+func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	buf := acquireEntityFetchBuffer()
-	defer releaseEntityFetchBuffer(buf)
-	err := l.itemsData(items, buf.itemData)
-	if err != nil {
-		return errors.WithStack(err)
-	}
+	itemBuf := &bytes.Buffer{}
+	itemDataBuf := &bytes.Buffer{}
+	preparedInputBuf := &bytes.Buffer{}
+	l.itemsData(items, itemDataBuf)
 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			itemDataCopy := make([]byte, buf.itemData.Len())
-			copy(itemDataCopy, buf.itemData.Bytes())
+			itemDataCopy := make([]byte, itemDataBuf.Len())
+			copy(itemDataCopy, itemDataBuf.Bytes())
 			fetch.Trace.RawInputData = itemDataCopy
 		}
 	}
 
 	var undefinedVariables []string
 
-	err = fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInputBuf, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = fetch.Input.Item.Render(l.ctx, buf.itemData.Bytes(), buf.item)
+	err = fetch.Input.Item.Render(l.ctx, itemDataBuf.Bytes(), itemBuf)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			err = nil // nolint:ineffassign
@@ -1100,7 +941,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		}
 		return errors.WithStack(err)
 	}
-	renderedItem := buf.item.Bytes()
+	renderedItem := itemBuf.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchSkipped = true
@@ -1119,17 +960,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 			return nil
 		}
 	}
-	_, _ = buf.item.WriteTo(buf.preparedInput)
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	_, _ = itemBuf.WriteTo(preparedInputBuf)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInputBuf, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(preparedInputBuf, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := buf.preparedInput.Bytes()
+	fetchInput := preparedInputBuf.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchInput, fetch.Trace)
@@ -1150,13 +991,11 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 var (
 	batchEntityFetchPool         = sync.Pool{}
 	batchEntityPreparedInputSize = atomic.NewInt32(32)
-	batchEntityItemDataSize      = atomic.NewInt32(32)
 	batchEntityItemInputSize     = atomic.NewInt32(32)
 )
 
 type batchEntityFetchBuffer struct {
 	preparedInput *bytes.Buffer
-	itemData      *bytes.Buffer
 	itemInput     *bytes.Buffer
 	keyGen        *xxhash.Digest
 }
@@ -1166,7 +1005,6 @@ func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
 	if buf == nil {
 		return &batchEntityFetchBuffer{
 			preparedInput: bytes.NewBuffer(make([]byte, 0, int(batchEntityPreparedInputSize.Load()))),
-			itemData:      bytes.NewBuffer(make([]byte, 0, int(batchEntityItemDataSize.Load()))),
 			itemInput:     bytes.NewBuffer(make([]byte, 0, int(batchEntityItemInputSize.Load()))),
 			keyGen:        xxhash.New(),
 		}
@@ -1176,16 +1014,14 @@ func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
 
 func releaseBatchEntityFetchBuffer(buf *batchEntityFetchBuffer) {
 	batchEntityPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
-	batchEntityItemDataSize.Store(int32(buf.itemData.Cap()))
 	batchEntityItemInputSize.Store(int32(buf.itemInput.Cap()))
 	buf.preparedInput.Reset()
-	buf.itemData.Reset()
 	buf.itemInput.Reset()
 	buf.keyGen.Reset()
 	batchEntityFetchPool.Put(buf)
 }
 
-func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []int, res *result) error {
+func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 
 	buf := acquireBatchEntityFetchBuffer()
@@ -1195,10 +1031,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFet
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
 			buf := &bytes.Buffer{}
-			err := l.itemsData(items, buf)
-			if err != nil {
-				return errors.WithStack(err)
-			}
+			l.itemsData(items, buf)
 			fetch.Trace.RawInputData = buf.Bytes()
 		}
 	}
@@ -1213,17 +1046,14 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFet
 	itemHashes := make([]uint64, 0, len(items)*len(fetch.Input.Items))
 	batchItemIndex := 0
 	addSeparator := false
+	itemData := make([]byte, 0, 1024)
 
 WithNextItem:
 	for i, item := range items {
-		buf.itemData.Reset()
-		err = l.data.PrintNode(l.data.Nodes[item], buf.itemData)
-		if err != nil {
-			return errors.WithStack(err)
-		}
+		itemData = item.MarshalTo(itemData[:0])
 		for j := range fetch.Input.Items {
 			buf.itemInput.Reset()
-			err = fetch.Input.Items[j].Render(l.ctx, buf.itemData.Bytes(), buf.itemInput)
+			err = fetch.Input.Items[j].Render(l.ctx, itemData, buf.itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					err = nil // nolint:ineffassign

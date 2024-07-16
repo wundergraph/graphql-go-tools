@@ -211,7 +211,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		fetchTree = response.Data
 	}
 
-	buf := r.getBuffer(t.resolvable.storage.Size())
+	buf := r.getBuffer(t.resolvable.MaxSize())
 	defer r.releaseBuffer(buf)
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
 	r.putTools(t)

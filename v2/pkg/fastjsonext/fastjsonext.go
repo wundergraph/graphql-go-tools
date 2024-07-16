@@ -97,6 +97,14 @@ func MergeValuesWithPath(a, b *fastjson.Value, path ...string) (*fastjson.Value,
 	return MergeValues(a, root)
 }
 
+func AppendToArray(array, value *fastjson.Value) {
+	if array.Type() != fastjson.TypeArray {
+		return
+	}
+	items, _ := array.Array()
+	array.SetArrayItem(len(items), value)
+}
+
 func AppendErrorToArray(v *fastjson.Value, msg string, path []PathElement) {
 	if v.Type() != fastjson.TypeArray {
 		return
@@ -106,15 +114,21 @@ func AppendErrorToArray(v *fastjson.Value, msg string, path []PathElement) {
 	v.SetArrayItem(len(items), errorObject)
 }
 
-func SetNull(v *fastjson.Value, path ...string) {
-	// iterate until one element is left
+func SetValue(v *fastjson.Value, value *fastjson.Value, path ...string) {
 	for i := 0; i < len(path)-1; i++ {
+		parent := v
 		v = v.Get(path[i])
 		if v == nil {
-			return
+			child := fastjson.MustParse(`{}`)
+			parent.Set(path[i], child)
+			v = child
 		}
 	}
-	v.Set(path[len(path)-1], fastjson.MustParse(`null`))
+	v.Set(path[len(path)-1], value)
+}
+
+func SetNull(v *fastjson.Value, path ...string) {
+	SetValue(v, fastjson.MustParse(`null`), path...)
 }
 
 func ValueIsNonNull(v *fastjson.Value) bool {
@@ -151,4 +165,13 @@ func CreateErrorObjectWithPath(message string, path []PathElement) *fastjson.Val
 	}
 	errorObject.Set("path", errorPath)
 	return errorObject
+}
+
+func PrintGraphQLResponse(data, errors *fastjson.Value) string {
+	out := fastjson.MustParse(`{}`)
+	if ValueIsNonNull(errors) {
+		out.Set("errors", errors)
+	}
+	out.Set("data", data)
+	return string(out.MarshalTo(nil))
 }
