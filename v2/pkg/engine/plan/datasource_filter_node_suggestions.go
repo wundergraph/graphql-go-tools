@@ -23,7 +23,6 @@ type NodeSuggestion struct {
 	DisabledEntityResolver    bool   `json:"disabledEntityResolver"` // is true in case the node is an entity root node and has a key with disabled resolver
 	IsEntityInterfaceTypeName bool   `json:"-"`
 	IsExternal                bool   `json:"isExternal"`
-	IsKeyField                bool   `json:"isKeyField"`
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
 	IsRequiredField           bool   `json:"IsRequiredField"`
 

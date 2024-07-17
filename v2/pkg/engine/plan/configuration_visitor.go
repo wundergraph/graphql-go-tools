@@ -402,6 +402,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 
 	if !c.couldPlanField(ref) {
+		c.handleMissingPath(false, typeName, fieldName, currentPath)
 		return
 	}
 
@@ -999,8 +1000,7 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 		return
 	}
 
-	c.addMissingPath(currentPath)
-	c.walker.Stop()
+	c.walker.SkipNode()
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {

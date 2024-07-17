@@ -62,9 +62,6 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, exist
 
 	// f.nodes.printNodes("initial nodes")
 
-	f.applySuggestionHints(keyHints)
-	// f.nodes.printNodes("nodes after applying hints")
-
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("unique nodes")
 	f.selectDuplicateNodes(false)
@@ -111,42 +108,6 @@ const (
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
 )
-
-func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
-	if len(hints) == 0 {
-		return
-	}
-
-	for _, hint := range hints {
-		treeNodeID := TreeNodeID(hint.fieldRef)
-		treeNode, ok := f.nodes.responseTree.Find(treeNodeID)
-		if !ok {
-			continue
-		}
-
-		itemIndexes := treeNode.GetData()
-
-		itemIsSelectedOnTheOtherDataSource := false
-		itemIdxWithMatchingDS := -1
-		for _, itemIdx := range itemIndexes {
-			if f.nodes.items[itemIdx].DataSourceHash == hint.dsHash {
-				itemIdxWithMatchingDS = itemIdx
-				continue
-			}
-
-			if f.nodes.items[itemIdx].Selected {
-				// if the node was already selected by another datasource
-				// we do not change it
-				itemIsSelectedOnTheOtherDataSource = true
-				break
-			}
-		}
-
-		if !itemIsSelectedOnTheOtherDataSource && itemIdxWithMatchingDS != -1 {
-			f.nodes.items[itemIdxWithMatchingDS].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
-		}
-	}
-}
 
 // selectUniqueNodes - selects nodes (e.g. fields) which are unique to a single datasource
 // In addition we select:
@@ -257,7 +218,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				continue
 			}
 
-			if f.nodes.items[i].IsExternal && !(f.nodes.items[i].IsProvided || f.nodes.items[i].IsKeyField) {
+			if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 				continue
 			}
 
@@ -290,11 +251,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeChilds) {
 				continue
 			}
-
-			// // do not select key field on the stage of initial nodes selection
-			// if !f.secondaryRun && isKeyInSomeDatasource {
-			// 	continue
-			// }
 
 			if !f.nodes.items[i].IsRequiredKeyField {
 				if f.checkNodeSiblings(i) {
@@ -463,7 +419,7 @@ func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIsSelected bool) {
-	if f.nodes.items[i].IsExternal && !(f.nodes.items[i].IsProvided || f.nodes.items[i].IsKeyField) {
+	if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 		return false
 	}
 
