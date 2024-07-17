@@ -468,7 +468,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
 					if field != nil {
 						fastjsonext.SetNull(value, path...)
 					}
-				} else if obj.Nullable {
+				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
 					fastjsonext.SetNull(parent, obj.Path...)
