@@ -231,7 +231,6 @@ func (l *Loader) itemsData(items []*fastjson.Value, out io.Writer) {
 		_, _ = out.Write(data)
 	}
 	_, _ = out.Write(rBrack)
-	return
 }
 
 func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) error {
