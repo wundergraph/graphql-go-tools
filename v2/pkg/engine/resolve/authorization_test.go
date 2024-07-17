@@ -5,10 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"io"
 	"sync/atomic"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -87,19 +88,19 @@ func TestAuthorization(t *testing.T) {
 			return nil, nil
 		}, func(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "reviews" && coordinate.TypeName == "User" && coordinate.FieldName == "reviews" {
-				assert.Equal(t, `{"id":"1234","username":"Me","__typename":"User"}`, string(object))
+				assert.Equal(t, `{"id":"1234","username":"Me","__typename":"User","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","__typename":"Product","data":{"name":"Fedora"}}}]}`, string(object))
 				assertions.Add(1)
 			}
 			if dataSourceID == "reviews" && coordinate.TypeName == "Review" && coordinate.FieldName == "body" {
-				assert.Equal(t, `{"body":"A highly effective form of birth control."}`, string(object))
+				assert.Equal(t, `{"body":"A highly effective form of birth control.","product":{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}}`, string(object))
 				assertions.Add(1)
 			}
 			if dataSourceID == "reviews" && coordinate.TypeName == "Review" && coordinate.FieldName == "product" {
-				assert.Equal(t, `{"body":"A highly effective form of birth control."}`, string(object))
+				assert.Equal(t, `{"body":"A highly effective form of birth control.","product":{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}}`, string(object))
 				assertions.Add(1)
 			}
 			if dataSourceID == "products" && coordinate.TypeName == "Product" && coordinate.FieldName == "name" {
-				assert.Equal(t, `{"upc":"top-1","__typename":"Product"}`, string(object))
+				assert.Equal(t, `{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}`, string(object))
 				assertions.Add(1)
 			}
 			return nil, nil
@@ -621,7 +622,7 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 								DataSource: reviewsService,
 								PostProcessing: PostProcessingConfiguration{
 									SelectResponseErrorsPath: []string{"errors"},
-									SelectResponseDataPath:   []string{"data", "_entities", "[0]"},
+									SelectResponseDataPath:   []string{"data", "_entities", "0"},
 								},
 							},
 						},
@@ -907,7 +908,7 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 							FetchConfiguration: FetchConfiguration{
 								DataSource: reviewsService,
 								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data", "_entities", "[0]"},
+									SelectResponseDataPath: []string{"data", "_entities", "0"},
 								},
 							},
 						},

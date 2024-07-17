@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -10,7 +9,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 )
 
 func TestLoader_LoadGraphQLResponseData(t *testing.T) {
@@ -285,20 +284,17 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := &Resolvable{
-		storage: &astjson.JSON{},
-	}
+	resolvable := &Resolvable{}
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
 	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
 	assert.NoError(t, err)
 	ctrl.Finish()
-	out := &bytes.Buffer{}
-	err = resolvable.storage.PrintNode(resolvable.storage.Nodes[resolvable.storage.RootNode], out)
+	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
 	expected := `{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
-	assert.Equal(t, expected, out.String())
+	assert.Equal(t, expected, out)
 }
 
 func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
@@ -574,20 +570,17 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 		ctx:        context.Background(),
 		Extensions: []byte(`{"foo":"bar"}`),
 	}
-	resolvable := &Resolvable{
-		storage: &astjson.JSON{},
-	}
+	resolvable := &Resolvable{}
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
 	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
 	assert.NoError(t, err)
 	ctrl.Finish()
-	out := &bytes.Buffer{}
-	err = resolvable.storage.PrintNode(resolvable.storage.Nodes[resolvable.storage.RootNode], out)
+	out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
 	assert.NoError(t, err)
 	expected := `{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
-	assert.Equal(t, expected, out.String())
+	assert.Equal(t, expected, out)
 }
 
 func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
@@ -852,17 +845,13 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := &Resolvable{
-		storage: &astjson.JSON{},
-	}
+	resolvable := &Resolvable{}
 	loader := &Loader{}
-	expected := []byte(`{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`)
-	out := &bytes.Buffer{}
+	expected := `{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
 	b.SetBytes(int64(len(expected)))
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		out.Reset()
 		loader.Free()
 		resolvable.Reset()
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -873,12 +862,9 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 		if err != nil {
 			b.Fatal(err)
 		}
-		err = resolvable.storage.PrintNode(resolvable.storage.Nodes[resolvable.storage.RootNode], out)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if !bytes.Equal(expected, out.Bytes()) {
-			b.Fatal("not equal")
+		out := fastjsonext.PrintGraphQLResponse(resolvable.data, resolvable.errors)
+		if expected != out {
+			b.Fatalf("expected %s, got %s", expected, out)
 		}
 	}
 }
