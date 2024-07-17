@@ -9,6 +9,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
+var (
+	NullValue = fastjson.MustParse(`null`)
+)
+
 func MergeValues(a, b *fastjson.Value) (*fastjson.Value, bool) {
 	if a == nil {
 		return b, true

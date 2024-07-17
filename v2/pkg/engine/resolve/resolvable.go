@@ -3,10 +3,11 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	goerrors "errors"
 	"fmt"
 	"io"
+
+	"github.com/goccy/go-json"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
@@ -125,18 +126,31 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	if len(ctx.Variables) != 0 {
 		r.variables = fastjson.MustParseBytes(ctx.Variables)
 	}
-	r.data = fastjson.MustParse(`{}`)
-	r.errors = fastjson.MustParse(`[]`)
 	if initialData != nil {
-		initialValue := fastjson.MustParseBytes(initialData)
-		selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
-		if selectedInitialValue != nil {
-			r.data, _ = fastjsonext.MergeValues(r.data, selectedInitialValue)
+		initialValue, err := fastjson.ParseBytes(initialData)
+		if err != nil {
+			return err
 		}
-		selectedInitialErrors := initialValue.Get(postProcessing.SelectResponseErrorsPath...)
-		if selectedInitialErrors != nil {
-			r.errors, _ = fastjsonext.MergeValues(r.errors, selectedInitialErrors)
+		if postProcessing.SelectResponseDataPath == nil {
+			r.data, _ = fastjsonext.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+		} else {
+			selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
+			if selectedInitialValue != nil {
+				r.data, _ = fastjsonext.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+			}
 		}
+		if postProcessing.SelectResponseErrorsPath != nil {
+			selectedInitialErrors := initialValue.Get(postProcessing.SelectResponseErrorsPath...)
+			if selectedInitialErrors != nil {
+				r.errors = selectedInitialErrors
+			}
+		}
+	}
+	if r.data == nil {
+		r.data = fastjson.MustParse(`{}`)
+	}
+	if r.errors == nil {
+		r.errors = fastjson.MustParse(`[]`)
 	}
 	return
 }
@@ -660,7 +674,7 @@ func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
 		r.popArrayPathElement()
 		if err {
 			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
-				value.SetArrayItem(i, fastjson.MustParse(`null`))
+				value.SetArrayItem(i, fastjsonext.NullValue)
 				continue
 			}
 			if arr.Nullable {

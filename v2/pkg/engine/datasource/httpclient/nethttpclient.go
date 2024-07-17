@@ -143,15 +143,9 @@ func BodyHashFromContext(ctx context.Context) (uint64, bool) {
 	return value.(uint64), true
 }
 
-func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams, body []byte, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
+func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
 
-	h := pool.Hash64.Get()
-	_, _ = h.Write(body)
-	bodyHash := h.Sum64()
-	pool.Hash64.Put(h)
-	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
-
-	request, err := http.NewRequestWithContext(ctx, string(method), string(url), bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
 		return err
 	}
@@ -261,7 +255,12 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out *bytes.Buffer) (err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, body, enableTrace, out, ContentTypeJSON)
+	h := pool.Hash64.Get()
+	_, _ = h.Write(body)
+	bodyHash := h.Sum64()
+	pool.Hash64.Put(h)
+	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
 }
 
 func DoMultipartForm(
@@ -272,6 +271,10 @@ func DoMultipartForm(
 	}
 
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	h := pool.Hash64.Get()
+	defer pool.Hash64.Put(h)
+	_, _ = h.Write(body)
 
 	formValues := map[string]io.Reader{
 		"operations": bytes.NewReader(body),
@@ -290,6 +293,7 @@ func DoMultipartForm(
 			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
 		}
 		key := fmt.Sprintf("%d", i)
+		_, _ = h.WriteString(file.Path())
 		temporaryFile, err := os.Open(file.Path())
 		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
@@ -316,7 +320,10 @@ func DoMultipartForm(
 		}
 	}()
 
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, nil, enableTrace, out, contentType)
+	bodyHash := h.Sum64()
+	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
+
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
 }
 
 func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, string, error) {

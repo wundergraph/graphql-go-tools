@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/goccy/go-json"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -651,11 +652,10 @@ func (l *Loader) mergeErrors(res *result, value *fastjson.Value, values []*fastj
 	}
 
 	errorObject := fastjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason))
-	l.setSubgraphStatusCode(errorObject, res.statusCode)
 	if l.propagateSubgraphErrors {
 		fastjsonext.SetValue(errorObject, value, "extensions", "errors")
 	}
-
+	l.setSubgraphStatusCode(errorObject, res.statusCode)
 	fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -686,7 +686,7 @@ func (l *Loader) optionallyRewriteErrorPaths(values []*fastjson.Value) {
 	if !l.rewriteSubgraphErrorPaths {
 		return
 	}
-	pathPrefix := make([]string, 0, len(l.path))
+	pathPrefix := make([]string, len(l.path))
 	copy(pathPrefix, l.path)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
 	// errors, like fetches, are attached to objects, not arrays
@@ -728,7 +728,11 @@ func (l *Loader) setSubgraphStatusCode(errorObject *fastjson.Value, statusCode i
 	if statusCode == 0 {
 		return
 	}
-	fastjsonext.SetValue(errorObject, fastjson.MustParse(strconv.FormatInt(int64(statusCode), 10)), "extensions", "statusCode")
+	v, err := fastjson.Parse(strconv.FormatInt(int64(statusCode), 10))
+	if err != nil {
+		return
+	}
+	fastjsonext.SetValue(errorObject, v, "extensions", "statusCode")
 }
 
 const (
@@ -741,9 +745,12 @@ const (
 func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 	path := l.renderPath()
 	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, path, reason, res.statusCode)))
-	errorObject := fastjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, path, reason))
-	fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
+	errorObject, err := fastjson.Parse(l.renderSubgraphBaseError(res.subgraphName, path, reason))
+	if err != nil {
+		return err
+	}
 	l.setSubgraphStatusCode(errorObject, res.statusCode)
+	fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -877,24 +884,50 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 	return l.rateLimitFetch(input, info, res)
 }
 
+var (
+	singleFetchPool = sync.Pool{
+		New: func() any {
+			return &singleFetchBuffer{
+				input:         &bytes.Buffer{},
+				preparedInput: &bytes.Buffer{},
+			}
+		},
+	}
+)
+
+type singleFetchBuffer struct {
+	input         *bytes.Buffer
+	preparedInput *bytes.Buffer
+}
+
+func acquireSingleFetchBuffer() *singleFetchBuffer {
+	return singleFetchPool.Get().(*singleFetchBuffer)
+}
+
+func releaseSingleFetchBuffer(buf *singleFetchBuffer) {
+	buf.input.Reset()
+	buf.preparedInput.Reset()
+	singleFetchPool.Put(buf)
+}
+
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	inputBuf := &bytes.Buffer{}
-	preparedInputBuf := &bytes.Buffer{}
-	l.itemsData(items, inputBuf)
+	buf := acquireSingleFetchBuffer()
+	defer releaseSingleFetchBuffer(buf)
+	l.itemsData(items, buf.input)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			inputCopy := make([]byte, inputBuf.Len())
-			copy(inputCopy, inputBuf.Bytes())
+			inputCopy := make([]byte, buf.input.Len())
+			copy(inputCopy, buf.input.Bytes())
 			fetch.Trace.RawInputData = inputCopy
 		}
 	}
-	err := fetch.InputTemplate.Render(l.ctx, inputBuf.Bytes(), preparedInputBuf)
+	err := fetch.InputTemplate.Render(l.ctx, buf.input.Bytes(), buf.preparedInput)
 	if err != nil {
 		return l.renderErrorsInvalidInput(res.out)
 	}
-	fetchInput := preparedInputBuf.Bytes()
+	fetchInput := buf.preparedInput.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
 	if err != nil {
 		return err
@@ -906,30 +939,58 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	return nil
 }
 
+var (
+	entityFetchPool = sync.Pool{
+		New: func() any {
+			return &entityFetchBuffer{
+				item:          &bytes.Buffer{},
+				itemData:      &bytes.Buffer{},
+				preparedInput: &bytes.Buffer{},
+			}
+		},
+	}
+)
+
+type entityFetchBuffer struct {
+	item          *bytes.Buffer
+	itemData      *bytes.Buffer
+	preparedInput *bytes.Buffer
+}
+
+func acquireEntityFetchBuffer() *entityFetchBuffer {
+	return entityFetchPool.Get().(*entityFetchBuffer)
+}
+
+func releaseEntityFetchBuffer(buf *entityFetchBuffer) {
+	buf.item.Reset()
+	buf.itemData.Reset()
+	buf.preparedInput.Reset()
+	entityFetchPool.Put(buf)
+}
+
 func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	itemBuf := &bytes.Buffer{}
-	itemDataBuf := &bytes.Buffer{}
-	preparedInputBuf := &bytes.Buffer{}
-	l.itemsData(items, itemDataBuf)
+	buf := acquireEntityFetchBuffer()
+	defer releaseEntityFetchBuffer(buf)
+	l.itemsData(items, buf.itemData)
 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			itemDataCopy := make([]byte, itemDataBuf.Len())
-			copy(itemDataCopy, itemDataBuf.Bytes())
+			itemDataCopy := make([]byte, buf.itemData.Len())
+			copy(itemDataCopy, buf.itemData.Bytes())
 			fetch.Trace.RawInputData = itemDataCopy
 		}
 	}
 
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInputBuf, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = fetch.Input.Item.Render(l.ctx, itemDataBuf.Bytes(), itemBuf)
+	err = fetch.Input.Item.Render(l.ctx, buf.itemData.Bytes(), buf.item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			err = nil // nolint:ineffassign
@@ -941,7 +1002,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 		}
 		return errors.WithStack(err)
 	}
-	renderedItem := itemBuf.Bytes()
+	renderedItem := buf.item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchSkipped = true
@@ -960,17 +1021,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 			return nil
 		}
 	}
-	_, _ = itemBuf.WriteTo(preparedInputBuf)
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInputBuf, &undefinedVariables)
+	_, _ = buf.item.WriteTo(buf.preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(preparedInputBuf, undefinedVariables)
+	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := preparedInputBuf.Bytes()
+	fetchInput := buf.preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchInput, fetch.Trace)
