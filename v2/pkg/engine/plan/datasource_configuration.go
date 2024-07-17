@@ -20,7 +20,7 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	// Planner creates a new DataSourcePlanner
 	Planner(logger abstractlogger.Logger) DataSourcePlanner[DataSourceSpecificConfiguration]
 	// Context returns the execution context of the factory
-	// For stateful datasources, the factory should contain cancellable gloabal execution context
+	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
 }

@@ -197,7 +197,7 @@ func (f *DataSourceFilter) selectUniqueNodes() {
 
 func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 	// When we have a chain of datasource child nodes, we should select every parent until we reach the root node
-	// as root node is a starting point from where we could get all theese child nodes
+	// as root node is a starting point from where we could get all these child nodes
 
 	if f.nodes.items[i].IsRootNode {
 		// no need to select parent of a root node here
@@ -229,7 +229,7 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 //   - check for selected siblings of a current node or its duplicates
 //
 // On a second run in additional to all the checks from the first run
-// we select nodes which was not choosen by previous stages, so we just pick first available datasource
+// we select nodes which was not chosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
 	for i := range f.nodes.items {
 		if f.nodes.items[i].Selected {

@@ -759,7 +759,7 @@ func (p *Planner[T]) addRepresentationsQuery() {
 func (p *Planner[T]) handleOnTypeInlineFragment() {
 	if p.hasFederationRoot {
 		if !p.isInEntitiesSelectionSet() {
-			// if we quering field of entity type, but we are not in the root of the query
+			// if we querying field of entity type, but we are not in the root of the query
 			// we should not add representations variable and should not add inline fragment
 			// e.g. query { _entities { ... on Product { price info {name} } } }
 			// where Info is an entity type, but it is used as a field of Product
