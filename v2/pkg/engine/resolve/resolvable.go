@@ -21,9 +21,10 @@ import (
 )
 
 type Resolvable struct {
-	data      *fastjson.Value
-	errors    *fastjson.Value
-	variables *fastjson.Value
+	data                 *fastjson.Value
+	errors               *fastjson.Value
+	variables            *fastjson.Value
+	skipAddingNullErrors bool
 
 	parsers []*fastjson.Parser
 
@@ -160,12 +161,9 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *O
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
+	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
-	/* @TODO: In the event of an error or failed fetch, propagate only the highest level errors.
-	 * For example, if a fetch fails, only propagate that the fetch has failed; do not propagate nested non-null errors.
-	 */
-
-	err := r.walkObject(rootData, r.data)
+	hasErrors := r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -174,7 +172,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *O
 		r.printErrors()
 	}
 
-	if err {
+	if hasErrors {
 		r.printBytes(quote)
 		r.printBytes(literalData)
 		r.printBytes(quote)
@@ -188,7 +186,6 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *O
 		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
 	r.printBytes(rBrace)
-
 	return r.printErr
 }
 
@@ -899,9 +896,14 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *fastjson.Value) bool {
 }
 
 func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *fastjson.Value) {
-	if ancestor := parent.Get(fieldPath[:len(fieldPath)-1]...); ancestor != nil {
-		if ancestor.Exists("__skipErrors") {
-			return
+	if r.skipAddingNullErrors {
+		return
+	}
+	if fieldPath != nil {
+		if ancestor := parent.Get(fieldPath[:len(fieldPath)-1]...); ancestor != nil {
+			if ancestor.Exists("__skipErrors") {
+				return
+			}
 		}
 	}
 	r.pushNodePathElement(fieldPath)
