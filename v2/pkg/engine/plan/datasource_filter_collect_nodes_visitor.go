@@ -225,41 +225,6 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 	}
 }
 
-func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath string) bool {
-	if _, ok := f.keyPaths[currentPath]; ok {
-		return true
-	}
-
-	keyFields := f.dataSource.RequiredFieldsByKey(typeName)
-	if len(keyFields) == 0 {
-		return false
-	}
-
-	for _, keyField := range keyFields {
-		fieldSet, report := RequiredFieldsFragment(typeName, keyField.SelectionSet, false)
-		if report.HasErrors() {
-			return false
-		}
-
-		input := &keyVisitorInput{
-			typeName:   typeName,
-			key:        fieldSet,
-			definition: f.definition,
-			report:     report,
-			parentPath: parentPath,
-		}
-
-		keyPaths := keyFieldPaths(input)
-
-		for _, keyPath := range keyPaths {
-			f.keyPaths[keyPath] = struct{}{}
-		}
-	}
-
-	_, ok := f.keyPaths[currentPath]
-	return ok
-}
-
 func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(fieldRef)
@@ -308,7 +273,6 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	}
 
 	if hasRootNode || hasChildNode || isExternal {
-		isKey := f.isFieldPartOfKey(typeName, currentPath, parentPath)
 		disabledEntityResolver := hasRootNode && f.hasDisabledEntityResolver(typeName)
 
 		node := NodeSuggestion{
