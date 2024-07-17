@@ -236,7 +236,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.configurationVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
+		p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
 	}
 
 	p.nodeSelectionsVisitor.secondaryRun = false
@@ -313,6 +313,10 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 	// set initial suggestions and used data sources
 	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
 		p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions
+
+	// set fields dependencies information
+	p.configurationVisitor.fieldDependsOn, p.configurationVisitor.fieldRequirementsConfigs =
+		p.nodeSelectionsVisitor.fieldDependsOn, p.nodeSelectionsVisitor.fieldRequirementsConfigs
 
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)
@@ -404,6 +408,7 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 	}
 
 	p.configurationVisitor.operationName = operationName
+	p.nodeSelectionsVisitor.operationName = operationName
 	p.planningVisitor.OperationName = operationName
 }
 

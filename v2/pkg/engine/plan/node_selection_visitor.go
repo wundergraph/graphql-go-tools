@@ -33,7 +33,7 @@ type nodeSelectionVisitor struct {
 	visitedFieldsKeyChecks      map[int]struct{}                           // visitedFieldsKeyChecks is a map[FieldRef] of already processed fields which we check for @key requirements
 	visitedFieldsAbstractChecks map[int]struct{}                           // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
 	fieldDependsOn              map[int][]int                              // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
-	fieldRequirementsConfigs    map[int]FederationFieldConfiguration       // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
+	fieldRequirementsConfigs    map[int][]FederationFieldConfiguration     // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
 
 	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -102,6 +102,11 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 
 	c.visitedFieldsRequiresChecks = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
+	c.visitedFieldsKeyChecks = make(map[int]struct{})
+
+	c.pendingRequiredFields = make(map[int]selectionSetPendingRequirementsNew)
+	c.fieldDependsOn = make(map[int][]int)
+	c.fieldRequirementsConfigs = make(map[int][]FederationFieldConfiguration)
 }
 
 func (c *nodeSelectionVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -248,6 +253,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	// 1. Current field datasource is the same as parent datasource, and field has requires directive defined
 	if sameAsParentDS {
 		c.planAddingRequiredFields(fieldRef, requiredFieldsForType[0], false, parentPath, currentPath)
+		c.hasNewFields = true
 		return
 	}
 
@@ -256,6 +262,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 
 	// 2. check parent datasources for a matching key configuration
 	if c.matchDataSourcesByKeyConfiguration(fieldRef, parentPath, typeName, currentPath, requiredFieldsForType, isInterfaceObject, selectedParentsDSHashes) {
+		c.hasNewFields = true
 		return
 	}
 
@@ -271,6 +278,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	}
 
 	if c.matchDataSourcesByKeyConfiguration(fieldRef, parentPath, typeName, currentPath, requiredFieldsForType, isInterfaceObject, siblingDS) {
+		c.hasNewFields = true
 		return
 	}
 
@@ -333,6 +341,7 @@ func (c *nodeSelectionVisitor) planAddingRequiredFields(requestedByFieldRef int,
 	}
 
 	c.pendingRequiredFields[currentSelectionSet] = requirements
+	c.fieldRequirementsConfigs[requestedByFieldRef] = append(c.fieldRequirementsConfigs[requestedByFieldRef], fieldConfiguration)
 }
 
 func (c *nodeSelectionVisitor) processPendingRequiredFields(selectionSetRef int) {
