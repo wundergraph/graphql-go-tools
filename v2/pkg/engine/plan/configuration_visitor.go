@@ -420,7 +420,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 	c.handleMissingPath(planned, typeName, fieldName, currentPath)
 }
 
-func (c *configurationVisitor) couldPlanField(fieldRef int) bool {
+func (c *configurationVisitor) couldPlanField(fieldRef int) (ok bool) {
 	fieldRefs, ok := c.fieldDependsOn[fieldRef]
 	if !ok {
 		return true
@@ -539,7 +539,7 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 func (c *configurationVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {
 	// we have a field which have `requires` directive and depends on some fields,
 	// so we need to check is current planner already involved in this requires chain
-	waitingFor := c.fieldRequiresDependencies[fieldRef]
+	waitingFor := c.fieldDependsOn[fieldRef]
 
 	// iterate over fields we depends on
 	for _, waitingForFieldRef := range waitingFor {
@@ -601,20 +601,18 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			return plannerIdx, true
 		}
 
-		// we should not plan fields with requires on a root level planner
-		// because field with requires always will need an additional fetch before could be planned
 		_, fieldHasRequiresDirective := dsConfiguration.RequiredFieldsByRequires(typeName, fieldName)
-		if fieldHasRequiresDirective && !plannerConfig.IsNestedPlanner() {
-			continue
+		if fieldHasRequiresDirective {
+			// we should not plan fields with requires on a root level planner
+			// because field with requires always will need an additional fetch before could be planned
+			if !plannerConfig.IsNestedPlanner() {
+				continue
+			}
+
+			if !c.isPlannerDependenciesAllowsToPlanField(ref, plannerIdx) {
+				continue
+			}
 		}
-
-		// if fieldHasRequiresDirective && !c.isPlannerDependenciesAllowsToPlanField(ref, plannerIdx) {
-		// 	continue
-		// }
-
-		// if !c.couldHandleFieldsRequiredByKey(dsConfiguration, typeName, parentPath) {
-		// 	return -1, false
-		// }
 
 		if plannerConfig.HasPath(parentPath) || plannerConfig.HasPath(precedingParentPath) {
 			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {

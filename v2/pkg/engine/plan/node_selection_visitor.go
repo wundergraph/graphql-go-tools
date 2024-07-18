@@ -332,7 +332,9 @@ func (c *nodeSelectionVisitor) planAddingRequiredFields(requestedByFieldRef int,
 
 	for i := range requirements.requirementConfigs {
 		if requirements.requirementConfigs[i].fieldSelections == fieldConfiguration.SelectionSet {
-			requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef)
+			if slices.Index(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef) == -1 {
+				requirements.requirementConfigs[i].requestedByFieldRefs = append(requirements.requirementConfigs[i].requestedByFieldRefs, requestedByFieldRef)
+			}
 			if !skipTypename {
 				requirements.requirementConfigs[i].skipTypename = false
 			}
