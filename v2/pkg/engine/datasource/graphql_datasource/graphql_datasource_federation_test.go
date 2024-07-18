@@ -2103,9 +2103,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						Debug: plan.DebugConfiguration{
-							PrintQueryPlans: true,
-						},
+						Debug: plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -2365,9 +2363,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						Debug: plan.DebugConfiguration{
-							PrintQueryPlans: true,
-						},
+						Debug: plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -2515,9 +2511,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						secondDatasourceConfiguration,
 					},
 					DisableResolveFieldPositions: true,
-					Debug: plan.DebugConfiguration{
-						PrintQueryPlans: true,
-					},
+					Debug:                        plan.DebugConfiguration{},
 				}
 
 				t.Run("selected only field with requires directive", func(t *testing.T) {
@@ -9245,9 +9239,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				secondDatasourceConfiguration,
 			},
 			DisableResolveFieldPositions: true,
-			Debug: plan.DebugConfiguration{
-				PrintQueryPlans: true,
-			},
+			Debug:                        plan.DebugConfiguration{},
 		}
 
 		t.Run("properly select userID aliased as ID", func(t *testing.T) {
