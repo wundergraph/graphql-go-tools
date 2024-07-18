@@ -382,7 +382,7 @@ func (c *nodeSelectionVisitor) addRequiredFieldsToOperation(selectionSetRef int,
 	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, fieldRef := range requiredFieldsCfg.requestedByFieldRefs {
-		c.fieldDependsOn[fieldRef] = requiredFieldRefs
+		c.fieldDependsOn[fieldRef] = append(c.fieldDependsOn[fieldRef], requiredFieldRefs...)
 	}
 }
 
