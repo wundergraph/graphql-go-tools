@@ -258,7 +258,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	isExternalChildNode := f.dataSource.HasExternalChildNode(typeName, fieldName)
 	isExternal := isExternalRootNode || isExternalChildNode
 
-	currentNodeId := TreeNodeID(ref)
+	currentNodeId := TreeNodeID(fieldRef)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
 
@@ -289,7 +289,6 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			FieldRef:                  fieldRef,
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
-			IsKeyField:                isKey,
 			IsExternal:                isExternal,
 		}
 

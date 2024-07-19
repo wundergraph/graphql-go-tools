@@ -258,7 +258,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 		if p.nodeSelectionsVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, nil, nil, nil)
+				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions)
 			if report.HasErrors() {
 				return
 			}
