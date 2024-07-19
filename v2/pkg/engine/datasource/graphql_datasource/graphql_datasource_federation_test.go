@@ -3165,6 +3165,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																						OnTypeNames: [][]byte{[]byte("Entity")},
 																					},
 																					{
+																						Name: []byte("name"),
+																						Value: &resolve.String{
+																							Path: []string{"name"},
+																						},
+																						OnTypeNames: [][]byte{[]byte("Entity")},
+																					},
+																					{
 																						Name: []byte("id"),
 																						Value: &resolve.String{
 																							Path: []string{"id"},
@@ -3175,13 +3182,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																						Name: []byte("otherID"),
 																						Value: &resolve.String{
 																							Path: []string{"otherID"},
-																						},
-																						OnTypeNames: [][]byte{[]byte("Entity")},
-																					},
-																					{
-																						Name: []byte("name"),
-																						Value: &resolve.String{
-																							Path: []string{"name"},
 																						},
 																						OnTypeNames: [][]byte{[]byte("Entity")},
 																					},
