@@ -34,10 +34,10 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, keyHints ...NodeSuggestionHint) (used []DataSource, suggestions *NodeSuggestions) {
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions) (used []DataSource, suggestions *NodeSuggestions) {
 	var dsInUse map[DSHash]struct{}
 
-	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, keyHints...)
+	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return
 	}
@@ -54,7 +54,7 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions, keyHints ...NodeSuggestionHint) (*NodeSuggestions, map[DSHash]struct{}) {
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions) (*NodeSuggestions, map[DSHash]struct{}) {
 	f.nodes = f.collectNodes(dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
