@@ -245,7 +245,19 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	*/
 
 	requiredFieldsForType := dsConfig.RequiredFieldsByKey(typeName)
-	if len(requiredFieldsForType) == 0 {
+
+	if len(requiredFieldsForType) == 0 && hasRequiresCondition {
+		// required fields could be of zero length in case type is not entity
+		// or when entity has disabled entity resolver.
+		// Usually we can't jump to the entity with disabled entity resolver, but there is one known exception
+		// When entity has disabled entity resolver, but we have field with requires directive on this entity
+		// we should add key fields for the field with requires - to pass them into field resolver
+
+		keys := dsConfig.FederationConfiguration().Keys
+		requiredFieldsForType = keys.FilterByTypeAndResolvability(typeName, false)
+	}
+
+	if len(requiredFieldsForType) == 0 && !sameAsParentDS {
 		// TODO: planner error
 		return
 	}
