@@ -159,12 +159,11 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func (r *Resolver) getTools() *tools {
+func (r *Resolver) getTools() (time.Duration, *tools) {
 	start := time.Now()
 	<-r.maxConcurrency
 	tool := r.tools.Get().(*tools)
-	tool.resolvable.aquireWaitTime = time.Since(start)
-	return tool
+	return time.Since(start), tool
 }
 
 func (r *Resolver) putTools(t *tools) {
@@ -201,9 +200,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		}
 	}
 
-	start := time.Now()
-	t := r.getTools()
-	resp.ResolveAcquireWaitTime = time.Since(start)
+	acquireWaitTime, t := r.getTools()
+	resp.ResolveAcquireWaitTime = acquireWaitTime
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -269,7 +267,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	t := r.getTools()
+	_, t := r.getTools()
 	defer r.putTools(t)
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
