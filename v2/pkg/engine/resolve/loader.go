@@ -38,22 +38,9 @@ const (
 
 type LoaderHooks interface {
 	// OnLoad is called before the fetch is executed
-	OnLoad(ctx context.Context, data OnLoadConfig) context.Context
+	OnLoad(ctx context.Context, dataSourceID string) context.Context
 	// OnFinished is called after the fetch has been executed and the response has been processed and merged
-	OnFinished(ctx context.Context, data OnFinishedConfig)
-}
-
-type OnLoadConfig struct {
-	// DataSourceID is the ID of the data source that is being loaded. Equivalent to subgraph ID.
-	DataSourceID string
-	// The time it took to acquire a slot to execute the resolver due to max concurrency limits.
-	ResolveAcquireWaitTime time.Duration
-}
-
-type OnFinishedConfig struct {
-	DataSourceID string
-	StatusCode   int
-	Err          error
+	OnFinished(ctx context.Context, statusCode int, dataSourceID string, err error)
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -258,11 +245,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) erro
 		}
 		err = l.mergeResult(res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, OnFinishedConfig{
-				DataSourceID: res.subgraphName,
-				StatusCode:   res.statusCode,
-				Err:          goerrors.Join(res.err, l.ctx.subgraphErrors),
-			})
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		if err != nil {
 			return err
@@ -304,14 +287,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) erro
 				for j := range results[i].nestedMergeItems {
 					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
 					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-						l.ctx.LoaderHooks.OnFinished(
-							results[i].nestedMergeItems[j].loaderHookContext,
-							OnFinishedConfig{
-								DataSourceID: results[i].nestedMergeItems[j].subgraphName,
-								StatusCode:   results[i].nestedMergeItems[j].statusCode,
-								Err:          goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors),
-							},
-						)
+						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 					}
 					if err != nil {
 						return errors.WithStack(err)
@@ -320,14 +296,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) erro
 			} else {
 				err = l.mergeResult(results[i], items)
 				if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(
-						results[i].loaderHookContext,
-						OnFinishedConfig{
-							DataSourceID: results[i].subgraphName,
-							StatusCode:   results[i].statusCode,
-							Err:          goerrors.Join(results[i].err, l.ctx.subgraphErrors),
-						},
-					)
+					l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -358,15 +327,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) erro
 		for i := range results {
 			err = l.mergeResult(results[i], items[i:i+1])
 			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(
-					results[i].loaderHookContext,
-					OnFinishedConfig{
-						DataSourceID: results[i].subgraphName,
-						StatusCode:   results[i].statusCode,
-						Err:          goerrors.Join(results[i].err, l.ctx.subgraphErrors),
-					},
-				)
-
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -382,14 +343,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) erro
 		}
 		err = l.mergeResult(res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(
-				res.loaderHookContext,
-				OnFinishedConfig{
-					DataSourceID: res.subgraphName,
-					StatusCode:   res.statusCode,
-					Err:          goerrors.Join(res.err, l.ctx.subgraphErrors),
-				},
-			)
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *BatchEntityFetch:
@@ -402,14 +356,7 @@ func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) erro
 		}
 		err = l.mergeResult(res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(
-				res.loaderHookContext,
-				OnFinishedConfig{
-					DataSourceID: res.subgraphName,
-					StatusCode:   res.statusCode,
-					Err:          goerrors.Join(res.err, l.ctx.subgraphErrors),
-				},
-			)
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	}
@@ -1449,10 +1396,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
 	if l.ctx.LoaderHooks != nil {
-		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, OnLoadConfig{
-			DataSourceID:           res.subgraphName,
-			ResolveAcquireWaitTime: l.resolvable.aquireWaitTime,
-		})
+		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {

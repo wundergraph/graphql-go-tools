@@ -27,19 +27,19 @@ func NewTestLoaderHooks() LoaderHooks {
 	}
 }
 
-func (f *TestLoaderHooks) OnLoad(ctx context.Context, data OnLoadConfig) context.Context {
+func (f *TestLoaderHooks) OnLoad(ctx context.Context, dataSourceID string) context.Context {
 	f.preFetchCalls.Add(1)
 
 	return ctx
 }
 
-func (f *TestLoaderHooks) OnFinished(ctx context.Context, data OnFinishedConfig) {
+func (f *TestLoaderHooks) OnFinished(ctx context.Context, statusCode int, dataSourceID string, err error) {
 	f.postFetchCalls.Add(1)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.errors = append(f.errors, data.Err)
+	f.errors = append(f.errors, err)
 }
 
 func TestLoaderHooks_FetchPipeline(t *testing.T) {
@@ -154,7 +154,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(resolveCtx, resp, nil, buf)
+		_, err := r.ResolveGraphQLResponse(resolveCtx, resp, nil, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'."}],"data":{"name":null}}`, buf.String())
 		ctrl.Finish()

@@ -187,25 +187,34 @@ func (r *Resolver) releaseBuffer(buf *bytes.Buffer) {
 	r.bufPool.Put(buf)
 }
 
-func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
+type GraphQLResolveResponse struct {
+	ResolveAcquireWaitTime time.Duration
+}
+
+func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveResponse, error) {
+
+	resp := &GraphQLResolveResponse{}
+
 	if response.Info == nil {
 		response.Info = &GraphQLResponseInfo{
 			OperationType: ast.OperationTypeQuery,
 		}
 	}
 
+	start := time.Now()
 	t := r.getTools()
+	resp.ResolveAcquireWaitTime = time.Since(start)
 
-	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
+	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		r.putTools(t)
-		return err
+		return nil, err
 	}
 
 	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 	if err != nil {
 		r.putTools(t)
-		return err
+		return nil, err
 	}
 
 	fetchTree := response.FetchTree
@@ -219,10 +228,10 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
 	r.putTools(t)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, err = buf.WriteTo(writer)
-	return err
+	return resp, err
 }
 
 type trigger struct {
