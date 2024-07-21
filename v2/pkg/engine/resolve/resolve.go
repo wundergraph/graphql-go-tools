@@ -187,13 +187,13 @@ func (r *Resolver) releaseBuffer(buf *bytes.Buffer) {
 	r.bufPool.Put(buf)
 }
 
-type GraphQLResolveResponse struct {
+type GraphQLResolveInfo struct {
 	ResolveAcquireWaitTime time.Duration
 }
 
-func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveResponse, error) {
+func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
 
-	resp := &GraphQLResolveResponse{}
+	resp := &GraphQLResolveInfo{}
 
 	if response.Info == nil {
 		response.Info = &GraphQLResponseInfo{
