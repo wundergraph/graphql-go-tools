@@ -46,8 +46,8 @@ type LoaderHooks interface {
 type OnLoadConfig struct {
 	// DataSourceID is the ID of the data source that is being loaded. Equivalent to subgraph ID.
 	DataSourceID string
-	// The time it took to acquire a slot to execute the resolver
-	ResolveAcquireTime time.Duration
+	// The time it took to acquire a slot to execute the resolver due to max concurrency limits.
+	ResolveAcquireWaitTime time.Duration
 }
 
 type OnFinishedConfig struct {
@@ -1450,8 +1450,8 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 
 	if l.ctx.LoaderHooks != nil {
 		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, OnLoadConfig{
-			DataSourceID:       res.subgraphName,
-			ResolveAcquireTime: l.resolvable.aquireWaitTime,
+			DataSourceID:           res.subgraphName,
+			ResolveAcquireWaitTime: l.resolvable.aquireWaitTime,
 		})
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
