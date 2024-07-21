@@ -159,9 +159,11 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func (r *Resolver) getTools() *tools {
+func (r *Resolver) getTools() (time.Duration, *tools) {
+	start := time.Now()
 	<-r.maxConcurrency
-	return r.tools.Get().(*tools)
+	tool := r.tools.Get().(*tools)
+	return time.Since(start), tool
 }
 
 func (r *Resolver) putTools(t *tools) {
@@ -184,25 +186,33 @@ func (r *Resolver) releaseBuffer(buf *bytes.Buffer) {
 	r.bufPool.Put(buf)
 }
 
-func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (err error) {
+type GraphQLResolveInfo struct {
+	ResolveAcquireWaitTime time.Duration
+}
+
+func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
+
+	resp := &GraphQLResolveInfo{}
+
 	if response.Info == nil {
 		response.Info = &GraphQLResponseInfo{
 			OperationType: ast.OperationTypeQuery,
 		}
 	}
 
-	t := r.getTools()
+	acquireWaitTime, t := r.getTools()
+	resp.ResolveAcquireWaitTime = acquireWaitTime
 
-	err = t.resolvable.Init(ctx, data, response.Info.OperationType)
+	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		r.putTools(t)
-		return err
+		return nil, err
 	}
 
 	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 	if err != nil {
 		r.putTools(t)
-		return err
+		return nil, err
 	}
 
 	fetchTree := response.FetchTree
@@ -216,10 +226,10 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
 	r.putTools(t)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	_, err = buf.WriteTo(writer)
-	return err
+	return resp, err
 }
 
 type trigger struct {
@@ -257,7 +267,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	t := r.getTools()
+	_, t := r.getTools()
 	defer r.putTools(t)
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)

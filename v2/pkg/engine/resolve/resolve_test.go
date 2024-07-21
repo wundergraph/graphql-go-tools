@@ -118,7 +118,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 
 		return func(t *testing.T) {
 			buf := &bytes.Buffer{}
-			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
+			_, err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
 				Data: node,
 			}, nil, buf)
 			assert.NoError(t, err)
@@ -138,7 +138,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 		return func(t *testing.T) {
 			t.Helper()
 			buf := &bytes.Buffer{}
-			err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
+			_, err := r.ResolveGraphQLResponse(&ctx, &GraphQLResponse{
 				Data: node,
 			}, nil, buf)
 			assert.NoError(t, err)
@@ -1490,7 +1490,7 @@ func testFn(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRespons
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
@@ -1518,7 +1518,7 @@ func testFnSubgraphErrorsPassthrough(fn func(t *testing.T, ctrl *gomock.Controll
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
@@ -1545,7 +1545,7 @@ func testFnNoSubgraphErrorForwarding(fn func(t *testing.T, ctrl *gomock.Controll
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
@@ -1567,7 +1567,7 @@ func testFnWithPostEvaluation(fn func(t *testing.T, ctrl *gomock.Controller) (no
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
+		_, err := r.ResolveGraphQLResponse(ctx, node, nil, buf)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedOutput, buf.String())
 		ctrl.Finish()
@@ -1590,7 +1590,7 @@ func testFnWithError(fn func(t *testing.T, ctrl *gomock.Controller) (node *Graph
 		}
 
 		buf := &bytes.Buffer{}
-		err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
 		assert.Error(t, err, expectedOutput)
 		ctrl.Finish()
 	}
@@ -4254,7 +4254,7 @@ func TestResolver_WithHeader(t *testing.T) {
 					},
 				},
 			}
-			err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
+			_, err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
 			assert.NoError(t, err)
 			assert.Equal(t, `{"data":{"bar":"baz"}}`, out.String())
 		})
@@ -5402,7 +5402,7 @@ func Benchmark_ResolveGraphQLResponse(b *testing.B) {
 			// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
 			ctx := ctxPool.Get().(*Context)
 			buf := pool.Get().(*bytes.Buffer)
-			err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			_, err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -5696,7 +5696,7 @@ func Test_NestedBatching_WithStats(t *testing.T) {
 	ctx := NewContext(context.Background())
 	buf := &bytes.Buffer{}
 
-	err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+	_, err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 	assert.NoError(t, err)
 	assert.Equal(t, string(expected), buf.String())
 	assert.Equal(t, 29, ctx.Stats.ResolvedNodes, "resolved nodes")
@@ -5708,7 +5708,7 @@ func Test_NestedBatching_WithStats(t *testing.T) {
 	ctx.Free()
 	ctx = ctx.WithContext(context.Background())
 	buf.Reset()
-	err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+	_, err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 	assert.NoError(t, err)
 	assert.Equal(t, string(expected), buf.String())
 	assert.Equal(t, 29, ctx.Stats.ResolvedNodes, "resolved nodes")
@@ -6013,7 +6013,7 @@ func Benchmark_NestedBatching(b *testing.B) {
 			ctx := ctxPool.Get().(*Context)
 			buf := pool.Get().(*bytes.Buffer)
 			ctx.ctx = context.Background()
-			err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			_, err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -6320,7 +6320,7 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 			ctx := ctxPool.Get().(*Context)
 			buf := pool.Get().(*bytes.Buffer)
 			ctx.ctx = context.Background()
-			err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
+			_, err := resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
 			if err != nil {
 				b.Fatal(err)
 			}

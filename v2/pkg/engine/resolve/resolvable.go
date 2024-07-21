@@ -5,9 +5,8 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"io"
-
 	"github.com/goccy/go-json"
+	"io"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"

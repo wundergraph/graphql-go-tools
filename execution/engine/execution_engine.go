@@ -194,7 +194,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		_, err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
 	case *plan.SubscriptionResponsePlan:
 		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
