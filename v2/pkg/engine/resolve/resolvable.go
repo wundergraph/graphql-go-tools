@@ -6,6 +6,7 @@ import (
 	goerrors "errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/goccy/go-json"
 
@@ -25,6 +26,8 @@ type Resolvable struct {
 	errors               *fastjson.Value
 	variables            *fastjson.Value
 	skipAddingNullErrors bool
+	// The time it took to acquire the lock for the resolver due to max concurrency limits
+	aquireWaitTime time.Duration
 
 	parsers []*fastjson.Parser
 

@@ -160,8 +160,11 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 }
 
 func (r *Resolver) getTools() *tools {
+	start := time.Now()
 	<-r.maxConcurrency
-	return r.tools.Get().(*tools)
+	tool := r.tools.Get().(*tools)
+	tool.resolvable.aquireWaitTime = time.Since(start)
+	return tool
 }
 
 func (r *Resolver) putTools(t *tools) {
