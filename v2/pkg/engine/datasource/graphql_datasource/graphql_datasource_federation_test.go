@@ -8508,7 +8508,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			t.Run("query", func(t *testing.T) {
 				entityOneNestedFetch2Second := func(fetchID int) resolve.Fetch {
 					var entitySelectionSet string
-					if fetchID == 1 {
+					if fetchID == 3 {
 						entitySelectionSet = "age rating"
 					} else {
 						entitySelectionSet = "rating"
@@ -8554,7 +8554,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 				entityOneNestedFetch2Third := func(fetchID int) resolve.Fetch {
 					var entitySelectionSet string
-					if fetchID == 2 {
+					if fetchID == 4 {
 						entitySelectionSet = "isImportant"
 					} else {
 						entitySelectionSet = "age isImportant"
@@ -8602,7 +8602,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{3},
+							DependsOnFetchIDs: []int{1},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -8641,7 +8641,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{3},
+							DependsOnFetchIDs: []int{1},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -8680,7 +8680,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{6},
+							DependsOnFetchIDs: []int{2},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -8719,7 +8719,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{6},
+							DependsOnFetchIDs: []int{2},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -8781,7 +8781,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										&resolve.SingleFetch{
 											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 3,
+												FetchID: 1,
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id name age rating __typename}}"}}`,
@@ -8792,7 +8792,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										&resolve.SingleFetch{
 											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 6,
+												FetchID: 2,
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
 												Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {id name age isImportant __typename uuid}}"}}`,
@@ -8964,14 +8964,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 
 				variant1 := expectedPlan(
-					entityOneNestedFetch2Second(1), entityOneNestedFetch2Third(2),
-					entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+					entityOneNestedFetch2Second(3), entityOneNestedFetch2Third(4),
+					entityTwoNestedFetch2First(5), entityTwoNestedFetch2Third(6),
 					entityThreeNestedFetch2First(7), entityThreeNestedFetch2Second(8),
 				)
 
 				variant2 := expectedPlan(
-					entityOneNestedFetch2Third(1), entityOneNestedFetch2Second(2),
-					entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+					entityOneNestedFetch2Third(3), entityOneNestedFetch2Second(4),
+					entityTwoNestedFetch2First(5), entityTwoNestedFetch2Third(6),
 					entityThreeNestedFetch2First(7), entityThreeNestedFetch2Second(8),
 				)
 
