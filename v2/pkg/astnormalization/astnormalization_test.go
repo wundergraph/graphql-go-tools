@@ -109,6 +109,30 @@ func TestNormalizeOperation(t *testing.T) {
 			`{"a":{"fieldB":"dupa","fieldA":"VALUE_A"}}`,
 		)
 	})
+	t.Run("inject default String into list", func(t *testing.T) {
+		run(t,
+			`type Query { field(arg: [String!]!): String }`,
+			`query Q($arg: [String!]! = "foo"){ field(arg: $arg) }`,
+			`query Q($arg: [String!]!){ field(arg: $arg) }`, `{}`,
+			`{"arg":["foo"]}`,
+		)
+	})
+	t.Run("inject default String with brackets into list", func(t *testing.T) {
+		run(t,
+			`type Query { field(arg: [String!]!): String }`,
+			`query Q($arg: [String!]! = "[foo]"){ field(arg: $arg) }`,
+			`query Q($arg: [String!]!){ field(arg: $arg) }`, `{}`,
+			`{"arg":["[foo]"]}`,
+		)
+	})
+	t.Run("inject default input object into list", func(t *testing.T) {
+		run(t,
+			`type Query { field(arg: [Input!]!): String } input Input { foo: String }`,
+			`query Q($arg: [Input!]! = {foo: "bar"}){ field(arg: $arg) }`,
+			`query Q($arg: [Input!]!){ field(arg: $arg) }`, `{}`,
+			`{"arg":[{"foo":"bar"}]}`,
+		)
+	})
 	t.Run("fragments", func(t *testing.T) {
 		run(t, testDefinition, `
 				query conflictingBecauseAlias ($unused: String) {
