@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -57,8 +58,8 @@ type configurationVisitor struct {
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 
-	fieldDependsOn           map[int][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
-	fieldRequirementsConfigs map[int][]FederationFieldConfiguration
+	fieldDependsOn           map[string][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
+	fieldRequirementsConfigs map[string][]FederationFieldConfiguration
 }
 
 func (c *configurationVisitor) shouldRevisit() bool {
@@ -392,14 +393,36 @@ func (c *configurationVisitor) EnterField(ref int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 
-	if !c.couldPlanField(ref) {
-		c.handleMissingPath(false, typeName, fieldName, currentPath)
-		return
-	}
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	shareable := len(suggestions) > 1
+	for _, suggestion := range suggestions {
+		// TODO: change SuggestionsForPath to return only selected suggestions
+		if !suggestion.Selected {
+			continue
+		}
 
-	plannerIdx, planned := c.planWithExistingPlanners(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath)
+		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
+			return d.Hash() == suggestion.DataSourceHash
+		})
+		if dsIdx == -1 {
+			c.walker.StopWithInternalErr(errors.New("we should always have a datasource for a suggestion"))
+			return
+		}
+		ds := c.dataSources[dsIdx]
+
+		if !c.couldPlanField(ref, ds.Hash()) {
+			c.handleMissingPath(false, typeName, fieldName, currentPath, shareable)
+			continue
+		}
+
+		c.handlePlanningField(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath, isSubscription, suggestion, ds, shareable)
+	}
+}
+
+func (c *configurationVisitor) handlePlanningField(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, isSubscription bool, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
+	plannerIdx, planned := c.planWithExistingPlanners(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
 	if !planned {
-		plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription)
+		plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription, ds)
 	}
 
 	if planned {
@@ -408,11 +431,12 @@ func (c *configurationVisitor) EnterField(ref int) {
 		c.addRootField(ref, plannerIdx)
 	}
 
-	c.handleMissingPath(planned, typeName, fieldName, currentPath)
+	c.handleMissingPath(planned, typeName, fieldName, currentPath, shareable)
 }
 
-func (c *configurationVisitor) couldPlanField(fieldRef int) (ok bool) {
-	fieldRefs, ok := c.fieldDependsOn[fieldRef]
+func (c *configurationVisitor) couldPlanField(fieldRef int, dsHash DSHash) (ok bool) {
+	fieldKey := fmt.Sprintf("%d.%d", fieldRef, dsHash)
+	fieldRefs, ok := c.fieldDependsOn[fieldKey]
 	if !ok {
 		return true
 	}
@@ -499,13 +523,19 @@ func (c *configurationVisitor) hasFieldsWaitingForDependency() bool {
 // So we need to notify planner of current fieldRef about dependencies on those other fields
 // we know where fields were planned, because we record planner id of each planned field
 func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
-	fieldRefs, mappingExists := c.fieldDependsOn[fieldRef]
+	dsHash := c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()
+	fieldKey := fmt.Sprintf("%d.%d", fieldRef, dsHash)
+
+	fieldRefs, mappingExists := c.fieldDependsOn[fieldKey]
 	if !mappingExists {
 		return
 	}
-	delete(c.fieldDependsOn, fieldRef)
+	delete(c.fieldDependsOn, fieldKey)
 
-	requiresConfigurations := c.fieldRequirementsConfigs[fieldRef]
+	requiresConfigurations, ok := c.fieldRequirementsConfigs[fieldKey]
+	if !ok {
+		// TODO: add error - when we have field in the depends on we should have it in the requirements
+	}
 	for _, requiresConfiguration := range requiresConfigurations {
 		// add required fields to the current planner to pass it in the representation variables
 		c.planners[currentPlannerIdx].RequiredFields().AppendIfNotPresent(requiresConfiguration)
@@ -528,9 +558,11 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 }
 
 func (c *configurationVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {
+	fieldKey := fmt.Sprintf("%d.%d", fieldRef, c.planners[currentPlannerIdx].DataSourceConfiguration().Hash())
+
 	// we have a field which have `requires` directive and depends on some fields,
 	// so we need to check is current planner already involved in this requires chain
-	waitingFor := c.fieldDependsOn[fieldRef]
+	waitingFor := c.fieldDependsOn[fieldKey]
 
 	// iterate over fields we depends on
 	for _, waitingForFieldRef := range waitingFor {
@@ -549,19 +581,15 @@ func (c *configurationVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef i
 	return true
 }
 
-func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string) (plannerIdx int, planned bool) {
-	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
-
+func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion) (plannerIdx int, planned bool) {
 	for plannerIdx, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
 		currentPlannerDSHash := dsConfiguration.Hash()
 
-		suggestionIdx := slices.IndexFunc(suggestions, func(suggestion *NodeSuggestion) bool {
-			return suggestion.DataSourceHash == currentPlannerDSHash
-		})
-		hasSuggestion := suggestionIdx != -1
+		hasSuggestion := suggestion != nil
 
+		// TODO: we could provide a suggestion for the __typename field in the node selection visitor
 		// On a union we will never get a node suggestion because union type is not in the root or child nodes
 		shouldHandleTypeNameOnUnion :=
 			!hasSuggestion && fieldName == typeNameField &&
@@ -577,18 +605,17 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 		if !hasSuggestion {
 			continue
 		}
-		suggestion := suggestions[suggestionIdx]
+
+		if suggestion.DataSourceHash != currentPlannerDSHash {
+			continue
+		}
+
 		isProvided := suggestion.IsProvided
 		isRootNode := suggestion.IsRootNode
 		isChildNode := !isRootNode
 
 		if c.secondaryRun && plannerConfig.HasPath(currentPath) {
-			if len(suggestions) > 1 {
-				// if there is a few suggestions try other datasource
-				continue
-			}
-
-			// on the second run we need to process only new fields added by the first run
+			// on the secondary run we need to process only new fields added by the first run
 			return plannerIdx, true
 		}
 
@@ -632,29 +659,6 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 	return -1, false
 }
 
-func (c *configurationVisitor) findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath string) DataSource {
-	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
-	if len(suggestions) == 0 {
-		return nil
-	}
-
-	for _, dsCfg := range c.dataSources {
-		if !slices.ContainsFunc(suggestions, func(suggestion *NodeSuggestion) bool {
-			return suggestion.DataSourceHash == dsCfg.Hash()
-		}) {
-			continue
-		}
-
-		if c.isPathAddedFor(currentPath, dsCfg.Hash()) {
-			continue
-		}
-
-		return dsCfg
-	}
-
-	return nil
-}
-
 func (c *configurationVisitor) isParentPathIsRootOperationPath(parentPath string) bool {
 	return parentPath == "query" || parentPath == "mutation" || parentPath == "subscription"
 }
@@ -674,21 +678,12 @@ func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string,
 	return fieldName == typeNameField && c.isParentPathIsRootOperationPath(parentPath)
 }
 
-func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, currentPath, parentPath string, isSubscription bool) (plannerIdx int, planned bool) {
-	config := c.findSuggestedDataSourceConfiguration(typeName, fieldName, currentPath)
-	if config == nil {
+func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, currentPath, parentPath string, isSubscription bool, dsConfig DataSource) (plannerIdx int, planned bool) {
+	shouldPlanTypenameField := c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, dsConfig)
+
+	if !shouldPlanTypenameField && !dsConfig.HasRootNode(typeName, fieldName) {
 		return -1, false
 	}
-
-	shouldPlanTypenameField := c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, config)
-
-	if !shouldPlanTypenameField && !config.HasRootNode(typeName, fieldName) {
-		return -1, false
-	}
-
-	// if !c.couldHandleFieldsRequiredByKey(config, typeName, parentPath) {
-	// 	return -1, false
-	// }
 
 	currentPathConfiguration := pathConfiguration{
 		parentPath:       parentPath,
@@ -698,7 +693,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		fieldRef:         ref,
 		fragmentRef:      ast.InvalidRef,
 		enclosingNode:    c.walker.EnclosingTypeDefinition,
-		dsHash:           config.Hash(),
+		dsHash:           dsConfig.Hash(),
 		isRootNode:       true,
 		pathType:         PathTypeField,
 	}
@@ -724,7 +719,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 			{
 				path:             parentPath,
 				shouldWalkFields: false,
-				dsHash:           config.Hash(),
+				dsHash:           dsConfig.Hash(),
 				fieldRef:         ast.InvalidRef,
 				fragmentRef:      fragmentRef,
 				pathType:         PathTypeFragment,
@@ -742,7 +737,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 			{
 				path:             parentPath,
 				shouldWalkFields: true,
-				dsHash:           config.Hash(),
+				dsHash:           dsConfig.Hash(),
 				fieldRef:         ast.InvalidRef,
 				fragmentRef:      fragmentRef,
 				pathType:         pathType,
@@ -760,7 +755,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 			{
 				path:             precedingFragmentPath,
 				shouldWalkFields: false,
-				dsHash:           config.Hash(),
+				dsHash:           dsConfig.Hash(),
 				fieldRef:         ast.InvalidRef,
 				fragmentRef:      ast.InvalidRef,
 				pathType:         PathTypeParent,
@@ -788,8 +783,8 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		fieldRef:           ref,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
-		sourceID:           config.Id(),
-		sourceName:         config.Name(),
+		sourceID:           dsConfig.Id(),
+		sourceName:         dsConfig.Name(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
 		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
 	}
@@ -800,7 +795,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		paths,
 	)
 
-	plannerConfig := config.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig)
+	plannerConfig := dsConfig.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig)
 
 	c.planners = append(c.planners, plannerConfig)
 
@@ -950,7 +945,7 @@ func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) as
 }
 
 // handleMissingPath - records missing path for the case when we don't yet have a planner for the field
-func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, fieldName string, currentPath string) {
+func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, fieldName string, currentPath string, shareable bool) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	if len(suggestions) <= 1 {
@@ -990,7 +985,9 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 		return
 	}
 
-	c.walker.SkipNode()
+	if !shareable {
+		c.walker.SkipNode()
+	}
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
