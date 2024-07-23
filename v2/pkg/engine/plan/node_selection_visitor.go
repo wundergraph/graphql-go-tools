@@ -151,11 +151,6 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
-	if currentPath == "query.me.details" {
-		fmt.Println("REMOVE ME: "+
-			"currentPath", "query.me.details")
-	}
-
 	for _, suggestion := range suggestions {
 		// TODO: change SuggestionsForPath to return only selected suggestions
 		if !suggestion.Selected {
