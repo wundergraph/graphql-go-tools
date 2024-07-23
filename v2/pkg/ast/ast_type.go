@@ -180,6 +180,19 @@ func (d *Document) TypeIsList(ref int) bool {
 	}
 }
 
+func (d *Document) TypeNumberOfListWraps(ref int) int {
+	count := 0
+	for {
+		if d.Types[ref].TypeKind == TypeKindNamed {
+			return count
+		}
+		if d.Types[ref].TypeKind == TypeKindList {
+			count++
+		}
+		ref = d.Types[ref].OfType
+	}
+}
+
 func (d *Document) TypesAreCompatibleDeep(left int, right int) bool {
 	for {
 		if left == -1 || right == -1 {
