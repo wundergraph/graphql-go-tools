@@ -121,8 +121,10 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 
 	isListVariable := v.operation.TypeIsList(v.operation.VariableDefinitions[ref].Type)
 	if isListVariable && len(valueBytes) > 0 && valueBytes[0] != '[' {
-		// wrap value in list
-		valueBytes = append([]byte{'['}, append(valueBytes, ']')...)
+		listWraps := v.operation.TypeNumberOfListWraps(v.operation.VariableDefinitions[ref].Type)
+		for i := 0; i < listWraps; i++ {
+			valueBytes = append([]byte{'['}, append(valueBytes, ']')...)
+		}
 	}
 
 	v.operation.Input.Variables, err = sjson.SetRawBytes(v.operation.Input.Variables, variableName, valueBytes)

@@ -117,6 +117,22 @@ func TestNormalizeOperation(t *testing.T) {
 			`{"arg":["foo"]}`,
 		)
 	})
+	t.Run("inject default String into nested list", func(t *testing.T) {
+		run(t,
+			`type Query { field(arg: [[String!]!]!): String }`,
+			`query Q($arg: [[String!]!]! = "foo"){ field(arg: $arg) }`,
+			`query Q($arg: [[String!]!]!){ field(arg: $arg) }`, `{}`,
+			`{"arg":[["foo"]]}`,
+		)
+	})
+	t.Run("inject default String into nullable nested list", func(t *testing.T) {
+		run(t,
+			`type Query { field(arg: [[String]]): String }`,
+			`query Q($arg: [[String]] = "foo"){ field(arg: $arg) }`,
+			`query Q($arg: [[String]]){ field(arg: $arg) }`, `{}`,
+			`{"arg":[["foo"]]}`,
+		)
+	})
 	t.Run("inject default String with brackets into list", func(t *testing.T) {
 		run(t,
 			`type Query { field(arg: [String!]!): String }`,
@@ -131,6 +147,14 @@ func TestNormalizeOperation(t *testing.T) {
 			`query Q($arg: [Input!]! = {foo: "bar"}){ field(arg: $arg) }`,
 			`query Q($arg: [Input!]!){ field(arg: $arg) }`, `{}`,
 			`{"arg":[{"foo":"bar"}]}`,
+		)
+	})
+	t.Run("inject default input object into nested list", func(t *testing.T) {
+		run(t,
+			`type Query { field(arg: [[Input!]!]!): String } input Input { foo: String }`,
+			`query Q($arg: [[Input!]!]! = {foo: "bar"}){ field(arg: $arg) }`,
+			`query Q($arg: [[Input!]!]!){ field(arg: $arg) }`, `{}`,
+			`{"arg":[[{"foo":"bar"}]]}`,
 		)
 	})
 	t.Run("fragments", func(t *testing.T) {
