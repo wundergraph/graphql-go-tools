@@ -23,6 +23,7 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
 }
 
 type DataSourceMetadata struct {
@@ -53,8 +54,10 @@ type NodesAccess interface {
 
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
+	HasExternalRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
+	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
 }
 
@@ -66,12 +69,20 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 	return d.RootNodes.HasNode(typeName, fieldName)
 }
 
+func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
+	return d.RootNodes.HasExternalNode(typeName, fieldName)
+}
+
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
 	return d.RootNodes.HasNodeWithTypename(typeName)
 }
 
 func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 	return d.ChildNodes.HasNode(typeName, fieldName)
+}
+
+func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
+	return d.ChildNodes.HasExternalNode(typeName, fieldName)
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
@@ -90,23 +101,29 @@ func (d *DataSourceMetadata) ListChildNodes() TypeFields {
 // dataSourceConfiguration is the configuration for a DataSource
 type dataSourceConfiguration[T any] struct {
 	*DataSourceMetadata                   // DataSourceMetadata is the information about root and child nodes and federation metadata if applicable
-	ID                  string            // ID is a unique identifier for the DataSource
-	Factory             PlannerFactory[T] // Factory is the factory for the creation of the concrete DataSourcePlanner
-	Custom              T                 // Custom is the datasource specific configuration
+	id                  string            // id is a unique identifier for the DataSource
+	name                string            // name is a human-readable name for the DataSource
+	factory             PlannerFactory[T] // factory is the factory for the creation of the concrete DataSourcePlanner
+	custom              T                 // custom is the datasource specific configuration
 
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }
 
 func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) (DataSourceConfiguration[T], error) {
+	return NewDataSourceConfigurationWithName(id, id, factory, metadata, customConfig)
+}
+
+func NewDataSourceConfigurationWithName[T any](id string, name string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) (DataSourceConfiguration[T], error) {
 	if id == "" {
 		return nil, errors.New("data source id could not be empty")
 	}
 
 	return &dataSourceConfiguration[T]{
-		ID:                 id,
-		Factory:            factory,
 		DataSourceMetadata: metadata,
-		Custom:             customConfig,
+		id:                 id,
+		name:               name,
+		factory:            factory,
+		custom:             customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
 	}, nil
 }
@@ -116,22 +133,28 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
+type DataSourceUpstreamSchema interface {
+	UpstreamSchema() (*ast.Document, bool)
+}
+
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
+	DataSourceUpstreamSchema
 	Id() string
+	Name() string
 	Hash() DSHash
 	FederationConfiguration() FederationMetaData
 	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
-	return d.Custom
+	return d.custom
 }
 
 func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {
-	planner := d.Factory.Planner(logger)
+	planner := d.factory.Planner(logger)
 
 	fetchConfig.planner = planner
 
@@ -140,14 +163,21 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		objectFetchConfiguration:  fetchConfig,
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
-		providedFields:            NewNodeSuggestionsWithSize(4),
 	}
 
 	return plannerConfig
 }
 
+func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
+	return d.factory.UpstreamSchema(d)
+}
+
 func (d *dataSourceConfiguration[T]) Id() string {
-	return d.ID
+	return d.id
+}
+
+func (d *dataSourceConfiguration[T]) Name() string {
+	return d.name
 }
 
 func (d *dataSourceConfiguration[T]) FederationConfiguration() FederationMetaData {
@@ -160,7 +190,6 @@ func (d *dataSourceConfiguration[T]) Hash() DSHash {
 
 type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
-	ProvidedFields *NodeSuggestions
 	ParentPath     string
 	PathType       PlannerPathType
 	IsNested       bool
@@ -277,7 +306,6 @@ type DataSourcePlanner[T any] interface {
 	DataSourceFetchPlanner
 	DataSourceBehavior
 	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
-	UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (doc *ast.Document, ok bool)
 }
 
 type SubscriptionConfiguration struct {

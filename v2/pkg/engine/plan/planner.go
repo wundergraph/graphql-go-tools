@@ -14,11 +14,13 @@ import (
 )
 
 type Planner struct {
-	config               Configuration
-	configurationWalker  *astvisitor.Walker
-	configurationVisitor *configurationVisitor
-	planningWalker       *astvisitor.Walker
-	planningVisitor      *Visitor
+	config                Configuration
+	nodeSelectionsWalker  *astvisitor.Walker
+	nodeSelectionsVisitor *nodeSelectionVisitor
+	configurationWalker   *astvisitor.Walker
+	configurationVisitor  *configurationVisitor
+	planningWalker        *astvisitor.Walker
+	planningVisitor       *Visitor
 
 	prepareOperationWalker *astvisitor.Walker
 }
@@ -48,6 +50,17 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	prepareOperationWalker := astvisitor.NewWalker(48)
 	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
 
+	// node selection
+	nodeSelection := astvisitor.NewWalker(48)
+	nodeSelectionVisitor := &nodeSelectionVisitor{
+		walker: &nodeSelection,
+	}
+
+	nodeSelection.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
+	nodeSelection.RegisterFieldVisitor(nodeSelectionVisitor)
+	nodeSelection.RegisterEnterOperationVisitor(nodeSelectionVisitor)
+	nodeSelection.RegisterSelectionSetVisitor(nodeSelectionVisitor)
+
 	// configuration
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
@@ -73,6 +86,8 @@ func NewPlanner(config Configuration) (*Planner, error) {
 		config:                 config,
 		configurationWalker:    &configurationWalker,
 		configurationVisitor:   configVisitor,
+		nodeSelectionsWalker:   &nodeSelection,
+		nodeSelectionsVisitor:  nodeSelectionVisitor,
 		planningWalker:         &planningWalker,
 		planningVisitor:        planningVisitor,
 		prepareOperationWalker: &prepareOperationWalker,
@@ -118,7 +133,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
-	p.planningVisitor.skipFieldsRefs = p.configurationVisitor.skipFieldsRefs
+	p.planningVisitor.skipFieldsRefs = p.nodeSelectionsVisitor.skipFieldsRefs
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -166,9 +181,19 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 }
 
 func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+	p.selectNodes(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+
+	p.createPlanningPaths(operation, definition, report)
+}
+
+func (p *Planner) selectNodes(operation, definition *ast.Document, report *operationreport.Report) {
+	resolvableWalker := astvisitor.NewWalker(32)
 	dsFilter := NewDataSourceFilter(operation, definition, report)
 
-	if p.config.Debug.EnableNodeSuggestionsSelectionReasons {
+	if p.config.Debug.NodeSuggestion.SelectionReasons {
 		dsFilter.EnableSelectionReasons()
 	}
 
@@ -177,22 +202,21 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		p.printOperation(operation)
 	}
 
-	p.configurationVisitor.debug = p.config.Debug.ConfigurationVisitor
-	p.configurationVisitor.suggestionsSelectionReasonsEnabled = p.config.Debug.EnableNodeSuggestionsSelectionReasons
+	p.nodeSelectionsVisitor.debug = p.config.Debug
 
 	// set initial suggestions and used data sources
-	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
+	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
 		dsFilter.FilterDataSources(p.config.DataSources, nil)
 	if report.HasErrors() {
 		return
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.configurationVisitor.nodeSuggestions.printNodes("\n\nInitial node suggestions:\n\n")
+		p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
 	}
 
-	p.configurationVisitor.secondaryRun = false
-	p.configurationWalker.Walk(operation, definition, report)
+	p.nodeSelectionsVisitor.secondaryRun = false
+	p.nodeSelectionsWalker.Walk(operation, definition, report)
 	if report.HasErrors() {
 		return
 	}
@@ -201,6 +225,85 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		p.debugMessage("Operation after initial run:")
 		p.printOperation(operation)
 	}
+
+	i := 1
+	// secondary runs to add path for the new required fields
+	for p.nodeSelectionsVisitor.shouldRevisit() {
+		p.nodeSelectionsVisitor.secondaryRun = true
+
+		if p.nodeSelectionsVisitor.hasNewFields {
+			// update suggestions for the new required fields
+			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
+				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions)
+			if report.HasErrors() {
+				return
+			}
+		}
+
+		p.nodeSelectionsWalker.Walk(operation, definition, report)
+		if report.HasErrors() {
+			return
+		}
+
+		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
+			p.debugMessage(fmt.Sprintf("After run #%d", i))
+		}
+
+		if p.config.Debug.PrintOperationTransformations {
+			p.debugMessage("Operation with new required fields:")
+			p.debugMessage(fmt.Sprintf("Has new fields: %v", p.nodeSelectionsVisitor.hasNewFields))
+			p.printOperation(operation)
+		}
+
+		if p.config.Debug.PrintNodeSuggestions {
+			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
+		}
+
+		i++
+
+		resolvableReport := &operationreport.Report{}
+		visitor := &nodesResolvableVisitor{
+			operation:  operation,
+			definition: definition,
+			walker:     &resolvableWalker,
+			nodes:      p.nodeSelectionsVisitor.nodeSuggestions,
+		}
+		resolvableWalker.RegisterEnterFieldVisitor(visitor)
+		resolvableWalker.Walk(operation, definition, resolvableReport)
+
+		if resolvableReport.HasErrors() {
+			p.nodeSelectionsVisitor.hasUnresolvedFields = true
+
+			if i > 100 {
+				// TODO: add more detailed error message
+				report.AddInternalError(fmt.Errorf("could not resolve a field"))
+				return
+			}
+		}
+	}
+}
+
+func (p *Planner) createPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+	p.configurationVisitor.debug = p.config.Debug
+
+	// set initial suggestions and used data sources
+	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
+		p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions
+
+	// set fields dependencies information
+	p.configurationVisitor.fieldDependsOn, p.configurationVisitor.fieldRequirementsConfigs =
+		p.nodeSelectionsVisitor.fieldDependsOn, p.nodeSelectionsVisitor.fieldRequirementsConfigs
+
+	p.configurationVisitor.secondaryRun = false
+	p.configurationWalker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+
+	// walk ends in 2 cases:
+	// - we have finished visiting document
+	// - walker.Stop was called and visiting was halted
+	p.configurationVisitor.populateMissingPahts()
 
 	if p.config.Debug.PrintPlanningPaths {
 		p.debugMessage("Planning paths after initial run")
@@ -213,33 +316,13 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 	for p.configurationVisitor.shouldRevisit() {
 		p.configurationVisitor.secondaryRun = true
 
-		if p.configurationVisitor.hasNewFields {
-			// update suggestions for the new required fields
-			p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.configurationVisitor.nodeSuggestions, p.configurationVisitor.nodeSuggestionHints...)
-			if report.HasErrors() {
-				return
-			}
-
-		}
-
 		p.configurationWalker.Walk(operation, definition, report)
 		if report.HasErrors() {
 			return
 		}
 
-		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintPlanningPaths || p.config.Debug.PrintNodeSuggestions {
+		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("After run #%d", i))
-		}
-
-		if p.config.Debug.PrintOperationTransformations {
-			p.debugMessage("Operation with new required fields:")
-			p.debugMessage(fmt.Sprintf("Has new fields: %v", p.configurationVisitor.hasNewFields))
-			p.printOperation(operation)
-		}
-
-		if p.config.Debug.PrintNodeSuggestions {
-			p.configurationVisitor.nodeSuggestions.printNodes("\nRecalculated node suggestions:\n")
 		}
 
 		if p.config.Debug.PrintPlanningPaths {
@@ -301,6 +384,7 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 	}
 
 	p.configurationVisitor.operationName = operationName
+	p.nodeSelectionsVisitor.operationName = operationName
 	p.planningVisitor.OperationName = operationName
 }
 
@@ -330,10 +414,12 @@ func (p *Planner) printRevisitInfo() {
 }
 
 func (p *Planner) printPlanningPaths() {
-	p.debugMessage("Planning paths:")
+	p.debugMessage("\n\nPlanning paths:\n\n")
 	for i, planner := range p.configurationVisitor.planners {
 		fmt.Printf("\nPlanner id: %d\n", i)
-		fmt.Println("Planner parent path", planner.ParentPath())
+		fmt.Printf("Parent path: %s\n", planner.ParentPath())
+		ds := planner.DataSourceConfiguration()
+		fmt.Printf("Datasource id: %s name: %s hash: %d\n", ds.Id(), ds.Name(), ds.Hash())
 		fmt.Printf("Depends on planner ids: %v\n", planner.ObjectFetchConfiguration().dependsOnFetchIDs)
 
 		requiredFields := planner.RequiredFields()

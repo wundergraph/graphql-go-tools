@@ -1,5 +1,10 @@
 package plan
 
+import (
+	"encoding/json"
+	"slices"
+)
+
 type FederationMetaData struct {
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
@@ -13,6 +18,7 @@ type FederationInfo interface {
 	RequiredFieldsByKey(typeName string) []FederationFieldConfiguration
 	RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool)
 	HasEntity(typeName string) bool
+	HasInterfaceObject(typeName string) bool
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -31,16 +37,27 @@ func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string
 	return d.Requires.FirstByTypeAndField(typeName, fieldName)
 }
 
+func (d *FederationMetaData) HasInterfaceObject(typeName string) bool {
+	return slices.ContainsFunc(d.InterfaceObjects, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
+		return slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
+	})
+}
+
 type EntityInterfaceConfiguration struct {
 	InterfaceTypeName string
 	ConcreteTypeNames []string
 }
 
 type FederationFieldConfiguration struct {
-	TypeName              string
-	FieldName             string
-	SelectionSet          string
-	DisableEntityResolver bool // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	TypeName              string `json:"type_name"`
+	FieldName             string `json:"field_name,omitempty"`
+	SelectionSet          string `json:"selection_set"`
+	DisableEntityResolver bool   `json:"-"` // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+}
+
+func (f FederationFieldConfiguration) String() string {
+	b, _ := json.Marshal(f)
+	return string(b)
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration
