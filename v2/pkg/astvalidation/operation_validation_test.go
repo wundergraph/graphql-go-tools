@@ -3406,7 +3406,7 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.7.3 Directives Are Unique Per Location", func(t *testing.T) {
 			t.Run("151", func(t *testing.T) {
-				run(t, `query MyQuery($foo: Boolean = true, $bar: Boolean = false) {
+				run(t, `query MyQuery($foo: Boolean, $bar: Boolean) {
 									field @skip(if: $foo) @skip(if: $bar)
 								}`,
 					DirectivesAreUniquePerLocation(), Invalid)
