@@ -228,4 +228,92 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 					}
 				}`, `{"yes":true,"no":false}`)
 	})
+	t.Run("skip should respect default values for variables", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean = true, $no: Boolean = false) {
+					dog {
+						... @skip(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = true, $no: Boolean = false) {
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{}`)
+	})
+	t.Run("include should respect default values for variables", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean = true, $no: Boolean = false) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = true, $no: Boolean = false) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						__typename
+					}
+				}`, `{}`)
+	})
+	t.Run("skip should respect values over default values for variables", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... @skip(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						__typename
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":true,"no":false}`)
+	})
+	t.Run("include should respect values over default values for variables", func(t *testing.T) {
+		runWithVariables(t, directiveIncludeSkip, testDefinition, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						__typename
+					}
+				}`, `{"yes":true,"no":false}`)
+	})
 }
