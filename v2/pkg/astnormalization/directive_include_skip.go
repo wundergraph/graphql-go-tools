@@ -53,9 +53,8 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 	case ast.ValueKindBoolean:
 		skip = d.operation.BooleanValue(value.Ref)
 	case ast.ValueKindVariable:
-		name := d.operation.VariableValueNameString(value.Ref)
-		val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
-		if err != nil {
+		val, valid := d.getVariableValue(d.operation.VariableValueNameString(value.Ref))
+		if !valid {
 			return
 		}
 		skip = ast.BooleanValue(val)
@@ -83,9 +82,8 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	case ast.ValueKindBoolean:
 		include = d.operation.BooleanValue(value.Ref)
 	case ast.ValueKindVariable:
-		name := d.operation.VariableValueNameString(value.Ref)
-		val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
-		if err != nil {
+		val, valid := d.getVariableValue(d.operation.VariableValueNameString(value.Ref))
+		if !valid {
 			return
 		}
 		include = ast.BooleanValue(val)
@@ -97,6 +95,22 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	} else {
 		d.handleRemoveNode()
 	}
+}
+
+func (d *directiveIncludeSkipVisitor) getVariableValue(name string) (value, valid bool) {
+	val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
+	if err == nil {
+		return val, true
+	}
+	for i := range d.operation.VariableDefinitions {
+		definitionName := d.operation.VariableDefinitionNameString(i)
+		if definitionName == name {
+			if d.operation.VariableDefinitions[i].DefaultValue.IsDefined {
+				return bool(d.operation.BooleanValue(d.operation.VariableDefinitions[i].DefaultValue.Value.Ref)), true
+			}
+		}
+	}
+	return false, false
 }
 
 func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
