@@ -38,12 +38,13 @@ type configurationVisitor struct {
 	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // nodeSuggestionHints holds information about suggested data sources for key fields
 
-	parentTypeNodes    []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
-	arrayFields        []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
-	selectionSetRefs   []int                  // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs     []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
-	missingPathTracker map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
-	addedPathTracker   []pathConfiguration    // addedPathTracker is a list of paths which were added
+	parentTypeNodes       []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
+	arrayFields           []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
+	selectionSetRefs      []int                  // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	skipFieldsRefs        []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
+	missingPathTracker    map[string]missingPath // missingPathTracker is a map of paths which will be added on secondary runs
+	addedPathTracker      []pathConfiguration    // addedPathTracker is a list of paths which were added
+	addedPathTrackerIndex map[string][]int       // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
 	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
 	processedFieldNotHavingRequires   map[int]struct{}                        // processedFieldNotHavingRequires is a map[FieldRef] of already processed fields which do not have @requires directive
@@ -184,24 +185,33 @@ func (c *configurationVisitor) saveAddedPath(configuration pathConfiguration) {
 	}
 
 	c.addedPathTracker = append(c.addedPathTracker, configuration)
+	c.addedPathTrackerIndex[configuration.path] = append(c.addedPathTrackerIndex[configuration.path], len(c.addedPathTracker)-1)
 
 	c.removeMissingPath(configuration.path)
 }
 
 func (c *configurationVisitor) addedPathDSHash(path string) (hash DSHash, ok bool) {
-	// NOTE: it will found first occurence of such path
-	for i := range c.addedPathTracker {
-		if c.addedPathTracker[i].path == path {
-			return c.addedPathTracker[i].dsHash, true
-		}
+	indexes, ok := c.addedPathTrackerIndex[path]
+	if !ok {
+		return 0, false
 	}
-	return 0, false
+
+	// NOTE: it returns first occurence of such path
+	if len(indexes) == 0 {
+		return 0, false
+	}
+
+	return c.addedPathTracker[indexes[0]].dsHash, true
 }
 
 func (c *configurationVisitor) isPathAddedFor(path string, hash DSHash) bool {
-	// TODO: could be optimized by using map[struct{path,hash}]
-	for i := range c.addedPathTracker {
-		if c.addedPathTracker[i].path == path && c.addedPathTracker[i].dsHash == hash {
+	indexes, ok := c.addedPathTrackerIndex[path]
+	if !ok {
+		return false
+	}
+
+	for _, i := range indexes {
+		if c.addedPathTracker[i].dsHash == hash {
 			return true
 		}
 	}
@@ -300,6 +310,7 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 
 	c.missingPathTracker = make(map[string]missingPath)
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
+	c.addedPathTrackerIndex = make(map[string][]int)
 
 	c.pendingRequiredFields = make(map[int]selectionSetPendingRequirements)
 	c.fieldDependenciesForPlanners = make(map[int][]int)
