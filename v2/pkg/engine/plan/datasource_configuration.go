@@ -62,6 +62,10 @@ type NodesInfo interface {
 }
 
 func (d *DataSourceMetadata) InitNodesIndex() {
+	if d == nil {
+		return
+	}
+
 	d.rootNodesIndex = make(map[string]map[string]struct{})
 	d.childNodesIndex = make(map[string]map[string]struct{})
 
@@ -89,6 +93,10 @@ func (d *DataSourceMetadata) DirectiveConfigurations() *DirectiveConfigurations 
 }
 
 func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
+	if d.rootNodesIndex == nil {
+		return false
+	}
+
 	fields, ok := d.rootNodesIndex[typeName]
 	if !ok {
 		return false
@@ -99,11 +107,17 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 }
 
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
+	if d.rootNodesIndex == nil {
+		return false
+	}
 	_, ok := d.rootNodesIndex[typeName]
 	return ok
 }
 
 func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
+	if d.childNodesIndex == nil {
+		return false
+	}
 	fields, ok := d.childNodesIndex[typeName]
 	if !ok {
 		return false
@@ -114,6 +128,9 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
+	if d.childNodesIndex == nil {
+		return false
+	}
 	_, ok := d.childNodesIndex[typeName]
 	return ok
 }
