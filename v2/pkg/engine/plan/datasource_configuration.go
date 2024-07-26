@@ -40,6 +40,9 @@ type DataSourceMetadata struct {
 	// Note: Unions are not present in the child or root nodes
 	ChildNodes TypeFields
 	Directives *DirectiveConfigurations
+
+	rootNodesIndex  map[string]map[string]struct{}
+	childNodesIndex map[string]map[string]struct{}
 }
 
 type DirectivesConfigurations interface {
@@ -58,24 +61,78 @@ type NodesInfo interface {
 	HasChildNodeWithTypename(typeName string) bool
 }
 
+func (d *DataSourceMetadata) InitNodesIndex() {
+	if d == nil {
+		return
+	}
+
+	d.rootNodesIndex = make(map[string]map[string]struct{})
+	d.childNodesIndex = make(map[string]map[string]struct{})
+
+	for i := range d.RootNodes {
+		if _, ok := d.rootNodesIndex[d.RootNodes[i].TypeName]; !ok {
+			d.rootNodesIndex[d.RootNodes[i].TypeName] = make(map[string]struct{})
+		}
+		for j := range d.RootNodes[i].FieldNames {
+			d.rootNodesIndex[d.RootNodes[i].TypeName][d.RootNodes[i].FieldNames[j]] = struct{}{}
+		}
+	}
+
+	for i := range d.ChildNodes {
+		if _, ok := d.childNodesIndex[d.ChildNodes[i].TypeName]; !ok {
+			d.childNodesIndex[d.ChildNodes[i].TypeName] = make(map[string]struct{})
+		}
+		for j := range d.ChildNodes[i].FieldNames {
+			d.childNodesIndex[d.ChildNodes[i].TypeName][d.ChildNodes[i].FieldNames[j]] = struct{}{}
+		}
+	}
+}
+
 func (d *DataSourceMetadata) DirectiveConfigurations() *DirectiveConfigurations {
 	return d.Directives
 }
 
 func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
-	return d.RootNodes.HasNode(typeName, fieldName)
+	if d.rootNodesIndex == nil {
+		return false
+	}
+
+	fields, ok := d.rootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+
+	_, ok = fields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
-	return d.RootNodes.HasNodeWithTypename(typeName)
+	if d.rootNodesIndex == nil {
+		return false
+	}
+	_, ok := d.rootNodesIndex[typeName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
-	return d.ChildNodes.HasNode(typeName, fieldName)
+	if d.childNodesIndex == nil {
+		return false
+	}
+	fields, ok := d.childNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+
+	_, ok = fields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
-	return d.ChildNodes.HasNodeWithTypename(typeName)
+	if d.childNodesIndex == nil {
+		return false
+	}
+	_, ok := d.childNodesIndex[typeName]
+	return ok
 }
 
 func (d *DataSourceMetadata) ListRootNodes() TypeFields {
@@ -101,6 +158,8 @@ func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], met
 	if id == "" {
 		return nil, errors.New("data source id could not be empty")
 	}
+
+	metadata.InitNodesIndex()
 
 	return &dataSourceConfiguration[T]{
 		ID:                 id,

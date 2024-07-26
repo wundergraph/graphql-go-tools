@@ -56,6 +56,7 @@ func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
 }
 
 func (b *dsBuilder) DS() DataSource {
+	b.ds.DataSourceMetadata.InitNodesIndex()
 	return b.ds
 }
 
