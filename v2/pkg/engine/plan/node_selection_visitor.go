@@ -288,10 +288,6 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		return
 	}
 
-	if fieldRef == 2 {
-		fmt.Println("keyConfigurations", keyConfigurations)
-	}
-
 	// 1. Current field datasource is the same as parent datasource, and field has requires directive defined
 	if sameAsParentDS {
 		// the most simple case we just need to use the first available key configuration
@@ -386,12 +382,11 @@ func (c *nodeSelectionVisitor) processPendingFieldRequirements(selectionSetRef i
 	if !hasSelectionSet {
 		return
 	}
+	delete(c.pendingFieldRequirements, selectionSetRef)
 
 	for _, requiredFieldsCfg := range configs.requirementConfigs {
 		c.addFieldRequirementsToOperation(selectionSetRef, requiredFieldsCfg)
 	}
-
-	delete(c.pendingKeyRequirements, selectionSetRef)
 }
 
 func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef int, requirements fieldRequirements) {
@@ -429,7 +424,7 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 	if !hasSelectionSet {
 		return
 	}
-	defer delete(c.pendingKeyRequirements, selectionSetRef)
+	delete(c.pendingKeyRequirements, selectionSetRef)
 	typeNameFieldRef := c.addTypeNameSelection(selectionSetRef)
 
 	availableHashes := configs.parentDSHashes
