@@ -134,15 +134,13 @@ func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName strin
 }
 
 func (f *collectNodesVisitor) isEntityInterface(typeName string) bool {
-	return slices.ContainsFunc(f.dataSource.FederationConfiguration().EntityInterfaces, func(k EntityInterfaceConfiguration) bool {
-		return slices.Contains(k.ConcreteTypeNames, typeName) || k.InterfaceTypeName == typeName
-	})
+	cfg := f.dataSource.FederationConfiguration()
+	return cfg.HasEntityInterface(typeName)
 }
 
 func (f *collectNodesVisitor) isInterfaceObject(typeName string) bool {
-	return slices.ContainsFunc(f.dataSource.FederationConfiguration().InterfaceObjects, func(k EntityInterfaceConfiguration) bool {
-		return slices.Contains(k.ConcreteTypeNames, typeName) || k.InterfaceTypeName == typeName
-	})
+	cfg := f.dataSource.FederationConfiguration()
+	return cfg.HasInterfaceObject(typeName)
 }
 
 // has disabled entity resolver
