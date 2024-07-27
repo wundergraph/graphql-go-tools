@@ -350,7 +350,7 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 
 func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
-	// c.processPendingRequiredFields(ref)
+	// c.processPendingFieldRequirements(ref)
 	c.selectionSetRefs = c.selectionSetRefs[:len(c.selectionSetRefs)-1]
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
@@ -494,6 +494,7 @@ func (c *configurationVisitor) addPlannerDependencies(fieldRef int, plannedOnPla
 			}
 
 			fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannedOnPlannerId)
+			slices.Sort(fetchConfiguration.dependsOnFetchIDs)
 		}
 	}
 }
@@ -541,6 +542,7 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 			notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
 			if !notified {
 				fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
+				slices.Sort(fetchConfiguration.dependsOnFetchIDs)
 			}
 		}
 	}

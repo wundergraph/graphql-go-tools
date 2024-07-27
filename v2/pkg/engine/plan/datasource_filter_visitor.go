@@ -34,10 +34,10 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions) (used []DataSource, suggestions *NodeSuggestions) {
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash) (used []DataSource, suggestions *NodeSuggestions) {
 	var dsInUse map[DSHash]struct{}
 
-	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes)
+	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, landedTo)
 	if f.report.HasErrors() {
 		return
 	}
@@ -54,13 +54,14 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions) (*NodeSuggestions, map[DSHash]struct{}) {
+func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
 	f.nodes = f.collectNodes(dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
 	}
 
 	// f.nodes.printNodes("initial nodes")
+	f.applyLandedTo(landedTo)
 
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("unique nodes")
@@ -71,6 +72,35 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, exist
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
 	return f.nodes, uniqueDataSourceHashes
+}
+
+func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
+	if landedTo == nil {
+		return
+	}
+
+	for fieldRef, dsHash := range landedTo {
+		treeNodeID := TreeNodeID(fieldRef)
+
+		node, ok := f.nodes.responseTree.Find(treeNodeID)
+		if !ok {
+			panic("node not found")
+		}
+
+		nodeData := node.GetData()
+		for _, itemID := range nodeData {
+			if f.nodes.items[itemID].DataSourceHash == dsHash {
+				f.nodes.items[itemID].unselect()
+				// we need to select this node
+				f.nodes.items[itemID].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
+				f.nodes.items[itemID].IsRequiredKeyField = true
+			} else if f.nodes.items[itemID].Selected {
+				// we need to unselect this node
+				f.nodes.items[itemID].unselect()
+			}
+		}
+	}
+
 }
 
 func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (nodes *NodeSuggestions) {

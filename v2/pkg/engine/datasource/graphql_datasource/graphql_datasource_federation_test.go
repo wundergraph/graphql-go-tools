@@ -7279,23 +7279,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			})
 
 			t.Run("fields and keys", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-				query User {
-					user {
-						key1
-						key2
-						key3
-						field1
-						field2
-						field3
-						field4
-					}
-				}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+				expectedPlan := func(secondServiceFetchID, thirdServiceFetchID int) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Data: &resolve.Object{
 								Fetch: &resolve.SingleFetch{
@@ -7360,7 +7345,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												Fetches: []resolve.Fetch{
 													&resolve.SingleFetch{
 														FetchDependencies: resolve.FetchDependencies{
-															FetchID:           1,
+															FetchID:           secondServiceFetchID,
 															DependsOnFetchIDs: []int{0},
 														}, FetchConfiguration: resolve.FetchConfiguration{
 															RequiresEntityBatchFetch:              false,
@@ -7397,8 +7382,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 													&resolve.SingleFetch{
 														FetchDependencies: resolve.FetchDependencies{
-															FetchID:           2,
-															DependsOnFetchIDs: []int{1, 0},
+															FetchID:           thirdServiceFetchID,
+															DependsOnFetchIDs: []int{0, secondServiceFetchID},
 														}, FetchConfiguration: resolve.FetchConfiguration{
 															RequiresEntityBatchFetch:              false,
 															RequiresEntityFetch:                   true,
@@ -7435,7 +7420,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													&resolve.SingleFetch{
 														FetchDependencies: resolve.FetchDependencies{
 															FetchID:           3,
-															DependsOnFetchIDs: []int{2, 0},
+															DependsOnFetchIDs: []int{0, thirdServiceFetchID},
 														}, FetchConfiguration: resolve.FetchConfiguration{
 															RequiresEntityBatchFetch:              false,
 															RequiresEntityFetch:                   true,
@@ -7476,6 +7461,53 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
+					}
+				}
+
+				variant1 := expectedPlan(1, 2)
+				variant2 := expectedPlan(2, 1)
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+				query User {
+					user {
+						key1
+						key2
+						key3
+						field1
+						field2
+						field3
+						field4
+					}
+				}`,
+					"User",
+					[]plan.Plan{
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant2,
+						variant2,
+						variant1,
+						variant1,
 					},
 					planConfiguration,
 					WithMultiFetchPostProcessor(),
