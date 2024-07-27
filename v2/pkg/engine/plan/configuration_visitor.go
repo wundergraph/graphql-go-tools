@@ -667,9 +667,8 @@ func (c *configurationVisitor) isParentPathIsRootOperationPath(parentPath string
 }
 
 func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string, typeName string, parentPath string, dsCfg DataSource) bool {
-	isEntityInterface := slices.ContainsFunc(dsCfg.FederationConfiguration().EntityInterfaces, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
-		return interfaceObjCfg.InterfaceTypeName == typeName || slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName)
-	})
+	fedCfg := dsCfg.FederationConfiguration()
+	isEntityInterface := fedCfg.HasEntityInterface(typeName)
 
 	if isEntityInterface {
 		return true
@@ -678,14 +677,18 @@ func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string,
 	// we should handle a new planner for a __typename
 	// only when it is the first field on a query,
 	// or we are on the entity interface object
-	return fieldName == typeNameField && c.isParentPathIsRootOperationPath(parentPath)
+	return c.isParentPathIsRootOperationPath(parentPath)
 }
 
 func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, currentPath, parentPath string, isSubscription bool, dsConfig DataSource) (plannerIdx int, planned bool) {
-	shouldPlanTypenameField := c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, dsConfig)
+	if !dsConfig.HasRootNode(typeName, fieldName) {
+		if fieldName != typeNameField {
+			return -1, false
+		}
 
-	if !shouldPlanTypenameField && !dsConfig.HasRootNode(typeName, fieldName) {
-		return -1, false
+		if !c.allowNewPlannerForTypenameField(fieldName, typeName, parentPath, dsConfig) {
+			return -1, false
+		}
 	}
 
 	currentPathConfiguration := pathConfiguration{

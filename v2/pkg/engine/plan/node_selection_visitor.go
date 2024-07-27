@@ -253,10 +253,12 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		}
 	}
 
-	isInterfaceObject := dsConfig.HasInterfaceObject(typeName)
+	entityInterface := dsConfig.HasEntityInterface(typeName)
 
-	if fieldName == typeNameField {
+	if fieldName == typeNameField && !entityInterface {
 		// the __typename field could not have @key directive
+		// but for the interface object we have to plan it differently
+		// e.g. we should get a __typename from a concrete type, not the interface object
 		return
 	}
 
@@ -296,7 +298,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		return
 	}
 
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), keyConfigurations, isInterfaceObject, parentPath, selectedParentsDSHashes)
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), keyConfigurations, entityInterface, parentPath, selectedParentsDSHashes)
 	c.hasNewFields = true
 }
 
@@ -479,7 +481,7 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 		for _, possibleRequiredFieldConfig := range requirements.possibleKeys {
 			typeName := possibleRequiredFieldConfig.TypeName
 			if ds.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
-				c.addKeyRequirementsToOperation(selectionSetRef, typeNameFieldRef, typeName, requirements, ds.Hash(), possibleRequiredFieldConfig)
+				c.addKeyRequirementsToOperation(selectionSetRef, typeNameFieldRef, typeName, requirements, ds, possibleRequiredFieldConfig)
 
 				return true
 			}
@@ -489,7 +491,7 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 	return false
 }
 
-func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeNameFieldRef int, typeName string, requirements keyRequirements, landedTo DSHash, fieldConfiguration FederationFieldConfiguration) {
+func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeNameFieldRef int, typeName string, requirements keyRequirements, landedTo DataSource, fieldConfiguration FederationFieldConfiguration) {
 	key, report := RequiredFieldsFragment(typeName, fieldConfiguration.SelectionSet, false)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", fieldConfiguration.SelectionSet, typeName, requirements.path))
@@ -511,6 +513,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	}
 
 	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
+
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		if slices.Contains(requiredFieldRefs, requestedByFieldRef) {
@@ -520,12 +523,14 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 
 		fieldKey := fmt.Sprintf("%d.%d", requestedByFieldRef, requirements.dsHash)
 		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], typeNameFieldRef)
+		if requestedByFieldRef != typeNameFieldRef && !requirements.isInterfaceObject {
+			c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], typeNameFieldRef)
+		}
 		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 	}
 
 	for _, requiredFieldRef := range requiredFieldRefs {
-		c.fieldLandedTo[requiredFieldRef] = landedTo
+		c.fieldLandedTo[requiredFieldRef] = landedTo.Hash()
 	}
 }
 
