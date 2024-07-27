@@ -24,7 +24,6 @@ type NodeSuggestion struct {
 	IsEntityInterfaceTypeName bool   `json:"-"`
 	IsExternal                bool   `json:"isExternal"`
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
-	IsRequiredField           bool   `json:"IsRequiredField"`
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -52,6 +51,11 @@ func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 	}
 	n.appendSelectionReason(reason, saveReason)
 	n.Selected = true
+}
+
+func (n *NodeSuggestion) unselect() {
+	n.Selected = false
+	n.SelectionReasons = nil
 }
 
 func (n *NodeSuggestion) String() string {
