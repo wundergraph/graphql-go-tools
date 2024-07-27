@@ -254,11 +254,13 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	}
 
 	entityInterface := dsConfig.HasEntityInterface(typeName)
+	interfaceObject := dsConfig.HasInterfaceObject(typeName)
 
 	if fieldName == typeNameField && !entityInterface {
 		// the __typename field could not have @key directive
 		// but for the interface object we have to plan it differently
 		// e.g. we should get a __typename from a concrete type, not the interface object
+		// it means for the entity interface we should evaluate key deps on a __typename field
 		return
 	}
 
@@ -298,7 +300,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		return
 	}
 
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), keyConfigurations, entityInterface, parentPath, selectedParentsDSHashes)
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), keyConfigurations, interfaceObject, parentPath, selectedParentsDSHashes)
 	c.hasNewFields = true
 }
 
@@ -427,7 +429,6 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 		return
 	}
 	delete(c.pendingKeyRequirements, selectionSetRef)
-	typeNameFieldRef := c.addTypeNameSelection(selectionSetRef)
 
 	availableHashes := configs.parentDSHashes
 
@@ -438,7 +439,7 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 		newAvailableHashes := make([]DSHash, 0, len(availableHashes))
 		newPendingRequirements := make([]keyRequirements, 0, len(pendingRequirements))
 		for i := 0; i < len(pendingRequirements); i++ {
-			if c.matchDataSourcesByKeyConfiguration(selectionSetRef, typeNameFieldRef, pendingRequirements[i], availableHashes) {
+			if c.matchDataSourcesByKeyConfiguration(selectionSetRef, pendingRequirements[i], availableHashes) {
 				newAvailableHashes = append(newAvailableHashes, pendingRequirements[i].dsHash)
 			} else {
 				newPendingRequirements = append(newPendingRequirements, pendingRequirements[i])
@@ -450,29 +451,7 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 	}
 }
 
-func (c *nodeSelectionVisitor) addTypeNameSelection(selectionSetRef int) (fieldRef int) {
-	exist, fieldRef := c.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, typeNameFieldBytes)
-	if exist {
-		return
-	}
-
-	// Add __typename to the selection set
-	fieldNode := c.operation.AddField(ast.Field{
-		Name: c.operation.Input.AppendInputBytes(typeNameFieldBytes),
-	})
-	selectionRef := c.operation.AddSelectionToDocument(ast.Selection{
-		Ref:  fieldNode.Ref,
-		Kind: ast.SelectionKindField,
-	})
-	c.operation.AddSelectionRefToSelectionSet(selectionSetRef, selectionRef)
-
-	// add __typename to skip fields as it was added by planner not a user
-	c.skipFieldsRefs = append(c.skipFieldsRefs, fieldNode.Ref)
-
-	return fieldNode.Ref
-}
-
-func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRef int, typeNameFieldRef int, requirements keyRequirements, dsHashes []DSHash) (matched bool) {
+func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRef int, requirements keyRequirements, dsHashes []DSHash) (matched bool) {
 	for _, ds := range c.dataSources {
 		if !slices.Contains(dsHashes, ds.Hash()) {
 			continue
@@ -481,7 +460,7 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 		for _, possibleRequiredFieldConfig := range requirements.possibleKeys {
 			typeName := possibleRequiredFieldConfig.TypeName
 			if ds.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
-				c.addKeyRequirementsToOperation(selectionSetRef, typeNameFieldRef, typeName, requirements, ds, possibleRequiredFieldConfig)
+				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
 
 				return true
 			}
@@ -491,8 +470,15 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 	return false
 }
 
-func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeNameFieldRef int, typeName string, requirements keyRequirements, landedTo DataSource, fieldConfiguration FederationFieldConfiguration) {
-	key, report := RequiredFieldsFragment(typeName, fieldConfiguration.SelectionSet, false)
+func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeName string, requirements keyRequirements, landedTo DataSource, fieldConfiguration FederationFieldConfiguration) {
+	requirementsFromInterfaceObject := requirements.isInterfaceObject
+	requirementsToInterfaceObject := landedTo.HasInterfaceObject(typeName)
+
+	// when we jump from interface object to interface object, we don't need a concrete type __typename to do the jump,
+	// so we have to skip adding __typename field along with other key fields
+	dissalowTypeName := requirementsFromInterfaceObject && requirementsToInterfaceObject
+
+	key, report := RequiredFieldsFragment(typeName, fieldConfiguration.SelectionSet, !dissalowTypeName)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", fieldConfiguration.SelectionSet, typeName, requirements.path))
 		return
@@ -523,9 +509,6 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 
 		fieldKey := fmt.Sprintf("%d.%d", requestedByFieldRef, requirements.dsHash)
 		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-		if requestedByFieldRef != typeNameFieldRef && !requirements.isInterfaceObject {
-			c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], typeNameFieldRef)
-		}
 		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 	}
 
