@@ -230,7 +230,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 
 	// set initial suggestions and used data sources
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(p.config.DataSources, nil)
+		dsFilter.FilterDataSources(p.config.DataSources, nil, nil)
 	if report.HasErrors() {
 		return
 	}
@@ -246,7 +246,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 	}
 
 	if p.config.Debug.PrintOperationTransformations {
-		p.debugMessage("Operation after initial run:")
+		p.debugMessage("Select nodes initial run - operation:")
 		p.printOperation(operation)
 	}
 
@@ -258,10 +258,18 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 		if p.nodeSelectionsVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions)
+				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, p.nodeSelectionsVisitor.fieldLandedTo)
 			if report.HasErrors() {
 				return
 			}
+		}
+
+		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
+			p.debugMessage(fmt.Sprintf("Select nodes run #%d", i))
+		}
+
+		if p.config.Debug.PrintNodeSuggestions {
+			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
 		}
 
 		p.nodeSelectionsWalker.Walk(operation, definition, report)
@@ -269,18 +277,10 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 			return
 		}
 
-		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintNodeSuggestions {
-			p.debugMessage(fmt.Sprintf("After run #%d", i))
-		}
-
 		if p.config.Debug.PrintOperationTransformations {
 			p.debugMessage("Operation with new required fields:")
 			p.debugMessage(fmt.Sprintf("Has new fields: %v", p.nodeSelectionsVisitor.hasNewFields))
 			p.printOperation(operation)
-		}
-
-		if p.config.Debug.PrintNodeSuggestions {
-			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
 		}
 
 		i++
@@ -308,6 +308,10 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 }
 
 func (p *Planner) createPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+	if p.config.Debug.PrintPlanningPaths {
+		p.debugMessage("Create planning paths")
+	}
+
 	p.configurationVisitor.debug = p.config.Debug
 
 	// set initial suggestions and used data sources
@@ -346,7 +350,7 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 		}
 
 		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintPlanningPaths {
-			p.debugMessage(fmt.Sprintf("After run #%d", i))
+			p.debugMessage(fmt.Sprintf("Create planning paths run #%d", i))
 		}
 
 		if p.config.Debug.PrintPlanningPaths {
