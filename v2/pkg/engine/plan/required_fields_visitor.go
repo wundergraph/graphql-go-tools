@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -134,7 +135,11 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 
 	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 	if operationHasField {
-		v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+		// we are skipping adding __typename field to the required fields,
+		// because we want to depend only on the regular key fields, not the __typename field
+		if !bytes.Equal(fieldName, typeNameFieldBytes) {
+			v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+		}
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
@@ -186,7 +191,12 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	v.input.operation.AddSelection(selectionSet, selection)
 
 	v.skipFieldRefs = append(v.skipFieldRefs, addedField.Ref)
-	v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+
+	// we are skipping adding __typename field to the required fields,
+	// because we want to depend only on the regular key fields, not the __typename field
+	if !bytes.Equal(fieldName, typeNameFieldBytes) {
+		v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+	}
 
 	return addedField
 }
