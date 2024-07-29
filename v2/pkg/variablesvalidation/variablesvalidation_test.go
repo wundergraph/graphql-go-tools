@@ -698,6 +698,26 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.NoError(t, err)
 	})
+
+	t.Run("required field argument of scalar Upload can be null", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Mutation { singleUpload(file: Upload!): Boolean } scalar Upload`,
+			operation: `mutation($file: Upload!){singleUpload(file: $file)}`,
+			variables: `{"file":null}`,
+		}
+		err := runTest(t, tc)
+		assert.Nil(t, err)
+	})
+
+	t.Run("required field argument of scalar Upload can be null in a leaf", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Mutation { singleUpload(file: FileInput!): Boolean } scalar Upload input FileInput { file: Upload!, fileName: String!}`,
+			operation: `mutation($file: FileInput!){singleUpload(file: $file)}`,
+			variables: `{"file": {"file": null, "fileName": "test"}}`,
+		}
+		err := runTest(t, tc)
+		assert.Nil(t, err)
+	})
 }
 
 type testCase struct {
