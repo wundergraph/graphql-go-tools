@@ -314,7 +314,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 		}
 	}
 
-	existsKey := fieldConfiguration.SelectionSet
+	existsKey := fmt.Sprintf("%d.%s", dsHash, fieldConfiguration.SelectionSet)
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := fieldRequirements{
 			dsHash:               dsHash,
