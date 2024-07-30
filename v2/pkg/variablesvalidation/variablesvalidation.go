@@ -205,7 +205,7 @@ func (v *variablesVisitor) renderVariableRequiredNotProvidedError(fieldName []by
 	}
 }
 
-func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRef int, expectedType ast.NodeKind, expectedTypeName []byte) {
+func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRef int, expectedType ast.NodeKind, expectedTypeName []byte, expectedList bool) {
 	buf := &bytes.Buffer{}
 	variableName := string(v.currentVariableName)
 	typeName := string(expectedTypeName)
@@ -248,8 +248,14 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 			}
 		}
 	case ast.NodeKindInputObjectTypeDefinition:
-		v.err = &InvalidVariableError{
-			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an object.`, variableName, invalidValue, path, typeName),
+		if expectedList {
+			v.err = &InvalidVariableError{
+				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Got input type "%s", want: "[%s]"`, variableName, invalidValue, path, typeName, typeName),
+			}
+		} else {
+			v.err = &InvalidVariableError{
+				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an input object.`, variableName, invalidValue, path, typeName),
+			}
 		}
 	case ast.NodeKindEnumTypeDefinition:
 		v.err = &InvalidVariableError{
@@ -323,7 +329,7 @@ func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKi
 
 	if v.definition.TypeIsList(typeRef) {
 		if v.variables.Nodes[fieldVariablesJsonNodeRef].Kind != astjson.NodeKindArray {
-			v.renderVariableInvalidNestedTypeError(fieldVariablesJsonNodeRef, fieldTypeDefinitionNodeKind, typeName)
+			v.renderVariableInvalidNestedTypeError(fieldVariablesJsonNodeRef, fieldTypeDefinitionNodeKind, typeName, true)
 			return
 		}
 		if len(v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues) == 0 {
@@ -382,33 +388,33 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 		switch unsafebytes.BytesToString(typeName) {
 		case "String":
 			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindString {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
+				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "Int":
 			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindNumber {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
+				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "Float":
 			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindNumber {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
+				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "Boolean":
 			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindBoolean {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
+				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "ID":
 			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindString && v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindNumber {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
+				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		}
 	case ast.NodeKindEnumTypeDefinition:
 		if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindString {
-			v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName)
+			v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
 			return
 		}
 		value := v.variables.Nodes[jsonNodeRef].ValueBytes(v.variables)
