@@ -5,11 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestVariablesValidation(t *testing.T) {
@@ -43,6 +43,28 @@ func TestVariablesValidation(t *testing.T) {
 		}
 		err := runTest(t, tc)
 		require.NoError(t, err)
+	})
+
+	t.Run("nested argument is value instead of list", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(input: Input): String } input Input { bar: [String]! }`,
+			operation: `query Foo($input: Input) { hello(input: $input) }`,
+			variables: `{"input":{"bar":"world"}}`,
+		}
+		err := runTest(t, tc)
+		require.NotNil(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value "world" at "input.bar"; Got input type "String", want: "[String]"`, err.Error())
+	})
+
+	t.Run("nested enum argument is value instead of list", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(input: Input): String } input Input { bar: [MyNum]! } enum MyNum { ONE TWO }`,
+			operation: `query Foo($input: Input) { hello(input: $input) }`,
+			variables: `{"input":{"bar":"ONE"}}`,
+		}
+		err := runTest(t, tc)
+		require.NotNil(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value "ONE" at "input.bar"; Got input type "MyNum", want: "[MyNum]"`, err.Error())
 	})
 
 	t.Run("required field argument of custom scalar type not provided", func(t *testing.T) {
@@ -91,9 +113,10 @@ func TestVariablesValidation(t *testing.T) {
 
 	t.Run("required field argument provided with default value", func(t *testing.T) {
 		tc := testCase{
-			schema:    `type Query { hello(arg: String!): String }`,
-			operation: `query Foo($bar: String! = "world") { hello(arg: $bar) }`,
-			variables: `{}`,
+			schema:            `type Query { hello(arg: String!): String }`,
+			operation:         `query Foo($bar: String! = "world") { hello(arg: $bar) }`,
+			variables:         `{}`,
+			withNormalization: true,
 		}
 		err := runTest(t, tc)
 		require.NoError(t, err)
@@ -511,9 +534,10 @@ func TestVariablesValidation(t *testing.T) {
 
 	t.Run("required string list field argument provided with non list Int value", func(t *testing.T) {
 		tc := testCase{
-			schema:    `type Query { hello(arg: [String]!): String }`,
-			operation: `query Foo($bar: [String]!) { hello(arg: $bar) }`,
-			variables: `{"bar":123}`,
+			schema:            `type Query { hello(arg: [String]!): String }`,
+			operation:         `query Foo($bar: [String]!) { hello(arg: $bar) }`,
+			variables:         `{"bar":123}`,
+			withNormalization: true,
 		}
 		err := runTest(t, tc)
 		require.Error(t, err)
@@ -576,9 +600,10 @@ func TestVariablesValidation(t *testing.T) {
 
 	t.Run("required enum list argument provided with non list Int value", func(t *testing.T) {
 		tc := testCase{
-			schema:    `enum Foo { BAR } type Query { hello(arg: [Foo]!): String }`,
-			operation: `query Foo($bar: [Foo]!) { hello(arg: $bar) }`,
-			variables: `{"bar":123}`,
+			schema:            `enum Foo { BAR } type Query { hello(arg: [Foo]!): String }`,
+			operation:         `query Foo($bar: [Foo]!) { hello(arg: $bar) }`,
+			variables:         `{"bar":123}`,
+			withNormalization: true,
 		}
 		err := runTest(t, tc)
 		require.Error(t, err)
@@ -587,9 +612,10 @@ func TestVariablesValidation(t *testing.T) {
 
 	t.Run("required string list field argument provided with Int", func(t *testing.T) {
 		tc := testCase{
-			schema:    `type Query { hello(arg: [String]!): String }`,
-			operation: `query Foo($bar: [String]!) { hello(arg: $bar) }`,
-			variables: `{"bar":123}`,
+			schema:            `type Query { hello(arg: [String]!): String }`,
+			operation:         `query Foo($bar: [String]!) { hello(arg: $bar) }`,
+			variables:         `{"bar":123}`,
+			withNormalization: true,
 		}
 		err := runTest(t, tc)
 		require.Error(t, err)
@@ -702,6 +728,7 @@ func TestVariablesValidation(t *testing.T) {
 
 type testCase struct {
 	schema, operation, variables string
+	withNormalization            bool
 }
 
 func runTest(t *testing.T, tc testCase) error {
@@ -713,11 +740,13 @@ func runTest(t *testing.T, tc testCase) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report := &operationreport.Report{}
-	norm := astnormalization.NewNormalizer(true, true)
-	norm.NormalizeOperation(&op, &def, report)
-	if report.HasErrors() {
-		t.Fatal(report.Error())
+	if tc.withNormalization {
+		report := &operationreport.Report{}
+		norm := astnormalization.NewNormalizer(true, true)
+		norm.NormalizeOperation(&op, &def, report)
+		if report.HasErrors() {
+			t.Fatal(report.Error())
+		}
 	}
 	validator := NewVariablesValidator()
 	return validator.Validate(&op, &def, op.Input.Variables)
