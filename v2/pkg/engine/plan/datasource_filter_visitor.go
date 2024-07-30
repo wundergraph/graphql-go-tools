@@ -262,10 +262,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				continue
 			}
 
-			if f.nodes.items[i].FieldName == typeNameField {
-				// we should select typename predictable depending on 2 conditions:
+			if f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName) {
+				// we should select __typename predictable depending on 2 conditions:
 				// - parent was selected
 				// - provided by key
+				// Exception: __typename is on a root operation type
 
 				// in case of entity interface we could select __typename from datasource containing this entity interface
 				// but not from the datasource containing the interface object

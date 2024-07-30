@@ -435,6 +435,7 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 	pendingRequirements := configs.requirementConfigs
 	hasPendingRequirements := len(pendingRequirements) > 0
 
+	i := 1
 	for hasPendingRequirements {
 		newAvailableHashes := make([]DSHash, 0, len(availableHashes))
 		newPendingRequirements := make([]keyRequirements, 0, len(pendingRequirements))
@@ -448,6 +449,12 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 		availableHashes = newAvailableHashes
 		hasPendingRequirements = len(newPendingRequirements) > 0
 		pendingRequirements = newPendingRequirements
+		i++
+
+		if i > 100 {
+			c.walker.StopWithInternalErr(errors.New("could not plan key requirements"))
+			return
+		}
 	}
 }
 

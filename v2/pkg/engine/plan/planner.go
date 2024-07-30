@@ -285,26 +285,37 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 
 		i++
 
-		resolvableReport := &operationreport.Report{}
-		visitor := &nodesResolvableVisitor{
-			operation:  operation,
-			definition: definition,
-			walker:     &resolvableWalker,
-			nodes:      p.nodeSelectionsVisitor.nodeSuggestions,
-		}
-		resolvableWalker.RegisterEnterFieldVisitor(visitor)
-		resolvableWalker.Walk(operation, definition, resolvableReport)
-
-		if resolvableReport.HasErrors() {
+		if resolvableReport := p.isResolvable(resolvableWalker, operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
 			p.nodeSelectionsVisitor.hasUnresolvedFields = true
 
 			if i > 100 {
-				// TODO: add more detailed error message
-				report.AddInternalError(fmt.Errorf("could not resolve a field"))
+				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 				return
 			}
 		}
 	}
+
+	if i == 1 {
+		// if we have not revisited the operation, we need to check if it is resolvable
+		if resolvableReport := p.isResolvable(resolvableWalker, operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
+			p.nodeSelectionsVisitor.hasUnresolvedFields = true
+			report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
+		}
+	}
+}
+
+func (p *Planner) isResolvable(walker astvisitor.Walker, operation, definition *ast.Document, nodes *NodeSuggestions) *operationreport.Report {
+	resolvableReport := &operationreport.Report{}
+	visitor := &nodesResolvableVisitor{
+		operation:  operation,
+		definition: definition,
+		walker:     &walker,
+		nodes:      p.nodeSelectionsVisitor.nodeSuggestions,
+	}
+	walker.RegisterEnterFieldVisitor(visitor)
+	walker.Walk(operation, definition, resolvableReport)
+
+	return resolvableReport
 }
 
 func (p *Planner) createPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {

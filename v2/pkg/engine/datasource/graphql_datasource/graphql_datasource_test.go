@@ -146,6 +146,111 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 				DisableResolveFieldPositions: true,
 			}))
 	})
+
+	t.Run("__typename on root query types", func(t *testing.T) {
+		def := `
+			scalar String
+
+			type Query {
+				q: String
+			}
+			type Mutation {
+				m: String
+			}
+			type Subscription {
+				s: String
+			}`
+
+		planConfiguration := plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"q"},
+							},
+							{
+								TypeName:   "Mutation",
+								FieldNames: []string{"m"},
+							},
+							{
+								TypeName:   "Subscription",
+								FieldNames: []string{"s"},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "https://example.com/graphql",
+						},
+						SchemaConfiguration: mustSchema(t, nil, def),
+					}),
+				),
+			},
+			DisableResolveFieldPositions: true,
+		}
+
+		t.Run("on query", RunTest(
+			def, `
+			query TypenameOnQuery {
+				__typename
+			}`,
+			"TypenameOnQuery", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{__typename}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path:       []string{"__typename"},
+									IsTypeName: true,
+								},
+							},
+						},
+					},
+				},
+			}, planConfiguration))
+
+		t.Run("on mutation", RunTest(
+			def, `
+			mutation TypenameOnMutation {
+				__typename
+			}`,
+			"TypenameOnMutation", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{__typename}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path:       []string{"__typename"},
+									IsTypeName: true,
+								},
+							},
+						},
+					},
+				},
+			}, planConfiguration))
+	})
 }
 
 func TestGraphQLDataSource(t *testing.T) {

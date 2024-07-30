@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/kingledion/go-tools/tree"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -223,6 +225,23 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 	}
 }
 
+func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(treeNode tree.Node[[]int]) bool {
+	if f.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+		return false
+	}
+
+	parent := treeNode.GetParent()
+	parentItems := parent.GetData()
+
+	for _, idx := range parentItems {
+		if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
+			return true
+		}
+	}
+
+	return false
+}
+
 func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(fieldRef)
@@ -249,7 +268,16 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		return
 	}
 
-	hasRootNode := f.dataSource.HasRootNode(typeName, fieldName) || (isTypeName && f.dataSource.HasRootNodeWithTypename(typeName))
+	// hasRootNode is true when:
+	// - ds config has a root node for the field
+	// - we have a root node with typename and the field is a __typename field
+	// - the field is a root query type (query, mutation) and the field is a __typename field
+	hasRootNode := f.dataSource.HasRootNode(typeName, fieldName) || (isTypeName && (f.dataSource.HasRootNodeWithTypename(typeName) || IsMutationOrQueryRootType(typeName)))
+
+	// hasChildNode is true when:
+	// - ds config has a child node for the field
+	// - we have a child node with typename and the field is a __typename field
+	// - the field is __typename field on a union, and we have a suggestion for the parent field
 	hasChildNode := f.dataSource.HasChildNode(typeName, fieldName) || (isTypeName && f.dataSource.HasChildNodeWithTypename(typeName))
 
 	isExternalRootNode := f.dataSource.HasExternalRootNode(typeName, fieldName)
@@ -259,6 +287,8 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	currentNodeId := TreeNodeID(fieldRef)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
+
+	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(treeNode)
 
 	if f.hasSuggestionForField(itemIds, fieldRef) {
 		for _, idx := range itemIds {
@@ -309,4 +339,13 @@ func TreeNodeID(fieldRef int) uint {
 	// cause 0 is a valid field ref
 	// but for tree 0 is reserved for the root node
 	return uint(100 + fieldRef)
+}
+
+const (
+	queryTypeName    = "Query"
+	mutationTypeName = "Mutation"
+)
+
+func IsMutationOrQueryRootType(typeName string) bool {
+	return queryTypeName == typeName || mutationTypeName == typeName
 }

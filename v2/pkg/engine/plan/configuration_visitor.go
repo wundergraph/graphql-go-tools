@@ -591,20 +591,6 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 		currentPlannerDSHash := dsConfiguration.Hash()
 
 		hasSuggestion := suggestion != nil
-
-		// TODO: we could provide a suggestion for the __typename field in the node selection visitor
-		// On a union we will never get a node suggestion because union type is not in the root or child nodes
-		shouldHandleTypeNameOnUnion :=
-			!hasSuggestion && fieldName == typeNameField &&
-				c.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition &&
-				plannerConfig.HasPath(parentPath)
-
-		if shouldHandleTypeNameOnUnion {
-			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
-				return plannerIdx, true
-			}
-		}
-
 		if !hasSuggestion {
 			continue
 		}
