@@ -27,15 +27,54 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 			"_0_InterfaceObjectTypename",
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
+					Fetches: resolve.Sequence(
+						resolve.SingleWithPath(&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"{accountLocations {__typename id}}"}}`,
 								PostProcessing: DefaultPostProcessingConfiguration,
 								DataSource:     &Source{},
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						},
+						}, ""),
+						resolve.SingleWithPath(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {__typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
+													},
+													OnTypeNames: [][]byte{[]byte("Account")},
+												},
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("Account")},
+												},
+											},
+										}),
+									},
+								},
+								RequiresEntityBatchFetch:              true,
+								PostProcessing:                        EntitiesPostProcessingConfiguration,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "accountLocations", resolve.ArrayPath("accountLocations")),
+					),
+					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("accountLocations"),
@@ -57,43 +96,6 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 											},
 										},
-										Fetch: &resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID:           1,
-												DependsOnFetchIDs: []int{0},
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {__typename}}}","variables":{"representations":[$$0$$]}}}`,
-												Variables: []resolve.Variable{
-													&resolve.ResolvableObjectVariable{
-														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-															Nullable: true,
-															Fields: []*resolve.Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &resolve.String{
-																		Path: []string{"__typename"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("Account")},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &resolve.String{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("Account")},
-																},
-															},
-														}),
-													},
-												},
-												RequiresEntityBatchFetch:              true,
-												PostProcessing:                        EntitiesPostProcessingConfiguration,
-												DataSource:                            &Source{},
-												SetTemplateOutputToNullOnVariableNull: true,
-											},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										},
 									},
 								},
 							},
@@ -102,7 +104,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -574,7 +576,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 
 	})
@@ -766,7 +768,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 
 	})
@@ -926,7 +928,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 
 	})
@@ -1024,7 +1026,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 
 	})
@@ -1184,7 +1186,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 
 	})
@@ -1344,7 +1346,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 
 	})
@@ -1599,7 +1601,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -1943,7 +1945,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -2132,7 +2134,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -2347,7 +2349,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -2631,7 +2633,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -2916,7 +2918,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -3260,7 +3262,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -3390,7 +3392,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -3614,7 +3616,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 				},
 			},
 			planConfiguration,
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 

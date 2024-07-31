@@ -3,12 +3,13 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 )
 
 type TestLoaderHooks struct {
@@ -58,19 +59,19 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
-				Data: &Object{
-					Nullable: false,
-					Fetch: &SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: mockDataSource,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseErrorsPath: []string{"errors"},
-							},
-						},
-						Info: &FetchInfo{
-							DataSourceID: "Users",
+				Fetches: SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 					},
+					Info: &FetchInfo{
+						DataSourceID: "Users",
+					},
+				}, "query"),
+				Data: &Object{
+					Nullable: false,
 					Fields: []*Field{
 						{
 							Name: []byte("name"),
@@ -128,19 +129,19 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		resp := &GraphQLResponse{
-			Data: &Object{
-				Nullable: false,
-				Fetch: &SingleFetch{
-					FetchConfiguration: FetchConfiguration{
-						DataSource: mockDataSource,
-						PostProcessing: PostProcessingConfiguration{
-							SelectResponseErrorsPath: []string{"errors"},
-						},
-					},
-					Info: &FetchInfo{
-						DataSourceID: "Users",
+			Fetches: SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
 					},
 				},
+				Info: &FetchInfo{
+					DataSourceID: "Users",
+				},
+			}, "query"),
+			Data: &Object{
+				Nullable: false,
 				Fields: []*Field{
 					{
 						Name: []byte("name"),
@@ -192,23 +193,21 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
-				Data: &Object{
-					Nullable: false,
-					Fetch: &ParallelFetch{
-						Fetches: []Fetch{
-							&SingleFetch{
-								FetchConfiguration: FetchConfiguration{
-									DataSource: mockDataSource,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseErrorsPath: []string{"errors"},
-									},
-								},
-								Info: &FetchInfo{
-									DataSourceID: "Users",
-								},
+				Fetches: Parallel(
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: mockDataSource,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseErrorsPath: []string{"errors"},
 							},
 						},
-					},
+						Info: &FetchInfo{
+							DataSourceID: "Users",
+						},
+					}, "query"),
+				),
+				Data: &Object{
+					Nullable: false,
 					Fields: []*Field{
 						{
 							Name: []byte("name"),
@@ -255,21 +254,21 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
-				Data: &Object{
-					Nullable: false,
-					Fetch: &ParallelListItemFetch{
-						Fetch: &SingleFetch{
-							FetchConfiguration: FetchConfiguration{
-								DataSource: mockDataSource,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseErrorsPath: []string{"errors"},
-								},
-							},
-							Info: &FetchInfo{
-								DataSourceID: "Users",
+				Fetches: SingleWithPath(&ParallelListItemFetch{
+					Fetch: &SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: mockDataSource,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseErrorsPath: []string{"errors"},
 							},
 						},
+						Info: &FetchInfo{
+							DataSourceID: "Users",
+						},
 					},
+				}, "query"),
+				Data: &Object{
+					Nullable: false,
 					Fields: []*Field{
 						{
 							Name: []byte("name"),
@@ -317,19 +316,19 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
-				Data: &Object{
-					Nullable: false,
-					Fetch: &SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: mockDataSource,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseErrorsPath: []string{"errors"},
-							},
-						},
-						Info: &FetchInfo{
-							DataSourceID: "Users",
+				Fetches: SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: mockDataSource,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 					},
+					Info: &FetchInfo{
+						DataSourceID: "Users",
+					},
+				}, "query"),
+				Data: &Object{
+					Nullable: false,
 					Fields: []*Field{
 						{
 							Name: []byte("name"),

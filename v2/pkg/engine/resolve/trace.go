@@ -268,7 +268,7 @@ func parseNode(n Node, options *getTraceOptions) *TraceNode {
 		for _, field := range v.Fields {
 			node.Fields = append(node.Fields, parseField(field, options))
 		}
-		node.Fetch = parseFetch(v.Fetch, options)
+		//node.Fetch = parseFetch(v.Fetch, options)
 
 	case *Array:
 		node.Items = append(node.Items, parseNode(v.Item, options))

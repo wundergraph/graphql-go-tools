@@ -1061,21 +1061,7 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 	fetch := v.configureFetch(config, fetchConfig)
 	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
-	if config.object.Fetch == nil {
-		config.object.Fetch = fetch
-		return
-	}
-
-	switch existing := config.object.Fetch.(type) {
-	case *resolve.SingleFetch:
-		copyOfExisting := *existing
-		multi := &resolve.MultiFetch{
-			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
-		}
-		config.object.Fetch = multi
-	case *resolve.MultiFetch:
-		existing.Fetches = append(existing.Fetches, fetch)
-	}
+	config.object.Fetches = append(config.object.Fetches, fetch)
 }
 
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {

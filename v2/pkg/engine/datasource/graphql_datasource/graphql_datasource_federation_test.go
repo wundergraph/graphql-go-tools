@@ -1567,7 +1567,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 					},
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 
@@ -1870,7 +1870,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 					},
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 
@@ -2111,7 +2111,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 					},
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 
@@ -2373,7 +2373,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 					},
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 
@@ -2642,7 +2642,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 						planConfiguration,
-						WithMultiFetchPostProcessor(),
+						WithDefaultPostProcessor(),
 					)
 				})
 
@@ -2800,7 +2800,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 							planConfiguration,
-							WithMultiFetchPostProcessor(),
+							WithDefaultPostProcessor(),
 						)
 					})
 
@@ -2862,7 +2862,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 							planConfiguration,
-							WithMultiFetchPostProcessor(),
+							WithDefaultPostProcessor(),
 						)
 					})
 
@@ -2924,7 +2924,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 							planConfiguration,
-							WithMultiFetchPostProcessor(),
+							WithDefaultPostProcessor(),
 						)
 					})
 				})
@@ -3207,7 +3207,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 						planConfiguration,
-						WithMultiFetchPostProcessor(),
+						WithDefaultPostProcessor(),
 					)
 				})
 			})
@@ -3516,7 +3516,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 						planConfiguration,
-						WithMultiFetchPostProcessor(),
+						WithDefaultPostProcessor(),
 					)
 				})
 
@@ -3671,7 +3671,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							},
 						},
 						planConfiguration,
-						WithMultiFetchPostProcessor(),
+						WithDefaultPostProcessor(),
 					)
 				})
 			})
@@ -4841,7 +4841,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							variant4,
 						},
 						planConfiguration,
-						WithMultiFetchPostProcessor(),
+						WithDefaultPostProcessor(),
 					)
 				})
 			})
@@ -5728,7 +5728,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 					planConfiguration,
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 
@@ -5870,7 +5870,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 					planConfiguration,
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 		})
@@ -6293,7 +6293,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 				},
 				planConfiguration,
-				WithMultiFetchPostProcessor(),
+				WithDefaultPostProcessor(),
 			)
 		})
 
@@ -6696,7 +6696,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 					planConfiguration,
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 
@@ -6900,7 +6900,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 					planConfiguration,
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 		})
@@ -8440,7 +8440,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					"Query",
 					expectedPlans,
 					planConfiguration,
-					WithMultiFetchPostProcessor(),
+					WithDefaultPostProcessor(),
 				)
 			})
 		})
@@ -8649,7 +8649,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							),
 						},
 						DisableResolveFieldPositions: true,
-					}, WithMultiFetchPostProcessor()))
+					}, WithDefaultPostProcessor()))
 			})
 		})
 

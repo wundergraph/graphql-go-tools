@@ -116,7 +116,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 				Fields:      cfgFactory.BuildFieldConfigurations(),
 			}
 
-			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration, datasourcetesting.WithMultiFetchPostProcessor())(t)
+			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration)(t)
 		}
 	}
 

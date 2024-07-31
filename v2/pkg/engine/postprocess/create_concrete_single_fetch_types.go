@@ -18,10 +18,10 @@ func (d *CreateConcreteSingleFetchTypes) ProcessSubscription(node resolve.Node, 
 func (d *CreateConcreteSingleFetchTypes) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
-		n.Fetch = d.traverseFetch(n.Fetch)
+		/*n.Fetch = d.traverseFetch(n.Fetch)
 		for i := range n.Fields {
 			d.traverseNode(n.Fields[i].Value)
-		}
+		}*/
 	case *resolve.Array:
 		d.traverseNode(n.Item)
 	}

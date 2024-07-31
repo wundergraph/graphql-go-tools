@@ -33,12 +33,10 @@ func TestProcess_ExtractFetches(t *testing.T) {
 								},
 							},
 						},
-						Fetch: &resolve.MultiFetch{
-							Fetches: []*resolve.SingleFetch{
-								{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
-								{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
-								{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
-							},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
 						},
 					},
 				},
@@ -55,16 +53,11 @@ func TestProcess_ExtractFetches(t *testing.T) {
 							},
 						},
 					},
-					FetchTree: &resolve.Object{
-						Nullable: true,
-						Fetch: &resolve.MultiFetch{
-							Fetches: []*resolve.SingleFetch{
-								{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
-								{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
-								{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
-							},
-						},
-					},
+					Fetches: resolve.Parallel(
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}),
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}),
+					),
 				},
 			},
 		},
@@ -86,7 +79,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 											},
 										},
 									},
-									Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+									},
 								},
 							},
 							{
@@ -101,11 +96,15 @@ func TestProcess_ExtractFetches(t *testing.T) {
 											},
 										},
 									},
-									Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+									},
 								},
 							},
 						},
-						Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						},
 					},
 				},
 			},
@@ -143,25 +142,11 @@ func TestProcess_ExtractFetches(t *testing.T) {
 							},
 						},
 					},
-					FetchTree: &resolve.Object{
-						Nullable: true,
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("obj"),
-								Value: &resolve.Object{
-									Nullable: true,
-									Path:     []string{"obj"},
-									Fetch: &resolve.MultiFetch{
-										Fetches: []*resolve.SingleFetch{
-											{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
-											{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
-										},
-									},
-								},
-							},
-						},
-						Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
-					},
+					Fetches: resolve.Parallel(
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}, resolve.ObjectPath("obj")),
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}, resolve.ObjectPath("obj")),
+					),
 				},
 			},
 		},
@@ -186,7 +171,9 @@ func TestProcess_ExtractFetches(t *testing.T) {
 												},
 											},
 										},
-										Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
+										Fetches: []resolve.Fetch{
+											&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}},
+										},
 									},
 								},
 							},
@@ -205,12 +192,16 @@ func TestProcess_ExtractFetches(t *testing.T) {
 												},
 											},
 										},
-										Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+										Fetches: []resolve.Fetch{
+											&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1}}},
+										},
 									},
 								},
 							},
 						},
-						Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						},
 					},
 				},
 			},
@@ -256,35 +247,19 @@ func TestProcess_ExtractFetches(t *testing.T) {
 							},
 						},
 					},
-					FetchTree: &resolve.Object{
-						Nullable: true,
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("objects"),
-								Value: &resolve.Array{
-									Nullable: true,
-									Path:     []string{"objects"},
-									Item: &resolve.Object{
-										Nullable: true,
-										Path:     []string{"obj"},
-										Fetch: &resolve.MultiFetch{
-											Fetches: []*resolve.SingleFetch{
-												{FetchDependencies: resolve.FetchDependencies{FetchID: 2}},
-												{FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
-											},
-										},
-									},
-								},
-							},
-						},
-						Fetch: &resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
-					},
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
+						resolve.Parallel(
+							resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}}, resolve.ArrayPath("obj")),
+							resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1}}}, resolve.ArrayPath("obj")),
+						),
+					),
 				},
 			},
 		},
 	}
 
-	processor := &Processor{enableExtractFetches: true}
+	processor := NewProcessor()
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

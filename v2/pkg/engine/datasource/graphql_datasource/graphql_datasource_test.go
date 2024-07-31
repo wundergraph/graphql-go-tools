@@ -2249,7 +2249,7 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 							&resolve.ContextVariable{
 								Path:     []string{"options"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
+								Renderer: resolve.NewJSONVariableRenderer(),
 							},
 							&resolve.HeaderVariable{
 								Path: []string{"Authorization"},
@@ -3729,7 +3729,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				DisableResolveFieldPositions: true,
 			},
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
@@ -4967,7 +4967,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			DisableResolveFieldPositions: true,
 		},
-		WithMultiFetchPostProcessor(),
+		WithDefaultPostProcessor(),
 	))
 
 	t.Run("complex nested federation", RunTest(complexFederationSchema,

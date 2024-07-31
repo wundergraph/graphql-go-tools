@@ -20,7 +20,7 @@ func (d *DeduplicateMultiFetch) ProcessSubscription(node resolve.Node, trigger *
 func (d *DeduplicateMultiFetch) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
-		d.traverseFetch(n.Fetch)
+		//d.traverseFetch(n.Fetch)
 		for i := range n.Fields {
 			d.traverseNode(n.Fields[i].Value)
 		}

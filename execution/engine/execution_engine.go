@@ -29,7 +29,7 @@ type internalExecutionContext struct {
 func newInternalExecutionContext() *internalExecutionContext {
 	return &internalExecutionContext{
 		resolveContext: resolve.NewContext(context.Background()),
-		postProcessor:  postprocess.DefaultProcessor(),
+		postProcessor:  postprocess.NewProcessor(),
 	}
 }
 

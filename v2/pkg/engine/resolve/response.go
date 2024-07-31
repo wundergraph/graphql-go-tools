@@ -26,6 +26,7 @@ type GraphQLResponse struct {
 	FetchTree       *Object
 	RenameTypeNames []RenameTypeName
 	Info            *GraphQLResponseInfo
+	Fetches         *FetchTreeNode
 }
 
 type GraphQLResponseInfo struct {

@@ -31,6 +31,54 @@ func (_ *MultiFetch) FetchKind() FetchKind {
 	return FetchKindMulti
 }
 
+type FetchItem struct {
+	Fetch                Fetch
+	FetchPath            []FetchItemPathElement
+	ResponsePath         string
+	ResponsePathElements []string
+}
+
+func (f *FetchItem) Equals(other *FetchItem) bool {
+	if len(f.FetchPath) != len(other.FetchPath) {
+		return false
+	}
+
+	for i := range f.FetchPath {
+		if f.FetchPath[i].Kind != other.FetchPath[i].Kind {
+			return false
+		}
+
+		if !slices.Equal(f.FetchPath[i].Path, other.FetchPath[i].Path) {
+			return false
+		}
+	}
+
+	if f.Fetch.FetchKind() != FetchKindSingle || other.Fetch.FetchKind() != FetchKindSingle {
+		return false
+	}
+	l, ok := f.Fetch.(*SingleFetch)
+	if !ok {
+		return false
+	}
+	r, ok := other.Fetch.(*SingleFetch)
+	if !ok {
+		return false
+	}
+	return l.FetchConfiguration.Equals(&r.FetchConfiguration)
+}
+
+type FetchItemPathElement struct {
+	Kind FetchItemPathElementKind
+	Path []string
+}
+
+type FetchItemPathElementKind string
+
+const (
+	FetchItemPathElementKindObject FetchItemPathElementKind = "object"
+	FetchItemPathElementKindArray                           = "array"
+)
+
 type SingleFetch struct {
 	FetchConfiguration
 	FetchDependencies
