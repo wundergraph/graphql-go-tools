@@ -437,7 +437,7 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 
 	i := 1
 	for hasPendingRequirements {
-		newAvailableHashes := make([]DSHash, 0, len(availableHashes))
+		newAvailableHashes := append([]DSHash{}, availableHashes...)
 		newPendingRequirements := make([]keyRequirements, 0, len(pendingRequirements))
 		for i := 0; i < len(pendingRequirements); i++ {
 			if c.matchDataSourcesByKeyConfiguration(selectionSetRef, pendingRequirements[i], availableHashes) {

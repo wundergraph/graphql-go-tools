@@ -241,11 +241,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 		for _, i := range itemIDs {
 			if f.nodes.items[i].Selected {
-				continue
+				break
 			}
 
 			if f.nodes.isSelectedOnOtherSource(i) {
-				continue
+				break
 			}
 
 			if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
