@@ -8408,44 +8408,52 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				) plan.Plan {
 					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
+							Fetches: resolve.Sequence(
+								resolve.Parallel(
+									resolve.Single(&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 0,
+										},
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id name isEntity __typename uuid}}"}}`,
+											PostProcessing: DefaultPostProcessingConfiguration,
+											DataSource:     &Source{},
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									}),
+									resolve.Single(&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 3,
+										},
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id name age rating __typename}}"}}`,
+											PostProcessing: DefaultPostProcessingConfiguration,
+											DataSource:     &Source{},
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									}),
+									resolve.Single(&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 6,
+										},
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {id name age isImportant __typename uuid}}"}}`,
+											PostProcessing: DefaultPostProcessingConfiguration,
+											DataSource:     &Source{},
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
+									}),
+								),
+								resolve.Parallel(
+									resolve.Single(entityOneFetchOne),
+									resolve.Single(entityOneFetchTwo),
+									resolve.Single(entityTwoFetchOne),
+									resolve.Single(entityTwoFetchTwo),
+									resolve.Single(entityThreeFetchOne),
+									resolve.Single(entityThreeFetchTwo),
+								),
+							),
 							Data: &resolve.Object{
-								Fetch: &resolve.ParallelFetch{
-									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 0,
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id name isEntity __typename uuid}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										},
-										&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 3,
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id name age rating __typename}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										},
-										&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 6,
-											},
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {id name age isImportant __typename uuid}}"}}`,
-												PostProcessing: DefaultPostProcessingConfiguration,
-												DataSource:     &Source{},
-											},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										},
-									},
-								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("entityOne"),
@@ -8488,12 +8496,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Value: &resolve.Float{
 														Path: []string{"rating"},
 													},
-												},
-											},
-											Fetch: &resolve.ParallelFetch{
-												Fetches: []resolve.Fetch{
-													entityOneFetchOne,
-													entityOneFetchTwo,
 												},
 											},
 										},
@@ -8541,12 +8543,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 											},
-											Fetch: &resolve.ParallelFetch{
-												Fetches: []resolve.Fetch{
-													entityTwoFetchOne,
-													entityTwoFetchTwo,
-												},
-											},
 										},
 									},
 									{
@@ -8590,12 +8586,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Value: &resolve.Float{
 														Path: []string{"rating"},
 													},
-												},
-											},
-											Fetch: &resolve.ParallelFetch{
-												Fetches: []resolve.Fetch{
-													entityThreeFetchOne,
-													entityThreeFetchTwo,
 												},
 											},
 										},
