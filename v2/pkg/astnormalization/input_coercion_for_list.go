@@ -6,12 +6,46 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
+
+type ListInputCoercion struct {
+	w *astvisitor.Walker
+	v *inputCoercionForListVisitor
+}
+
+func NewListInputCoercion() *ListInputCoercion {
+	w := astvisitor.NewWalker(8)
+	walker := &w
+	visitor := &inputCoercionForListVisitor{
+		Walker:              walker,
+		withCustomVariables: true,
+	}
+	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterVariableDefinitionVisitor(visitor)
+	return &ListInputCoercion{
+		w: walker,
+		v: visitor,
+	}
+}
+
+func (i *ListInputCoercion) CoerceInput(operation, definition *ast.Document, variables []byte) (coerced []byte, err error) {
+	i.v.customVariables = variables
+	defer func() {
+		i.v.customVariables = nil
+	}()
+	report := operationreport.Report{}
+	i.w.Walk(operation, definition, &report)
+	if report.HasErrors() {
+		return nil, report
+	}
+	return i.v.customVariables, nil
+}
 
 func inputCoercionForList(walker *astvisitor.Walker) {
 	visitor := inputCoercionForListVisitor{
@@ -28,6 +62,9 @@ type inputCoercionForListVisitor struct {
 	operationDefinitionRef int
 
 	query []string
+
+	withCustomVariables bool
+	customVariables     []byte
 }
 
 func (i *inputCoercionForListVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -36,6 +73,22 @@ func (i *inputCoercionForListVisitor) EnterDocument(operation, definition *ast.D
 
 func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
 	i.operationDefinitionRef = ref
+}
+
+func (i *inputCoercionForListVisitor) getVariableValue(variableNameString string) ([]byte, jsonparser.ValueType, int, error) {
+	if i.withCustomVariables {
+		return jsonparser.Get(i.customVariables, variableNameString)
+	}
+	return jsonparser.Get(i.operation.Input.Variables, variableNameString)
+}
+
+func (i *inputCoercionForListVisitor) setVariableValue(path string, data []byte) (err error) {
+	if i.withCustomVariables {
+		i.customVariables, err = sjson.SetRawBytes(i.customVariables, path, data)
+		return err
+	}
+	i.operation.Input.Variables, err = sjson.SetRawBytes(i.operation.Input.Variables, path, data)
+	return err
 }
 
 func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
@@ -48,7 +101,7 @@ func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableTypeRef := i.operation.VariableDefinitions[variableDefinition].Type
 	variableTypeRef = i.operation.ResolveListOrNameType(variableTypeRef)
 
-	value, dataType, _, err := jsonparser.Get(i.operation.Input.Variables, variableNameString)
+	value, dataType, _, err := i.getVariableValue(variableNameString)
 	if err == jsonparser.KeyPathNotFoundError {
 		// If the user doesn't provide any variable with that name,
 		// there is no need for coercion. Stop the operation
@@ -288,7 +341,7 @@ func (i *inputCoercionForListVisitor) processTypeKindList(document *ast.Document
 		i.StopWithInternalErr(err)
 		return
 	}
-	i.operation.Input.Variables, err = sjson.SetRawBytes(i.operation.Input.Variables, i.queryPath(), data)
+	err = i.setVariableValue(i.queryPath(), data)
 	if err != nil {
 		i.StopWithInternalErr(err)
 		return

@@ -23,7 +23,6 @@ import (
 	"github.com/valyala/fastjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
-	"go.uber.org/atomic"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -49,19 +48,17 @@ func IsIntrospectionDataSource(dataSourceID string) bool {
 
 var (
 	loaderBufPool = sync.Pool{}
-	loaderBufSize = atomic.NewInt32(128)
 )
 
 func acquireLoaderBuf() *bytes.Buffer {
 	v := loaderBufPool.Get()
 	if v == nil {
-		return bytes.NewBuffer(make([]byte, 0, loaderBufSize.Load()))
+		return bytes.NewBuffer(make([]byte, 0, 1024))
 	}
 	return v.(*bytes.Buffer)
 }
 
 func releaseLoaderBuf(buf *bytes.Buffer) {
-	loaderBufSize.Store(int32(buf.Cap()))
 	buf.Reset()
 	loaderBufPool.Put(buf)
 }
@@ -1082,9 +1079,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 }
 
 var (
-	batchEntityFetchPool         = sync.Pool{}
-	batchEntityPreparedInputSize = atomic.NewInt32(32)
-	batchEntityItemInputSize     = atomic.NewInt32(32)
+	batchEntityFetchPool = sync.Pool{}
 )
 
 type batchEntityFetchBuffer struct {
@@ -1097,8 +1092,8 @@ func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
 	buf := batchEntityFetchPool.Get()
 	if buf == nil {
 		return &batchEntityFetchBuffer{
-			preparedInput: bytes.NewBuffer(make([]byte, 0, int(batchEntityPreparedInputSize.Load()))),
-			itemInput:     bytes.NewBuffer(make([]byte, 0, int(batchEntityItemInputSize.Load()))),
+			preparedInput: &bytes.Buffer{},
+			itemInput:     &bytes.Buffer{},
 			keyGen:        xxhash.New(),
 		}
 	}
@@ -1106,8 +1101,6 @@ func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
 }
 
 func releaseBatchEntityFetchBuffer(buf *batchEntityFetchBuffer) {
-	batchEntityPreparedInputSize.Store(int32(buf.preparedInput.Cap()))
-	batchEntityItemInputSize.Store(int32(buf.itemInput.Cap()))
 	buf.preparedInput.Reset()
 	buf.itemInput.Reset()
 	buf.keyGen.Reset()
