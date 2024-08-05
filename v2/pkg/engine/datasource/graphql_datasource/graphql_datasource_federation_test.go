@@ -8446,12 +8446,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}),
 								),
 								resolve.Parallel(
-									resolve.Single(entityOneFetchOne),
-									resolve.Single(entityOneFetchTwo),
-									resolve.Single(entityTwoFetchOne),
-									resolve.Single(entityTwoFetchTwo),
-									resolve.Single(entityThreeFetchOne),
-									resolve.Single(entityThreeFetchTwo),
+									resolve.SingleWithPath(entityOneFetchOne, "entityOne", resolve.ObjectPath("entityOne")),
+									resolve.SingleWithPath(entityOneFetchTwo, "entityOne", resolve.ObjectPath("entityOne")),
+									resolve.SingleWithPath(entityTwoFetchOne, "entityTwo", resolve.ObjectPath("entityTwo")),
+									resolve.SingleWithPath(entityTwoFetchTwo, "entityTwo", resolve.ObjectPath("entityTwo")),
+									resolve.SingleWithPath(entityThreeFetchOne, "entityThree", resolve.ObjectPath("entityThree")),
+									resolve.SingleWithPath(entityThreeFetchTwo, "entityThree", resolve.ObjectPath("entityThree")),
 								),
 							),
 							Data: &resolve.Object{
