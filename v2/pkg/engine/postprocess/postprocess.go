@@ -53,6 +53,7 @@ func DisableMergeFields() ProcessorOption {
 func DisableResolveInputTemplates() ProcessorOption {
 	return func(o *processorOptions) {
 		o.disableResolveInputTemplates = true
+		o.disableCreateConcreteSingleFetchTypes = true
 	}
 }
 
