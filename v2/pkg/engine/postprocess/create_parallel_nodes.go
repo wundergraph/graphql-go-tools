@@ -7,9 +7,13 @@ import (
 )
 
 type createParallelNodes struct {
+	disable bool
 }
 
 func (c *createParallelNodes) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	if c.disable {
+		return
+	}
 	for i := 0; i < len(root.SerialNodes); i++ {
 		providedFetchIDs := resolveProvidedFetchIDs(root.SerialNodes[:i])
 		parallel := resolve.Parallel(root.SerialNodes[i])

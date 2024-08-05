@@ -6,6 +6,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -8651,7 +8652,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					"Query",
 					expectedPlans,
 					planConfiguration,
-					WithDefaultPostProcessor(),
+					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableMergeFields()),
 				)
 			})
 		})

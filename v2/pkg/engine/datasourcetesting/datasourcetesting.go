@@ -41,7 +41,11 @@ func WithSkipReason(reason string) func(*testOptions) {
 }
 
 func WithDefaultPostProcessor() func(*testOptions) {
-	return WithPostProcessors(postprocess.NewProcessor())
+	return WithPostProcessors(postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields()))
+}
+
+func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
+	return WithPostProcessors(postprocess.NewProcessor(options...))
 }
 
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {

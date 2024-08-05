@@ -27,6 +27,7 @@ type processorOptions struct {
 	disableMergeFields                    bool
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
+	disableCreateParallelNodes            bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -61,13 +62,20 @@ func DisableExtractFetches() ProcessorOption {
 	}
 }
 
+func DisableCreateParallelNodes() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableCreateParallelNodes = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
 		o(opts)
 	}
 	return &Processor{
-		disableExtractFetches: opts.disableExtractFetches,
+		disableExtractFetches:        opts.disableExtractFetches,
+		disableResolveInputTemplates: opts.disableResolveInputTemplates,
 		processFetchTree: []FetchTreeProcessor{
 			// this must go first, as we need to deduplicate fetches so that subsequent processors can work correctly
 			&deduplicateSingleFetches{
@@ -77,14 +85,10 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			&createConcreteSingleFetchTypes{
 				disable: opts.disableCreateConcreteSingleFetchTypes,
 			},
+			&createParallelNodes{
+				disable: opts.disableCreateParallelNodes,
+			},
 		},
-		/*processFetchTree: []ResponseTreeProcessor{
-			//&CreateMultiFetchTypes{},
-			&DeduplicateMultiFetch{}, // this processor must be called after CreateMultiFetchTypes, when we remove duplicates we may lack of dependency id, which required to create proper multi fetch types
-			&resolveInputTemplates{},
-			&createConcreteSingleFetchTypes{},
-		},
-		*/
 		processResponseTree: []ResponseTreeProcessor{
 			&mergeFields{
 				disable: opts.disableMergeFields,
