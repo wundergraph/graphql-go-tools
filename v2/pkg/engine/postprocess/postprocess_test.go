@@ -53,7 +53,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 							},
 						},
 					},
-					Fetches: resolve.Parallel(
+					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
 						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}),
 						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}),
@@ -142,10 +142,10 @@ func TestProcess_ExtractFetches(t *testing.T) {
 							},
 						},
 					},
-					Fetches: resolve.Parallel(
+					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}, resolve.ObjectPath("obj")),
-						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}, resolve.ObjectPath("obj")),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2}}, "obj", resolve.ObjectPath("obj")),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3}}, "obj", resolve.ObjectPath("obj")),
 					),
 				},
 			},
@@ -249,17 +249,92 @@ func TestProcess_ExtractFetches(t *testing.T) {
 					},
 					Fetches: resolve.Sequence(
 						resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}}),
-						resolve.Parallel(
-							resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}}, resolve.ArrayPath("obj")),
-							resolve.Single(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1}}}, resolve.ArrayPath("obj")),
-						),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}}, "objects", resolve.ArrayPath("objects"), resolve.ObjectPath("obj")),
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 3, DependsOnFetchIDs: []int{1}}}, "objects", resolve.ArrayPath("objects"), resolve.ObjectPath("obj")),
+					),
+				},
+			},
+		},
+		{
+			name: "4",
+			pre: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("objects"),
+								Value: &resolve.Array{
+									Nullable: true,
+									Path:     []string{"objects"},
+									Item: &resolve.Object{
+										Path: []string{"obj"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("field1"),
+												Value: &resolve.Object{
+													Path: []string{"field1"},
+													Fetches: []resolve.Fetch{
+														&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}},
+													},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("nestedField1"),
+															Value: &resolve.String{
+																Path: []string{"nestedField1"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("objects"),
+								Value: &resolve.Array{
+									Nullable: true,
+									Path:     []string{"objects"},
+									Item: &resolve.Object{
+										Path: []string{"obj"},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("field1"),
+												Value: &resolve.Object{
+													Path: []string{"field1"},
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("nestedField1"),
+															Value: &resolve.String{
+																Path: []string{"nestedField1"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetches: resolve.Sequence(
+						resolve.SingleWithPath(&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 2, DependsOnFetchIDs: []int{1}}}, "objects.@.field1", resolve.ArrayPath("objects"), resolve.ObjectPath("obj"), resolve.ObjectPath("field1")),
 					),
 				},
 			},
 		},
 	}
 
-	processor := NewProcessor()
+	processor := NewProcessor(DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableMergeFields())
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

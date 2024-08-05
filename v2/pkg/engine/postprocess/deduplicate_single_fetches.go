@@ -5,9 +5,13 @@ import (
 )
 
 type deduplicateSingleFetches struct {
+	disable bool
 }
 
 func (d *deduplicateSingleFetches) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	if d.disable {
+		return
+	}
 	for i := range root.SerialNodes {
 		for j := i + 1; j < len(root.SerialNodes); j++ {
 			if root.SerialNodes[i].Item.Equals(root.SerialNodes[j].Item) {

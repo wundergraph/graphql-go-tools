@@ -7,67 +7,47 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// ResolveInputTemplates is a postprocessor that resolves input template
-type ResolveInputTemplates struct{}
-
-func (d *ResolveInputTemplates) Process(node resolve.Node) {
-	d.traverseNode(node)
+// resolveInputTemplates is a postprocessor that resolves input template
+type resolveInputTemplates struct {
 }
 
-func (d *ResolveInputTemplates) ProcessSubscription(node resolve.Node, trigger *resolve.GraphQLSubscriptionTrigger) {
-	d.traverseTrigger(trigger)
-	d.traverseNode(node)
+func (r *resolveInputTemplates) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	r.traverseNode(root)
 }
 
-func (d *ResolveInputTemplates) traverseNode(node resolve.Node) {
-	switch n := node.(type) {
-	case *resolve.Object:
-		//d.traverseFetch(n.Fetch)
-		for i := range n.Fields {
-			d.traverseNode(n.Fields[i].Value)
-		}
-	case *resolve.Array:
-		d.traverseNode(n.Item)
-	}
-}
-
-func (d *ResolveInputTemplates) traverseFetch(fetch resolve.Fetch) {
-	if fetch == nil {
-		return
-	}
-	switch f := fetch.(type) {
-	case *resolve.SingleFetch:
-		d.traverseSingleFetch(f)
-	case *resolve.ParallelFetch:
-		for i := range f.Fetches {
-			d.traverseFetch(f.Fetches[i])
-		}
-	case *resolve.SerialFetch:
-		for i := range f.Fetches {
-			d.traverseFetch(f.Fetches[i])
-		}
-	default:
-		// at this point, we should not have any other types of fetches
-		// as from planner we could get only SingleFetch and MultiFetch
-		// other types of fetches are created only during postprocessing via CreateConcreteSingleFetchTypes postprocessor
-	}
-}
-
-func (d *ResolveInputTemplates) traverseTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
-	d.resolveInputTemplate(trigger.Variables, string(trigger.Input), &trigger.InputTemplate)
+func (r *resolveInputTemplates) ProcessTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
+	r.resolveInputTemplate(trigger.Variables, string(trigger.Input), &trigger.InputTemplate)
 	trigger.Input = nil
 	trigger.Variables = nil
 }
 
-func (d *ResolveInputTemplates) traverseSingleFetch(fetch *resolve.SingleFetch) {
-	d.resolveInputTemplate(fetch.Variables, fetch.Input, &fetch.InputTemplate)
+func (r *resolveInputTemplates) traverseNode(node *resolve.FetchTreeNode) {
+	if node == nil {
+		return
+	}
+	switch node.Kind {
+	case resolve.FetchTreeNodeKindSingle:
+		r.traverseSingleFetch(node.Item.Fetch.(*resolve.SingleFetch))
+	case resolve.FetchTreeNodeKindParallel:
+		for i := range node.ParallelNodes {
+			r.traverseNode(node.ParallelNodes[i])
+		}
+	case resolve.FetchTreeNodeKindSequence:
+		for i := range node.SerialNodes {
+			r.traverseNode(node.SerialNodes[i])
+		}
+	}
+}
+
+func (r *resolveInputTemplates) traverseSingleFetch(fetch *resolve.SingleFetch) {
+	r.resolveInputTemplate(fetch.Variables, fetch.Input, &fetch.InputTemplate)
 	fetch.Input = ""
 	fetch.Variables = nil
 	fetch.InputTemplate.SetTemplateOutputToNullOnVariableNull = fetch.SetTemplateOutputToNullOnVariableNull
 	fetch.SetTemplateOutputToNullOnVariableNull = false
 }
 
-func (d *ResolveInputTemplates) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
+func (r *resolveInputTemplates) resolveInputTemplate(variables resolve.Variables, input string, template *resolve.InputTemplate) {
 
 	if input == "" {
 		return

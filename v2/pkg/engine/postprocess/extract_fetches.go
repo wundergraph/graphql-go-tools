@@ -13,7 +13,7 @@ type extractor struct {
 	info                *resolve.GraphQLResponseInfo
 }
 
-func (e *extractor) GetFetches(res *resolve.GraphQLResponse) []*resolve.FetchItem {
+func (e *extractor) extractFetches(res *resolve.GraphQLResponse) []*resolve.FetchItem {
 	e.traverseNode(res.Data)
 	return e.fetches
 }
