@@ -173,10 +173,10 @@ func (r *Resolver) putTools(t *tools) {
 	r.maxConcurrency <- struct{}{}
 }
 
-func (r *Resolver) getBuffer(preferredSize int) *bytes.Buffer {
+func (r *Resolver) getBuffer() *bytes.Buffer {
 	maybeBuffer := r.bufPool.Get()
 	if maybeBuffer == nil {
-		return bytes.NewBuffer(make([]byte, 0, preferredSize))
+		return &bytes.Buffer{}
 	}
 	return maybeBuffer.(*bytes.Buffer)
 }
@@ -215,15 +215,9 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return nil, err
 	}
 
-	fetchTree := response.FetchTree
-	if fetchTree == nil {
-		// fallback to the response data
-		fetchTree = response.Data
-	}
-
-	buf := r.getBuffer(t.resolvable.MaxSize())
+	buf := r.getBuffer()
 	defer r.releaseBuffer(buf)
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 	r.putTools(t)
 	if err != nil {
 		return nil, err
@@ -306,7 +300,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return // subscription was already closed by the client
 	}
-	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.FetchTree, sub.writer); err != nil {
+	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)

@@ -14,18 +14,18 @@ func (c *createParallelNodes) ProcessFetchTree(root *resolve.FetchTreeNode) {
 	if c.disable {
 		return
 	}
-	for i := 0; i < len(root.SerialNodes); i++ {
-		providedFetchIDs := resolveProvidedFetchIDs(root.SerialNodes[:i])
-		parallel := resolve.Parallel(root.SerialNodes[i])
-		for j := i + 1; j < len(root.SerialNodes); j++ {
-			if c.dependenciesCanBeProvided(root.SerialNodes[j], providedFetchIDs) {
-				parallel.ParallelNodes = append(parallel.ParallelNodes, root.SerialNodes[j])
-				root.SerialNodes = append(root.SerialNodes[:j], root.SerialNodes[j+1:]...)
+	for i := 0; i < len(root.ChildNodes); i++ {
+		providedFetchIDs := resolveProvidedFetchIDs(root.ChildNodes[:i])
+		parallel := resolve.Parallel(root.ChildNodes[i])
+		for j := i + 1; j < len(root.ChildNodes); j++ {
+			if c.dependenciesCanBeProvided(root.ChildNodes[j], providedFetchIDs) {
+				parallel.ChildNodes = append(parallel.ChildNodes, root.ChildNodes[j])
+				root.ChildNodes = append(root.ChildNodes[:j], root.ChildNodes[j+1:]...)
 				j--
 			}
 		}
-		if len(parallel.ParallelNodes) > 1 {
-			root.SerialNodes[i] = parallel
+		if len(parallel.ChildNodes) > 1 {
+			root.ChildNodes[i] = parallel
 		}
 	}
 }
@@ -48,9 +48,9 @@ func resolveProvidedFetchIDs(nodes []*resolve.FetchTreeNode) []int {
 			deps := node.Item.Fetch.Dependencies()
 			provided = append(provided, deps.FetchID)
 		case resolve.FetchTreeNodeKindParallel:
-			provided = append(provided, resolveProvidedFetchIDs(node.ParallelNodes)...)
+			provided = append(provided, resolveProvidedFetchIDs(node.ChildNodes)...)
 		case resolve.FetchTreeNodeKindSequence:
-			provided = append(provided, resolveProvidedFetchIDs(node.SerialNodes)...)
+			provided = append(provided, resolveProvidedFetchIDs(node.ChildNodes)...)
 		}
 	}
 	return provided

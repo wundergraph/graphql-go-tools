@@ -36,12 +36,12 @@ func (r *resolveInputTemplates) traverseNode(node *resolve.FetchTreeNode) {
 	case resolve.FetchTreeNodeKindSingle:
 		r.traverseSingleFetch(node.Item.Fetch.(*resolve.SingleFetch))
 	case resolve.FetchTreeNodeKindParallel:
-		for i := range node.ParallelNodes {
-			r.traverseNode(node.ParallelNodes[i])
+		for i := range node.ChildNodes {
+			r.traverseNode(node.ChildNodes[i])
 		}
 	case resolve.FetchTreeNodeKindSequence:
-		for i := range node.SerialNodes {
-			r.traverseNode(node.SerialNodes[i])
+		for i := range node.ChildNodes {
+			r.traverseNode(node.ChildNodes[i])
 		}
 	}
 }

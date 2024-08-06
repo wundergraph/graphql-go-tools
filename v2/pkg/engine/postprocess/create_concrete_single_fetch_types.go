@@ -24,12 +24,12 @@ func (d *createConcreteSingleFetchTypes) traverseNode(node *resolve.FetchTreeNod
 	case resolve.FetchTreeNodeKindSingle:
 		node.Item.Fetch = d.traverseFetch(node.Item.Fetch)
 	case resolve.FetchTreeNodeKindParallel:
-		for i := range node.ParallelNodes {
-			d.traverseNode(node.ParallelNodes[i])
+		for i := range node.ChildNodes {
+			d.traverseNode(node.ChildNodes[i])
 		}
 	case resolve.FetchTreeNodeKindSequence:
-		for i := range node.SerialNodes {
-			d.traverseNode(node.SerialNodes[i])
+		for i := range node.ChildNodes {
+			d.traverseNode(node.ChildNodes[i])
 		}
 	}
 }

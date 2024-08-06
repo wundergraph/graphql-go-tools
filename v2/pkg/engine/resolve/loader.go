@@ -97,9 +97,9 @@ func (l *Loader) resolveFetchNode(node *FetchTreeNode) error {
 	case FetchTreeNodeKindSingle:
 		return l.resolveSingle(node.Item)
 	case FetchTreeNodeKindSequence:
-		return l.resolveSerial(node.SerialNodes)
+		return l.resolveSerial(node.ChildNodes)
 	case FetchTreeNodeKindParallel:
-		return l.resolveParallel(node.ParallelNodes)
+		return l.resolveParallel(node.ChildNodes)
 	default:
 		return nil
 	}
@@ -465,7 +465,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*fastjso
 	if res.out.Len() == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-	l.resolvable.maxSize += res.out.Len()
 	value, err := l.resolvable.parseJSON(res.out.Bytes())
 	if err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)

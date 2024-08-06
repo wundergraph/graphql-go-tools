@@ -10,7 +10,7 @@ type orderSquenceByDependencies struct {
 }
 
 func (o *orderSquenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNode) {
-	slices.SortFunc(root.SerialNodes, func(_a, _b *resolve.FetchTreeNode) int {
+	slices.SortFunc(root.ChildNodes, func(_a, _b *resolve.FetchTreeNode) int {
 		a, b := o.nodeFetchID(_a), o.nodeFetchID(_b)
 		aDeps, bDeps := o.nodeDependsOn(_a, root), o.nodeDependsOn(_b, root)
 		if slices.Equal(aDeps, bDeps) {
@@ -30,7 +30,7 @@ func (o *orderSquenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNod
 }
 
 func (o *orderSquenceByDependencies) nodeByFetchID(id int, root *resolve.FetchTreeNode) *resolve.FetchTreeNode {
-	for _, node := range root.SerialNodes {
+	for _, node := range root.ChildNodes {
 		if o.nodeFetchID(node) == id {
 			return node
 		}

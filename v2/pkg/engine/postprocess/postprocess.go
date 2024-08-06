@@ -154,7 +154,7 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 		}
 	}
 	res.Fetches = &resolve.FetchTreeNode{
-		Kind:        resolve.FetchTreeNodeKindSequence,
-		SerialNodes: children,
+		Kind:       resolve.FetchTreeNodeKindSequence,
+		ChildNodes: children,
 	}
 }

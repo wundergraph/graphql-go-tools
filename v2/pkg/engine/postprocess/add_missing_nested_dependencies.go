@@ -14,14 +14,14 @@ func (a *addMissingNestedDependencies) ProcessFetchTree(root *resolve.FetchTreeN
 	if a.disable {
 		return
 	}
-	for i, node := range root.SerialNodes {
+	for i, node := range root.ChildNodes {
 		if len(node.Item.ResponsePath) == 0 {
 			continue
 		}
 		if len(node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs) != 0 {
 			continue
 		}
-		for j, otherNode := range root.SerialNodes {
+		for j, otherNode := range root.ChildNodes {
 			if i == j {
 				continue
 			}

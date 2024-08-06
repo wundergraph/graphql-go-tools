@@ -11,7 +11,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 
 	t.Run("no duplicates", func(t *testing.T) {
 		input := &resolve.FetchTreeNode{
-			SerialNodes: []*resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
@@ -35,7 +35,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 	})
 	t.Run("same path, same input", func(t *testing.T) {
 		input := &resolve.FetchTreeNode{
-			SerialNodes: []*resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
@@ -54,7 +54,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 		}
 
 		output := &resolve.FetchTreeNode{
-			SerialNodes: []*resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
@@ -73,7 +73,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 
 	t.Run("different path, same input", func(t *testing.T) {
 		input := &resolve.FetchTreeNode{
-			SerialNodes: []*resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{
@@ -92,7 +92,7 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 		}
 
 		output := &resolve.FetchTreeNode{
-			SerialNodes: []*resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
 				{
 					Kind: resolve.FetchTreeNodeKindSingle,
 					Item: &resolve.FetchItem{

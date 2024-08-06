@@ -9,8 +9,8 @@ import (
 )
 
 func sequenceToDeps(seq *resolve.FetchTreeNode) []resolve.FetchDependencies {
-	result := make([]resolve.FetchDependencies, len(seq.SerialNodes))
-	for i, node := range seq.SerialNodes {
+	result := make([]resolve.FetchDependencies, len(seq.ChildNodes))
+	for i, node := range seq.ChildNodes {
 		result[i] = node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies
 	}
 	return result
@@ -18,10 +18,10 @@ func sequenceToDeps(seq *resolve.FetchTreeNode) []resolve.FetchDependencies {
 
 func depsToSequence(deps []resolve.FetchDependencies) *resolve.FetchTreeNode {
 	result := &resolve.FetchTreeNode{
-		SerialNodes: make([]*resolve.FetchTreeNode, len(deps)),
+		ChildNodes: make([]*resolve.FetchTreeNode, len(deps)),
 	}
 	for i, dep := range deps {
-		result.SerialNodes[i] = &resolve.FetchTreeNode{
+		result.ChildNodes[i] = &resolve.FetchTreeNode{
 			Kind: resolve.FetchTreeNodeKindSingle,
 			Item: &resolve.FetchItem{
 				Fetch: &resolve.SingleFetch{FetchDependencies: dep},
