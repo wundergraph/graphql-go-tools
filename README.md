@@ -1,5 +1,5 @@
 [![GoDoc](https://godoc.org/github.com/wundergraph/graphql-go-tools?status.svg)](https://godoc.org/github.com/wundergraph/graphql-go-tools)
-[![v1-ci](https://github.com/wundergraph/graphql-go-tools/workflows/v1-ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v1.yml)
+[![v2-ci](https://github.com/wundergraph/graphql-go-tools/workflows/v2-ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v2.yml)
 # GraphQL Router / API Gateway Framework written in Golang
 
 [<p align="center"><img height="auto" src="./assets/logo.png"></p>](https://wundergraph.com/)
@@ -32,6 +32,18 @@ Cosmo Router wraps this library and provides a complete solution for Federated G
 - [x] Persisted Operations / Trusted Documents
 - [x] Traffic Shaping (Timeouts, Retries, Header & Body Size Limits, Subgraph Header forwarding)
 - [x] Custom Modules & Middleware
+
+## State of the packages
+
+This repository contains multiple packages joined via [workspace](https://github.com/wundergraph/graphql-go-tools/blob/master/go.work).
+
+| Package                                                                                                       | Description                                                                                                                                                                                                    | Package dependencies                                                                                                                                                                            | Maintenance state                  |
+|---------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|
+| graphql-go-tools [v2](https://github.com/wundergraph/graphql-go-tools/blob/master/v2/go.mod)                  | Graphql engine consisting of lexer, parser, ast, ast validation, ast normalization, datasources and query planner                                                                                              | -                                                                                                                                                                                               | actual version, active development |
+| [execution](https://github.com/wundergraph/graphql-go-tools/blob/master/execution/go.mod)                     | Execution helpers for the request handling and engine configuration builder                                                                                                                                    | depends on [graphql-go-tools v2](https://github.com/wundergraph/graphql-go-tools/blob/master/v2/go.mod) and [composition](https://github.com/wundergraph/cosmo/blob/main/composition-go/go.mod) | actual version                     |
+| [examples/federation](https://github.com/wundergraph/graphql-go-tools/blob/master/examples/federation/go.mod) | Example implementation of graphql federation gateway. This example is not production ready. For production ready solution please consider using [cosmo router](https://github.com/wundergraph/cosmo/tree/main) | depends on [execution](https://github.com/wundergraph/graphql-go-tools/blob/master/execution/go.mod) package                                                                                    | actual federation gateway example  |
+| graphql-go-tools [v1](https://github.com/wundergraph/graphql-go-tools/blob/master/go.mod)                     | Legacy graphql engine implementation. This package is in the maintanence mode and accepts only pull requests with a critical bug fixes. All new features will be added into v2                                 | -                                                                                                                                                                                               | deprecated, maintenance mode       |
+
 
 ## Notes
 
