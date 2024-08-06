@@ -66,7 +66,7 @@ type FetchItemPathElementKind string
 
 const (
 	FetchItemPathElementKindObject FetchItemPathElementKind = "object"
-	FetchItemPathElementKindArray                           = "array"
+	FetchItemPathElementKindArray  FetchItemPathElementKind = "array"
 )
 
 type SingleFetch struct {
