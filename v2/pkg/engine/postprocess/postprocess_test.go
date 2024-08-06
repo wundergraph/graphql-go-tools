@@ -334,7 +334,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		},
 	}
 
-	processor := NewProcessor(DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableMergeFields(), DisableCreateParallelNodes())
+	processor := NewProcessor(DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableMergeFields(), DisableCreateParallelNodes(), DisableAddMissingNestedDependencies())
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -195,23 +195,23 @@ func parseFetch(fetch Fetch, options *getTraceOptions) *TraceFetch {
 			traceFetch.DataSourceID = f.Info.DataSourceID
 		}
 
-	case *ParallelFetch:
-		traceFetch.Type = TraceFetchTypeParallel
-		if f.Trace != nil {
-			traceFetch.Path = f.Trace.Path
-		}
-		for _, subFetch := range f.Fetches {
-			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch, options))
-		}
+		/*	case *ParallelFetch:
+				traceFetch.Type = TraceFetchTypeParallel
+				if f.Trace != nil {
+					traceFetch.Path = f.Trace.Path
+				}
+				for _, subFetch := range f.Fetches {
+					traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch, options))
+				}
 
-	case *SerialFetch:
-		traceFetch.Type = TraceFetchTypeSerial
-		if f.Trace != nil {
-			traceFetch.Path = f.Trace.Path
-		}
-		for _, subFetch := range f.Fetches {
-			traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch, options))
-		}
+			case *SerialFetch:
+				traceFetch.Type = TraceFetchTypeSerial
+				if f.Trace != nil {
+					traceFetch.Path = f.Trace.Path
+				}
+				for _, subFetch := range f.Fetches {
+					traceFetch.Fetches = append(traceFetch.Fetches, parseFetch(subFetch, options))
+				}*/
 
 	case *ParallelListItemFetch:
 		traceFetch.Type = TraceFetchTypeParallelListItem

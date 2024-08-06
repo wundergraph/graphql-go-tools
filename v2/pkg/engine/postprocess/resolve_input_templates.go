@@ -9,13 +9,20 @@ import (
 
 // resolveInputTemplates is a postprocessor that resolves input template
 type resolveInputTemplates struct {
+	disable bool
 }
 
 func (r *resolveInputTemplates) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	if r.disable {
+		return
+	}
 	r.traverseNode(root)
 }
 
 func (r *resolveInputTemplates) ProcessTrigger(trigger *resolve.GraphQLSubscriptionTrigger) {
+	if r.disable {
+		return
+	}
 	r.resolveInputTemplate(trigger.Variables, string(trigger.Input), &trigger.InputTemplate)
 	trigger.Input = nil
 	trigger.Variables = nil

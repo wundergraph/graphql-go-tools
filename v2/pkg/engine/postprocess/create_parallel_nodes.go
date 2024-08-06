@@ -31,8 +31,8 @@ func (c *createParallelNodes) ProcessFetchTree(root *resolve.FetchTreeNode) {
 }
 
 func (c *createParallelNodes) dependenciesCanBeProvided(node *resolve.FetchTreeNode, providedFetchIDs []int) bool {
-	dependencies := node.Item.Fetch.(*resolve.SingleFetch).DependsOnFetchIDs
-	for _, dep := range dependencies {
+	deps := node.Item.Fetch.Dependencies()
+	for _, dep := range deps.DependsOnFetchIDs {
 		if !slices.Contains(providedFetchIDs, dep) {
 			return false
 		}
@@ -45,7 +45,8 @@ func resolveProvidedFetchIDs(nodes []*resolve.FetchTreeNode) []int {
 	for _, node := range nodes {
 		switch node.Kind {
 		case resolve.FetchTreeNodeKindSingle:
-			provided = append(provided, node.Item.Fetch.(*resolve.SingleFetch).FetchID)
+			deps := node.Item.Fetch.Dependencies()
+			provided = append(provided, deps.FetchID)
 		case resolve.FetchTreeNodeKindParallel:
 			provided = append(provided, resolveProvidedFetchIDs(node.ParallelNodes)...)
 		case resolve.FetchTreeNodeKindSequence:

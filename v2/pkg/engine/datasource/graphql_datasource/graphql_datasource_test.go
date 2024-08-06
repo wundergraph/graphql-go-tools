@@ -3489,7 +3489,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						}),
 						resolve.SingleWithPath(&resolve.SingleFetch{
 							FetchDependencies: resolve.FetchDependencies{
-								FetchID: 1,
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0, 2},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource:     &Source{},
@@ -3500,7 +3501,8 @@ func TestGraphQLDataSource(t *testing.T) {
 						}, "serviceOne", resolve.ObjectPath("serviceOne")),
 						resolve.SingleWithPath(&resolve.SingleFetch{
 							FetchDependencies: resolve.FetchDependencies{
-								FetchID: 3,
+								FetchID:           3,
+								DependsOnFetchIDs: []int{0, 2},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource: &Source{},

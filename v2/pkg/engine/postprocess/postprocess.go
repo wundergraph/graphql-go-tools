@@ -15,10 +15,11 @@ type FetchTreeProcessor interface {
 }
 
 type Processor struct {
-	disableExtractFetches        bool
-	disableResolveInputTemplates bool
-	processResponseTree          []ResponseTreeProcessor
-	processFetchTree             []FetchTreeProcessor
+	disableExtractFetches bool
+	resolveInputTemplates *resolveInputTemplates
+	dedupe                *deduplicateSingleFetches
+	processResponseTree   []ResponseTreeProcessor
+	processFetchTree      []FetchTreeProcessor
 }
 
 type processorOptions struct {
@@ -28,6 +29,7 @@ type processorOptions struct {
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
+	disableAddMissingNestedDependencies   bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -69,18 +71,29 @@ func DisableCreateParallelNodes() ProcessorOption {
 	}
 }
 
+func DisableAddMissingNestedDependencies() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableAddMissingNestedDependencies = true
+	}
+}
+
 func NewProcessor(options ...ProcessorOption) *Processor {
 	opts := &processorOptions{}
 	for _, o := range options {
 		o(opts)
 	}
 	return &Processor{
-		disableExtractFetches:        opts.disableExtractFetches,
-		disableResolveInputTemplates: opts.disableResolveInputTemplates,
+		disableExtractFetches: opts.disableExtractFetches,
+		resolveInputTemplates: &resolveInputTemplates{
+			disable: opts.disableResolveInputTemplates,
+		},
+		dedupe: &deduplicateSingleFetches{
+			disable: opts.disableDeduplicateSingleFetches,
+		},
 		processFetchTree: []FetchTreeProcessor{
 			// this must go first, as we need to deduplicate fetches so that subsequent processors can work correctly
-			&deduplicateSingleFetches{
-				disable: opts.disableDeduplicateSingleFetches,
+			&addMissingNestedDependencies{
+				disable: opts.disableAddMissingNestedDependencies,
 			},
 			// this must go after deduplication because it relies on the existence of a "sequence" fetch node in the root
 			&createConcreteSingleFetchTypes{
@@ -105,10 +118,8 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
 		p.createFetchTree(t.Response)
-		if !p.disableResolveInputTemplates {
-			resolver := &resolveInputTemplates{}
-			resolver.ProcessFetchTree(t.Response.Fetches)
-		}
+		p.dedupe.ProcessFetchTree(t.Response.Fetches)
+		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Fetches)
 		}
@@ -117,11 +128,9 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].ProcessSubscription(t.Response.Response.Data)
 		}
 		p.createFetchTree(t.Response.Response)
-		if !p.disableResolveInputTemplates {
-			resolver := &resolveInputTemplates{}
-			resolver.ProcessFetchTree(t.Response.Response.Fetches)
-			resolver.ProcessTrigger(&t.Response.Trigger)
-		}
+		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
+		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
+		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Response.Fetches)
 		}

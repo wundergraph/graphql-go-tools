@@ -350,7 +350,7 @@ func TestDataSourceInput_Process(t *testing.T) {
 		},
 	}
 
-	processor := NewProcessor(DisableMergeFields(), DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableCreateParallelNodes())
+	processor := NewProcessor(DisableMergeFields(), DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableCreateParallelNodes(), DisableAddMissingNestedDependencies())
 	processor.Process(pre)
 
 	if !assert.Equal(t, expected, pre) {
@@ -461,7 +461,7 @@ func TestDataSourceInput_ProcessTrigger(t *testing.T) {
 		},
 	}
 
-	processor := NewProcessor(DisableMergeFields(), DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes())
+	processor := NewProcessor(DisableMergeFields(), DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableAddMissingNestedDependencies())
 	processor.Process(pre)
 
 	if !assert.Equal(t, expected, pre) {

@@ -387,10 +387,6 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 	case *SingleFetch:
 		res.out = acquireLoaderBuf()
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
-	case *SerialFetch:
-		return fmt.Errorf("serial fetch must not be nested")
-	case *ParallelFetch:
-		return fmt.Errorf("parallel fetch must not be nested")
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
 		if l.ctx.TracingOptions.Enable {
