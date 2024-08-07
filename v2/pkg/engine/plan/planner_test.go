@@ -118,11 +118,13 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &FakeDataSource{&StatefulSource{}},
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
-					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
 			},
 		},
@@ -182,11 +184,13 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
-						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
 			},
@@ -237,11 +241,13 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
-						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
 			},
@@ -388,12 +394,12 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetch: &resolve.SingleFetch{
+							Fetches: []resolve.Fetch{&resolve.SingleFetch{
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource: &FakeDataSource{&StatefulSource{}},
 								},
 								DataSourceIdentifier: []byte("plan.FakeDataSource"),
-							},
+							}},
 						},
 					},
 				},
@@ -440,11 +446,13 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetch: &resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &FakeDataSource{&StatefulSource{}},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
-								DataSourceIdentifier: []byte("plan.FakeDataSource"),
 							},
 						},
 					},
@@ -492,11 +500,13 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetch: &resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &FakeDataSource{&StatefulSource{}},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
-								DataSourceIdentifier: []byte("plan.FakeDataSource"),
 							},
 						},
 					},
@@ -539,11 +549,13 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 					},
 				},
 			},
-			Fetch: &resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					DataSource: &FakeDataSource{&StatefulSource{}},
+			Fetches: []resolve.Fetch{
+				&resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
-				DataSourceIdentifier: []byte("plan.FakeDataSource"),
 			},
 		},
 	},
@@ -579,11 +591,13 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 					},
 				},
 			},
-			Fetch: &resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					DataSource: &FakeDataSource{&StatefulSource{}},
+			Fetches: []resolve.Fetch{
+				&resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
-				DataSourceIdentifier: []byte("plan.FakeDataSource"),
 			},
 		},
 	},

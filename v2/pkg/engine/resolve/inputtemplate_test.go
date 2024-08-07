@@ -11,7 +11,7 @@ import (
 )
 
 func TestInputTemplate_Render(t *testing.T) {
-	runTest := func(t *testing.T, initRenderer initTestVariableRenderer, variables string, sourcePath []string, jsonSchema string, expectErr bool, expected string) {
+	runTest := func(t *testing.T, initRenderer initTestVariableRenderer, variables string, sourcePath []string, expectErr bool, expected string) {
 		t.Helper()
 
 		template := InputTemplate{
@@ -20,7 +20,7 @@ func TestInputTemplate_Render(t *testing.T) {
 					SegmentType:        VariableSegmentType,
 					VariableKind:       ContextVariableKind,
 					VariableSourcePath: sourcePath,
-					Renderer:           initRenderer(jsonSchema),
+					Renderer:           initRenderer(),
 				},
 			},
 		}
@@ -41,95 +41,75 @@ func TestInputTemplate_Render(t *testing.T) {
 	t.Run("plain renderer", func(t *testing.T) {
 		renderer := useTestPlainVariableRenderer()
 		t.Run("string scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":"bar"}`, []string{"foo"}, `{"type":"string"}`, false, `bar`)
+			runTest(t, renderer, `{"foo":"bar"}`, []string{"foo"}, false, `bar`)
 		})
 		t.Run("boolean scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":true}`, []string{"foo"}, `{"type":"boolean"}`, false, "true")
+			runTest(t, renderer, `{"foo":true}`, []string{"foo"}, false, "true")
 		})
 		t.Run("nested string", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"value"}}`, []string{"foo", "bar"}, `{"type":"string"}`, false, `value`)
+			runTest(t, renderer, `{"foo":{"bar":"value"}}`, []string{"foo", "bar"}, false, `value`)
 		})
 		t.Run("json object pass through", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"baz"}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"string"}}}`, false, `{"bar":"baz"}`)
+			runTest(t, renderer, `{"foo":{"bar":"baz"}}`, []string{"foo"}, false, `{"bar":"baz"}`)
 		})
 		t.Run("json object as graphql object", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"baz"}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"string"}}}`, false, `{"bar":"baz"}`)
-		})
-		t.Run("json object as graphql object with null on required type", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":["string"]}`, true, ``)
+			runTest(t, renderer, `{"foo":{"bar":"baz"}}`, []string{"foo"}, false, `{"bar":"baz"}`)
 		})
 		t.Run("json object as graphql object with null", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":["string","null"]}`, false, `null`)
+			runTest(t, renderer, `{"foo":null}`, []string{"foo"}, false, `null`)
 		})
 		t.Run("json object as graphql object with number", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":123}`, []string{"foo"}, `{"type":"integer"}`, false, `123`)
-		})
-		t.Run("json object as graphql object with invalid number", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":123}`, []string{"foo"}, `{"type":"string"}`, true, "")
+			runTest(t, renderer, `{"foo":123}`, []string{"foo"}, false, `123`)
 		})
 		t.Run("json object as graphql object with boolean", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":true}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"boolean"}}}`, false, `{"bar":true}`)
+			runTest(t, renderer, `{"foo":{"bar":true}}`, []string{"foo"}, false, `{"bar":true}`)
 		})
 		t.Run("json object as graphql object with number", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":123}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"integer"}}}`, false, `{"bar":123}`)
+			runTest(t, renderer, `{"foo":{"bar":123}}`, []string{"foo"}, false, `{"bar":123}`)
 		})
 		t.Run("json object as graphql object with float", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":1.23}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"number"}}}`, false, `{"bar":1.23}`)
+			runTest(t, renderer, `{"foo":{"bar":1.23}}`, []string{"foo"}, false, `{"bar":1.23}`)
 		})
 		t.Run("json object as graphql object with nesting", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":{"baz":"bat"}}}`, []string{"foo"}, `{"type":"object","properties":{"bar":{"type":"object","properties":{"baz":{"type":"string"}}}}}`, false, `{"bar":{"baz":"bat"}}`)
+			runTest(t, renderer, `{"foo":{"bar":{"baz":"bat"}}}`, []string{"foo"}, false, `{"bar":{"baz":"bat"}}`)
 		})
 		t.Run("json object as graphql object with single array", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":["bar"]}`, []string{"foo"}, `{"type":"array","item":{"type":"string"}}`, false, `["bar"]`)
+			runTest(t, renderer, `{"foo":["bar"]}`, []string{"foo"}, false, `["bar"]`)
 		})
 		t.Run("json object as graphql object with array", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":["bar","baz"]}`, []string{"foo"}, `{"type":"array","item":{"type":"string"}}`, false, `["bar","baz"]`)
+			runTest(t, renderer, `{"foo":["bar","baz"]}`, []string{"foo"}, false, `["bar","baz"]`)
 		})
 		t.Run("json object as graphql object with object array", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":[{"bar":"baz"},{"bar":"bat"}]}`, []string{"foo"}, `{"type":"array","item":{"type":"object","properties":{"bar":{"type":"string"}}}}`, false, `[{"bar":"baz"},{"bar":"bat"}]`)
+			runTest(t, renderer, `{"foo":[{"bar":"baz"},{"bar":"bat"}]}`, []string{"foo"}, false, `[{"bar":"baz"},{"bar":"bat"}]`)
 		})
 	})
 
 	t.Run("json renderer", func(t *testing.T) {
 		renderer := useTestJSONVariableRenderer()
 		t.Run("string scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":"bar"}`, []string{"foo"}, `{"type":"string"}`, false, `"bar"`)
+			runTest(t, renderer, `{"foo":"bar"}`, []string{"foo"}, false, `"bar"`)
 		})
 		t.Run("boolean scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":true}`, []string{"foo"}, `{"type":"boolean"}`, false, "true")
+			runTest(t, renderer, `{"foo":true}`, []string{"foo"}, false, "true")
 		})
 		t.Run("number scalar", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":1}`, []string{"foo"}, `{"type":"number"}`, false, "1")
+			runTest(t, renderer, `{"foo":1}`, []string{"foo"}, false, "1")
 		})
 		t.Run("nested string", func(t *testing.T) {
-			runTest(t, renderer, `{"foo":{"bar":"value"}}`, []string{"foo", "bar"}, `{"type":"string"}`, false, `"value"`)
-		})
-		t.Run("on required scalars", func(t *testing.T) {
-			t.Run("error on required string scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":"string"}`, true, ``)
-			})
-			t.Run("error on required int scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":"integer"}`, true, ``)
-			})
-			t.Run("error on required float scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":"number"}`, true, ``)
-			})
-			t.Run("error on required boolean scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":"boolean"}`, true, ``)
-			})
+			runTest(t, renderer, `{"foo":{"bar":"value"}}`, []string{"foo", "bar"}, false, `"value"`)
 		})
 		t.Run("on non-required scalars", func(t *testing.T) {
 			t.Run("null on non-required string scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":["string","null"]}`, false, `null`)
+				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, false, `null`)
 			})
 			t.Run("null on non-required int scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":["integer","null"]}`, false, `null`)
+				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, false, `null`)
 			})
 			t.Run("null on non-required float scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":["number","null"]}`, false, `null`)
+				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, false, `null`)
 			})
 			t.Run("null on non-required boolean scalar", func(t *testing.T) {
-				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, `{"type":["boolean","null"]}`, false, `null`)
+				runTest(t, renderer, `{"foo":null}`, []string{"foo"}, false, `null`)
 			})
 		})
 	})
@@ -173,26 +153,6 @@ func TestInputTemplate_Render(t *testing.T) {
 		assert.NoError(t, err)
 		out := buf.String()
 		assert.Equal(t, "1,2,3", out)
-	})
-	t.Run("array with default render int", func(t *testing.T) {
-		template := InputTemplate{
-			Segments: []TemplateSegment{
-				{
-					SegmentType:        VariableSegmentType,
-					VariableKind:       ContextVariableKind,
-					VariableSourcePath: []string{"a"},
-					Renderer:           NewGraphQLVariableRenderer(`{"type":"array","items":{"type":"number"}}`),
-				},
-			},
-		}
-		ctx := &Context{
-			Variables: []byte(`{"a":[1,2,3]}`),
-		}
-		buf := &bytes.Buffer{}
-		err := template.Render(ctx, nil, buf)
-		assert.NoError(t, err)
-		out := buf.String()
-		assert.Equal(t, "[1,2,3]", out)
 	})
 
 	t.Run("header variable", func(t *testing.T) {
@@ -299,7 +259,7 @@ func TestInputTemplate_Render(t *testing.T) {
 						SegmentType:        VariableSegmentType,
 						VariableKind:       ContextVariableKind,
 						VariableSourcePath: []string{"a"},
-						Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+						Renderer:           NewJSONVariableRenderer(),
 					},
 					{
 						SegmentType: StaticSegmentType,
@@ -330,7 +290,7 @@ func TestInputTemplate_Render(t *testing.T) {
 							SegmentType:        VariableSegmentType,
 							VariableKind:       ObjectVariableKind,
 							VariableSourcePath: []string{"id"},
-							Renderer:           NewJSONVariableRendererWithValidation(`{"type":"string"}`),
+							Renderer:           NewJSONVariableRenderer(),
 						},
 						{
 							SegmentType: StaticSegmentType,
@@ -360,7 +320,7 @@ func TestInputTemplate_Render(t *testing.T) {
 							SegmentType:        VariableSegmentType,
 							VariableKind:       ContextVariableKind,
 							VariableSourcePath: []string{"x"},
-							Renderer:           NewJSONVariableRendererWithValidation(`{"type":["string","null"]}`),
+							Renderer:           NewJSONVariableRenderer(),
 						},
 						{
 							SegmentType: StaticSegmentType,
@@ -544,16 +504,16 @@ func TestInputTemplate_Render(t *testing.T) {
 	})
 }
 
-type initTestVariableRenderer func(jsonSchema string) VariableRenderer
+type initTestVariableRenderer func() VariableRenderer
 
 func useTestPlainVariableRenderer() initTestVariableRenderer {
-	return func(jsonSchema string) VariableRenderer {
-		return NewPlainVariableRendererWithValidation(jsonSchema)
+	return func() VariableRenderer {
+		return NewPlainVariableRenderer()
 	}
 }
 
 func useTestJSONVariableRenderer() initTestVariableRenderer {
-	return func(jsonSchema string) VariableRenderer {
-		return NewJSONVariableRendererWithValidation(jsonSchema)
+	return func() VariableRenderer {
+		return NewJSONVariableRenderer()
 	}
 }

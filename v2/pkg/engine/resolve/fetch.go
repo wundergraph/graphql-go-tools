@@ -11,25 +11,63 @@ type FetchKind int
 
 const (
 	FetchKindSingle FetchKind = iota + 1
-	FetchKindParallel
-	FetchKindSerial
 	FetchKindParallelListItem
 	FetchKindEntity
 	FetchKindEntityBatch
-	FetchKindMulti
 )
 
 type Fetch interface {
 	FetchKind() FetchKind
+	Dependencies() FetchDependencies
 }
 
-type MultiFetch struct {
-	Fetches []*SingleFetch
+type FetchItem struct {
+	Fetch                Fetch
+	FetchPath            []FetchItemPathElement
+	ResponsePath         string
+	ResponsePathElements []string
 }
 
-func (_ *MultiFetch) FetchKind() FetchKind {
-	return FetchKindMulti
+func (f *FetchItem) Equals(other *FetchItem) bool {
+	if len(f.FetchPath) != len(other.FetchPath) {
+		return false
+	}
+
+	for i := range f.FetchPath {
+		if f.FetchPath[i].Kind != other.FetchPath[i].Kind {
+			return false
+		}
+
+		if !slices.Equal(f.FetchPath[i].Path, other.FetchPath[i].Path) {
+			return false
+		}
+	}
+
+	if f.Fetch.FetchKind() != FetchKindSingle || other.Fetch.FetchKind() != FetchKindSingle {
+		return false
+	}
+	l, ok := f.Fetch.(*SingleFetch)
+	if !ok {
+		return false
+	}
+	r, ok := other.Fetch.(*SingleFetch)
+	if !ok {
+		return false
+	}
+	return l.FetchConfiguration.Equals(&r.FetchConfiguration)
 }
+
+type FetchItemPathElement struct {
+	Kind FetchItemPathElementKind
+	Path []string
+}
+
+type FetchItemPathElementKind string
+
+const (
+	FetchItemPathElementKindObject FetchItemPathElementKind = "object"
+	FetchItemPathElementKindArray  FetchItemPathElementKind = "array"
+)
 
 type SingleFetch struct {
 	FetchConfiguration
@@ -38,6 +76,10 @@ type SingleFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+}
+
+func (s *SingleFetch) Dependencies() FetchDependencies {
+	return s.FetchDependencies
 }
 
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
@@ -92,28 +134,6 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
 
-// ParallelFetch - contains fetches which not depends on each other
-// Fetches - will always contain only SingleFetch
-type ParallelFetch struct {
-	Fetches []Fetch
-	Trace   *DataSourceLoadTrace
-}
-
-func (_ *ParallelFetch) FetchKind() FetchKind {
-	return FetchKindParallel
-}
-
-// SerialFetch - contains fetches which depends on each other and should be executed in a specific order
-// Fetches - will contain ParallelFetch or SingleFetch
-type SerialFetch struct {
-	Fetches []Fetch
-	Trace   *DataSourceLoadTrace
-}
-
-func (_ *SerialFetch) FetchKind() FetchKind {
-	return FetchKindSerial
-}
-
 // BatchEntityFetch - represents nested entity fetch on array field
 // allows to join nested fetches to the same subgraph into a single fetch
 // representations variable will contain multiple items according to amount of entities matching this query
@@ -125,6 +145,10 @@ type BatchEntityFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+}
+
+func (b *BatchEntityFetch) Dependencies() FetchDependencies {
+	return b.FetchDependencies
 }
 
 type BatchInput struct {
@@ -158,6 +182,10 @@ type EntityFetch struct {
 	Info                 *FetchInfo
 }
 
+func (e *EntityFetch) Dependencies() FetchDependencies {
+	return e.FetchDependencies
+}
+
 type EntityInput struct {
 	Header      InputTemplate
 	Item        InputTemplate
@@ -176,6 +204,10 @@ type ParallelListItemFetch struct {
 	Fetch  *SingleFetch
 	Traces []*SingleFetch
 	Trace  *DataSourceLoadTrace
+}
+
+func (p *ParallelListItemFetch) Dependencies() FetchDependencies {
+	return p.Fetch.FetchDependencies
 }
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {

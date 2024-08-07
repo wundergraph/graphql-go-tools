@@ -24,20 +24,13 @@ import (
 )
 
 type testOptions struct {
-	postProcessors            []postprocess.PostProcessor
-	postProcessExtractFetches bool
-	skipReason                string
+	postProcessors []*postprocess.Processor
+	skipReason     string
 }
 
-func WithPostProcessors(postProcessors ...postprocess.PostProcessor) func(*testOptions) {
+func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
 	return func(o *testOptions) {
 		o.postProcessors = postProcessors
-	}
-}
-
-func WithPostProcessExtractFetches() func(*testOptions) {
-	return func(o *testOptions) {
-		o.postProcessExtractFetches = true
 	}
 }
 
@@ -47,8 +40,12 @@ func WithSkipReason(reason string) func(*testOptions) {
 	}
 }
 
-func WithMultiFetchPostProcessor() func(*testOptions) {
-	return WithPostProcessors(&postprocess.CreateMultiFetchTypes{})
+func WithDefaultPostProcessor() func(*testOptions) {
+	return WithPostProcessors(postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields()))
+}
+
+func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
+	return WithPostProcessors(postprocess.NewProcessor(options...))
 }
 
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
@@ -140,7 +137,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		}
 
 		if opts.postProcessors != nil {
-			postprocess.NewProcessor(opts.postProcessors, opts.postProcessExtractFetches).Process(actualPlan)
+			for _, processor := range opts.postProcessors {
+				processor.Process(actualPlan)
+			}
 		}
 
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")

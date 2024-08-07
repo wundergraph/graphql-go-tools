@@ -9,6 +9,7 @@ type Object struct {
 	Nullable bool
 	Path     []string
 	Fields   []*Field
+	Fetches  []Fetch
 	Fetch    Fetch
 }
 
@@ -21,7 +22,7 @@ func (o *Object) Copy() Node {
 		Nullable: o.Nullable,
 		Path:     o.Path,
 		Fields:   fields,
-		Fetch:    o.Fetch,
+		Fetches:  o.Fetches,
 	}
 }
 

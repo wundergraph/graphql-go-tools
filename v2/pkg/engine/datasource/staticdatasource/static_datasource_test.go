@@ -28,11 +28,13 @@ func TestStaticDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						DataSourceIdentifier: []byte("staticdatasource.Source"),
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      "world",
-							DataSource: Source{},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							DataSourceIdentifier: []byte("staticdatasource.Source"),
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      "world",
+								DataSource: Source{},
+							},
 						},
 					},
 				},
