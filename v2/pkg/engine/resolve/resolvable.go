@@ -269,12 +269,14 @@ func (r *Resolvable) printRateLimitingExtension() error {
 }
 
 type TraceData struct {
+	Version string              `json:"version"`
 	Info    *TraceInfo          `json:"info"`
 	Fetches *FetchTreeTraceNode `json:"fetches"`
 }
 
 func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
 	traceData := TraceData{
+		Version: "1",
 		Info:    GetTraceInfo(ctx),
 		Fetches: fetchTree.Trace(),
 	}

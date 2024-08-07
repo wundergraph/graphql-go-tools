@@ -53,6 +53,7 @@
   },
   "extensions": {
     "trace": {
+      "version": "1",
       "info": {
         "trace_start_time": "",
         "trace_start_unix": 0,

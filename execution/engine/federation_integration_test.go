@@ -69,7 +69,7 @@ func TestFederationIntegrationTestWithArt(t *testing.T) {
 		respString := normalizeResponse(string(resp))
 
 		assert.Contains(t, respString, `{"data":{"me":{"id":"1234","username":"Me"`)
-		assert.Contains(t, respString, `"extensions":{"trace":{"info":{"trace_start_time"`)
+		assert.Contains(t, respString, `"extensions":{"trace":{"version":"1","info":{"trace_start_time"`)
 
 		buf := &bytes.Buffer{}
 		_ = json.Indent(buf, []byte(respString), "", "  ")
