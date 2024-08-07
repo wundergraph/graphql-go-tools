@@ -37,7 +37,7 @@ func prettyPrint(input any) string {
 }
 
 func TestOrderSquenceByDependencies_ProcessFetchTree(t *testing.T) {
-	processor := &orderSquenceByDependencies{}
+	processor := &orderSequenceByDependencies{}
 	t.Run("no dependencies", func(t *testing.T) {
 		input := []resolve.FetchDependencies{
 			{FetchID: 2},
@@ -126,6 +126,25 @@ func TestOrderSquenceByDependencies_ProcessFetchTree(t *testing.T) {
 			{FetchID: 3, DependsOnFetchIDs: []int{2}},
 			{FetchID: 4, DependsOnFetchIDs: []int{2, 3}},
 			{FetchID: 5, DependsOnFetchIDs: []int{4}},
+		}
+		seq := depsToSequence(input)
+		processor.ProcessFetchTree(seq)
+		require.Equal(t, prettyPrint(expected), prettyPrint(sequenceToDeps(seq)))
+	})
+	t.Run("nested requires", func(t *testing.T) {
+		input := []resolve.FetchDependencies{
+			{FetchID: 0, DependsOnFetchIDs: []int{}},
+			{FetchID: 3, DependsOnFetchIDs: []int{0, 2}},
+			{FetchID: 1, DependsOnFetchIDs: []int{0}},
+			{FetchID: 2, DependsOnFetchIDs: []int{0}},
+			{FetchID: 4, DependsOnFetchIDs: []int{0, 1}},
+		}
+		expected := []resolve.FetchDependencies{
+			{FetchID: 0, DependsOnFetchIDs: []int{}},
+			{FetchID: 1, DependsOnFetchIDs: []int{0}},
+			{FetchID: 2, DependsOnFetchIDs: []int{0}},
+			{FetchID: 3, DependsOnFetchIDs: []int{0, 2}},
+			{FetchID: 4, DependsOnFetchIDs: []int{0, 1}},
 		}
 		seq := depsToSequence(input)
 		processor.ProcessFetchTree(seq)

@@ -99,6 +99,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			&createConcreteSingleFetchTypes{
 				disable: opts.disableCreateConcreteSingleFetchTypes,
 			},
+			&orderSequenceByDependencies{
+				disable: opts.disableCreateConcreteSingleFetchTypes,
+			},
 			&createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
 			},

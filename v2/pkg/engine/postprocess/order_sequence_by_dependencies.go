@@ -6,11 +6,15 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// orderSquenceByDependencies is a postprocessor that orders the fetch tree nodes by their dependencies.
-type orderSquenceByDependencies struct {
+// orderSequenceByDependencies is a postprocessor that orders the fetch tree nodes by their dependencies.
+type orderSequenceByDependencies struct {
+	disable bool
 }
 
-func (o *orderSquenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNode) {
+func (o *orderSequenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	if o.disable {
+		return
+	}
 	slices.SortFunc(root.ChildNodes, func(_a, _b *resolve.FetchTreeNode) int {
 		// get the fetch IDs of both nodes
 		a, b := o.nodeFetchID(_a), o.nodeFetchID(_b)
@@ -39,7 +43,7 @@ func (o *orderSquenceByDependencies) ProcessFetchTree(root *resolve.FetchTreeNod
 	})
 }
 
-func (o *orderSquenceByDependencies) nodeByFetchID(id int, root *resolve.FetchTreeNode) *resolve.FetchTreeNode {
+func (o *orderSequenceByDependencies) nodeByFetchID(id int, root *resolve.FetchTreeNode) *resolve.FetchTreeNode {
 	for _, node := range root.ChildNodes {
 		if o.nodeFetchID(node) == id {
 			return node
@@ -48,8 +52,8 @@ func (o *orderSquenceByDependencies) nodeByFetchID(id int, root *resolve.FetchTr
 	return nil
 }
 
-func (o *orderSquenceByDependencies) nodeDependsOn(node, root *resolve.FetchTreeNode) []int {
-	dependencies := node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.DependsOnFetchIDs
+func (o *orderSequenceByDependencies) nodeDependsOn(node, root *resolve.FetchTreeNode) []int {
+	dependencies := node.Item.Fetch.Dependencies().DependsOnFetchIDs
 	result := make([]int, 0, len(dependencies))
 	for _, dep := range dependencies {
 		result = append(result, dep)
@@ -69,6 +73,6 @@ func (o *orderSquenceByDependencies) nodeDependsOn(node, root *resolve.FetchTree
 	return result
 }
 
-func (o *orderSquenceByDependencies) nodeFetchID(node *resolve.FetchTreeNode) int {
-	return node.Item.Fetch.(*resolve.SingleFetch).FetchDependencies.FetchID
+func (o *orderSequenceByDependencies) nodeFetchID(node *resolve.FetchTreeNode) int {
+	return node.Item.Fetch.Dependencies().FetchID
 }
