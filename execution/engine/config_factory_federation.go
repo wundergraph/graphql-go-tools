@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -119,13 +120,19 @@ type FederationEngineConfigFactory struct {
 	subgraphsConfigs          []SubgraphConfiguration
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configuration, err error) {
-
+func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuration, error) {
 	intermediateConfig, err := f.compose()
 	if err != nil {
 		return Configuration{}, err
 	}
+	return f.buildEngineConfiguration(intermediateConfig)
+}
 
+func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithIntermediateConfig(c *IntermediateConfig) (Configuration, error) {
+	return f.buildEngineConfiguration(c.routerConfig)
+}
+
+func (f *FederationEngineConfigFactory) buildEngineConfiguration(intermediateConfig *nodev1.RouterConfig) (Configuration, error) {
 	plannerConfiguration, err := f.createPlannerConfiguration(intermediateConfig)
 	if err != nil {
 		return Configuration{}, err
@@ -139,7 +146,7 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configu
 		return Configuration{}, err
 	}
 
-	conf = Configuration{
+	conf := Configuration{
 		plannerConfig: *plannerConfiguration,
 		schema:        schema,
 	}
@@ -149,6 +156,41 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configu
 	}
 
 	return conf, nil
+}
+
+func (f *FederationEngineConfigFactory) Compose() (*IntermediateConfig, error) {
+	res, err := f.compose()
+	if err != nil {
+		return nil, err
+	}
+	return &IntermediateConfig{routerConfig: res}, nil
+}
+
+// IntermediateConfig is an intermediate data that holds the result of the composition.
+type IntermediateConfig struct {
+	routerConfig *nodev1.RouterConfig
+}
+
+// NewIntermediateConfig reads a serialized intermediate configuration and returns an IntermediateConfig.
+func NewIntermediateConfig(r io.Reader) (*IntermediateConfig, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read serialized intermediate config: %w", err)
+	}
+	var intermediateConfig nodev1.RouterConfig
+	if err := protojson.Unmarshal(b, &intermediateConfig); err != nil {
+		return nil, fmt.Errorf("invalid intermediate config: %w", err)
+	}
+	return &IntermediateConfig{routerConfig: &intermediateConfig}, nil
+}
+
+func (c IntermediateConfig) WriteTo(w io.Writer) (int64, error) {
+	b, err := protojson.Marshal(c.routerConfig)
+	if err != nil {
+		return 0, err
+	}
+	size, err := w.Write(b)
+	return int64(size), err
 }
 
 func (f *FederationEngineConfigFactory) compose() (*nodev1.RouterConfig, error) {
