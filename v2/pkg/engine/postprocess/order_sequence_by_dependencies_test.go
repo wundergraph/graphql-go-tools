@@ -102,8 +102,8 @@ func TestOrderSquenceByDependencies_ProcessFetchTree(t *testing.T) {
 			{FetchID: 0, DependsOnFetchIDs: []int{}},
 			{FetchID: 1, DependsOnFetchIDs: []int{0}},
 			{FetchID: 5, DependsOnFetchIDs: []int{0}},
-			{FetchID: 3, DependsOnFetchIDs: []int{0, 1}},
 			{FetchID: 2, DependsOnFetchIDs: []int{0, 5}},
+			{FetchID: 3, DependsOnFetchIDs: []int{0, 1}},
 			{FetchID: 4, DependsOnFetchIDs: []int{2}},
 		}
 		seq := depsToSequence(input)

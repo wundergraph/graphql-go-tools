@@ -21,23 +21,3 @@ func (d *deduplicateSingleFetches) ProcessFetchTree(root *resolve.FetchTreeNode)
 		}
 	}
 }
-
-func (d *deduplicateSingleFetches) samePath(a, b *resolve.FetchItem) bool {
-	if len(a.FetchPath) != len(b.FetchPath) {
-		return false
-	}
-	for i := range a.FetchPath {
-		if a.FetchPath[i].Kind != b.FetchPath[i].Kind {
-			return false
-		}
-		if len(a.FetchPath[i].Path) != len(b.FetchPath[i].Path) {
-			return false
-		}
-		for j := range a.FetchPath[i].Path {
-			if a.FetchPath[i].Path[j] != b.FetchPath[i].Path[j] {
-				return false
-			}
-		}
-	}
-	return true
-}
