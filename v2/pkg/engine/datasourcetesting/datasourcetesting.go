@@ -11,6 +11,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"gonum.org/v1/gonum/stat/combin"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -97,6 +98,10 @@ func RunWithPermutationsVariants(t *testing.T, definition, operation, operationN
 }
 
 func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) func(t *testing.T) {
+	return RunTestWithVariables(definition, operation, operationName, "", expectedPlan, config, options...)
+}
+
+func RunTestWithVariables(definition, operation, operationName, variables string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -111,13 +116,20 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		if variables != "" {
+			op.Input.Variables = []byte(variables)
+		}
 		err := asttransform.MergeDefinitionWithBaseSchema(&def)
 		if err != nil {
 			t.Fatal(err)
 		}
-		norm := astnormalization.NewNormalizer(true, true)
+		norm := astnormalization.NewWithOpts(astnormalization.WithExtractVariables(), astnormalization.WithInlineFragmentSpreads(), astnormalization.WithRemoveFragmentDefinitions(), astnormalization.WithRemoveUnusedVariables())
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
+
+		normalized := unsafeprinter.PrettyPrint(&op, &def)
+		_ = normalized
+
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
 

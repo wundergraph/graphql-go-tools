@@ -1,9 +1,10 @@
 package astnormalization
 
 import (
+	"fmt"
 	"slices"
 
-	"github.com/buger/jsonparser"
+	"github.com/tidwall/sjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
@@ -26,6 +27,9 @@ type deleteUnusedVariablesVisitor struct {
 }
 
 func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
+	var (
+		err error
+	)
 	filterOutIndices := make([]int, 0, len(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs))
 	for i := range d.operation.OperationDefinitions[ref].VariableDefinitions.Refs {
 		name := d.operation.VariableDefinitionNameString(d.operation.OperationDefinitions[ref].VariableDefinitions.Refs[i])
@@ -36,7 +40,11 @@ func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
 			continue
 		}
 		filterOutIndices = append(filterOutIndices, i)
-		d.operation.Input.Variables = jsonparser.Delete(d.operation.Input.Variables, name)
+		d.operation.Input.Variables, err = sjson.DeleteBytes(d.operation.Input.Variables, name)
+		if err != nil {
+			d.Walker.StopWithInternalErr(fmt.Errorf("deleteUnusedVariablesVisitor.LeaveOperationDefinition: unable to delete variable %s: %w", name, err))
+			return
+		}
 	}
 	if len(filterOutIndices) == 0 {
 		return
