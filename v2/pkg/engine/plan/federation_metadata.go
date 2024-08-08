@@ -56,10 +56,21 @@ type EntityInterfaceConfiguration struct {
 }
 
 type FederationFieldConfiguration struct {
-	TypeName              string `json:"type_name"`            // TypeName is the name of the Entity the Fragment is for
-	FieldName             string `json:"field_name,omitempty"` // FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
-	SelectionSet          string `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)
-	DisableEntityResolver bool   `json:"-"`                    // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	TypeName              string         `json:"type_name"`            // TypeName is the name of the Entity the Fragment is for
+	FieldName             string         `json:"field_name,omitempty"` // FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
+	SelectionSet          string         `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)
+	DisableEntityResolver bool           `json:"-"`                    // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	Conditions            []KeyCondition `json:"conditions,omitempty"` // conditions stores coordinates under which we could use implicit key, while on other paths this key is not available
+}
+
+type KeyCondition struct {
+	Coordinates []KeyConditionCoordinate `json:"coordinates"`
+	FieldPath   []string                 `json:"field_path"`
+}
+
+type KeyConditionCoordinate struct {
+	TypeName  string `json:"type_name"`
+	FieldName string `json:"field_name"`
 }
 
 func (f FederationFieldConfiguration) String() string {

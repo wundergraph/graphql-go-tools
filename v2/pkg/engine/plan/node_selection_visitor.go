@@ -41,6 +41,8 @@ type nodeSelectionVisitor struct {
 	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
+
+	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates
 }
 
 func (c *nodeSelectionVisitor) shouldRevisit() bool {
@@ -102,6 +104,12 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
 		c.selectionSetRefs = c.selectionSetRefs[:0]
+	}
+
+	if c.fieldPathCoordinates == nil {
+		c.fieldPathCoordinates = make([]KeyConditionCoordinate, 0, 8)
+	} else {
+		c.fieldPathCoordinates = c.fieldPathCoordinates[:0]
 	}
 
 	if c.secondaryRun {
@@ -196,9 +204,17 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 		// check if a field type is abstract and need rewrites
 		c.rewriteSelectionSetOfFieldWithInterfaceType(fieldRef, ds)
 	}
+
+	c.fieldPathCoordinates = append(c.fieldPathCoordinates, KeyConditionCoordinate{
+		FieldName: fieldName,
+		TypeName:  typeName,
+	})
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
+	if len(c.fieldPathCoordinates) > 0 {
+		c.fieldPathCoordinates = c.fieldPathCoordinates[:len(c.fieldPathCoordinates)-1]
+	}
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
@@ -452,7 +468,7 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 		i++
 
 		if i > 100 {
-			c.walker.StopWithInternalErr(errors.New("could not plan key requirements"))
+			c.walker.StopWithInternalErr(fmt.Errorf("could not plan key requirements on a path '%s'", c.walker.Path.DotDelimitedString()))
 			return
 		}
 	}
@@ -464,13 +480,83 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 			continue
 		}
 
+		// Note: we iterate over possible target keys in order of appearance,
+		// so it could match on any key, not necessary explicit
 		for _, possibleRequiredFieldConfig := range requirements.possibleKeys {
 			typeName := possibleRequiredFieldConfig.TypeName
-			if ds.HasKeyRequirement(typeName, possibleRequiredFieldConfig.SelectionSet) {
-				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
 
+			keys := ds.FederationConfiguration().Keys
+
+			// first look into keys with enabled entity resolver
+			keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
+			if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
+				return keyCfg.SelectionSet == possibleRequiredFieldConfig.SelectionSet
+			}) {
+				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
 				return true
 			}
+
+			// second check is for the keys which do not have entity resolver
+			// e.g. resolvable: false or implicit keys
+			keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
+
+			var (
+				implicitKeys            []FederationFieldConfiguration
+				conditionalImplicitKeys []FederationFieldConfiguration
+			)
+
+			for _, keyCfg := range keyConfigurations {
+				if len(keyCfg.Conditions) == 0 {
+					implicitKeys = append(implicitKeys, keyCfg)
+					continue
+				}
+
+				conditionalImplicitKeys = append(conditionalImplicitKeys, keyCfg)
+			}
+
+			if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
+				return keyCfg.SelectionSet == possibleRequiredFieldConfig.SelectionSet
+			}) {
+				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
+				return true
+			}
+
+			if slices.ContainsFunc(conditionalImplicitKeys, func(keyCfg FederationFieldConfiguration) bool {
+				hasSelectionSet := keyCfg.SelectionSet == possibleRequiredFieldConfig.SelectionSet
+				if !hasSelectionSet {
+					return false
+				}
+
+				for _, condition := range keyCfg.Conditions {
+					if len(c.fieldPathCoordinates) < len(condition.Coordinates) {
+						return false
+					}
+					if len(condition.Coordinates) < 2 {
+						return false
+					}
+
+					// we need to match path and type of current path and condition path
+					// for condition path we are skipping the last element - because it is a key field coordinate
+					j := len(c.fieldPathCoordinates) - 1
+					for i := len(condition.Coordinates) - 2; i >= 0; i-- {
+						coordinate := condition.Coordinates[i]
+						fieldCoordinate := c.fieldPathCoordinates[j]
+
+						if coordinate.TypeName != fieldCoordinate.TypeName || coordinate.FieldName != fieldCoordinate.FieldName {
+							return false
+						}
+						j--
+					}
+
+					return true
+				}
+
+				return false
+			}) {
+				c.addKeyRequirementsToOperation(selectionSetRef, typeName, requirements, ds, possibleRequiredFieldConfig)
+				return true
+			}
+
 		}
 	}
 
