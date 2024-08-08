@@ -93,12 +93,12 @@ func (p *printVisitor) indentationDepth() (depth int) {
 	case ast.NodeKindOperationDefinition,
 		ast.NodeKindFragmentDefinition:
 	default:
-		return 2
+		return len(p.indent) // Use the length of the provided indent
 	}
 
 	for i := range p.Ancestors {
 		if p.Ancestors[i].Kind == ast.NodeKindSelectionSet {
-			depth += 2
+			depth += len(p.indent) // Use the length of the provided indent
 		}
 	}
 
