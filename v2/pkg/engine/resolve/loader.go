@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/tidwall/sjson"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -1442,13 +1443,12 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
 		}
 		if !l.ctx.TracingOptions.ExcludeOutput && res.out.Len() > 0 {
+			trace.Output, res.err = l.compactJSON(res.out.Bytes())
 			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
-				dataCopy := make([]byte, res.out.Len())
-				copy(dataCopy, res.out.Bytes())
-				trace.Output = jsonparser.Delete(dataCopy, "extensions", "trace", "response", "headers", "Date")
-			} else {
-				trace.Output = make([]byte, res.out.Len())
-				copy(trace.Output, res.out.Bytes())
+				trace.Output, res.err = sjson.DeleteBytes(trace.Output, "extensions.trace.response.headers.Date")
+				if res.err != nil {
+					return
+				}
 			}
 		}
 		if !l.ctx.TracingOptions.ExcludeLoadStats {
@@ -1466,4 +1466,19 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			res.err = errors.WithStack(res.err)
 		}
 	}
+}
+
+func (l *Loader) compactJSON(data []byte) ([]byte, error) {
+	dst := bytes.NewBuffer(make([]byte, len(data))[:0])
+	err := json.Compact(dst, data)
+	if err != nil {
+		return nil, err
+	}
+	out := dst.Bytes()
+	v, err := fastjson.ParseBytes(out)
+	if err != nil {
+		return nil, err
+	}
+	fastjsonext.DeduplicateObjectKeysRecursively(v)
+	return v.MarshalTo(nil), nil
 }
