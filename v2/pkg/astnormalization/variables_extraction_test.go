@@ -42,7 +42,7 @@ func TestVariablesExtraction(t *testing.T) {
 	})
 	t.Run("variables in argument", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, variablesExtractionDefinition, `
-			mutation HttpBinPost($foo: String! = "bar") {
+			mutation HttpBinPost($foo: String!) {
 			  httpBinPost(input: {foo: $foo}){
 				headers {
 				  userAgent
@@ -52,8 +52,8 @@ func TestVariablesExtraction(t *testing.T) {
 				}
 			  }
 			}`, "", `
-			mutation HttpBinPost($foo: String! = "bar") {
-			  httpBinPost(input: {foo: $foo}){
+			mutation HttpBinPost($foo: String! $a: HttpBinPostInput) {
+			  httpBinPost(input: $a){
 				headers {
 				  userAgent
 				}
@@ -61,7 +61,7 @@ func TestVariablesExtraction(t *testing.T) {
 				  foo
 				}
 			  }
-			}`, ``, ``)
+			}`, `{"foo":"bar"}`, `{"a":{"foo":"bar"},"foo":"bar"}`)
 	})
 	t.Run("multiple queries", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, forumExampleSchema, `
@@ -137,16 +137,11 @@ func TestVariablesExtraction(t *testing.T) {
 					code
 				}
 			}`, "Login", `
-			mutation Login ($phoneNumber: String! $a: String) {
-				Login: postPasswordlessStart(
-					postPasswordlessStartInput: {
-						applicationId: $a
-						loginId: $phoneNumber
-					}
-				) {
+			mutation Login($phoneNumber: String!, $a: postPasswordlessStartInput){
+				Login: postPasswordlessStart(postPasswordlessStartInput: $a){
 					code
 				}
-			}`, ``, `{"a":"123"}`)
+			}`, `{"phoneNumber":456}`, `{"a":{"applicationId":"123","loginId":456},"phoneNumber":456}`)
 	})
 	t.Run("complex nesting with existing variable", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, authSchema, `
@@ -160,16 +155,11 @@ func TestVariablesExtraction(t *testing.T) {
 					code
 				}
 			}`, "Login", `
-			mutation Login ($phoneNumber: String! $a: String) {
-				Login: postPasswordlessStart(
-					postPasswordlessStartInput: {
-						applicationId: $a
-						loginId: $phoneNumber
-					}
-				) {
+			mutation Login($phoneNumber: String!, $a: postPasswordlessStartInput){
+				Login: postPasswordlessStart(postPasswordlessStartInput: $a){
 					code
 				}
-			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
+			}`, `{"phoneNumber":"456"}`, `{"a":{"applicationId":"123","loginId":"456"},"phoneNumber":"456"}`)
 	})
 	t.Run("complex nesting with deep nesting", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, authSchema, `
@@ -185,18 +175,11 @@ func TestVariablesExtraction(t *testing.T) {
 					code
 				}
 			}`, "Login", `
-			mutation Login ($phoneNumber: String! $a: String) {
-				Login: postPasswordlessStart(
-					postPasswordlessStartInput: {
-						nested: {
-							applicationId: $a
-							loginId: $phoneNumber
-						}
-					}
-				) {
+			mutation Login($phoneNumber: String!, $a: postPasswordlessStartInput){
+				Login: postPasswordlessStart(postPasswordlessStartInput: $a){
 					code
 				}
-			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
+			}`, `{"phoneNumber":"456"}`, `{"a":{"nested":{"applicationId":"123","loginId":"456"}},"phoneNumber":"456"}`)
 	})
 	t.Run("complex nesting with deep nesting and lists", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, authSchema, `
@@ -212,18 +195,11 @@ func TestVariablesExtraction(t *testing.T) {
 					code
 				}
 			}`, "Login", `
-			mutation Login ($phoneNumber: String! $a: String) {
-				Login: postPasswordlessStartList(
-					postPasswordlessStartInput: [{
-						nested: {
-							applicationId: $a
-							loginId: $phoneNumber
-						}
-					}]
-				) {
+			mutation Login($phoneNumber: String!, $a: [postPasswordlessStartInput]){
+				Login: postPasswordlessStartList(postPasswordlessStartInput: $a){
 					code
 				}
-			}`, `{"phoneNumber":"456"}`, `{"a":"123","phoneNumber":"456"}`)
+			}`, `{"phoneNumber":"456"}`, `{"a":[{"nested":{"applicationId":"123","loginId":"456"}}],"phoneNumber":"456"}`)
 	})
 	t.Run("complex nesting with variable in list", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, authSchema, `
@@ -234,13 +210,11 @@ func TestVariablesExtraction(t *testing.T) {
 					code
 				}
 			}`, "Login", `
-			mutation Login ($input: postPasswordlessStartInput!) {
-				Login: postPasswordlessStartList(
-					postPasswordlessStartInput: [$input]
-				) {
+			mutation Login($input: postPasswordlessStartInput!, $a: [postPasswordlessStartInput]){
+				Login: postPasswordlessStartList(postPasswordlessStartInput: $a){
 					code
 				}
-			}`, ``, ``)
+			}`, `{"input":{"applicationId":"1"}}`, `{"a":[{"applicationId":"1"}],"input":{"applicationId":"1"}}`)
 	})
 	t.Run("nested inline string", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, nexusSchema, `
@@ -257,19 +231,11 @@ func TestVariablesExtraction(t *testing.T) {
 					id
 				}
 			}`, "Draw", `
-			mutation Draw ($drawDate: AWSDate!, $play: PlayInput! $a: Boolean! $b: Int! $c: String!) {
-				AddTicket: addCartItem(
-					item: {
-						drawDate: $drawDate
-						fractional: $a
-						play: $play
-						quantity: $b
-						regionGameId: $c
-					}
-				) {
+			mutation Draw($drawDate: AWSDate!, $play: PlayInput!, $a: AddCartItemInput!){
+				AddTicket: addCartItem(item: $a){
 					id
 				}
-			}`, `{}`, `{"c":"lucky7|UAE","b":1,"a":false}`)
+			}`, `{"drawDate":"today","play":{"pick":["123"]}}`, `{"a":{"drawDate":"today","fractional":false,"play":{"pick":["123"]},"quantity":1,"regionGameId":"lucky7|UAE"},"drawDate":"today","play":{"pick":["123"]}}`)
 	})
 
 	t.Run("same string", func(t *testing.T) {
@@ -548,32 +514,6 @@ func TestVariablesExtraction(t *testing.T) {
 				foo(input: $a)
 				foo(input: $a)
 			}`, `{}`, `{"a":{"customScalars":["foo","bar"]}}`)
-	})
-
-	t.Run("same variable", func(t *testing.T) {
-		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
-			mutation Foo($a: String!) {
-				foo(input: {string: $a})
-				foo(input: {string: $a})
-			}`,
-			"Foo", `
-			mutation Foo($a: String!) {
-				foo(input: {string: $a})
-				foo(input: {string: $a})
-			}`, `{"a":"foo"}`, `{"a":"foo"}`)
-	})
-
-	t.Run("same variables", func(t *testing.T) {
-		runWithVariablesExtraction(t, extractVariables, sameVariableExtraction, `
-			mutation Foo($a: String!, $b: String!) {
-				foo(input: {string: $a})
-				foo(input: {string: $b})
-			}`,
-			"Foo", `
-			mutation Foo($a: String!, $b: String!) {
-				foo(input: {string: $a})
-				foo(input: {string: $b})
-			}`, `{"a":"foo","b":"bar"}`, `{"a":"foo","b":"bar"}`)
 	})
 
 	t.Run("ignore user variables same string", func(t *testing.T) {

@@ -1794,23 +1794,27 @@ func TestGraphQLDataSource(t *testing.T) {
 		DisableResolveFieldPositions: true,
 	}))
 
-	t.Run("variable at top level and recursively", RunTest(variableSchema, `
+	t.Run("variable at top level and recursively", RunTestWithVariables(variableSchema, `
 		query MyQuery($name: String!){
             user(name: $name){
                 normalized(data: {name: $name})
             }
         }
-    `, "MyQuery", &plan.SynchronousResponsePlan{
+    `, "MyQuery", `{"name":"Obi-Wan Kenobi"}`, &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
 				Fetches: []resolve.Fetch{
 					&resolve.SingleFetch{
 						FetchConfiguration: resolve.FetchConfiguration{
 							DataSource: &Source{},
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!, $a: NormalizedDataInput!){user(name: $name){normalized(data: $a)}}","variables":{"a":$$1$$,"name":$$0$$}}}`,
 							Variables: resolve.NewVariables(
 								&resolve.ContextVariable{
 									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
 									Renderer: resolve.NewJSONVariableRenderer(),
 								},
 							),
@@ -3788,7 +3792,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		))
 	})
 
-	t.Run("mutation with variables in array object argument", RunTest(
+	t.Run("mutation with variables in array object argument", RunTestWithVariables(
 		todoSchema,
 		`mutation AddTask($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
 					  addTask(input: [{titleSets: [[$title]], completed: $completed, user: {name: $name}}]){
@@ -3799,26 +3803,18 @@ func TestGraphQLDataSource(t *testing.T) {
 						}
 					  }
 					}`,
-		"AddTask",
+		"AddTask", `{"title":"task","completed":true,"name":"user"}`,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetches: []resolve.Fetch{
 						&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
+								Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($a: [AddTaskInput!]!){addTask(input: $a){task {id title completed}}}","variables":{"a":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:     []string{"title"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"completed"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"name"},
+										Path:     []string{"a"},
 										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
@@ -3944,7 +3940,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			directive @fromClaim(name: String) on VARIABLE_DEFINITION
 			`
 
-		t.Run("inline object value with arguments", RunTest(definition, `
+		t.Run("inline object value with arguments", RunTestWithVariables(definition, `
 			mutation Register($name: String $id: String @fromClaim(name: "sub")) {
 			  createUser(input: {user: {id: $id username: $name}}){
 				user {
@@ -3954,22 +3950,18 @@ func TestGraphQLDataSource(t *testing.T) {
 				}
 			  }
 			}`,
-			"Register",
+			"Register", `{"name":"user","id":"123"}`,
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
 								FetchConfiguration: resolve.FetchConfiguration{
-									Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
+									Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($a: CreateUserInput!){createUser(input: $a){user {id username createdDate}}}","variables":{"a":$$0$$}}}`,
 									DataSource: &Source{},
 									Variables: resolve.NewVariables(
 										&resolve.ContextVariable{
-											Path:     []string{"id"},
-											Renderer: resolve.NewJSONVariableRenderer(),
-										},
-										&resolve.ContextVariable{
-											Path:     []string{"name"},
+											Path:     []string{"a"},
 											Renderer: resolve.NewJSONVariableRenderer(),
 										},
 									),
@@ -4070,7 +4062,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		))
 	})
 
-	t.Run("mutation with union response", RunTest(wgSchema, `
+	t.Run("mutation with union response", RunTestWithVariables(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
 			__typename
 			namespaceCreate(input: {name: $name, personal: $personal}){
@@ -4086,22 +4078,18 @@ func TestGraphQLDataSource(t *testing.T) {
 					message
 				}
 			}
-		}`, "CreateNamespace",
+		}`, "CreateNamespace", `{"name":"namespace","personal":true}`,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetches: []resolve.Fetch{
 						&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){__typename namespaceCreate(input: $a){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"a":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:     []string{"name"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"personal"},
+										Path:     []string{"a"},
 										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
@@ -4237,27 +4225,23 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	))
 
-	t.Run("mutation with single __typename field on union", RunTest(wgSchema, `
+	t.Run("mutation with single __typename field on union", RunTestWithVariables(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
 			namespaceCreate(input: {name: $name, personal: $personal}){
 				__typename
 			}
-		}`, "CreateNamespace",
+		}`, "CreateNamespace", `{"name":"namespace","personal":true}`,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
 					Fetches: []resolve.Fetch{
 						&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
+								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){namespaceCreate(input: $a){__typename}}","variables":{"a":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
-										Path:     []string{"name"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"personal"},
+										Path:     []string{"a"},
 										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								),
