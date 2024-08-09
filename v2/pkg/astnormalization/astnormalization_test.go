@@ -827,6 +827,40 @@ func TestParseMissingBaseSchema(t *testing.T) {
 	assert.Regexp(t, regexp.MustCompile("forget.*merge.*base.*schema"), report.Error(), "error should mention the user forgot to merge the base schema")
 }
 
+func TestVariablesNormalizer(t *testing.T) {
+	t.Parallel()
+	input := `
+		mutation HttpBinPost($foo: String! = "bar" $bar: String!){
+		  httpBinPost(input: {foo: $foo}){
+			headers {
+			  userAgent
+			}
+			data {
+			  foo
+			}
+		  }
+		}
+		`
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(variablesExtractionDefinition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
+	operationDocument.Input.Variables = []byte(`{}`)
+
+	normalizer := NewVariablesNormalizer()
+	report := operationreport.Report{}
+	normalizer.NormalizeNamedOperation(&operationDocument, &definitionDocument, "HttpBinPost", &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	out := unsafeprinter.Print(&operationDocument, &definitionDocument)
+	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
+	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
+}
+
 func BenchmarkAstNormalization(b *testing.B) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)

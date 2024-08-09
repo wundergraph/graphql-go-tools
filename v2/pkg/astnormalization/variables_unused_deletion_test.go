@@ -14,7 +14,7 @@ import (
 func TestVariablesUnusedDeletion(t *testing.T) {
 	t.Parallel()
 	input := `
-		mutation HttpBinPost($foo: String!) {
+		mutation HttpBinPost($foo: String! $bar: String!){
 		  httpBinPost(input: {foo: $foo}){
 			headers {
 			  userAgent
@@ -49,6 +49,6 @@ func TestVariablesUnusedDeletion(t *testing.T) {
 	require.False(t, rep.HasErrors())
 
 	out := unsafeprinter.Print(&operationDocument, &definitionDocument)
-	require.Equal(t, `mutation HttpBinPost($a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
+	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
 	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
 }

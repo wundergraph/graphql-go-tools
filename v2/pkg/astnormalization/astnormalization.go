@@ -71,6 +71,7 @@ package astnormalization
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -194,10 +195,10 @@ func WithNormalizeDefinition() Option {
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 6)
 
-	directivesIncludeSkip := astvisitor.NewWalker(48)
+	directivesIncludeSkip := astvisitor.NewWalker(8)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
-	cleanup := astvisitor.NewWalker(48)
+	cleanup := astvisitor.NewWalker(8)
 	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
 	if o.options.removeUnusedVariables {
@@ -219,7 +220,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(48)
+		fragmentInline := astvisitor.NewWalker(8)
 		fragmentSpreadInline(&fragmentInline)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
@@ -228,7 +229,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	if o.options.extractVariables {
-		extractVariablesWalker := astvisitor.NewWalker(48)
+		extractVariablesWalker := astvisitor.NewWalker(8)
 		o.variablesExtraction = extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
@@ -236,7 +237,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	other := astvisitor.NewWalker(48)
+	other := astvisitor.NewWalker(8)
 	removeSelfAliasing(&other)
 	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -244,7 +245,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &other,
 	})
 
-	mergeInlineFragments := astvisitor.NewWalker(48)
+	mergeInlineFragments := astvisitor.NewWalker(8)
 	mergeInlineFragmentSelections(&mergeInlineFragments)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
@@ -252,7 +253,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.removeFragmentDefinitions {
-		removeFragments := astvisitor.NewWalker(48)
+		removeFragments := astvisitor.NewWalker(8)
 		removeFragmentDefinitions(&removeFragments)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -267,7 +268,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.extractVariables {
-		variablesProcessing := astvisitor.NewWalker(48)
+		variablesProcessing := astvisitor.NewWalker(8)
 		inputCoercionForList(&variablesProcessing)
 		o.variablesDefaultValuesExtraction = extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
@@ -333,4 +334,49 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))
 	}
+}
+
+type VariablesNormalizer struct {
+	pre    *astvisitor.Walker
+	post   *astvisitor.Walker
+	coerce *astvisitor.Walker
+
+	detect                  *variableUsageDetector
+	del                     *deleteUnusedVariablesVisitor
+	extractVariables        *variablesExtractionVisitor
+	extractDefaultVariables *variablesDefaultValueExtractionVisitor
+}
+
+func NewVariablesNormalizer() *VariablesNormalizer {
+	pre := astvisitor.NewWalker(8)
+	post := astvisitor.NewWalker(8)
+	coerce := astvisitor.NewWalker(0)
+	ex := extractVariables(&post)
+	def := extractVariablesDefaultValue(&post)
+	del := deleteUnusedVariables(&post)
+	det := detectVariableUsage(&pre, del)
+	inputCoercionForList(&coerce)
+	return &VariablesNormalizer{
+		pre:                     &pre,
+		post:                    &post,
+		coerce:                  &coerce,
+		detect:                  det,
+		del:                     del,
+		extractVariables:        ex,
+		extractDefaultVariables: def,
+	}
+}
+
+func (v *VariablesNormalizer) NormalizeNamedOperation(operation, definition *ast.Document, operationName string, report *operationreport.Report) {
+	operationNameBytes := unsafebytes.StringToBytes(operationName)
+	v.extractVariables.operationName = operationNameBytes
+	v.extractDefaultVariables.operationName = operationNameBytes
+	v.detect.operationName = operationNameBytes
+	v.del.operationName = operationNameBytes
+	v.pre.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return
+	}
+	v.post.Walk(operation, definition, report)
+	v.coerce.Walk(operation, definition, report)
 }

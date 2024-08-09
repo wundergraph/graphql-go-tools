@@ -1,6 +1,7 @@
 package astnormalization
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 
@@ -15,7 +16,7 @@ func deleteUnusedVariables(walker *astvisitor.Walker) *deleteUnusedVariablesVisi
 	}
 	visitor.Walker.RegisterEnterDocumentVisitor(visitor)
 	visitor.Walker.RegisterEnterArgumentVisitor(visitor)
-	visitor.Walker.RegisterLeaveOperationVisitor(visitor)
+	visitor.Walker.RegisterOperationDefinitionVisitor(visitor)
 	return visitor
 }
 
@@ -24,9 +25,24 @@ type deleteUnusedVariablesVisitor struct {
 	operation, definition        *ast.Document
 	variableNamesUsed            []string
 	variableNamesSafeForDeletion []string
+
+	operationName []byte
+	skip          bool
+}
+
+func (d *deleteUnusedVariablesVisitor) EnterOperationDefinition(ref int) {
+	if len(d.operationName) == 0 {
+		d.skip = false
+		return
+	}
+	operationName := d.operation.OperationDefinitionNameBytes(ref)
+	d.skip = !bytes.Equal(operationName, d.operationName)
 }
 
 func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
+	if d.skip {
+		return
+	}
 	var (
 		err error
 	)
@@ -63,6 +79,9 @@ func (d *deleteUnusedVariablesVisitor) LeaveOperationDefinition(ref int) {
 }
 
 func (d *deleteUnusedVariablesVisitor) EnterArgument(ref int) {
+	if d.skip {
+		return
+	}
 	d.traverseValue(d.operation.Arguments[ref].Value)
 }
 
@@ -94,6 +113,7 @@ func detectVariableUsage(walker *astvisitor.Walker, deletion *deleteUnusedVariab
 	}
 	visitor.Walker.RegisterEnterDocumentVisitor(visitor)
 	visitor.Walker.RegisterEnterArgumentVisitor(visitor)
+	visitor.Walker.RegisterEnterOperationVisitor(visitor)
 	return visitor
 }
 
@@ -101,6 +121,18 @@ type variableUsageDetector struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
 	deletion              *deleteUnusedVariablesVisitor
+
+	operationName []byte
+	skip          bool
+}
+
+func (v *variableUsageDetector) EnterOperationDefinition(ref int) {
+	if len(v.operationName) == 0 {
+		v.skip = false
+		return
+	}
+	operationName := v.operation.OperationDefinitionNameBytes(ref)
+	v.skip = !bytes.Equal(operationName, v.operationName)
 }
 
 func (v *variableUsageDetector) EnterDocument(operation, definition *ast.Document) {
@@ -109,6 +141,9 @@ func (v *variableUsageDetector) EnterDocument(operation, definition *ast.Documen
 }
 
 func (v *variableUsageDetector) EnterArgument(ref int) {
+	if v.skip {
+		return
+	}
 	v.traverseValue(v.operation.Arguments[ref].Value)
 }
 
