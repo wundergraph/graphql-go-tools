@@ -29,6 +29,7 @@ func NewConfiguration(schema *graphql.Schema) Configuration {
 			DefaultFlushIntervalMillis: DefaultFlushIntervalInMilliseconds,
 			DataSources:                []plan.DataSource{},
 			Fields:                     plan.FieldConfigurations{},
+			IncludeInfo:                true,
 		},
 	}
 }
