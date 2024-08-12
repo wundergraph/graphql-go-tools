@@ -24,6 +24,7 @@ type NodeSuggestion struct {
 	IsEntityInterfaceTypeName bool   `json:"-"`
 	IsExternal                bool   `json:"isExternal"`
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
+	IsLeaf                    bool   `json:"isLeaf"`
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -210,6 +211,15 @@ func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 		}
 
 		out = append(out, childIdx)
+	}
+	return
+}
+
+func (f *NodeSuggestions) withoutTypeName(in []int) (out []int) {
+	for _, i := range in {
+		if f.items[i].FieldName != typeNameField {
+			out = append(out, i)
+		}
 	}
 	return
 }

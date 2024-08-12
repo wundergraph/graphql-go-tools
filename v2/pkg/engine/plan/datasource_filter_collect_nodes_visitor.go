@@ -289,11 +289,15 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	itemIds := treeNode.GetData()
 
 	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(treeNode)
+	hasSelections := f.operation.FieldHasSelections(fieldRef)
 
 	if f.hasSuggestionForField(itemIds, fieldRef) {
 		for _, idx := range itemIds {
 			if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
 				f.nodes.items[idx].IsExternal = isExternal
+
+				// we need to also set it here, because provided nodes do not have this property yet
+				f.nodes.items[idx].IsLeaf = !hasSelections
 			}
 		}
 
@@ -318,6 +322,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
 			IsExternal:                isExternal,
+			IsLeaf:                    !hasSelections,
 		}
 
 		f.nodes.addSuggestion(&node)
