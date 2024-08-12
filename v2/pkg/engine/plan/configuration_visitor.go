@@ -413,7 +413,13 @@ func (c *configurationVisitor) EnterField(ref int) {
 
 		if !c.couldPlanField(ref, ds.Hash()) {
 			c.handleMissingPath(false, typeName, fieldName, currentPath, shareable)
-			continue
+
+			// if we could not plan the field, we should skip walking into it
+			// as the dependencies conditions are tight to this field,
+			// and we could mistakenly plan the nested fields on this datasource without current field
+			// It could happen when there are the same field as current on another datasource, and it is allowed to plan it
+			c.walker.SkipNode()
+			return
 		}
 
 		c.handlePlanningField(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath, isSubscription, suggestion, ds, shareable)
