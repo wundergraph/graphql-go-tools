@@ -180,7 +180,6 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 
 	p, err := NewPlanner(Configuration{
 		DisableResolveFieldPositions: true,
-		IncludeInfo:                  true,
 		DataSources: []DataSource{
 			dsCfg,
 		},

@@ -495,7 +495,6 @@ func ExamplePlanOperation() {
 				Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
 			},
 		},
-		IncludeInfo: true,
 	}
 
 	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }

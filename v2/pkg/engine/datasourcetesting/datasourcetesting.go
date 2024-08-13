@@ -27,6 +27,7 @@ import (
 type testOptions struct {
 	postProcessors []*postprocess.Processor
 	skipReason     string
+	withFieldInfo  bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -47,6 +48,12 @@ func WithDefaultPostProcessor() func(*testOptions) {
 
 func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
 	return WithPostProcessors(postprocess.NewProcessor(options...))
+}
+
+func WithFieldInfo() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+	}
 }
 
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
@@ -105,9 +112,16 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 	return func(t *testing.T) {
 		t.Helper()
 
+		// by default, we don't want to have field info in the tests because it's too verbose
+		config.DisableIncludeInfo = true
+
 		opts := &testOptions{}
 		for _, o := range options {
 			o(opts)
+		}
+
+		if opts.withFieldInfo {
+			config.DisableIncludeInfo = false
 		}
 
 		if opts.skipReason != "" {

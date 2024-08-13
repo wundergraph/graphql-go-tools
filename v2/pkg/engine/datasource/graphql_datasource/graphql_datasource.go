@@ -1293,10 +1293,10 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 		return
 	}
 	var (
-		dependencies []resolve.EntityFetchArgument
+		representations []resolve.Representation
 	)
 	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
-		dependencies = make([]resolve.EntityFetchArgument, len(p.dataSourcePlannerConfig.RequiredFields))
+		representations = make([]resolve.Representation, len(p.dataSourcePlannerConfig.RequiredFields))
 		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
 			if report.HasErrors() {
@@ -1308,21 +1308,21 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 				p.visitor.Walker.StopWithInternalErr(errors.WithStack(err))
 				return
 			}
-			dependency := resolve.EntityFetchArgument{
+			dependency := resolve.Representation{
 				TypeName:  cfg.TypeName,
 				FieldName: cfg.FieldName,
 				Fragment:  printedFragment,
 			}
 			if cfg.FieldName == "" {
-				dependency.Kind = resolve.EntityFetchArgumentKindKey
+				dependency.Kind = resolve.RepresentationKindKey
 			} else {
-				dependency.Kind = resolve.EntityFetchArgumentKindDependency
+				dependency.Kind = resolve.RepresentationKindRequires
 			}
-			dependencies[i] = dependency
+			representations[i] = dependency
 		}
 	}
 	p.queryPlan = &resolve.QueryPlan{
-		DependsOnFields: dependencies,
+		DependsOnFields: representations,
 		Query:           query,
 	}
 }

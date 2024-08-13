@@ -153,6 +153,24 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
+
+	if r.ctx.ExecutionOptions.SkipLoader {
+		// we didn't resolve any data, so there's no point in generating errors
+		// the goal is to only render extensions, e.g. to expose the query plan
+		r.printBytes(lBrace)
+		r.printBytes(quote)
+		r.printBytes(literalData)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(null)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printErr = r.printExtensions(ctx, fetchTree)
+		}
+		r.printBytes(rBrace)
+		return r.printErr
+	}
+
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
 	hasErrors := r.walkObject(rootData, r.data)

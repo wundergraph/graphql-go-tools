@@ -157,6 +157,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -238,6 +239,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -302,6 +304,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -387,6 +390,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -472,6 +476,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -561,6 +566,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -663,6 +669,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -775,6 +782,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -894,6 +902,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{
@@ -991,6 +1000,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 		},
 		Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{dsConfig},
 			Fields: []FieldConfiguration{
 				{

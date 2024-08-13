@@ -89,7 +89,27 @@ func (p *Planner) SetDebugConfig(config DebugConfiguration) {
 	p.config.Debug = config
 }
 
-func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
+type _opts struct {
+	includeQueryPlanInResponse bool
+}
+
+type Opts func(*_opts)
+
+func IncludeQueryPlanInResponse() Opts {
+	return func(o *_opts) {
+		o.includeQueryPlanInResponse = true
+	}
+}
+
+func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report, options ...Opts) (plan Plan) {
+
+	var opts _opts
+	for _, opt := range options {
+		opt(&opts)
+	}
+
+	p.planningVisitor.includeQueryPlans = opts.includeQueryPlanInResponse
+
 	p.selectOperation(operation, operationName, report)
 	if report.HasErrors() {
 		return
@@ -135,7 +155,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				dataSourceWithMinify.EnableSubgraphRequestMinifier()
 			}
 		}
-		if p.config.IncludeQueryPlanInResponse {
+		if opts.includeQueryPlanInResponse {
 			if plannerWithQueryPlan, ok := p.planningVisitor.planners[key].Planner().(QueryPlanProvider); ok {
 				plannerWithQueryPlan.IncludeQueryPlanInFetchConfiguration()
 			}

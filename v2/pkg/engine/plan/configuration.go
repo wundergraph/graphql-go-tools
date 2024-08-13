@@ -22,7 +22,7 @@ type Configuration struct {
 
 	MinifySubgraphOperations bool
 
-	IncludeQueryPlanInResponse bool
+	DisableIncludeInfo bool
 }
 
 type DebugConfiguration struct {

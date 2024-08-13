@@ -215,22 +215,22 @@ func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 }
 
 type QueryPlan struct {
-	DependsOnFields []EntityFetchArgument
+	DependsOnFields []Representation
 	Query           string
 }
 
-type EntityFetchArgument struct {
-	Kind      EntityFetchArgumentKind `json:"kind"`
-	TypeName  string                  `json:"typeName"`
-	FieldName string                  `json:"fieldName,omitempty"`
-	Fragment  string                  `json:"fragment"`
+type Representation struct {
+	Kind      RepresentationKind `json:"kind"`
+	TypeName  string             `json:"typeName"`
+	FieldName string             `json:"fieldName,omitempty"`
+	Fragment  string             `json:"fragment"`
 }
 
-type EntityFetchArgumentKind string
+type RepresentationKind string
 
 const (
-	EntityFetchArgumentKindKey        EntityFetchArgumentKind = "key"
-	EntityFetchArgumentKindDependency EntityFetchArgumentKind = "dependency"
+	RepresentationKindKey      RepresentationKind = "@key"
+	RepresentationKindRequires RepresentationKind = "@requires"
 )
 
 type FetchConfiguration struct {
@@ -284,10 +284,11 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 }
 
 type FetchInfo struct {
-	DataSourceID  string
-	RootFields    []GraphCoordinate
-	OperationType ast.OperationType
-	QueryPlan     *QueryPlan
+	DataSourceID   string
+	DataSourceName string
+	RootFields     []GraphCoordinate
+	OperationType  ast.OperationType
+	QueryPlan      *QueryPlan
 }
 
 type GraphCoordinate struct {

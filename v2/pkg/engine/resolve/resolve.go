@@ -209,10 +209,12 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return nil, err
 	}
 
-	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
-	if err != nil {
-		r.putTools(t)
-		return nil, err
+	if !ctx.ExecutionOptions.SkipLoader {
+		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		if err != nil {
+			r.putTools(t)
+			return nil, err
+		}
 	}
 
 	buf := r.getBuffer()

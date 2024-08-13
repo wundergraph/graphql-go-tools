@@ -459,8 +459,9 @@ func TestGraphQLDataSource(t *testing.T) {
 							PostProcessing: DefaultPostProcessingConfiguration,
 						},
 						Info: &resolve.FetchInfo{
-							OperationType: ast.OperationTypeQuery,
-							DataSourceID:  "https://swapi.com",
+							OperationType:  ast.OperationTypeQuery,
+							DataSourceID:   "https://swapi.com",
+							DataSourceName: "https://swapi.com",
 							RootFields: []resolve.GraphCoordinate{
 								{
 									TypeName:  "Query",
@@ -656,7 +657,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		IncludeInfo: true,
 		DataSources: []plan.DataSource{
 			mustDataSourceConfiguration(
 				t,
@@ -718,7 +718,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}))
+	}, WithFieldInfo()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {

@@ -43,6 +43,7 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
+	includeQueryPlans            bool
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -316,6 +317,10 @@ func (v *Visitor) mapFieldConfig(ref int) {
 }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
+	if v.Config.DisableIncludeInfo {
+		return nil
+	}
+
 	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
 	fieldHasAuthorizationRule := v.fieldHasAuthorizationRule(enclosingTypeName, fieldName)
@@ -766,8 +771,10 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		Data: rootObject,
 	}
 
-	graphQLResponse.Info = &resolve.GraphQLResponseInfo{
-		OperationType: operationKind,
+	if !v.Config.DisableIncludeInfo {
+		graphQLResponse.Info = &resolve.GraphQLResponseInfo{
+			OperationType: operationKind,
+		}
 	}
 
 	if operationKind == ast.OperationTypeSubscription {
@@ -1056,6 +1063,9 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 		return
 	}
 	fetchConfig := config.planner.ConfigureFetch()
+	if v.includeQueryPlans && fetchConfig.QueryPlan == nil {
+		fetchConfig.QueryPlan = &resolve.QueryPlan{}
+	}
 	fetch := v.configureFetch(config, fetchConfig)
 	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
@@ -1073,12 +1083,16 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
-		Info: &resolve.FetchInfo{
-			DataSourceID:  internal.sourceID,
-			RootFields:    internal.rootFields,
-			OperationType: internal.operationType,
-			QueryPlan:     external.QueryPlan,
-		},
+	}
+
+	if !v.Config.DisableIncludeInfo {
+		singleFetch.Info = &resolve.FetchInfo{
+			DataSourceID:   internal.sourceID,
+			DataSourceName: internal.sourceName,
+			RootFields:     internal.rootFields,
+			OperationType:  internal.operationType,
+			QueryPlan:      external.QueryPlan,
+		}
 	}
 
 	return singleFetch

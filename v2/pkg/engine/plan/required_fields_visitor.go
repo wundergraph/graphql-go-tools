@@ -30,7 +30,7 @@ func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string)
 	if fieldName == "" {
 		fragment = fmt.Sprintf("fragment Key on %s { __typename %s }", typeName, requiredFields)
 	} else {
-		fragment = fmt.Sprintf("fragment Dependency_for_%s on %s { %s }", fieldName, typeName, requiredFields)
+		fragment = fmt.Sprintf("fragment Requires_for_%s on %s { %s }", fieldName, typeName, requiredFields)
 	}
 	key, report := astparser.ParseGraphqlDocumentString(fragment)
 	return &key, &report

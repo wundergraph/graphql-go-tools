@@ -106,6 +106,7 @@ type objectFetchConfiguration struct {
 	fieldRef           int
 	fieldDefinitionRef int
 	sourceID           string
+	sourceName         string
 	fetchID            int
 	dependsOnFetchIDs  []int
 	rootFields         []resolve.GraphCoordinate
@@ -872,6 +873,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
 		sourceID:           config.Id(),
+		sourceName:         config.Name(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
 		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
 	}
