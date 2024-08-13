@@ -34,7 +34,6 @@ type VariableRenderer interface {
 // It renders the provided data as JSON
 // If configured, it also does a JSON Validation Check before rendering
 type JSONVariableRenderer struct {
-	JSONSchema    string
 	Kind          string
 	rootValueType JsonRootType
 }

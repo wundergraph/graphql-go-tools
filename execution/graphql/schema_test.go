@@ -1303,7 +1303,7 @@ type Root {
   allVehicles(after: String, first: Int, before: String, last: Int): VehiclesConnection
   vehicle(id: ID, vehicleID: ID): Vehicle
 
-  """Fetches an object given its ID"""
+  """Traces an object given its ID"""
   node(
     """The ID of an object"""
     id: ID!

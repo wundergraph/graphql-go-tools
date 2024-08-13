@@ -90,6 +90,7 @@
             "fetch": {
               "kind": "Single",
               "path": "",
+              "source_id": "0",
               "trace": {
                 "raw_input_data": {},
                 "input": {
@@ -238,6 +239,7 @@
                 "fetch": {
                   "kind": "BatchEntity",
                   "path": "me.history.@.product",
+                  "source_id": "1",
                   "trace": {
                     "raw_input_data": {
                       "upc": "top-2",
@@ -373,6 +375,7 @@
                 "fetch": {
                   "kind": "Entity",
                   "path": "me",
+                  "source_id": "2",
                   "trace": {
                     "raw_input_data": {
                       "id": "1234",
