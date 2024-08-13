@@ -19,7 +19,7 @@ type DataSourceDebugger interface {
 	astvisitor.VisitorIdentifier
 	DebugPrint(args ...interface{})
 	EnableDebug()
-	EnableQueryPlanLogging()
+	EnableDebugQueryPlanLogging()
 }
 
 type QueryPlanProvider interface {

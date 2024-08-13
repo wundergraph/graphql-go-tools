@@ -169,7 +169,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			}
 
 			if p.config.Debug.PrintQueryPlans {
-				plannerWithDebug.EnableQueryPlanLogging()
+				plannerWithDebug.EnableDebugQueryPlanLogging()
 			}
 		}
 		err := p.planningVisitor.planners[key].Register(p.planningVisitor)

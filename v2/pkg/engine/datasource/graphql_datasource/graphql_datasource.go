@@ -115,7 +115,7 @@ func (p *Planner[T]) EnableDebug() {
 	p.debug = true
 }
 
-func (p *Planner[T]) EnableQueryPlanLogging() {
+func (p *Planner[T]) EnableDebugQueryPlanLogging() {
 	p.enableDebugPrintQueryPlan = true
 }
 
