@@ -227,7 +227,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	defer r.releaseBuffer(buf)
 
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
-	// Return the tools as soon as possible
+	// Return the tools as soon as possible. More efficient in case of a slow client / network.
 	r.putTools(t)
 	toolsCleaned = true
 
