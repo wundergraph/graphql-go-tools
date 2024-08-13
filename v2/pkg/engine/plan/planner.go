@@ -336,9 +336,9 @@ func (p *Planner) printOperation(operation *ast.Document) {
 	var pp string
 
 	if p.config.Debug.PrintOperationEnableASTRefs {
-		pp, _ = astprinter.PrintStringIndentDebug(operation, nil, "  ")
+		pp, _ = astprinter.PrintStringIndentDebug(operation, "  ")
 	} else {
-		pp, _ = astprinter.PrintStringIndent(operation, nil, "  ")
+		pp, _ = astprinter.PrintStringIndent(operation, "  ")
 	}
 
 	fmt.Println(pp)

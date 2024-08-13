@@ -47,8 +47,8 @@ func TestNormalizeOperation(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		got := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-		want := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+		got := mustString(astprinter.PrintString(&operationDocument))
+		want := mustString(astprinter.PrintString(&expectedOutputDocument))
 
 		assert.Equal(t, want, got)
 		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
@@ -444,7 +444,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("Items"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, " ")
 		assert.Equal(t, expectedQuery, actual)
 	})
 
@@ -494,8 +494,8 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&expectedDocument, &definition, []byte("Game"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
-		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		expected, _ := astprinter.PrintStringIndent(&expectedDocument, " ")
 		assert.Equal(t, expected, actual)
 		assert.Equal(t, `{}`, string(operation.Input.Variables))
 	})
@@ -546,8 +546,8 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&expectedDocument, &definition, []byte("Game"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
-		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		expected, _ := astprinter.PrintStringIndent(&expectedDocument, " ")
 		assert.Equal(t, expected, actual)
 		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
 	})
@@ -598,8 +598,8 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&expectedDocument, &definition, []byte("Game"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
-		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		expected, _ := astprinter.PrintStringIndent(&expectedDocument, " ")
 		assert.Equal(t, expected, actual)
 		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
@@ -640,7 +640,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintString(&operation, &definition)
+		actual, _ := astprinter.PrintString(&operation)
 		assert.Equal(t, expectedQuery, actual)
 		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
@@ -681,7 +681,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintString(&operation, &definition)
+		actual, _ := astprinter.PrintString(&operation)
 		assert.Equal(t, expectedQuery, actual)
 		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
@@ -722,7 +722,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("Game"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintString(&operation, &definition)
+		actual, _ := astprinter.PrintString(&operation)
 		assert.Equal(t, expectedQuery, actual)
 		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
@@ -753,7 +753,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("B"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, " ")
 		assert.Equal(t, expectedQuery, actual)
 
 		expectedVariables := ``
@@ -791,7 +791,7 @@ schema {
 		assert.False(t, report.HasErrors())
 		fmt.Println(report)
 
-		actualOperation := unsafeprinter.Print(&operation, nil)
+		actualOperation := unsafeprinter.Print(&operation)
 		assert.NotEqual(t, query, actualOperation)
 		assert.Equal(t, expectedOperation, actualOperation)
 	}
@@ -856,7 +856,7 @@ func TestVariablesNormalizer(t *testing.T) {
 	normalizer.NormalizeNamedOperation(&operationDocument, &definitionDocument, "HttpBinPost", &report)
 	require.False(t, report.HasErrors(), report.Error())
 
-	out := unsafeprinter.Print(&operationDocument, &definitionDocument)
+	out := unsafeprinter.Print(&operationDocument)
 	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
 	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
 }
@@ -929,8 +929,8 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 		panic(report.Error())
 	}
 
-	actualAST := mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+	actualAST := mustString(astprinter.PrintString(&operationDocument))
+	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument))
 	assert.Equal(t, expectedAST, actualAST)
 	actualVariables := string(operationDocument.Input.Variables)
 	assert.Equal(t, expectedVariables, actualVariables)
@@ -986,8 +986,8 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 		panic(report.Error())
 	}
 
-	got := mustString(astprinter.PrintStringIndent(&operationDocument, &definitionDocument, "  "))
-	want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, &definitionDocument, "  "))
+	got := mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
+	want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 
 	assert.Equal(t, want, got)
 }
@@ -1015,11 +1015,11 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 
 	var got, want string
 	if len(indent) > 0 && indent[0] {
-		got = mustString(astprinter.PrintStringIndent(&operationDocument, &definitionDocument, "  "))
-		want = mustString(astprinter.PrintStringIndent(&expectedOutputDocument, &definitionDocument, "  "))
+		got = mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
+		want = mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 	} else {
-		got = mustString(astprinter.PrintString(&operationDocument, &definitionDocument))
-		want = mustString(astprinter.PrintString(&expectedOutputDocument, &definitionDocument))
+		got = mustString(astprinter.PrintString(&operationDocument))
+		want = mustString(astprinter.PrintString(&expectedOutputDocument))
 	}
 
 	assert.Equal(t, want, got)

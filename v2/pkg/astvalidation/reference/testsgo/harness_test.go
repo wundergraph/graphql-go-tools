@@ -248,7 +248,7 @@ func ExtendSchema(schema string, sdlStr string) string {
 	report := operationreport.Report{}
 	parser.Parse(&definition, &report)
 
-	res, _ := astprinter.PrintStringIndent(&definition, nil, "  ")
+	res, _ := astprinter.PrintStringIndent(&definition, "  ")
 
 	return res
 }

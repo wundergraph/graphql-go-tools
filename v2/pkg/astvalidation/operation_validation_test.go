@@ -97,7 +97,7 @@ func TestExecutionValidation(t *testing.T) {
 
 		result := validator.Validate(&operation, &definition, &report)
 
-		printedOperation := mustString(astprinter.PrintString(&operation, &definition))
+		printedOperation := mustString(astprinter.PrintString(&operation))
 
 		if options.expectValidationErrors {
 			for _, msg := range options.expectedValidationErrorMsgs {

@@ -141,7 +141,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
 
-		normalized := unsafeprinter.PrettyPrint(&op, &def)
+		normalized := unsafeprinter.PrettyPrint(&op)
 		_ = normalized
 
 		valid := astvalidation.DefaultOperationValidator()
@@ -151,11 +151,11 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		require.NoError(t, err)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
-			_, err := astprinter.PrintStringIndent(&def, nil, "  ")
+			_, err := astprinter.PrintStringIndent(&def, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = astprinter.PrintStringIndent(&op, &def, "  ")
+			_, err = astprinter.PrintStringIndent(&op, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}

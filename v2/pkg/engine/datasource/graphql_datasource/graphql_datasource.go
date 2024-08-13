@@ -80,9 +80,6 @@ type Planner[T Configuration] struct {
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
 
-	// tmp
-	upstreamSchema *ast.Document
-
 	minifier *astminify.Minifier
 }
 
@@ -1220,7 +1217,7 @@ func (p *Planner[T]) debugPrintOperation() {
 		return
 	}
 
-	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, nil, "  ")
+	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, "  ")
 	p.DebugPrint("printed operation:\n", op)
 }
 
@@ -1243,7 +1240,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 		return
 	}
 
-	printedOperation, err := astprinter.PrintStringIndent(operation, nil, "  ")
+	printedOperation, err := astprinter.PrintStringIndent(operation, "  ")
 	if err != nil {
 		return
 	}
@@ -1269,7 +1266,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 			if report.HasErrors() {
 				continue
 			}
-			printedKey, err := astprinter.PrintStringIndent(key, nil, "  ")
+			printedKey, err := astprinter.PrintStringIndent(key, "  ")
 			if err != nil {
 				continue
 			}
@@ -1288,7 +1285,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	if !p.includeQueryPlanInFetchConfiguration {
 		return
 	}
-	query, err := astprinter.PrintStringIndent(operation, p.upstreamSchema, "  ")
+	query, err := astprinter.PrintStringIndent(operation, "  ")
 	if err != nil {
 		return
 	}
@@ -1303,7 +1300,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 				p.visitor.Walker.StopWithInternalErr(report)
 				return
 			}
-			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, nil, "  ")
+			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, "  ")
 			if err != nil {
 				p.visitor.Walker.StopWithInternalErr(errors.WithStack(err))
 				return
@@ -1361,7 +1358,7 @@ func (p *Planner[T]) printOperation() []byte {
 	p.debugPrintQueryPlan(p.upstreamOperation)
 
 	// print upstream operation
-	err = kit.printer.Print(p.upstreamOperation, p.visitor.Definition, kit.buf)
+	err = kit.printer.Print(p.upstreamOperation, kit.buf)
 	if err != nil {
 		p.stopWithError(printOperationFailedErrMsg, kit.report.Error())
 		return nil
