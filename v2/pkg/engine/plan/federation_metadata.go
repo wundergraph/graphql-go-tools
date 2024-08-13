@@ -39,7 +39,7 @@ type EntityInterfaceConfiguration struct {
 type FederationFieldConfiguration struct {
 	// TypeName is the name of the Entity the Fragment is for
 	TypeName string
-	// FieldName is empty for key requirements, otherwise it is the name of the field that requires the given
+	// FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
 	FieldName string
 	// SelectionSet is the selection set that is required for the given field (keys, requires, provides)
 	SelectionSet          string
