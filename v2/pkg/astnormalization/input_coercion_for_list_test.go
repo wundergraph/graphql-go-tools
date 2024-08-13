@@ -236,14 +236,11 @@ func TestInputCoercionForList(t *testing.T) {
 					])
 				}`, `Mutate`,
 				`
-				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
-					mutateWithList(input: [
-						$a,
-						$b
-					]) 
+				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList, $c: [InputWithNestedScalarList]){
+					mutateWithList(input: $c)
 				}`,
 				`{"a":{"stringList":"str"},"b":{"intList":1}}`,
-				`{"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
+				`{"c":[{"stringList":["str"]},{"intList":[1]}],"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
 		})
 
 		t.Run("mutation list items as variables with additional variables", func(t *testing.T) {
@@ -257,16 +254,11 @@ func TestInputCoercionForList(t *testing.T) {
 					])
 				}`, `Mutate`,
 				`
-				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList, $c: [String!], $d: [Int!]) {
-					mutateWithList(input: [
-						$a,
-						$b,
-						{stringList: $c},
-						{intList: $d}
-					]) 
+				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList, $c: [InputWithNestedScalarList]){
+					mutateWithList(input: $c)
 				}`,
 				`{"a":{"stringList":"str"},"b":{"intList":1}}`,
-				`{"d":[1],"c":["str2"],"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
+				`{"c":[{"stringList":["str"]},{"intList":[1]},{"stringList":["str2"]},{"intList":[1]}],"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
 		})
 
 		t.Run("mutation nested", func(t *testing.T) {

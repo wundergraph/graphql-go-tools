@@ -579,8 +579,8 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 			`
 
 		expectedQuery := `
-			query Game($id: ID!) {
-				hero(ids: [$id]) {
+			query Game($a: [ID!]!) {
+				hero(ids: $a) {
 					age
 				}
 			}
@@ -601,7 +601,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		actual, _ := astprinter.PrintStringIndent(&operation, &definition, " ")
 		expected, _ := astprinter.PrintStringIndent(&expectedDocument, &definition, " ")
 		assert.Equal(t, expected, actual)
-		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
 
 	t.Run("should not remove variables that were not used by skip or include", func(t *testing.T) {
@@ -630,7 +630,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 			}
 			`
 
-		expectedQuery := `query Game($id: ID!, $unused: String){hero(ids: [$id]){age}}`
+		expectedQuery := `query Game($unused: String, $a: [ID!]!){hero(ids: $a){age}}`
 
 		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
 		operation := unsafeparser.ParseGraphqlDocumentString(query)
@@ -642,7 +642,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 
 		actual, _ := astprinter.PrintString(&operation, &definition)
 		assert.Equal(t, expectedQuery, actual)
-		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
 
 	t.Run("should safely remove obsolete variables", func(t *testing.T) {
@@ -671,7 +671,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 			}
 			`
 
-		expectedQuery := `query Game($id: ID!){hero(ids: [$id]){age}}`
+		expectedQuery := `query Game($a: [ID!]!){hero(ids: $a){age}}`
 
 		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
 		operation := unsafeparser.ParseGraphqlDocumentString(query)
@@ -683,7 +683,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 
 		actual, _ := astprinter.PrintString(&operation, &definition)
 		assert.Equal(t, expectedQuery, actual)
-		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
 
 	t.Run("should keep variable if included", func(t *testing.T) {
@@ -712,7 +712,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 			}
 			`
 
-		expectedQuery := `query Game($id: ID!, $nameLength: Int!){hero(ids: [$id]){name(length: $nameLength) age}}`
+		expectedQuery := `query Game($nameLength: Int!, $a: [ID!]!){hero(ids: $a){name(length: $nameLength) age}}`
 
 		definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
 		operation := unsafeparser.ParseGraphqlDocumentString(query)
@@ -724,7 +724,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 
 		actual, _ := astprinter.PrintString(&operation, &definition)
 		assert.Equal(t, expectedQuery, actual)
-		assert.Equal(t, `{"id":"1"}`, string(operation.Input.Variables))
+		assert.Equal(t, `{"a":["1"]}`, string(operation.Input.Variables))
 	})
 
 	t.Run("should not extract default values from query body and remove unmatched query", func(t *testing.T) {
@@ -827,6 +827,40 @@ func TestParseMissingBaseSchema(t *testing.T) {
 	assert.Regexp(t, regexp.MustCompile("forget.*merge.*base.*schema"), report.Error(), "error should mention the user forgot to merge the base schema")
 }
 
+func TestVariablesNormalizer(t *testing.T) {
+	t.Parallel()
+	input := `
+		mutation HttpBinPost($foo: String! = "bar" $bar: String!){
+		  httpBinPost(input: {foo: $foo}){
+			headers {
+			  userAgent
+			}
+			data {
+			  foo
+			}
+		  }
+		}
+		`
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(variablesExtractionDefinition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
+	operationDocument.Input.Variables = []byte(`{}`)
+
+	normalizer := NewVariablesNormalizer()
+	report := operationreport.Report{}
+	normalizer.NormalizeNamedOperation(&operationDocument, &definitionDocument, "HttpBinPost", &report)
+	require.False(t, report.HasErrors(), report.Error())
+
+	out := unsafeprinter.Print(&operationDocument, &definitionDocument)
+	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
+	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
+}
+
 func BenchmarkAstNormalization(b *testing.B) {
 
 	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
@@ -920,11 +954,12 @@ var runWithVariablesDefaultValues = func(t *testing.T, normalizeFunc registerNor
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
-var runWithDeleteUnusedVariables = func(t *testing.T, normalizeFunc registerNormalizeDeleteVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
+var runWithDeleteUnusedVariables = func(t *testing.T, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		normalizeFunc(walker)
+		del := deleteUnusedVariables(walker)
+		detectVariableUsage(walker, del)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
