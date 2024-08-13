@@ -161,7 +161,7 @@ func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
 
 	upstreamSchema, err := p.config.UpstreamSchema()
 	if err != nil {
-		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("failed to get upstream schema: %w", err)))
 	}
 
 	if !upstreamSchema.DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
@@ -297,7 +297,8 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	if p.config.fetch == nil {
-		p.stopWithError("fetch configuration is empty")
+		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch configuration is empty")))
+		return resolve.FetchConfiguration{}
 	}
 
 	var input []byte
@@ -309,6 +310,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	}
 
 	header, err := json.Marshal(p.config.fetch.Header)
+	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
+		return resolve.FetchConfiguration{}
+	}
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
@@ -356,7 +361,8 @@ func (p *Planner[T]) requiresEntityBatchFetch() bool {
 
 func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if p.config.subscription == nil {
-		p.stopWithError("subscription configuration is empty")
+		p.stopWithError(errors.WithStack(errors.New("ConfigureSubscription: subscription configuration is empty")))
+		return plan.SubscriptionConfiguration{}
 	}
 
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
@@ -371,6 +377,10 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input = httpclient.SetInputWSSubprotocol(input, []byte(p.config.subscription.WsSubProtocol))
 
 	header, err := json.Marshal(p.config.subscription.Header)
+	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal header: %w", err)))
+		return plan.SubscriptionConfiguration{}
+	}
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
@@ -378,9 +388,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if len(p.config.subscription.ForwardedClientHeaderNames) > 0 {
 		headers, err := json.Marshal(p.config.subscription.ForwardedClientHeaderNames)
 		if err != nil {
-			// XXX: Since this is a very unlikely error, to avoid breaking
-			// the API we panic here
-			panic(err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal forwarded client header names: %w", err)))
+			return plan.SubscriptionConfiguration{}
 		}
 		input = httpclient.SetForwardedClientHeaderNames(input, headers)
 	}
@@ -388,9 +397,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if len(p.config.subscription.ForwardedClientHeaderRegularExpressions) > 0 {
 		headers, err := json.Marshal(p.config.subscription.ForwardedClientHeaderRegularExpressions)
 		if err != nil {
-			// XXX: Since this is a very unlikely error, to avoid breaking
-			// the API we panic here
-			panic(err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal forwarded client header regular expressions: %w", err)))
+			return plan.SubscriptionConfiguration{}
 		}
 		input = httpclient.SetForwardedClientHeaderRegularExpressions(input, headers)
 	}
@@ -738,7 +746,7 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
 		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("buildRepresentationsVariable: failed to build representation variable node: %w", err)))
 			return nil
 		}
 
@@ -1169,11 +1177,8 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 }
 
 const (
-	normalizationFailedErrMsg        = "upstream operation: normalization failed: %s"
-	printOperationFailedErrMsg       = "upstream operation: failed to print: %s"
-	validationFailedErrMsg           = "upstream operation: validation failed: %s"
-	parseDocumentFailedErrMsg        = "upstream operation: parse %s failed"
-	failedToReadUpstreamSchemaErrMsg = "failed to read upstream schema: %s"
+	normalizationFailedErrMsg  = "upstream operation: normalization failed: %s"
+	printOperationFailedErrMsg = "upstream operation: failed to print: %s"
 )
 
 func (p *Planner[T]) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
@@ -1242,6 +1247,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 
 	printedOperation, err := astprinter.PrintStringIndent(operation, "  ")
 	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("debugPrintQueryPlan: failed to print operation: %w", err)))
 		return
 	}
 
@@ -1268,7 +1274,8 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 			}
 			printedKey, err := astprinter.PrintStringIndent(key, "  ")
 			if err != nil {
-				continue
+				p.stopWithError(errors.WithStack(fmt.Errorf("debugPrintQueryPlan: failed to print fragment for required fields: %w", err)))
+				return
 			}
 			args = append(args, printedKey, "\n")
 		}
@@ -1287,6 +1294,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	}
 	query, err := astprinter.PrintStringIndent(operation, "  ")
 	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
 		return
 	}
 	var (
@@ -1297,12 +1305,12 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
 			if report.HasErrors() {
-				p.visitor.Walker.StopWithInternalErr(report)
+				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to build fragment for required fields: %w", report)))
 				return
 			}
 			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, "  ")
 			if err != nil {
-				p.visitor.Walker.StopWithInternalErr(errors.WithStack(err))
+				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print fragment for required fields: %w", err)))
 				return
 			}
 			dependency := resolve.Representation{
@@ -1333,7 +1341,7 @@ func (p *Planner[T]) printOperation() []byte {
 	// create empty operation and definition documents
 	definition, err := p.config.UpstreamSchema()
 	if err != nil {
-		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to read upstream schema: %w", err)))
 		return nil
 	}
 
@@ -1344,13 +1352,13 @@ func (p *Planner[T]) printOperation() []byte {
 	// normalize upstream operation
 	kit.normalizer.NormalizeOperation(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
-		p.stopWithError(normalizationFailedErrMsg, kit.report.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: normalization failed: %w", kit.report)))
 		return nil
 	}
 
 	kit.validator.Validate(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
-		p.stopWithError(validationFailedErrMsg, kit.report.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: validation failed: %w", kit.report)))
 		return nil
 	}
 
@@ -1360,7 +1368,7 @@ func (p *Planner[T]) printOperation() []byte {
 	// print upstream operation
 	err = kit.printer.Print(p.upstreamOperation, kit.buf)
 	if err != nil {
-		p.stopWithError(printOperationFailedErrMsg, kit.report.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to print: %w", err)))
 		return nil
 	}
 
@@ -1374,7 +1382,7 @@ func (p *Planner[T]) printOperation() []byte {
 			Pretty:  false,
 		}, kit.buf)
 		if err != nil {
-			p.stopWithError(printOperationFailedErrMsg, err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to minify: %w", err)))
 			return nil
 		}
 		if madeReplacements && kit.buf.Len() < len(rawOperationBytes) {
@@ -1386,8 +1394,8 @@ func (p *Planner[T]) printOperation() []byte {
 	return rawOperationBytes
 }
 
-func (p *Planner[T]) stopWithError(msg string, args ...interface{}) {
-	p.visitor.Walker.StopWithInternalErr(fmt.Errorf(msg, args...))
+func (p *Planner[T]) stopWithError(err error) {
+	p.visitor.Walker.StopWithInternalErr(err)
 }
 
 /*
