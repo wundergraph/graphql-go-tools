@@ -135,6 +135,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				dataSourceWithMinify.EnableSubgraphRequestMinifier()
 			}
 		}
+		if p.config.IncludeQueryPlanInResponse {
+			if plannerWithQueryPlan, ok := p.planningVisitor.planners[key].Planner().(QueryPlanProvider); ok {
+				plannerWithQueryPlan.IncludeQueryPlanInFetchConfiguration()
+			}
+		}
 		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {
 			plannerWithId.SetID(key)
 		}
@@ -147,7 +152,6 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				plannerWithDebug.EnableQueryPlanLogging()
 			}
 		}
-
 		err := p.planningVisitor.planners[key].Register(p.planningVisitor)
 		if err != nil {
 			report.AddInternalError(err)

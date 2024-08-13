@@ -238,6 +238,16 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		err := r.printQueryPlanExtension(fetchTree)
+		if err != nil {
+			return err
+		}
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
@@ -282,6 +292,20 @@ func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTr
 	return nil
 }
 
+func (r *Resolvable) printQueryPlanExtension(fetchTree *FetchTreeNode) error {
+	queryPlan := fetchTree.QueryPlan()
+	content, err := json.Marshal(queryPlan)
+	if err != nil {
+		return err
+	}
+	r.printBytes(quote)
+	r.printBytes(literalQueryPlan)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(content)
+	return nil
+}
+
 func (r *Resolvable) hasExtensions() bool {
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
@@ -290,6 +314,9 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		return true
+	}
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		return true
 	}
 	return false

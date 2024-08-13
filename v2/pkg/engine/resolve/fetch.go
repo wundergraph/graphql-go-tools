@@ -214,6 +214,25 @@ func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
 }
 
+type QueryPlan struct {
+	DependsOnFields []EntityFetchArgument
+	Query           string
+}
+
+type EntityFetchArgument struct {
+	Kind      EntityFetchArgumentKind `json:"kind"`
+	TypeName  string                  `json:"typeName"`
+	FieldName string                  `json:"fieldName,omitempty"`
+	Fragment  string                  `json:"fragment"`
+}
+
+type EntityFetchArgumentKind string
+
+const (
+	EntityFetchArgumentKindKey        EntityFetchArgumentKind = "key"
+	EntityFetchArgumentKindDependency EntityFetchArgumentKind = "dependency"
+)
+
 type FetchConfiguration struct {
 	Input      string
 	Variables  Variables
@@ -230,6 +249,7 @@ type FetchConfiguration struct {
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
+	QueryPlan                             *QueryPlan
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -267,6 +287,7 @@ type FetchInfo struct {
 	DataSourceID  string
 	RootFields    []GraphCoordinate
 	OperationType ast.OperationType
+	QueryPlan     *QueryPlan
 }
 
 type GraphCoordinate struct {

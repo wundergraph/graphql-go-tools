@@ -344,4 +344,5 @@ type SubscriptionConfiguration struct {
 	Variables      resolve.Variables
 	DataSource     resolve.SubscriptionDataSource
 	PostProcessing resolve.PostProcessingConfiguration
+	QueryPlan      *resolve.QueryPlan
 }

@@ -846,16 +846,6 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 }
 
 func (l *Loader) isFetchAuthorized(input []byte, info *FetchInfo, res *result) (authorized bool, err error) {
-	if info.OperationType == ast.OperationTypeQuery {
-		// we only want to authorize Mutations and Subscriptions at the load level
-		// Mutations can have side effects, so we don't want to send them to a subgraph if the user is not authorized
-		// Subscriptions only have one single root field, so it's safe to deny the whole request if unauthorized
-		// Queries can have multiple root fields, but have no side effects
-		// So we don't need to deny the request if one of the root fields is unauthorized
-		// Instead, we send the request to the subgraph and filter out the unauthorized fields later
-		// This is done in the resolvable during the response resolution phase
-		return true, nil
-	}
 	if l.ctx.authorizer == nil {
 		return true, nil
 	}

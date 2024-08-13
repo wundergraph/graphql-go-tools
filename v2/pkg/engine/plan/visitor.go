@@ -22,6 +22,10 @@ type DataSourceDebugger interface {
 	EnableQueryPlanLogging()
 }
 
+type QueryPlanProvider interface {
+	IncludeQueryPlanInFetchConfiguration()
+}
+
 type Visitor struct {
 	Operation, Definition        *ast.Document
 	Walker                       *astvisitor.Walker
@@ -312,10 +316,6 @@ func (v *Visitor) mapFieldConfig(ref int) {
 }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
-	if !v.Config.IncludeInfo {
-		return nil
-	}
-
 	enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameString(ref)
 	fieldHasAuthorizationRule := v.fieldHasAuthorizationRule(enclosingTypeName, fieldName)
@@ -766,10 +766,8 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		Data: rootObject,
 	}
 
-	if v.Config.IncludeInfo {
-		graphQLResponse.Info = &resolve.GraphQLResponseInfo{
-			OperationType: operationKind,
-		}
+	graphQLResponse.Info = &resolve.GraphQLResponseInfo{
+		OperationType: operationKind,
 	}
 
 	if operationKind == ast.OperationTypeSubscription {
@@ -1075,14 +1073,12 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
-	}
-
-	if v.Config.IncludeInfo {
-		singleFetch.Info = &resolve.FetchInfo{
+		Info: &resolve.FetchInfo{
 			DataSourceID:  internal.sourceID,
 			RootFields:    internal.rootFields,
 			OperationType: internal.operationType,
-		}
+			QueryPlan:     external.QueryPlan,
+		},
 	}
 
 	return singleFetch

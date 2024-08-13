@@ -25,6 +25,17 @@ func RequiredFieldsFragment(typeName, requiredFields string, includeTypename boo
 	return &key, &report
 }
 
+func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string) (*ast.Document, *operationreport.Report) {
+	var fragment string
+	if fieldName == "" {
+		fragment = fmt.Sprintf("fragment Key on %s { __typename %s }", typeName, requiredFields)
+	} else {
+		fragment = fmt.Sprintf("fragment Dependency_for_%s on %s { %s }", fieldName, typeName, requiredFields)
+	}
+	key, report := astparser.ParseGraphqlDocumentString(fragment)
+	return &key, &report
+}
+
 type addRequiredFieldsInput struct {
 	key, operation, definition *ast.Document
 	report                     *operationreport.Report

@@ -13,6 +13,7 @@ import (
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
@@ -46,9 +47,11 @@ var (
 )
 
 type Planner[T Configuration] struct {
-	id              int
-	debug           bool
-	printQueryPlans bool
+	id                                   int
+	debug                                bool
+	enableDebugPrintQueryPlan            bool
+	includeQueryPlanInFetchConfiguration bool
+	queryPlan                            *resolve.QueryPlan
 
 	visitor                            *plan.Visitor
 	dataSourceConfig                   plan.DataSourceConfiguration[T]
@@ -116,7 +119,11 @@ func (p *Planner[T]) EnableDebug() {
 }
 
 func (p *Planner[T]) EnableQueryPlanLogging() {
-	p.printQueryPlans = true
+	p.enableDebugPrintQueryPlan = true
+}
+
+func (p *Planner[T]) IncludeQueryPlanInFetchConfiguration() {
+	p.includeQueryPlanInFetchConfiguration = true
 }
 
 func (p *Planner[T]) parentNodeIsAbstract() bool {
@@ -333,6 +340,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		RequiresEntityBatchFetch:              requiresEntityBatchFetch,
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
+		QueryPlan:                             p.queryPlan,
 	}
 }
 
@@ -397,6 +405,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,
+		QueryPlan:      p.queryPlan,
 	}
 }
 
@@ -699,6 +708,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
+	p.queryPlan = nil
 
 	// reset information about root type
 	p.rootTypeName = ""
@@ -1228,8 +1238,8 @@ func (p *Planner[T]) debugPrintln(args ...interface{}) {
 	fmt.Println(allArgs...)
 }
 
-func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
-	if !p.printQueryPlans {
+func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
+	if !p.enableDebugPrintQueryPlan {
 		return
 	}
 
@@ -1252,7 +1262,7 @@ func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
 			"\n")
 	}
 
-	if p.dataSourcePlannerConfig.HasRequiredFields() {
+	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
@@ -1272,6 +1282,49 @@ func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
 		printedOperation)
 
 	p.debugPrintln(args...)
+}
+
+func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Document) {
+	if !p.includeQueryPlanInFetchConfiguration {
+		return
+	}
+	query, err := astprinter.PrintStringIndent(operation, p.upstreamSchema, "  ")
+	if err != nil {
+		return
+	}
+	var (
+		dependencies []resolve.EntityFetchArgument
+	)
+	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
+		dependencies = make([]resolve.EntityFetchArgument, len(p.dataSourcePlannerConfig.RequiredFields))
+		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
+			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
+			if report.HasErrors() {
+				p.visitor.Walker.StopWithInternalErr(report)
+				return
+			}
+			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, nil, "  ")
+			if err != nil {
+				p.visitor.Walker.StopWithInternalErr(errors.WithStack(err))
+				return
+			}
+			dependency := resolve.EntityFetchArgument{
+				TypeName:  cfg.TypeName,
+				FieldName: cfg.FieldName,
+				Fragment:  printedFragment,
+			}
+			if cfg.FieldName == "" {
+				dependency.Kind = resolve.EntityFetchArgumentKindKey
+			} else {
+				dependency.Kind = resolve.EntityFetchArgumentKindDependency
+			}
+			dependencies[i] = dependency
+		}
+	}
+	p.queryPlan = &resolve.QueryPlan{
+		DependsOnFields: dependencies,
+		Query:           query,
+	}
 }
 
 // printOperation - prints normalized upstream operation
@@ -1304,7 +1357,8 @@ func (p *Planner[T]) printOperation() []byte {
 		return nil
 	}
 
-	p.printQueryPlan(p.upstreamOperation)
+	p.generateQueryPlansForFetchConfiguration(p.upstreamOperation)
+	p.debugPrintQueryPlan(p.upstreamOperation)
 
 	// print upstream operation
 	err = kit.printer.Print(p.upstreamOperation, p.visitor.Definition, kit.buf)
