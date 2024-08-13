@@ -200,29 +200,42 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		}
 	}
 
+	toolsCleaned := false
 	acquireWaitTime, t := r.getTools()
+	// Ensure that the tools are returned even on panic
+	// This is important because getTools() acquires a semaphore
+	// and if we don't return the tools, we will have a deadlock
+	defer func() {
+		if !toolsCleaned {
+			r.putTools(t)
+		}
+	}()
+
 	resp.ResolveAcquireWaitTime = acquireWaitTime
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
-		r.putTools(t)
 		return nil, err
 	}
 
 	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 	if err != nil {
-		r.putTools(t)
 		return nil, err
 	}
 
 	buf := r.getBuffer()
 	defer r.releaseBuffer(buf)
+
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	// Return the tools as soon as possible
 	r.putTools(t)
+	toolsCleaned = true
+
 	if err != nil {
 		return nil, err
 	}
 	_, err = buf.WriteTo(writer)
+
 	return resp, err
 }
 
