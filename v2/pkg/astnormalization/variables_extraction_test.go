@@ -567,6 +567,7 @@ const (
 		}
 		input HttpBinPostInput {
 			foo: String!
+			bar: String
 		}
 		type HttpBinPostResponse {
 			headers: Headers
