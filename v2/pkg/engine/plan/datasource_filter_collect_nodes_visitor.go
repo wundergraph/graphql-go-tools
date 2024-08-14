@@ -280,8 +280,10 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	// - the field is __typename field on a union, and we have a suggestion for the parent field
 	hasChildNode := f.dataSource.HasChildNode(typeName, fieldName) || (isTypeName && f.dataSource.HasChildNodeWithTypename(typeName))
 
-	isExternalRootNode := f.dataSource.HasExternalRootNode(typeName, fieldName)
-	isExternalChildNode := f.dataSource.HasExternalChildNode(typeName, fieldName)
+	// external root node is a node having external directive, to be resolvable it needs to be provided or be part of a key
+	// So the node will not be external if it is mentioned in both fields and external fields
+	isExternalRootNode := f.dataSource.HasExternalRootNode(typeName, fieldName) && !hasRootNode
+	isExternalChildNode := f.dataSource.HasExternalChildNode(typeName, fieldName) && !hasChildNode
 	isExternal := isExternalRootNode || isExternalChildNode
 
 	currentNodeId := TreeNodeID(fieldRef)
