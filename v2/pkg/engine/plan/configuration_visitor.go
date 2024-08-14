@@ -532,7 +532,9 @@ func (c *configurationVisitor) addPlannerDependencies(fieldRef int, plannedOnPla
 
 // recordFieldPlannedOn - records the planner id on which the field was planned
 func (c *configurationVisitor) recordFieldPlannedOn(fieldRef int, plannerIdx int) {
-	c.fieldsPlannedOn[fieldRef] = append(c.fieldsPlannedOn[fieldRef], plannerIdx)
+	if !slices.Contains(c.fieldsPlannedOn[fieldRef], plannerIdx) {
+		c.fieldsPlannedOn[fieldRef] = append(c.fieldsPlannedOn[fieldRef], plannerIdx)
+	}
 }
 
 func (c *configurationVisitor) hasFieldsWaitingForDependency() bool {
