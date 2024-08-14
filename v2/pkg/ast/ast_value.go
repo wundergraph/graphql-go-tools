@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -189,7 +190,8 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 		variableName := d.Input.ByteSliceString(d.VariableValues[value.Ref].Name)
 		variableValue, dataType, _, err := jsonparser.Get(d.Input.Variables, variableName)
 		if err != nil {
-			return fmt.Errorf("ValueToJSON: variable '%s' not found in variables", variableName)
+			buf.Write(literal.NULL)
+			return nil
 		}
 		if dataType == jsonparser.String {
 			buf.WriteByte('"')
