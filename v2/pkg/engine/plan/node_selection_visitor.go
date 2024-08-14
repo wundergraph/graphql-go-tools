@@ -31,12 +31,12 @@ type nodeSelectionVisitor struct {
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
 	pendingFieldRequirements map[int]pendingFieldRequirements // pendingFieldRequirements is a map[selectionSetRef]fieldRequirements
 
-	visitedFieldsRequiresChecks map[string]struct{}                       // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for presence of @requires directive
-	visitedFieldsKeyChecks      map[string]struct{}                       // visitedFieldsKeyChecks is a map[FieldRef] of already processed fields which we check for @key requirements
-	visitedFieldsAbstractChecks map[int]struct{}                          // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
-	fieldDependsOn              map[string][]int                          // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
-	fieldRequirementsConfigs    map[string][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
-	fieldLandedTo               map[int]DSHash                            // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
+	visitedFieldsRequiresChecks map[fieldIndexKey]struct{}                       // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for presence of @requires directive
+	visitedFieldsKeyChecks      map[fieldIndexKey]struct{}                       // visitedFieldsKeyChecks is a map[FieldRef] of already processed fields which we check for @key requirements
+	visitedFieldsAbstractChecks map[int]struct{}                                 // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	fieldDependsOn              map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
+	fieldRequirementsConfigs    map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
+	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
 
 	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -47,6 +47,11 @@ type nodeSelectionVisitor struct {
 
 func (c *nodeSelectionVisitor) shouldRevisit() bool {
 	return c.hasNewFields || c.hasUnresolvedFields
+}
+
+type fieldIndexKey struct {
+	fieldRef int
+	dsHash   DSHash
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of keyRequirements but at the same time deduplicate keyRequirements
@@ -123,13 +128,13 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	}
 
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
-	c.visitedFieldsRequiresChecks = make(map[string]struct{})
-	c.visitedFieldsKeyChecks = make(map[string]struct{})
+	c.visitedFieldsRequiresChecks = make(map[fieldIndexKey]struct{})
+	c.visitedFieldsKeyChecks = make(map[fieldIndexKey]struct{})
 	c.pendingKeyRequirements = make(map[int]pendingKeyRequirements)
 	c.pendingFieldRequirements = make(map[int]pendingFieldRequirements)
 
-	c.fieldDependsOn = make(map[string][]int)
-	c.fieldRequirementsConfigs = make(map[string][]FederationFieldConfiguration)
+	c.fieldDependsOn = make(map[fieldIndexKey][]int)
+	c.fieldRequirementsConfigs = make(map[fieldIndexKey][]FederationFieldConfiguration)
 	c.fieldLandedTo = make(map[int]DSHash)
 }
 
@@ -218,7 +223,7 @@ func (c *nodeSelectionVisitor) LeaveField(ref int) {
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
-	fieldKey := fmt.Sprintf("%d.%d", fieldRef, dsConfig.Hash())
+	fieldKey := fieldIndexKey{fieldRef, dsConfig.Hash()}
 	_, visited := c.visitedFieldsRequiresChecks[fieldKey]
 	if visited {
 		return
@@ -244,7 +249,7 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 }
 
 func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
-	fieldKey := fmt.Sprintf("%d.%d", fieldRef, dsConfig.Hash())
+	fieldKey := fieldIndexKey{fieldRef, dsConfig.Hash()}
 	_, visited := c.visitedFieldsKeyChecks[fieldKey]
 	if visited {
 		return
@@ -355,7 +360,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 	}
 
 	c.pendingFieldRequirements[currentSelectionSet] = requirements
-	fieldKey := fmt.Sprintf("%d.%d", requestedByFieldRef, dsHash)
+	fieldKey := fieldIndexKey{requestedByFieldRef, dsHash}
 	c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 }
 
@@ -434,7 +439,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
-		fieldKey := fmt.Sprintf("%d.%d", requestedByFieldRef, requirements.dsHash)
+		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
 		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
 	}
 }
@@ -600,7 +605,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			continue
 		}
 
-		fieldKey := fmt.Sprintf("%d.%d", requestedByFieldRef, requirements.dsHash)
+		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
 		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
 		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 	}

@@ -59,8 +59,8 @@ type configurationVisitor struct {
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 
-	fieldDependsOn           map[string][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
-	fieldRequirementsConfigs map[string][]FederationFieldConfiguration
+	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
+	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
 }
 
 type FailedToCreatePlanningPathsError struct {
@@ -455,7 +455,7 @@ func (c *configurationVisitor) handlePlanningField(ref int, typeName, fieldName,
 }
 
 func (c *configurationVisitor) couldPlanField(fieldRef int, dsHash DSHash) (ok bool) {
-	fieldKey := fmt.Sprintf("%d.%d", fieldRef, dsHash)
+	fieldKey := fieldIndexKey{fieldRef, dsHash}
 	fieldRefs, ok := c.fieldDependsOn[fieldKey]
 	if !ok {
 		return true
@@ -547,7 +547,7 @@ func (c *configurationVisitor) hasFieldsWaitingForDependency() bool {
 // we know where fields were planned, because we record planner id of each planned field
 func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fieldName string, currentPlannerIdx int) {
 	dsHash := c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()
-	fieldKey := fmt.Sprintf("%d.%d", fieldRef, dsHash)
+	fieldKey := fieldIndexKey{fieldRef, dsHash}
 
 	fieldRefs, mappingExists := c.fieldDependsOn[fieldKey]
 	if !mappingExists {
@@ -582,7 +582,7 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 }
 
 func (c *configurationVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef int, currentPlannerIdx int) bool {
-	fieldKey := fmt.Sprintf("%d.%d", fieldRef, c.planners[currentPlannerIdx].DataSourceConfiguration().Hash())
+	fieldKey := fieldIndexKey{fieldRef, c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()}
 
 	// we have a field which have `requires` directive and depends on some fields,
 	// so we need to check is current planner already involved in this requires chain
