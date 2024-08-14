@@ -830,8 +830,8 @@ func TestParseMissingBaseSchema(t *testing.T) {
 func TestVariablesNormalizer(t *testing.T) {
 	t.Parallel()
 	input := `
-		mutation HttpBinPost($foo: String! = "bar" $bar: String!){
-		  httpBinPost(input: {foo: $foo}){
+		mutation HttpBinPost($foo: String! = "bar" $bar: String! $bazz: String){
+		  httpBinPost(input: {foo: $foo bar: $bazz}){
 			headers {
 			  userAgent
 			}
@@ -858,7 +858,7 @@ func TestVariablesNormalizer(t *testing.T) {
 
 	out := unsafeprinter.Print(&operationDocument)
 	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
-	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
+	require.Equal(t, `{"a":{"foo":"bar","bar":null}}`, string(operationDocument.Input.Variables))
 }
 
 func BenchmarkAstNormalization(b *testing.B) {
