@@ -380,6 +380,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		planConfiguration := plan.Configuration{
 			DataSources:                  dataSources,
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			Fields: plan.FieldConfigurations{
 				{
 					TypeName:  "Address",
@@ -397,11 +398,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					HasAuthorizationRule: true,
 				},
 			},
-		}
-
-		withInfo := func(config plan.Configuration) plan.Configuration {
-			config.IncludeInfo = true
-			return config
 		}
 
 		t.Run("composite keys", func(t *testing.T) {
@@ -578,8 +574,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										PostProcessing: DefaultPostProcessingConfiguration,
 									},
 									Info: &resolve.FetchInfo{
-										DataSourceID:  "user.service",
-										OperationType: ast.OperationTypeQuery,
+										DataSourceID:   "user.service",
+										DataSourceName: "user.service",
+										OperationType:  ast.OperationTypeQuery,
 										RootFields: []resolve.GraphCoordinate{
 											{
 												TypeName:  "Query",
@@ -677,7 +674,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																DependsOnFetchIDs: []int{0},
 															},
 															Info: &resolve.FetchInfo{
-																DataSourceID: "account.service",
+																DataSourceID:   "account.service",
+																DataSourceName: "account.service",
 																RootFields: []resolve.GraphCoordinate{
 																	{
 																		TypeName:  "Account",
@@ -755,8 +753,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				withInfo(planConfiguration),
-			))
+				planConfiguration, WithFieldInfo()))
 		})
 
 		t.Run("composite keys variant", func(t *testing.T) {
@@ -905,6 +902,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					subgraphBDatasourceConfiguration,
 				},
 				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
 			}
 
 			t.Run("query having a fetch after fetch with composite key", func(t *testing.T) {

@@ -48,7 +48,7 @@ func TestVariablesUnusedDeletion(t *testing.T) {
 	secondWalker.Walk(&operationDocument, &definitionDocument, rep)
 	require.False(t, rep.HasErrors())
 
-	out := unsafeprinter.Print(&operationDocument, &definitionDocument)
+	out := unsafeprinter.Print(&operationDocument)
 	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
 	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
 }

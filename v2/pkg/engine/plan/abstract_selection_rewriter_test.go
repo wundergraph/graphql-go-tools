@@ -57,7 +57,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, testCase.shouldRewrite, rewritten)
 
-		printedOp := unsafeprinter.PrettyPrint(&op, &def)
+		printedOp := unsafeprinter.PrettyPrint(&op)
 		expectedPretty := unsafeprinter.Prettify(testCase.expectedOperation)
 
 		assert.Equal(t, expectedPretty, printedOp)

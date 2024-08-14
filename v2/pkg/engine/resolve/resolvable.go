@@ -153,6 +153,24 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
+
+	if r.ctx.ExecutionOptions.SkipLoader {
+		// we didn't resolve any data, so there's no point in generating errors
+		// the goal is to only render extensions, e.g. to expose the query plan
+		r.printBytes(lBrace)
+		r.printBytes(quote)
+		r.printBytes(literalData)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(null)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printErr = r.printExtensions(ctx, fetchTree)
+		}
+		r.printBytes(rBrace)
+		return r.printErr
+	}
+
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
 	hasErrors := r.walkObject(rootData, r.data)
@@ -238,6 +256,16 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		err := r.printQueryPlanExtension(fetchTree)
+		if err != nil {
+			return err
+		}
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
@@ -282,6 +310,20 @@ func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTr
 	return nil
 }
 
+func (r *Resolvable) printQueryPlanExtension(fetchTree *FetchTreeNode) error {
+	queryPlan := fetchTree.QueryPlan()
+	content, err := json.Marshal(queryPlan)
+	if err != nil {
+		return err
+	}
+	r.printBytes(quote)
+	r.printBytes(literalQueryPlan)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(content)
+	return nil
+}
+
 func (r *Resolvable) hasExtensions() bool {
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
@@ -290,6 +332,9 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		return true
+	}
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		return true
 	}
 	return false
