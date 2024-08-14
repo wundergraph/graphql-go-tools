@@ -156,29 +156,6 @@ func (f *NodeSuggestions) treeNode(idx int) treeNode {
 	return treeNode
 }
 
-func (f *NodeSuggestions) isSelectedOnOtherSource(idx int) bool {
-	treeNode := f.treeNode(idx)
-
-	if isTreeNodeUniq(treeNode) {
-		return false
-	}
-
-	duplicatesIndexes := treeNode.GetData()
-
-	for _, duplicateIdx := range duplicatesIndexes {
-		if idx == duplicateIdx {
-			continue
-		}
-		if f.items[idx].DataSourceHash != f.items[duplicateIdx].DataSourceHash &&
-			f.items[duplicateIdx].Selected {
-
-			return true
-		}
-	}
-
-	return false
-}
-
 func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
 	treeNode := f.treeNode(idx)
 
