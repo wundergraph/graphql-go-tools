@@ -1,4 +1,4 @@
-[![GoDoc](https://pkg.go.dev/github.com/wundergraph/graphql-go-tools/v2?status.svg)](https://pkg.go.dev/github.com/wundergraph/graphql-go-tools/v2)
+[![GoDoc](https://pkg.go.dev/badge/github.com/wundergraph/graphql-go-tools/v2)](https://pkg.go.dev/github.com/wundergraph/graphql-go-tools/v2)
 [![v2-ci](https://github.com/wundergraph/graphql-go-tools/workflows/v2-ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v2.yml)
 # GraphQL Router / API Gateway Framework written in Golang
 
