@@ -209,7 +209,7 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)
-	err := astprinter.Print(operation, definition, hash)
+	err := astprinter.Print(operation, hash)
 	if err != nil {
 		report.AddInternalError(err)
 		return nil

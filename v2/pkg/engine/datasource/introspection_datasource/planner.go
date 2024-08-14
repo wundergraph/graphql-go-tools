@@ -53,7 +53,6 @@ func (p *Planner[T]) EnterField(ref int) {
 	switch fieldName {
 	case fieldsFieldName, enumValuesFieldName:
 		p.hasIncludeDeprecatedArgument = p.v.Operation.FieldHasArguments(ref)
-
 		fallthrough
 	case typeFieldName, schemaFieldName:
 		p.rootField = ref

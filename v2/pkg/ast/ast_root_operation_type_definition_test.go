@@ -24,7 +24,7 @@ func TestDocument_ReplaceRootOperationTypeDefinition(t *testing.T) {
 		assert.NotEqual(t, -1, ref)
 		assert.True(t, ok)
 
-		docStr, _ := astprinter.PrintString(doc, nil)
+		docStr, _ := astprinter.PrintString(doc)
 		assert.Equal(t, "schema {query: Country} type Query {queryName: String} type Country {code: String} interface Model {id: String}", docStr)
 	})
 
@@ -35,7 +35,7 @@ func TestDocument_ReplaceRootOperationTypeDefinition(t *testing.T) {
 			assert.Equal(t, -1, ref)
 			assert.False(t, ok)
 
-			docStr, _ := astprinter.PrintString(doc, nil)
+			docStr, _ := astprinter.PrintString(doc)
 			assert.Equal(t, schema, docStr)
 		})
 
@@ -45,7 +45,7 @@ func TestDocument_ReplaceRootOperationTypeDefinition(t *testing.T) {
 			assert.Equal(t, -1, ref)
 			assert.False(t, ok)
 
-			docStr, _ := astprinter.PrintString(doc, nil)
+			docStr, _ := astprinter.PrintString(doc)
 			assert.Equal(t, schema, docStr)
 		})
 
@@ -55,7 +55,7 @@ func TestDocument_ReplaceRootOperationTypeDefinition(t *testing.T) {
 			assert.Equal(t, -1, ref)
 			assert.False(t, ok)
 
-			docStr, _ := astprinter.PrintString(doc, nil)
+			docStr, _ := astprinter.PrintString(doc)
 			assert.Equal(t, schema, docStr)
 		})
 	})

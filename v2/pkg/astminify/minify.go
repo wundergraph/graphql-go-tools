@@ -118,9 +118,9 @@ func (m *Minifier) Minify(operation []byte, definition *ast.Document, options Mi
 	}
 	if options.Pretty {
 		p := astprinter.NewPrinter([]byte("  "))
-		return true, p.Print(m.out, m.def, out)
+		return true, p.Print(m.out, out)
 	}
-	return true, k.printer.Print(m.out, m.def, out)
+	return true, k.printer.Print(m.out, out)
 }
 
 func (m *Minifier) validate() error {
@@ -340,7 +340,7 @@ func (m *minifyVisitor) EnterSelectionSet(ref int) {
 	copy(enclosingTypeName, tempName)
 
 	m.h.Reset()
-	err := m.printer.Print(m.temp, nil, m.h)
+	err := m.printer.Print(m.temp, m.h)
 	if err != nil {
 		return
 	}

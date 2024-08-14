@@ -130,6 +130,7 @@ func TestPlanner_Plan(t *testing.T) {
 		},
 	}, Configuration{
 		DisableResolveFieldPositions: true,
+		DisableIncludeInfo:           true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -196,6 +197,7 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
@@ -253,13 +255,15 @@ func TestPlanner_Plan(t *testing.T) {
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
-			DataSources: []DataSource{testDefinitionDSConfiguration},
+			DataSources:        []DataSource{testDefinitionDSConfiguration},
+			DisableIncludeInfo: true,
 		}
 
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
@@ -405,6 +409,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DisableIncludeInfo:           true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -459,6 +464,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DisableIncludeInfo:           true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -513,6 +519,7 @@ func TestPlanner_Plan(t *testing.T) {
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DisableIncludeInfo:           true,
 					DataSources:                  []DataSource{dsConfig},
 				},
 			))

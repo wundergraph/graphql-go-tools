@@ -121,6 +121,7 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 				Kind:     "ParallelList",
 				SourceID: f.Fetch.Info.DataSourceID,
 				Traces:   make([]*DataSourceLoadTrace, len(f.Traces)),
+				Path:     n.Item.ResponsePath,
 			}
 			for i, t := range f.Traces {
 				trace.Fetch.Traces[i] = t.Trace
@@ -134,4 +135,96 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 		}
 	}
 	return trace
+}
+
+type FetchTreeQueryPlanNode struct {
+	Version  string                    `json:"version,omitempty"`
+	Kind     FetchTreeNodeKind         `json:"kind"`
+	Children []*FetchTreeQueryPlanNode `json:"children,omitempty"`
+	Fetch    *FetchTreeQueryPlan       `json:"fetch,omitempty"`
+}
+
+type FetchTreeQueryPlan struct {
+	Kind              string           `json:"kind"`
+	Path              string           `json:"path,omitempty"`
+	SubgraphName      string           `json:"subgraphName"`
+	SubgraphID        string           `json:"subgraphId"`
+	FetchID           int              `json:"fetchId"`
+	DependsOnFetchIDs []int            `json:"dependsOnFetchIds,omitempty"`
+	Representations   []Representation `json:"representations,omitempty"`
+	Query             string           `json:"query,omitempty"`
+}
+
+func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
+	if n == nil {
+		return nil
+	}
+	plan := n.queryPlan()
+	plan.Version = "1"
+	return plan
+}
+
+func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
+	if n == nil {
+		return nil
+	}
+	queryPlan := &FetchTreeQueryPlanNode{
+		Kind: n.Kind,
+	}
+	switch n.Kind {
+	case FetchTreeNodeKindSingle:
+		switch f := n.Item.Fetch.(type) {
+		case *SingleFetch:
+			queryPlan.Fetch = &FetchTreeQueryPlan{
+				Kind:              "Single",
+				FetchID:           f.FetchDependencies.FetchID,
+				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
+				SubgraphName:      f.Info.DataSourceName,
+				SubgraphID:        f.Info.DataSourceID,
+				Query:             f.Info.QueryPlan.Query,
+				Representations:   f.Info.QueryPlan.DependsOnFields,
+				Path:              n.Item.ResponsePath,
+			}
+		case *EntityFetch:
+			queryPlan.Fetch = &FetchTreeQueryPlan{
+				Kind:              "Entity",
+				FetchID:           f.FetchDependencies.FetchID,
+				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
+				SubgraphName:      f.Info.DataSourceName,
+				SubgraphID:        f.Info.DataSourceID,
+				Query:             f.Info.QueryPlan.Query,
+				Representations:   f.Info.QueryPlan.DependsOnFields,
+				Path:              n.Item.ResponsePath,
+			}
+		case *BatchEntityFetch:
+			queryPlan.Fetch = &FetchTreeQueryPlan{
+				Kind:              "BatchEntity",
+				FetchID:           f.FetchDependencies.FetchID,
+				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
+				SubgraphName:      f.Info.DataSourceName,
+				SubgraphID:        f.Info.DataSourceID,
+				Query:             f.Info.QueryPlan.Query,
+				Representations:   f.Info.QueryPlan.DependsOnFields,
+				Path:              n.Item.ResponsePath,
+			}
+		case *ParallelListItemFetch:
+			queryPlan.Fetch = &FetchTreeQueryPlan{
+				Kind:              "ParallelList",
+				FetchID:           f.Fetch.FetchDependencies.FetchID,
+				DependsOnFetchIDs: f.Fetch.FetchDependencies.DependsOnFetchIDs,
+				SubgraphName:      f.Fetch.Info.DataSourceName,
+				SubgraphID:        f.Fetch.Info.DataSourceID,
+				Query:             f.Fetch.Info.QueryPlan.Query,
+				Representations:   f.Fetch.Info.QueryPlan.DependsOnFields,
+				Path:              n.Item.ResponsePath,
+			}
+		default:
+		}
+	case FetchTreeNodeKindSequence, FetchTreeNodeKindParallel:
+		queryPlan.Children = make([]*FetchTreeQueryPlanNode, len(n.ChildNodes))
+		for i, c := range n.ChildNodes {
+			queryPlan.Children[i] = c.queryPlan()
+		}
+	}
+	return queryPlan
 }

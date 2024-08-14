@@ -89,7 +89,27 @@ func (p *Planner) SetDebugConfig(config DebugConfiguration) {
 	p.config.Debug = config
 }
 
-func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report) (plan Plan) {
+type _opts struct {
+	includeQueryPlanInResponse bool
+}
+
+type Opts func(*_opts)
+
+func IncludeQueryPlanInResponse() Opts {
+	return func(o *_opts) {
+		o.includeQueryPlanInResponse = true
+	}
+}
+
+func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report, options ...Opts) (plan Plan) {
+
+	var opts _opts
+	for _, opt := range options {
+		opt(&opts)
+	}
+
+	p.planningVisitor.includeQueryPlans = opts.includeQueryPlanInResponse
+
 	p.selectOperation(operation, operationName, report)
 	if report.HasErrors() {
 		return
@@ -135,6 +155,11 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				dataSourceWithMinify.EnableSubgraphRequestMinifier()
 			}
 		}
+		if opts.includeQueryPlanInResponse {
+			if plannerWithQueryPlan, ok := p.planningVisitor.planners[key].Planner().(QueryPlanProvider); ok {
+				plannerWithQueryPlan.IncludeQueryPlanInFetchConfiguration()
+			}
+		}
 		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {
 			plannerWithId.SetID(key)
 		}
@@ -144,10 +169,9 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			}
 
 			if p.config.Debug.PrintQueryPlans {
-				plannerWithDebug.EnableQueryPlanLogging()
+				plannerWithDebug.EnableDebugQueryPlanLogging()
 			}
 		}
-
 		err := p.planningVisitor.planners[key].Register(p.planningVisitor)
 		if err != nil {
 			report.AddInternalError(err)
@@ -312,9 +336,9 @@ func (p *Planner) printOperation(operation *ast.Document) {
 	var pp string
 
 	if p.config.Debug.PrintOperationEnableASTRefs {
-		pp, _ = astprinter.PrintStringIndentDebug(operation, nil, "  ")
+		pp, _ = astprinter.PrintStringIndentDebug(operation, "  ")
 	} else {
-		pp, _ = astprinter.PrintStringIndent(operation, nil, "  ")
+		pp, _ = astprinter.PrintStringIndent(operation, "  ")
 	}
 
 	fmt.Println(pp)

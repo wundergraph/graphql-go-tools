@@ -27,6 +27,7 @@ import (
 type testOptions struct {
 	postProcessors []*postprocess.Processor
 	skipReason     string
+	withFieldInfo  bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -47,6 +48,12 @@ func WithDefaultPostProcessor() func(*testOptions) {
 
 func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
 	return WithPostProcessors(postprocess.NewProcessor(options...))
+}
+
+func WithFieldInfo() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+	}
 }
 
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
@@ -105,9 +112,16 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 	return func(t *testing.T) {
 		t.Helper()
 
+		// by default, we don't want to have field info in the tests because it's too verbose
+		config.DisableIncludeInfo = true
+
 		opts := &testOptions{}
 		for _, o := range options {
 			o(opts)
+		}
+
+		if opts.withFieldInfo {
+			config.DisableIncludeInfo = false
 		}
 
 		if opts.skipReason != "" {
@@ -127,7 +141,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
 
-		normalized := unsafeprinter.PrettyPrint(&op, &def)
+		normalized := unsafeprinter.PrettyPrint(&op)
 		_ = normalized
 
 		valid := astvalidation.DefaultOperationValidator()
@@ -137,11 +151,11 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		require.NoError(t, err)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
-			_, err := astprinter.PrintStringIndent(&def, nil, "  ")
+			_, err := astprinter.PrintStringIndent(&def, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = astprinter.PrintStringIndent(&op, &def, "  ")
+			_, err = astprinter.PrintStringIndent(&op, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
