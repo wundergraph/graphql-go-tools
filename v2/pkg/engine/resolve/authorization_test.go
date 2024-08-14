@@ -967,6 +967,9 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 				},
 			}, ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 		),
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
 		Data: &Object{
 			Fields: []*Field{
 				{
