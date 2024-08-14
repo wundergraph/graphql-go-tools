@@ -230,7 +230,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 
 	// set initial suggestions and used data sources
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(p.config.DataSources, nil, nil)
+		dsFilter.FilterDataSources(p.config.DataSources, nil, nil, nil)
 	if report.HasErrors() {
 		return
 	}
@@ -258,7 +258,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 		if p.nodeSelectionsVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, p.nodeSelectionsVisitor.fieldLandedTo)
+				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}

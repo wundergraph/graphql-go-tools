@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"slices"
+
 	"github.com/kingledion/go-tools/tree"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -20,6 +22,8 @@ type DataSourceFilter struct {
 
 	enableSelectionReasons bool
 	secondaryRun           bool
+
+	fieldDependsOn map[int][]int
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -34,8 +38,10 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash) (used []DataSource, suggestions *NodeSuggestions) {
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash, fieldDependsOn map[int][]int) (used []DataSource, suggestions *NodeSuggestions) {
 	var dsInUse map[DSHash]struct{}
+
+	f.fieldDependsOn = fieldDependsOn
 
 	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, landedTo)
 	if f.report.HasErrors() {
@@ -231,14 +237,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// isKeyInSomeDatasource := false
-		// for _, i := range itemIDs {
-		// 	if f.nodes.items[i].IsKeyField {
-		// 		isKeyInSomeDatasource = true
-		// 		break
-		// 	}
-		// }
-
 		for _, i := range itemIDs {
 			if f.nodes.items[i].Selected {
 				break
@@ -433,6 +431,13 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
+
+		// we should not select a field on the datasource of sibling which depends on the current field
+		dependsOnFieldRefs := f.fieldDependsOn[f.nodes.items[sibling].FieldRef]
+		if slices.Contains(dependsOnFieldRefs, f.nodes.items[i].FieldRef) {
+			continue
+		}
+
 		if f.nodes.items[sibling].Selected {
 			if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedSibling) {
 				return true
