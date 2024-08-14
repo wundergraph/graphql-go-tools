@@ -63,6 +63,19 @@ type configurationVisitor struct {
 	fieldRequirementsConfigs map[string][]FederationFieldConfiguration
 }
 
+type FailedToCreatePlanningPathsError struct {
+	MissingPaths                 []string
+	HasFieldWaitingForDependency bool
+}
+
+func newFailedToCreatePlanningPathsError(missingPaths []string, hasFieldWaitingForDependency bool) *FailedToCreatePlanningPathsError {
+	return &FailedToCreatePlanningPathsError{MissingPaths: missingPaths, HasFieldWaitingForDependency: hasFieldWaitingForDependency}
+}
+
+func (e *FailedToCreatePlanningPathsError) Error() string {
+	return fmt.Sprintf("failed to create planning paths, missing paths: %v, has field waiting for dependency: %v", e.MissingPaths, e.HasFieldWaitingForDependency)
+}
+
 func (c *configurationVisitor) shouldRevisit() bool {
 	return c.hasNewFields || c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
 }

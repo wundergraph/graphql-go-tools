@@ -377,7 +377,10 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 				missingPaths = append(missingPaths, path)
 			}
 
-			report.AddInternalError(fmt.Errorf("bad datasource configuration - could not plan the operation. missing path: %v", missingPaths))
+			report.AddInternalError(fmt.Errorf("failed to obtain planning paths: %w", newFailedToCreatePlanningPathsError(
+				missingPaths,
+				p.configurationVisitor.hasFieldsWaitingForDependency(),
+			)))
 			return
 		}
 	}
