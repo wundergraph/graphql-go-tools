@@ -15,7 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -193,12 +192,6 @@ type GraphQLResolveInfo struct {
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
 
 	resp := &GraphQLResolveInfo{}
-
-	if response.Info == nil {
-		response.Info = &GraphQLResponseInfo{
-			OperationType: ast.OperationTypeQuery,
-		}
-	}
 
 	toolsCleaned := false
 	acquireWaitTime, t := r.getTools()
