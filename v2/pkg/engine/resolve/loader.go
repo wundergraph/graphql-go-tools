@@ -943,9 +943,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			inputCopy := make([]byte, buf.input.Len())
-			copy(inputCopy, buf.input.Bytes())
-			fetch.Trace.RawInputData = inputCopy
+			fetch.Trace.RawInputData, _ = l.compactJSON(buf.input.Bytes())
 		}
 	}
 	err := fetch.InputTemplate.Render(l.ctx, buf.input.Bytes(), buf.preparedInput)
@@ -1002,9 +1000,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			itemDataCopy := make([]byte, buf.itemData.Len())
-			copy(itemDataCopy, buf.itemData.Bytes())
-			fetch.Trace.RawInputData = itemDataCopy
+			fetch.Trace.RawInputData, _ = l.compactJSON(buf.itemData.Bytes())
 		}
 	}
 
@@ -1114,7 +1110,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
 			buf := &bytes.Buffer{}
 			l.itemsData(items, buf)
-			fetch.Trace.RawInputData = buf.Bytes()
+			fetch.Trace.RawInputData, _ = l.compactJSON(buf.Bytes())
 		}
 	}
 
@@ -1443,12 +1439,9 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
 		}
 		if !l.ctx.TracingOptions.ExcludeOutput && res.out.Len() > 0 {
-			trace.Output, res.err = l.compactJSON(res.out.Bytes())
+			trace.Output, _ = l.compactJSON(res.out.Bytes())
 			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
-				trace.Output, res.err = sjson.DeleteBytes(trace.Output, "extensions.trace.response.headers.Date")
-				if res.err != nil {
-					return
-				}
+				trace.Output, _ = sjson.DeleteBytes(trace.Output, "extensions.trace.response.headers.Date")
 			}
 		}
 		if !l.ctx.TracingOptions.ExcludeLoadStats {

@@ -430,7 +430,6 @@
                                 "__typename": "Review",
                                 "attachments": [
                                   {
-                                    "__typename": "Question",
                                     "upc": "top-1",
                                     "__typename": "Question",
                                     "body": "How do I turn it on?"
@@ -441,7 +440,6 @@
                                 "__typename": "Review",
                                 "attachments": [
                                   {
-                                    "__typename": "Rating",
                                     "upc": "top-2",
                                     "__typename": "Rating",
                                     "body": "The best hat I have ever bought in my life."

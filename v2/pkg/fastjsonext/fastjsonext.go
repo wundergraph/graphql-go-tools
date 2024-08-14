@@ -181,6 +181,12 @@ func PrintGraphQLResponse(data, errors *fastjson.Value) string {
 }
 
 func DeduplicateObjectKeysRecursively(v *fastjson.Value) {
+	if v.Type() == fastjson.TypeArray {
+		a := v.GetArray()
+		for _, e := range a {
+			DeduplicateObjectKeysRecursively(e)
+		}
+	}
 	if v.Type() != fastjson.TypeObject {
 		return
 	}

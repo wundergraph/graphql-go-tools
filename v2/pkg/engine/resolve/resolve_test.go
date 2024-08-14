@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
@@ -116,6 +117,12 @@ func TestResolver_ResolveNode(t *testing.T) {
 			return func(t *testing.T) {}
 		}
 
+		if response.Info == nil {
+			response.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
 		return func(t *testing.T) {
 			buf := &bytes.Buffer{}
 			_, err := r.ResolveGraphQLResponse(&ctx, response, nil, buf)
@@ -133,6 +140,13 @@ func TestResolver_ResolveNode(t *testing.T) {
 		defer cancel()
 		r := newResolver(c)
 		response, ctx, expectedErr := fn(t, r, ctrl)
+
+		if response.Info == nil {
+			response.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
 		return func(t *testing.T) {
 			t.Helper()
 			buf := &bytes.Buffer{}
@@ -1561,6 +1575,12 @@ func testFn(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRespons
 		r := newResolver(rCtx)
 		node, ctx, expectedOutput := fn(t, ctrl)
 
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
 		if t.Skipped() {
 			return
 		}
@@ -1589,6 +1609,12 @@ func testFnSubgraphErrorsPassthrough(fn func(t *testing.T, ctrl *gomock.Controll
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
 
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
 		if t.Skipped() {
 			return
 		}
@@ -1615,6 +1641,12 @@ func testFnNoSubgraphErrorForwarding(fn func(t *testing.T, ctrl *gomock.Controll
 			PropagateSubgraphStatusCodes: false,
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
 
 		if t.Skipped() {
 			return
@@ -4437,6 +4469,9 @@ func TestResolver_WithHeader(t *testing.T) {
 
 			out := &bytes.Buffer{}
 			res := &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Fetches: SingleWithPath(&SingleFetch{
 					FetchConfiguration: FetchConfiguration{
 						DataSource: fakeService,
@@ -5647,6 +5682,9 @@ func Test_NestedBatching_WithStats(t *testing.T) {
 		[]byte(`{"data":{"_entities":[{"name":"user-1"},{"name":"user-2"}]}}`))
 
 	plan := &GraphQLResponse{
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
 		Fetches: Sequence(
 			SingleWithPath(&SingleFetch{
 				InputTemplate: InputTemplate{

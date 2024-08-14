@@ -260,6 +260,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		if writeComma {
 			r.printBytes(comma)
 		}
+		writeComma = true
 		err := r.printQueryPlanExtension(fetchTree)
 		if err != nil {
 			return err
@@ -270,6 +271,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		if writeComma {
 			r.printBytes(comma)
 		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
 		err := r.printTraceExtension(ctx, fetchTree)
 		if err != nil {
 			return err

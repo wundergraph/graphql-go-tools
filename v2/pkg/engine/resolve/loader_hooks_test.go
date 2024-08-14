@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 type TestLoaderHooks struct {
@@ -59,6 +60,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Fetches: SingleWithPath(&SingleFetch{
 					FetchConfiguration: FetchConfiguration{
 						DataSource: mockDataSource,
@@ -129,6 +133,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		resp := &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
 			Fetches: SingleWithPath(&SingleFetch{
 				FetchConfiguration: FetchConfiguration{
 					DataSource: mockDataSource,
@@ -193,6 +200,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Fetches: Parallel(
 					SingleWithPath(&SingleFetch{
 						FetchConfiguration: FetchConfiguration{
@@ -254,6 +264,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Fetches: SingleWithPath(&ParallelListItemFetch{
 					Fetch: &SingleFetch{
 						FetchConfiguration: FetchConfiguration{
@@ -316,6 +329,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			LoaderHooks: NewTestLoaderHooks(),
 		}
 		return &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Fetches: SingleWithPath(&SingleFetch{
 					FetchConfiguration: FetchConfiguration{
 						DataSource: mockDataSource,
