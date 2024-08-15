@@ -200,15 +200,17 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 			}`,
 			"TypenameOnQuery", &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								DataSource:     &Source{},
 								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{__typename}"}}`,
 								PostProcessing: DefaultPostProcessingConfiguration,
 							},
 							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						},
+						}),
+					),
+					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("__typename"),
@@ -220,7 +222,7 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 						},
 					},
 				},
-			}, planConfiguration))
+			}, planConfiguration, WithDefaultPostProcessor()))
 
 		t.Run("on mutation", RunTest(
 			def, `
@@ -229,15 +231,18 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 			}`,
 			"TypenameOnMutation", &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{__typename}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+					),
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{__typename}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("__typename"),
@@ -249,7 +254,7 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 						},
 					},
 				},
-			}, planConfiguration))
+			}, planConfiguration, WithDefaultPostProcessor()))
 	})
 }
 
@@ -6319,16 +6324,16 @@ func TestGraphQLDataSource(t *testing.T) {
 															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
 														},
 														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
+															Name: []byte("serviceOneFieldOne"),
+															Value: &resolve.String{
+																Path: []string{"serviceOneFieldOne"},
 															},
 															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
 														},
 														{
-															Name: []byte("serviceOneFieldOne"),
-															Value: &resolve.String{
-																Path: []string{"serviceOneFieldOne"},
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
 															},
 															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
 														},

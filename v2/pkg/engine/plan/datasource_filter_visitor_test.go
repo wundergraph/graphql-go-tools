@@ -918,8 +918,8 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 		dsFilter.EnableSelectionReasons()
-
-		planned, _ := dsFilter.findBestDataSourceSet(DataSources, nil, nil)
+		dsFilter.dataSources = DataSources
+		planned, _ := dsFilter.findBestDataSourceSet(nil, nil)
 		if report.HasErrors() {
 			t.Fatal(report.Error())
 		}
