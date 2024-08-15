@@ -73,15 +73,22 @@ type keyRequirements struct {
 }
 
 type fieldRequirements struct {
-	dsHash               DSHash
-	path                 string
-	selectionSet         string
-	requestedByFieldRefs []int
+	dsHash                       DSHash
+	path                         string
+	selectionSet                 string
+	requestedByFieldRefs         []int
+	isTypenameForEntityInterface bool
 }
 
 type pendingFieldRequirements struct {
-	existsTracker      map[string]struct{} // existsTracker allows us to not add duplicated fieldRequirements
-	requirementConfigs []fieldRequirements // requirementConfigs is a list of fieldRequirements which should be added to the selection set
+	existsTracker      map[pendingFieldRequirementExistsKey]struct{} // existsTracker allows us to not add duplicated fieldRequirements
+	requirementConfigs []fieldRequirements                           // requirementConfigs is a list of fieldRequirements which should be added to the selection set
+}
+
+type pendingFieldRequirementExistsKey struct {
+	dsHash                       DSHash
+	selectionSet                 string
+	isTypenameForEntityInterface bool
 }
 
 func (c *nodeSelectionVisitor) currentSelectionSet() int {
@@ -246,7 +253,7 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	// we should plan adding required fields for the field
 	// they will be added in the on LeaveSelectionSet callback for the current selection set
 	// and current field ref will be added to fieldDependsOn map
-	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath)
+	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
 	c.hasNewFields = true
 }
 
@@ -275,6 +282,19 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 			selectedParentsDSHashes = append(selectedParentsDSHashes, c.nodeSuggestions.items[itemID].DataSourceHash)
 		}
 	}
+
+	isParentHasInterfaceObject := slices.ContainsFunc(selectedParentsDSHashes, func(dsHash DSHash) bool {
+		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
+			return d.Hash() == dsHash
+		})
+		if dsIdx == -1 {
+			return false
+		}
+
+		ds := c.dataSources[dsIdx]
+
+		return ds.HasInterfaceObject(typeName)
+	})
 
 	entityInterface := dsConfig.HasEntityInterface(typeName)
 	interfaceObject := dsConfig.HasInterfaceObject(typeName)
@@ -324,26 +344,42 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	}
 
 	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), keyConfigurations, interfaceObject, parentPath, selectedParentsDSHashes)
+
+	if isParentHasInterfaceObject && !interfaceObject && !entityInterface {
+		c.addPendingFieldRequirements(
+			fieldRef,
+			dsConfig.Hash(),
+			FederationFieldConfiguration{
+				TypeName:     typeName,
+				FieldName:    fieldName,
+				SelectionSet: "__typename",
+			},
+			currentPath,
+			true,
+		)
+	}
+
 	c.hasNewFields = true
 }
 
-func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string) {
+func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string, isTypenameForEntityInterface bool) {
 	currentSelectionSet := c.currentSelectionSet()
 
 	requirements, hasRequirements := c.pendingFieldRequirements[currentSelectionSet]
 	if !hasRequirements {
 		requirements = pendingFieldRequirements{
-			existsTracker: make(map[string]struct{}),
+			existsTracker: make(map[pendingFieldRequirementExistsKey]struct{}),
 		}
 	}
 
-	existsKey := fmt.Sprintf("%d.%s", dsHash, fieldConfiguration.SelectionSet)
+	existsKey := pendingFieldRequirementExistsKey{dsHash, fieldConfiguration.SelectionSet, isTypenameForEntityInterface}
 	if _, exists := requirements.existsTracker[existsKey]; !exists {
 		config := fieldRequirements{
-			dsHash:               dsHash,
-			path:                 currentPath,
-			selectionSet:         fieldConfiguration.SelectionSet,
-			requestedByFieldRefs: []int{requestedByFieldRef},
+			dsHash:                       dsHash,
+			path:                         currentPath,
+			selectionSet:                 fieldConfiguration.SelectionSet,
+			requestedByFieldRefs:         []int{requestedByFieldRef},
+			isTypenameForEntityInterface: isTypenameForEntityInterface,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
@@ -425,11 +461,12 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	}
 
 	input := &addRequiredFieldsInput{
-		key:                   key,
-		operation:             c.operation,
-		definition:            c.definition,
-		report:                report,
-		operationSelectionSet: selectionSetRef,
+		key:                          key,
+		operation:                    c.operation,
+		definition:                   c.definition,
+		report:                       report,
+		operationSelectionSet:        selectionSetRef,
+		isTypeNameForEntityInterface: requirements.isTypenameForEntityInterface,
 	}
 
 	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)

@@ -15,6 +15,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -1243,7 +1244,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
+			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
 			if report.HasErrors() {
 				continue
 			}
