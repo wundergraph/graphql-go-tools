@@ -264,14 +264,20 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// we are checking if we have selected any child fields on the same datasource
-		// it means that child was uniq so we could select parent of such child
-		if f.checkNodes(itemIDs, f.checkNodeChilds, nil) {
+		// it means that child was unique, so we could select parent of such child
+		if f.checkNodes(itemIDs, f.checkNodeChilds, func(i int) bool {
+			// do not evaluate childs for the leaf nodes
+			return f.nodes.items[i].IsLeaf
+		}) {
 			continue
 		}
 
 		// we are checking if we have selected any sibling fields on the same datasource
 		// if sibling is selected on the same datasource, we could select current node
-		if f.checkNodes(itemIDs, f.checkNodeSiblings, nil) {
+		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) bool {
+			// we should not select a __typename field based on a siblings, unless it is on a root query type
+			return f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
+		}) {
 			continue
 		}
 
@@ -336,10 +342,9 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// NOTE: 3 and 4 may not be needed in the future, as they are more like a fallback options
+		// 3 and 4 - are stages when choices are equal, and we should select first available node
 
-		// If we still haven't selected the node -
-		// 3. we could select first available node only in case it is a leaf node
+		// 3. we choose first available leaf node
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
@@ -350,7 +355,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 4. then we try to select a node which could provide more selections on the same source
+		// 4. if node is not a leaf we select a node which could provide more selections on the same source
 		currentItemIDx := itemIDs[0]
 		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(currentItemIDx))
 
@@ -552,20 +557,6 @@ func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIs
 	if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 		return false
 	}
-
-	// TODO: implement typename selection logic for entity interfaces
-	// if f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName) {
-	// 	// we should select __typename predictable depending on 2 conditions:
-	// 	// - parent was selected
-	// 	// - provided by key
-	// 	// Exception: __typename is on a root operation type
-	//
-	// 	// in case of entity interface we could select __typename from datasource containing this entity interface
-	// 	// but not from the datasource containing the interface object
-	// 	if f.nodes.items[i].IsEntityInterface {
-	// 		return false
-	// 	}
-	// }
 
 	f.nodes.items[i].selectWithReason(reason, f.enableSelectionReasons)
 	return true

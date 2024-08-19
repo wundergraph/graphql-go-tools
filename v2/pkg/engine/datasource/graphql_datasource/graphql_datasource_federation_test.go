@@ -10,6 +10,518 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
+	t.Run("__typename on union", func(t *testing.T) {
+		def := `
+			schema {
+				query: Query
+			}
+	
+			type A {
+				a: String
+			}
+	
+			union U = A
+	
+			type Query {
+				u: U
+			}`
+
+		t.Run("run", RunTest(
+			def, `
+			query TypenameOnUnion {
+				u {
+					__typename
+				}
+			}`,
+			"TypenameOnUnion", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							},
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("u"),
+								Value: &resolve.Object{
+									Path:     []string{"u"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"u"},
+								},
+							},
+						},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://example.com/graphql",
+							},
+							SchemaConfiguration: mustSchema(t, nil, def),
+						}),
+					),
+				},
+				DisableResolveFieldPositions: true,
+			}))
+	})
+
+	t.Run("__typename on root query types", func(t *testing.T) {
+		def := `
+			scalar String
+
+			type Query {
+				q: String
+			}
+			type Mutation {
+				m: String
+			}
+			type Subscription {
+				s: String
+			}`
+
+		planConfiguration := plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"q"},
+							},
+							{
+								TypeName:   "Mutation",
+								FieldNames: []string{"m"},
+							},
+							{
+								TypeName:   "Subscription",
+								FieldNames: []string{"s"},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "https://example.com/graphql",
+						},
+						SchemaConfiguration: mustSchema(t, nil, def),
+					}),
+				),
+				mustDataSourceConfiguration(
+					t,
+					"ds-id-2",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"q"},
+							},
+							{
+								TypeName:   "Mutation",
+								FieldNames: []string{"m"},
+							},
+							{
+								TypeName:   "Subscription",
+								FieldNames: []string{"s"},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL: "https://example.com/graphql",
+						},
+						SchemaConfiguration: mustSchema(t, nil, def),
+					}),
+				),
+			},
+			DisableResolveFieldPositions: true,
+		}
+
+		t.Run("on query", RunTest(
+			def, `
+			query TypenameOnQuery {
+				__typename
+			}`,
+			"TypenameOnQuery", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{__typename}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path:       []string{"__typename"},
+									IsTypeName: true,
+								},
+							},
+						},
+					},
+				},
+			}, planConfiguration, WithDefaultPostProcessor()))
+
+		t.Run("on mutation", RunTest(
+			def, `
+			mutation TypenameOnMutation {
+				__typename
+			}`,
+			"TypenameOnMutation", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{__typename}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("__typename"),
+								Value: &resolve.String{
+									Path:       []string{"__typename"},
+									IsTypeName: true,
+								},
+							},
+						},
+					},
+				},
+			}, planConfiguration, WithDefaultPostProcessor()))
+	})
+
+	t.Run("typename should be selected on parent ds, not siblings", func(t *testing.T) {
+		// in this test multiple subgraphs has the same root node Query.me
+		// so parent won't be selected immediately, and we will select first available node
+
+		def := `
+			scalar String
+
+			type Query {
+				me: User
+			}
+
+			type User {
+				id: String!
+				name: String
+				address: String
+			}`
+
+		ds1SDL := `
+			scalar String
+	
+			type Query {
+				me: User
+			}
+	
+			type User @key(fields: "id") {
+				id: String!
+			}`
+		ds1 := mustDataSourceConfiguration(
+			t,
+			"ds-id-1",
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: []plan.FederationFieldConfiguration{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
+			},
+			mustCustomConfiguration(t, ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "https://example-1.com/graphql",
+				},
+				SchemaConfiguration: mustSchema(t, &FederationConfiguration{
+					Enabled:    true,
+					ServiceSDL: ds1SDL,
+				}, ds1SDL),
+			}),
+		)
+
+		ds2SDL := `
+			scalar String
+	
+			type User @key(fields: "id") {
+				id: String!
+				name: String
+			}`
+
+		ds2 := mustDataSourceConfiguration(
+			t,
+			"ds-id-2",
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "name"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: []plan.FederationFieldConfiguration{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
+			},
+			mustCustomConfiguration(t, ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "https://example-2.com/graphql",
+				},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: ds2SDL,
+					}, ds2SDL),
+			}),
+		)
+
+		ds4SDL := `
+			scalar String
+
+			type Query {
+				me: User
+			}
+
+			type User @key(fields: "id") {
+				id: String
+				address: String
+			}`
+		ds4 := mustDataSourceConfiguration(
+			t,
+			"ds-id-4",
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
+					},
+					{
+						TypeName:   "User",
+						FieldNames: []string{"id", "address"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: []plan.FederationFieldConfiguration{
+						{
+							TypeName:     "User",
+							SelectionSet: "id",
+						},
+					},
+				},
+			},
+			mustCustomConfiguration(t, ConfigurationInput{
+				Fetch: &FetchConfiguration{
+					URL: "https://example-4.com/graphql",
+				},
+				SchemaConfiguration: mustSchema(t,
+					&FederationConfiguration{
+						Enabled:    true,
+						ServiceSDL: ds4SDL,
+					}, ds4SDL),
+			}),
+		)
+
+		planConfiguration := plan.Configuration{
+			DataSources: []plan.DataSource{
+				ds2,
+				ds1,
+				ds4,
+			},
+			DisableResolveFieldPositions: true,
+			Debug: plan.DebugConfiguration{
+				PrintQueryPlans:      true,
+				PrintPlanningPaths:   true,
+				PrintNodeSuggestions: true,
+				NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
+					SelectionReasons: true,
+				},
+			},
+		}
+
+		t.Run("only __typename", RunTest(
+			def, `
+			query TypenameOnMe {
+				me {
+					__typename
+				}
+			}`,
+			"TypenameOnMe", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example-1.com/graphql","body":{"query":"{me {__typename}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:     []string{"me"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, planConfiguration, WithDefaultPostProcessor()))
+
+		t.Run("__typename and field", RunTest(
+			def, `
+			query TypenameOnMe {
+				me {
+					__typename
+					name
+				}
+			}`,
+			"TypenameOnMe", &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example-1.com/graphql","body":{"query":"{me {__typename id}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+						resolve.SingleWithPath(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[$$0$$]}}}`,
+								DataSource:                            &Source{},
+								SetTemplateOutputToNullOnVariableNull: true,
+								Variables: []resolve.Variable{
+									&resolve.ResolvableObjectVariable{
+										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+											Nullable: true,
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("__typename"),
+													Value: &resolve.String{
+														Path: []string{"__typename"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+												{
+													Name: []byte("id"),
+													Value: &resolve.String{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
+									},
+								},
+								PostProcessing:      SingleEntityPostProcessingConfiguration,
+								RequiresEntityFetch: true,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "me", resolve.ObjectPath("me")),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:     []string{"me"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Nullable: true,
+												Path:     []string{"name"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, planConfiguration, WithDefaultPostProcessor()))
+	})
+}
+
 func TestGraphQLDataSourceFederation(t *testing.T) {
 	t.Run("composite keys, provides, requires", func(t *testing.T) {
 		definition := `
