@@ -557,7 +557,7 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 
 	requiresConfigurations, ok := c.fieldRequirementsConfigs[fieldKey]
 	if !ok {
-		// TODO: add error - when we have field in the depends on we should have it in the requirements
+		c.walker.StopWithInternalErr(fmt.Errorf("missing field requirements configuration for field %s.%s fieldRef %d", typeName, fieldName, fieldRef))
 	}
 	for _, requiresConfiguration := range requiresConfigurations {
 		// add required fields to the current planner to pass it in the representation variables

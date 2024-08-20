@@ -580,6 +580,8 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 						return false
 					}
 
+					conditionMatch := true
+
 					// we need to match path and type of current path and condition path
 					// for condition path we are skipping the last element - because it is a key field coordinate
 					j := len(c.fieldPathCoordinates) - 1
@@ -588,12 +590,15 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 						fieldCoordinate := c.fieldPathCoordinates[j]
 
 						if coordinate.TypeName != fieldCoordinate.TypeName || coordinate.FieldName != fieldCoordinate.FieldName {
-							return false
+							conditionMatch = false
+							break
 						}
 						j--
 					}
 
-					return true
+					if conditionMatch {
+						return true
+					}
 				}
 
 				return false
