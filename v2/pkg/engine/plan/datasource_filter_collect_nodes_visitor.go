@@ -146,9 +146,10 @@ func (f *collectNodesVisitor) isInterfaceObject(typeName string) bool {
 }
 
 // has disabled entity resolver
-func (f *collectNodesVisitor) hasDisabledEntityResolver(typeName string) bool {
-	return slices.ContainsFunc(f.dataSource.FederationConfiguration().Keys, func(k FederationFieldConfiguration) bool {
-		return k.TypeName == typeName && k.DisableEntityResolver
+func (f *collectNodesVisitor) allKeysHasDisabledEntityResolver(typeName string) bool {
+	keys := f.dataSource.FederationConfiguration().Keys
+	return !slices.ContainsFunc(keys.FilterByTypeAndResolvability(typeName, false), func(k FederationFieldConfiguration) bool {
+		return !k.DisableEntityResolver
 	})
 }
 
@@ -307,7 +308,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	}
 
 	if hasRootNode || hasChildNode || isExternal {
-		disabledEntityResolver := hasRootNode && f.hasDisabledEntityResolver(typeName)
+		disabledEntityResolver := hasRootNode && f.allKeysHasDisabledEntityResolver(typeName)
 
 		node := NodeSuggestion{
 			TypeName:                  typeName,

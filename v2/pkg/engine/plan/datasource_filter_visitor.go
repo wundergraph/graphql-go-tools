@@ -251,7 +251,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// we need to check do we also already selected any child fields on the same datasource,
 		// When there is no child selections on the same datasource, we need to skip selecting this node,
 		// because it means we potentially planned all child fields on other datasources,
-		// also it this is the first pass, we won't count __typename field as a child.
+		// also as this is the first pass, we won't count __typename field as a child.
 		// we will do it on the second pass, when we will have some other fields selected, or we only have __typename field selection
 		if secondPass {
 			if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
@@ -310,7 +310,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				// we need to check if the node with enabled resolver could actually get a key from the parent node
-				if !f.isSelectedParentCouldProvideKeys(i) {
+				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 					return true
 				}
 
@@ -382,7 +382,13 @@ func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
 	for parentIdx != -1 {
 		nodesIdsToSelect = append(nodesIdsToSelect, parentIdx)
 
-		if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
+		// for the parent node we are checking if it is a root node and has enabled entity resolver.
+		// the last check is to ensure that the parent node could provide keys for the current node with parentIdx
+		// if all conditions are met, we return full chain of the nodes to this parentIdx
+		if f.nodes.items[parentIdx].IsRootNode &&
+			!f.nodes.items[parentIdx].DisabledEntityResolver &&
+			f.isSelectedParentCouldProvideKeysForCurrentNode(parentIdx) {
+
 			return nodesIdsToSelect
 		}
 
@@ -392,7 +398,7 @@ func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
 	return nil
 }
 
-func (f *DataSourceFilter) isSelectedParentCouldProvideKeys(idx int) bool {
+func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx int) bool {
 	treeNode := f.nodes.treeNode(idx)
 	parentNodeIndexes := treeNode.GetParent().GetData()
 	typeName := f.nodes.items[idx].TypeName

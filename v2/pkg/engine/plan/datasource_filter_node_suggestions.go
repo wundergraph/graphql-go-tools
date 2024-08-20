@@ -20,7 +20,7 @@ type NodeSuggestion struct {
 	ParentPath                string `json:"-"`
 	IsRootNode                bool   `json:"isRootNode"`
 	IsProvided                bool   `json:"isProvided"`
-	DisabledEntityResolver    bool   `json:"disabledEntityResolver"` // is true in case the node is an entity root node and has a key with disabled resolver
+	DisabledEntityResolver    bool   `json:"disabledEntityResolver"` // is true in case the node is an entity root node and all keys have disabled entity resolver
 	IsEntityInterfaceTypeName bool   `json:"-"`
 	IsExternal                bool   `json:"isExternal"`
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
