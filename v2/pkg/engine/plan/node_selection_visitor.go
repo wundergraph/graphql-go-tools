@@ -386,7 +386,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 		requirements.requirementConfigs = append(requirements.requirementConfigs, config)
 	} else {
 		for i := range requirements.requirementConfigs {
-			if requirements.requirementConfigs[i].selectionSet == fieldConfiguration.SelectionSet {
+			if requirements.requirementConfigs[i].selectionSet == fieldConfiguration.SelectionSet && requirements.requirementConfigs[i].dsHash == dsHash && requirements.requirementConfigs[i].isTypenameForEntityInterface == isTypenameForEntityInterface {
 				if slices.IndexFunc(requirements.requirementConfigs[i].requestedByFieldRefs, func(fieldRef int) bool {
 					return fieldRef == requestedByFieldRef
 				}) == -1 {
