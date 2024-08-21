@@ -128,18 +128,18 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuratio
 	return f.buildEngineConfiguration(intermediateConfig)
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithIntermediateConfig(c *IntermediateConfig) (Configuration, error) {
+func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *RouterConfig) (Configuration, error) {
 	return f.buildEngineConfiguration(c.routerConfig)
 }
 
-func (f *FederationEngineConfigFactory) buildEngineConfiguration(intermediateConfig *nodev1.RouterConfig) (Configuration, error) {
-	plannerConfiguration, err := f.createPlannerConfiguration(intermediateConfig)
+func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
+	plannerConfiguration, err := f.createPlannerConfiguration(routerConfig)
 	if err != nil {
 		return Configuration{}, err
 	}
 	plannerConfiguration.DefaultFlushIntervalMillis = DefaultFlushIntervalInMilliseconds
 
-	schemaSDL := intermediateConfig.EngineConfig.GraphqlSchema
+	schemaSDL := routerConfig.EngineConfig.GraphqlSchema
 
 	schema, err := graphql.NewSchemaFromString(schemaSDL)
 	if err != nil {
@@ -158,21 +158,23 @@ func (f *FederationEngineConfigFactory) buildEngineConfiguration(intermediateCon
 	return conf, nil
 }
 
-func (f *FederationEngineConfigFactory) Compose() (*IntermediateConfig, error) {
+// Compose produces a federated router configuration.
+func (f *FederationEngineConfigFactory) Compose() (*RouterConfig, error) {
 	res, err := f.compose()
 	if err != nil {
 		return nil, err
 	}
-	return &IntermediateConfig{routerConfig: res}, nil
+	return &RouterConfig{routerConfig: res}, nil
 }
 
-// IntermediateConfig is an intermediate data that holds the result of the composition.
-type IntermediateConfig struct {
+// RouterConfig is an intermediate data that holds the result of the composition
+// and can be saved to a file to configure the router data sources when creating an engine config.
+type RouterConfig struct {
 	routerConfig *nodev1.RouterConfig
 }
 
-// NewIntermediateConfig reads a serialized intermediate configuration and returns an IntermediateConfig.
-func NewIntermediateConfig(r io.Reader) (*IntermediateConfig, error) {
+// NewRouterConfig reads a serialized router configuration and returns an RouterConfig.
+func NewRouterConfig(r io.Reader) (*RouterConfig, error) {
 	b, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read serialized intermediate config: %w", err)
@@ -181,10 +183,11 @@ func NewIntermediateConfig(r io.Reader) (*IntermediateConfig, error) {
 	if err := protojson.Unmarshal(b, &intermediateConfig); err != nil {
 		return nil, fmt.Errorf("invalid intermediate config: %w", err)
 	}
-	return &IntermediateConfig{routerConfig: &intermediateConfig}, nil
+	return &RouterConfig{routerConfig: &intermediateConfig}, nil
 }
 
-func (c IntermediateConfig) WriteTo(w io.Writer) (int64, error) {
+// WriteTo writes the serialized router configuration to the given writer.
+func (c RouterConfig) WriteTo(w io.Writer) (int64, error) {
 	b, err := protojson.Marshal(c.routerConfig)
 	if err != nil {
 		return 0, err

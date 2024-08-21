@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"testing"
@@ -39,206 +40,253 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 		assert.Equal(t, expectedConfig, config)
 	}
 
+	runWithoutErrorUsingRouteConfig := func(
+		t *testing.T,
+		httpClient *http.Client,
+		streamingClient *http.Client,
+		subgraphs []SubgraphConfiguration,
+		baseSchema string,
+		expectedConfigFactory func(t *testing.T, baseSchema string) Configuration,
+	) {
+		engineConfigFactory := NewFederationEngineConfigFactory(
+			engineCtx,
+			subgraphs,
+			WithFederationHttpClient(httpClient),
+			WithFederationStreamingClient(streamingClient),
+			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
+		)
+
+		// Compose and parse the route config
+		rc0, err := engineConfigFactory.Compose()
+		assert.NoError(t, err)
+		var b bytes.Buffer
+		_, err = rc0.WriteTo(&b)
+		assert.NoError(t, err)
+		rc1, err := NewRouterConfig(&b)
+		assert.NoError(t, err)
+		config, err := engineConfigFactory.BuildEngineConfigurationWithRouterConfig(rc1)
+		assert.NoError(t, err)
+
+		expectedConfig := expectedConfigFactory(t, baseSchema)
+		assert.Equal(t, expectedConfig, config)
+	}
+
 	httpClient := &http.Client{}
 	streamingClient := &http.Client{}
 
-	t.Run("should create engine configuration", func(t *testing.T) {
-		runWithoutError(t, httpClient, streamingClient, []SubgraphConfiguration{
-			{
-				Name: "users",
-				URL:  "http://user.service",
-				SDL:  accountSchema,
-			},
-			{
-				Name: "products",
-				URL:  "http://product.service",
-				SDL:  productSchema,
-			},
-			{
-				Name: "reviews",
-				URL:  "http://review.service",
-				SDL:  reviewSchema,
-			},
-		}, baseFederationSchema, func(t *testing.T, baseSchema string) Configuration {
-			schema, err := graphql.NewSchemaFromString(baseSchema)
-			require.NoError(t, err)
+	tests := []struct {
+		name string
+		run  func(t *testing.T,
+			httpClient *http.Client,
+			streamingClient *http.Client,
+			subgraphs []SubgraphConfiguration,
+			baseSchema string,
+			expectedConfigFactory func(t *testing.T, baseSchema string) Configuration,
+		)
+	}{
+		{name: "should create engine configuration", run: runWithoutError},
+		{name: "should create engine configuration using route config", run: runWithoutErrorUsingRouteConfig},
+	}
 
-			conf := NewConfiguration(schema)
-			conf.SetFieldConfigurations(plan.FieldConfigurations{
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.run(t, httpClient, streamingClient, []SubgraphConfiguration{
 				{
-					TypeName:  "Query",
-					FieldName: "topProducts",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "first",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
+					Name: "users",
+					URL:  "http://user.service",
+					SDL:  accountSchema,
 				},
+				{
+					Name: "products",
+					URL:  "http://product.service",
+					SDL:  productSchema,
+				},
+				{
+					Name: "reviews",
+					URL:  "http://review.service",
+					SDL:  reviewSchema,
+				},
+			}, baseFederationSchema, func(t *testing.T, baseSchema string) Configuration {
+				schema, err := graphql.NewSchemaFromString(baseSchema)
+				require.NoError(t, err)
+
+				conf := NewConfiguration(schema)
+				conf.SetFieldConfigurations(plan.FieldConfigurations{
+					{
+						TypeName:  "Query",
+						FieldName: "topProducts",
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:       "first",
+								SourceType: plan.FieldArgumentSource,
+							},
+						},
+					},
+				})
+
+				gqlFactory, err := graphqlDataSource.NewFactory(engineCtx, httpClient, mockSubscriptionClient)
+				require.NoError(t, err)
+
+				conf.SetDataSources([]plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"0",
+						gqlFactory,
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"me"},
+								},
+								{
+									TypeName:   "User",
+									FieldNames: []string{"id", "username"},
+								},
+							},
+							ChildNodes: []plan.TypeField{},
+							FederationMetaData: plan.FederationMetaData{
+								Keys: []plan.FederationFieldConfiguration{
+									{
+										TypeName:     "User",
+										SelectionSet: "id",
+									},
+								},
+								Requires: []plan.FederationFieldConfiguration{},
+								Provides: []plan.FederationFieldConfiguration{},
+							},
+							Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
+						},
+						mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+							Fetch: &graphqlDataSource.FetchConfiguration{
+								URL:    "http://user.service",
+								Header: make(http.Header),
+							},
+							Subscription: &graphqlDataSource.SubscriptionConfiguration{
+								URL: "http://user.service",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphqlDataSource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: accountSchema,
+								},
+								accountUpstreamSchema,
+							),
+							CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
+						}),
+					),
+					mustGraphqlDataSourceConfiguration(t,
+						"1",
+						gqlFactory,
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"topProducts"},
+								},
+								{
+									TypeName:   "Product",
+									FieldNames: []string{"upc", "name", "price"},
+								},
+							},
+							ChildNodes: []plan.TypeField{},
+							FederationMetaData: plan.FederationMetaData{
+								Keys: []plan.FederationFieldConfiguration{
+									{
+										TypeName:     "Product",
+										SelectionSet: "upc",
+									},
+								},
+								Requires: []plan.FederationFieldConfiguration{},
+								Provides: []plan.FederationFieldConfiguration{},
+							},
+							Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
+						},
+						mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+							Fetch: &graphqlDataSource.FetchConfiguration{
+								URL:    "http://product.service",
+								Header: make(http.Header),
+							},
+							Subscription: &graphqlDataSource.SubscriptionConfiguration{
+								URL: "http://product.service",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphqlDataSource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: productSchema,
+								},
+								productUpstreamSchema,
+							),
+							CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
+						}),
+					),
+					mustGraphqlDataSourceConfiguration(t,
+						"2",
+						gqlFactory,
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "User",
+									FieldNames: []string{"reviews", "id"},
+								},
+								{
+									TypeName:   "Product",
+									FieldNames: []string{"reviews", "upc"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Review",
+									FieldNames: []string{"body", "author", "product"},
+								},
+							},
+							FederationMetaData: plan.FederationMetaData{
+								Keys: []plan.FederationFieldConfiguration{
+									{
+										TypeName:     "User",
+										SelectionSet: "id",
+									},
+									{
+										TypeName:     "Product",
+										SelectionSet: "upc",
+									},
+								},
+								Requires: []plan.FederationFieldConfiguration{},
+								Provides: []plan.FederationFieldConfiguration{
+									{
+										TypeName:     "Review",
+										FieldName:    "author",
+										SelectionSet: "username",
+									},
+								},
+							},
+							Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
+						},
+						mustConfiguration(t, graphqlDataSource.ConfigurationInput{
+							Fetch: &graphqlDataSource.FetchConfiguration{
+								URL:    "http://review.service",
+								Header: make(http.Header),
+							},
+							Subscription: &graphqlDataSource.SubscriptionConfiguration{
+								URL: "http://review.service",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphqlDataSource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: reviewSchema,
+								},
+								reviewUpstreamSchema,
+							),
+							CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
+						}),
+					),
+				})
+
+				return conf
 			})
-
-			gqlFactory, err := graphqlDataSource.NewFactory(engineCtx, httpClient, mockSubscriptionClient)
-			require.NoError(t, err)
-
-			conf.SetDataSources([]plan.DataSource{
-				mustGraphqlDataSourceConfiguration(t,
-					"0",
-					gqlFactory,
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"me"},
-							},
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id", "username"},
-							},
-						},
-						ChildNodes: []plan.TypeField{},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-							},
-							Requires: []plan.FederationFieldConfiguration{},
-							Provides: []plan.FederationFieldConfiguration{},
-						},
-						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
-					},
-					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
-						Fetch: &graphqlDataSource.FetchConfiguration{
-							URL:    "http://user.service",
-							Header: make(http.Header),
-						},
-						Subscription: &graphqlDataSource.SubscriptionConfiguration{
-							URL: "http://user.service",
-						},
-						SchemaConfiguration: mustSchemaConfig(
-							t,
-							&graphqlDataSource.FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: accountSchema,
-							},
-							accountUpstreamSchema,
-						),
-						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
-					}),
-				),
-				mustGraphqlDataSourceConfiguration(t,
-					"1",
-					gqlFactory,
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"topProducts"},
-							},
-							{
-								TypeName:   "Product",
-								FieldNames: []string{"upc", "name", "price"},
-							},
-						},
-						ChildNodes: []plan.TypeField{},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "Product",
-									SelectionSet: "upc",
-								},
-							},
-							Requires: []plan.FederationFieldConfiguration{},
-							Provides: []plan.FederationFieldConfiguration{},
-						},
-						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
-					},
-					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
-						Fetch: &graphqlDataSource.FetchConfiguration{
-							URL:    "http://product.service",
-							Header: make(http.Header),
-						},
-						Subscription: &graphqlDataSource.SubscriptionConfiguration{
-							URL: "http://product.service",
-						},
-						SchemaConfiguration: mustSchemaConfig(
-							t,
-							&graphqlDataSource.FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: productSchema,
-							},
-							productUpstreamSchema,
-						),
-						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
-					}),
-				),
-				mustGraphqlDataSourceConfiguration(t,
-					"2",
-					gqlFactory,
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "User",
-								FieldNames: []string{"reviews", "id"},
-							},
-							{
-								TypeName:   "Product",
-								FieldNames: []string{"reviews", "upc"},
-							},
-						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "Review",
-								FieldNames: []string{"body", "author", "product"},
-							},
-						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-								{
-									TypeName:     "Product",
-									SelectionSet: "upc",
-								},
-							},
-							Requires: []plan.FederationFieldConfiguration{},
-							Provides: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "Review",
-									FieldName:    "author",
-									SelectionSet: "username",
-								},
-							},
-						},
-						Directives: plan.NewDirectiveConfigurations([]plan.DirectiveConfiguration{}),
-					},
-					mustConfiguration(t, graphqlDataSource.ConfigurationInput{
-						Fetch: &graphqlDataSource.FetchConfiguration{
-							URL:    "http://review.service",
-							Header: make(http.Header),
-						},
-						Subscription: &graphqlDataSource.SubscriptionConfiguration{
-							URL: "http://review.service",
-						},
-						SchemaConfiguration: mustSchemaConfig(
-							t,
-							&graphqlDataSource.FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: reviewSchema,
-							},
-							reviewUpstreamSchema,
-						),
-						CustomScalarTypeFields: []graphqlDataSource.SingleTypeField{},
-					}),
-				),
-			})
-
-			return conf
 		})
-	})
+	}
 }
 
 const (
