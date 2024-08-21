@@ -177,7 +177,7 @@ func TestMinifier_Minify(t *testing.T) {
 			assert.NoError(t, err)
 
 			out := unsafeparser.ParseGraphqlDocumentString(minified)
-			outPrint := unsafeprinter.Print(&out, nil)
+			outPrint := unsafeprinter.Print(&out)
 
 			def := unsafeparser.ParseGraphqlDocumentString(string(schema))
 			err = asttransform.MergeDefinitionWithBaseSchema(&def)
@@ -196,14 +196,14 @@ func TestMinifier_Minify(t *testing.T) {
 			if rep.HasErrors() {
 				t.Fatal(rep.Error())
 			}
-			bestNormalized := unsafeprinter.PrettyPrint(&best, &def)
+			bestNormalized := unsafeprinter.PrettyPrint(&best)
 
 			orig := unsafeparser.ParseGraphqlDocumentString(string(operation))
 			normalizer.NormalizeNamedOperation(&orig, &def, []byte(tc.operationName), rep)
 			if rep.HasErrors() {
 				t.Fatal(rep.Error())
 			}
-			origNormalized := unsafeprinter.PrettyPrint(&orig, &def)
+			origNormalized := unsafeprinter.PrettyPrint(&orig)
 
 			if !tc.sort {
 				assert.Equal(t, origNormalized, bestNormalized)

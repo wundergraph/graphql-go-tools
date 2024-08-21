@@ -749,7 +749,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query', Reason: invalid JSON."}],"data":null}`,
+		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph 'id', Reason: invalid JSON."}],"data":null}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{

@@ -40,7 +40,7 @@ func TestJSONConverter_GraphQLDocument(t *testing.T) {
 	assert.NoError(t, err)
 
 	outWriter := &bytes.Buffer{}
-	err = astprinter.PrintIndent(doc, nil, []byte("  "), outWriter)
+	err = astprinter.PrintIndent(doc, []byte("  "), outWriter)
 	require.NoError(t, err)
 
 	schemaOutputPretty := outWriter.Bytes()

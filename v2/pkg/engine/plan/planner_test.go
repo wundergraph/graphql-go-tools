@@ -118,16 +118,19 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &FakeDataSource{&StatefulSource{}},
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
-					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
 			},
 		},
 	}, Configuration{
 		DisableResolveFieldPositions: true,
+		DisableIncludeInfo:           true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -182,16 +185,19 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
-						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
@@ -237,23 +243,27 @@ func TestPlanner_Plan(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
-						DataSourceIdentifier: []byte("plan.FakeDataSource"),
 					},
 				},
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
-			DataSources: []DataSource{testDefinitionDSConfiguration},
+			DataSources:        []DataSource{testDefinitionDSConfiguration},
+			DisableIncludeInfo: true,
 		}
 
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
@@ -388,17 +398,18 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetch: &resolve.SingleFetch{
+							Fetches: []resolve.Fetch{&resolve.SingleFetch{
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource: &FakeDataSource{&StatefulSource{}},
 								},
 								DataSourceIdentifier: []byte("plan.FakeDataSource"),
-							},
+							}},
 						},
 					},
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DisableIncludeInfo:           true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -440,17 +451,20 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetch: &resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &FakeDataSource{&StatefulSource{}},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
-								DataSourceIdentifier: []byte("plan.FakeDataSource"),
 							},
 						},
 					},
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DisableIncludeInfo:           true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -492,17 +506,20 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetch: &resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &FakeDataSource{&StatefulSource{}},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
-								DataSourceIdentifier: []byte("plan.FakeDataSource"),
 							},
 						},
 					},
 				},
 				Configuration{
 					DisableResolveFieldPositions: true,
+					DisableIncludeInfo:           true,
 					DataSources:                  []DataSource{dsConfig},
 				},
 			))
@@ -539,11 +556,13 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 					},
 				},
 			},
-			Fetch: &resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					DataSource: &FakeDataSource{&StatefulSource{}},
+			Fetches: []resolve.Fetch{
+				&resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
-				DataSourceIdentifier: []byte("plan.FakeDataSource"),
 			},
 		},
 	},
@@ -579,11 +598,13 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 					},
 				},
 			},
-			Fetch: &resolve.SingleFetch{
-				FetchConfiguration: resolve.FetchConfiguration{
-					DataSource: &FakeDataSource{&StatefulSource{}},
+			Fetches: []resolve.Fetch{
+				&resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
-				DataSourceIdentifier: []byte("plan.FakeDataSource"),
 			},
 		},
 	},

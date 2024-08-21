@@ -21,6 +21,7 @@ var (
 	literalUnderscoreEntities = []byte("_entities")
 	literalExtensions         = []byte("extensions")
 	literalTrace              = []byte("trace")
+	literalQueryPlan          = []byte("queryPlan")
 	literalRateLimit          = []byte("rateLimit")
 	literalAuthorization      = []byte("authorization")
 

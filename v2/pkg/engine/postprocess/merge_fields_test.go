@@ -11,7 +11,7 @@ func TestMergeFields_Process(t *testing.T) {
 
 	runTest := func(in, out resolve.Node) func(t *testing.T) {
 		return func(t *testing.T) {
-			m := &MergeFields{}
+			m := &mergeFields{}
 			m.Process(in)
 			assert.Equal(t, out, in)
 		}

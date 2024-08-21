@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -184,6 +186,20 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 			}
 		}
 		buf.WriteByte(literal.RBRACE_BYTE)
+	case ValueKindVariable:
+		variableName := d.Input.ByteSliceString(d.VariableValues[value.Ref].Name)
+		variableValue, dataType, _, err := jsonparser.Get(d.Input.Variables, variableName)
+		if err != nil {
+			buf.Write(literal.NULL)
+			return nil
+		}
+		if dataType == jsonparser.String {
+			buf.WriteByte('"')
+		}
+		buf.Write(variableValue)
+		if dataType == jsonparser.String {
+			buf.WriteByte('"')
+		}
 	default:
 		return fmt.Errorf("ValueToJSON: not implemented for kind: %s", value.Kind.String())
 	}

@@ -179,3 +179,27 @@ func PrintGraphQLResponse(data, errors *fastjson.Value) string {
 	out.Set("data", data)
 	return string(out.MarshalTo(nil))
 }
+
+func DeduplicateObjectKeysRecursively(v *fastjson.Value) {
+	if v.Type() == fastjson.TypeArray {
+		a := v.GetArray()
+		for _, e := range a {
+			DeduplicateObjectKeysRecursively(e)
+		}
+	}
+	if v.Type() != fastjson.TypeObject {
+		return
+	}
+	o, _ := v.Object()
+	seen := make(map[string]struct{})
+	o.Visit(func(k []byte, v *fastjson.Value) {
+		key := string(k)
+		if _, ok := seen[key]; ok {
+			o.Del(key)
+			return
+		} else {
+			seen[key] = struct{}{}
+		}
+		DeduplicateObjectKeysRecursively(v)
+	})
+}

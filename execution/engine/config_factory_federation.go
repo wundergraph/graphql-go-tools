@@ -138,7 +138,6 @@ func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *n
 		return Configuration{}, err
 	}
 	plannerConfiguration.DefaultFlushIntervalMillis = DefaultFlushIntervalInMilliseconds
-
 	schemaSDL := routerConfig.EngineConfig.GraphqlSchema
 
 	schema, err := graphql.NewSchemaFromString(schemaSDL)

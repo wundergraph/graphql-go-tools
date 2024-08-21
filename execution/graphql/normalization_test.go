@@ -47,7 +47,7 @@ func TestRequest_Normalize(t *testing.T) {
         name
     }
 }`
-		op, _ := astprinter.PrintStringIndent(&request.document, nil, "  ")
+		op, _ := astprinter.PrintStringIndent(&request.document, "  ")
 		assert.Equal(t, normalizedOperation, op)
 	})
 
@@ -63,7 +63,7 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
 
-		op, _ := astprinter.PrintStringIndent(&request.document, nil, "  ")
+		op, _ := astprinter.PrintStringIndent(&request.document, "  ")
 		assert.Equal(t, expectedNormalizedOperation, op)
 	}
 

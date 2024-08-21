@@ -11,6 +11,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"gonum.org/v1/gonum/stat/combin"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -24,20 +25,14 @@ import (
 )
 
 type testOptions struct {
-	postProcessors            []postprocess.PostProcessor
-	postProcessExtractFetches bool
-	skipReason                string
+	postProcessors []*postprocess.Processor
+	skipReason     string
+	withFieldInfo  bool
 }
 
-func WithPostProcessors(postProcessors ...postprocess.PostProcessor) func(*testOptions) {
+func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
 	return func(o *testOptions) {
 		o.postProcessors = postProcessors
-	}
-}
-
-func WithPostProcessExtractFetches() func(*testOptions) {
-	return func(o *testOptions) {
-		o.postProcessExtractFetches = true
 	}
 }
 
@@ -47,8 +42,18 @@ func WithSkipReason(reason string) func(*testOptions) {
 	}
 }
 
-func WithMultiFetchPostProcessor() func(*testOptions) {
-	return WithPostProcessors(&postprocess.CreateMultiFetchTypes{})
+func WithDefaultPostProcessor() func(*testOptions) {
+	return WithPostProcessors(postprocess.NewProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableCreateParallelNodes(), postprocess.DisableMergeFields()))
+}
+
+func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func(*testOptions) {
+	return WithPostProcessors(postprocess.NewProcessor(options...))
+}
+
+func WithFieldInfo() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+	}
 }
 
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
@@ -100,12 +105,23 @@ func RunWithPermutationsVariants(t *testing.T, definition, operation, operationN
 }
 
 func RunTest(definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) func(t *testing.T) {
+	return RunTestWithVariables(definition, operation, operationName, "", expectedPlan, config, options...)
+}
+
+func RunTestWithVariables(definition, operation, operationName, variables string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
+
+		// by default, we don't want to have field info in the tests because it's too verbose
+		config.DisableIncludeInfo = true
 
 		opts := &testOptions{}
 		for _, o := range options {
 			o(opts)
+		}
+
+		if opts.withFieldInfo {
+			config.DisableIncludeInfo = false
 		}
 
 		if opts.skipReason != "" {
@@ -114,13 +130,20 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 
 		def := unsafeparser.ParseGraphqlDocumentString(definition)
 		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		if variables != "" {
+			op.Input.Variables = []byte(variables)
+		}
 		err := asttransform.MergeDefinitionWithBaseSchema(&def)
 		if err != nil {
 			t.Fatal(err)
 		}
-		norm := astnormalization.NewNormalizer(true, true)
+		norm := astnormalization.NewWithOpts(astnormalization.WithExtractVariables(), astnormalization.WithInlineFragmentSpreads(), astnormalization.WithRemoveFragmentDefinitions(), astnormalization.WithRemoveUnusedVariables())
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
+
+		normalized := unsafeprinter.PrettyPrint(&op)
+		_ = normalized
+
 		valid := astvalidation.DefaultOperationValidator()
 		valid.Validate(&op, &def, &report)
 
@@ -128,11 +151,11 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		require.NoError(t, err)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
-			_, err := astprinter.PrintStringIndent(&def, nil, "  ")
+			_, err := astprinter.PrintStringIndent(&def, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = astprinter.PrintStringIndent(&op, &def, "  ")
+			_, err = astprinter.PrintStringIndent(&op, "  ")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -140,7 +163,9 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		}
 
 		if opts.postProcessors != nil {
-			postprocess.NewProcessor(opts.postProcessors, opts.postProcessExtractFetches).Process(actualPlan)
+			for _, processor := range opts.postProcessors {
+				processor.Process(actualPlan)
+			}
 		}
 
 		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")

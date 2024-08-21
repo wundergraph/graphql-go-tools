@@ -15,7 +15,6 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -173,10 +172,10 @@ func (r *Resolver) putTools(t *tools) {
 	r.maxConcurrency <- struct{}{}
 }
 
-func (r *Resolver) getBuffer(preferredSize int) *bytes.Buffer {
+func (r *Resolver) getBuffer() *bytes.Buffer {
 	maybeBuffer := r.bufPool.Get()
 	if maybeBuffer == nil {
-		return bytes.NewBuffer(make([]byte, 0, preferredSize))
+		return &bytes.Buffer{}
 	}
 	return maybeBuffer.(*bytes.Buffer)
 }
@@ -194,40 +193,43 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	resp := &GraphQLResolveInfo{}
 
-	if response.Info == nil {
-		response.Info = &GraphQLResponseInfo{
-			OperationType: ast.OperationTypeQuery,
-		}
-	}
-
+	toolsCleaned := false
 	acquireWaitTime, t := r.getTools()
 	resp.ResolveAcquireWaitTime = acquireWaitTime
 
+	// Ensure that the tools are returned even on panic
+	// This is important because getTools() acquires a semaphore
+	// and if we don't return the tools, we will have a deadlock
+	defer func() {
+		if !toolsCleaned {
+			r.putTools(t)
+		}
+	}()
+
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
-		r.putTools(t)
 		return nil, err
 	}
 
-	err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
-	if err != nil {
-		r.putTools(t)
-		return nil, err
+	if !ctx.ExecutionOptions.SkipLoader {
+		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	fetchTree := response.FetchTree
-	if fetchTree == nil {
-		// fallback to the response data
-		fetchTree = response.Data
-	}
-
-	buf := r.getBuffer(t.resolvable.MaxSize())
+	buf := r.getBuffer()
 	defer r.releaseBuffer(buf)
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, fetchTree, buf)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+
+	// Return the tools as soon as possible. More efficient in case of a slow client / network.
 	r.putTools(t)
+	toolsCleaned = true
+
 	if err != nil {
 		return nil, err
 	}
+
 	_, err = buf.WriteTo(writer)
 	return resp, err
 }
@@ -306,7 +308,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return // subscription was already closed by the client
 	}
-	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.FetchTree, sub.writer); err != nil {
+	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)

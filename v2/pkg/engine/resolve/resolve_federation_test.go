@@ -42,8 +42,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			expectedAccountsQuery := `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[{"__typename":"Account","id":"1234","info":{"a":"foo","b":"bar"}}]}}}`
 
 			return &GraphQLResponse{
-				Data: &Object{
-					Fetch: &SingleFetch{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
 						FetchConfiguration: FetchConfiguration{
 							DataSource: mockedDS(
 								t, ctrl,
@@ -64,7 +64,76 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}, "query"),
+					SingleWithPath(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{
+							DataSource: mockedDS(
+								t, ctrl,
+								expectedAccountsQuery,
+								`{"_entities":[{"__typename":"Account","name":"John Doe","shippingInfo":{"zip":"12345"}}]}`,
+							),
+							Input: `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data", "_entities", "0"},
+							},
+						},
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+								{
+									SegmentType:  VariableSegmentType,
+									VariableKind: ResolvableObjectVariableKind,
+									Renderer: NewGraphQLVariableResolveRenderer(&Object{
+										Fields: []*Field{
+											{
+												Name: []byte("__typename"),
+												Value: &String{
+													Path: []string{"__typename"},
+												},
+											},
+											{
+												Name: []byte("id"),
+												Value: &String{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("info"),
+												Value: &Object{
+													Path:     []string{"info"},
+													Nullable: true,
+													Fields: []*Field{
+														{
+															Name: []byte("a"),
+															Value: &String{
+																Path: []string{"a"},
+															},
+														},
+														{
+															Name: []byte("b"),
+															Value: &String{
+																Path: []string{"b"},
+															},
+														},
+													},
+												},
+											},
+										},
+									}),
+								},
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}, "query.user.account", ObjectPath("user"), ObjectPath("account")),
+				),
+				Data: &Object{
 					Fields: []*Field{
 						{
 							Name: []byte("user"),
@@ -99,73 +168,6 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 														},
 													},
 												},
-											},
-											Fetch: &SingleFetch{
-												FetchConfiguration: FetchConfiguration{
-													DataSource: mockedDS(
-														t, ctrl,
-														expectedAccountsQuery,
-														`{"_entities":[{"__typename":"Account","name":"John Doe","shippingInfo":{"zip":"12345"}}]}`,
-													),
-													Input: `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":$$0$$}}}`,
-													PostProcessing: PostProcessingConfiguration{
-														SelectResponseDataPath: []string{"data", "_entities", "0"},
-													},
-												},
-												InputTemplate: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[`),
-															SegmentType: StaticSegmentType,
-														},
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Fields: []*Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &String{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("info"),
-																		Value: &Object{
-																			Path:     []string{"info"},
-																			Nullable: true,
-																			Fields: []*Field{
-																				{
-																					Name: []byte("a"),
-																					Value: &String{
-																						Path: []string{"a"},
-																					},
-																				},
-																				{
-																					Name: []byte("b"),
-																					Value: &String{
-																						Path: []string{"b"},
-																					},
-																				},
-																			},
-																		},
-																	},
-																},
-															}),
-														},
-														{
-															Data:        []byte(`]}}}`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											},
 										},
 									},
@@ -215,8 +217,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 				})
 
 			return &GraphQLResponse{
-				Data: &Object{
-					Fetch: &SingleFetch{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
 						FetchConfiguration: FetchConfiguration{
 							DataSource: firstService,
 							PostProcessing: PostProcessingConfiguration{
@@ -232,7 +234,95 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 								},
 							},
 						},
-					},
+					}, "query"),
+					Parallel(
+						SingleWithPath(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								SetTemplateOutputToNullOnVariableNull: true,
+								DataSource:                            secondService,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data", "_entities", "0"},
+								},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[`),
+									},
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+												},
+											},
+										}),
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`]}}}`),
+									},
+								},
+							},
+						}, "query.me", ObjectPath("me")),
+						SingleWithPath(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{
+								SetTemplateOutputToNullOnVariableNull: true,
+								DataSource:                            thirdService,
+								PostProcessing: PostProcessingConfiguration{
+									SelectResponseDataPath: []string{"data", "_entities", "0"},
+								},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							InputTemplate: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[`),
+									},
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+												},
+											},
+										}),
+									},
+									{
+										SegmentType: StaticSegmentType,
+										Data:        []byte(`]}}}`),
+									},
+								},
+							},
+						}, "query.me", ObjectPath("me")),
+					),
+				),
+				Data: &Object{
 					Fields: []*Field{
 						{
 							Name: []byte("me"),
@@ -267,94 +357,6 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 													Name: []byte("age"),
 													Value: &Integer{
 														Path: []string{"age"},
-													},
-												},
-											},
-										},
-									},
-								},
-								Fetch: &ParallelFetch{
-									Fetches: []Fetch{
-										&SingleFetch{
-											FetchConfiguration: FetchConfiguration{
-												SetTemplateOutputToNullOnVariableNull: true,
-												DataSource:                            secondService,
-												PostProcessing: PostProcessingConfiguration{
-													SelectResponseDataPath: []string{"data", "_entities", "0"},
-												},
-											},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											InputTemplate: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														SegmentType: StaticSegmentType,
-														Data:        []byte(`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[`),
-													},
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &String{
-																		Path: []string{"__typename"},
-																	},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &String{
-																		Path: []string{"id"},
-																	},
-																},
-															},
-														}),
-													},
-													{
-														SegmentType: StaticSegmentType,
-														Data:        []byte(`]}}}`),
-													},
-												},
-											},
-										},
-										&SingleFetch{
-											FetchConfiguration: FetchConfiguration{
-												SetTemplateOutputToNullOnVariableNull: true,
-												DataSource:                            thirdService,
-												PostProcessing: PostProcessingConfiguration{
-													SelectResponseDataPath: []string{"data", "_entities", "0"},
-												},
-											},
-											DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											InputTemplate: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														SegmentType: StaticSegmentType,
-														Data:        []byte(`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[`),
-													},
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &String{
-																		Path: []string{"__typename"},
-																	},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &String{
-																		Path: []string{"id"},
-																	},
-																},
-															},
-														}),
-													},
-													{
-														SegmentType: StaticSegmentType,
-														Data:        []byte(`]}}}`),
 													},
 												},
 											},
@@ -397,6 +399,128 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 				})
 
 			return &GraphQLResponse{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{ user { name info {id __typename} address {id __typename} } }"}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+					}, "query"),
+					SingleWithPath(&SingleFetch{
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+								{
+									SegmentType:  VariableSegmentType,
+									VariableKind: ResolvableObjectVariableKind,
+									Renderer: NewGraphQLVariableResolveRenderer(&Object{
+										Path: []string{"info"},
+										Fields: []*Field{
+											{
+												Name: []byte("id"),
+												Value: &Integer{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("__typename"),
+												Value: &String{
+													Path: []string{"__typename"},
+												},
+											},
+										},
+									}),
+								},
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+								{
+									SegmentType:  VariableSegmentType,
+									VariableKind: ResolvableObjectVariableKind,
+									Renderer: NewGraphQLVariableResolveRenderer(&Object{
+										Path: []string{"address"},
+										Fields: []*Field{
+											{
+												Name: []byte("id"),
+												Value: &Integer{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("__typename"),
+												Value: &String{
+													Path: []string{"__typename"},
+												},
+											},
+										},
+									}),
+								},
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: infoService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data", "_entities"},
+								ResponseTemplate: &InputTemplate{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Fields: []*Field{
+													{
+														Name: []byte("info"),
+														Value: &Object{
+															Fields: []*Field{
+																{
+																	Name: []byte("age"),
+																	Value: &Integer{
+																		Path: []string{"[0]", "age"},
+																	},
+																},
+															},
+														},
+													},
+													{
+														Name: []byte("address"),
+														Value: &Object{
+															Fields: []*Field{
+																{
+																	Name: []byte("line1"),
+																	Value: &String{
+																		Path: []string{"[1]", "line1"},
+																	},
+																},
+															},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+						},
+					}, "query.user", ObjectPath("user")),
+				),
 				Data: &Object{
 					Fetch: &SingleFetch{
 						InputTemplate: InputTemplate{
@@ -593,8 +717,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 				})
 
 			return &GraphQLResponse{
-				Data: &Object{
-					Fetch: &SingleFetch{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -609,135 +733,137 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 								SelectResponseDataPath: []string{"data"},
 							},
 						},
-					},
+					}, "query"),
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path: []string{"info"},
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path: []string{"address"},
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: infoService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+							ResponseTemplate: &InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("info"),
+													Value: &Object{
+														Fields: []*Field{
+															{
+																Name: []byte("age"),
+																Value: &Integer{
+																	Path: []string{"[0]", "age"},
+																},
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("address"),
+													Value: &Object{
+														Fields: []*Field{
+															{
+																Name: []byte("line1"),
+																Value: &String{
+																	Path: []string{"[1]", "line1"},
+																},
+															},
+														},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+					}, "query.users", ObjectPath("users")),
+				),
+				Data: &Object{
 					Fields: []*Field{
 						{
 							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchEntityFetch{
-										Input: BatchInput{
-											Header: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-											Items: []InputTemplate{
-												{
-													Segments: []TemplateSegment{
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Path: []string{"info"},
-																Fields: []*Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &Integer{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																},
-															}),
-														},
-													},
-												},
-												{
-													Segments: []TemplateSegment{
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Path: []string{"address"},
-																Fields: []*Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &Integer{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																},
-															}),
-														},
-													},
-												},
-											},
-											Separator: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`,`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-											Footer: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`]}}}`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-										},
-										DataSource: infoService,
-										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities"},
-											ResponseTemplate: &InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("info"),
-																	Value: &Object{
-																		Fields: []*Field{
-																			{
-																				Name: []byte("age"),
-																				Value: &Integer{
-																					Path: []string{"[0]", "age"},
-																				},
-																			},
-																		},
-																	},
-																},
-																{
-																	Name: []byte("address"),
-																	Value: &Object{
-																		Fields: []*Field{
-																			{
-																				Name: []byte("line1"),
-																				Value: &String{
-																					Path: []string{"[1]", "line1"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-														}),
-													},
-												},
-											},
-										},
-									},
 									Fields: []*Field{
 										{
 											Name: []byte("name"),
@@ -809,6 +935,146 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 				})
 
 			return &GraphQLResponse{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
+						InputTemplate: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						FetchConfiguration: FetchConfiguration{
+							DataSource: userService,
+							PostProcessing: PostProcessingConfiguration{
+								SelectResponseDataPath: []string{"data"},
+							},
+						},
+					}, "query"),
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path: []string{"info"},
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path: []string{"address"},
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: infoService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+							ResponseTemplate: &InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("info"),
+													Value: &Object{
+														Fields: []*Field{
+															{
+																Name: []byte("age"),
+																Value: &Integer{
+																	Path: []string{"[0]", "age"},
+																},
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("address"),
+													Value: &Object{
+														Fields: []*Field{
+															{
+																Name: []byte("line1"),
+																Value: &String{
+																	Path: []string{"[1]", "line1"},
+																},
+															},
+														},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+					}, "query.users", ArrayPath("users")),
+				),
 				Data: &Object{
 					Fetch: &SingleFetch{
 						InputTemplate: InputTemplate{
@@ -1025,8 +1291,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 				})
 
 			return &GraphQLResponse{
-				Data: &Object{
-					Fetch: &SingleFetch{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -1041,140 +1307,142 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 								SelectResponseDataPath: []string{"data"},
 							},
 						},
-					},
+					}, "query"),
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							SkipNullItems: true,
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path:     []string{"info"},
+												Nullable: true,
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path:     []string{"address"},
+												Nullable: true,
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: infoService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+							ResponseTemplate: &InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("info"),
+													Value: &Object{
+														Nullable: true,
+														Fields: []*Field{
+															{
+																Name: []byte("age"),
+																Value: &Integer{
+																	Path: []string{"[0]", "age"},
+																},
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("address"),
+													Value: &Object{
+														Nullable: true,
+														Fields: []*Field{
+															{
+																Name: []byte("line1"),
+																Value: &String{
+																	Path: []string{"[1]", "line1"},
+																},
+															},
+														},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+					}, "query.users", ArrayPath("users")),
+				),
+				Data: &Object{
 					Fields: []*Field{
 						{
 							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchEntityFetch{
-										Input: BatchInput{
-											Header: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-											SkipNullItems: true,
-											Items: []InputTemplate{
-												{
-													Segments: []TemplateSegment{
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Path:     []string{"info"},
-																Nullable: true,
-																Fields: []*Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &Integer{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																},
-															}),
-														},
-													},
-												},
-												{
-													Segments: []TemplateSegment{
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Path:     []string{"address"},
-																Nullable: true,
-																Fields: []*Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &Integer{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																},
-															}),
-														},
-													},
-												},
-											},
-											Separator: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`,`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-											Footer: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`]}}}`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-										},
-										DataSource: infoService,
-										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities"},
-											ResponseTemplate: &InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("info"),
-																	Value: &Object{
-																		Nullable: true,
-																		Fields: []*Field{
-																			{
-																				Name: []byte("age"),
-																				Value: &Integer{
-																					Path: []string{"[0]", "age"},
-																				},
-																			},
-																		},
-																	},
-																},
-																{
-																	Name: []byte("address"),
-																	Value: &Object{
-																		Nullable: true,
-																		Fields: []*Field{
-																			{
-																				Name: []byte("line1"),
-																				Value: &String{
-																					Path: []string{"[1]", "line1"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-														}),
-													},
-												},
-											},
-										},
-									},
 									Fields: []*Field{
 										{
 											Name: []byte("name"),
@@ -1247,8 +1515,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 				})
 
 			return &GraphQLResponse{
-				Data: &Object{
-					Fetch: &SingleFetch{
+				Fetches: Sequence(
+					SingleWithPath(&SingleFetch{
 						InputTemplate: InputTemplate{
 							Segments: []TemplateSegment{
 								{
@@ -1263,138 +1531,140 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 								SelectResponseDataPath: []string{"data"},
 							},
 						},
-					},
+					}, "query"),
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							SkipErrItems: true,
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path: []string{"info"},
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Path: []string{"address"},
+												Fields: []*Field{
+													{
+														Name: []byte("id"),
+														Value: &Integer{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: infoService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+							ResponseTemplate: &InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("info"),
+													Value: &Object{
+														Nullable: true,
+														Fields: []*Field{
+															{
+																Name: []byte("age"),
+																Value: &Integer{
+																	Path: []string{"[0]", "age"},
+																},
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("address"),
+													Value: &Object{
+														Nullable: true,
+														Fields: []*Field{
+															{
+																Name: []byte("line1"),
+																Value: &String{
+																	Path: []string{"[1]", "line1"},
+																},
+															},
+														},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+					}, "query.users", ArrayPath("users")),
+				),
+				Data: &Object{
 					Fields: []*Field{
 						{
 							Name: []byte("users"),
 							Value: &Array{
 								Path: []string{"users"},
 								Item: &Object{
-									Fetch: &BatchEntityFetch{
-										Input: BatchInput{
-											Header: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-											SkipErrItems: true,
-											Items: []InputTemplate{
-												{
-													Segments: []TemplateSegment{
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Path: []string{"info"},
-																Fields: []*Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &Integer{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																},
-															}),
-														},
-													},
-												},
-												{
-													Segments: []TemplateSegment{
-														{
-															SegmentType:  VariableSegmentType,
-															VariableKind: ResolvableObjectVariableKind,
-															Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																Path: []string{"address"},
-																Fields: []*Field{
-																	{
-																		Name: []byte("id"),
-																		Value: &Integer{
-																			Path: []string{"id"},
-																		},
-																	},
-																	{
-																		Name: []byte("__typename"),
-																		Value: &String{
-																			Path: []string{"__typename"},
-																		},
-																	},
-																},
-															}),
-														},
-													},
-												},
-											},
-											Separator: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`,`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-											Footer: InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														Data:        []byte(`]}}}`),
-														SegmentType: StaticSegmentType,
-													},
-												},
-											},
-										},
-										DataSource: infoService,
-										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities"},
-											ResponseTemplate: &InputTemplate{
-												Segments: []TemplateSegment{
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("info"),
-																	Value: &Object{
-																		Nullable: true,
-																		Fields: []*Field{
-																			{
-																				Name: []byte("age"),
-																				Value: &Integer{
-																					Path: []string{"[0]", "age"},
-																				},
-																			},
-																		},
-																	},
-																},
-																{
-																	Name: []byte("address"),
-																	Value: &Object{
-																		Nullable: true,
-																		Fields: []*Field{
-																			{
-																				Name: []byte("line1"),
-																				Value: &String{
-																					Path: []string{"[1]", "line1"},
-																				},
-																			},
-																		},
-																	},
-																},
-															},
-														}),
-													},
-												},
-											},
-										},
-									},
 									Fields: []*Field{
 										{
 											Name: []byte("name"),
@@ -1461,8 +1731,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			`{"__typename":"Address","fullAddress":"line1 line2 line3-1 city-1 country-1 zip-1"}`)
 
 		return &GraphQLResponse{
-			Data: &Object{
-				Fetch: &SingleFetch{
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -1478,7 +1748,171 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							SelectResponseDataPath: []string{"data"},
 						},
 					},
-				},
+				}, "query"),
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						Input:      `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
+						DataSource: addressEnricher,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[`),
+							},
+							{
+								SegmentType:  VariableSegmentType,
+								VariableKind: ResolvableObjectVariableKind,
+								Renderer: NewGraphQLVariableResolveRenderer(&Object{
+									Fields: []*Field{
+										{
+											Name: []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+										},
+										{
+											Name: []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+									},
+								}),
+							},
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`]}}}`),
+							},
+						},
+					},
+				}, "query.user.account.address", ObjectPath("user"), ObjectPath("account"), ObjectPath("address")),
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						Input:      `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
+						DataSource: address,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[`),
+							},
+							{
+								SegmentType:  VariableSegmentType,
+								VariableKind: ResolvableObjectVariableKind,
+								Renderer: NewGraphQLVariableResolveRenderer(&Object{
+									Fields: []*Field{
+										{
+											Name: []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+										},
+										{
+											Name: []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("country"),
+											Value: &String{
+												Path: []string{"country"},
+											},
+										},
+										{
+											Name: []byte("city"),
+											Value: &String{
+												Path: []string{"city"},
+											},
+										},
+									},
+								}),
+							},
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`]}}}`),
+							},
+						},
+					},
+				}, "query.user.account.address", ObjectPath("user"), ObjectPath("account"), ObjectPath("address")),
+				SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						Input:      `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
+						DataSource: account,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+					DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[`),
+							},
+							{
+								SegmentType:  VariableSegmentType,
+								VariableKind: ResolvableObjectVariableKind,
+								Renderer: NewGraphQLVariableResolveRenderer(&Object{
+									Fields: []*Field{
+										{
+											Name: []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+										},
+										{
+											Name: []byte("id"),
+											Value: &String{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("line1"),
+											Value: &String{
+												Path: []string{"line1"},
+											},
+										},
+										{
+											Name: []byte("line2"),
+											Value: &String{
+												Path: []string{"line2"},
+											},
+										},
+										{
+											Name: []byte("line3"),
+											Value: &String{
+												Path: []string{"line3"},
+											},
+										},
+										{
+											Name: []byte("zip"),
+											Value: &String{
+												Path: []string{"zip"},
+											},
+										},
+									},
+								}),
+							},
+							{
+								SegmentType: StaticSegmentType,
+								Data:        []byte(`]}}}`),
+							},
+						},
+					},
+				}, "query.user.account.address", ObjectPath("user"), ObjectPath("account"), ObjectPath("address")),
+			),
+			Data: &Object{
 				Fields: []*Field{
 					{
 						Name: []byte("user"),
@@ -1502,172 +1936,6 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 															Name: []byte("fullAddress"),
 															Value: &String{
 																Path: []string{"fullAddress"},
-															},
-														},
-													},
-													Fetch: &SerialFetch{
-														Fetches: []Fetch{
-															&SingleFetch{
-																FetchConfiguration: FetchConfiguration{
-																	Input:      `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":$$0$$}}}`,
-																	DataSource: addressEnricher,
-																	PostProcessing: PostProcessingConfiguration{
-																		SelectResponseDataPath: []string{"data"},
-																	},
-																},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																InputTemplate: InputTemplate{
-																	Segments: []TemplateSegment{
-																		{
-																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[`),
-																		},
-																		{
-																			SegmentType:  VariableSegmentType,
-																			VariableKind: ResolvableObjectVariableKind,
-																			Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																				Fields: []*Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &String{
-																							Path: []string{"__typename"},
-																						},
-																					},
-																					{
-																						Name: []byte("id"),
-																						Value: &String{
-																							Path: []string{"id"},
-																						},
-																					},
-																				},
-																			}),
-																		},
-																		{
-																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`]}}}`),
-																		},
-																	},
-																},
-															},
-															&SingleFetch{
-																FetchConfiguration: FetchConfiguration{
-																	Input:      `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":$$0$$}}}`,
-																	DataSource: address,
-																	PostProcessing: PostProcessingConfiguration{
-																		SelectResponseDataPath: []string{"data"},
-																	},
-																},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																InputTemplate: InputTemplate{
-																	Segments: []TemplateSegment{
-																		{
-																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[`),
-																		},
-																		{
-																			SegmentType:  VariableSegmentType,
-																			VariableKind: ResolvableObjectVariableKind,
-																			Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																				Fields: []*Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &String{
-																							Path: []string{"__typename"},
-																						},
-																					},
-																					{
-																						Name: []byte("id"),
-																						Value: &String{
-																							Path: []string{"id"},
-																						},
-																					},
-																					{
-																						Name: []byte("country"),
-																						Value: &String{
-																							Path: []string{"country"},
-																						},
-																					},
-																					{
-																						Name: []byte("city"),
-																						Value: &String{
-																							Path: []string{"city"},
-																						},
-																					},
-																				},
-																			}),
-																		},
-																		{
-																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`]}}}`),
-																		},
-																	},
-																},
-															},
-															&SingleFetch{
-																FetchConfiguration: FetchConfiguration{
-																	Input:      `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":$$0$$}}}`,
-																	DataSource: account,
-																	PostProcessing: PostProcessingConfiguration{
-																		SelectResponseDataPath: []string{"data"},
-																	},
-																},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
-																InputTemplate: InputTemplate{
-																	Segments: []TemplateSegment{
-																		{
-																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[`),
-																		},
-																		{
-																			SegmentType:  VariableSegmentType,
-																			VariableKind: ResolvableObjectVariableKind,
-																			Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																				Fields: []*Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &String{
-																							Path: []string{"__typename"},
-																						},
-																					},
-																					{
-																						Name: []byte("id"),
-																						Value: &String{
-																							Path: []string{"id"},
-																						},
-																					},
-																					{
-																						Name: []byte("line1"),
-																						Value: &String{
-																							Path: []string{"line1"},
-																						},
-																					},
-																					{
-																						Name: []byte("line2"),
-																						Value: &String{
-																							Path: []string{"line2"},
-																						},
-																					},
-																					{
-																						Name: []byte("line3"),
-																						Value: &String{
-																							Path: []string{"line3"},
-																						},
-																					},
-																					{
-																						Name: []byte("zip"),
-																						Value: &String{
-																							Path: []string{"zip"},
-																						},
-																					},
-																				},
-																			}),
-																		},
-																		{
-																			SegmentType: StaticSegmentType,
-																			Data:        []byte(`]}}}`),
-																		},
-																	},
-																},
 															},
 														},
 													},
@@ -1703,8 +1971,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			`{"_entities":[{"name":"user-1"},{"name":"user-2"}]}`)
 
 		return &GraphQLResponse{
-			Data: &Object{
-				Fetch: &SingleFetch{
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -1719,133 +1987,191 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							SelectResponseDataPath: []string{"data"},
 						},
 					},
-				},
+				}, "query"),
+				Parallel(
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Fields: []*Field{
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name: []byte("upc"),
+														Value: &String{
+															Path: []string{"upc"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+						},
+					}, "query.topProducts", ArrayPath("topProducts")),
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Fields: []*Field{
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name: []byte("upc"),
+														Value: &String{
+															Path: []string{"upc"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: stockService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+						},
+					}, "query.topProducts", ArrayPath("topProducts")),
+				),
+				SingleWithPath(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					DataSource: usersService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+				}, "query.topProducts.reviews.author", ArrayPath("topProducts"), ArrayPath("reviews"), ObjectPath("author")),
+			),
+			Data: &Object{
 				Fields: []*Field{
 					{
 						Name: []byte("topProducts"),
 						Value: &Array{
 							Path: []string{"topProducts"},
 							Item: &Object{
-								Fetch: &ParallelFetch{
-									Fetches: []Fetch{
-										&BatchEntityFetch{
-											Input: BatchInput{
-												Header: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Items: []InputTemplate{
-													{
-														Segments: []TemplateSegment{
-															{
-																SegmentType:  VariableSegmentType,
-																VariableKind: ResolvableObjectVariableKind,
-																Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																	Fields: []*Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &String{
-																				Path: []string{"__typename"},
-																			},
-																		},
-																		{
-																			Name: []byte("upc"),
-																			Value: &String{
-																				Path: []string{"upc"},
-																			},
-																		},
-																	},
-																}),
-															},
-														},
-													},
-												},
-												Separator: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`,`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Footer: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`]}}}`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-											},
-											DataSource: reviewsService,
-											PostProcessing: PostProcessingConfiguration{
-												SelectResponseDataPath: []string{"data", "_entities"},
-											},
-										},
-										&BatchEntityFetch{
-											Input: BatchInput{
-												Header: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Items: []InputTemplate{
-													{
-														Segments: []TemplateSegment{
-															{
-																SegmentType:  VariableSegmentType,
-																VariableKind: ResolvableObjectVariableKind,
-																Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																	Fields: []*Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &String{
-																				Path: []string{"__typename"},
-																			},
-																		},
-																		{
-																			Name: []byte("upc"),
-																			Value: &String{
-																				Path: []string{"upc"},
-																			},
-																		},
-																	},
-																}),
-															},
-														},
-													},
-												},
-												Separator: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`,`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Footer: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`]}}}`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-											},
-											DataSource: stockService,
-											PostProcessing: PostProcessingConfiguration{
-												SelectResponseDataPath: []string{"data", "_entities"},
-											},
-										},
-									},
-								},
 								Fields: []*Field{
 									{
 										Name: []byte("name"),
@@ -1875,64 +2201,6 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 														Name: []byte("author"),
 														Value: &Object{
 															Path: []string{"author"},
-															Fetch: &BatchEntityFetch{
-																Input: BatchInput{
-																	Header: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																	Items: []InputTemplate{
-																		{
-																			Segments: []TemplateSegment{
-																				{
-																					SegmentType:  VariableSegmentType,
-																					VariableKind: ResolvableObjectVariableKind,
-																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																						Fields: []*Field{
-																							{
-																								Name: []byte("__typename"),
-																								Value: &String{
-																									Path: []string{"__typename"},
-																								},
-																							},
-																							{
-																								Name: []byte("id"),
-																								Value: &String{
-																									Path: []string{"id"},
-																								},
-																							},
-																						},
-																					}),
-																				},
-																			},
-																		},
-																	},
-																	Separator: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`,`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																	Footer: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`]}}}`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																},
-																DataSource: usersService,
-																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath: []string{"data", "_entities"},
-																},
-															},
 															Fields: []*Field{
 																{
 																	Name: []byte("name"),
@@ -1975,8 +2243,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			`{"_entities":[{"name":"user-1"}]}`)
 
 		return &GraphQLResponse{
-			Data: &Object{
-				Fetch: &SingleFetch{
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -1991,133 +2259,191 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							SelectResponseDataPath: []string{"data"},
 						},
 					},
-				},
+				}, "query"),
+				Parallel(
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Fields: []*Field{
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name: []byte("upc"),
+														Value: &String{
+															Path: []string{"upc"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: reviewsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+						},
+					}, "query.topProducts", ArrayPath("topProducts")),
+					SingleWithPath(&BatchEntityFetch{
+						Input: BatchInput{
+							Header: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Items: []InputTemplate{
+								{
+									Segments: []TemplateSegment{
+										{
+											SegmentType:  VariableSegmentType,
+											VariableKind: ResolvableObjectVariableKind,
+											Renderer: NewGraphQLVariableResolveRenderer(&Object{
+												Fields: []*Field{
+													{
+														Name: []byte("__typename"),
+														Value: &String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name: []byte("upc"),
+														Value: &String{
+															Path: []string{"upc"},
+														},
+													},
+												},
+											}),
+										},
+									},
+								},
+							},
+							Separator: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`,`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+							Footer: InputTemplate{
+								Segments: []TemplateSegment{
+									{
+										Data:        []byte(`]}}}`),
+										SegmentType: StaticSegmentType,
+									},
+								},
+							},
+						},
+						DataSource: stockService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data", "_entities"},
+						},
+					}, "query.topProducts", ArrayPath("topProducts")),
+				),
+				SingleWithPath(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					DataSource: usersService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+				}, "query.topProducts.reviews.author", ArrayPath("topProducts"), ArrayPath("reviews"), ObjectPath("author")),
+			),
+			Data: &Object{
 				Fields: []*Field{
 					{
 						Name: []byte("topProducts"),
 						Value: &Array{
 							Path: []string{"topProducts"},
 							Item: &Object{
-								Fetch: &ParallelFetch{
-									Fetches: []Fetch{
-										&BatchEntityFetch{
-											Input: BatchInput{
-												Header: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`{"method":"POST","url":"http://reviews","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {__typename id}}}}}","variables":{"representations":[`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Items: []InputTemplate{
-													{
-														Segments: []TemplateSegment{
-															{
-																SegmentType:  VariableSegmentType,
-																VariableKind: ResolvableObjectVariableKind,
-																Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																	Fields: []*Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &String{
-																				Path: []string{"__typename"},
-																			},
-																		},
-																		{
-																			Name: []byte("upc"),
-																			Value: &String{
-																				Path: []string{"upc"},
-																			},
-																		},
-																	},
-																}),
-															},
-														},
-													},
-												},
-												Separator: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`,`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Footer: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`]}}}`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-											},
-											DataSource: reviewsService,
-											PostProcessing: PostProcessingConfiguration{
-												SelectResponseDataPath: []string{"data", "_entities"},
-											},
-										},
-										&BatchEntityFetch{
-											Input: BatchInput{
-												Header: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`{"method":"POST","url":"http://stock","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {stock}}}","variables":{"representations":[`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Items: []InputTemplate{
-													{
-														Segments: []TemplateSegment{
-															{
-																SegmentType:  VariableSegmentType,
-																VariableKind: ResolvableObjectVariableKind,
-																Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																	Fields: []*Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &String{
-																				Path: []string{"__typename"},
-																			},
-																		},
-																		{
-																			Name: []byte("upc"),
-																			Value: &String{
-																				Path: []string{"upc"},
-																			},
-																		},
-																	},
-																}),
-															},
-														},
-													},
-												},
-												Separator: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`,`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-												Footer: InputTemplate{
-													Segments: []TemplateSegment{
-														{
-															Data:        []byte(`]}}}`),
-															SegmentType: StaticSegmentType,
-														},
-													},
-												},
-											},
-											DataSource: stockService,
-											PostProcessing: PostProcessingConfiguration{
-												SelectResponseDataPath: []string{"data", "_entities"},
-											},
-										},
-									},
-								},
 								Fields: []*Field{
 									{
 										Name: []byte("name"),
@@ -2147,64 +2473,6 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 														Name: []byte("author"),
 														Value: &Object{
 															Path: []string{"author"},
-															Fetch: &BatchEntityFetch{
-																Input: BatchInput{
-																	Header: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`{"method":"POST","url":"http://users","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																	Items: []InputTemplate{
-																		{
-																			Segments: []TemplateSegment{
-																				{
-																					SegmentType:  VariableSegmentType,
-																					VariableKind: ResolvableObjectVariableKind,
-																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																						Fields: []*Field{
-																							{
-																								Name: []byte("__typename"),
-																								Value: &String{
-																									Path: []string{"__typename"},
-																								},
-																							},
-																							{
-																								Name: []byte("id"),
-																								Value: &String{
-																									Path: []string{"id"},
-																								},
-																							},
-																						},
-																					}),
-																				},
-																			},
-																		},
-																	},
-																	Separator: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`,`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																	Footer: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`]}}}`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																},
-																DataSource: usersService,
-																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath: []string{"data", "_entities"},
-																},
-															},
 															Fields: []*Field{
 																{
 																	Name: []byte("name"),
@@ -2239,8 +2507,8 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			`{"_entities":[{"__typename":"User","name":"User"},{"__typename":"Admin","type":"super"},{"__typename":"Moderator","subject":"posts"}]}`)
 
 		return &GraphQLResponse{
-			Data: &Object{
-				Fetch: &SingleFetch{
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
 					InputTemplate: InputTemplate{
 						Segments: []TemplateSegment{
 							{
@@ -2255,86 +2523,88 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							SelectResponseDataPath: []string{"data"},
 						},
 					},
-				},
+				}, "query"),
+				SingleWithPath(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://names","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Moderator {subject} ... on Admin {type}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+												},
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+												{
+													Name: []byte("adminID"),
+													Value: &String{
+														Path: []string{"adminID"},
+													},
+													OnTypeNames: [][]byte{[]byte("Admin")},
+												},
+												{
+													Name: []byte("moderatorID"),
+													Value: &String{
+														Path: []string{"moderatorID"},
+													},
+													OnTypeNames: [][]byte{[]byte("Moderator")},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					DataSource: namesService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+				}, "query.accounts", ArrayPath("accounts")),
+			),
+			Data: &Object{
 				Fields: []*Field{
 					{
 						Name: []byte("accounts"),
 						Value: &Array{
 							Path: []string{"accounts"},
 							Item: &Object{
-								Fetch: &BatchEntityFetch{
-									Input: BatchInput{
-										Header: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													Data:        []byte(`{"method":"POST","url":"http://names","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Moderator {subject} ... on Admin {type}}}","variables":{"representations":[`),
-													SegmentType: StaticSegmentType,
-												},
-											},
-										},
-										Items: []InputTemplate{
-											{
-												Segments: []TemplateSegment{
-													{
-														SegmentType:  VariableSegmentType,
-														VariableKind: ResolvableObjectVariableKind,
-														Renderer: NewGraphQLVariableResolveRenderer(&Object{
-															Fields: []*Field{
-																{
-																	Name: []byte("__typename"),
-																	Value: &String{
-																		Path: []string{"__typename"},
-																	},
-																},
-																{
-																	Name: []byte("id"),
-																	Value: &String{
-																		Path: []string{"id"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("User")},
-																},
-																{
-																	Name: []byte("adminID"),
-																	Value: &String{
-																		Path: []string{"adminID"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("Admin")},
-																},
-																{
-																	Name: []byte("moderatorID"),
-																	Value: &String{
-																		Path: []string{"moderatorID"},
-																	},
-																	OnTypeNames: [][]byte{[]byte("Moderator")},
-																},
-															},
-														}),
-													},
-												},
-											},
-										},
-										Separator: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													Data:        []byte(`,`),
-													SegmentType: StaticSegmentType,
-												},
-											},
-										},
-										Footer: InputTemplate{
-											Segments: []TemplateSegment{
-												{
-													Data:        []byte(`]}}}`),
-													SegmentType: StaticSegmentType,
-												},
-											},
-										},
-									},
-									DataSource: namesService,
-									PostProcessing: PostProcessingConfiguration{
-										SelectResponseDataPath: []string{"data", "_entities"},
-									},
-								},
 								Fields: []*Field{
 									{
 										Name: []byte("name"),

@@ -19,7 +19,11 @@ type DataSourceDebugger interface {
 	astvisitor.VisitorIdentifier
 	DebugPrint(args ...interface{})
 	EnableDebug()
-	EnableQueryPlanLogging()
+	EnableDebugQueryPlanLogging()
+}
+
+type QueryPlanProvider interface {
+	IncludeQueryPlanInFetchConfiguration()
 }
 
 type Visitor struct {
@@ -39,6 +43,7 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
+	includeQueryPlans            bool
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -312,7 +317,7 @@ func (v *Visitor) mapFieldConfig(ref int) {
 }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
-	if !v.Config.IncludeInfo {
+	if v.Config.DisableIncludeInfo {
 		return nil
 	}
 
@@ -766,7 +771,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		Data: rootObject,
 	}
 
-	if v.Config.IncludeInfo {
+	if !v.Config.DisableIncludeInfo {
 		graphQLResponse.Info = &resolve.GraphQLResponseInfo{
 			OperationType: operationKind,
 		}
@@ -1058,24 +1063,13 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 		return
 	}
 	fetchConfig := config.planner.ConfigureFetch()
+	if v.includeQueryPlans && fetchConfig.QueryPlan == nil {
+		fetchConfig.QueryPlan = &resolve.QueryPlan{}
+	}
 	fetch := v.configureFetch(config, fetchConfig)
 	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
-	if config.object.Fetch == nil {
-		config.object.Fetch = fetch
-		return
-	}
-
-	switch existing := config.object.Fetch.(type) {
-	case *resolve.SingleFetch:
-		copyOfExisting := *existing
-		multi := &resolve.MultiFetch{
-			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
-		}
-		config.object.Fetch = multi
-	case *resolve.MultiFetch:
-		existing.Fetches = append(existing.Fetches, fetch)
-	}
+	config.object.Fetches = append(config.object.Fetches, fetch)
 }
 
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
@@ -1091,11 +1085,13 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
-	if v.Config.IncludeInfo {
+	if !v.Config.DisableIncludeInfo {
 		singleFetch.Info = &resolve.FetchInfo{
-			DataSourceID:  internal.sourceID,
-			RootFields:    internal.rootFields,
-			OperationType: internal.operationType,
+			DataSourceID:   internal.sourceID,
+			DataSourceName: internal.sourceName,
+			RootFields:     internal.rootFields,
+			OperationType:  internal.operationType,
+			QueryPlan:      external.QueryPlan,
 		}
 	}
 

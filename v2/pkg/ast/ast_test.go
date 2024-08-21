@@ -182,7 +182,7 @@ func TestCopying(t *testing.T) {
 		}
 	}
 
-	out, err := astprinter.PrintStringIndent(&doc, nil, "  ")
+	out, err := astprinter.PrintStringIndent(&doc, "  ")
 
 	assert.NoError(t, err)
 
@@ -454,7 +454,7 @@ func TestDirectiveList_RemoveDirectiveByName(t *testing.T) {
 	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive3")
 	// delete the first directive
 	doc.ObjectTypeDefinitions[0].Directives.RemoveDirectiveByName(&doc, "directive1")
-	out, _ := astprinter.PrintString(&doc, nil)
+	out, _ := astprinter.PrintString(&doc)
 	assert.Equal(t, replacer.Replace("type User @directive2 @directive4 { field: String! }"), replacer.Replace(out))
 }
 

@@ -5,8 +5,9 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"github.com/goccy/go-json"
 	"io"
+
+	"github.com/goccy/go-json"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
@@ -45,9 +46,6 @@ type Resolvable struct {
 
 	typeNames [][]byte
 
-	// maxSize is the sum of all responses to get the possible maximum size of the response
-	maxSize int
-
 	marshalBuf []byte
 }
 
@@ -69,16 +67,11 @@ func (r *Resolvable) parseJSON(data []byte) (*fastjson.Value, error) {
 	return parser.ParseBytes(data)
 }
 
-func (r *Resolvable) MaxSize() int {
-	return r.maxSize
-}
-
 func (r *Resolvable) Reset() {
 	for i := range r.parsers {
 		parsers.Put(r.parsers[i])
 		r.parsers[i] = nil
 	}
-	r.maxSize = 0
 	r.parsers = r.parsers[:0]
 	r.typeNames = r.typeNames[:0]
 	r.wroteErrors = false
@@ -155,11 +148,29 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	return
 }
 
-func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *Object, out io.Writer) error {
+func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
+
+	if r.ctx.ExecutionOptions.SkipLoader {
+		// we didn't resolve any data, so there's no point in generating errors
+		// the goal is to only render extensions, e.g. to expose the query plan
+		r.printBytes(lBrace)
+		r.printBytes(quote)
+		r.printBytes(literalData)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(null)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printErr = r.printExtensions(ctx, fetchTree)
+		}
+		r.printBytes(rBrace)
+		return r.printErr
+	}
+
 	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
 
 	hasErrors := r.walkObject(rootData, r.data)
@@ -215,7 +226,7 @@ func (r *Resolvable) printData(root *Object) {
 	r.wroteData = true
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *Object) error {
+func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNode) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
@@ -245,10 +256,22 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *Object) err
 		}
 	}
 
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printQueryPlanExtension(fetchTree)
+		if err != nil {
+			return err
+		}
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
 		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
 		err := r.printTraceExtension(ctx, fetchTree)
 		if err != nil {
 			return err
@@ -275,14 +298,9 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *Object) error {
-	var trace *TraceNode
-	if r.ctx.TracingOptions.Debug {
-		trace = GetTrace(ctx, fetchTree, GetTraceDebug())
-	} else {
-		trace = GetTrace(ctx, fetchTree)
-	}
-	traceData, err := json.Marshal(trace)
+func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
+	trace := GetTrace(ctx, fetchTree)
+	content, err := json.Marshal(trace)
 	if err != nil {
 		return err
 	}
@@ -290,7 +308,21 @@ func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *Object)
 	r.printBytes(literalTrace)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printBytes(traceData)
+	r.printBytes(content)
+	return nil
+}
+
+func (r *Resolvable) printQueryPlanExtension(fetchTree *FetchTreeNode) error {
+	queryPlan := fetchTree.QueryPlan()
+	content, err := json.Marshal(queryPlan)
+	if err != nil {
+		return err
+	}
+	r.printBytes(quote)
+	r.printBytes(literalQueryPlan)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(content)
 	return nil
 }
 
@@ -302,6 +334,9 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+		return true
+	}
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		return true
 	}
 	return false

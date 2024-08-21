@@ -20,6 +20,7 @@ type Context struct {
 	RenameTypeNames  []RenameTypeName
 	TracingOptions   TraceOptions
 	RateLimitOptions RateLimitOptions
+	ExecutionOptions ExecutionOptions
 	InitialPayload   []byte
 	Extensions       []byte
 	Stats            Stats
@@ -29,6 +30,11 @@ type Context struct {
 	rateLimiter RateLimiter
 
 	subgraphErrors error
+}
+
+type ExecutionOptions struct {
+	SkipLoader                 bool
+	IncludeQueryPlanInResponse bool
 }
 
 type AuthorizationDeny struct {

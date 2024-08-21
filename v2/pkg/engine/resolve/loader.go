@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
+	"github.com/tidwall/sjson"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -66,7 +67,6 @@ func releaseLoaderBuf(buf *bytes.Buffer) {
 type Loader struct {
 	resolvable *Resolvable
 	ctx        *Context
-	path       []string
 	info       *GraphQLResponseInfo
 
 	propagateSubgraphErrors      bool
@@ -81,85 +81,77 @@ func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
 	l.resolvable = nil
-	l.path = l.path[:0]
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
 	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
-
-	// fallback to data mostly for tests
-	fetchTree := response.FetchTree
-	if response.FetchTree == nil {
-		fetchTree = response.Data
-	}
-
-	return l.walkNode(fetchTree, []*fastjson.Value{resolvable.data})
+	return l.resolveFetchNode(response.Fetches)
 }
 
-func (l *Loader) walkNode(node Node, items []*fastjson.Value) error {
-	switch n := node.(type) {
-	case *Object:
-		return l.walkObject(n, items)
-	case *Array:
-		return l.walkArray(n, items)
+func (l *Loader) resolveFetchNode(node *FetchTreeNode) error {
+	if node == nil {
+		return nil
+	}
+	switch node.Kind {
+	case FetchTreeNodeKindSingle:
+		return l.resolveSingle(node.Item)
+	case FetchTreeNodeKindSequence:
+		return l.resolveSerial(node.ChildNodes)
+	case FetchTreeNodeKindParallel:
+		return l.resolveParallel(node.ChildNodes)
 	default:
 		return nil
 	}
 }
 
-func (l *Loader) pushPath(path []string) {
-	l.path = append(l.path, path...)
-}
-
-func (l *Loader) popPath(path []string) {
-	l.path = l.path[:len(l.path)-len(path)]
-}
-
-func (l *Loader) pushArrayPath() {
-	l.path = append(l.path, "@")
-}
-
-func (l *Loader) popArrayPath() {
-	l.path = l.path[:len(l.path)-1]
-}
-
-func (l *Loader) renderPath() string {
-	builder := strings.Builder{}
-	if l.info != nil {
-		switch l.info.OperationType {
-		case ast.OperationTypeQuery:
-			builder.WriteString("query")
-		case ast.OperationTypeMutation:
-			builder.WriteString("mutation")
-		case ast.OperationTypeSubscription:
-			builder.WriteString("subscription")
-		case ast.OperationTypeUnknown:
+func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
+	if len(nodes) == 0 {
+		return nil
+	}
+	results := make([]*result, len(nodes))
+	itemsItems := make([][]*fastjson.Value, len(nodes))
+	g, ctx := errgroup.WithContext(l.ctx.ctx)
+	for i := range nodes {
+		i := i
+		results[i] = &result{}
+		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
+		g.Go(func() error {
+			return l.loadFetch(ctx, nodes[i].Item.Fetch, nodes[i].Item, itemsItems[i], results[i])
+		})
+	}
+	err := g.Wait()
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	for i := range results {
+		if results[i].nestedMergeItems != nil {
+			for j := range results[i].nestedMergeItems {
+				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
+				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
+					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
+				}
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+		} else {
+			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
+			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			}
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	}
-	if len(l.path) == 0 {
-		return builder.String()
-	}
-	for i := range l.path {
-		builder.WriteByte('.')
-		builder.WriteString(l.path[i])
-	}
-	return builder.String()
+	return nil
 }
 
-func (l *Loader) walkObject(object *Object, parentItems []*fastjson.Value) (err error) {
-	l.pushPath(object.Path)
-	defer l.popPath(object.Path)
-	objectItems := l.selectNodeItems(parentItems, object.Path)
-	if object.Fetch != nil {
-		err = l.resolveAndMergeFetch(object.Fetch, objectItems)
-		if err != nil {
-			return err
-		}
-	}
-	for i := range object.Fields {
-		err = l.walkNode(object.Fields[i].Value, objectItems)
+func (l *Loader) resolveSerial(nodes []*FetchTreeNode) error {
+	for i := range nodes {
+		err := l.resolveFetchNode(nodes[i])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -167,14 +159,175 @@ func (l *Loader) walkObject(object *Object, parentItems []*fastjson.Value) (err 
 	return nil
 }
 
-func (l *Loader) walkArray(array *Array, parentItems []*fastjson.Value) error {
-	l.pushPath(array.Path)
-	l.pushArrayPath()
-	nodeItems := l.selectNodeItems(parentItems, array.Path)
-	err := l.walkNode(array.Item, nodeItems)
-	l.popArrayPath()
-	l.popPath(array.Path)
-	return err
+func (l *Loader) resolveSingle(item *FetchItem) error {
+	if item == nil {
+		return nil
+	}
+	items := l.selectItemsForPath(item.FetchPath)
+	switch f := item.Fetch.(type) {
+	case *SingleFetch:
+		res := &result{
+			out: acquireLoaderBuf(),
+		}
+		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
+		if err != nil {
+			return err
+		}
+		err = l.mergeResult(item, res, items)
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		return err
+	case *BatchEntityFetch:
+		res := &result{
+			out: acquireLoaderBuf(),
+		}
+		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = l.mergeResult(item, res, items)
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		return err
+	case *EntityFetch:
+		res := &result{
+			out: acquireLoaderBuf(),
+		}
+		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = l.mergeResult(item, res, items)
+		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		return err
+	case *ParallelListItemFetch:
+		results := make([]*result, len(items))
+		if l.ctx.TracingOptions.Enable {
+			f.Traces = make([]*SingleFetch, len(items))
+		}
+		g, ctx := errgroup.WithContext(l.ctx.ctx)
+		for i := range items {
+			i := i
+			results[i] = &result{
+				out: acquireLoaderBuf(),
+			}
+			if l.ctx.TracingOptions.Enable {
+				f.Traces[i] = new(SingleFetch)
+				*f.Traces[i] = *f.Fetch
+				g.Go(func() error {
+					return l.loadFetch(ctx, f.Traces[i], item, items[i:i+1], results[i])
+				})
+				continue
+			}
+			g.Go(func() error {
+				return l.loadFetch(ctx, f.Fetch, item, items[i:i+1], results[i])
+			})
+		}
+		err := g.Wait()
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		for i := range results {
+			err = l.mergeResult(item, results[i], items[i:i+1])
+			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			}
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*fastjson.Value {
+	if len(path) == 0 {
+		return []*fastjson.Value{l.resolvable.data}
+	}
+	items := []*fastjson.Value{l.resolvable.data}
+	for i := range path {
+		if len(items) == 0 {
+			break
+		}
+		if path[i].Kind == FetchItemPathElementKindObject {
+			items = l.selectObjectItems(items, path[i].Path)
+		}
+		if path[i].Kind == FetchItemPathElementKindArray {
+			items = l.selectArrayItems(items, path[i].Path)
+		}
+	}
+	return items
+}
+
+func (l *Loader) selectObjectItems(items []*fastjson.Value, path []string) []*fastjson.Value {
+	if len(items) == 0 {
+		return nil
+	}
+	if len(path) == 0 {
+		return items
+	}
+	if len(items) == 1 {
+		field := items[0].Get(path...)
+		if field == nil {
+			return nil
+		}
+		if field.Type() == fastjson.TypeArray {
+			return field.GetArray()
+		}
+		return []*fastjson.Value{field}
+	}
+	selected := make([]*fastjson.Value, 0, len(items))
+	for _, item := range items {
+		field := item.Get(path...)
+		if field == nil {
+			continue
+		}
+		if field.Type() == fastjson.TypeArray {
+			selected = append(selected, field.GetArray()...)
+			continue
+		}
+		selected = append(selected, field)
+	}
+	return selected
+}
+
+func (l *Loader) selectArrayItems(items []*fastjson.Value, path []string) []*fastjson.Value {
+	if len(items) == 0 {
+		return nil
+	}
+	if len(path) == 0 {
+		return items
+	}
+	if len(items) == 1 {
+		field := items[0].Get(path...)
+		if field == nil {
+			return nil
+		}
+		if field.Type() == fastjson.TypeArray {
+			return field.GetArray()
+		}
+		return []*fastjson.Value{field}
+	}
+	selected := make([]*fastjson.Value, 0, len(items))
+	for _, item := range items {
+		field := item.Get(path...)
+		if field == nil {
+			continue
+		}
+		if field.Type() == fastjson.TypeArray {
+			selected = append(selected, field.GetArray()...)
+			continue
+		}
+		selected = append(selected, field)
+	}
+	return selected
+
 }
 
 func (l *Loader) selectNodeItems(parentItems []*fastjson.Value, path []string) (items []*fastjson.Value) {
@@ -230,145 +383,11 @@ func (l *Loader) itemsData(items []*fastjson.Value, out io.Writer) {
 	_, _ = out.Write(rBrack)
 }
 
-func (l *Loader) resolveAndMergeFetch(fetch Fetch, items []*fastjson.Value) error {
-	switch f := fetch.(type) {
-	case *SingleFetch:
-		res := &result{
-			out: acquireLoaderBuf(),
-		}
-		err := l.loadSingleFetch(l.ctx.ctx, f, items, res)
-		if err != nil {
-			return err
-		}
-		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
-		}
-		if err != nil {
-			return err
-		}
-		return nil
-	case *SerialFetch:
-		if l.ctx.TracingOptions.Enable {
-			f.Trace = &DataSourceLoadTrace{
-				Path: l.renderPath(),
-			}
-		}
-		for i := range f.Fetches {
-			err := l.resolveAndMergeFetch(f.Fetches[i], items)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-	case *ParallelFetch:
-		if l.ctx.TracingOptions.Enable {
-			f.Trace = &DataSourceLoadTrace{
-				Path: l.renderPath(),
-			}
-		}
-		results := make([]*result, len(f.Fetches))
-		g, ctx := errgroup.WithContext(l.ctx.ctx)
-		for i := range f.Fetches {
-			i := i
-			results[i] = &result{}
-			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetches[i], items, results[i])
-			})
-		}
-		err := g.Wait()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		for i := range results {
-			if results[i].nestedMergeItems != nil {
-				for j := range results[i].nestedMergeItems {
-					err = l.mergeResult(results[i].nestedMergeItems[j], items[j:j+1])
-					if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-						l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
-					}
-					if err != nil {
-						return errors.WithStack(err)
-					}
-				}
-			} else {
-				err = l.mergeResult(results[i], items)
-				if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
-				}
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			}
-		}
-	case *ParallelListItemFetch:
-		if l.ctx.TracingOptions.Enable {
-			f.Trace = &DataSourceLoadTrace{
-				Path: l.renderPath(),
-			}
-		}
-		results := make([]*result, len(items))
-		g, ctx := errgroup.WithContext(l.ctx.ctx)
-		for i := range items {
-			i := i
-			results[i] = &result{
-				out: acquireLoaderBuf(),
-			}
-			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
-			})
-		}
-		err := g.Wait()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		for i := range results {
-			err = l.mergeResult(results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
-			}
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-	case *EntityFetch:
-		res := &result{
-			out: acquireLoaderBuf(),
-		}
-		err := l.loadEntityFetch(l.ctx.ctx, f, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
-		}
-		return err
-	case *BatchEntityFetch:
-		res := &result{
-			out: acquireLoaderBuf(),
-		}
-		err := l.loadBatchEntityFetch(l.ctx.ctx, f, items, res)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = l.mergeResult(res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
-		}
-		return err
-	}
-	return nil
-}
-
-func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []*fastjson.Value, res *result) error {
+func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*fastjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res.out = acquireLoaderBuf()
-		return l.loadSingleFetch(ctx, f, items, res)
-	case *SerialFetch:
-		return fmt.Errorf("serial fetch must not be nested")
-	case *ParallelFetch:
-		return fmt.Errorf("parallel fetch must not be nested")
+		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
 		if l.ctx.TracingOptions.Enable {
@@ -384,12 +403,12 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []*fastjson.V
 				f.Traces[i] = new(SingleFetch)
 				*f.Traces[i] = *f.Fetch
 				g.Go(func() error {
-					return l.loadFetch(ctx, f.Traces[i], items[i:i+1], results[i])
+					return l.loadFetch(ctx, f.Traces[i], fetchItem, items[i:i+1], results[i])
 				})
 				continue
 			}
 			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetch, items[i:i+1], results[i])
+				return l.loadFetch(ctx, f.Fetch, fetchItem, items[i:i+1], results[i])
 			})
 		}
 		err := g.Wait()
@@ -400,21 +419,21 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, items []*fastjson.V
 		return nil
 	case *EntityFetch:
 		res.out = acquireLoaderBuf()
-		return l.loadEntityFetch(ctx, f, items, res)
+		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
 		res.out = acquireLoaderBuf()
-		return l.loadBatchEntityFetch(ctx, f, items, res)
+		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil
 }
 
-func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
+func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*fastjson.Value) error {
 	defer releaseLoaderBuf(res.out)
 	if res.err != nil {
-		return l.renderErrorsFailedToFetch(res, failedToFetchNoReason)
+		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
 	}
 	if res.authorizationRejected {
-		err := l.renderAuthorizationRejectedErrors(res)
+		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
 		if err != nil {
 			return err
 		}
@@ -428,7 +447,7 @@ func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 		return nil
 	}
 	if res.rateLimitRejected {
-		err := l.renderRateLimitRejectedErrors(res)
+		err := l.renderRateLimitRejectedErrors(fetchItem, res)
 		if err != nil {
 			return err
 		}
@@ -445,12 +464,11 @@ func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 		return nil
 	}
 	if res.out.Len() == 0 {
-		return l.renderErrorsFailedToFetch(res, emptyGraphQLResponse)
+		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-	l.resolvable.maxSize += res.out.Len()
 	value, err := l.resolvable.parseJSON(res.out.Bytes())
 	if err != nil {
-		return l.renderErrorsFailedToFetch(res, invalidGraphQLResponse)
+		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
 	hasErrors := false
@@ -462,7 +480,7 @@ func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 			errorObjects := errorsValue.GetArray()
 			hasErrors = len(errorObjects) > 0
 			// Look for errors in the response and merge them into the errors array
-			err = l.mergeErrors(res, errorsValue, errorObjects)
+			err = l.mergeErrors(res, fetchItem, errorsValue, errorObjects)
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -477,7 +495,7 @@ func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
 			if !hasErrors {
-				return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
+				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 			}
 			// no data
 			return nil
@@ -500,7 +518,7 @@ func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
 		if value.Type() != fastjson.TypeObject {
-			return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
+			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
 		l.resolvable.data = value
 		return nil
@@ -511,7 +529,7 @@ func (l *Loader) mergeResult(res *result, items []*fastjson.Value) error {
 	}
 	batch := value.GetArray()
 	if batch == nil {
-		return l.renderErrorsFailedToFetch(res, invalidGraphQLResponseShape)
+		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 	}
 	if res.batchStats != nil {
 		var (
@@ -596,27 +614,32 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 }
 
 var (
-	errorsInvalidInputHeader = []byte(`{"errors":[{"message":"could not render fetch input","path":[`)
+	errorsInvalidInputHeader = []byte(`{"errors":[{"message":"Failed to render Fetch Input","path":[`)
 	errorsInvalidInputFooter = []byte(`]}]}`)
 )
 
-func (l *Loader) renderErrorsInvalidInput(out *bytes.Buffer) error {
+func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffer) error {
+	elements := fetchItem.ResponsePathElements
+	if len(elements) > 0 && elements[len(elements)-1] == "@" {
+		elements = elements[:len(elements)-1]
+	}
+	if len(elements) > 0 {
+		elements = elements[1:]
+	}
 	_, _ = out.Write(errorsInvalidInputHeader)
-	for i := range l.path {
+	for i := range elements {
 		if i != 0 {
 			_, _ = out.Write(comma)
 		}
 		_, _ = out.Write(quote)
-		_, _ = out.WriteString(l.path[i])
+		_, _ = out.WriteString(elements[i])
 		_, _ = out.Write(quote)
 	}
 	_, _ = out.Write(errorsInvalidInputFooter)
 	return nil
 }
 
-func (l *Loader) mergeErrors(res *result, value *fastjson.Value, values []*fastjson.Value) error {
-	path := l.renderPath()
-
+func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *fastjson.Value, values []*fastjson.Value) error {
 	// Serialize subgraph errors from the response
 	// and append them to the subgraph downstream errors
 	if len(values) > 0 {
@@ -628,7 +651,7 @@ func (l *Loader) mergeErrors(res *result, value *fastjson.Value, values []*fastj
 			return errors.WithStack(err)
 		}
 
-		subgraphError := NewSubgraphError(res.subgraphName, path, failedToFetchNoReason, res.statusCode)
+		subgraphError := NewSubgraphError(res.subgraphName, fetchItem.ResponsePath, failedToFetchNoReason, res.statusCode)
 
 		for _, gqlError := range graphqlErrors {
 			gErr := gqlError
@@ -640,14 +663,14 @@ func (l *Loader) mergeErrors(res *result, value *fastjson.Value, values []*fastj
 
 	l.optionallyOmitErrorExtensions(values)
 	l.optionallyOmitErrorLocations(values)
-	l.optionallyRewriteErrorPaths(values)
+	l.optionallyRewriteErrorPaths(fetchItem, values)
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
 		fastjsonext.MergeValues(l.resolvable.errors, value)
 		return nil
 	}
 
-	errorObject := fastjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, path, failedToFetchNoReason))
+	errorObject := fastjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, fetchItem.ResponsePath, failedToFetchNoReason))
 	if l.propagateSubgraphErrors {
 		fastjsonext.SetValue(errorObject, value, "extensions", "errors")
 	}
@@ -678,15 +701,15 @@ func (l *Loader) optionallyOmitErrorLocations(values []*fastjson.Value) {
 	}
 }
 
-func (l *Loader) optionallyRewriteErrorPaths(values []*fastjson.Value) {
+func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*fastjson.Value) {
 	if !l.rewriteSubgraphErrorPaths {
 		return
 	}
-	pathPrefix := make([]string, len(l.path))
-	copy(pathPrefix, l.path)
+	pathPrefix := make([]string, len(fetchItem.ResponsePathElements))
+	copy(pathPrefix, fetchItem.ResponsePathElements)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
 	// errors, like fetches, are attached to objects, not arrays
-	if len(l.path) != 0 && l.path[len(l.path)-1] == "@" {
+	if len(fetchItem.ResponsePathElements) != 0 && fetchItem.ResponsePathElements[len(fetchItem.ResponsePathElements)-1] == "@" {
 		pathPrefix = pathPrefix[:len(pathPrefix)-1]
 	}
 	for _, value := range values {
@@ -738,10 +761,16 @@ const (
 	invalidGraphQLResponseShape = "no data or errors in response"
 )
 
-func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
-	path := l.renderPath()
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, path, reason, res.statusCode)))
-	errorObject, err := fastjson.Parse(l.renderSubgraphBaseError(res.subgraphName, path, reason))
+func (l *Loader) renderAtPathErrorPart(path string) string {
+	if path == "" {
+		return ""
+	}
+	return fmt.Sprintf(` at Path '%s'`, path)
+}
+
+func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, fetchItem.ResponsePath, reason, res.statusCode)))
+	errorObject, err := fastjson.Parse(l.renderSubgraphBaseError(res.subgraphName, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
@@ -751,40 +780,41 @@ func (l *Loader) renderErrorsFailedToFetch(res *result, reason string) error {
 }
 
 func (l *Loader) renderSubgraphBaseError(subgraphName, path, reason string) string {
+	pathPart := l.renderAtPathErrorPart(path)
 	if subgraphName == "" {
 		if reason == "" {
-			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at Path '%s'."}`, path)
+			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph%s."}`, pathPart)
 		}
-		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph at Path '%s', Reason: %s."}`, path, reason)
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph%s, Reason: %s."}`, pathPart, reason)
 	}
 	if reason == "" {
-		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at Path '%s'."}`, subgraphName, path)
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s'%s."}`, subgraphName, pathPart)
 	}
-	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s' at Path '%s', Reason: %s."}`, subgraphName, path, reason)
+	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s'%s, Reason: %s."}`, subgraphName, pathPart, reason)
 }
 
-func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
-	path := l.renderPath()
+func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, path, res.authorizationRejectedReasons[i], res.statusCode)))
+		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode)))
 	}
+	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	if res.subgraphName == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s'."}`, path))
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s."}`, pathPart))
 				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request at Path '%s', Reason: %s."}`, path, reason))
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s."}`, pathPart, reason))
 				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			}
 		}
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s'."}`, res.subgraphName, path))
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s."}`, res.subgraphName, pathPart))
 				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, reason))
+				errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s."}`, res.subgraphName, pathPart, reason))
 				fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 			}
 		}
@@ -792,24 +822,23 @@ func (l *Loader) renderAuthorizationRejectedErrors(res *result) error {
 	return nil
 }
 
-func (l *Loader) renderRateLimitRejectedErrors(res *result) error {
-	path := l.renderPath()
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.subgraphName, path, res.rateLimitRejectedReason)))
-
+func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.subgraphName, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
+	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	if res.subgraphName == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s'."}`, path))
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request at Path '%s', Reason: %s."}`, path, res.rateLimitRejectedReason))
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
 			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s'."}`, res.subgraphName, path))
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.subgraphName, pathPart))
 			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s' at Path '%s', Reason: %s."}`, res.subgraphName, path, res.rateLimitRejectedReason))
+			errorObject := fastjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.subgraphName, pathPart, res.rateLimitRejectedReason))
 			fastjsonext.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	}
@@ -906,7 +935,7 @@ func releaseSingleFetchBuffer(buf *singleFetchBuffer) {
 	singleFetchPool.Put(buf)
 }
 
-func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items []*fastjson.Value, res *result) error {
+func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	buf := acquireSingleFetchBuffer()
 	defer releaseSingleFetchBuffer(buf)
@@ -914,14 +943,12 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			inputCopy := make([]byte, buf.input.Len())
-			copy(inputCopy, buf.input.Bytes())
-			fetch.Trace.RawInputData = inputCopy
+			fetch.Trace.RawInputData, _ = l.compactJSON(buf.input.Bytes())
 		}
 	}
 	err := fetch.InputTemplate.Render(l.ctx, buf.input.Bytes(), buf.preparedInput)
 	if err != nil {
-		return l.renderErrorsInvalidInput(res.out)
+		return l.renderErrorsInvalidInput(fetchItem, res.out)
 	}
 	fetchInput := buf.preparedInput.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
@@ -931,7 +958,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, items 
 	if !allowed {
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
+	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -964,7 +991,7 @@ func releaseEntityFetchBuffer(buf *entityFetchBuffer) {
 	entityFetchPool.Put(buf)
 }
 
-func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items []*fastjson.Value, res *result) error {
+func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	buf := acquireEntityFetchBuffer()
 	defer releaseEntityFetchBuffer(buf)
@@ -973,9 +1000,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
-			itemDataCopy := make([]byte, buf.itemData.Len())
-			copy(itemDataCopy, buf.itemData.Bytes())
-			fetch.Trace.RawInputData = itemDataCopy
+			fetch.Trace.RawInputData, _ = l.compactJSON(buf.itemData.Bytes())
 		}
 	}
 
@@ -1030,7 +1055,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	fetchInput := buf.preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
-		l.setTracingInput(fetchInput, fetch.Trace)
+		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
 		return nil
 	}
 
@@ -1041,7 +1066,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetch *EntityFetch, items 
 	if !allowed {
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
+	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -1074,7 +1099,7 @@ func releaseBatchEntityFetchBuffer(buf *batchEntityFetchBuffer) {
 	batchEntityFetchPool.Put(buf)
 }
 
-func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFetch, items []*fastjson.Value, res *result) error {
+func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*fastjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 
 	buf := acquireBatchEntityFetchBuffer()
@@ -1085,7 +1110,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetch *BatchEntityFet
 		if !l.ctx.TracingOptions.ExcludeRawInputData {
 			buf := &bytes.Buffer{}
 			l.itemsData(items, buf)
-			fetch.Trace.RawInputData = buf.Bytes()
+			fetch.Trace.RawInputData, _ = l.compactJSON(buf.Bytes())
 		}
 	}
 
@@ -1172,7 +1197,7 @@ WithNextItem:
 	fetchInput := buf.preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
-		l.setTracingInput(fetchInput, fetch.Trace)
+		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
 		return nil
 	}
 
@@ -1183,7 +1208,7 @@ WithNextItem:
 	if !allowed {
 		return nil
 	}
-	l.executeSourceLoad(ctx, fetch.DataSource, fetchInput, res, fetch.Trace)
+	l.executeSourceLoad(ctx, fetchItem, fetch.DataSource, fetchInput, res, fetch.Trace)
 	return nil
 }
 
@@ -1249,8 +1274,8 @@ func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context
 	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
 }
 
-func (l *Loader) setTracingInput(input []byte, trace *DataSourceLoadTrace) {
-	trace.Path = l.renderPath()
+func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *DataSourceLoadTrace) {
+	trace.Path = fetchItem.ResponsePath
 	if !l.ctx.TracingOptions.ExcludeInput {
 		trace.Input = make([]byte, len(input))
 		copy(trace.Input, input) // copy input explicitly, omit __trace__ field
@@ -1269,7 +1294,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []b
 	return source.Load(ctx, input, res.out)
 }
 
-func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {
+func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {
 	if l.ctx.Extensions != nil {
 		input, res.err = jsonparser.Set(input, l.ctx.Extensions, "body", "extensions")
 		if res.err != nil {
@@ -1279,7 +1304,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 	}
 	if l.ctx.TracingOptions.Enable {
 		ctx = setSingleFlightStats(ctx, &SingleFlightStats{})
-		trace.Path = l.renderPath()
+		trace.Path = fetchItem.ResponsePath
 		if !l.ctx.TracingOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
 			copy(trace.Input, input) // copy input explicitly, omit __trace__ field
@@ -1414,13 +1439,9 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
 		}
 		if !l.ctx.TracingOptions.ExcludeOutput && res.out.Len() > 0 {
+			trace.Output, _ = l.compactJSON(res.out.Bytes())
 			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
-				dataCopy := make([]byte, res.out.Len())
-				copy(dataCopy, res.out.Bytes())
-				trace.Output = jsonparser.Delete(dataCopy, "extensions", "trace", "response", "headers", "Date")
-			} else {
-				trace.Output = make([]byte, res.out.Len())
-				copy(trace.Output, res.out.Bytes())
+				trace.Output, _ = sjson.DeleteBytes(trace.Output, "extensions.trace.response.headers.Date")
 			}
 		}
 		if !l.ctx.TracingOptions.ExcludeLoadStats {
@@ -1438,4 +1459,19 @@ func (l *Loader) executeSourceLoad(ctx context.Context, source DataSource, input
 			res.err = errors.WithStack(res.err)
 		}
 	}
+}
+
+func (l *Loader) compactJSON(data []byte) ([]byte, error) {
+	dst := bytes.NewBuffer(make([]byte, len(data))[:0])
+	err := json.Compact(dst, data)
+	if err != nil {
+		return nil, err
+	}
+	out := dst.Bytes()
+	v, err := fastjson.ParseBytes(out)
+	if err != nil {
+		return nil, err
+	}
+	fastjsonext.DeduplicateObjectKeysRecursively(v)
+	return v.MarshalTo(nil), nil
 }
