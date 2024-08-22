@@ -402,7 +402,7 @@ func BenchmarkJSON_ParsePrint(b *testing.B) {
 	}
 }
 
-func Benchmarkastjson(b *testing.B) {
+func BenchmarkAstJson(b *testing.B) {
 	var p astjson.Parser
 	input := []byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
 	expectedOut := []byte(`{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}`)
@@ -423,7 +423,7 @@ func Benchmarkastjson(b *testing.B) {
 	}
 }
 
-func TestastjsonMerge(t *testing.T) {
+func TestAstJsonMerge(t *testing.T) {
 	a, err := astjson.ParseBytes([]byte(`{"a":1,"b":2}`))
 	assert.NoError(t, err)
 	b, err := astjson.ParseBytes([]byte(`{"c":3}`))
@@ -433,7 +433,7 @@ func TestastjsonMerge(t *testing.T) {
 	assert.Equal(t, `{"a":1,"b":2,"c":3}`, string(out))
 }
 
-func TestastjsonMergeNested(t *testing.T) {
+func TestAstJsonMergeNested(t *testing.T) {
 	a, err := astjson.ParseBytes([]byte(`{"a":1,"b":2,"c":{"d":4,"e":4}}`))
 	assert.NoError(t, err)
 	b, err := astjson.ParseBytes([]byte(`{"c":{"e":5}}`))
@@ -477,7 +477,7 @@ func BenchmarkParse(b *testing.B) {
 	}
 }
 
-func BenchmarkastjsonMerge(t *testing.B) {
+func BenchmarkAstJsonMerge(t *testing.B) {
 	var (
 		p1, p2, p3 astjson.Parser
 		out        = make([]byte, 0, 1024)
