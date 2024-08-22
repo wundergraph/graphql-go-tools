@@ -43,7 +43,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/r3labs/sse/v2 v2.8.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/tidwall/gjson v1.17.0 // indirect
@@ -51,7 +50,7 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/urfave/cli/v2 v2.25.5 // indirect
-	github.com/valyala/fastjson v1.6.4 // indirect
+	github.com/wundergraph/astjson v0.0.0-20240822164222-c1cca919e2c8 // indirect
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20240729154441-b20b00e892c6 // indirect
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
