@@ -6,8 +6,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
-	"github.com/valyala/fastjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
+	"github.com/wundergraph/astjson"
 )
 
 func TestJSON_ParsePrint(t *testing.T) {
@@ -403,8 +402,8 @@ func BenchmarkJSON_ParsePrint(b *testing.B) {
 	}
 }
 
-func BenchmarkFastJSON(b *testing.B) {
-	var p fastjson.Parser
+func BenchmarkAstJson(b *testing.B) {
+	var p astjson.Parser
 	input := []byte(`{"data":{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}}`)
 	expectedOut := []byte(`{"_entities":[{"stock":8},{"stock":2},{"stock":5}]}`)
 	res := make([]byte, 0, 1024)
@@ -424,28 +423,28 @@ func BenchmarkFastJSON(b *testing.B) {
 	}
 }
 
-func TestFastJsonMerge(t *testing.T) {
-	a, err := fastjson.ParseBytes([]byte(`{"a":1,"b":2}`))
+func TestAstJsonMerge(t *testing.T) {
+	a, err := astjson.ParseBytes([]byte(`{"a":1,"b":2}`))
 	assert.NoError(t, err)
-	b, err := fastjson.ParseBytes([]byte(`{"c":3}`))
+	b, err := astjson.ParseBytes([]byte(`{"c":3}`))
 	assert.NoError(t, err)
-	merged, _ := fastjsonext.MergeValues(a, b)
+	merged, _ := astjson.MergeValues(a, b)
 	out := merged.MarshalTo(nil)
 	assert.Equal(t, `{"a":1,"b":2,"c":3}`, string(out))
 }
 
-func TestFastJsonMergeNested(t *testing.T) {
-	a, err := fastjson.ParseBytes([]byte(`{"a":1,"b":2,"c":{"d":4,"e":4}}`))
+func TestAstJsonMergeNested(t *testing.T) {
+	a, err := astjson.ParseBytes([]byte(`{"a":1,"b":2,"c":{"d":4,"e":4}}`))
 	assert.NoError(t, err)
-	b, err := fastjson.ParseBytes([]byte(`{"c":{"e":5}}`))
+	b, err := astjson.ParseBytes([]byte(`{"c":{"e":5}}`))
 	assert.NoError(t, err)
-	merged, _ := fastjsonext.MergeValues(a, b)
+	merged, _ := astjson.MergeValues(a, b)
 	out := merged.MarshalTo(nil)
 	assert.Equal(t, `{"a":1,"b":2,"c":{"d":4,"e":5}}`, string(out))
 }
 
 func BenchmarkFastParse(b *testing.B) {
-	var p fastjson.Parser
+	var p astjson.Parser
 
 	b.SetBytes(int64(len(bigJSON)))
 	b.ReportAllocs()
@@ -478,9 +477,9 @@ func BenchmarkParse(b *testing.B) {
 	}
 }
 
-func BenchmarkFastJsonMerge(t *testing.B) {
+func BenchmarkAstJsonMerge(t *testing.B) {
 	var (
-		p1, p2, p3 fastjson.Parser
+		p1, p2, p3 astjson.Parser
 		out        = make([]byte, 0, 1024)
 	)
 	first := []byte(`{"a":1,"b":2,"c":{"d":4,"e":5,"f":6,"g":7,"h":8,"i":9,"j":10,"k":11,"l":12,"m":13,"n":14,"o":15,"p":16,"q":17,"r":18,"s":19,"t":20,"u":21,"v":22,"w":23,"x":24,"y":25,"z":26}}`)
@@ -503,8 +502,8 @@ func BenchmarkFastJsonMerge(t *testing.B) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ab, _ := fastjsonext.MergeValues(a, b)
-		abc, _ := fastjsonext.MergeValues(ab, c)
+		ab, _ := astjson.MergeValues(a, b)
+		abc, _ := astjson.MergeValues(ab, c)
 		out = abc.MarshalTo(out[:0])
 		if !bytes.Equal(expected, out) {
 			t.Fatal("not equal")

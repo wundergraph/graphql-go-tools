@@ -25,8 +25,8 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/tidwall/gjson v1.17.0
 	github.com/tidwall/sjson v1.2.5
-	github.com/valyala/fastjson v1.6.4
 	github.com/vektah/gqlparser/v2 v2.5.11
+	github.com/wundergraph/astjson v0.0.0-20240822164222-c1cca919e2c8
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.7.0
@@ -56,5 +56,3 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/valyala/fastjson v1.6.4 => github.com/barkyq/fastjson v0.0.0-20230118153732-bb1076612fd9
