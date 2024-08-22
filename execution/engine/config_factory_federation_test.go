@@ -2,13 +2,13 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
+	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
@@ -59,12 +59,12 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 
 		// Compose and serialize the router config
 		rc0, err := engineConfigFactory.Compose()
-		b, err := json.Marshal(rc0)
+		b, err := protojson.Marshal(rc0)
 		assert.NoError(t, err)
 
 		// Build the engine configuration using the router config
 		var rc1 nodev1.RouterConfig
-		assert.NoError(t, json.Unmarshal(b, &rc1))
+		assert.NoError(t, protojson.Unmarshal(b, &rc1))
 		config, err := engineConfigFactory.BuildEngineConfigurationWithRouterConfig(&rc1)
 		assert.NoError(t, err)
 
