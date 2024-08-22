@@ -1,13 +1,14 @@
 package engine
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	graphqlDataSource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
@@ -56,15 +57,15 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 			WithFederationSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
 
-		// Compose and parse the route config
+		// Compose and serialize the router config
 		rc0, err := engineConfigFactory.Compose()
+		b, err := json.Marshal(rc0)
 		assert.NoError(t, err)
-		var b bytes.Buffer
-		_, err = rc0.WriteTo(&b)
-		assert.NoError(t, err)
-		rc1, err := NewRouterConfig(&b)
-		assert.NoError(t, err)
-		config, err := engineConfigFactory.BuildEngineConfigurationWithRouterConfig(rc1)
+
+		// Build the engine configuration using the router config
+		var rc1 nodev1.RouterConfig
+		assert.NoError(t, json.Unmarshal(b, &rc1))
+		config, err := engineConfigFactory.BuildEngineConfigurationWithRouterConfig(&rc1)
 		assert.NoError(t, err)
 
 		expectedConfig := expectedConfigFactory(t, baseSchema)

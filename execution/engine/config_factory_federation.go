@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 
@@ -121,15 +120,15 @@ type FederationEngineConfigFactory struct {
 }
 
 func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuration, error) {
-	intermediateConfig, err := f.compose()
+	rc, err := f.Compose()
 	if err != nil {
 		return Configuration{}, err
 	}
-	return f.buildEngineConfiguration(intermediateConfig)
+	return f.buildEngineConfiguration(rc)
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *RouterConfig) (Configuration, error) {
-	return f.buildEngineConfiguration(c.routerConfig)
+func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *nodev1.RouterConfig) (Configuration, error) {
+	return f.buildEngineConfiguration(c)
 }
 
 func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
@@ -158,44 +157,7 @@ func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *n
 }
 
 // Compose produces a federated router configuration.
-func (f *FederationEngineConfigFactory) Compose() (*RouterConfig, error) {
-	res, err := f.compose()
-	if err != nil {
-		return nil, err
-	}
-	return &RouterConfig{routerConfig: res}, nil
-}
-
-// RouterConfig is an intermediate data that holds the result of the composition
-// and can be saved to a file to configure the router data sources when creating an engine config.
-type RouterConfig struct {
-	routerConfig *nodev1.RouterConfig
-}
-
-// NewRouterConfig reads a serialized router configuration and returns an RouterConfig.
-func NewRouterConfig(r io.Reader) (*RouterConfig, error) {
-	b, err := io.ReadAll(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read serialized intermediate config: %w", err)
-	}
-	var intermediateConfig nodev1.RouterConfig
-	if err := protojson.Unmarshal(b, &intermediateConfig); err != nil {
-		return nil, fmt.Errorf("invalid intermediate config: %w", err)
-	}
-	return &RouterConfig{routerConfig: &intermediateConfig}, nil
-}
-
-// WriteTo writes the serialized router configuration to the given writer.
-func (c RouterConfig) WriteTo(w io.Writer) (int64, error) {
-	b, err := protojson.Marshal(c.routerConfig)
-	if err != nil {
-		return 0, err
-	}
-	size, err := w.Write(b)
-	return int64(size), err
-}
-
-func (f *FederationEngineConfigFactory) compose() (*nodev1.RouterConfig, error) {
+func (f *FederationEngineConfigFactory) Compose() (*nodev1.RouterConfig, error) {
 	subgraphs := make([]*composition.Subgraph, len(f.subgraphsConfigs))
 
 	for i, subgraphConfig := range f.subgraphsConfigs {
