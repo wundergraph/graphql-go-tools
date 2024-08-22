@@ -7,26 +7,25 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/goccy/go-json"
-
 	"github.com/cespare/xxhash/v2"
+	"github.com/goccy/go-json"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
-	"github.com/valyala/fastjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 type Resolvable struct {
-	data                 *fastjson.Value
-	errors               *fastjson.Value
-	variables            *fastjson.Value
+	data                 *astjson.Value
+	errors               *astjson.Value
+	variables            *astjson.Value
 	skipAddingNullErrors bool
 
-	parsers []*fastjson.Parser
+	parsers []*astjson.Parser
 
 	print              bool
 	out                io.Writer
@@ -58,10 +57,10 @@ func NewResolvable() *Resolvable {
 }
 
 var (
-	parsers = &fastjson.ParserPool{}
+	parsers = &astjson.ParserPool{}
 )
 
-func (r *Resolvable) parseJSON(data []byte) (*fastjson.Value, error) {
+func (r *Resolvable) parseJSON(data []byte) (*astjson.Value, error) {
 	parser := parsers.Get()
 	r.parsers = append(r.parsers, parser)
 	return parser.ParseBytes(data)
@@ -100,14 +99,14 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.data = fastjson.MustParse(`{}`)
-	r.errors = fastjson.MustParse(`[]`)
+	r.data = astjson.MustParse(`{}`)
+	r.errors = astjson.MustParse(`[]`)
 	if len(ctx.Variables) != 0 {
-		r.variables = fastjson.MustParseBytes(ctx.Variables)
+		r.variables = astjson.MustParseBytes(ctx.Variables)
 	}
 	if initialData != nil {
-		initialValue := fastjson.MustParseBytes(initialData)
-		r.data, _ = fastjsonext.MergeValues(r.data, initialValue)
+		initialValue := astjson.MustParseBytes(initialData)
+		r.data, _ = astjson.MergeValues(r.data, initialValue)
 	}
 	return
 }
@@ -117,19 +116,19 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if len(ctx.Variables) != 0 {
-		r.variables = fastjson.MustParseBytes(ctx.Variables)
+		r.variables = astjson.MustParseBytes(ctx.Variables)
 	}
 	if initialData != nil {
-		initialValue, err := fastjson.ParseBytes(initialData)
+		initialValue, err := astjson.ParseBytes(initialData)
 		if err != nil {
 			return err
 		}
 		if postProcessing.SelectResponseDataPath == nil {
-			r.data, _ = fastjsonext.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+			r.data, _ = astjson.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
 		} else {
 			selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
 			if selectedInitialValue != nil {
-				r.data, _ = fastjsonext.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+				r.data, _ = astjson.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
 			}
 		}
 		if postProcessing.SelectResponseErrorsPath != nil {
@@ -140,10 +139,10 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 		}
 	}
 	if r.data == nil {
-		r.data = fastjson.MustParse(`{}`)
+		r.data = astjson.MustParse(`{}`)
 	}
 	if r.errors == nil {
-		r.errors = fastjson.MustParse(`[]`)
+		r.errors = astjson.MustParse(`[]`)
 	}
 	return
 }
@@ -375,7 +374,7 @@ func (r *Resolvable) printBytes(b []byte) {
 	_, r.printErr = r.out.Write(b)
 }
 
-func (r *Resolvable) printNode(value *fastjson.Value) {
+func (r *Resolvable) printNode(value *astjson.Value) {
 	if r.printErr != nil {
 		return
 	}
@@ -407,7 +406,7 @@ func (r *Resolvable) popNodePathElement(path []string) {
 	r.depth--
 }
 
-func (r *Resolvable) walkNode(node Node, value *fastjson.Value) bool {
+func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	if r.authorizationError != nil {
 		return true
 	}
@@ -444,9 +443,9 @@ func (r *Resolvable) walkNode(node Node, value *fastjson.Value) bool {
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
+func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	value := parent.Get(obj.Path...)
-	if value == nil || value.Type() == fastjson.TypeNull {
+	if value == nil || value.Type() == astjson.TypeNull {
 		if obj.Nullable {
 			return r.walkNull()
 		}
@@ -456,7 +455,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
 	defer r.popNodePathElement(obj.Path)
-	if value.Type() != fastjson.TypeObject {
+	if value.Type() != astjson.TypeObject {
 		r.addError("Object cannot represent non-object value.", obj.Path)
 		return r.err()
 	}
@@ -500,12 +499,12 @@ func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
 					path := obj.Fields[i].Value.NodePath()
 					field := value.Get(path...)
 					if field != nil {
-						fastjsonext.SetNull(value, path...)
+						astjson.SetNull(value, path...)
 					}
 				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
-					fastjsonext.SetNull(parent, obj.Path...)
+					astjson.SetNull(parent, obj.Path...)
 					return false
 				} else {
 					// if the field value is not nullable and the object is not nullable
@@ -528,7 +527,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
 		if err {
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
-					fastjsonext.SetNull(parent, obj.Path...)
+					astjson.SetNull(parent, obj.Path...)
 					return false
 				}
 			}
@@ -542,7 +541,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) authorizeField(value *fastjson.Value, field *Field) (skipField bool) {
+func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipField bool) {
 	if field.Info == nil {
 		return false
 	}
@@ -574,7 +573,7 @@ func (r *Resolvable) authorizeField(value *fastjson.Value, field *Field) (skipFi
 	return false
 }
 
-func (r *Resolvable) authorize(value *fastjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 	r.xxh.Reset()
 	_, _ = r.xxh.WriteString(dataSourceID)
 	_, _ = r.xxh.WriteString(coordinate.TypeName)
@@ -615,7 +614,7 @@ func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Fie
 	r.popNodePathElement(nodePath)
 }
 
-func (r *Resolvable) objectFieldTypeName(v *fastjson.Value, field *Field) string {
+func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string {
 	typeName := v.GetStringBytes("__typename")
 	if typeName != nil {
 		return unsafebytes.BytesToString(typeName)
@@ -666,7 +665,7 @@ func (r *Resolvable) skipField(skipVariableName string) bool {
 	if variable == nil {
 		return false
 	}
-	return variable.Type() == fastjson.TypeTrue
+	return variable.Type() == astjson.TypeTrue
 }
 
 func (r *Resolvable) excludeField(includeVariableName string) bool {
@@ -674,13 +673,13 @@ func (r *Resolvable) excludeField(includeVariableName string) bool {
 	if variable == nil {
 		return true
 	}
-	return variable.Type() == fastjson.TypeFalse
+	return variable.Type() == astjson.TypeFalse
 }
 
-func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
+func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	parent := value
 	value = value.Get(arr.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if arr.Nullable {
 			return r.walkNull()
 		}
@@ -689,7 +688,7 @@ func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
-	if value.Type() != fastjson.TypeArray {
+	if value.Type() != astjson.TypeArray {
 		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
 	}
@@ -706,11 +705,11 @@ func (r *Resolvable) walkArray(arr *Array, value *fastjson.Value) bool {
 		r.popArrayPathElement()
 		if err {
 			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
-				value.SetArrayItem(i, fastjsonext.NullValue)
+				value.SetArrayItem(i, astjson.NullValue)
 				continue
 			}
 			if arr.Nullable {
-				fastjsonext.SetNull(parent, arr.Path...)
+				astjson.SetNull(parent, arr.Path...)
 				return false
 			}
 			return err
@@ -730,20 +729,20 @@ func (r *Resolvable) walkNull() bool {
 	return false
 }
 
-func (r *Resolvable) walkString(s *String, value *fastjson.Value) bool {
+func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(s.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
-	if value.Type() != fastjson.TypeString {
+	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(r.marshalBuf)), s.Path)
 		return r.err()
@@ -779,20 +778,20 @@ func (r *Resolvable) walkString(s *String, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) walkBoolean(b *Boolean, value *fastjson.Value) bool {
+func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(b.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
-	if value.Type() != fastjson.TypeTrue && value.Type() != fastjson.TypeFalse {
+	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", string(r.marshalBuf)), b.Path)
 		return r.err()
@@ -803,20 +802,20 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) walkInteger(i *Integer, value *fastjson.Value) bool {
+func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(i.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if i.Nullable {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(i.Path, parent)
 		return r.err()
 	}
-	if value.Type() != fastjson.TypeNumber {
+	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", string(r.marshalBuf)), i.Path)
 		return r.err()
@@ -827,20 +826,20 @@ func (r *Resolvable) walkInteger(i *Integer, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) walkFloat(f *Float, value *fastjson.Value) bool {
+func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(f.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if f.Nullable {
 			return r.walkNull()
 		}
 		r.addNonNullableFieldError(f.Path, parent)
 		return r.err()
 	}
-	if value.Type() != fastjson.TypeNumber {
+	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
 		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", string(r.marshalBuf)), f.Path)
 		return r.err()
@@ -851,13 +850,13 @@ func (r *Resolvable) walkFloat(f *Float, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) walkBigInt(b *BigInt, value *fastjson.Value) bool {
+func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(b.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
@@ -870,13 +869,13 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) walkScalar(s *Scalar, value *fastjson.Value) bool {
+func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(s.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
@@ -905,13 +904,13 @@ func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
 	return false
 }
 
-func (r *Resolvable) walkCustom(c *CustomNode, value *fastjson.Value) bool {
+func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
 	parent := value
 	value = value.Get(c.Path...)
-	if fastjsonext.ValueIsNull(value) {
+	if astjson.ValueIsNull(value) {
 		if c.Nullable {
 			return r.walkNull()
 		}
@@ -930,7 +929,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *fastjson.Value) bool {
 	return false
 }
 
-func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *fastjson.Value) {
+func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjson.Value) {
 	if r.skipAddingNullErrors {
 		return
 	}
