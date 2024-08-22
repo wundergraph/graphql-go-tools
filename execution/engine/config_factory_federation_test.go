@@ -59,8 +59,9 @@ func TestEngineConfigFactory_EngineConfiguration(t *testing.T) {
 
 		// Compose and serialize the router config
 		rc0, err := engineConfigFactory.Compose()
+		require.NoError(t, err)
 		b, err := protojson.Marshal(rc0)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Build the engine configuration using the router config
 		var rc1 nodev1.RouterConfig
