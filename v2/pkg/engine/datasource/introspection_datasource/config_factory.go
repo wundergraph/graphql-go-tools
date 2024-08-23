@@ -168,7 +168,7 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceC
 }
 
 func (f *IntrospectionConfigFactory) dataSourceConfigQueryTypeName() string {
-	if f.introspectionData.Schema.QueryType == nil || len(f.introspectionData.Schema.QueryType.Name) == 0 {
+	if len(f.introspectionData.Schema.QueryType.Name) == 0 {
 		return "Query"
 	}
 	return f.introspectionData.Schema.QueryType.Name

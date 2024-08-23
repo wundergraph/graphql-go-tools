@@ -42,10 +42,10 @@ func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpcl
 }
 
 func (s *Source) schemaWithoutTypeInfo() introspection.Schema {
-	types := make([]introspection.FullType, 0, len(s.introspectionData.Schema.Types))
+	types := make([]*introspection.FullType, 0, len(s.introspectionData.Schema.Types))
 
 	for i := range s.introspectionData.Schema.Types {
-		types = append(types, s.typeWithoutFieldAndEnumValues(&s.introspectionData.Schema.Types[i]))
+		types = append(types, s.typeWithoutFieldAndEnumValues(s.introspectionData.Schema.Types[i]))
 	}
 
 	return introspection.Schema{
@@ -54,6 +54,7 @@ func (s *Source) schemaWithoutTypeInfo() introspection.Schema {
 		SubscriptionType: s.introspectionData.Schema.SubscriptionType,
 		Types:            types,
 		Directives:       s.introspectionData.Schema.Directives,
+		TypeName:         s.introspectionData.Schema.TypeName,
 	}
 }
 
@@ -62,12 +63,7 @@ func (s *Source) typeInfo(typeName *string) *introspection.FullType {
 		return nil
 	}
 
-	for _, fullType := range s.introspectionData.Schema.Types {
-		if fullType.Name == *typeName {
-			return &fullType
-		}
-	}
-	return nil
+	return s.introspectionData.Schema.TypeByName(*typeName)
 }
 
 func (s *Source) writeNull(w io.Writer) error {
@@ -84,12 +80,12 @@ func (s *Source) singleType(w io.Writer, typeName *string) error {
 	return json.NewEncoder(w).Encode(s.typeWithoutFieldAndEnumValues(typeInfo))
 }
 
-func (s *Source) typeWithoutFieldAndEnumValues(typeInfo *introspection.FullType) introspection.FullType {
+func (s *Source) typeWithoutFieldAndEnumValues(typeInfo *introspection.FullType) *introspection.FullType {
 	typeInfoCopy := *typeInfo
 	typeInfoCopy.Fields = nil
 	typeInfoCopy.EnumValues = nil
 
-	return typeInfoCopy
+	return &typeInfoCopy
 }
 
 func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated bool) error {
