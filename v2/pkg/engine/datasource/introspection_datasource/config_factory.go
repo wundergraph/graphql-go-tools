@@ -91,23 +91,23 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "__Schema",
-					FieldNames: []string{"queryType", "mutationType", "subscriptionType", "types", "directives"},
+					FieldNames: []string{"queryType", "mutationType", "subscriptionType", "types", "directives", "__typename"},
 				},
 				{
 					TypeName:   "__Type",
-					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType"},
+					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType", "__typename"},
 				},
 				{
 					TypeName:   "__Field",
-					FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason"},
+					FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason", "__typename"},
 				},
 				{
 					TypeName:   "__InputValue",
-					FieldNames: []string{"name", "description", "type", "defaultValue"},
+					FieldNames: []string{"name", "description", "type", "defaultValue", "__typename"},
 				},
 				{
 					TypeName:   "__Directive",
-					FieldNames: []string{"name", "description", "locations", "args", "isRepeatable"},
+					FieldNames: []string{"name", "description", "locations", "args", "isRepeatable", "__typename"},
 				},
 			},
 		},
@@ -129,15 +129,15 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSource
 			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "__Type",
-					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType"},
+					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType", "__typename"},
 				},
 				{
 					TypeName:   "__Field",
-					FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason"},
+					FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason", "__typename"},
 				},
 				{
 					TypeName:   "__InputValue",
-					FieldNames: []string{"name", "description", "type", "defaultValue"},
+					FieldNames: []string{"name", "description", "type", "defaultValue", "__typename"},
 				},
 			},
 		},
@@ -159,7 +159,7 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceC
 			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "__EnumValue",
-					FieldNames: []string{"name", "description", "isDeprecated", "deprecationReason"},
+					FieldNames: []string{"name", "description", "isDeprecated", "deprecationReason", "__typename"},
 				},
 			},
 		},
