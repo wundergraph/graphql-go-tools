@@ -3,12 +3,14 @@
     "name": "NEWHOPE",
     "description": "",
     "isDeprecated": false,
-    "deprecationReason": null
+    "deprecationReason": null,
+    "__typename": "__EnumValue"
   },
   {
     "name": "EMPIRE",
     "description": "",
     "isDeprecated": false,
-    "deprecationReason": null
+    "deprecationReason": null,
+    "__typename": "__EnumValue"
   }
 ]

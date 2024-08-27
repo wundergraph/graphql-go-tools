@@ -1,13 +1,332 @@
 {
   "__schema": {
     "queryType": {
-      "name": "Query"
+      "kind": "OBJECT",
+      "name": "Query",
+      "description": "The query type, represents all of the entry points into our object graph",
+      "fields": [
+        {
+          "name": "hero",
+          "description": "",
+          "args": [
+            {
+              "name": "episode",
+              "description": "",
+              "type": {
+                "kind": "ENUM",
+                "name": "Episode",
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "INTERFACE",
+            "name": "Character",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        },
+        {
+          "name": "reviews",
+          "description": "",
+          "args": [
+            {
+              "name": "episode",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "ENUM",
+                  "name": "Episode",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "OBJECT",
+              "name": "Review",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        },
+        {
+          "name": "search",
+          "description": "",
+          "args": [
+            {
+              "name": "text",
+              "description": "",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "LIST",
+            "name": null,
+            "ofType": {
+              "kind": "UNION",
+              "name": "SearchResult",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        },
+        {
+          "name": "character",
+          "description": "",
+          "args": [
+            {
+              "name": "id",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "INTERFACE",
+            "name": "Character",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        },
+        {
+          "name": "droid",
+          "description": "",
+          "args": [
+            {
+              "name": "id",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Droid",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        },
+        {
+          "name": "human",
+          "description": "",
+          "args": [
+            {
+              "name": "id",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Human",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": true,
+          "deprecationReason": "skynet wins!",
+          "__typename": "__Field"
+        },
+        {
+          "name": "starship",
+          "description": "",
+          "args": [
+            {
+              "name": "id",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Starship",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
+      "inputFields": [],
+      "interfaces": [],
+      "possibleTypes": [],
+      "__typename": "__Type"
     },
     "mutationType": {
-      "name": "Mutation"
+      "kind": "OBJECT",
+      "name": "Mutation",
+      "description": "The mutation type, represents all updates we can make to our data",
+      "fields": [
+        {
+          "name": "createReview",
+          "description": "",
+          "args": [
+            {
+              "name": "episode",
+              "description": "",
+              "type": {
+                "kind": "ENUM",
+                "name": "Episode",
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            },
+            {
+              "name": "review",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "INPUT_OBJECT",
+                  "name": "ReviewInput",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Review",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
+      "inputFields": [],
+      "interfaces": [],
+      "possibleTypes": [],
+      "__typename": "__Type"
     },
     "subscriptionType": {
-      "name": "Subscription"
+      "kind": "OBJECT",
+      "name": "Subscription",
+      "description": "The subscription type, represents all subscriptions we can make to our data",
+      "fields": [
+        {
+          "name": "reviewAdded",
+          "description": "",
+          "args": [
+            {
+              "name": "episode",
+              "description": "",
+              "type": {
+                "kind": "ENUM",
+                "name": "Episode",
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Review",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
+      "inputFields": [],
+      "interfaces": [],
+      "possibleTypes": [],
+      "__typename": "__Type"
     },
     "types": [
       {
@@ -25,18 +344,22 @@
                 "type": {
                   "kind": "ENUM",
                   "name": "Episode",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "INTERFACE",
               "name": "Character",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "reviews",
@@ -51,10 +374,13 @@
                   "ofType": {
                     "kind": "ENUM",
                     "name": "Episode",
-                    "ofType": null
-                  }
+                    "ofType": null,
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
@@ -63,11 +389,14 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "Review",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "search",
@@ -79,9 +408,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "String",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
@@ -90,11 +421,14 @@
               "ofType": {
                 "kind": "UNION",
                 "name": "SearchResult",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "character",
@@ -109,19 +443,24 @@
                   "ofType": {
                     "kind": "SCALAR",
                     "name": "ID",
-                    "ofType": null
-                  }
+                    "ofType": null,
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "INTERFACE",
               "name": "Character",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "droid",
@@ -136,19 +475,24 @@
                   "ofType": {
                     "kind": "SCALAR",
                     "name": "ID",
-                    "ofType": null
-                  }
+                    "ofType": null,
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "OBJECT",
               "name": "Droid",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "human",
@@ -163,19 +507,24 @@
                   "ofType": {
                     "kind": "SCALAR",
                     "name": "ID",
-                    "ofType": null
-                  }
+                    "ofType": null,
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "OBJECT",
               "name": "Human",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": true,
-            "deprecationReason": "skynet wins!"
+            "deprecationReason": "skynet wins!",
+            "__typename": "__Field"
           },
           {
             "name": "starship",
@@ -190,24 +539,30 @@
                   "ofType": {
                     "kind": "SCALAR",
                     "name": "ID",
-                    "ofType": null
-                  }
+                    "ofType": null,
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "OBJECT",
               "name": "Starship",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -224,9 +579,11 @@
                 "type": {
                   "kind": "ENUM",
                   "name": "Episode",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               },
               {
                 "name": "review",
@@ -237,24 +594,30 @@
                   "ofType": {
                     "kind": "INPUT_OBJECT",
                     "name": "ReviewInput",
-                    "ofType": null
-                  }
+                    "ofType": null,
+                    "__typename": "__Type"
+                  },
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "OBJECT",
               "name": "Review",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -271,23 +634,28 @@
                 "type": {
                   "kind": "ENUM",
                   "name": "Episode",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "OBJECT",
               "name": "Review",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "ENUM",
@@ -300,22 +668,26 @@
             "name": "NEWHOPE",
             "description": "Star Wars Episode IV: A New Hope, released in 1977.",
             "isDeprecated": true,
-            "deprecationReason": "No longer supported"
+            "deprecationReason": "No longer supported",
+            "__typename": "__EnumValue"
           },
           {
             "name": "EMPIRE",
             "description": "Star Wars Episode V: The Empire Strikes Back, released in 1980.",
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__EnumValue"
           },
           {
             "name": "JEDI",
             "description": "Star Wars Episode VI: Return of the Jedi, released in 1983.",
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__EnumValue"
           }
         ],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "INTERFACE",
@@ -332,11 +704,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "ID",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "name",
@@ -348,11 +723,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "String",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friends",
@@ -364,11 +742,14 @@
               "ofType": {
                 "kind": "INTERFACE",
                 "name": "Character",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friendsConnection",
@@ -380,9 +761,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "Int",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               },
               {
                 "name": "after",
@@ -390,9 +773,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "ID",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
@@ -401,11 +786,14 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "FriendsConnection",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "appearsIn",
@@ -420,12 +808,16 @@
                 "ofType": {
                   "kind": "ENUM",
                   "name": "Episode",
-                  "ofType": null
-                }
-              }
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
@@ -434,14 +826,17 @@
           {
             "kind": "OBJECT",
             "name": "Human",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           },
           {
             "kind": "OBJECT",
             "name": "Droid",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           }
-        ]
+        ],
+        "__typename": "__Type"
       },
       {
         "kind": "ENUM",
@@ -454,16 +849,19 @@
             "name": "METER",
             "description": "The standard unit around the world",
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__EnumValue"
           },
           {
             "name": "FOOT",
             "description": "Primarily used in the United States",
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__EnumValue"
           }
         ],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -480,11 +878,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "ID",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "name",
@@ -496,11 +897,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "String",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "homePlanet",
@@ -509,10 +913,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "height",
@@ -524,18 +930,22 @@
                 "type": {
                   "kind": "ENUM",
                   "name": "LengthUnit",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": "METER"
+                "defaultValue": "METER",
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "SCALAR",
               "name": "Float",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "mass",
@@ -544,10 +954,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "Float",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friends",
@@ -559,11 +971,14 @@
               "ofType": {
                 "kind": "INTERFACE",
                 "name": "Character",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friendsConnection",
@@ -575,9 +990,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "Int",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               },
               {
                 "name": "after",
@@ -585,9 +1002,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "ID",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
@@ -596,11 +1015,14 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "FriendsConnection",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "appearsIn",
@@ -615,12 +1037,16 @@
                 "ofType": {
                   "kind": "ENUM",
                   "name": "Episode",
-                  "ofType": null
-                }
-              }
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "starships",
@@ -632,11 +1058,14 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "Starship",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
@@ -644,10 +1073,12 @@
           {
             "kind": "INTERFACE",
             "name": "Character",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           }
         ],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -664,11 +1095,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "ID",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "name",
@@ -680,11 +1114,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "String",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friends",
@@ -696,11 +1133,14 @@
               "ofType": {
                 "kind": "INTERFACE",
                 "name": "Character",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friendsConnection",
@@ -712,9 +1152,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "Int",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               },
               {
                 "name": "after",
@@ -722,9 +1164,11 @@
                 "type": {
                   "kind": "SCALAR",
                   "name": "ID",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": null
+                "defaultValue": null,
+                "__typename": "__InputValue"
               }
             ],
             "type": {
@@ -733,11 +1177,14 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "FriendsConnection",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "appearsIn",
@@ -752,12 +1199,16 @@
                 "ofType": {
                   "kind": "ENUM",
                   "name": "Episode",
-                  "ofType": null
-                }
-              }
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "primaryFunction",
@@ -766,10 +1217,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
@@ -777,10 +1230,12 @@
           {
             "kind": "INTERFACE",
             "name": "Character",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           }
         ],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -794,10 +1249,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "Int",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "edges",
@@ -809,11 +1266,14 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "FriendsEdge",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "friends",
@@ -825,11 +1285,14 @@
               "ofType": {
                 "kind": "INTERFACE",
                 "name": "Character",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "pageInfo",
@@ -841,16 +1304,20 @@
               "ofType": {
                 "kind": "OBJECT",
                 "name": "PageInfo",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -867,11 +1334,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "ID",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "node",
@@ -880,15 +1350,18 @@
             "type": {
               "kind": "INTERFACE",
               "name": "Character",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -902,10 +1375,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "ID",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "endCursor",
@@ -914,10 +1389,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "ID",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "hasNextPage",
@@ -929,16 +1406,20 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Boolean",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -952,10 +1433,12 @@
             "type": {
               "kind": "ENUM",
               "name": "Episode",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "stars",
@@ -967,11 +1450,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Int",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "commentary",
@@ -980,15 +1466,18 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "INPUT_OBJECT",
@@ -1004,10 +1493,13 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Int",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           },
           {
             "name": "commentary",
@@ -1015,9 +1507,11 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           },
           {
             "name": "favorite_color",
@@ -1025,13 +1519,16 @@
             "type": {
               "kind": "INPUT_OBJECT",
               "name": "ColorInput",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           }
         ],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "INPUT_OBJECT",
@@ -1047,10 +1544,13 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Int",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           },
           {
             "name": "green",
@@ -1061,10 +1561,13 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Int",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           },
           {
             "name": "blue",
@@ -1075,14 +1578,18 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Int",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           }
         ],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "OBJECT",
@@ -1099,11 +1606,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "ID",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "name",
@@ -1115,11 +1625,14 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "String",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           },
           {
             "name": "oldName",
@@ -1128,10 +1641,12 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": true,
-            "deprecationReason": "why not?"
+            "deprecationReason": "why not?",
+            "__typename": "__Field"
           },
           {
             "name": "length",
@@ -1143,23 +1658,28 @@
                 "type": {
                   "kind": "ENUM",
                   "name": "LengthUnit",
-                  "ofType": null
+                  "ofType": null,
+                  "__typename": "__Type"
                 },
-                "defaultValue": "METER"
+                "defaultValue": "METER",
+                "__typename": "__InputValue"
               }
             ],
             "type": {
               "kind": "SCALAR",
               "name": "Float",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
             "isDeprecated": false,
-            "deprecationReason": null
+            "deprecationReason": null,
+            "__typename": "__Field"
           }
         ],
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "UNION",
@@ -1171,19 +1691,23 @@
           {
             "kind": "OBJECT",
             "name": "Human",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           },
           {
             "kind": "OBJECT",
             "name": "Droid",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           },
           {
             "kind": "OBJECT",
             "name": "Starship",
-            "ofType": null
+            "ofType": null,
+            "__typename": "__Type"
           }
-        ]
+        ],
+        "__typename": "__Type"
       },
       {
         "kind": "SCALAR",
@@ -1191,7 +1715,8 @@
         "description": "The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.",
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "SCALAR",
@@ -1199,7 +1724,8 @@
         "description": "The `Float` scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).",
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "SCALAR",
@@ -1207,7 +1733,8 @@
         "description": "The `String` scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "SCALAR",
@@ -1215,7 +1742,8 @@
         "description": "The `Boolean` scalar type represents `true` or `false` .",
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       },
       {
         "kind": "SCALAR",
@@ -1223,7 +1751,8 @@
         "description": "The `ID` scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as `4`) or integer (such as 4) input value will be accepted as an ID.",
         "inputFields": [],
         "interfaces": [],
-        "possibleTypes": []
+        "possibleTypes": [],
+        "__typename": "__Type"
       }
     ],
     "directives": [
@@ -1245,13 +1774,17 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Boolean",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           }
         ],
-        "isRepeatable": false
+        "isRepeatable": false,
+        "__typename": "__Directive"
       },
       {
         "name": "skip",
@@ -1271,13 +1804,17 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "Boolean",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           }
         ],
-        "isRepeatable": false
+        "isRepeatable": false,
+        "__typename": "__Directive"
       },
       {
         "name": "deprecated",
@@ -1293,12 +1830,15 @@
             "type": {
               "kind": "SCALAR",
               "name": "String",
-              "ofType": null
+              "ofType": null,
+              "__typename": "__Type"
             },
-            "defaultValue": "\"No longer supported\""
+            "defaultValue": "\"No longer supported\"",
+            "__typename": "__InputValue"
           }
         ],
-        "isRepeatable": false
+        "isRepeatable": false,
+        "__typename": "__Directive"
       },
       {
         "name": "delegateField",
@@ -1317,14 +1857,19 @@
               "ofType": {
                 "kind": "SCALAR",
                 "name": "String",
-                "ofType": null
-              }
+                "ofType": null,
+                "__typename": "__Type"
+              },
+              "__typename": "__Type"
             },
-            "defaultValue": null
+            "defaultValue": null,
+            "__typename": "__InputValue"
           }
         ],
-        "isRepeatable": true
+        "isRepeatable": true,
+        "__typename": "__Directive"
       }
-    ]
+    ],
+    "__typename": "__Schema"
   }
 }

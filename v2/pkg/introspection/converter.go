@@ -53,7 +53,7 @@ func (j *JsonConverter) importSchema() error {
 	return nil
 }
 
-func (j *JsonConverter) importFullType(fullType FullType) (err error) {
+func (j *JsonConverter) importFullType(fullType *FullType) (err error) {
 	switch fullType.Kind {
 	case SCALAR:
 		j.doc.ImportScalarTypeDefinition(fullType.Name, fullType.Description)
@@ -71,7 +71,7 @@ func (j *JsonConverter) importFullType(fullType FullType) (err error) {
 	return
 }
 
-func (j *JsonConverter) importObject(fullType FullType) error {
+func (j *JsonConverter) importObject(fullType *FullType) error {
 	fieldRefs, err := j.importFields(fullType.Fields)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (j *JsonConverter) importObject(fullType FullType) error {
 	return nil
 }
 
-func (j *JsonConverter) importInterface(fullType FullType) error {
+func (j *JsonConverter) importInterface(fullType *FullType) error {
 	fieldRefs, err := j.importFields(fullType.Fields)
 	if err != nil {
 		return err
@@ -120,7 +120,7 @@ func (j *JsonConverter) importDirective(directive Directive) error {
 	return nil
 }
 
-func (j *JsonConverter) importInputObject(fullType FullType) error {
+func (j *JsonConverter) importInputObject(fullType *FullType) error {
 	argRefs, err := j.importInputFields(fullType.InputFields)
 	if err != nil {
 		return err
@@ -134,7 +134,7 @@ func (j *JsonConverter) importInputObject(fullType FullType) error {
 	return nil
 }
 
-func (j *JsonConverter) importEnum(fullType FullType) {
+func (j *JsonConverter) importEnum(fullType *FullType) {
 	valueRefs := make([]int, len(fullType.EnumValues))
 	for i := 0; i < len(valueRefs); i++ {
 		var directiveRefs []int
@@ -155,7 +155,7 @@ func (j *JsonConverter) importEnum(fullType FullType) {
 		valueRefs)
 }
 
-func (j *JsonConverter) importUnion(fullType FullType) error {
+func (j *JsonConverter) importUnion(fullType *FullType) error {
 	typeRefs := make([]int, len(fullType.PossibleTypes))
 	for i := 0; i < len(typeRefs); i++ {
 		typeRefs[i] = j.importType(fullType.PossibleTypes[i])

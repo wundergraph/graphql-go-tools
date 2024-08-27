@@ -4,5 +4,6 @@
   "description": "",
   "inputFields": [],
   "interfaces": [],
-  "possibleTypes": []
+  "possibleTypes": [],
+  "__typename": "__Type"
 }
