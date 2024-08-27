@@ -27,7 +27,7 @@ func (s *Schema) AddType(t *FullType) {
 }
 
 func (s *Schema) TypeByName(name string) *FullType {
-	fullType, _ := s.fullTypeMap[name]
+	fullType := s.fullTypeMap[name]
 	return fullType
 }
 

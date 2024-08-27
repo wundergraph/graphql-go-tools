@@ -240,7 +240,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			if testCase.indentJSON {
 				dst := new(bytes.Buffer)
-				json.Indent(dst, []byte(actualResponse), "", "  ")
+				require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
 				actualResponse = dst.String()
 			}
 
