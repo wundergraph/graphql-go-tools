@@ -6,10 +6,12 @@
     "type": {
       "kind": "OBJECT",
       "name": "Droid",
-      "ofType": null
+      "ofType": null,
+      "__typename": "__Type"
     },
     "isDeprecated": true,
-    "deprecationReason": "No longer supported"
+    "deprecationReason": "No longer supported",
+    "__typename": "__Field"
   },
   {
     "name": "droid",
@@ -24,18 +26,23 @@
           "ofType": {
             "kind": "SCALAR",
             "name": "ID",
-            "ofType": null
-          }
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "__typename": "__Type"
         },
-        "defaultValue": null
+        "defaultValue": null,
+        "__typename": "__InputValue"
       }
     ],
     "type": {
       "kind": "OBJECT",
       "name": "Droid",
-      "ofType": null
+      "ofType": null,
+      "__typename": "__Type"
     },
     "isDeprecated": false,
-    "deprecationReason": null
+    "deprecationReason": null,
+    "__typename": "__Field"
   }
 ]

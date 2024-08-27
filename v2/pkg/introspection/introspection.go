@@ -12,17 +12,28 @@ type Data struct {
 }
 
 type Schema struct {
-	QueryType        *TypeName   `json:"queryType"`
-	MutationType     *TypeName   `json:"mutationType"`
-	SubscriptionType *TypeName   `json:"subscriptionType"`
-	Types            []FullType  `json:"types"`
+	QueryType        FullType    `json:"queryType"`
+	MutationType     *FullType   `json:"mutationType"`
+	SubscriptionType *FullType   `json:"subscriptionType"`
+	Types            []*FullType `json:"types"`
 	Directives       []Directive `json:"directives"`
+	TypeName         string      `json:"__typename"`
+	fullTypeMap      map[string]*FullType
+}
+
+func (s *Schema) AddType(t *FullType) {
+	s.Types = append(s.Types, t)
+	s.fullTypeMap[t.Name] = t
+}
+
+func (s *Schema) TypeByName(name string) *FullType {
+	fullType := s.fullTypeMap[name]
+	return fullType
 }
 
 func (s *Schema) TypeNames() (query, mutation, subscription string) {
-	if s.QueryType != nil {
-		query = s.QueryType.Name
-	}
+	query = s.QueryType.Name
+
 	if s.MutationType != nil {
 		mutation = s.MutationType.Name
 	}
@@ -34,13 +45,11 @@ func (s *Schema) TypeNames() (query, mutation, subscription string) {
 
 func NewSchema() Schema {
 	return Schema{
-		Types:      make([]FullType, 0),
-		Directives: make([]Directive, 0),
+		Types:       make([]*FullType, 0),
+		Directives:  make([]Directive, 0),
+		TypeName:    "__Schema",
+		fullTypeMap: make(map[string]*FullType),
 	}
-}
-
-type TypeName struct {
-	Name string `json:"name"`
 }
 
 type FullType struct {
@@ -57,15 +66,17 @@ type FullType struct {
 	EnumValues []EnumValue `json:"enumValues,omitempty"`
 	// not empty for __TypeKind INTERFACE and UNION only
 	PossibleTypes []TypeRef `json:"possibleTypes"`
+	TypeName      string    `json:"__typename"`
 }
 
-func NewFullType() FullType {
-	return FullType{
+func NewFullType() *FullType {
+	return &FullType{
 		Fields:        make([]Field, 0),
 		InputFields:   make([]InputValue, 0),
 		Interfaces:    make([]TypeRef, 0),
 		EnumValues:    make([]EnumValue, 0),
 		PossibleTypes: make([]TypeRef, 0),
+		TypeName:      "__Type",
 	}
 }
 
@@ -105,9 +116,10 @@ func (x __TypeKind) MarshalJSON() ([]byte, error) {
 }
 
 type TypeRef struct {
-	Kind   __TypeKind `json:"kind"`
-	Name   *string    `json:"name"`
-	OfType *TypeRef   `json:"ofType"`
+	Kind     __TypeKind `json:"kind"`
+	Name     *string    `json:"name"`
+	OfType   *TypeRef   `json:"ofType"`
+	TypeName string     `json:"__typename"`
 }
 
 type Field struct {
@@ -117,11 +129,13 @@ type Field struct {
 	Type              TypeRef      `json:"type"`
 	IsDeprecated      bool         `json:"isDeprecated"`
 	DeprecationReason *string      `json:"deprecationReason"`
+	TypeName          string       `json:"__typename"`
 }
 
 func NewField() Field {
 	return Field{
-		Args: make([]InputValue, 0),
+		Args:     make([]InputValue, 0),
+		TypeName: "__Field",
 	}
 }
 
@@ -130,6 +144,7 @@ type EnumValue struct {
 	Description       string  `json:"description"`
 	IsDeprecated      bool    `json:"isDeprecated"`
 	DeprecationReason *string `json:"deprecationReason"`
+	TypeName          string  `json:"__typename"`
 }
 
 type InputValue struct {
@@ -137,6 +152,7 @@ type InputValue struct {
 	Description  string  `json:"description"`
 	Type         TypeRef `json:"type"`
 	DefaultValue *string `json:"defaultValue"`
+	TypeName     string  `json:"__typename"`
 }
 
 type Directive struct {
@@ -145,11 +161,13 @@ type Directive struct {
 	Locations    []string     `json:"locations"`
 	Args         []InputValue `json:"args"`
 	IsRepeatable bool         `json:"isRepeatable"`
+	TypeName     string       `json:"__typename"`
 }
 
 func NewDirective() Directive {
 	return Directive{
 		Locations: make([]string, 0),
 		Args:      make([]InputValue, 0),
+		TypeName:  "__Directive",
 	}
 }
