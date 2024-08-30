@@ -40,6 +40,7 @@ func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavio
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
 	}
 }
 

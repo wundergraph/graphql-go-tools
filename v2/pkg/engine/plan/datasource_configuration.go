@@ -325,8 +325,7 @@ type DataSourcePlanningBehavior struct {
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
-	// IncludeTypeNameFields should be set to true if the planner wants to get EnterField & LeaveField events
-	// for __typename fields
+	// IncludeTypeNameFields should be set to true if the planner allows to plan __typename fields
 	IncludeTypeNameFields bool
 }
 
