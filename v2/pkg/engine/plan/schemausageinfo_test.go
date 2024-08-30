@@ -427,6 +427,10 @@ type FakeFactory[T any] struct {
 	upstreamSchema *ast.Document
 }
 
+func (f *FakeFactory[T]) UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return f.upstreamSchema, true
+}
+
 func (f *FakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner[T] {
 	source := &StatefulSource{}
 	go source.Start()
@@ -443,10 +447,6 @@ func (f *FakeFactory[T]) Context() context.Context {
 type FakePlanner[T any] struct {
 	source         *StatefulSource
 	upstreamSchema *ast.Document
-}
-
-func (f *FakePlanner[T]) UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return f.upstreamSchema, true
 }
 
 func (f *FakePlanner[T]) EnterDocument(operation, definition *ast.Document) {

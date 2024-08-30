@@ -74,7 +74,9 @@ func mergeArrays(left, right resolve.Node) resolve.Node {
 	leftArray, _ := left.(*resolve.Array)
 	rightArray, _ := right.(*resolve.Array)
 
-	leftArray.Item = mergeObjects(leftArray.Item, rightArray.Item)
+	if leftArray.Item.NodeKind() == resolve.NodeKindObject {
+		leftArray.Item = mergeObjects(leftArray.Item, rightArray.Item)
+	}
 	return leftArray
 }
 

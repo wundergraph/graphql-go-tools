@@ -1,5 +1,10 @@
 package plan
 
+import (
+	"encoding/json"
+	"slices"
+)
+
 type FederationMetaData struct {
 	Keys             FederationFieldConfigurations
 	Requires         FederationFieldConfigurations
@@ -13,6 +18,8 @@ type FederationInfo interface {
 	RequiredFieldsByKey(typeName string) []FederationFieldConfiguration
 	RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool)
 	HasEntity(typeName string) bool
+	HasInterfaceObject(typeName string) bool
+	HasEntityInterface(typeName string) bool
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -31,19 +38,44 @@ func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string
 	return d.Requires.FirstByTypeAndField(typeName, fieldName)
 }
 
+func (d *FederationMetaData) HasInterfaceObject(typeName string) bool {
+	return slices.ContainsFunc(d.InterfaceObjects, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
+		return slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName) || interfaceObjCfg.InterfaceTypeName == typeName
+	})
+}
+
+func (d *FederationMetaData) HasEntityInterface(typeName string) bool {
+	return slices.ContainsFunc(d.EntityInterfaces, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
+		return slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName) || interfaceObjCfg.InterfaceTypeName == typeName
+	})
+}
+
 type EntityInterfaceConfiguration struct {
 	InterfaceTypeName string
 	ConcreteTypeNames []string
 }
 
 type FederationFieldConfiguration struct {
-	// TypeName is the name of the Entity the Fragment is for
-	TypeName string
-	// FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
-	FieldName string
-	// SelectionSet is the selection set that is required for the given field (keys, requires, provides)
-	SelectionSet          string
-	DisableEntityResolver bool // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	TypeName              string         `json:"type_name"`            // TypeName is the name of the Entity the Fragment is for
+	FieldName             string         `json:"field_name,omitempty"` // FieldName is empty for key requirements, otherwise, it is the name of the field that has requires or provides directive
+	SelectionSet          string         `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)
+	DisableEntityResolver bool           `json:"-"`                    // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
+	Conditions            []KeyCondition `json:"conditions,omitempty"` // conditions stores coordinates under which we could use implicit key, while on other paths this key is not available
+}
+
+type KeyCondition struct {
+	Coordinates []KeyConditionCoordinate `json:"coordinates"`
+	FieldPath   []string                 `json:"field_path"`
+}
+
+type KeyConditionCoordinate struct {
+	TypeName  string `json:"type_name"`
+	FieldName string `json:"field_name"`
+}
+
+func (f FederationFieldConfiguration) String() string {
+	b, _ := json.Marshal(f)
+	return string(b)
 }
 
 type FederationFieldConfigurations []FederationFieldConfiguration

@@ -23,10 +23,6 @@ type Planner[T Configuration] struct {
 	isArrayItem                  bool
 }
 
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return nil, false
-}
-
 func (p *Planner[T]) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 	p.v = visitor
 	p.rootField = ast.InvalidRef
@@ -44,6 +40,7 @@ func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavio
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
 	}
 }
 

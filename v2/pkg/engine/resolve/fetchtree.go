@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -227,4 +228,101 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 		}
 	}
 	return queryPlan
+}
+
+func (n *FetchTreeQueryPlanNode) PrettyPrint() string {
+	printer := PlanPrinter{}
+	return printer.Print(n)
+}
+
+type PlanPrinter struct {
+	depth int
+	buf   strings.Builder
+}
+
+func (p *PlanPrinter) Print(plan *FetchTreeQueryPlanNode) string {
+	p.buf.Reset()
+
+	p.print("QueryPlan {")
+	p.printPlanNode(plan, true)
+	p.print("}")
+
+	return p.buf.String()
+}
+
+func (p *PlanPrinter) printPlanNode(plan *FetchTreeQueryPlanNode, increaseDepth bool) {
+	if increaseDepth {
+		p.depth++
+	}
+	switch plan.Kind {
+	case FetchTreeNodeKindSingle:
+		p.printFetchInfo(plan.Fetch)
+	case FetchTreeNodeKindSequence:
+		manyChilds := len(plan.Children) > 1
+		if manyChilds {
+			p.print("Sequence {")
+		}
+		for _, child := range plan.Children {
+			p.printPlanNode(child, manyChilds)
+		}
+		if manyChilds {
+			p.print("}")
+		}
+	case FetchTreeNodeKindParallel:
+		p.print("Parallel {")
+		for _, child := range plan.Children {
+			p.printPlanNode(child, true)
+		}
+		p.print("}")
+	}
+	if increaseDepth {
+		p.depth--
+	}
+}
+
+func (p *PlanPrinter) printFetchInfo(fetch *FetchTreeQueryPlan) {
+	nested := strings.Contains(fetch.Path, ".")
+
+	if nested {
+		p.print(fmt.Sprintf(`Flatten(path: "%s") {`, fetch.Path))
+		p.depth++
+	}
+	p.print(fmt.Sprintf(`Fetch(service: "%s") {`, fetch.SubgraphName))
+	p.depth++
+
+	if fetch.Representations != nil {
+		p.printRepresentations(fetch.Representations)
+	}
+	p.printQuery(fetch.Query)
+
+	p.depth--
+	p.print("}")
+	if nested {
+		p.depth--
+		p.print("}")
+	}
+}
+
+func (p *PlanPrinter) printQuery(query string) {
+	lines := strings.Split(query, "\n")
+	lines[0] = "{"
+	lines[len(lines)-1] = "}"
+	p.print(lines...)
+}
+
+func (p *PlanPrinter) printRepresentations(reps []Representation) {
+	p.print("{")
+	p.depth++
+	for _, rep := range reps {
+		lines := strings.Split(rep.Fragment, "\n")
+		p.print(lines...)
+	}
+	p.depth--
+	p.print("} =>")
+}
+
+func (p *PlanPrinter) print(lines ...string) {
+	for _, l := range lines {
+		p.buf.WriteString(fmt.Sprintf("%s%s\n", strings.Repeat("  ", p.depth), l))
+	}
 }

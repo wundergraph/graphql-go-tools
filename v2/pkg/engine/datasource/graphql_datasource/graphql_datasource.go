@@ -15,6 +15,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -90,17 +91,6 @@ func (p *Planner[T]) EnableSubgraphRequestMinifier() {
 type onTypeInlineFragment struct {
 	TypeCondition string
 	SelectionSet  int
-}
-
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	cfg := Configuration(dataSourceConfig.CustomConfiguration())
-
-	schema, err := cfg.UpstreamSchema()
-	if err != nil {
-		return nil, false
-	}
-
-	return schema, true
 }
 
 func (p *Planner[T]) SetID(id int) {
@@ -668,7 +658,6 @@ func (p *Planner[T]) LeaveField(ref int) {
 // This is 3rd step of checks in addition to: planning path and skipFor functionality
 // if field is __typename, it is always allowed
 func (p *Planner[T]) allowField(ref int) bool {
-	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := p.visitor.Operation.FieldAliasOrNameString(ref)
 
 	// In addition, we skip field if its path are equal to planner parent path
@@ -680,20 +669,7 @@ func (p *Planner[T]) allowField(ref int) bool {
 		return false
 	}
 
-	if fieldName == "__typename" {
-		p.DebugPrint("allowField: true path:", currentPath, `"__typename" is always allowed`)
-		return true
-	}
-
-	_, hasProvidedNode := p.dataSourcePlannerConfig.ProvidedFields.HasSuggestionForPath(p.lastFieldEnclosingTypeName, fieldName, currentPath)
-	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-	allow := hasProvidedNode ||
-		p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
-		p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)
-
-	p.DebugPrint("allowField:", allow, "path:", currentPath, "has root/child/provided check")
-
-	return allow
+	return true
 }
 
 func (p *Planner[T]) EnterArgument(_ int) {
@@ -1235,7 +1211,7 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 }
 
 func (p *Planner[T]) debugPrintln(args ...interface{}) {
-	allArgs := []interface{}{fmt.Sprintf("[id: %d] [ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Hash(), p.config.fetch.URL)}
+	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
@@ -1268,7 +1244,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
+			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
 			if report.HasErrors() {
 				continue
 			}
@@ -1640,6 +1616,17 @@ func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanne
 
 func (f *Factory[T]) Context() context.Context {
 	return f.executionContext
+}
+
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	cfg := Configuration(dataSourceConfig.CustomConfiguration())
+
+	schema, err := cfg.UpstreamSchema()
+	if err != nil {
+		return nil, false
+	}
+
+	return schema, true
 }
 
 type Source struct {

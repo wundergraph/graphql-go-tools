@@ -137,6 +137,16 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 				fieldName := v.Operation.FieldNameString(ref)
 				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 
+				allow := config.HasPathWithFieldRef(ref) || config.HasParent(path)
+
+				if !allow {
+					if pp, ok := config.Debugger(); ok {
+						pp.DebugPrint("allow:", false, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+					}
+
+					return false
+				}
+
 				shouldWalkFieldsOnPath :=
 					// check if the field path has type condition and matches the enclosing type
 					config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||

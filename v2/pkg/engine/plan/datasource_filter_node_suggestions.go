@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/kingledion/go-tools/tree"
@@ -9,43 +10,58 @@ import (
 const treeRootID = ^uint(0)
 
 type NodeSuggestion struct {
-	TypeName       string
-	FieldName      string
-	DataSourceHash DSHash
-	Path           string
-	ParentPath     string
-	IsRootNode     bool
-	LessPreferable bool // is true in case the node is an entity root node and has a key with disabled resolver
+	DataSourceID              string `json:"dsID"`
+	DataSourceName            string `json:"dsName"`
+	DataSourceHash            DSHash `json:"-"`
+	Path                      string `json:"path"`
+	TypeName                  string `json:"typeName"`
+	FieldName                 string `json:"fieldName"`
+	FieldRef                  int    `json:"fieldRef"`
+	ParentPath                string `json:"-"`
+	IsRootNode                bool   `json:"isRootNode"`
+	IsProvided                bool   `json:"isProvided"`
+	DisabledEntityResolver    bool   `json:"disabledEntityResolver"` // is true in case the node is an entity root node and all keys have disabled entity resolver
+	IsEntityInterfaceTypeName bool   `json:"-"`
+	IsExternal                bool   `json:"isExternal"`
+	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
+	IsLeaf                    bool   `json:"isLeaf"`
 
 	parentPathWithoutFragment *string
 	onFragment                bool
-	Selected                  bool
-	SelectionReasons          []string
-
-	fieldRef int
+	Selected                  bool     `json:"isSelected"`
+	SelectionReasons          []string `json:"selectReason"`
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
-	return TreeNodeID(n.fieldRef)
+	return TreeNodeID(n.FieldRef)
 }
 
-func (n *NodeSuggestion) appendSelectionReason(reason string) {
+func (n *NodeSuggestion) appendSelectionReason(reason string, saveReason bool) {
+	if !saveReason {
+		return
+	}
 	n.SelectionReasons = append(n.SelectionReasons, reason)
+	if n.IsProvided {
+		n.SelectionReasons = append(n.SelectionReasons, ReasonProvidesProvidedByPlanner)
+	}
 }
 
 func (n *NodeSuggestion) selectWithReason(reason string, saveReason bool) {
 	if n.Selected {
 		return
 	}
-	if saveReason {
-		n.appendSelectionReason(reason)
-	}
+	n.appendSelectionReason(reason, saveReason)
 	n.Selected = true
 }
 
+func (n *NodeSuggestion) unselect() {
+	n.Selected = false
+	n.SelectionReasons = nil
+}
+
 func (n *NodeSuggestion) String() string {
-	return fmt.Sprintf(`{"ds":%d,"path":"%s","typeName":"%s","fieldName":"%s","isRootNode":%t, "isSelected": %v,"select reason": %v}`,
-		n.DataSourceHash, n.Path, n.TypeName, n.FieldName, n.IsRootNode, n.Selected, n.SelectionReasons)
+	j, _ := json.Marshal(n)
+	return string(j)
 }
 
 type NodeSuggestionHint struct {
@@ -93,8 +109,9 @@ func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 	f.seenFields[fieldRef] = struct{}{}
 }
 
-func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) {
+func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
 	f.items = append(f.items, node)
+	return len(f.items) - 1
 }
 
 func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (suggestions []*NodeSuggestion) {
@@ -139,29 +156,6 @@ func (f *NodeSuggestions) treeNode(idx int) treeNode {
 	return treeNode
 }
 
-func (f *NodeSuggestions) isSelectedOnOtherSource(idx int) bool {
-	treeNode := f.treeNode(idx)
-
-	if isTreeNodeUniq(treeNode) {
-		return false
-	}
-
-	duplicatesIndexes := treeNode.GetData()
-
-	for _, duplicateIdx := range duplicatesIndexes {
-		if idx == duplicateIdx {
-			continue
-		}
-		if f.items[idx].DataSourceHash != f.items[duplicateIdx].DataSourceHash &&
-			f.items[duplicateIdx].Selected {
-
-			return true
-		}
-	}
-
-	return false
-}
-
 func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
 	treeNode := f.treeNode(idx)
 
@@ -194,6 +188,15 @@ func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 		}
 
 		out = append(out, childIdx)
+	}
+	return
+}
+
+func (f *NodeSuggestions) withoutTypeName(in []int) (out []int) {
+	for _, i := range in {
+		if f.items[i].FieldName != typeNameField {
+			out = append(out, i)
+		}
 	}
 	return
 }
@@ -234,10 +237,17 @@ func (f *NodeSuggestions) parentNodeOnSameSource(idx int) (parentIdx int, ok boo
 }
 
 func (f *NodeSuggestions) printNodes(msg string) {
+	f.printNodesWithFilter(msg, false)
+}
+
+func (f *NodeSuggestions) printNodesWithFilter(msg string, filterNotSelected bool) {
 	if msg != "" {
 		fmt.Println(msg)
 	}
 	for i := range f.items {
+		if filterNotSelected && !f.items[i].Selected {
+			continue
+		}
 		fmt.Println(f.items[i].String())
 	}
 }

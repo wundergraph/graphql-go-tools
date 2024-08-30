@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -37,9 +38,10 @@ func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string)
 }
 
 type addRequiredFieldsInput struct {
-	key, operation, definition *ast.Document
-	report                     *operationreport.Report
-	operationSelectionSet      int
+	key, operation, definition   *ast.Document
+	report                       *operationreport.Report
+	operationSelectionSet        int
+	isTypeNameForEntityInterface bool
 }
 
 func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
@@ -134,7 +136,12 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 
 	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 	if operationHasField {
-		v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+		// we are skipping adding __typename field to the required fields,
+		// because we want to depend only on the regular key fields, not the __typename field
+		// for entity interface we need real typename, so we use this dependency
+		if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
+			v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+		}
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
@@ -186,7 +193,12 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	v.input.operation.AddSelection(selectionSet, selection)
 
 	v.skipFieldRefs = append(v.skipFieldRefs, addedField.Ref)
-	v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+
+	// we are skipping adding __typename field to the required fields,
+	// because we want to depend only on the regular key fields, not the __typename field
+	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
+		v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+	}
 
 	return addedField
 }

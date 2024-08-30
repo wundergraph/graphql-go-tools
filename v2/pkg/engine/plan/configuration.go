@@ -26,16 +26,23 @@ type Configuration struct {
 }
 
 type DebugConfiguration struct {
-	PrintOperationTransformations         bool
-	PrintOperationEnableASTRefs           bool
-	PrintPlanningPaths                    bool
-	PrintQueryPlans                       bool
-	PrintNodeSuggestions                  bool
-	EnableNodeSuggestionsSelectionReasons bool
+	PrintOperationTransformations bool
+	PrintOperationEnableASTRefs   bool
+	PrintPlanningPaths            bool
+	PrintQueryPlans               bool
 
+	PrintNodeSuggestions bool
+	NodeSuggestion       NodeSuggestionDebugConfiguration
+
+	NodeSelectionVisitor bool
 	ConfigurationVisitor bool
 	PlanningVisitor      bool
 	DatasourceVisitor    bool
+}
+
+type NodeSuggestionDebugConfiguration struct {
+	SelectionReasons  bool
+	FilterNotSelected bool
 }
 
 type TypeConfigurations []TypeConfiguration

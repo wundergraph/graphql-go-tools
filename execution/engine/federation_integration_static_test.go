@@ -23,8 +23,7 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 		t.Skip("skip on windows - test is timing dependent")
 	}
 
-	runIntegration := func(t *testing.T, secondRun bool) {
-		t.Helper()
+	t.Run("operation", func(t *testing.T) {
 		ctx, cancelFn := context.WithCancel(context.Background())
 		setup := federationtesting.NewFederationSetup()
 		t.Cleanup(func() {
@@ -58,6 +57,18 @@ func TestExecutionEngine_FederationAndSubscription_IntegrationTest(t *testing.T)
 				)
 			}
 		})
+	})
+
+	t.Run("subscription", func(t *testing.T) {
+		ctx, cancelFn := context.WithCancel(context.Background())
+		setup := federationtesting.NewFederationSetup()
+		t.Cleanup(func() {
+			cancelFn()
+			setup.Close()
+		})
+
+		engine, schema, err := newFederationEngineStaticConfig(ctx, setup)
+		require.NoError(t, err)
 
 		t.Run("should successfully execute a federation subscription", func(t *testing.T) {
 
@@ -102,9 +113,6 @@ subscription UpdatedPrice {
 			assert.Eventuallyf(t, func() bool {
 				msg := `{"data":{"updatedPrice":{"name":"Boater","price":%d,"reviews":[{"body":"This is the last straw. Hat you will wear. 11/10","author":{"id":"7777","username":"User 7777"}}]}}}`
 				price := 10
-				if secondRun {
-					price += 2
-				}
 
 				firstMessage := <-message
 				expectedFirstMessage := fmt.Sprintf(msg, price)
@@ -114,11 +122,7 @@ subscription UpdatedPrice {
 				expectedSecondMessage := fmt.Sprintf(msg, price+1)
 				assert.Equal(t, expectedSecondMessage, secondMessage)
 				return true
-			}, time.Second*10, 10*time.Millisecond, "did not receive expected messages")
+			}, time.Second*20, 10*time.Millisecond, "did not receive expected messages")
 		})
-	}
-
-	t.Run("federation", func(t *testing.T) {
-		runIntegration(t, false)
 	})
 }

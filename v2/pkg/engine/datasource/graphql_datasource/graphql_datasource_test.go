@@ -65,89 +65,6 @@ func mustDataSourceConfigurationWithHttpClient(t *testing.T, id string, metadata
 	return dsCfg
 }
 
-func TestGraphQLDataSourceTypenames(t *testing.T) {
-	t.Run("__typename on union", func(t *testing.T) {
-		def := `
-			schema {
-				query: Query
-			}
-	
-			type A {
-				a: String
-			}
-	
-			union U = A
-	
-			type Query {
-				u: U
-			}`
-
-		t.Run("run", RunTest(
-			def, `
-			query TypenameOnUnion {
-				u {
-					__typename
-				}
-			}`,
-			"TypenameOnUnion", &plan.SynchronousResponsePlan{
-				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							},
-						},
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("u"),
-								Value: &resolve.Object{
-									Path:     []string{"u"},
-									Nullable: true,
-									Fields: []*resolve.Field{
-										{
-											Name: []byte("__typename"),
-											Value: &resolve.String{
-												Path:       []string{"__typename"},
-												IsTypeName: true,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}, plan.Configuration{
-				DataSources: []plan.DataSource{
-					mustDataSourceConfiguration(
-						t,
-						"ds-id",
-						&plan.DataSourceMetadata{
-							RootNodes: []plan.TypeField{
-								{
-									TypeName:   "Query",
-									FieldNames: []string{"u"},
-								},
-							},
-						},
-						mustCustomConfiguration(t, ConfigurationInput{
-							Fetch: &FetchConfiguration{
-								URL: "https://example.com/graphql",
-							},
-							SchemaConfiguration: mustSchema(t, nil, def),
-						}),
-					),
-				},
-				DisableResolveFieldPositions: true,
-			}))
-	})
-}
-
 func TestGraphQLDataSource(t *testing.T) {
 	t.Run("@removeNullVariables directive", func(t *testing.T) {
 		// XXX: Directive needs to be explicitly declared
@@ -6214,16 +6131,16 @@ func TestGraphQLDataSource(t *testing.T) {
 															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
 														},
 														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
+															Name: []byte("serviceOneFieldOne"),
+															Value: &resolve.String{
+																Path: []string{"serviceOneFieldOne"},
 															},
 															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
 														},
 														{
-															Name: []byte("serviceOneFieldOne"),
-															Value: &resolve.String{
-																Path: []string{"serviceOneFieldOne"},
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
 															},
 															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
 														},

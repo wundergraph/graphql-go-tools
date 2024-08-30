@@ -23,6 +23,7 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
 }
 
 type DataSourceMetadata struct {
@@ -56,8 +57,10 @@ type NodesAccess interface {
 
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
+	HasExternalRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
+	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
 }
 
@@ -106,6 +109,10 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 	return ok
 }
 
+func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
+	return d.RootNodes.HasExternalNode(typeName, fieldName)
+}
+
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
@@ -125,6 +132,10 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 
 	_, ok = fields[fieldName]
 	return ok
+}
+
+func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
+	return d.ChildNodes.HasExternalNode(typeName, fieldName)
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
@@ -181,10 +192,15 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
+type DataSourceUpstreamSchema interface {
+	UpstreamSchema() (*ast.Document, bool)
+}
+
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
+	DataSourceUpstreamSchema
 	Id() string
 	Name() string
 	Hash() DSHash
@@ -206,10 +222,13 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		objectFetchConfiguration:  fetchConfig,
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
-		providedFields:            NewNodeSuggestionsWithSize(4),
 	}
 
 	return plannerConfig
+}
+
+func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
+	return d.factory.UpstreamSchema(d)
 }
 
 func (d *dataSourceConfiguration[T]) Id() string {
@@ -230,7 +249,6 @@ func (d *dataSourceConfiguration[T]) Hash() DSHash {
 
 type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
-	ProvidedFields *NodeSuggestions
 	ParentPath     string
 	PathType       PlannerPathType
 	IsNested       bool
@@ -307,8 +325,7 @@ type DataSourcePlanningBehavior struct {
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
-	// IncludeTypeNameFields should be set to true if the planner wants to get EnterField & LeaveField events
-	// for __typename fields
+	// IncludeTypeNameFields should be set to true if the planner allows to plan __typename fields
 	IncludeTypeNameFields bool
 }
 
@@ -347,7 +364,6 @@ type DataSourcePlanner[T any] interface {
 	DataSourceFetchPlanner
 	DataSourceBehavior
 	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
-	UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (doc *ast.Document, ok bool)
 }
 
 type SubscriptionConfiguration struct {
