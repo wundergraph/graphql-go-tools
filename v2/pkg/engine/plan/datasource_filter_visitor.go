@@ -239,6 +239,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
+		if len(itemIDs) == 0 {
+			// no available nodes to select
+			continue
+		}
+
 		// if any item on the given node is already selected, we could skip it
 		if slices.ContainsFunc(itemIDs, func(i int) bool {
 			return f.nodes.items[i].Selected
