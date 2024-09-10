@@ -105,6 +105,11 @@ type ResolverOptions struct {
 	OmitSubgraphErrorLocations bool
 	// OmitSubgraphErrorExtensions omits the extensions field of Subgraph Errors
 	OmitSubgraphErrorExtensions bool
+
+	// MaxRecyclableParserSize limits the size of the Parser that can be recycled back into the Pool.
+	// If set to 0, no limit is applied
+	// This helps keep the Heap size more maintainable if you regularly perform large queries.
+	MaxRecyclableParserSize int
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -167,7 +172,7 @@ func (r *Resolver) getTools() (time.Duration, *tools) {
 
 func (r *Resolver) putTools(t *tools) {
 	t.loader.Free()
-	t.resolvable.Reset()
+	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
 	r.tools.Put(t)
 	r.maxConcurrency <- struct{}{}
 }

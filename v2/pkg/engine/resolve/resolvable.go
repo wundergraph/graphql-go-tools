@@ -66,9 +66,9 @@ func (r *Resolvable) parseJSON(data []byte) (*astjson.Value, error) {
 	return parser.ParseBytes(data)
 }
 
-func (r *Resolvable) Reset() {
+func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	for i := range r.parsers {
-		parsers.Put(r.parsers[i])
+		parsers.PutIfSizeLessThan(r.parsers[i], maxRecyclableParserSize)
 		r.parsers[i] = nil
 	}
 	r.parsers = r.parsers[:0]
