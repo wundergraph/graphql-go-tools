@@ -20,20 +20,20 @@ type Location struct {
 }
 
 type SubgraphError struct {
-	SubgraphName string
-	Path         string
-	Reason       string
-	ResponseCode int
+	DataSourceInfo DataSourceInfo
+	Path           string
+	Reason         string
+	ResponseCode   int
 
 	DownstreamErrors []*GraphQLError
 }
 
-func NewSubgraphError(subgraphName, path, reason string, responseCode int) *SubgraphError {
+func NewSubgraphError(ds DataSourceInfo, path, reason string, responseCode int) *SubgraphError {
 	return &SubgraphError{
-		SubgraphName: subgraphName,
-		Path:         path,
-		Reason:       reason,
-		ResponseCode: responseCode,
+		Path:           path,
+		Reason:         reason,
+		ResponseCode:   responseCode,
+		DataSourceInfo: ds,
 	}
 }
 
@@ -45,10 +45,18 @@ func (e *SubgraphError) Error() string {
 
 	var bf bytes.Buffer
 
-	if e.SubgraphName == "" {
+	var subgraphName string
+
+	if e.DataSourceInfo.Name != "" {
+		subgraphName = e.DataSourceInfo.Name
+	} else {
+		subgraphName = e.DataSourceInfo.ID
+	}
+
+	if subgraphName == "" {
 		fmt.Fprintf(&bf, "Failed to fetch Subgraph at Path: '%s'", e.Path)
 	} else {
-		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s' at Path: '%s'", e.SubgraphName, e.Path)
+		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s' at Path: '%s'", subgraphName, e.Path)
 	}
 
 	if e.Reason != "" {

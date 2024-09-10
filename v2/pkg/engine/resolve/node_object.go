@@ -170,7 +170,8 @@ func (i *FieldInfo) Merge(other *FieldInfo) {
 }
 
 type TypeFieldSource struct {
-	IDs []string
+	IDs   []string
+	Names []string
 }
 
 type Position struct {

@@ -19,6 +19,7 @@ const (
 type Fetch interface {
 	FetchKind() FetchKind
 	Dependencies() FetchDependencies
+	DataSourceInfo() DataSourceInfo
 }
 
 type FetchItem struct {
@@ -80,6 +81,13 @@ type SingleFetch struct {
 
 func (s *SingleFetch) Dependencies() FetchDependencies {
 	return s.FetchDependencies
+}
+
+func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
+	return DataSourceInfo{
+		ID:   s.Info.DataSourceID,
+		Name: s.Info.DataSourceName,
+	}
 }
 
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
@@ -151,6 +159,13 @@ func (b *BatchEntityFetch) Dependencies() FetchDependencies {
 	return b.FetchDependencies
 }
 
+func (e *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
+	return DataSourceInfo{
+		ID:   e.Info.DataSourceID,
+		Name: e.Info.DataSourceName,
+	}
+}
+
 type BatchInput struct {
 	Header InputTemplate
 	Items  []InputTemplate
@@ -186,6 +201,13 @@ func (e *EntityFetch) Dependencies() FetchDependencies {
 	return e.FetchDependencies
 }
 
+func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
+	return DataSourceInfo{
+		ID:   e.Info.DataSourceID,
+		Name: e.Info.DataSourceName,
+	}
+}
+
 type EntityInput struct {
 	Header      InputTemplate
 	Item        InputTemplate
@@ -212,6 +234,10 @@ func (p *ParallelListItemFetch) Dependencies() FetchDependencies {
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
+}
+
+func (p *ParallelListItemFetch) DataSourceInfo() DataSourceInfo {
+	return p.Fetch.DataSourceInfo()
 }
 
 type QueryPlan struct {

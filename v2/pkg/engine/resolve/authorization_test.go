@@ -214,7 +214,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.SubgraphName)
+				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from users Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -245,7 +245,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.SubgraphName)
+				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -281,7 +281,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -312,7 +312,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -345,7 +345,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -389,7 +389,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.SubgraphName)
+				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch body on Review", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -418,7 +418,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.SubgraphName)
+				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -449,7 +449,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -480,7 +480,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -566,7 +566,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "users",
+					DataSourceID:   "users",
+					DataSourceName: "users",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:             "Query",
@@ -610,7 +611,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "reviews",
+					DataSourceID:   "reviews",
+					DataSourceName: "reviews",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:  "User",
@@ -662,7 +664,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "products",
+					DataSourceID:   "products",
+					DataSourceName: "products",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:             "Product",
@@ -685,6 +688,13 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 			Fields: []*Field{
 				{
 					Name: []byte("me"),
+					Info: &FieldInfo{
+						Name: "me",
+						Source: TypeFieldSource{
+							IDs:   []string{"users"},
+							Names: []string{"users"},
+						},
+					},
 					Value: &Object{
 						Path:     []string{"me"},
 						Nullable: true,
@@ -698,7 +708,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 									Name:                "id",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -711,7 +722,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 									Name:                "username",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -721,7 +733,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 									Name:                "reviews",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"reviews"},
+										IDs:   []string{"reviews"},
+										Names: []string{"reviews"},
 									},
 									HasAuthorizationRule: true,
 								},
@@ -741,7 +754,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 													Name:                "body",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 													HasAuthorizationRule: true,
 												},
@@ -752,7 +766,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 													Name:                "product",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 													HasAuthorizationRule: true,
 												},
@@ -768,7 +783,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 																Name:                "upc",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 															},
 														},
@@ -781,7 +797,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 																Name:                "name",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 																HasAuthorizationRule: true,
 															},
@@ -856,7 +873,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "users",
+					DataSourceID:   "users",
+					DataSourceName: "users",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:  "Query",
@@ -899,7 +917,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "reviews",
+					DataSourceID:   "reviews",
+					DataSourceName: "reviews",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:  "User",
@@ -950,7 +969,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "products",
+					DataSourceID:   "products",
+					DataSourceName: "products",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:  "Product",
@@ -974,6 +994,13 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 			Fields: []*Field{
 				{
 					Name: []byte("me"),
+					Info: &FieldInfo{
+						Name: "me",
+						Source: TypeFieldSource{
+							IDs:   []string{"users"},
+							Names: []string{"users"},
+						},
+					},
 					Value: &Object{
 						Path:     []string{"me"},
 						Nullable: true,
@@ -987,7 +1014,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 									Name:                "id",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -1000,7 +1028,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 									Name:                "username",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -1010,7 +1039,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 									Name:                "reviews",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"reviews"},
+										IDs:   []string{"reviews"},
+										Names: []string{"reviews"},
 									},
 								},
 								Value: &Array{
@@ -1029,7 +1059,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 													Name:                "body",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 												},
 											},
@@ -1039,7 +1070,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 													Name:                "product",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 												},
 												Value: &Object{
@@ -1080,7 +1112,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 															},
 														},
 														Info: &FetchInfo{
-															DataSourceID: "products",
+															DataSourceID:   "products",
+															DataSourceName: "products",
 															RootFields: []GraphCoordinate{
 																{
 																	TypeName:  "Product",
@@ -1106,7 +1139,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 																Name:                "upc",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 															},
 														},
@@ -1119,7 +1153,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 																Name:                "name",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 															},
 														},

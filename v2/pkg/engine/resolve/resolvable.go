@@ -555,6 +555,7 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 		return false
 	}
 	dataSourceID := field.Info.Source.IDs[0]
+	dataSourceName := field.Info.Source.Names[0]
 	typeName := r.objectFieldTypeName(value, field)
 	fieldName := unsafebytes.BytesToString(field.Name)
 	gc := GraphCoordinate{
@@ -567,7 +568,10 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 		return true
 	}
 	if result != nil {
-		r.addRejectFieldError(result.Reason, dataSourceID, field)
+		r.addRejectFieldError(result.Reason, DataSourceInfo{
+			ID:   dataSourceID,
+			Name: dataSourceName,
+		}, field)
 		return true
 	}
 	return false
@@ -598,7 +602,7 @@ func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordi
 	return result, nil
 }
 
-func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Field) {
+func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field *Field) {
 	nodePath := field.Value.NodePath()
 	r.pushNodePathElement(nodePath)
 	fieldPath := r.renderFieldPath()
@@ -609,7 +613,8 @@ func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Fie
 	} else {
 		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
-	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage), NewSubgraphError(dataSourceID, fieldPath, reason, 0)))
+	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
+		NewSubgraphError(ds, fieldPath, reason, 0)))
 	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
 	r.popNodePathElement(nodePath)
 }

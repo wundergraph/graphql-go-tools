@@ -409,7 +409,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "Droid",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 						Value: &resolve.Object{
@@ -427,7 +428,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -442,7 +444,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -454,7 +457,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "Character",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 									Value: &resolve.Array{
@@ -474,7 +478,8 @@ func TestGraphQLDataSource(t *testing.T) {
 														ExactParentTypeName: "Character",
 														NamedType:           "String",
 														Source: resolve.TypeFieldSource{
-															IDs: []string{"https://swapi.com"},
+															IDs:   []string{"https://swapi.com"},
+															Names: []string{"https://swapi.com"},
 														},
 													},
 												},
@@ -493,7 +498,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -517,7 +523,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Character",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -529,7 +536,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "Character",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 					},
@@ -547,7 +555,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "String",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 					},
@@ -566,7 +575,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "String",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 					},
