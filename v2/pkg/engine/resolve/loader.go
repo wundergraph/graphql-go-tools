@@ -700,7 +700,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	v := []*astjson.Value{errorObject}
 
-	// Only datasource information are attached to the root error
+	// Only datasource information are attached to the root error in wrap mode
 	l.optionallyAttachServiceNameToErrorExtension(v, res.ds.Name)
 	l.setSubgraphStatusCode(v, res.statusCode)
 
