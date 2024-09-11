@@ -671,7 +671,6 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	}
 
-	// Error manipulation
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
 	l.optionallyAllowCustomExtensionProperties(values, l.allowedErrorExtensionFields)
@@ -685,7 +684,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
 		l.setSubgraphStatusCode(values, res.statusCode)
 
-		// Allow to delet extensions entirely
+		// Allow to delete extensions entirely
 		l.optionallyOmitErrorExtensions(values)
 
 		astjson.MergeValues(l.resolvable.errors, value)
@@ -705,7 +704,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	l.optionallyAttachServiceNameToErrorExtension(v, res.ds.Name)
 	l.setSubgraphStatusCode(v, res.statusCode)
 
-	// Allow to delet extensions entirely
+	// Allow to delete extensions entirely
 	l.optionallyOmitErrorExtensions(v)
 
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
