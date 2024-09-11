@@ -672,17 +672,22 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	}
 
 	// Error manipulation
-
-	l.optionallyOmitErrorExtensions(values)
-	l.optionallyEnsureExtensionErrorCode(values, l.defaultErrorExtensionCode)
-	l.optionallyAllowCustomExtensionProperties(values, l.allowedErrorExtensionFields)
-	l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
+	l.optionallyAllowCustomExtensionProperties(values, l.allowedErrorExtensionFields)
+	l.optionallyEnsureExtensionErrorCode(values, l.defaultErrorExtensionCode)
 
 	// If the error propagation mode is pass-through, we append the errors to the root array
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
+
+		// Attach datasource information to all errors when we don't wrap them
+		l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
+		l.setSubgraphStatusCode(values, res.statusCode)
+
+		// Allow to delet extensions entirely
+		l.optionallyOmitErrorExtensions(values)
+
 		astjson.MergeValues(l.resolvable.errors, value)
 		return nil
 	}
@@ -693,8 +698,18 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	if l.propagateSubgraphErrors {
 		astjson.SetValue(errorObject, value, "extensions", "errors")
 	}
-	l.setSubgraphStatusCode(errorObject, res.statusCode)
+
+	v := []*astjson.Value{errorObject}
+
+	// Only datasource information are attached to the root error
+	l.optionallyAttachServiceNameToErrorExtension(v, res.ds.Name)
+	l.setSubgraphStatusCode(v, res.statusCode)
+
+	// Allow to delet extensions entirely
+	l.optionallyOmitErrorExtensions(v)
+
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
+
 	return nil
 }
 
@@ -715,7 +730,7 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 			})
 
 			// If there are no more properties, we remove the extensions object
-			if extObj.Len() == 0 {
+			if len(allowedProperties) == 0 || extObj.Len() == 0 {
 				value.Del("extensions")
 				continue
 			}
@@ -829,18 +844,26 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 	}
 }
 
-func (l *Loader) setSubgraphStatusCode(errorObject *astjson.Value, statusCode int) {
+func (l *Loader) setSubgraphStatusCode(values []*astjson.Value, statusCode int) {
 	if !l.propagateSubgraphStatusCodes {
 		return
 	}
+
 	if statusCode == 0 {
 		return
 	}
-	v, err := astjson.Parse(strconv.FormatInt(int64(statusCode), 10))
-	if err != nil {
-		return
+
+	for _, value := range values {
+		if value.Exists("extensions") {
+			extensions := value.Get("extensions")
+			if extensions.Type() != astjson.TypeObject {
+				continue
+			}
+			extensions.Set("statusCode", astjson.MustParse(strconv.Itoa(statusCode)))
+		} else {
+			value.Set("extensions", astjson.MustParse(`{"statusCode":`+strconv.Itoa(statusCode)+`}`))
+		}
 	}
-	astjson.SetValue(errorObject, v, "extensions", "statusCode")
 }
 
 const (
@@ -863,7 +886,7 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	if err != nil {
 		return err
 	}
-	l.setSubgraphStatusCode(errorObject, res.statusCode)
+	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
