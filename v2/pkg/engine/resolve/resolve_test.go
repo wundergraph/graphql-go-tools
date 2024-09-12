@@ -1627,6 +1627,113 @@ func testFnSubgraphErrorsPassthrough(fn func(t *testing.T, ctrl *gomock.Controll
 	}
 }
 
+func testFnSubgraphErrorsWithExtensionFieldCode(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:               1024,
+			Debug:                        false,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			AllowedErrorExtensionFields:  []string{"code"},
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
+func testFnSubgraphErrorsWithExtensionFieldServiceName(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:                     1024,
+			Debug:                              false,
+			PropagateSubgraphErrors:            true,
+			PropagateSubgraphStatusCodes:       true,
+			AttachServiceNameToErrorExtensions: true,
+			AllowedErrorExtensionFields:        []string{"code"},
+			SubgraphErrorPropagationMode:       SubgraphErrorPropagationModePassThrough,
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
+func testFnSubgraphErrorsWithExtensionDefaultCode(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:               1024,
+			Debug:                        false,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			AllowedErrorExtensionFields:  []string{"code"},
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+			DefaultErrorExtensionCode:    "DOWNSTREAM_SERVICE_ERROR",
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
 func testFnNoSubgraphErrorForwarding(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
@@ -1974,7 +2081,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "Users",
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
 				},
 			}, "query"),
 			Data: &Object{
@@ -1991,7 +2099,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`
 	}))
-	t.Run("fetch with simple error in pass through Subgraph Error MOde", testFnSubgraphErrorsPassthrough(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("fetch with simple error in pass through Subgraph Error Mode", testFnSubgraphErrorsPassthrough(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -2009,7 +2117,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "Users",
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
 				},
 			}),
 			Data: &Object{
@@ -2042,7 +2151,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "Users",
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
 				},
 			}, "query"),
 			Data: &Object{
@@ -2105,7 +2215,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "Users",
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
 				},
 			}, "query"),
 			Data: &Object{

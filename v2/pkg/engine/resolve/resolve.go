@@ -20,15 +20,15 @@ import (
 )
 
 type Reporter interface {
-	// Called when a new subscription update is sent
+	// SubscriptionUpdateSent called when a new subscription update is sent
 	SubscriptionUpdateSent()
-	// Increased when a new subscription is added to a trigger, this includes inflight subscriptions
+	// SubscriptionCountInc increased when a new subscription is added to a trigger, this includes inflight subscriptions
 	SubscriptionCountInc(count int)
-	// Decreased when a subscription is removed from a trigger e.g. on shutdown
+	// SubscriptionCountDec decreased when a subscription is removed from a trigger e.g. on shutdown
 	SubscriptionCountDec(count int)
-	// Increased when a new trigger is added e.g. when a trigger is started and initialized
+	// TriggerCountInc increased when a new trigger is added e.g. when a trigger is started and initialized
 	TriggerCountInc(count int)
-	// Decreased when a trigger is removed e.g. when a trigger is shutdown
+	// TriggerCountDec decreased when a trigger is removed e.g. when a trigger is shutdown
 	TriggerCountDec(count int)
 }
 
@@ -70,7 +70,9 @@ type tools struct {
 type SubgraphErrorPropagationMode int
 
 const (
+	// SubgraphErrorPropagationModeWrapped collects all errors and exposes them as a list of errors on the extensions field "errors" of the gateway error.
 	SubgraphErrorPropagationModeWrapped SubgraphErrorPropagationMode = iota
+	// SubgraphErrorPropagationModePassThrough propagates all errors as root errors as they are.
 	SubgraphErrorPropagationModePassThrough
 )
 
@@ -105,7 +107,12 @@ type ResolverOptions struct {
 	OmitSubgraphErrorLocations bool
 	// OmitSubgraphErrorExtensions omits the extensions field of Subgraph Errors
 	OmitSubgraphErrorExtensions bool
-
+	// AllowedErrorExtensionFields defines which fields are allowed in the extensions field of a root subgraph error
+	AllowedErrorExtensionFields []string
+	// AttachServiceNameToErrorExtensions attaches the service name to the extensions field of a root subgraph error
+	AttachServiceNameToErrorExtensions bool
+	// DefaultErrorExtensionCode is the default error code to use for subgraph errors if no code is provided
+	DefaultErrorExtensionCode string
 	// MaxRecyclableParserSize limits the size of the Parser that can be recycled back into the Pool.
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
@@ -118,6 +125,13 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxConcurrency <= 0 {
 		options.MaxConcurrency = 32
 	}
+
+	// We transform the allowed fields into a map for faster lookups
+	allowedExtensionFields := make(map[string]struct{}, len(options.AllowedErrorExtensionFields))
+	for _, field := range options.AllowedErrorExtensionFields {
+		allowedExtensionFields[field] = struct{}{}
+	}
+
 	resolver := &Resolver{
 		ctx:                          ctx,
 		options:                      options,
@@ -133,12 +147,15 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 				return &tools{
 					resolvable: NewResolvable(),
 					loader: &Loader{
-						propagateSubgraphErrors:      options.PropagateSubgraphErrors,
-						propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
-						subgraphErrorPropagationMode: options.SubgraphErrorPropagationMode,
-						rewriteSubgraphErrorPaths:    options.RewriteSubgraphErrorPaths,
-						omitSubgraphErrorLocations:   options.OmitSubgraphErrorLocations,
-						omitSubgraphErrorExtensions:  options.OmitSubgraphErrorExtensions,
+						propagateSubgraphErrors:           options.PropagateSubgraphErrors,
+						propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
+						subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
+						rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
+						omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
+						omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
+						allowedErrorExtensionFields:       allowedExtensionFields,
+						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
+						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
 					},
 				}
 			},

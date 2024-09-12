@@ -1106,7 +1106,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										ParentTypeNames: []string{"Query"},
 										NamedType:       "User",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"user.service"},
+											IDs:   []string{"user.service"},
+											Names: []string{"user.service"},
 										},
 										ExactParentTypeName: "Query",
 									},
@@ -1121,7 +1122,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													NamedType:       "Account",
 													ParentTypeNames: []string{"User"},
 													Source: resolve.TypeFieldSource{
-														IDs: []string{"user.service"},
+														IDs:   []string{"user.service"},
+														Names: []string{"user.service"},
 													},
 													ExactParentTypeName: "User",
 												},
@@ -1136,7 +1138,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																NamedType:       "String",
 																ParentTypeNames: []string{"Account"},
 																Source: resolve.TypeFieldSource{
-																	IDs: []string{"account.service"},
+																	IDs:   []string{"account.service"},
+																	Names: []string{"account.service"},
 																},
 																ExactParentTypeName: "Account",
 															},
@@ -1151,7 +1154,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																NamedType:       "ShippingInfo",
 																ParentTypeNames: []string{"Account"},
 																Source: resolve.TypeFieldSource{
-																	IDs: []string{"account.service"},
+																	IDs:   []string{"account.service"},
+																	Names: []string{"account.service"},
 																},
 																ExactParentTypeName:  "Account",
 																HasAuthorizationRule: true,
@@ -1167,7 +1171,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			NamedType:       "String",
 																			ParentTypeNames: []string{"ShippingInfo"},
 																			Source: resolve.TypeFieldSource{
-																				IDs: []string{"account.service"},
+																				IDs:   []string{"account.service"},
+																				Names: []string{"account.service"},
 																			},
 																			ExactParentTypeName: "ShippingInfo",
 																		},

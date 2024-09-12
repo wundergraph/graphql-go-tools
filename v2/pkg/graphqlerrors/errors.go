@@ -84,6 +84,8 @@ func (o RequestErrors) Error() string {
 	return "no error" // ... so, this should never be returned
 }
 
+// WriteResponse writes the given request errors to the http.ResponseWriter.
+// It should only be used to write errors that are happening before the execution of the query e.g. validation errors.
 func (o RequestErrors) WriteResponse(writer io.Writer) (n int, err error) {
 	response := Response{
 		Errors: o,

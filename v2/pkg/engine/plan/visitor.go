@@ -352,11 +352,13 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		parentTypeNames = append(parentTypeNames, onTypeName)
 	}
 
+	sourceNames := make([]string, 0, 1)
 	sourceIDs := make([]string, 0, 1)
 
 	for i := range v.planners {
 		if v.planners[i].HasPathWithFieldRef(ref) {
 			sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
+			sourceNames = append(sourceNames, v.planners[i].DataSourceConfiguration().Name())
 		}
 	}
 	return &resolve.FieldInfo{
@@ -364,7 +366,8 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		NamedType:       typeName,
 		ParentTypeNames: parentTypeNames,
 		Source: resolve.TypeFieldSource{
-			IDs: sourceIDs,
+			IDs:   sourceIDs,
+			Names: sourceNames,
 		},
 		ExactParentTypeName:  enclosingTypeName,
 		HasAuthorizationRule: fieldHasAuthorizationRule,

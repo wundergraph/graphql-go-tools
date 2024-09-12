@@ -36,9 +36,9 @@ const (
 
 type LoaderHooks interface {
 	// OnLoad is called before the fetch is executed
-	OnLoad(ctx context.Context, dataSourceID string) context.Context
+	OnLoad(ctx context.Context, ds DataSourceInfo) context.Context
 	// OnFinished is called after the fetch has been executed and the response has been processed and merged
-	OnFinished(ctx context.Context, statusCode int, dataSourceID string, err error)
+	OnFinished(ctx context.Context, statusCode int, ds DataSourceInfo, err error)
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -67,12 +67,15 @@ type Loader struct {
 	ctx        *Context
 	info       *GraphQLResponseInfo
 
-	propagateSubgraphErrors      bool
-	propagateSubgraphStatusCodes bool
-	subgraphErrorPropagationMode SubgraphErrorPropagationMode
-	rewriteSubgraphErrorPaths    bool
-	omitSubgraphErrorLocations   bool
-	omitSubgraphErrorExtensions  bool
+	propagateSubgraphErrors           bool
+	propagateSubgraphStatusCodes      bool
+	subgraphErrorPropagationMode      SubgraphErrorPropagationMode
+	rewriteSubgraphErrorPaths         bool
+	omitSubgraphErrorLocations        bool
+	omitSubgraphErrorExtensions       bool
+	attachServiceNameToErrorExtension bool
+	allowedErrorExtensionFields       map[string]struct{}
+	defaultErrorExtensionCode         string
 }
 
 func (l *Loader) Free() {
@@ -128,7 +131,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
 				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].subgraphName, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
+					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].ds, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -137,7 +140,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -173,7 +176,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *BatchEntityFetch:
@@ -186,7 +189,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *EntityFetch:
@@ -199,7 +202,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.subgraphName, goerrors.Join(res.err, l.ctx.subgraphErrors))
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
 		return err
 	case *ParallelListItemFetch:
@@ -232,7 +235,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		for i := range results {
 			err = l.mergeResult(item, results[i], items[i:i+1])
 			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].subgraphName, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -582,6 +585,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	return nil
 }
 
+type DataSourceInfo struct {
+	ID   string
+	Name string
+}
+
 type result struct {
 	postProcessing   PostProcessingConfiguration
 	out              *bytes.Buffer
@@ -589,9 +597,9 @@ type result struct {
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
-	statusCode   int
-	err          error
-	subgraphName string
+	statusCode int
+	err        error
+	ds         DataSourceInfo
 
 	authorizationRejected        bool
 	authorizationRejectedReasons []string
@@ -607,7 +615,10 @@ type result struct {
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
 	r.postProcessing = postProcessing
 	if info != nil {
-		r.subgraphName = info.DataSourceID
+		r.ds = DataSourceInfo{
+			ID:   info.DataSourceID,
+			Name: info.DataSourceName,
+		}
 	}
 }
 
@@ -649,7 +660,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 			return errors.WithStack(err)
 		}
 
-		subgraphError := NewSubgraphError(res.subgraphName, fetchItem.ResponsePath, failedToFetchNoReason, res.statusCode)
+		subgraphError := NewSubgraphError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason, res.statusCode)
 
 		for _, gqlError := range graphqlErrors {
 			gErr := gqlError
@@ -657,26 +668,123 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		}
 
 		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+
 	}
 
-	l.optionallyOmitErrorExtensions(values)
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
+	l.optionallyAllowCustomExtensionProperties(values)
+	l.optionallyEnsureExtensionErrorCode(values)
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
+		// Attach datasource information to all errors when we don't wrap them
+		l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
+		l.setSubgraphStatusCode(values, res.statusCode)
+
+		// Allow to delete extensions entirely
+		l.optionallyOmitErrorExtensions(values)
+
+		// If the error propagation mode is pass-through, we append the errors to the root array
 		astjson.MergeValues(l.resolvable.errors, value)
 		return nil
 	}
 
-	errorObject := astjson.MustParse(l.renderSubgraphBaseError(res.subgraphName, fetchItem.ResponsePath, failedToFetchNoReason))
+	// Wrap mode (default)
+
+	errorObject := astjson.MustParse(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
 	if l.propagateSubgraphErrors {
+		// Attach all errors to the root array in the "errors" extension field
 		astjson.SetValue(errorObject, value, "extensions", "errors")
 	}
-	l.setSubgraphStatusCode(errorObject, res.statusCode)
+
+	v := []*astjson.Value{errorObject}
+
+	// Only datasource information are attached to the root error in wrap mode
+	l.optionallyAttachServiceNameToErrorExtension(v, res.ds.Name)
+	l.setSubgraphStatusCode(v, res.statusCode)
+
+	// Allow to delete extensions entirely
+	l.optionallyOmitErrorExtensions(v)
+
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
+
 	return nil
 }
 
+// optionallyAllowCustomExtensionProperties removes all properties from the extensions object that are not in the allowedProperties map
+// If no properties are left, the extensions object is removed
+func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Value) {
+	for _, value := range values {
+		if value.Exists("extensions") {
+			extensions := value.Get("extensions")
+			if extensions.Type() != astjson.TypeObject {
+				continue
+			}
+			extObj := extensions.GetObject()
+
+			extObj.Visit(func(k []byte, v *astjson.Value) {
+				kb := unsafebytes.BytesToString(k)
+				if _, ok := l.allowedErrorExtensionFields[kb]; !ok {
+					extensions.Del(kb)
+				}
+			})
+
+			// If there are no more properties, we remove the extensions object
+			if len(l.allowedErrorExtensionFields) == 0 || extObj.Len() == 0 {
+				value.Del("extensions")
+				continue
+			}
+		}
+	}
+}
+
+// optionallyEnsureExtensionErrorCode ensures that all values have an error code in the extensions object
+func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
+	if l.defaultErrorExtensionCode == "" {
+		return
+	}
+
+	for _, value := range values {
+		if value.Exists("extensions") {
+			extensions := value.Get("extensions")
+			if extensions.Type() != astjson.TypeObject {
+				continue
+			}
+
+			if !extensions.Exists("code") {
+				extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+			}
+		} else {
+			extensionsObj := l.resolvable.astjsonArena.NewObject()
+			extensionsObj.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+			value.Set("extensions", extensionsObj)
+		}
+	}
+}
+
+// optionallyAttachServiceNameToErrorExtension attaches the service name to the extensions object of all values
+func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.Value, serviceName string) {
+	if !l.attachServiceNameToErrorExtension {
+		return
+	}
+
+	for _, value := range values {
+		if value.Exists("extensions") {
+			extensions := value.Get("extensions")
+			if extensions.Type() != astjson.TypeObject {
+				continue
+			}
+
+			extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+		} else {
+			extensionsObj := l.resolvable.astjsonArena.NewObject()
+			extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+			value.Set("extensions", extensionsObj)
+		}
+	}
+}
+
+// optionallyOmitErrorExtensions removes the extensions object from all values
 func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	if !l.omitSubgraphErrorExtensions {
 		return
@@ -688,6 +796,7 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	}
 }
 
+// optionallyOmitErrorLocations removes the locations object from all values
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	if !l.omitSubgraphErrorLocations {
 		return
@@ -699,6 +808,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
+// optionallyRewriteErrorPaths rewrites the path field of all values
 func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 	if !l.rewriteSubgraphErrorPaths {
 		return
@@ -738,18 +848,26 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 	}
 }
 
-func (l *Loader) setSubgraphStatusCode(errorObject *astjson.Value, statusCode int) {
+func (l *Loader) setSubgraphStatusCode(values []*astjson.Value, statusCode int) {
 	if !l.propagateSubgraphStatusCodes {
 		return
 	}
+
 	if statusCode == 0 {
 		return
 	}
-	v, err := astjson.Parse(strconv.FormatInt(int64(statusCode), 10))
-	if err != nil {
-		return
+
+	for _, value := range values {
+		if value.Exists("extensions") {
+			extensions := value.Get("extensions")
+			if extensions.Type() != astjson.TypeObject {
+				continue
+			}
+			extensions.Set("statusCode", astjson.MustParse(strconv.Itoa(statusCode)))
+		} else {
+			value.Set("extensions", astjson.MustParse(`{"statusCode":`+strconv.Itoa(statusCode)+`}`))
+		}
 	}
-	astjson.SetValue(errorObject, v, "extensions", "statusCode")
 }
 
 const (
@@ -767,36 +885,36 @@ func (l *Loader) renderAtPathErrorPart(path string) string {
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, fetchItem.ResponsePath, reason, res.statusCode)))
-	errorObject, err := astjson.Parse(l.renderSubgraphBaseError(res.subgraphName, fetchItem.ResponsePath, reason))
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
+	errorObject, err := astjson.Parse(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
-	l.setSubgraphStatusCode(errorObject, res.statusCode)
+	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
-func (l *Loader) renderSubgraphBaseError(subgraphName, path, reason string) string {
+func (l *Loader) renderSubgraphBaseError(ds DataSourceInfo, path, reason string) string {
 	pathPart := l.renderAtPathErrorPart(path)
-	if subgraphName == "" {
+	if ds.Name == "" {
 		if reason == "" {
 			return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph%s."}`, pathPart)
 		}
 		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph%s, Reason: %s."}`, pathPart, reason)
 	}
 	if reason == "" {
-		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s'%s."}`, subgraphName, pathPart)
+		return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s'%s."}`, ds.Name, pathPart)
 	}
-	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s'%s, Reason: %s."}`, subgraphName, pathPart, reason)
+	return fmt.Sprintf(`{"message":"Failed to fetch from Subgraph '%s'%s, Reason: %s."}`, ds.Name, pathPart, reason)
 }
 
 func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.subgraphName, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode)))
+		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode)))
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
-	if res.subgraphName == "" {
+	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
 				errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s."}`, pathPart))
@@ -809,10 +927,10 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s."}`, res.subgraphName, pathPart))
+				errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s."}`, res.subgraphName, pathPart, reason))
+				errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, reason))
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			}
 		}
@@ -821,9 +939,9 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 }
 
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.subgraphName, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
-	if res.subgraphName == "" {
+	if res.ds.Name == "" {
 		if res.rateLimitRejectedReason == "" {
 			errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			astjson.AppendToArray(l.resolvable.errors, errorObject)
@@ -833,10 +951,10 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.subgraphName, pathPart))
+			errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.subgraphName, pathPart, res.rateLimitRejectedReason))
+			errorObject := astjson.MustParse(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
 			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	}
@@ -1412,7 +1530,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
 	if l.ctx.LoaderHooks != nil {
-		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.subgraphName)
+		res.loaderHookContext = l.ctx.LoaderHooks.OnLoad(ctx, res.ds)
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {

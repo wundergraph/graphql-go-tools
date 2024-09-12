@@ -8,9 +8,12 @@ import (
 
 func TestSubgraphError(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "")
 		require.Equal(t, e.ResponseCode, 500)
@@ -20,9 +23,12 @@ func TestSubgraphError(t *testing.T) {
 	})
 
 	t.Run("With a reason", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "reason", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "reason")
 		require.Equal(t, e.ResponseCode, 500)
@@ -32,9 +38,12 @@ func TestSubgraphError(t *testing.T) {
 	})
 
 	t.Run("With downstream errors", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "reason", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "reason")
 		require.Equal(t, e.ResponseCode, 500)
@@ -52,9 +61,12 @@ func TestSubgraphError(t *testing.T) {
 	})
 
 	t.Run("With multi segment downstream errors", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "reason", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "reason")
 		require.Equal(t, e.ResponseCode, 500)
@@ -72,9 +84,12 @@ func TestSubgraphError(t *testing.T) {
 	})
 
 	t.Run("With mixed multi segment downstream errors", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "reason", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "reason")
 		require.Equal(t, e.ResponseCode, 500)
