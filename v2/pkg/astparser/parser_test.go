@@ -2275,6 +2275,268 @@ func TestParser_Parse(t *testing.T) {
 			wantIndexedNode("directive2", ast.NodeKindDirectiveDefinition),
 		)
 	})
+
+	t.Run("can parse backslashes", func(t *testing.T) {
+		t.Run("block descriptions", func(t *testing.T) {
+			t.Run("parses single backslashes", func(t *testing.T) {
+				run(`"""
+this is a schema \      
+"""
+					schema {
+						query: Query 
+					}`, parse,
+					false,
+					func(doc *ast.Document, extra interface{}) {
+						definition := doc.RootNodes[0]
+						if definition.Ref != 0 {
+							panic("want 0")
+						}
+						if definition.Kind != ast.NodeKindSchemaDefinition {
+							panic("want NodeKindSchemaDefinition")
+						}
+						schema := doc.SchemaDefinitions[0]
+						if !schema.Description.IsDefined {
+							panic("want schema description to be defined")
+						}
+						description := doc.Input.ByteSliceString(schema.Description.Content)
+						expectedDescription := `this is a schema \`
+						require.Equal(t, expectedDescription, description)
+						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+						if query.OperationType != ast.OperationTypeQuery {
+							panic("want OperationTypeQuery")
+						}
+						name := doc.Input.ByteSliceString(query.NamedType.Name)
+						if name != "Query" {
+							panic(fmt.Errorf("want 'Query', got '%s'", name))
+						}
+					})
+			})
+
+			t.Run("parses double backslashes", func(t *testing.T) {
+				run(`"""
+					this is a schema \\
+					"""
+					schema {
+						query: Query 
+					}`, parse,
+					false,
+					func(doc *ast.Document, extra interface{}) {
+						definition := doc.RootNodes[0]
+						if definition.Ref != 0 {
+							panic("want 0")
+						}
+						if definition.Kind != ast.NodeKindSchemaDefinition {
+							panic("want NodeKindSchemaDefinition")
+						}
+						schema := doc.SchemaDefinitions[0]
+						if !schema.Description.IsDefined {
+							panic("want schema description to be defined")
+						}
+						description := doc.Input.ByteSliceString(schema.Description.Content)
+						expectedDescription := `this is a schema \\`
+						require.Equal(t, expectedDescription, description)
+						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+						if query.OperationType != ast.OperationTypeQuery {
+							panic("want OperationTypeQuery")
+						}
+						name := doc.Input.ByteSliceString(query.NamedType.Name)
+						if name != "Query" {
+							panic(fmt.Errorf("want 'Query', got '%s'", name))
+						}
+					})
+			})
+		})
+
+		t.Run("non-block descriptions", func(t *testing.T) {
+			t.Run("parses single backslashes", func(t *testing.T) {
+				run(`
+					"this is a schema \ "
+					schema {
+						query: Query 
+					}`, parse,
+					false,
+					func(doc *ast.Document, extra interface{}) {
+						definition := doc.RootNodes[0]
+						if definition.Ref != 0 {
+							panic("want 0")
+						}
+						if definition.Kind != ast.NodeKindSchemaDefinition {
+							panic("want NodeKindSchemaDefinition")
+						}
+						schema := doc.SchemaDefinitions[0]
+						if !schema.Description.IsDefined {
+							panic("want schema description to be defined")
+						}
+						description := doc.Input.ByteSliceString(schema.Description.Content)
+						expectedDescription := `this is a schema \`
+						require.Equal(t, expectedDescription, description)
+						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+						if query.OperationType != ast.OperationTypeQuery {
+							panic("want OperationTypeQuery")
+						}
+						name := doc.Input.ByteSliceString(query.NamedType.Name)
+						if name != "Query" {
+							panic(fmt.Errorf("want 'Query', got '%s'", name))
+						}
+					})
+			})
+
+			t.Run("parses double backslashes", func(t *testing.T) {
+				run(`
+					"this is a schema \\"
+					schema {
+						query: Query 
+					}`, parse,
+					false,
+					func(doc *ast.Document, extra interface{}) {
+						definition := doc.RootNodes[0]
+						if definition.Ref != 0 {
+							panic("want 0")
+						}
+						if definition.Kind != ast.NodeKindSchemaDefinition {
+							panic("want NodeKindSchemaDefinition")
+						}
+						schema := doc.SchemaDefinitions[0]
+						if !schema.Description.IsDefined {
+							panic("want schema description to be defined")
+						}
+						description := doc.Input.ByteSliceString(schema.Description.Content)
+						expectedDescription := `this is a schema \\`
+						require.Equal(t, expectedDescription, description)
+						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+						if query.OperationType != ast.OperationTypeQuery {
+							panic("want OperationTypeQuery")
+						}
+						name := doc.Input.ByteSliceString(query.NamedType.Name)
+						if name != "Query" {
+							panic(fmt.Errorf("want 'Query', got '%s'", name))
+						}
+					})
+			})
+		})
+
+		t.Run("comments", func(t *testing.T) {
+			t.Run("parses single backslashes", func(t *testing.T) {
+				run(`
+					"this is a schema \ "
+					schema {
+						query: Query # my comment \
+					}`, parse,
+					false,
+					func(doc *ast.Document, extra interface{}) {
+						definition := doc.RootNodes[0]
+						if definition.Ref != 0 {
+							panic("want 0")
+						}
+						if definition.Kind != ast.NodeKindSchemaDefinition {
+							panic("want NodeKindSchemaDefinition")
+						}
+						schema := doc.SchemaDefinitions[0]
+						if !schema.Description.IsDefined {
+							panic("want schema description to be defined")
+						}
+						description := doc.Input.ByteSliceString(schema.Description.Content)
+						expectedDescription := `this is a schema \`
+						require.Equal(t, expectedDescription, description)
+						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+						if query.OperationType != ast.OperationTypeQuery {
+							panic("want OperationTypeQuery")
+						}
+						name := doc.Input.ByteSliceString(query.NamedType.Name)
+						if name != "Query" {
+							panic(fmt.Errorf("want 'Query', got '%s'", name))
+						}
+					})
+			})
+
+			t.Run("parses double backslashes", func(t *testing.T) {
+				run(`
+					"this is a schema \\"
+					schema {
+						query: Query # my comment \\
+					}`, parse,
+					false,
+					func(doc *ast.Document, extra interface{}) {
+						definition := doc.RootNodes[0]
+						if definition.Ref != 0 {
+							panic("want 0")
+						}
+						if definition.Kind != ast.NodeKindSchemaDefinition {
+							panic("want NodeKindSchemaDefinition")
+						}
+						schema := doc.SchemaDefinitions[0]
+						if !schema.Description.IsDefined {
+							panic("want schema description to be defined")
+						}
+						description := doc.Input.ByteSliceString(schema.Description.Content)
+						expectedDescription := `this is a schema \\`
+						require.Equal(t, expectedDescription, description)
+						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
+						if query.OperationType != ast.OperationTypeQuery {
+							panic("want OperationTypeQuery")
+						}
+						name := doc.Input.ByteSliceString(query.NamedType.Name)
+						if name != "Query" {
+							panic(fmt.Errorf("want 'Query', got '%s'", name))
+						}
+					})
+			})
+		})
+
+		t.Run("default input values", func(t *testing.T) {
+			t.Run("parses single backslashes", func(t *testing.T) {
+				run(`	input Person {
+									name: String = "Gopher \ "
+								}`, parse,
+					false, func(doc *ast.Document, extra interface{}) {
+						person := doc.InputObjectTypeDefinitions[0]
+						if doc.Input.ByteSliceString(person.Name) != "Person" {
+							panic("want person")
+						}
+
+						name := doc.InputValueDefinitions[person.InputFieldsDefinition.Refs[0]]
+						if doc.Input.ByteSliceString(name.Name) != "name" {
+							panic("want name")
+						}
+						if !name.DefaultValue.IsDefined {
+							panic("want true")
+						}
+						if name.DefaultValue.Value.Kind != ast.ValueKindString {
+							panic("want ValueKindString")
+						}
+						if doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != `Gopher \` {
+							panic("want Gopher")
+						}
+					})
+			})
+
+			t.Run("parses double backslashes", func(t *testing.T) {
+				run(`	input Person {
+									name: String = "Gopher \\ "
+								}`, parse,
+					false, func(doc *ast.Document, extra interface{}) {
+						person := doc.InputObjectTypeDefinitions[0]
+						if doc.Input.ByteSliceString(person.Name) != "Person" {
+							panic("want person")
+						}
+
+						name := doc.InputValueDefinitions[person.InputFieldsDefinition.Refs[0]]
+						if doc.Input.ByteSliceString(name.Name) != "name" {
+							panic("want name")
+						}
+						if !name.DefaultValue.IsDefined {
+							panic("want true")
+						}
+						if name.DefaultValue.Value.Kind != ast.ValueKindString {
+							panic("want ValueKindString")
+						}
+						if doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != `Gopher \\` {
+							panic("want Gopher")
+						}
+					})
+			})
+		})
+	})
 }
 
 func TestErrorReport(t *testing.T) {
