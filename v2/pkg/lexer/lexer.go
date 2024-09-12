@@ -348,6 +348,7 @@ func (l *Lexer) readBlockString(tok *token.Token) {
 		next := l.readRune()
 		switch next {
 		case runes.SPACE, runes.TAB, runes.CARRIAGERETURN, runes.LINETERMINATOR:
+			escaped = false
 			quoteCount = 0
 			whitespaceCount++
 		case runes.EOF:
@@ -399,6 +400,7 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 		next := l.readRune()
 		switch next {
 		case runes.SPACE, runes.TAB:
+			escaped = false
 			whitespaceCount++
 		case runes.EOF:
 			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
