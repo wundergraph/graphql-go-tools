@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/wundergraph/astjson"
 	"io"
 	"sync"
 	"time"
@@ -157,7 +156,6 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 						allowedErrorExtensionFields:       allowedExtensionFields,
 						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
-						astjsonArenaPool:                  &astjson.ArenaPool{},
 					},
 				}
 			},

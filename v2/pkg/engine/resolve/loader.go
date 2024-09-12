@@ -76,14 +76,12 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
-	astjsonArenaPool                  *astjson.ArenaPool
 }
 
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
 	l.resolvable = nil
-	l.astjsonArenaPool = nil
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -673,14 +671,17 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	}
 
+	astjsonArena := l.resolvable.astjsonArenaPool.Get()
+	defer l.resolvable.astjsonArenaPool.Put(astjsonArena)
+
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
 	l.optionallyAllowCustomExtensionProperties(values)
-	l.optionallyEnsureExtensionErrorCode(values)
+	l.optionallyEnsureExtensionErrorCode(astjsonArena, values)
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
 		// Attach datasource information to all errors when we don't wrap them
-		l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
+		l.optionallyAttachServiceNameToErrorExtension(astjsonArena, values, res.ds.Name)
 		l.setSubgraphStatusCode(values, res.statusCode)
 
 		// Allow to delete extensions entirely
@@ -702,7 +703,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	v := []*astjson.Value{errorObject}
 
 	// Only datasource information are attached to the root error in wrap mode
-	l.optionallyAttachServiceNameToErrorExtension(v, res.ds.Name)
+	l.optionallyAttachServiceNameToErrorExtension(astjsonArena, v, res.ds.Name)
 	l.setSubgraphStatusCode(v, res.statusCode)
 
 	// Allow to delete extensions entirely
@@ -741,13 +742,10 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 }
 
 // optionallyEnsureExtensionErrorCode ensures that all values have an error code in the extensions object
-func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
+func (l *Loader) optionallyEnsureExtensionErrorCode(arena *astjson.Arena, values []*astjson.Value) {
 	if l.defaultErrorExtensionCode == "" {
 		return
 	}
-
-	apool := l.astjsonArenaPool.Get()
-	defer l.astjsonArenaPool.Put(apool)
 
 	for _, value := range values {
 		if value.Exists("extensions") {
@@ -757,24 +755,21 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 			}
 
 			if !extensions.Exists("code") {
-				extensions.Set("code", apool.NewString(l.defaultErrorExtensionCode))
+				extensions.Set("code", arena.NewString(l.defaultErrorExtensionCode))
 			}
 		} else {
-			extensionsObj := apool.NewObject()
-			extensionsObj.Set("code", apool.NewString(l.defaultErrorExtensionCode))
+			extensionsObj := arena.NewObject()
+			extensionsObj.Set("code", arena.NewString(l.defaultErrorExtensionCode))
 			value.Set("extensions", extensionsObj)
 		}
 	}
 }
 
 // optionallyAttachServiceNameToErrorExtension attaches the service name to the extensions object of all values
-func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.Value, serviceName string) {
+func (l *Loader) optionallyAttachServiceNameToErrorExtension(arena *astjson.Arena, values []*astjson.Value, serviceName string) {
 	if !l.attachServiceNameToErrorExtension {
 		return
 	}
-
-	apool := l.astjsonArenaPool.Get()
-	defer l.astjsonArenaPool.Put(apool)
 
 	for _, value := range values {
 		if value.Exists("extensions") {
@@ -783,10 +778,10 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 				continue
 			}
 
-			extensions.Set("serviceName", apool.NewString(serviceName))
+			extensions.Set("serviceName", arena.NewString(serviceName))
 		} else {
-			extensionsObj := apool.NewObject()
-			extensionsObj.Set("serviceName", apool.NewString(serviceName))
+			extensionsObj := arena.NewObject()
+			extensionsObj.Set("serviceName", arena.NewString(serviceName))
 			value.Set("extensions", extensionsObj)
 		}
 	}
