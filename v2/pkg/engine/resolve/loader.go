@@ -671,17 +671,14 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	}
 
-	astjsonArena := l.resolvable.astjsonArenaPool.Get()
-	defer l.resolvable.astjsonArenaPool.Put(astjsonArena)
-
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
 	l.optionallyAllowCustomExtensionProperties(values)
-	l.optionallyEnsureExtensionErrorCode(astjsonArena, values)
+	l.optionallyEnsureExtensionErrorCode(values)
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
 		// Attach datasource information to all errors when we don't wrap them
-		l.optionallyAttachServiceNameToErrorExtension(astjsonArena, values, res.ds.Name)
+		l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
 		l.setSubgraphStatusCode(values, res.statusCode)
 
 		// Allow to delete extensions entirely
@@ -703,7 +700,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	v := []*astjson.Value{errorObject}
 
 	// Only datasource information are attached to the root error in wrap mode
-	l.optionallyAttachServiceNameToErrorExtension(astjsonArena, v, res.ds.Name)
+	l.optionallyAttachServiceNameToErrorExtension(v, res.ds.Name)
 	l.setSubgraphStatusCode(v, res.statusCode)
 
 	// Allow to delete extensions entirely
@@ -742,7 +739,7 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 }
 
 // optionallyEnsureExtensionErrorCode ensures that all values have an error code in the extensions object
-func (l *Loader) optionallyEnsureExtensionErrorCode(arena *astjson.Arena, values []*astjson.Value) {
+func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 	if l.defaultErrorExtensionCode == "" {
 		return
 	}
@@ -755,18 +752,18 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(arena *astjson.Arena, values
 			}
 
 			if !extensions.Exists("code") {
-				extensions.Set("code", arena.NewString(l.defaultErrorExtensionCode))
+				extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
 			}
 		} else {
-			extensionsObj := arena.NewObject()
-			extensionsObj.Set("code", arena.NewString(l.defaultErrorExtensionCode))
+			extensionsObj := l.resolvable.astjsonArena.NewObject()
+			extensionsObj.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
 			value.Set("extensions", extensionsObj)
 		}
 	}
 }
 
 // optionallyAttachServiceNameToErrorExtension attaches the service name to the extensions object of all values
-func (l *Loader) optionallyAttachServiceNameToErrorExtension(arena *astjson.Arena, values []*astjson.Value, serviceName string) {
+func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.Value, serviceName string) {
 	if !l.attachServiceNameToErrorExtension {
 		return
 	}
@@ -778,10 +775,10 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(arena *astjson.Aren
 				continue
 			}
 
-			extensions.Set("serviceName", arena.NewString(serviceName))
+			extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
 		} else {
-			extensionsObj := arena.NewObject()
-			extensionsObj.Set("serviceName", arena.NewString(serviceName))
+			extensionsObj := l.resolvable.astjsonArena.NewObject()
+			extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
 			value.Set("extensions", extensionsObj)
 		}
 	}

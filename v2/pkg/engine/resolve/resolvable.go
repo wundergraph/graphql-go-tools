@@ -25,8 +25,8 @@ type Resolvable struct {
 	variables            *astjson.Value
 	skipAddingNullErrors bool
 
-	astjsonArenaPool *astjson.ArenaPool
-	parsers          []*astjson.Parser
+	astjsonArena *astjson.Arena
+	parsers      []*astjson.Parser
 
 	print              bool
 	out                io.Writer
@@ -54,7 +54,7 @@ func NewResolvable() *Resolvable {
 		xxh:                xxhash.New(),
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
-		astjsonArenaPool:   &astjson.ArenaPool{},
+		astjsonArena:       &astjson.Arena{},
 	}
 }
 
@@ -88,7 +88,7 @@ func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
-	r.astjsonArenaPool = nil
+	r.astjsonArena.Reset()
 	r.xxh.Reset()
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
