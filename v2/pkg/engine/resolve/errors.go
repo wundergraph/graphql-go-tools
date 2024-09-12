@@ -45,18 +45,10 @@ func (e *SubgraphError) Error() string {
 
 	var bf bytes.Buffer
 
-	var subgraphName string
-
-	if e.DataSourceInfo.Name != "" {
-		subgraphName = e.DataSourceInfo.Name
-	} else {
-		subgraphName = e.DataSourceInfo.ID
-	}
-
-	if subgraphName == "" {
+	if e.DataSourceInfo.Name == "" {
 		fmt.Fprintf(&bf, "Failed to fetch Subgraph at Path: '%s'", e.Path)
 	} else {
-		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s' at Path: '%s'", subgraphName, e.Path)
+		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s' at Path: '%s'", e.DataSourceInfo.Name, e.Path)
 	}
 
 	if e.Reason != "" {
