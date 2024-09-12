@@ -8,8 +8,8 @@ import (
 // It should only be used to write errors that are happening before the execution of the query e.g. validation errors.
 type Response struct {
 	Errors Errors `json:"errors,omitempty"`
-	// data: null is possibly included in the response because according to the spec, it should be omitted if there are errors before execution
-	// https://spec.graphql.org/draft/#sec-Data
+	// data: null will never be included in the response because this struct should be used for errors that happening before execution
+	// This behaviour is compliant with the spec https://spec.graphql.org/draft/#sec-Data
 	Data any `json:"data,omitempty"`
 }
 
