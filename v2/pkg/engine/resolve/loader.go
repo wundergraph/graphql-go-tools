@@ -760,9 +760,9 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 				extensions.Set("code", apool.NewString(l.defaultErrorExtensionCode))
 			}
 		} else {
-			extensionsField := apool.NewObject()
-			extensionsField.Set("code", apool.NewString(l.defaultErrorExtensionCode))
-			value.Set("extensions", extensionsField)
+			extensionsObj := apool.NewObject()
+			extensionsObj.Set("code", apool.NewString(l.defaultErrorExtensionCode))
+			value.Set("extensions", extensionsObj)
 		}
 	}
 }
@@ -785,9 +785,9 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 
 			extensions.Set("serviceName", apool.NewString(serviceName))
 		} else {
-			extensionsField := apool.NewObject()
-			extensionsField.Set("serviceName", apool.NewString(serviceName))
-			value.Set("extensions", extensionsField)
+			extensionsObj := apool.NewObject()
+			extensionsObj.Set("serviceName", apool.NewString(serviceName))
+			value.Set("extensions", extensionsObj)
 		}
 	}
 }
