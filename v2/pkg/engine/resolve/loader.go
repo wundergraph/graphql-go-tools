@@ -76,12 +76,14 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
+	astjsonArenaPool                  *astjson.ArenaPool
 }
 
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
 	l.resolvable = nil
+	l.astjsonArenaPool = nil
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
@@ -673,13 +675,10 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
-	l.optionallyAllowCustomExtensionProperties(values, l.allowedErrorExtensionFields)
-	l.optionallyEnsureExtensionErrorCode(values, l.defaultErrorExtensionCode)
-
-	// If the error propagation mode is pass-through, we append the errors to the root array
+	l.optionallyAllowCustomExtensionProperties(values)
+	l.optionallyEnsureExtensionErrorCode(values)
 
 	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModePassThrough {
-
 		// Attach datasource information to all errors when we don't wrap them
 		l.optionallyAttachServiceNameToErrorExtension(values, res.ds.Name)
 		l.setSubgraphStatusCode(values, res.statusCode)
@@ -687,14 +686,16 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// Allow to delete extensions entirely
 		l.optionallyOmitErrorExtensions(values)
 
+		// If the error propagation mode is pass-through, we append the errors to the root array
 		astjson.MergeValues(l.resolvable.errors, value)
 		return nil
 	}
 
-	// Attach all errors to the root array in the "errors" extension field
+	// Wrap mode (default)
 
 	errorObject := astjson.MustParse(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
 	if l.propagateSubgraphErrors {
+		// Attach all errors to the root array in the "errors" extension field
 		astjson.SetValue(errorObject, value, "extensions", "errors")
 	}
 
@@ -712,7 +713,9 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	return nil
 }
 
-func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Value, allowedProperties map[string]struct{}) {
+// optionallyAllowCustomExtensionProperties removes all properties from the extensions object that are not in the allowedProperties map
+// If no properties are left, the extensions object is removed
+func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
 			extensions := value.Get("extensions")
@@ -723,13 +726,13 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 
 			extObj.Visit(func(k []byte, v *astjson.Value) {
 				kb := unsafebytes.BytesToString(k)
-				if _, ok := allowedProperties[kb]; !ok {
+				if _, ok := l.allowedErrorExtensionFields[kb]; !ok {
 					extensions.Del(kb)
 				}
 			})
 
 			// If there are no more properties, we remove the extensions object
-			if len(allowedProperties) == 0 || extObj.Len() == 0 {
+			if len(l.allowedErrorExtensionFields) == 0 || extObj.Len() == 0 {
 				value.Del("extensions")
 				continue
 			}
@@ -737,10 +740,14 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 	}
 }
 
-func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value, defaultErrorExtensionCode string) {
-	if defaultErrorExtensionCode == "" {
+// optionallyEnsureExtensionErrorCode ensures that all values have an error code in the extensions object
+func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
+	if l.defaultErrorExtensionCode == "" {
 		return
 	}
+
+	apool := l.astjsonArenaPool.Get()
+	defer l.astjsonArenaPool.Put(apool)
 
 	for _, value := range values {
 		if value.Exists("extensions") {
@@ -749,39 +756,43 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value, def
 				continue
 			}
 
-			hasCode := false
-			extensions.GetObject().Visit(func(k []byte, v *astjson.Value) {
-				if unsafebytes.BytesToString(k) == "code" {
-					hasCode = true
-				}
-			})
-
-			if !hasCode {
-				extensions.Set("code", astjson.MustParse(`"`+defaultErrorExtensionCode+`"`))
+			if !extensions.Exists("code") {
+				extensions.Set("code", apool.NewString(l.defaultErrorExtensionCode))
 			}
 		} else {
-			value.Set("extensions", astjson.MustParse(`{"code":"`+defaultErrorExtensionCode+`"}`))
+			extensionsField := apool.NewObject()
+			extensionsField.Set("code", apool.NewString(l.defaultErrorExtensionCode))
+			value.Set("extensions", extensionsField)
 		}
 	}
 }
 
+// optionallyAttachServiceNameToErrorExtension attaches the service name to the extensions object of all values
 func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.Value, serviceName string) {
 	if !l.attachServiceNameToErrorExtension {
 		return
 	}
+
+	apool := l.astjsonArenaPool.Get()
+	defer l.astjsonArenaPool.Put(apool)
+
 	for _, value := range values {
 		if value.Exists("extensions") {
 			extensions := value.Get("extensions")
 			if extensions.Type() != astjson.TypeObject {
 				continue
 			}
-			extensions.Set("serviceName", astjson.MustParse(`"`+serviceName+`"`))
+
+			extensions.Set("serviceName", apool.NewString(serviceName))
 		} else {
-			value.Set("extensions", astjson.MustParse(`{"serviceName":"`+serviceName+`"}`))
+			extensionsField := apool.NewObject()
+			extensionsField.Set("serviceName", apool.NewString(serviceName))
+			value.Set("extensions", extensionsField)
 		}
 	}
 }
 
+// optionallyOmitErrorExtensions removes the extensions object from all values
 func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	if !l.omitSubgraphErrorExtensions {
 		return
@@ -793,6 +804,7 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	}
 }
 
+// optionallyOmitErrorLocations removes the locations object from all values
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	if !l.omitSubgraphErrorLocations {
 		return
@@ -804,6 +816,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
+// optionallyRewriteErrorPaths rewrites the path field of all values
 func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 	if !l.rewriteSubgraphErrorPaths {
 		return
