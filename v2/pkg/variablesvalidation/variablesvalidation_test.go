@@ -68,7 +68,7 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$input" got invalid value {"nested":{},"value":"string"}; Field "secondNested" of required type "NestedSelfSatisfiedInput!" was not provided.`, err.Error())
 	})
 
-	t.Run("provided but empty nested required inputs with default values do no produce validation errors", func(t *testing.T) {
+	t.Run("provided but empty nested required inputs with default values do not produce validation errors", func(t *testing.T) {
 		tc := testCase{
 			schema:    inputSchema,
 			operation: `query Foo($input: SelfUnsatisfiedInput!) { unsatisfied(input: $input) }`,
