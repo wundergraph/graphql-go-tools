@@ -480,10 +480,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if astjson.ValueIsNonNull(errorsValue) {
 			errorObjects := errorsValue.GetArray()
 			hasErrors = len(errorObjects) > 0
-			// Look for errors in the response and merge them into the errors array
-			err = l.mergeErrors(res, fetchItem, errorsValue, errorObjects)
-			if err != nil {
-				return errors.WithStack(err)
+			// If errors field are present in response, but the errors array is empty, we don't consider it as an error
+			// Note: it is not compliant to graphql spec
+			if hasErrors {
+				// Look for errors in the response and merge them into the errors array
+				err = l.mergeErrors(res, fetchItem, errorsValue, errorObjects)
+				if err != nil {
+					return errors.WithStack(err)
+				}
 			}
 		}
 	}
