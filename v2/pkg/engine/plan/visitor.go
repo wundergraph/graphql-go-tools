@@ -300,11 +300,41 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
-		v.currentField.Value = &resolve.String{
+		str := &resolve.String{
 			Nullable:   false,
 			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 			IsTypeName: true,
 		}
+		if v.currentField.Info != nil {
+			str.AllowedValues = make(map[string]struct{})
+			for _, parentTypeName := range v.currentField.Info.ParentTypeNames {
+				node, ok := v.Definition.Index.FirstNodeByNameStr(parentTypeName)
+				if !ok {
+					continue
+				}
+				switch node.Kind {
+				case ast.NodeKindObjectTypeDefinition:
+					str.AllowedValues[parentTypeName] = struct{}{}
+				case ast.NodeKindInterfaceTypeDefinition:
+					objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+					for _, implementingTypeName := range objectTypesImplementingInterface {
+						str.AllowedValues[implementingTypeName] = struct{}{}
+					}
+				case ast.NodeKindUnionTypeDefinition:
+					if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(node.Ref); ok {
+						for _, unionMember := range unionMembers {
+							str.AllowedValues[unionMember] = struct{}{}
+						}
+					}
+				}
+			}
+			if len(v.currentField.Info.Source.Names) > 0 {
+				str.SourceName = v.currentField.Info.Source.Names[0]
+			} else if len(v.currentField.Info.Source.IDs) > 0 {
+				str.SourceName = v.currentField.Info.Source.IDs[0]
+			}
+		}
+		v.currentField.Value = str
 	} else {
 		path := v.resolveFieldPath(ref)
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)

@@ -1876,6 +1876,64 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
 	}))
+	t.Run("__typename checks", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}`)},
+			}),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path:     []string{"id"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path:          []string{"__typename"},
+										Nullable:      false,
+										IsTypeName:    true,
+										AllowedValues: map[string]struct{}{"User": {}},
+										SourceName:    "Users",
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+								{
+									Name: []byte("rewritten"),
+									Value: &String{
+										Path:       []string{"rewritten"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","path":["__typename"]}],"data":null}`
+	}))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
 				Fetches: Single(&SingleFetch{

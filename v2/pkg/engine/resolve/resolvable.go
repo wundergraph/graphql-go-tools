@@ -755,6 +755,14 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(r.marshalBuf)), s.Path)
 		return r.err()
 	}
+	if !r.print && s.IsTypeName && s.AllowedValues != nil {
+		typename := value.GetStringBytes()
+		if _, ok := s.AllowedValues[string(typename)]; ok {
+			return false
+		}
+		r.addError(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", s.SourceName, string(typename)), s.Path)
+		return r.err()
+	}
 	if r.print {
 		if s.IsTypeName {
 			content := value.GetStringBytes()
