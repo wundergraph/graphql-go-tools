@@ -48,9 +48,24 @@ func (s *Scalar) Equals(n Node) bool {
 type String struct {
 	Path                 []string
 	Nullable             bool
-	Export               *FieldExport `json:"export,omitempty"`
-	UnescapeResponseJson bool         `json:"unescape_response_json,omitempty"`
-	IsTypeName           bool         `json:"is_type_name,omitempty"`
+	Export               *FieldExport        `json:"export,omitempty"`
+	UnescapeResponseJson bool                `json:"unescape_response_json,omitempty"`
+	IsTypeName           bool                `json:"is_type_name,omitempty"`
+	AllowedValues        map[string]struct{} `json:"-"`
+	SourceName           string              `json:"-"`
+}
+
+func (s *String) MergeAllowedValuesIntoAnother(another *String) {
+	if another.AllowedValues == nil {
+		another.AllowedValues = s.AllowedValues
+		return
+	}
+	if s.AllowedValues == nil {
+		return
+	}
+	for k := range s.AllowedValues {
+		another.AllowedValues[k] = struct{}{}
+	}
 }
 
 func (s *String) Copy() Node {

@@ -618,7 +618,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	}
 	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
 		NewSubgraphError(ds, fieldPath, reason, 0)))
-	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	r.popNodePathElement(nodePath)
 }
 
@@ -752,7 +752,15 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(r.marshalBuf)), s.Path)
+		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
+		return r.err()
+	}
+	if !r.print && s.IsTypeName && s.AllowedValues != nil {
+		typename := value.GetStringBytes()
+		if _, ok := s.AllowedValues[string(typename)]; ok {
+			return false
+		}
+		r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", s.SourceName, string(typename)), "INVALID_GRAPHQL", s.Path)
 		return r.err()
 	}
 	if r.print {
@@ -801,7 +809,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", string(r.marshalBuf)), b.Path)
+		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
 		return r.err()
 	}
 	if r.print {
@@ -825,7 +833,7 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", string(r.marshalBuf)), i.Path)
+		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
 		return r.err()
 	}
 	if r.print {
@@ -849,7 +857,7 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", string(r.marshalBuf)), f.Path)
+		r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
 		return r.err()
 	}
 	if r.print {
@@ -950,7 +958,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	}
 	r.pushNodePathElement(fieldPath)
 	errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
-	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	r.popNodePathElement(fieldPath)
 }
 
@@ -976,6 +984,12 @@ func (r *Resolvable) renderFieldPath() string {
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	fastjsonext.AppendErrorToArray(r.errors, message, r.path)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, message, r.path)
+	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) addErrorWithCode(message, code string, fieldPath []string) {
+	r.pushNodePathElement(fieldPath)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
 	r.popNodePathElement(fieldPath)
 }
