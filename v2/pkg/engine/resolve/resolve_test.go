@@ -1932,7 +1932,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","path":["__typename"]}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`
 	}))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
