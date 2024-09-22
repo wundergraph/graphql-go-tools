@@ -792,7 +792,7 @@ func (r *Resolvable) walkString(s *String, value, grandParent *astjson.Value) bo
 			return false
 		}
 		if r.options.ApolloCompatibilityValueCompletionInExtensions {
-			parentTypeName := string(grandParent.GetStringBytes("__typename"))
+			parentTypeName := string(parent.GetStringBytes("__typename"))
 			if parentTypeName == "" {
 				parentTypeName = s.ParentTypeName
 			}
