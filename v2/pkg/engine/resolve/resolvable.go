@@ -768,11 +768,11 @@ func (r *Resolvable) walkNull() bool {
 	return false
 }
 
-func (r *Resolvable) walkString(s *String, value, parent *astjson.Value) bool {
+func (r *Resolvable) walkString(s *String, value, grandParent *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
-	parent = value
+	parent := value
 	value = value.Get(s.Path...)
 	if astjson.ValueIsNull(value) {
 		if s.Nullable {
@@ -792,7 +792,7 @@ func (r *Resolvable) walkString(s *String, value, parent *astjson.Value) bool {
 			return false
 		}
 		if r.options.ApolloCompatibilityValueCompletionInExtensions {
-			parentTypeName := string(parent.GetStringBytes("__typename"))
+			parentTypeName := string(grandParent.GetStringBytes("__typename"))
 			if parentTypeName == "" {
 				parentTypeName = s.ParentTypeName
 			}
