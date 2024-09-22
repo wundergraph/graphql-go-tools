@@ -22,6 +22,7 @@ var (
 	literalExtensions         = []byte("extensions")
 	literalTrace              = []byte("trace")
 	literalQueryPlan          = []byte("queryPlan")
+	literalValueCompletion    = []byte("valueCompletion")
 	literalRateLimit          = []byte("rateLimit")
 	literalAuthorization      = []byte("authorization")
 

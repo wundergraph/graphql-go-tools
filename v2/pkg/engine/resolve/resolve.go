@@ -117,6 +117,8 @@ type ResolverOptions struct {
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
+	// ResolvableOptions are configuration options for the Resolbable struct
+	ResolvableOptions ResolvableOptions
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -145,7 +147,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		tools: &sync.Pool{
 			New: func() any {
 				return &tools{
-					resolvable: NewResolvable(),
+					resolvable: NewResolvable(options.ResolvableOptions),
 					loader: &Loader{
 						propagateSubgraphErrors:           options.PropagateSubgraphErrors,
 						propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,

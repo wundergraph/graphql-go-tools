@@ -328,6 +328,7 @@ func (v *Visitor) EnterField(ref int) {
 					}
 				}
 			}
+			str.ParentTypeName = v.currentField.Info.ExactParentTypeName
 			if len(v.currentField.Info.Source.Names) > 0 {
 				str.SourceName = v.currentField.Info.Source.Names[0]
 			} else if len(v.currentField.Info.Source.IDs) > 0 {
