@@ -42,7 +42,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {__typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -637,7 +637,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DependsOnFetchIDs: []int{0},
 												},
 												FetchConfiguration: resolve.FetchConfiguration{
-													Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
+													Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 													Variables: []resolve.Variable{
 														&resolve.ResolvableObjectVariable{
 															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1230,7 +1230,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename} ... on Admin {__typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title} ... on Admin {__typename}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1281,7 +1281,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0, 1},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1388,7 +1388,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1641,7 +1641,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1977,7 +1977,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {title __typename} ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename} ... on Moderator {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2042,7 +2042,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0, 1},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2165,7 +2165,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {title __typename} ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename} ... on Moderator {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2230,7 +2230,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0, 1},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2446,7 +2446,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {title __typename} ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename} ... on Moderator {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2511,7 +2511,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0, 2},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2944,7 +2944,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4003/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -3480,7 +3480,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {__typename} ... on Moderator {__typename} ... on User {__typename}}}","variables":{"representations":[$$0$$]}}}`,
+								Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename} ... on Moderator {__typename} ... on User {__typename}}}","variables":{"representations":[$$0$$]}}}`,
 								Variables: []resolve.Variable{
 									&resolve.ResolvableObjectVariable{
 										Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -3678,7 +3678,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													DependsOnFetchIDs: []int{0},
 												},
 												FetchConfiguration: resolve.FetchConfiguration{
-													Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title __typename}}}","variables":{"representations":[$$0$$]}}}`,
+													Input: `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 													Variables: []resolve.Variable{
 														&resolve.ResolvableObjectVariable{
 															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
