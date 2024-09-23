@@ -4417,7 +4417,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											DependsOnFetchIDs: []int{0},
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} __typename upc}}}}}","variables":{"representations":[$$0$$]}}}`,
+											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body author {id username} product {reviews {body author {id username}} __typename upc}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: []resolve.Variable{
 												&resolve.ResolvableObjectVariable{
 													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -4509,7 +4509,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																		DependsOnFetchIDs: []int{1},
 																	},
 																	FetchConfiguration: resolve.FetchConfiguration{
-																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[$$0$$]}}}`,
+																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name price}}}","variables":{"representations":[$$0$$]}}}`,
 																		DataSource: &Source{},
 																		Variables: []resolve.Variable{
 																			&resolve.ResolvableObjectVariable{
@@ -5012,7 +5012,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityFetch: true,
-											Input:               `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:               `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: []resolve.Variable{
 												&resolve.ResolvableObjectVariable{
 													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -5377,7 +5377,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											DependsOnFetchIDs: []int{0},
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+											Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: []resolve.Variable{
 												&resolve.ResolvableObjectVariable{
 													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -5708,7 +5708,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											DependsOnFetchIDs: []int{0},
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
+											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){... on User {__typename reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:     []string{"someSkipCondition"},
@@ -5918,7 +5918,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											DependsOnFetchIDs: []int{0},
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
+											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){... on User {__typename reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ContextVariable{
 													Path:     []string{"someSkipCondition"},
@@ -6128,7 +6128,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											// The required fields are present in the representations.
-											Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[$$0$$]}}}`,
+											Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on ServiceOneType {__typename serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
 												resolve.NewResolvableObjectVariable(&resolve.Object{
 													Nullable: true,
@@ -6330,7 +6330,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											DependsOnFetchIDs: []int{0},
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[$$0$$]}}}`,
+											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
 												resolve.NewResolvableObjectVariable(&resolve.Object{
 													Nullable: true,
@@ -6416,7 +6416,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															Fetches: []resolve.Fetch{
 																&resolve.SingleFetch{
 																	FetchConfiguration: resolve.FetchConfiguration{
-																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
+																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
 																		DataSource: &Source{},
 																		Variables: resolve.NewVariables(
 																			resolve.NewResolvableObjectVariable(
@@ -6852,7 +6852,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												DependsOnFetchIDs: []int{0},
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
-												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: resolve.NewVariables(
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -6981,7 +6981,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												DependsOnFetchIDs: []int{0},
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
-												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: resolve.NewVariables(
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -7117,7 +7117,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												DependsOnFetchIDs: []int{0},
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
-												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body attachment {__typename ... on Image {extension} ... on Video {length}}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body attachment {__typename ... on Image {extension} ... on Video {length}}}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: resolve.NewVariables(
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -7387,7 +7387,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												DependsOnFetchIDs: []int{0},
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
-												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: resolve.NewVariables(
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -7555,7 +7555,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												DependsOnFetchIDs: []int{0},
 											},
 											FetchConfiguration: resolve.FetchConfiguration{
-												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: resolve.NewVariables(
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -7723,7 +7723,7 @@ func TestGraphQLDataSource(t *testing.T) {
 												// because the field were originally themselves in inline fragments
 												// that were inlined. The additional __typename selections are
 												// harmless.
-												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner} name}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {__typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner} name}}}}","variables":{"representations":[$$0$$]}}}`,
 												Variables: resolve.NewVariables(
 													&resolve.ResolvableObjectVariable{
 														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -7908,7 +7908,7 @@ func TestGraphQLDataSource(t *testing.T) {
 											DependsOnFetchIDs: []int{0},
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[$$0$$]}}}`,
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[$$0$$]}}}`,
 											Variables: resolve.NewVariables(
 												&resolve.ResolvableObjectVariable{
 													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -8192,7 +8192,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															DependsOnFetchIDs: []int{0},
 														},
 														FetchConfiguration: resolve.FetchConfiguration{
-															Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[$$0$$]}}}`,
+															Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Cat {__typename name catField} ... on Dog {__typename name dogField}}}","variables":{"representations":[$$0$$]}}}`,
 															Variables: []resolve.Variable{
 																&resolve.ResolvableObjectVariable{
 																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
