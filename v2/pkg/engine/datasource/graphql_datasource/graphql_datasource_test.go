@@ -151,6 +151,104 @@ func TestGraphQLDataSource(t *testing.T) {
 			}))
 	})
 
+	t.Run("query with double nested fragments with fragment on union", func(t *testing.T) {
+		definition := `
+			type Query {
+				a: A
+			}
+	
+			type A {
+				a: String
+			}
+	
+			type B {
+				b: String
+			}
+	
+			union U = A | B
+		`
+
+		t.Run("run", RunTest(definition, ` 
+			query MyQuery{
+				a {
+					... on U {
+						... on A {
+							a
+						}
+					}
+				}
+			}`,
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{a {__typename ... on U {__typename ... on A {a}}}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							},
+						},
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("a"),
+								Value: &resolve.Object{
+									Path:     []string{"a"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("a"),
+											Value: &resolve.String{
+												Path:     []string{"a"},
+												Nullable: true,
+											},
+											OnTypeNames: [][]byte{[]byte("A")},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}, plan.Configuration{
+				DataSources: []plan.DataSource{
+					mustDataSourceConfiguration(
+						t,
+						"ds-id",
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"a"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "A",
+									FieldNames: []string{"a"},
+								},
+								{
+									TypeName:   "B",
+									FieldNames: []string{"b"},
+								},
+							},
+						},
+						mustCustomConfiguration(t, ConfigurationInput{
+							Fetch: &FetchConfiguration{
+								URL: "https://example.com/graphql",
+							},
+							SchemaConfiguration: mustSchema(t, nil, definition),
+						}),
+					),
+				},
+				DisableResolveFieldPositions: true,
+			},
+		))
+	})
+
 	t.Run("simple named Query", RunTest(starWarsSchema, `
 		query MyQuery($id: ID!) {
 			droid(id: $id){
