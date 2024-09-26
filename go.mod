@@ -8,6 +8,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2
+	github.com/coder/websocket v1.8.12
 	github.com/dave/jennifer v1.4.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/eclipse/paho.mqtt.golang v1.2.0
@@ -38,7 +39,6 @@ require (
 	go.uber.org/atomic v1.9.0
 	go.uber.org/zap v1.18.1
 	gopkg.in/yaml.v2 v2.4.0
-	nhooyr.io/websocket v1.8.10
 )
 
 require (

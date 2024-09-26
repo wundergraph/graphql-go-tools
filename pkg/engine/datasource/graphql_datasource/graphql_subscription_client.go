@@ -10,8 +10,8 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	nhooyrwebsocket "github.com/coder/websocket"
 	"github.com/jensneuse/abstractlogger"
-	nhooyrwebsocket "nhooyr.io/websocket"
 )
 
 const ackWaitTimeout = 30 * time.Second
@@ -217,7 +217,7 @@ func (c *SubscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, err
 	}
 	// Disable the maximum message size limit. Don't use MaxInt64 since
-	// the nhooyr.io/websocket doesn't handle it correctly on 32 bit systems.
+	// the github.com/coder/websocket doesn't handle it correctly on 32 bit systems.
 	conn.SetReadLimit(math.MaxInt32)
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 		return nil, fmt.Errorf("upgrade unsuccessful")

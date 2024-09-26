@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/coder/websocket"
 	log "github.com/jensneuse/abstractlogger"
-	"nhooyr.io/websocket"
 )
 
 // gqlTWSConnectionHandler is responsible for handling a connection to an origin
@@ -226,7 +226,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
 }
 
 // readBlocking is a dedicated loop running in a separate goroutine
-// because the library "nhooyr.io/websocket" doesn't allow reading with a context with Timeout
+// because the library "github.com/coder/websocket" doesn't allow reading with a context with Timeout
 // we'll block forever on reading until the context of the gqlTWSConnectionHandler stops
 func (h *gqlTWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
 	for {

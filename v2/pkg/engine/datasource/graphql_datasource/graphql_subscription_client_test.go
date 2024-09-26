@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/coder/websocket"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	"nhooyr.io/websocket"
 
 	"github.com/TykTechnologies/graphql-go-tools/v2/pkg/engine/resolve"
 )

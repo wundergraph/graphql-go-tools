@@ -9,6 +9,7 @@ require (
 	github.com/andybalholm/brotli v1.1.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.1.2
+	github.com/coder/websocket v1.8.12
 	github.com/davecgh/go-spew v1.1.1
 	github.com/gobwas/ws v1.0.4
 	github.com/golang/mock v1.6.0
@@ -34,7 +35,6 @@ require (
 	golang.org/x/sync v0.4.0
 	gonum.org/v1/gonum v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
-	nhooyr.io/websocket v1.8.10
 )
 
 require (

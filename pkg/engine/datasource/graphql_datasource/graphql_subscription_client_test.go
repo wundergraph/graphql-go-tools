@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	nhooyrwebsocket "github.com/coder/websocket"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
-	nhooyrwebsocket "nhooyr.io/websocket"
 )
 
 func logger() ll.Logger {

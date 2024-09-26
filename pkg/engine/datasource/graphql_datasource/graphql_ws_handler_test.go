@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	nhooyrwebsocket "github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	nhooyrwebsocket "nhooyr.io/websocket"
 )
 
 func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
