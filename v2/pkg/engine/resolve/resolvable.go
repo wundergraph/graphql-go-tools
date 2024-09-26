@@ -20,9 +20,12 @@ import (
 )
 
 type Resolvable struct {
+	options ResolvableOptions
+
 	data                 *astjson.Value
 	errors               *astjson.Value
 	variables            *astjson.Value
+	valueCompletion      *astjson.Value
 	skipAddingNullErrors bool
 
 	astjsonArena *astjson.Arena
@@ -49,8 +52,13 @@ type Resolvable struct {
 	marshalBuf []byte
 }
 
-func NewResolvable() *Resolvable {
+type ResolvableOptions struct {
+	ApolloCompatibilityValueCompletionInExtensions bool
+}
+
+func NewResolvable(options ResolvableOptions) *Resolvable {
 	return &Resolvable{
+		options:            options,
 		xxh:                xxhash.New(),
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
@@ -102,8 +110,8 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.data = astjson.MustParse(`{}`)
-	r.errors = astjson.MustParse(`[]`)
+	r.data = r.astjsonArena.NewObject()
+	r.errors = r.astjsonArena.NewArray()
 	if len(ctx.Variables) != 0 {
 		r.variables = astjson.MustParseBytes(ctx.Variables)
 	}
@@ -142,10 +150,10 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 		}
 	}
 	if r.data == nil {
-		r.data = astjson.MustParse(`{}`)
+		r.data = r.astjsonArena.NewObject()
 	}
 	if r.errors == nil {
-		r.errors = astjson.MustParse(`[]`)
+		r.errors = r.astjsonArena.NewArray()
 	}
 	return
 }
@@ -273,8 +281,19 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		if writeComma {
 			r.printBytes(comma)
 		}
-		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+		writeComma = true
 		err := r.printTraceExtension(ctx, fetchTree)
+		if err != nil {
+			return err
+		}
+	}
+
+	if r.valueCompletion != nil {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+		err := r.printValueCompletionExtension()
 		if err != nil {
 			return err
 		}
@@ -328,6 +347,15 @@ func (r *Resolvable) printQueryPlanExtension(fetchTree *FetchTreeNode) error {
 	return nil
 }
 
+func (r *Resolvable) printValueCompletionExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalValueCompletion)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printNode(r.valueCompletion)
+	return nil
+}
+
 func (r *Resolvable) hasExtensions() bool {
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
@@ -339,6 +367,9 @@ func (r *Resolvable) hasExtensions() bool {
 		return true
 	}
 	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		return true
+	}
+	if r.valueCompletion != nil {
 		return true
 	}
 	return false
@@ -409,7 +440,7 @@ func (r *Resolvable) popNodePathElement(path []string) {
 	r.depth--
 }
 
-func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
+func (r *Resolvable) walkNode(node Node, value, parent *astjson.Value) bool {
 	if r.authorizationError != nil {
 		return true
 	}
@@ -424,7 +455,7 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	case *Null:
 		return r.walkNull()
 	case *String:
-		return r.walkString(n, value)
+		return r.walkString(n, value, parent)
 	case *Boolean:
 		return r.walkBoolean(n, value)
 	case *Integer:
@@ -526,7 +557,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
-		err := r.walkNode(obj.Fields[i].Value, value)
+		err := r.walkNode(obj.Fields[i].Value, value, parent)
 		if err {
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
@@ -618,7 +649,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	}
 	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
 		NewSubgraphError(ds, fieldPath, reason, 0)))
-	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	r.popNodePathElement(nodePath)
 }
 
@@ -709,7 +740,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			r.printBytes(comma)
 		}
 		r.pushArrayPathElement(i)
-		err := r.walkNode(arr.Item, arrayValue)
+		err := r.walkNode(arr.Item, arrayValue, parent)
 		r.popArrayPathElement()
 		if err {
 			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
@@ -737,7 +768,7 @@ func (r *Resolvable) walkNull() bool {
 	return false
 }
 
-func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
+func (r *Resolvable) walkString(s *String, value, grandParent *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -752,7 +783,23 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", string(r.marshalBuf)), s.Path)
+		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
+		return r.err()
+	}
+	if !r.print && s.IsTypeName && s.AllowedValues != nil {
+		typename := value.GetStringBytes()
+		if _, ok := s.AllowedValues[string(typename)]; ok {
+			return false
+		}
+		if r.options.ApolloCompatibilityValueCompletionInExtensions {
+			parentTypeName := string(parent.GetStringBytes("__typename"))
+			if parentTypeName == "" {
+				parentTypeName = s.ParentTypeName
+			}
+			r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(parentTypeName)), "INVALID_GRAPHQL", s.Path)
+		} else {
+			r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", s.SourceName, string(typename)), "INVALID_GRAPHQL", s.Path)
+		}
 		return r.err()
 	}
 	if r.print {
@@ -801,7 +848,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", string(r.marshalBuf)), b.Path)
+		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
 		return r.err()
 	}
 	if r.print {
@@ -825,7 +872,7 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", string(r.marshalBuf)), i.Path)
+		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
 		return r.err()
 	}
 	if r.print {
@@ -849,7 +896,7 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeNumber {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", string(r.marshalBuf)), f.Path)
+		r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
 		return r.err()
 	}
 	if r.print {
@@ -950,7 +997,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	}
 	r.pushNodePathElement(fieldPath)
 	errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
-	fastjsonext.AppendErrorToArray(r.errors, errorMessage, r.path)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	r.popNodePathElement(fieldPath)
 }
 
@@ -976,6 +1023,29 @@ func (r *Resolvable) renderFieldPath() string {
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	fastjsonext.AppendErrorToArray(r.errors, message, r.path)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, message, r.path)
 	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) addErrorWithCode(message, code string, fieldPath []string) {
+	r.pushNodePathElement(fieldPath)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
+	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) addValueCompletion(message, code string, fieldPath []string) {
+	r.pushNodePathElement(fieldPath)
+	if r.valueCompletion == nil {
+		r.valueCompletion = r.astjsonArena.NewArray()
+	}
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
+	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) pathLastElementDescription(parentType string) string {
+	elem := r.path[len(r.path)-1]
+	if elem.Name != "" {
+		return fmt.Sprintf("field %s.%s", parentType, elem.Name)
+	}
+	return fmt.Sprintf("array element of type %s at index %d", parentType, elem.Idx)
 }

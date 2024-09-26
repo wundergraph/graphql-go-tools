@@ -117,6 +117,8 @@ type ResolverOptions struct {
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
+	// ResolvableOptions are configuration options for the Resolbable struct
+	ResolvableOptions ResolvableOptions
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -145,7 +147,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		tools: &sync.Pool{
 			New: func() any {
 				return &tools{
-					resolvable: NewResolvable(),
+					resolvable: NewResolvable(options.ResolvableOptions),
 					loader: &Loader{
 						propagateSubgraphErrors:           options.PropagateSubgraphErrors,
 						propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
@@ -282,6 +284,7 @@ type sub struct {
 	writer         SubscriptionResponseWriter
 	id             SubscriptionIdentifier
 	pendingUpdates int
+	completed      chan struct{}
 }
 
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
@@ -448,9 +451,10 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		resolve: add.resolve,
-		writer:  add.writer,
-		id:      add.id,
+		resolve:   add.resolve,
+		writer:    add.writer,
+		id:        add.id,
+		completed: add.completed,
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
@@ -647,7 +651,9 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 			s.writer = nil
 			s.mux.Unlock()
 		}
-
+		if s.completed != nil {
+			close(s.completed)
+		}
 		delete(trig.subscriptions, c)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
@@ -736,6 +742,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
 	}
+	completed := make(chan struct{})
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -743,17 +750,30 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
-			ctx:     ctx,
-			input:   input,
-			resolve: subscription,
-			writer:  writer,
-			id:      id,
+			ctx:       ctx,
+			input:     input,
+			resolve:   subscription,
+			writer:    writer,
+			id:        id,
+			completed: completed,
 		},
 	}:
 	}
 	select {
 	case <-r.ctx.Done():
-		return r.ctx.Err()
+		// the resolver ctx was canceled
+		// this will trigger the shutdown of the trigger (on another goroutine)
+		// as such, we need to wait for the trigger to be shutdown
+		// otherwise we might experience a data race between trigger shutdown write (Complete) and reading bytes written to the writer
+		// as the shutdown happens asynchronously, we want to wait here for at most 5 seconds or until the client ctx is done
+		select {
+		case <-completed:
+			return r.ctx.Err()
+		case <-time.After(time.Second * 5):
+			return r.ctx.Err()
+		case <-ctx.Context().Done():
+			return ctx.Context().Err()
+		}
 	case <-ctx.Context().Done():
 	}
 	if r.options.Debug {
@@ -881,11 +901,12 @@ type subscriptionEvent struct {
 }
 
 type addSubscription struct {
-	ctx     *Context
-	input   []byte
-	resolve *GraphQLSubscription
-	writer  SubscriptionResponseWriter
-	id      SubscriptionIdentifier
+	ctx       *Context
+	input     []byte
+	resolve   *GraphQLSubscription
+	writer    SubscriptionResponseWriter
+	id        SubscriptionIdentifier
+	completed chan struct{}
 }
 
 type subscriptionEventKind int

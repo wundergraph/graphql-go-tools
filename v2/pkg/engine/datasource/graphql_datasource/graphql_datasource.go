@@ -464,6 +464,8 @@ func (p *Planner[T]) EnterSelectionSet(ref int) {
 	}
 
 	// handle adding typename for the InterfaceObject
+	// In case we are inside selection set which returns an interface object
+	// we need to add __typename field to the selection set to get an initial typename value
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationConfiguration().InterfaceObjects {
 		if interfaceObjectCfg.InterfaceTypeName == typeName {
@@ -851,9 +853,12 @@ func (p *Planner[T]) addOnTypeInlineFragment() {
 		onTypeName = []byte(newName)
 	}
 
-	// we should not request a typename of interface object
+	// we should not request a typename when we jump to an interface object
 	if !shouldRenameInterfaceObjectType {
-		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+		// NOTE: we are adding __typename field to the selection set of the inline fragment,
+		// not the parent selection set, as it turns out that some subgraph implementations
+		// could not handle __typename field in the _entities selection set
+		p.addTypenameToSelectionSet(selectionSet.Ref)
 	}
 
 	typeRef := p.upstreamOperation.AddNamedType(onTypeName)

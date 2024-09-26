@@ -12,7 +12,7 @@ import (
 
 func TestResolvable_Resolve(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -84,7 +84,7 @@ func TestResolvable_Resolve(t *testing.T) {
 
 func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":true}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -157,7 +157,7 @@ func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 
 func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -230,7 +230,7 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 
 func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -302,7 +302,7 @@ func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 
 func BenchmarkResolvable_Resolve(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -385,7 +385,7 @@ func BenchmarkResolvable_Resolve(b *testing.B) {
 
 func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
 		Variables: nil,
 	}
@@ -470,7 +470,7 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 }
 
 func TestResolvable_WithTracingNotStarted(t *testing.T) {
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	// Do not start a trace with SetTraceStart(), but request it to be output
 	ctx := NewContext(context.Background())
 	ctx.TracingOptions.Enable = true
@@ -497,7 +497,7 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 
 func TestResolvable_WithTracing(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
-	res := NewResolvable()
+	res := NewResolvable(ResolvableOptions{})
 	background := SetTraceStart(context.Background(), true)
 	ctx := NewContext(background)
 	ctx.TracingOptions.Enable = true

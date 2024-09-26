@@ -1593,6 +1593,43 @@ func testFn(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLRespons
 	}
 }
 
+func testFnApolloCompatibility(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:               1024,
+			Debug:                        false,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			AsyncErrorWriter:             &TestErrorWriter{},
+			ResolvableOptions: ResolvableOptions{
+				ApolloCompatibilityValueCompletionInExtensions: true,
+			},
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
 func testFnSubgraphErrorsPassthrough(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
@@ -1875,6 +1912,188 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			},
 		}, Context{ctx: context.Background()}, `{"data":{"user":{"id":1,"name":"Jannik","__typename":"User","aliased":"User","rewritten":"User"}}}`
+	}))
+	t.Run("__typename checks", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}`)},
+			}),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path:     []string{"id"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path:          []string{"__typename"},
+										Nullable:      false,
+										IsTypeName:    true,
+										AllowedValues: map[string]struct{}{"User": {}},
+										SourceName:    "Users",
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+								{
+									Name: []byte("rewritten"),
+									Value: &String{
+										Path:       []string{"rewritten"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`
+	}))
+	t.Run("__typename checks apollo compatibility object", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":{"user":{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}}}`), PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
+				}},
+			}),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("user"),
+						Value: &Object{
+							Path: []string{"user"},
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &Integer{
+										Path:     []string{"id"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: false,
+									},
+								},
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path:          []string{"__typename"},
+										Nullable:      false,
+										IsTypeName:    true,
+										AllowedValues: map[string]struct{}{"User": {}},
+										SourceName:    "Users",
+									},
+								},
+								{
+									Name: []byte("aliased"),
+									Value: &String{
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+								{
+									Name: []byte("rewritten"),
+									Value: &String{
+										Path:       []string{"rewritten"},
+										Nullable:   false,
+										IsTypeName: true,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field NotUser.user.","path":["user","__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+	}))
+	t.Run("__typename checks apollo compatibility array", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"data":{"users":[{"id":1,"name":"Jannik","__typename":"NotUser","rewritten":"User"}]}}`), PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath: []string{"data"},
+				}},
+			}),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("users"),
+						Value: &Array{
+							Path: []string{"users"},
+							Item: &Object{
+								Fields: []*Field{
+									{
+										Name: []byte("id"),
+										Value: &Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
+									},
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+									},
+									{
+										Name: []byte("__typename"),
+										Value: &String{
+											Path:          []string{"__typename"},
+											Nullable:      false,
+											IsTypeName:    true,
+											AllowedValues: map[string]struct{}{"User": {}},
+											SourceName:    "Users",
+										},
+									},
+									{
+										Name: []byte("aliased"),
+										Value: &String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+									{
+										Name: []byte("rewritten"),
+										Value: &String{
+											Path:       []string{"rewritten"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at array element of type NotUser at index 0.","path":["users",0,"__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{

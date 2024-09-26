@@ -25,6 +25,59 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$bar" of required type "String!" was not provided.`, err.Error())
 	})
 
+	t.Run("a missing required input produces an error", func(t *testing.T) {
+		tc := testCase{
+			schema:    inputSchema,
+			operation: `query Foo($input: SelfSatisfiedInput!) { satisfied }`,
+			variables: `{}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" of required type "SelfSatisfiedInput!" was not provided.`, err.Error())
+	})
+
+	t.Run("provided required input fields with default values do not produce validation errors", func(t *testing.T) {
+		tc := testCase{
+			schema:    inputSchema,
+			operation: `query Foo($input: SelfSatisfiedInput!) { satisfied(input: $input) }`,
+			variables: `{ "input": { } }`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("unprovided required input fields without default values produce validation errors #1", func(t *testing.T) {
+		tc := testCase{
+			schema:    inputSchema,
+			operation: `query Foo($input: SelfUnsatisfiedInput!) { unsatisfied(input: $input) }`,
+			variables: `{ "input": { } }`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value {}; Field "nested" of required type "NestedSelfSatisfiedInput!" was not provided.`, err.Error())
+	})
+
+	t.Run("unprovided required input fields without default values produce validation errors #2", func(t *testing.T) {
+		tc := testCase{
+			schema:    inputSchema,
+			operation: `query Foo($input: SelfUnsatisfiedInput!) { unsatisfied(input: $input) }`,
+			variables: `{ "input": { "nested": { }, "value": "string" } }`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value {"nested":{},"value":"string"}; Field "secondNested" of required type "NestedSelfSatisfiedInput!" was not provided.`, err.Error())
+	})
+
+	t.Run("provided but empty nested required inputs with default values do not produce validation errors", func(t *testing.T) {
+		tc := testCase{
+			schema:    inputSchema,
+			operation: `query Foo($input: SelfUnsatisfiedInput!) { unsatisfied(input: $input) }`,
+			variables: `{ "input": { "nested": { }, "secondNested": { } } }`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
 	t.Run("not required field argument not provided", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(arg: String): String }`,
@@ -751,3 +804,26 @@ func runTest(t *testing.T, tc testCase) error {
 	validator := NewVariablesValidator()
 	return validator.Validate(&op, &def, op.Input.Variables)
 }
+
+var inputSchema = `
+	type Query {
+		satisfied(input: SelfSatisfiedInput!): Boolean
+		unsatisfied(input: SelfUnsatisfiedInput!): Boolean
+	}
+	
+	input NestedSelfSatisfiedInput {
+		a: String
+		b: Int! = 1
+	}
+	
+	input SelfSatisfiedInput {
+		nested: NestedSelfSatisfiedInput
+		value: String
+	}
+
+	input SelfUnsatisfiedInput {
+		nested: NestedSelfSatisfiedInput!
+		secondNested: NestedSelfSatisfiedInput!
+		value: String
+	}
+`
