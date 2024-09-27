@@ -159,10 +159,10 @@ func (b *BatchEntityFetch) Dependencies() FetchDependencies {
 	return b.FetchDependencies
 }
 
-func (e *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
+func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
 	return DataSourceInfo{
-		ID:   e.Info.DataSourceID,
-		Name: e.Info.DataSourceName,
+		ID:   b.Info.DataSourceID,
+		Name: b.Info.DataSourceName,
 	}
 }
 

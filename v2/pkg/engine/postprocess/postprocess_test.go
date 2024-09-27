@@ -2,9 +2,10 @@ package postprocess
 
 import (
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"reflect"
 	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
@@ -517,6 +518,20 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 						Fetches: []resolve.Fetch{
 							&resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+							},
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
 									DataSourceID:   "product-service",
 									DataSourceName: "product-service",
 									OperationType:  ast.OperationTypeQuery,
@@ -531,8 +546,8 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 							},
 							&resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
-									DataSourceID:   "product-service",
-									DataSourceName: "product-service",
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
 									OperationType:  ast.OperationTypeQuery,
 									RootFields: []resolve.GraphCoordinate{
 										{
@@ -541,7 +556,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
 							},
 						},
 					},
@@ -550,6 +565,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 			expected: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					DataSources: []resolve.DataSourceInfo{
+						{ID: "product-service-1", Name: "product-service-1"},
 						{ID: "product-service", Name: "product-service"},
 					},
 					Data: &resolve.Object{
@@ -563,6 +579,22 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 						},
 					},
 					Fetches: resolve.Sequence(
+						resolve.Single(
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+							},
+						),
 						resolve.Single(
 							&resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
@@ -582,8 +614,8 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 						resolve.Single(
 							&resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
-									DataSourceID:   "product-service",
-									DataSourceName: "product-service",
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
 									OperationType:  ast.OperationTypeQuery,
 									RootFields: []resolve.GraphCoordinate{
 										{
@@ -592,7 +624,7 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
 							},
 						),
 					),
