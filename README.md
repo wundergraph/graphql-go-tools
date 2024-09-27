@@ -378,7 +378,7 @@ func ExampleValidateDocument() {
 	operationDocument := ast.NewSmallDocument()
 	report := &operationreport.Report{}
 	validator := astvalidation.DefaultOperationValidator()
-	validator.Validate(schemaDocument, operationDocument, report)
+	validator.Validate(operationDocument, schemaDocument, report)
 	if report.HasErrors() {
 		panic(report.Error())
 	}

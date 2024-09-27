@@ -458,7 +458,7 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 								DependsOnFetchIDs: []int{0},
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[$$0$$]}}}`,
+								Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
 								DataSource:                            &Source{},
 								SetTemplateOutputToNullOnVariableNull: true,
 								Variables: []resolve.Variable{
@@ -987,7 +987,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																DependsOnFetchIDs: []int{0},
 															},
 															FetchConfiguration: resolve.FetchConfiguration{
-																Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+																Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 																DataSource:                            &Source{},
 																SetTemplateOutputToNullOnVariableNull: true,
 																Variables: []resolve.Variable{
@@ -1208,7 +1208,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															},
 															DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															FetchConfiguration: resolve.FetchConfiguration{
-																Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+																Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 																DataSource:                            &Source{},
 																SetTemplateOutputToNullOnVariableNull: true,
 																RequiresEntityFetch:                   true,
@@ -1463,7 +1463,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {foo}}}","variables":{"representations":[$$0$$]}}}`,
+														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ResolvableObjectVariable{
 																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1531,7 +1531,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {foo}}}","variables":{"representations":[$$0$$]}}}`,
+														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ResolvableObjectVariable{
 																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1636,7 +1636,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {foo}}}","variables":{"representations":[$$0$$]}}}`,
+														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ResolvableObjectVariable{
 																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1756,7 +1756,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {foo}}}","variables":{"representations":[$$0$$]}}}`,
+														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ResolvableObjectVariable{
 																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -1885,7 +1885,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -1922,7 +1922,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -1973,7 +1973,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2151,7 +2151,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {secretAddress {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename secretAddress {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2210,7 +2210,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2247,7 +2247,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {zip}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2298,7 +2298,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {secretLine}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename secretLine}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2444,7 +2444,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2503,7 +2503,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://user.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {deliveryAddress {line1}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://user.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename deliveryAddress {line1}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
@@ -2712,7 +2712,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			FetchConfiguration: resolve.FetchConfiguration{
-																				Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {country city}}}","variables":{"representations":[$$0$$]}}}`,
+																				Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
 																				DataSource:          &Source{},
 																				PostProcessing:      SingleEntityPostProcessingConfiguration,
 																				RequiresEntityFetch: true,
@@ -2749,7 +2749,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			FetchConfiguration: resolve.FetchConfiguration{
-																				Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
+																				Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
 																				DataSource:          &Source{},
 																				PostProcessing:      SingleEntityPostProcessingConfiguration,
 																				RequiresEntityFetch: true,
@@ -2800,7 +2800,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																			},
 																			DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																			FetchConfiguration: resolve.FetchConfiguration{
-																				Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Address {fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
+																				Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 																				DataSource:          &Source{},
 																				PostProcessing:      SingleEntityPostProcessingConfiguration,
 																				RequiresEntityFetch: true,
@@ -3061,7 +3061,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -3099,7 +3099,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -3204,7 +3204,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -3242,7 +3242,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -3357,7 +3357,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -3395,7 +3395,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -3510,7 +3510,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename firstName lastName}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -3548,7 +3548,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchConfiguration: resolve.FetchConfiguration{
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -3795,7 +3795,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {name}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -3839,7 +3839,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              true,
-											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {property}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename property}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -4110,7 +4110,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {lastName}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -4148,7 +4148,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -4251,7 +4251,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {lastName}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename lastName}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -4289,7 +4289,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchConfiguration: resolve.FetchConfiguration{
 											RequiresEntityBatchFetch:              false,
 											RequiresEntityFetch:                   true,
-											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName}}}","variables":{"representations":[$$0$$]}}}`,
 											DataSource:                            &Source{},
 											SetTemplateOutputToNullOnVariableNull: true,
 											Variables: []resolve.Variable{
@@ -4611,7 +4611,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
 												PostProcessing:                        SingleEntityPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on UserList {users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on UserList {__typename users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -4649,7 +4649,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												RequiresEntityBatchFetch:              true,
 												RequiresEntityFetch:                   false,
 												PostProcessing:                        EntitiesPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -4799,7 +4799,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												RequiresEntityBatchFetch:              false,
 												RequiresEntityFetch:                   true,
 												PostProcessing:                        SingleEntityPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on UserList {users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on UserList {__typename users {users {id firstName lastName __typename}}}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -4837,7 +4837,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												RequiresEntityBatchFetch:              true,
 												RequiresEntityFetch:                   false,
 												PostProcessing:                        EntitiesPostProcessingConfiguration,
-												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
+												Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename fullName {id fullName}}}}","variables":{"representations":[$$0$$]}}}`,
 												DataSource:                            &Source{},
 												SetTemplateOutputToNullOnVariableNull: true,
 												Variables: []resolve.Variable{
@@ -5124,7 +5124,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																},
 																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																FetchConfiguration: resolve.FetchConfiguration{
-																	Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Account {name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
+																	Input:                                 `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Account {__typename name shippingInfo {zip}}}}","variables":{"representations":[$$0$$]}}}`,
 																	DataSource:                            &Source{},
 																	PostProcessing:                        SingleEntityPostProcessingConfiguration,
 																	RequiresEntityFetch:                   true,
@@ -5679,11 +5679,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 
 					variant1 := expectedPlan(
 						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
-						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`)
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {surname}}}}","variables":{"representations":[$$0$$]}}}`)
 
 					variant2 := expectedPlan(
 						`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
-						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`)
+						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {middlename}}}}","variables":{"representations":[$$0$$]}}}`)
 
 					RunWithPermutationsVariants(
 						t,
@@ -5801,11 +5801,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 
 					variant1 := expectedPlan(
 						`{"method":"POST","url":"http://first.service","body":{"query":"{me {__typename id}}"}}`,
-						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 					)
 					variant2 := expectedPlan(
 						`{"method":"POST","url":"http://second.service","body":{"query":"{me {__typename id}}"}}`,
-						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 					)
 
 					RunWithPermutationsVariants(
@@ -5951,7 +5951,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						"basic",
 						expectedPlan(
 							`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename} __typename id}}"}}`,
-							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+							`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 						),
 						planConfiguration,
 					)
@@ -6097,26 +6097,26 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 
 					variant1 := expectedPlan(
 						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
-						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
-						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 					)
 
 					variant2 := expectedPlan(
 						`{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename middlename} __typename id}}"}}`,
-						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
-						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {surname}}}}","variables":{"representations":[$$0$$]}}}`,
 					)
 
 					variant3 := expectedPlan(
 						`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
-						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`,
-						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {middlename}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
 					)
 
 					variant4 := expectedPlan(
 						`{"method":"POST","url":"http://second.service","body":{"query":"{me {details {forename surname} __typename id}}"}}`,
-						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {age}}}}","variables":{"representations":[$$0$$]}}}`,
-						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {details {middlename}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {age}}}}","variables":{"representations":[$$0$$]}}}`,
+						`{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename details {middlename}}}}","variables":{"representations":[$$0$$]}}}`,
 					)
 
 					RunWithPermutationsVariants(
@@ -6386,7 +6386,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													}, FetchConfiguration: resolve.FetchConfiguration{
 														RequiresEntityBatchFetch:              false,
 														RequiresEntityFetch:                   true,
-														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
@@ -6495,7 +6495,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																}, FetchConfiguration: resolve.FetchConfiguration{
 																	RequiresEntityBatchFetch:              false,
 																	RequiresEntityFetch:                   true,
-																	Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[$$0$$]}}}`,
+																	Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
 																	DataSource:                            &Source{},
 																	SetTemplateOutputToNullOnVariableNull: true,
 																	Variables: []resolve.Variable{
@@ -6594,7 +6594,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													}, FetchConfiguration: resolve.FetchConfiguration{
 														RequiresEntityBatchFetch:              false,
 														RequiresEntityFetch:                   true,
-														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Admin {title} ... on User {title}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Admin {__typename title} ... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
@@ -6918,7 +6918,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchID:           1,
 										DependsOnFetchIDs: []int{0},
 									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name} ... on Admin {adminName}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -6969,7 +6969,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DependsOnFetchIDs: []int{0},
 									},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Moderator {subject}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -7073,7 +7073,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchID:           1,
 										DependsOnFetchIDs: []int{0},
 									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Moderator {title}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -7109,7 +7109,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchID:           2,
 										DependsOnFetchIDs: []int{0},
 									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -7445,7 +7445,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								}, FetchConfiguration: resolve.FetchConfiguration{
 									RequiresEntityBatchFetch:              false,
 									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name uuid}}}","variables":{"representations":[$$0$$]}}}`,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name uuid}}}","variables":{"representations":[$$0$$]}}}`,
 									DataSource:                            &Source{},
 									SetTemplateOutputToNullOnVariableNull: true,
 									Variables: []resolve.Variable{
@@ -7482,7 +7482,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								}, FetchConfiguration: resolve.FetchConfiguration{
 									RequiresEntityBatchFetch:              false,
 									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {address {country}}}}","variables":{"representations":[$$0$$]}}}`,
+									Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename address {country}}}}","variables":{"representations":[$$0$$]}}}`,
 									DataSource:                            &Source{},
 									SetTemplateOutputToNullOnVariableNull: true,
 									Variables: []resolve.Variable{
@@ -7519,7 +7519,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								}, FetchConfiguration: resolve.FetchConfiguration{
 									RequiresEntityBatchFetch:              false,
 									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title}}}","variables":{"representations":[$$0$$]}}}`,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 									DataSource:                            &Source{},
 									SetTemplateOutputToNullOnVariableNull: true,
 									Variables: []resolve.Variable{
@@ -7854,7 +7854,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {field2 key2}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field2 key2}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -7891,7 +7891,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {field3 key3}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field3 key3}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -7928,7 +7928,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {field4}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -8038,7 +8038,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {key2 field2}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key2 field2}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -8075,7 +8075,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {key3 field3}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key3 field3}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -8112,7 +8112,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {field4}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://fourth.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field4}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -8430,7 +8430,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													}, FetchConfiguration: resolve.FetchConfiguration{
 														RequiresEntityBatchFetch:              false,
 														RequiresEntityFetch:                   true,
-														Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {name}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
@@ -8524,7 +8524,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													}, FetchConfiguration: resolve.FetchConfiguration{
 														RequiresEntityBatchFetch:              false,
 														RequiresEntityFetch:                   true,
-														Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {title}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
@@ -8744,7 +8744,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													}, FetchConfiguration: resolve.FetchConfiguration{
 														RequiresEntityBatchFetch:              false,
 														RequiresEntityFetch:                   true,
-														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {age}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
@@ -8983,7 +8983,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													}, FetchConfiguration: resolve.FetchConfiguration{
 														RequiresEntityBatchFetch:              false,
 														RequiresEntityFetch:                   true,
-														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {age}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename age}}}","variables":{"representations":[$$0$$]}}}`,
 														DataSource:                            &Source{},
 														SetTemplateOutputToNullOnVariableNull: true,
 														Variables: []resolve.Variable{
@@ -9260,7 +9260,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename ` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -9306,7 +9306,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename ` + entitySelectionSet + `}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -9345,7 +9345,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -9384,7 +9384,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {isImportant}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -9423,7 +9423,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -9462,7 +9462,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Entity {rating}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename rating}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -10059,7 +10059,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														RequiresEntityFetch:                   true,
 														SetTemplateOutputToNullOnVariableNull: true,
 														PostProcessing:                        SingleEntityPostProcessingConfiguration,
-														Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {a}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename a}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ResolvableObjectVariable{
 																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -10117,7 +10117,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														RequiresEntityFetch:                   true,
 														SetTemplateOutputToNullOnVariableNull: true,
 														PostProcessing:                        SingleEntityPostProcessingConfiguration,
-														Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {b}}}","variables":{"representations":[$$0$$]}}}`,
+														Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename b}}}","variables":{"representations":[$$0$$]}}}`,
 														Variables: resolve.NewVariables(
 															&resolve.ResolvableObjectVariable{
 																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -10375,7 +10375,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								}, FetchConfiguration: resolve.FetchConfiguration{
 									RequiresEntityBatchFetch:              false,
 									RequiresEntityFetch:                   true,
-									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {id: userID title}}}","variables":{"representations":[$$0$$]}}}`,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename id: userID title}}}","variables":{"representations":[$$0$$]}}}`,
 									DataSource:                            &Source{},
 									SetTemplateOutputToNullOnVariableNull: true,
 									Variables: []resolve.Variable{

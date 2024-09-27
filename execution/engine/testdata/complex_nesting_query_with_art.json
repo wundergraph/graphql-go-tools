@@ -247,7 +247,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name}}}",
                         "variables": {
                           "representations": [
                             {
@@ -406,7 +406,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
                         "variables": {
                           "representations": [
                             {

@@ -16,10 +16,8 @@ import (
 
 // configurationVisitor - walks through the operation multiple times to collect plannings paths
 // to resolve fields from different datasources.
-// During walks, it is adding required fields and rewrites abstract selection if it is necessary
 // we are revisiting query when we have:
-// - missing path
-// - new fields were added
+// - missing path, which was not planned on the previuos walks
 // - we have fields which are waiting for dependencies
 type configurationVisitor struct {
 	logger                             abstractlogger.Logger
@@ -56,7 +54,6 @@ type configurationVisitor struct {
 	fieldRequiresDependencies         map[int][]int                           // fieldRequiresDependencies is a map[fieldRef][]fieldRef - is the same as fieldWaitingForRequiresDependency, but we do not remove values from it
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
-	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 
 	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
@@ -77,7 +74,7 @@ func (e *FailedToCreatePlanningPathsError) Error() string {
 }
 
 func (c *configurationVisitor) shouldRevisit() bool {
-	return c.hasNewFields || c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
+	return c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
@@ -102,15 +99,6 @@ type fieldsRequirementConfig struct {
 type arrayField struct {
 	fieldRef  int
 	fieldPath string
-}
-
-type missingPath struct {
-	path                  string
-	precedingRootNodePath string
-}
-
-func (p *missingPath) String() string {
-	return fmt.Sprintf(`{"path":"%s","precedingRootNodePath":"%s"}`, p.path, p.precedingRootNodePath)
 }
 
 type objectFetchConfiguration struct {
@@ -269,8 +257,6 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 }
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
-	c.hasNewFields = false
-
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
@@ -334,7 +320,12 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
-	// We have to add a fragment path to the planner paths
+	// We have to add a fragment path to the planner paths,
+	// otherwise concrete planner will not pick up any path from such fragment
+	// because we always check for the planner does it have a parent path for the current path
+	// NOTE: in some cases datasource could have parent path, but no fields were planned within the fragment
+	// such fragment paths do not have any nested fields, so they are obsolete and will be removed
+	// when all paths for the query are planned. It happens in Planner.removeUnnecessaryFragmentPaths method
 	ancestor := c.walker.Ancestor()
 	if ancestor.Kind != ast.NodeKindInlineFragment {
 		return
@@ -352,7 +343,11 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 		hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
 		hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
 		if !(hasRootNode || hasChildNode) {
-			continue
+			// we need to check also if an enclosing type is a union
+			// because we don't have root/child node for a union type
+			if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+				continue
+			}
 		}
 
 		if planner.HasPath(currentPath) {
@@ -393,8 +388,19 @@ func (c *configurationVisitor) EnterField(ref int) {
 	// but planner path still will not include it
 	// this required to not produce multiple planners for the inline fragments
 	precedingParentPath := parentPath
-	if c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName {
-		precedingParentPath = c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+
+	var precedingPath ast.Path
+	// we evaluate here the chain of inline fragments to get the preceding parent path
+	// we will need to skip all consecutive inline fragments to get the correct parent path
+	for i := len(c.walker.Path); i > 1; i-- {
+		if c.walker.Path[i-1].Kind != ast.InlineFragmentName {
+			break
+		}
+
+		precedingPath = c.walker.Path[:i-1]
+	}
+	if precedingPath != nil {
+		precedingParentPath = precedingPath.DotDelimitedString()
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
