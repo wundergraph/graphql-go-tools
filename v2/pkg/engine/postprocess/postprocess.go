@@ -1,9 +1,10 @@
 package postprocess
 
 import (
+	"slices"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"slices"
 )
 
 type ResponseTreeProcessor interface {
@@ -164,9 +165,12 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.collectDataSourceInfo {
 		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
 		for _, fetch := range fetches {
-			list = append(list, fetch.Fetch.DataSourceInfo())
+			dsInfo := fetch.Fetch.DataSourceInfo()
+			if !slices.Contains(list, dsInfo) {
+				list = append(list, dsInfo)
+			}
 		}
-		res.DataSources = slices.Compact(list)
+		res.DataSources = list
 	}
 
 	for i := range fetches {
