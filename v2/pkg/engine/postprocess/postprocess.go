@@ -131,9 +131,6 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
 		p.createFetchTree(t.Response)
-		if p.collectDataSourceInfo {
-			t.Response.DataSources = collectDataSourceInfos(t.Response.Fetches)
-		}
 		p.dedupe.ProcessFetchTree(t.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
@@ -144,9 +141,6 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].ProcessSubscription(t.Response.Response.Data)
 		}
 		p.createFetchTree(t.Response.Response)
-		if p.collectDataSourceInfo {
-			t.Response.Response.DataSources = collectDataSourceInfos(t.Response.Response.Fetches)
-		}
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
@@ -166,6 +160,15 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	}
 	fetches := ex.extractFetches(res)
 	children := make([]*resolve.FetchTreeNode, len(fetches))
+
+	if p.collectDataSourceInfo {
+		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
+		for _, fetch := range fetches {
+			list = append(list, fetch.Fetch.DataSourceInfo())
+		}
+		res.DataSources = slices.Compact(list)
+	}
+
 	for i := range fetches {
 		children[i] = &resolve.FetchTreeNode{
 			Kind: resolve.FetchTreeNodeKindSingle,
@@ -176,17 +179,4 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 		Kind:       resolve.FetchTreeNodeKindSequence,
 		ChildNodes: children,
 	}
-}
-
-// collectDataSourceInfos returns the list of involved data sources of the operation
-func collectDataSourceInfos(node *resolve.FetchTreeNode) (list []resolve.DataSourceInfo) {
-	if node.Item != nil && node.Item.Fetch != nil {
-		list = append(list, node.Item.Fetch.DataSourceInfo())
-	}
-
-	for _, childNode := range node.ChildNodes {
-		list = append(list, collectDataSourceInfos(childNode)...)
-	}
-
-	return slices.Compact(list)
 }
