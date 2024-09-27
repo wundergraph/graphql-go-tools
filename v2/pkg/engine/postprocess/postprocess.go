@@ -3,7 +3,7 @@ package postprocess
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unique"
+	"slices"
 )
 
 type ResponseTreeProcessor interface {
@@ -180,7 +180,6 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 
 // collectDataSourceInfos returns the list of involved data sources of the operation
 func collectDataSourceInfos(node *resolve.FetchTreeNode) (list []resolve.DataSourceInfo) {
-
 	if node.Item != nil && node.Item.Fetch != nil {
 		list = append(list, node.Item.Fetch.DataSourceInfo())
 	}
@@ -189,5 +188,5 @@ func collectDataSourceInfos(node *resolve.FetchTreeNode) (list []resolve.DataSou
 		list = append(list, collectDataSourceInfos(childNode)...)
 	}
 
-	return unique.SliceElements(list)
+	return slices.Compact(list)
 }

@@ -515,7 +515,6 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 							},
 						},
 						Fetches: []resolve.Fetch{
-
 							&resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "product-service",
