@@ -383,6 +383,16 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		parentTypeNames = append(parentTypeNames, onTypeName)
 	}
 
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+		// get all the type names that implement this interface
+		implementingTypeNames, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(v.Walker.EnclosingTypeDefinition.Ref)
+		if ok {
+			parentTypeNames = append(parentTypeNames, implementingTypeNames...)
+		}
+	}
+	slices.Sort(parentTypeNames)
+	parentTypeNames = slices.Compact(parentTypeNames)
+
 	sourceNames := make([]string, 0, 1)
 	sourceIDs := make([]string, 0, 1)
 
