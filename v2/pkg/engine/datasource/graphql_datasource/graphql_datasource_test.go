@@ -572,7 +572,8 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													Info: &resolve.FieldInfo{
 														Name:                "name",
-														ParentTypeNames:     []string{"Character"},
+														// whenever the field of an interface is used, the usage is propagated to the types implementing the interface
+														ParentTypeNames:     []string{"Character", "Droid", "Human"},
 														ExactParentTypeName: "Character",
 														NamedType:           "String",
 														Source: resolve.TypeFieldSource{
@@ -617,7 +618,8 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Info: &resolve.FieldInfo{
 										Name:                "name",
-										ParentTypeNames:     []string{"Character"},
+										// whenever the field of an interface is used, the usage is propagated to the types implementing the interface
+										ParentTypeNames:     []string{"Character", "Droid", "Human"},
 										ExactParentTypeName: "Character",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
