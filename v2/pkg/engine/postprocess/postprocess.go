@@ -3,6 +3,7 @@ package postprocess
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"slices"
 )
 
 type ResponseTreeProcessor interface {
@@ -16,6 +17,7 @@ type FetchTreeProcessor interface {
 
 type Processor struct {
 	disableExtractFetches bool
+	collectDataSourceInfo bool
 	resolveInputTemplates *resolveInputTemplates
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
@@ -30,6 +32,7 @@ type processorOptions struct {
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
 	disableAddMissingNestedDependencies   bool
+	collectDataSourceInfo                 bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -59,6 +62,12 @@ func DisableResolveInputTemplates() ProcessorOption {
 	}
 }
 
+func CollectDataSourceInfo() ProcessorOption {
+	return func(o *processorOptions) {
+		o.collectDataSourceInfo = true
+	}
+}
+
 func DisableExtractFetches() ProcessorOption {
 	return func(o *processorOptions) {
 		o.disableExtractFetches = true
@@ -83,6 +92,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		o(opts)
 	}
 	return &Processor{
+		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
 		resolveInputTemplates: &resolveInputTemplates{
 			disable: opts.disableResolveInputTemplates,
@@ -150,6 +160,15 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	}
 	fetches := ex.extractFetches(res)
 	children := make([]*resolve.FetchTreeNode, len(fetches))
+
+	if p.collectDataSourceInfo {
+		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
+		for _, fetch := range fetches {
+			list = append(list, fetch.Fetch.DataSourceInfo())
+		}
+		res.DataSources = slices.Compact(list)
+	}
+
 	for i := range fetches {
 		children[i] = &resolve.FetchTreeNode{
 			Kind: resolve.FetchTreeNodeKindSingle,
