@@ -274,8 +274,9 @@ func TestGetSchemaUsageInfo(t *testing.T) {
 				},
 			},
 			{
-				FieldName:          "name",
-				EnclosingTypeNames: []string{"Character"},
+				FieldName: "name",
+				// whenever the field of an interface is used, the usage is propagated to the types implementing the interface
+				EnclosingTypeNames: []string{"Character", "Droid", "Human"},
 				Path:               []string{"hero", "name"},
 				FieldTypeName:      "String",
 				Source: TypeFieldSource{
