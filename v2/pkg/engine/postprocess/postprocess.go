@@ -3,6 +3,7 @@ package postprocess
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unique"
 )
 
 type ResponseTreeProcessor interface {
@@ -16,6 +17,7 @@ type FetchTreeProcessor interface {
 
 type Processor struct {
 	disableExtractFetches bool
+	collectDataSourceInfo bool
 	resolveInputTemplates *resolveInputTemplates
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
@@ -30,6 +32,7 @@ type processorOptions struct {
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
 	disableAddMissingNestedDependencies   bool
+	collectDataSourceInfo                 bool
 }
 
 type ProcessorOption func(*processorOptions)
@@ -59,6 +62,12 @@ func DisableResolveInputTemplates() ProcessorOption {
 	}
 }
 
+func CollectDataSourceInfo() ProcessorOption {
+	return func(o *processorOptions) {
+		o.collectDataSourceInfo = true
+	}
+}
+
 func DisableExtractFetches() ProcessorOption {
 	return func(o *processorOptions) {
 		o.disableExtractFetches = true
@@ -83,6 +92,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		o(opts)
 	}
 	return &Processor{
+		collectDataSourceInfo: opts.collectDataSourceInfo,
 		disableExtractFetches: opts.disableExtractFetches,
 		resolveInputTemplates: &resolveInputTemplates{
 			disable: opts.disableResolveInputTemplates,
@@ -121,6 +131,9 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
 		p.createFetchTree(t.Response)
+		if p.collectDataSourceInfo {
+			t.Response.DataSources = collectDataSourceInfos(t.Response.Fetches)
+		}
 		p.dedupe.ProcessFetchTree(t.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
@@ -131,6 +144,9 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].ProcessSubscription(t.Response.Response.Data)
 		}
 		p.createFetchTree(t.Response.Response)
+		if p.collectDataSourceInfo {
+			t.Response.Response.DataSources = collectDataSourceInfos(t.Response.Response.Fetches)
+		}
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
@@ -160,4 +176,18 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 		Kind:       resolve.FetchTreeNodeKindSequence,
 		ChildNodes: children,
 	}
+}
+
+// collectDataSourceInfos returns the list of involved data sources of the operation
+func collectDataSourceInfos(node *resolve.FetchTreeNode) (list []resolve.DataSourceInfo) {
+
+	if node.Item != nil && node.Item.Fetch != nil {
+		list = append(list, node.Item.Fetch.DataSourceInfo())
+	}
+
+	for _, childNode := range node.ChildNodes {
+		list = append(list, collectDataSourceInfos(childNode)...)
+	}
+
+	return unique.SliceElements(list)
 }
