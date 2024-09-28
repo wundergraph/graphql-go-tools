@@ -12,6 +12,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -137,29 +138,44 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 }
 
 func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptions) error {
-	if !operation.IsNormalized() {
-		result, err := operation.Normalize(e.config.schema)
+
+	normalize := !operation.IsNormalized()
+	if normalize {
+		// Normalize the operation, but extract variables later so ValidateForSchema can return correct error messages for bad arguments.
+		result, err := operation.Normalize(e.config.schema,
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+		)
 		if err != nil {
 			return err
+		} else if !result.Successful {
+			return result.Errors
 		}
+		normalize = true
+	}
 
-		if !result.Successful {
+	// Validate the operation against the schema.
+	if result, err := operation.ValidateForSchema(e.config.schema); err != nil {
+		return err
+	} else if !result.Valid {
+		return result.Errors
+	}
+
+	if normalize {
+		// Normalize the operation again, this time just extracting additional variables from arguments.
+		result, err := operation.Normalize(e.config.schema,
+			astnormalization.WithExtractVariables(),
+		)
+		if err != nil {
+			return err
+		} else if !result.Successful {
 			return result.Errors
 		}
 	}
 
-	result, err := operation.ValidateForSchema(e.config.schema)
-	if err != nil {
-		return err
-	}
-	if !result.Valid {
-		return result.Errors
-	}
-
 	execContext := newInternalExecutionContext()
-
-	execContext.prepare(ctx, operation.Variables, operation.InternalRequest(), options...)
-
+	execContext.prepare(ctx, operation.Variables, operation.InternalRequest())
 	for i := range options {
 		options[i](execContext)
 	}
