@@ -34,7 +34,7 @@ func newInternalExecutionContext() *internalExecutionContext {
 	}
 }
 
-func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request, options ...ExecutionOptions) {
+func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request) {
 	e.setContext(ctx)
 	e.setVariables(variables)
 	e.setRequest(request)
@@ -186,13 +186,11 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	var tracePlanStart int64
-
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		tracePlanStart = resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context())
 	}
 
 	var report operationreport.Report
-
 	cachedPlan := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
 		return report
@@ -210,14 +208,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		_, err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		return err
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}
-
-	return err
 }
 
 func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
