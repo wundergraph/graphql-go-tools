@@ -20,6 +20,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/variablesvalidation"
 )
 
 type internalExecutionContext struct {
@@ -160,6 +161,14 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		return err
 	} else if !result.Valid {
 		return result.Errors
+	}
+
+	// Validate user-supplied variables against the operation.
+	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
+		validator := variablesvalidation.NewVariablesValidator()
+		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
+			return err
+		}
 	}
 
 	if normalize {
