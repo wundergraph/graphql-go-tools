@@ -6,11 +6,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"io"
 	"sync"
 	"time"
 
-	"github.com/alitto/pond"
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
@@ -42,10 +42,10 @@ type Resolver struct {
 	bufPool        sync.Pool
 	maxConcurrency chan struct{}
 
-	triggers          map[uint64]*trigger
-	events            chan subscriptionEvent
-	triggerUpdatePool *pond.WorkerPool
-	triggerUpdateBuf  *bytes.Buffer
+	triggers         map[uint64]*trigger
+	events           chan subscriptionEvent
+	triggerUpdateSem *semaphore.Weighted
+	triggerUpdateBuf *bytes.Buffer
 
 	connectionIDs atomic.Int64
 
@@ -170,15 +170,11 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
-	resolver.triggerUpdatePool = pond.New(
-		options.MaxSubscriptionWorkers,
-		0,
-		pond.Context(ctx),
-		pond.IdleTimeout(time.Second*30),
-		pond.Strategy(pond.Lazy()),
-		pond.MinWorkers(16),
-	)
+
+	resolver.triggerUpdateSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
+
 	go resolver.handleEvents()
+
 	return resolver
 }
 
@@ -291,13 +287,16 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	sub.mux.Lock()
 	sub.pendingUpdates++
 	sub.mux.Unlock()
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
 	_, t := r.getTools()
 	defer r.putTools(t)
+
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
+
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
@@ -311,6 +310,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
+
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
 		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
@@ -324,15 +324,15 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
+
+	sub.mux.Lock()
+	sub.pendingUpdates--
+	sub.mux.Unlock()
+
 	sub.mux.Lock()
 	sub.pendingUpdates--
 	defer sub.mux.Unlock()
-	if sub.writer == nil {
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:writer:nil:%d\n", sub.id.SubscriptionID)
-		}
-		return // subscription was already closed by the client
-	}
+
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
@@ -556,10 +556,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 			if s.id == id {
 
 				if ctx.Context().Err() == nil {
-					s.mux.Lock()
 					s.writer.Complete()
-					s.writer = nil
-					s.mux.Unlock()
 				}
 
 				delete(trig.subscriptions, ctx)
@@ -579,6 +576,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
 	}
@@ -588,10 +586,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 			if s.id.ConnectionID == id && !s.id.internal {
 
 				if c.Context().Err() == nil {
-					s.mux.Lock()
 					s.writer.Complete()
-					s.writer = nil
-					s.mux.Unlock()
 				}
 
 				delete(r.triggers[u].subscriptions, c)
@@ -630,11 +625,17 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if skip {
 			continue
 		}
+
+		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
+			return
+		}
+
 		wg.Add(1)
-		r.triggerUpdatePool.Submit(func() {
+		go func() {
+			defer r.triggerUpdateSem.Release(1)
+			defer wg.Done()
 			r.executeSubscriptionUpdate(c, s, data)
-			wg.Done()
-		})
+		}()
 	}
 }
 
@@ -646,10 +647,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	count := len(trig.subscriptions)
 	for c, s := range trig.subscriptions {
 		if c.Context().Err() == nil {
-			s.mux.Lock()
 			s.writer.Complete()
-			s.writer = nil
-			s.mux.Unlock()
 		}
 		if s.completed != nil {
 			close(s.completed)
