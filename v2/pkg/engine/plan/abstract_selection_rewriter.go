@@ -187,6 +187,11 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 
 func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames, entityNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
+	if fieldInfo.hasTypeNameSelection {
+		// we should preserve __typename if it was in the original query as it is explicitly requested
+		typeNameSelectionRef, _ := r.typeNameSelection()
+		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
+	}
 
 	for _, inlineFragmentOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
 		// we need to recursively flatten nested fragments on interfaces
