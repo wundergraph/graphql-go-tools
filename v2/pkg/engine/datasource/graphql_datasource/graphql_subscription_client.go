@@ -61,12 +61,6 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
-func WithOnWsConnectionInitCallback(callback *OnWsConnectionInitCallback) Options {
-	return func(options *opts) {
-		options.onWsConnectionInitCallback = callback
-	}
-}
-
 type opts struct {
 	readTimeout                time.Duration
 	log                        abstractlogger.Logger
@@ -346,7 +340,6 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 
 type ConnectionHandler interface {
 	StartBlocking(sub Subscription)
-	SubscribeCH() chan<- Subscription
 }
 
 type Subscription struct {
