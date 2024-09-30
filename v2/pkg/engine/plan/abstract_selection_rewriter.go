@@ -187,15 +187,10 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 
 func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames, entityNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
-	if fieldInfo.hasTypeNameSelection {
-		// we should preserve __typename if it was in the original query as it is explicitly requested
-		typeNameSelectionRef, _ := r.typeNameSelection()
-		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
-	}
 
 	for _, inlineFragmentOnInterface := range fieldInfo.inlineFragmentsOnInterfaces {
 		// we need to recursively flatten nested fragments on interfaces
-		r.flattenFragmentOnInterface(inlineFragmentOnInterface.selectionSetInfo, inlineFragmentOnInterface.typeNamesImplementingInterface, unionTypeNames, &newSelectionRefs, false)
+		r.flattenFragmentOnInterface(inlineFragmentOnInterface.selectionSetInfo, inlineFragmentOnInterface.typeNamesImplementingInterface, unionTypeNames, &newSelectionRefs)
 	}
 
 	// filter existing fragments by type names exists in the current datasource
@@ -368,20 +363,17 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
 
-	shouldAddTypeName := fieldInfo.hasTypeNameSelection
-
 	r.flattenFragmentOnInterface(
 		fieldInfo,
 		interfaceTypeNames,
 		interfaceTypeNames,
 		&newSelectionRefs,
-		shouldAddTypeName,
 	)
 
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
 
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int, shouldAddTypeName bool) {
+func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
 	if len(typeNamesImplementingInterfaceInCurrentDS) == 0 {
 		return
 	}
@@ -395,7 +387,7 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 
 	if selectionSetInfo.hasFields {
 		for _, typeName := range filteredImplementingTypes {
-			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields, shouldAddTypeName))
+			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))
 		}
 	}
 
@@ -415,6 +407,6 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		// in case of interfaces the only thing which is matter is an interception of implementing types
 		// and parent allowed types
 
-		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, filteredImplementingTypes, selectionRefs, false)
+		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, filteredImplementingTypes, selectionRefs)
 	}
 }
