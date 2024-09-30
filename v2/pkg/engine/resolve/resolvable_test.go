@@ -495,6 +495,57 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 	assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"trace":{"version":"1","info":null,"fetches":{"kind":"Sequence"}}}}`, out.String())
 }
 
+func TestResolvable_ValueCompletion(t *testing.T) {
+	res := NewResolvable(ResolvableOptions{
+		ApolloCompatibilityValueCompletionInExtensions: true,
+	})
+	ctx := NewContext(context.Background())
+	err := res.Init(ctx, []byte(`{"hello":"world","__typename":"NotHello"}`), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("hello"),
+				Value: &String{
+					Path: []string{"hello"},
+				},
+			},
+			{
+				Name: []byte("__typename"),
+				Value: &String{
+					Path:       []string{"__typename"},
+					IsTypeName: true,
+					AllowedValues: map[string]struct{}{
+						"Hello": {},
+					},
+				},
+			},
+		},
+	}
+	out := &bytes.Buffer{}
+	fetchTree := Sequence()
+	err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.__typename.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+
+	res.Reset(1024)
+	err = res.Init(ctx, []byte(`{"hello":"world","__typename":"Hello"}`), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	out.Reset()
+	err = res.Resolve(ctx.ctx, object, fetchTree, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":{"hello":"world","__typename":"Hello"}}`, out.String())
+
+	res.Reset(1024)
+	err = res.Init(ctx, []byte(`{"hello":"world","__typename":"NotEvenATinyBitHello"}`), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	out.Reset()
+	err = res.Resolve(ctx.ctx, object, fetchTree, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.__typename.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+}
+
 func TestResolvable_WithTracing(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})

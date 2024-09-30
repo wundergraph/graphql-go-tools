@@ -87,6 +87,7 @@ func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	r.wroteData = false
 	r.data = nil
 	r.errors = nil
+	r.valueCompletion = nil
 	r.variables = nil
 	r.depth = 0
 	r.print = false
@@ -113,10 +114,16 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
 	if len(ctx.Variables) != 0 {
-		r.variables = astjson.MustParseBytes(ctx.Variables)
+		r.variables, err = astjson.ParseBytes(ctx.Variables)
+		if err != nil {
+			return err
+		}
 	}
 	if initialData != nil {
-		initialValue := astjson.MustParseBytes(initialData)
+		initialValue, err := astjson.ParseBytes(initialData)
+		if err != nil {
+			return err
+		}
 		r.data, _ = astjson.MergeValues(r.data, initialValue)
 	}
 	return
@@ -796,7 +803,7 @@ func (r *Resolvable) walkString(s *String, value, grandParent *astjson.Value) bo
 			if parentTypeName == "" {
 				parentTypeName = s.ParentTypeName
 			}
-			r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(parentTypeName)), "INVALID_GRAPHQL", s.Path)
+			r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(parentTypeName, "__typename")), "INVALID_GRAPHQL", s.Path)
 		} else {
 			r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", s.SourceName, string(typename)), "INVALID_GRAPHQL", s.Path)
 		}
@@ -1042,7 +1049,17 @@ func (r *Resolvable) addValueCompletion(message, code string, fieldPath []string
 	r.popNodePathElement(fieldPath)
 }
 
-func (r *Resolvable) pathLastElementDescription(parentType string) string {
+func (r *Resolvable) pathLastElementDescription(parentType, fieldName string) string {
+	if len(r.path) == 0 {
+		switch r.operationType {
+		case ast.OperationTypeQuery:
+			return fmt.Sprintf("field Query.%s", fieldName)
+		case ast.OperationTypeMutation:
+			return fmt.Sprintf("field Mutation.%s", fieldName)
+		case ast.OperationTypeSubscription:
+			return fmt.Sprintf("field Subscription.%s", fieldName)
+		}
+	}
 	elem := r.path[len(r.path)-1]
 	if elem.Name != "" {
 		return fmt.Sprintf("field %s.%s", parentType, elem.Name)
