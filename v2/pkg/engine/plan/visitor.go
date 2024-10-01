@@ -44,6 +44,12 @@ type Visitor struct {
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
+	indirectInterfaceFields      map[int]indirectInterfaceField
+}
+
+type indirectInterfaceField struct {
+	interfaceName string
+	node          ast.Node
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -234,6 +240,14 @@ func (v *Visitor) EnterDirective(ref int) {
 func (v *Visitor) EnterInlineFragment(ref int) {
 	v.debugOnEnterNode(ast.NodeKindInlineFragment, ref)
 
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+		field := indirectInterfaceField{
+			interfaceName: v.Walker.EnclosingTypeDefinition.NameString(v.Definition),
+			node:          v.Walker.EnclosingTypeDefinition,
+		}
+		v.indirectInterfaceFields[v.Operation.InlineFragments[ref].SelectionSet] = field
+	}
+
 	directives := v.Operation.InlineFragments[ref].Directives.Refs
 	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directives)
 	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directives)
@@ -392,7 +406,7 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 			sourceNames = append(sourceNames, v.planners[i].DataSourceConfiguration().Name())
 		}
 	}
-	return &resolve.FieldInfo{
+	fieldInfo := &resolve.FieldInfo{
 		Name:            fieldName,
 		NamedType:       typeName,
 		ParentTypeNames: parentTypeNames,
@@ -403,6 +417,15 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		ExactParentTypeName:  enclosingTypeName,
 		HasAuthorizationRule: fieldHasAuthorizationRule,
 	}
+
+	if value, ok := v.indirectInterfaceFields[v.Walker.Ancestors[len(v.Walker.Ancestors)-1].Ref]; ok {
+		_, defined := v.Definition.NodeFieldDefinitionByName(value.node, v.Operation.FieldNameBytes(ref))
+		if defined && value.node.Kind == ast.NodeKindInterfaceTypeDefinition {
+			fieldInfo.IndirectInterfaceNames = append(fieldInfo.IndirectInterfaceNames, value.interfaceName)
+		}
+	}
+
+	return fieldInfo
 }
 
 func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
@@ -879,6 +902,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
