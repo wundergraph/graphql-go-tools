@@ -1,12 +1,17 @@
 package plan
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"strings"
 	"testing"
 
+	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -700,3 +705,80 @@ type Starship implements Vehicle {
     length: Float!
 }
 `
+
+type StatefulSource struct {
+}
+
+func (s *StatefulSource) Start() {
+
+}
+
+type FakeFactory[T any] struct {
+	upstreamSchema *ast.Document
+}
+
+func (f *FakeFactory[T]) UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return f.upstreamSchema, true
+}
+
+func (f *FakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner[T] {
+	source := &StatefulSource{}
+	go source.Start()
+	return &FakePlanner[T]{
+		source:         source,
+		upstreamSchema: f.upstreamSchema,
+	}
+}
+
+func (f *FakeFactory[T]) Context() context.Context {
+	return context.TODO()
+}
+
+type FakePlanner[T any] struct {
+	source         *StatefulSource
+	upstreamSchema *ast.Document
+}
+
+func (f *FakePlanner[T]) EnterDocument(operation, definition *ast.Document) {
+
+}
+
+func (f *FakePlanner[T]) Register(visitor *Visitor, _ DataSourceConfiguration[T], _ DataSourcePlannerConfiguration) error {
+	visitor.Walker.RegisterEnterDocumentVisitor(f)
+	return nil
+}
+
+func (f *FakePlanner[T]) ConfigureFetch() resolve.FetchConfiguration {
+	return resolve.FetchConfiguration{
+		DataSource: &FakeDataSource{
+			source: f.source,
+		},
+	}
+}
+
+func (f *FakePlanner[T]) ConfigureSubscription() SubscriptionConfiguration {
+	return SubscriptionConfiguration{}
+}
+
+func (f *FakePlanner[T]) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
+	return DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+	}
+}
+
+func (f *FakePlanner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
+	return
+}
+
+type FakeDataSource struct {
+	source *StatefulSource
+}
+
+func (f *FakeDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+	return
+}
+
+func (f *FakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
+	return
+}
