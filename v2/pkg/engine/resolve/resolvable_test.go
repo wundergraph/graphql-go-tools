@@ -495,6 +495,79 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 	assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"trace":{"version":"1","info":null,"fetches":{"kind":"Sequence"}}}}`, out.String())
 }
 
+func TestResolveFloat(t *testing.T) {
+	t.Run("default behaviour", func(t *testing.T) {
+		res := NewResolvable(ResolvableOptions{})
+		ctx := NewContext(context.Background())
+		err := res.Init(ctx, []byte(`{"f":1.0}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("f"),
+					Value: &Float{
+						Path: []string{"f"},
+					},
+				},
+			},
+		}
+		out := &bytes.Buffer{}
+		fetchTree := Sequence()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"f":1.0}}`, out.String())
+	})
+	t.Run("truncate float", func(t *testing.T) {
+		res := NewResolvable(ResolvableOptions{
+			ApolloCompatibilityTruncateFloatValues: true,
+		})
+		ctx := NewContext(context.Background())
+		err := res.Init(ctx, []byte(`{"f":1.0}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("f"),
+					Value: &Float{
+						Path: []string{"f"},
+					},
+				},
+			},
+		}
+		out := &bytes.Buffer{}
+		fetchTree := Sequence()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"f":1}}`, out.String())
+	})
+	t.Run("truncate float with decimal place", func(t *testing.T) {
+		res := NewResolvable(ResolvableOptions{
+			ApolloCompatibilityTruncateFloatValues: true,
+		})
+		ctx := NewContext(context.Background())
+		err := res.Init(ctx, []byte(`{"f":1.1}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("f"),
+					Value: &Float{
+						Path: []string{"f"},
+					},
+				},
+			},
+		}
+		out := &bytes.Buffer{}
+		fetchTree := Sequence()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"f":1.1}}`, out.String())
+	})
+}
+
 func TestResolvable_ValueCompletion(t *testing.T) {
 	res := NewResolvable(ResolvableOptions{
 		ApolloCompatibilityValueCompletionInExtensions: true,
