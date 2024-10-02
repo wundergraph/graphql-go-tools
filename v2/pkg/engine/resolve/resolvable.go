@@ -507,19 +507,29 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 
 	typeName := value.GetStringBytes("__typename")
 	if typeName != nil && len(obj.PossibleTypes) > 0 {
+		// when we have a typename field present in a json object, we need to check if the type is valid
+
 		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
 			if !r.print {
+				// during prewalk we need to add an error when the typename do not match a possible type
 				if r.options.ApolloCompatibilityValueCompletionInExtensions {
 					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), InvalidGraphqlErrorCode)
 				} else {
 					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), InvalidGraphqlErrorCode)
 				}
 
+				// if object is not nullable at prewalk we need to return an error
+				// to immediately stop the resolving of the current object and buble up null
 				if !obj.Nullable {
 					return r.err()
 				}
+
+				// if object is nullable we can just set it to null
+				// so return no error here
 				return false
 			} else {
+				// at print walk we will render the object to null if it was nullable
+				// in case it is not nullable - we already reported an error and won't walk this object again
 				return r.walkNull()
 			}
 		}
