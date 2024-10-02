@@ -49,9 +49,9 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 					}
 				}`, `
 				{
-					dog {__typename}
-					notInclude: dog {__typename}
-					skip: dog {__typename}
+					dog {__internal__typename_placeholder: __typename}
+					notInclude: dog {__internal__typename_placeholder: __typename}
+					skip: dog {__internal__typename_placeholder: __typename}
 				}`)
 	})
 	t.Run("include variables true", func(t *testing.T) {
