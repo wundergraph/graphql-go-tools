@@ -496,54 +496,300 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 }
 
 func TestResolvable_ValueCompletion(t *testing.T) {
-	res := NewResolvable(ResolvableOptions{
-		ApolloCompatibilityValueCompletionInExtensions: true,
-	})
-	ctx := NewContext(context.Background())
-	err := res.Init(ctx, []byte(`{"hello":"world","__typename":"NotHello"}`), ast.OperationTypeQuery)
-	assert.NoError(t, err)
-	object := &Object{
-		Fields: []*Field{
-			{
-				Name: []byte("hello"),
-				Value: &String{
-					Path: []string{"hello"},
-				},
-			},
-			{
-				Name: []byte("__typename"),
-				Value: &String{
-					Path:       []string{"__typename"},
-					IsTypeName: true,
-					AllowedValues: map[string]struct{}{
-						"Hello": {},
+	t.Run("nested object", func(t *testing.T) {
+		res := NewResolvable(ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		})
+		ctx := NewContext(context.Background())
+		err := res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"NotHello"}}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("object"),
+					Value: &Object{
+						Nullable:      true,
+						Path:          []string{"object"},
+						TypeName:      "Hello",
+						PossibleTypes: map[string]struct{}{"Hello": {}},
+						SourceName:    "World",
+						Fields: []*Field{
+							{
+								Name: []byte("hello"),
+								Value: &String{
+									Path: []string{"hello"},
+								},
+							},
+						},
 					},
 				},
 			},
-		},
-	}
-	out := &bytes.Buffer{}
-	fetchTree := Sequence()
-	err = res.Resolve(ctx.ctx, object, fetchTree, out)
+		}
+		out := &bytes.Buffer{}
+		fetchTree := Sequence()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.__typename.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"object":null},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.object.","path":["object"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 
-	res.Reset(1024)
-	err = res.Init(ctx, []byte(`{"hello":"world","__typename":"Hello"}`), ast.OperationTypeQuery)
-	assert.NoError(t, err)
-	out.Reset()
-	err = res.Resolve(ctx.ctx, object, fetchTree, out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":{"hello":"world","__typename":"Hello"}}`, out.String())
+		res.Reset(1024)
+		err = res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"Hello"}}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		out.Reset()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"object":{"hello":"world"}}}`, out.String())
 
-	res.Reset(1024)
-	err = res.Init(ctx, []byte(`{"hello":"world","__typename":"NotEvenATinyBitHello"}`), ast.OperationTypeQuery)
-	assert.NoError(t, err)
-	out.Reset()
-	err = res.Resolve(ctx.ctx, object, fetchTree, out)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.__typename.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+		res.Reset(1024)
+		err = res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"NotEvenATinyBitHello"}}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		out.Reset()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":{"object":null},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.object.","path":["object"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+	})
+
+	t.Run("complex", func(t *testing.T) {
+		respJson := []byte(`{
+            "entity": {
+                "__typename": "Invalid",
+                "id": "book1",
+                "name": "Entity1"
+            },
+            "entities": [
+                {
+                    "__typename": "Invalid",
+                    "id": "book2",
+                    "name": "Entity1"
+                },
+                {
+                    "__typename": "Invalid",
+                    "id": "book3",
+                    "name": "Entity1"
+                }
+            ],
+            "entitiesUnion": [
+                {
+                    "__typename": "Invalid",
+                    "id": "book4",
+                    "name": "Entity1"
+                },
+                {
+                    "__typename": "Invalid",
+                    "id": "book5",
+                    "name": "Entity1"
+                }
+            ],
+            "entitiesInterface": [
+                {
+                    "__typename": "Invalid",
+                    "id": "book6",
+                    "name": "Entity1"
+                },
+                {
+                    "__typename": "Invalid",
+                    "id": "book7",
+                    "name": "Entity1"
+                }
+            ]
+        }`)
+
+		t.Run("nullable", func(t *testing.T) {
+			res := NewResolvable(ResolvableOptions{
+				ApolloCompatibilityValueCompletionInExtensions: true,
+			})
+			ctx := NewContext(context.Background())
+			err := res.Init(ctx, respJson, ast.OperationTypeQuery)
+			assert.NoError(t, err)
+
+			object := &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("entity"),
+						Value: &Object{
+							Nullable:      true,
+							Path:          []string{"entity"},
+							TypeName:      "Entity",
+							PossibleTypes: map[string]struct{}{"Entity": {}},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("entities"),
+						Value: &Array{
+							Nullable: true,
+							Path:     []string{"entities"},
+							Item: &Object{
+								Nullable:      true,
+								TypeName:      "Entity",
+								PossibleTypes: map[string]struct{}{"Entity": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("entitiesUnion"),
+						Value: &Array{
+							Nullable: true,
+							Path:     []string{"entities"},
+							Item: &Object{
+								Nullable:      true,
+								TypeName:      "Union",
+								PossibleTypes: map[string]struct{}{"Entity": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+										OnTypeNames: [][]byte{[]byte("Entity")},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("entitiesInterface"),
+						Value: &Array{
+							Nullable: true,
+							Path:     []string{"entitiesInterface"},
+							Item: &Object{
+								Nullable:      true,
+								TypeName:      "Interface",
+								PossibleTypes: map[string]struct{}{"Entity": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			out := &bytes.Buffer{}
+			fetchTree := Sequence()
+			err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+			assert.NoError(t, err)
+			assert.Equal(t, `{"data":{"entity":null,"entities":[null,null],"entitiesUnion":[null,null],"entitiesInterface":[null,null]},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.entity.","path":["entity"],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Entity at index 0.","path":["entities",0],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Entity at index 1.","path":["entities",1],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Union at index 0.","path":["entities",0],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Union at index 1.","path":["entities",1],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Interface at index 0.","path":["entitiesInterface",0],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Interface at index 1.","path":["entitiesInterface",1],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+		})
+
+		t.Run("mixed nullability", func(t *testing.T) {
+			res := NewResolvable(ResolvableOptions{
+				ApolloCompatibilityValueCompletionInExtensions: true,
+			})
+			ctx := NewContext(context.Background())
+			err := res.Init(ctx, respJson, ast.OperationTypeQuery)
+			assert.NoError(t, err)
+
+			object := &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("entity"),
+						Value: &Object{
+							Nullable:      true,
+							Path:          []string{"entity"},
+							TypeName:      "Entity",
+							PossibleTypes: map[string]struct{}{"Entity": {}},
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("entities"),
+						Value: &Array{
+							Nullable: false,
+							Path:     []string{"entities"},
+							Item: &Object{
+								Nullable:      false,
+								TypeName:      "Entity",
+								PossibleTypes: map[string]struct{}{"Entity": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("entitiesUnion"),
+						Value: &Array{
+							Nullable: true,
+							Path:     []string{"entities"},
+							Item: &Object{
+								Nullable:      true,
+								TypeName:      "Union",
+								PossibleTypes: map[string]struct{}{"Entity": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+										OnTypeNames: [][]byte{[]byte("Entity")},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name: []byte("entitiesInterface"),
+						Value: &Array{
+							Nullable: true,
+							Path:     []string{"entitiesInterface"},
+							Item: &Object{
+								Nullable:      true,
+								TypeName:      "Interface",
+								PossibleTypes: map[string]struct{}{"Entity": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path: []string{"name"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+			out := &bytes.Buffer{}
+			fetchTree := Sequence()
+			err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+			assert.NoError(t, err)
+			assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.entity.","path":["entity"],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Entity at index 0.","path":["entities",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+		})
+	})
 }
 
 func TestResolvable_WithTracing(t *testing.T) {

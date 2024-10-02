@@ -506,7 +506,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 	}
 
 	typeName := value.GetStringBytes("__typename")
-	if typeName != nil {
+	if typeName != nil && len(obj.PossibleTypes) > 0 {
 		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
 			if !r.print {
 				if r.options.ApolloCompatibilityValueCompletionInExtensions {
@@ -1055,7 +1055,7 @@ func (r *Resolvable) addValueCompletion(message, code string) {
 }
 
 func (r *Resolvable) pathLastElementDescription(typeName string) string {
-	if len(r.path) == 1 {
+	if len(r.path) <= 1 {
 		switch r.operationType {
 		case ast.OperationTypeQuery:
 			typeName = "Query"
@@ -1063,6 +1063,10 @@ func (r *Resolvable) pathLastElementDescription(typeName string) string {
 			typeName = "Mutation"
 		case ast.OperationTypeSubscription:
 			typeName = "Subscription"
+		}
+
+		if len(r.path) == 0 {
+			return typeName
 		}
 	}
 	elem := r.path[len(r.path)-1]

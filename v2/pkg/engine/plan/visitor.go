@@ -707,10 +707,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			default:
 			}
 
-			if len(v.currentField.Info.Source.Names) > 0 {
-				object.SourceName = v.currentField.Info.Source.Names[0]
-			} else if len(v.currentField.Info.Source.IDs) > 0 {
-				object.SourceName = v.currentField.Info.Source.IDs[0]
+			if v.currentField.Info != nil {
+				if len(v.currentField.Info.Source.Names) > 0 {
+					object.SourceName = v.currentField.Info.Source.Names[0]
+				} else if len(v.currentField.Info.Source.IDs) > 0 {
+					object.SourceName = v.currentField.Info.Source.IDs[0]
+				}
 			}
 
 			v.objects = append(v.objects, object)
