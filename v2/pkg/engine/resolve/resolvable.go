@@ -58,6 +58,7 @@ type Resolvable struct {
 
 type ResolvableOptions struct {
 	ApolloCompatibilityValueCompletionInExtensions bool
+	ApolloCompatibilityTruncateFloatValues         bool
 }
 
 func NewResolvable(options ResolvableOptions) *Resolvable {
@@ -920,12 +921,21 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 		r.addNonNullableFieldError(f.Path, parent)
 		return r.err()
 	}
-	if value.Type() != astjson.TypeNumber {
-		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
-		return r.err()
+	if !r.print {
+		if value.Type() != astjson.TypeNumber {
+			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+			r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
+			return r.err()
+		}
 	}
 	if r.print {
+		if r.options.ApolloCompatibilityTruncateFloatValues {
+			floatValue := value.GetFloat64()
+			if floatValue == float64(int64(floatValue)) {
+				_, _ = fmt.Fprintf(r.out, "%d", int64(floatValue))
+				return false
+			}
+		}
 		r.printNode(value)
 	}
 	return false
