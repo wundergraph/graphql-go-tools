@@ -518,6 +518,28 @@ func TestResolveFloat(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"f":1.0}}`, out.String())
 	})
+	t.Run("invalid float", func(t *testing.T) {
+		res := NewResolvable(ResolvableOptions{})
+		ctx := NewContext(context.Background())
+		err := res.Init(ctx, []byte(`{"f":false}`), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("f"),
+					Value: &Float{
+						Path: []string{"f"},
+					},
+				},
+			},
+		}
+		out := &bytes.Buffer{}
+		fetchTree := Sequence()
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
+
+		assert.NoError(t, err)
+		assert.Equal(t, `{"errors":[{"message":"Float cannot represent non-float value: \"false\"","path":["f"]}],"data":null}`, out.String())
+	})
 	t.Run("truncate float", func(t *testing.T) {
 		res := NewResolvable(ResolvableOptions{
 			ApolloCompatibilityTruncateFloatValues: true,
