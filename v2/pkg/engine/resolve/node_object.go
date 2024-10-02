@@ -11,6 +11,10 @@ type Object struct {
 	Fields   []*Field
 	Fetches  []Fetch
 	Fetch    Fetch
+
+	PossibleTypes map[string]struct{} `json:"-"`
+	SourceName    string              `json:"-"`
+	TypeName      string              `json:"-"`
 }
 
 func (o *Object) Copy() Node {

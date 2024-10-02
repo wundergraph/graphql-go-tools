@@ -319,36 +319,6 @@ func (v *Visitor) EnterField(ref int) {
 			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 			IsTypeName: true,
 		}
-		if v.currentField.Info != nil {
-			str.AllowedValues = make(map[string]struct{})
-			for _, parentTypeName := range v.currentField.Info.ParentTypeNames {
-				node, ok := v.Definition.Index.FirstNodeByNameStr(parentTypeName)
-				if !ok {
-					continue
-				}
-				switch node.Kind {
-				case ast.NodeKindObjectTypeDefinition:
-					str.AllowedValues[parentTypeName] = struct{}{}
-				case ast.NodeKindInterfaceTypeDefinition:
-					objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-					for _, implementingTypeName := range objectTypesImplementingInterface {
-						str.AllowedValues[implementingTypeName] = struct{}{}
-					}
-				case ast.NodeKindUnionTypeDefinition:
-					if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(node.Ref); ok {
-						for _, unionMember := range unionMembers {
-							str.AllowedValues[unionMember] = struct{}{}
-						}
-					}
-				}
-			}
-			str.ParentTypeName = v.currentField.Info.ExactParentTypeName
-			if len(v.currentField.Info.Source.Names) > 0 {
-				str.SourceName = v.currentField.Info.Source.Names[0]
-			} else if len(v.currentField.Info.Source.IDs) > 0 {
-				str.SourceName = v.currentField.Info.Source.IDs[0]
-			}
-		}
 		v.currentField.Value = str
 	} else {
 		path := v.resolveFieldPath(ref)
@@ -713,10 +683,36 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable: nullable,
-				Path:     path,
-				Fields:   []*resolve.Field{},
+				Nullable:      nullable,
+				Path:          path,
+				Fields:        []*resolve.Field{},
+				TypeName:      typeName,
+				PossibleTypes: map[string]struct{}{},
 			}
+
+			switch typeDefinitionNode.Kind {
+			case ast.NodeKindObjectTypeDefinition:
+				object.PossibleTypes[typeName] = struct{}{}
+			case ast.NodeKindInterfaceTypeDefinition:
+				objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeDefinitionNode.Ref)
+				for _, implementingTypeName := range objectTypesImplementingInterface {
+					object.PossibleTypes[implementingTypeName] = struct{}{}
+				}
+			case ast.NodeKindUnionTypeDefinition:
+				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
+					for _, unionMember := range unionMembers {
+						object.PossibleTypes[unionMember] = struct{}{}
+					}
+				}
+			default:
+			}
+
+			if len(v.currentField.Info.Source.Names) > 0 {
+				object.SourceName = v.currentField.Info.Source.Names[0]
+			} else if len(v.currentField.Info.Source.IDs) > 0 {
+				object.SourceName = v.currentField.Info.Source.IDs[0]
+			}
+
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
