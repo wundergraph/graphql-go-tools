@@ -319,6 +319,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
+				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
+				if !f.nodes.items[i].IsLeaf && !f.couldProvideChildFields(i) {
+					return true
+				}
+
 				return false
 			}) {
 			continue
@@ -571,4 +576,26 @@ func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIs
 
 	f.nodes.items[i].selectWithReason(reason, f.enableSelectionReasons)
 	return true
+}
+
+// couldProvideChildFields - checks if the node could provide any selectable child fields on the same datasource
+func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
+	nodesIds := f.nodes.childNodesOnSameSource(i)
+
+	hasFields := false
+	for _, i := range nodesIds {
+		if f.nodes.items[i].FieldName == typeNameField {
+			// we have to omit __typename field
+			// to not be in a situation when all fields are external but __typename is selectable
+			continue
+		}
+
+		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+			return false
+		}
+
+		hasFields = true
+	}
+
+	return hasFields
 }
