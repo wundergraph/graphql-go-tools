@@ -19,6 +19,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+const (
+	InvalidGraphqlErrorCode = "INVALID_GRAPHQL"
+)
+
 type Resolvable struct {
 	options ResolvableOptions
 
@@ -501,12 +505,43 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.addError("Object cannot represent non-object value.", obj.Path)
 		return r.err()
 	}
+
+	typeName := value.GetStringBytes("__typename")
+	if typeName != nil && len(obj.PossibleTypes) > 0 {
+		// when we have a typename field present in a json object, we need to check if the type is valid
+
+		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
+			if !r.print {
+				// during prewalk we need to add an error when the typename do not match a possible type
+				if r.options.ApolloCompatibilityValueCompletionInExtensions {
+					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), InvalidGraphqlErrorCode)
+				} else {
+					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), InvalidGraphqlErrorCode)
+				}
+
+				// if object is not nullable at prewalk we need to return an error
+				// to immediately stop the resolving of the current object and buble up null
+				if !obj.Nullable {
+					return r.err()
+				}
+
+				// if object is nullable we can just set it to null
+				// so return no error here
+				return false
+			} else {
+				// at print walk we will render the object to null if it was nullable
+				// in case it is not nullable - we already reported an error and won't walk this object again
+				return r.walkNull()
+			}
+		}
+	}
+
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
 		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
-	typeName := value.GetStringBytes("__typename")
+
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
@@ -794,22 +829,6 @@ func (r *Resolvable) walkString(s *String, value, grandParent *astjson.Value) bo
 		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
 		return r.err()
 	}
-	if !r.print && s.IsTypeName && s.AllowedValues != nil {
-		typename := value.GetStringBytes()
-		if _, ok := s.AllowedValues[string(typename)]; ok {
-			return false
-		}
-		if r.options.ApolloCompatibilityValueCompletionInExtensions {
-			parentTypeName := string(parent.GetStringBytes("__typename"))
-			if parentTypeName == "" {
-				parentTypeName = s.ParentTypeName
-			}
-			r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(parentTypeName, "__typename")), "INVALID_GRAPHQL", s.Path)
-		} else {
-			r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", s.SourceName, string(typename)), "INVALID_GRAPHQL", s.Path)
-		}
-		return r.err()
-	}
 	if r.print {
 		if s.IsTypeName {
 			content := value.GetStringBytes()
@@ -1044,35 +1063,35 @@ func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.popNodePathElement(fieldPath)
 }
 
-func (r *Resolvable) addErrorWithCode(message, code string, fieldPath []string) {
-	r.pushNodePathElement(fieldPath)
+func (r *Resolvable) addErrorWithCode(message, code string) {
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
-	r.popNodePathElement(fieldPath)
 }
 
-func (r *Resolvable) addValueCompletion(message, code string, fieldPath []string) {
-	r.pushNodePathElement(fieldPath)
+func (r *Resolvable) addValueCompletion(message, code string) {
 	if r.valueCompletion == nil {
 		r.valueCompletion = r.astjsonArena.NewArray()
 	}
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
-	r.popNodePathElement(fieldPath)
 }
 
-func (r *Resolvable) pathLastElementDescription(parentType, fieldName string) string {
-	if len(r.path) == 0 {
+func (r *Resolvable) pathLastElementDescription(typeName string) string {
+	if len(r.path) <= 1 {
 		switch r.operationType {
 		case ast.OperationTypeQuery:
-			return fmt.Sprintf("field Query.%s", fieldName)
+			typeName = "Query"
 		case ast.OperationTypeMutation:
-			return fmt.Sprintf("field Mutation.%s", fieldName)
+			typeName = "Mutation"
 		case ast.OperationTypeSubscription:
-			return fmt.Sprintf("field Subscription.%s", fieldName)
+			typeName = "Subscription"
+		}
+
+		if len(r.path) == 0 {
+			return typeName
 		}
 	}
 	elem := r.path[len(r.path)-1]
 	if elem.Name != "" {
-		return fmt.Sprintf("field %s.%s", parentType, elem.Name)
+		return fmt.Sprintf("field %s.%s", typeName, elem.Name)
 	}
-	return fmt.Sprintf("array element of type %s at index %d", parentType, elem.Idx)
+	return fmt.Sprintf("array element of type %s at index %d", typeName, elem.Idx)
 }

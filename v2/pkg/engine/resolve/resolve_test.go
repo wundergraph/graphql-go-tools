@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
@@ -1923,6 +1924,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						Name: []byte("user"),
 						Value: &Object{
+							TypeName:      "User",
+							PossibleTypes: map[string]struct{}{"User": {}},
+							SourceName:    "Users",
 							Fields: []*Field{
 								{
 									Name: []byte("id"),
@@ -1941,11 +1945,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								{
 									Name: []byte("__typename"),
 									Value: &String{
-										Path:          []string{"__typename"},
-										Nullable:      false,
-										IsTypeName:    true,
-										AllowedValues: map[string]struct{}{"User": {}},
-										SourceName:    "Users",
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
 									},
 								},
 								{
@@ -1969,7 +1971,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","path":["__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Subgraph 'Users' returned invalid value 'NotUser' for __typename field.","extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`
 	}))
 	t.Run("__typename checks apollo compatibility object", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -1983,7 +1985,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					{
 						Name: []byte("user"),
 						Value: &Object{
-							Path: []string{"user"},
+							Path:          []string{"user"},
+							TypeName:      "User",
+							PossibleTypes: map[string]struct{}{"User": {}},
+							SourceName:    "Users",
 							Fields: []*Field{
 								{
 									Name: []byte("id"),
@@ -2002,11 +2007,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 								{
 									Name: []byte("__typename"),
 									Value: &String{
-										Path:          []string{"__typename"},
-										Nullable:      false,
-										IsTypeName:    true,
-										AllowedValues: map[string]struct{}{"User": {}},
-										SourceName:    "Users",
+										Path:       []string{"__typename"},
+										Nullable:   false,
+										IsTypeName: true,
 									},
 								},
 								{
@@ -2030,7 +2033,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field NotUser.user.","path":["user","__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.user.","path":["user"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}))
 	t.Run("__typename checks apollo compatibility array", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -2046,6 +2049,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						Value: &Array{
 							Path: []string{"users"},
 							Item: &Object{
+								TypeName:      "User",
+								PossibleTypes: map[string]struct{}{"User": {}},
+								SourceName:    "Users",
 								Fields: []*Field{
 									{
 										Name: []byte("id"),
@@ -2064,11 +2070,9 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 									{
 										Name: []byte("__typename"),
 										Value: &String{
-											Path:          []string{"__typename"},
-											Nullable:      false,
-											IsTypeName:    true,
-											AllowedValues: map[string]struct{}{"User": {}},
-											SourceName:    "Users",
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
 										},
 									},
 									{
@@ -2093,7 +2097,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at array element of type NotUser at index 0.","path":["users",0,"__typename"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at array element of type User at index 0.","path":["users",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}))
 	t.Run("__typename with renaming", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{

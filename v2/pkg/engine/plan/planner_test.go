@@ -10,6 +10,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 
@@ -100,7 +101,9 @@ func TestPlanner_Plan(t *testing.T) {
 							Path:     []string{"searchResults"},
 							Nullable: true,
 							Item: &resolve.Object{
-								Nullable: true,
+								Nullable:      true,
+								TypeName:      "SearchResult",
+								PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}, "Starship": {}},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -160,8 +163,10 @@ func TestPlanner_Plan(t *testing.T) {
 						{
 							Name: []byte("hero"),
 							Value: &resolve.Object{
-								Path:     []string{"hero"},
-								Nullable: true,
+								Path:          []string{"hero"},
+								Nullable:      true,
+								TypeName:      "Character",
+								PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -225,8 +230,10 @@ func TestPlanner_Plan(t *testing.T) {
 						{
 							Name: []byte("hero"),
 							Value: &resolve.Object{
-								Path:     []string{"hero"},
-								Nullable: true,
+								Path:          []string{"hero"},
+								Nullable:      true,
+								TypeName:      "Character",
+								PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -390,7 +397,9 @@ func TestPlanner_Plan(t *testing.T) {
 								{
 									Name: []byte("hero"),
 									Value: &resolve.Object{
-										Path: []string{"hero"},
+										Path:          []string{"hero"},
+										TypeName:      "Character",
+										PossibleTypes: map[string]struct{}{"Character": {}},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("info"),
@@ -441,7 +450,9 @@ func TestPlanner_Plan(t *testing.T) {
 								{
 									Name: []byte("hero"),
 									Value: &resolve.Object{
-										Path: []string{"hero"},
+										Path:          []string{"hero"},
+										TypeName:      "Character",
+										PossibleTypes: map[string]struct{}{"Character": {}},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("infos"),
@@ -499,7 +510,9 @@ func TestPlanner_Plan(t *testing.T) {
 								{
 									Name: []byte("hero"),
 									Value: &resolve.Object{
-										Path: []string{"hero"},
+										Path:          []string{"hero"},
+										TypeName:      "Character",
+										PossibleTypes: map[string]struct{}{"Character": {}},
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("info"),
@@ -544,8 +557,10 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 						Column: 6,
 					},
 					Value: &resolve.Object{
-						Path:     []string{"hero"},
-						Nullable: true,
+						Path:          []string{"hero"},
+						Nullable:      true,
+						TypeName:      "Character",
+						PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("name"),
@@ -585,8 +600,10 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 						Column: 6,
 					},
 					Value: &resolve.Object{
-						Path:     []string{"hero"},
-						Nullable: true,
+						Path:          []string{"hero"},
+						Nullable:      true,
+						TypeName:      "Character",
+						PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("name"),
