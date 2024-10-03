@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -140,6 +141,10 @@ func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
 func (d *directiveIncludeSkipVisitor) typeNameSelection() (selectionRef int, fieldRef int) {
 	field := d.operation.AddField(ast.Field{
 		Name: d.operation.Input.AppendInputString("__typename"),
+		Alias: ast.Alias{
+			IsDefined: true,
+			Name:      d.operation.Input.AppendInputString("__internal__typename_placeholder"),
+		},
 	})
 	return d.operation.AddSelectionToDocument(ast.Selection{
 		Ref:  field.Ref,

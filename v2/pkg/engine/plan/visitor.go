@@ -292,6 +292,11 @@ func (v *Visitor) EnterField(ref int) {
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
 
+	if bytes.Equal(fieldAliasOrName, []byte("__internal__typename_placeholder")) {
+		// we should skip such typename as it was added as a placeholder to keep query valid
+		return
+	}
+
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
