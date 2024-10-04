@@ -11,6 +11,10 @@ type Object struct {
 	Fields   []*Field
 	Fetches  []Fetch
 	Fetch    Fetch
+
+	PossibleTypes map[string]struct{} `json:"-"`
+	SourceName    string              `json:"-"`
+	TypeName      string              `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -153,6 +157,9 @@ type FieldInfo struct {
 	FetchID   int
 	// HasAuthorizationRule needs to be set to true if the Authorizer should be called for this field
 	HasAuthorizationRule bool
+	// IndirectInterfaceNames is set to the interfaces name if the field is on a concrete type that implements an interface which wraps it
+	// It's plural because interfaces and be overlapping with types that implement multiple interfaces
+	IndirectInterfaceNames []string
 }
 
 func (i *FieldInfo) Merge(other *FieldInfo) {

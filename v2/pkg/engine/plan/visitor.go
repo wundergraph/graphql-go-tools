@@ -44,6 +44,12 @@ type Visitor struct {
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
+	indirectInterfaceFields      map[int]indirectInterfaceField
+}
+
+type indirectInterfaceField struct {
+	interfaceName string
+	node          ast.Node
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -234,6 +240,14 @@ func (v *Visitor) EnterDirective(ref int) {
 func (v *Visitor) EnterInlineFragment(ref int) {
 	v.debugOnEnterNode(ast.NodeKindInlineFragment, ref)
 
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+		field := indirectInterfaceField{
+			interfaceName: v.Walker.EnclosingTypeDefinition.NameString(v.Definition),
+			node:          v.Walker.EnclosingTypeDefinition,
+		}
+		v.indirectInterfaceFields[v.Operation.InlineFragments[ref].SelectionSet] = field
+	}
+
 	directives := v.Operation.InlineFragments[ref].Directives.Refs
 	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directives)
 	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directives)
@@ -278,6 +292,11 @@ func (v *Visitor) EnterField(ref int) {
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
 
+	if bytes.Equal(fieldAliasOrName, []byte("__internal__typename_placeholder")) {
+		// we should skip such typename as it was added as a placeholder to keep query valid
+		return
+	}
+
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
@@ -304,36 +323,6 @@ func (v *Visitor) EnterField(ref int) {
 			Nullable:   false,
 			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 			IsTypeName: true,
-		}
-		if v.currentField.Info != nil {
-			str.AllowedValues = make(map[string]struct{})
-			for _, parentTypeName := range v.currentField.Info.ParentTypeNames {
-				node, ok := v.Definition.Index.FirstNodeByNameStr(parentTypeName)
-				if !ok {
-					continue
-				}
-				switch node.Kind {
-				case ast.NodeKindObjectTypeDefinition:
-					str.AllowedValues[parentTypeName] = struct{}{}
-				case ast.NodeKindInterfaceTypeDefinition:
-					objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-					for _, implementingTypeName := range objectTypesImplementingInterface {
-						str.AllowedValues[implementingTypeName] = struct{}{}
-					}
-				case ast.NodeKindUnionTypeDefinition:
-					if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(node.Ref); ok {
-						for _, unionMember := range unionMembers {
-							str.AllowedValues[unionMember] = struct{}{}
-						}
-					}
-				}
-			}
-			str.ParentTypeName = v.currentField.Info.ExactParentTypeName
-			if len(v.currentField.Info.Source.Names) > 0 {
-				str.SourceName = v.currentField.Info.Source.Names[0]
-			} else if len(v.currentField.Info.Source.IDs) > 0 {
-				str.SourceName = v.currentField.Info.Source.IDs[0]
-			}
 		}
 		v.currentField.Value = str
 	} else {
@@ -392,7 +381,7 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 			sourceNames = append(sourceNames, v.planners[i].DataSourceConfiguration().Name())
 		}
 	}
-	return &resolve.FieldInfo{
+	fieldInfo := &resolve.FieldInfo{
 		Name:            fieldName,
 		NamedType:       typeName,
 		ParentTypeNames: parentTypeNames,
@@ -403,6 +392,15 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		ExactParentTypeName:  enclosingTypeName,
 		HasAuthorizationRule: fieldHasAuthorizationRule,
 	}
+
+	if value, ok := v.indirectInterfaceFields[v.Walker.Ancestors[len(v.Walker.Ancestors)-1].Ref]; ok {
+		_, defined := v.Definition.NodeFieldDefinitionByName(value.node, v.Operation.FieldNameBytes(ref))
+		if defined && value.node.Kind == ast.NodeKindInterfaceTypeDefinition {
+			fieldInfo.IndirectInterfaceNames = append(fieldInfo.IndirectInterfaceNames, value.interfaceName)
+		}
+	}
+
+	return fieldInfo
 }
 
 func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
@@ -690,10 +688,38 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable: nullable,
-				Path:     path,
-				Fields:   []*resolve.Field{},
+				Nullable:      nullable,
+				Path:          path,
+				Fields:        []*resolve.Field{},
+				TypeName:      typeName,
+				PossibleTypes: map[string]struct{}{},
 			}
+
+			switch typeDefinitionNode.Kind {
+			case ast.NodeKindObjectTypeDefinition:
+				object.PossibleTypes[typeName] = struct{}{}
+			case ast.NodeKindInterfaceTypeDefinition:
+				objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeDefinitionNode.Ref)
+				for _, implementingTypeName := range objectTypesImplementingInterface {
+					object.PossibleTypes[implementingTypeName] = struct{}{}
+				}
+			case ast.NodeKindUnionTypeDefinition:
+				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
+					for _, unionMember := range unionMembers {
+						object.PossibleTypes[unionMember] = struct{}{}
+					}
+				}
+			default:
+			}
+
+			if v.currentField.Info != nil {
+				if len(v.currentField.Info.Source.Names) > 0 {
+					object.SourceName = v.currentField.Info.Source.Names[0]
+				} else if len(v.currentField.Info.Source.IDs) > 0 {
+					object.SourceName = v.currentField.Info.Source.IDs[0]
+				}
+			}
+
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
@@ -879,6 +905,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
