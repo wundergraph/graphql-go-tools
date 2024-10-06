@@ -228,6 +228,110 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
 
+func TestResolvable_NonNullableRootField_ApolloCompatabilityMode(t *testing.T) {
+	topProducts := `{"topProducts":null}`
+	res := NewResolvable(ResolvableOptions{
+		ApolloCompatibilityValueCompletionInExtensions: true,
+	})
+	ctx := &Context{
+		Variables: nil,
+	}
+	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("topProducts"),
+				Value: &Array{
+					Path: []string{"topProducts"},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	err = res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field 'Query.topProducts'.","path":["topProducts"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+}
+
+func TestResolvable_NonNullableNestedField_ApolloCompatabilityMode(t *testing.T) {
+	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
+	res := NewResolvable(ResolvableOptions{
+		ApolloCompatibilityValueCompletionInExtensions: true,
+	})
+	ctx := &Context{
+		Variables: nil,
+	}
+	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("topProducts"),
+				Value: &Array{
+					Path: []string{"topProducts"},
+					Item: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("name"),
+								Value: &String{
+									Path: []string{"name"},
+								},
+							},
+							{
+								Name: []byte("stock"),
+								Value: &Integer{
+									Path: []string{"stock"},
+								},
+							},
+							{
+								Name: []byte("reviews"),
+								Value: &Array{
+									Path: []string{"reviews"},
+									Item: &Object{
+										Fields: []*Field{
+											{
+												Name: []byte("body"),
+												Value: &String{
+													Path: []string{"body"},
+												},
+											},
+											{
+												Name: []byte("author"),
+												Value: &Object{
+													Nullable: true,
+													Path:     []string{"author"},
+													Fields: []*Field{
+														{
+															Name: []byte("name"),
+															Value: &String{
+																Path: []string{"name"},
+															},
+														},
+													},
+													TypeName: "User",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	err = res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field 'User.name'.","path":["topProducts",0,"reviews",0,"author","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+}
+
 func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
