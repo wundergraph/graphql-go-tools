@@ -801,7 +801,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
-	t.Run("execute operation with null variable on required type", runWithoutError(ExecutionEngineTestCase{
+	t.Run("execute operation with null variable on required type", runWithAndCompareError(ExecutionEngineTestCase{
 		schema: func(t *testing.T) *graphql.Schema {
 			t.Helper()
 			schema := `
@@ -856,8 +856,9 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph 'id', Reason: empty response."}],"data":null}`,
-	}))
+	},
+		`Variable "$heroName" got invalid value null; Expected non-nullable type "String!" not to be null.`,
+	))
 
 	t.Run("execute operation with all fields skipped", runWithoutError(ExecutionEngineTestCase{
 		schema: func(t *testing.T) *graphql.Schema {
@@ -1000,7 +1001,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			return graphql.Request{
 				OperationName: "",
 				Variables: stringify(map[string]interface{}{
-					"ids": 1,
+					"ids": []int{1},
 				}),
 				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
 			}

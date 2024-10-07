@@ -12,6 +12,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/introspection_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -19,6 +20,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/variablesvalidation"
 )
 
 type internalExecutionContext struct {
@@ -33,7 +35,7 @@ func newInternalExecutionContext() *internalExecutionContext {
 	}
 }
 
-func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request, options ...ExecutionOptions) {
+func (e *internalExecutionContext) prepare(ctx context.Context, variables []byte, request resolve.Request) {
 	e.setContext(ctx)
 	e.setVariables(variables)
 	e.setRequest(request)
@@ -137,29 +139,52 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 }
 
 func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptions) error {
-	if !operation.IsNormalized() {
-		result, err := operation.Normalize(e.config.schema)
+
+	normalize := !operation.IsNormalized()
+	if normalize {
+		// Normalize the operation, but extract variables later so ValidateForSchema can return correct error messages for bad arguments.
+		result, err := operation.Normalize(e.config.schema,
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+		)
 		if err != nil {
 			return err
+		} else if !result.Successful {
+			return result.Errors
 		}
+		normalize = true
+	}
 
-		if !result.Successful {
+	// Validate the operation against the schema.
+	if result, err := operation.ValidateForSchema(e.config.schema); err != nil {
+		return err
+	} else if !result.Valid {
+		return result.Errors
+	}
+
+	// Validate user-supplied variables against the operation.
+	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
+		validator := variablesvalidation.NewVariablesValidator()
+		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
+			return err
+		}
+	}
+
+	if normalize {
+		// Normalize the operation again, this time just extracting additional variables from arguments.
+		result, err := operation.Normalize(e.config.schema,
+			astnormalization.WithExtractVariables(),
+		)
+		if err != nil {
+			return err
+		} else if !result.Successful {
 			return result.Errors
 		}
 	}
 
-	result, err := operation.ValidateForSchema(e.config.schema)
-	if err != nil {
-		return err
-	}
-	if !result.Valid {
-		return result.Errors
-	}
-
 	execContext := newInternalExecutionContext()
-
-	execContext.prepare(ctx, operation.Variables, operation.InternalRequest(), options...)
-
+	execContext.prepare(ctx, operation.Variables, operation.InternalRequest())
 	for i := range options {
 		options[i](execContext)
 	}
@@ -170,13 +195,11 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	}
 
 	var tracePlanStart int64
-
 	if execContext.resolveContext.TracingOptions.Enable && !execContext.resolveContext.TracingOptions.ExcludePlannerStats {
 		tracePlanStart = resolve.GetDurationNanoSinceTraceStart(execContext.resolveContext.Context())
 	}
 
 	var report operationreport.Report
-
 	cachedPlan := e.getCachedPlan(execContext, operation.Document(), e.config.schema.Document(), operation.OperationName, &report)
 	if report.HasErrors() {
 		return report
@@ -194,14 +217,13 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	switch p := cachedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
-		_, err = e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		_, err := e.resolver.ResolveGraphQLResponse(execContext.resolveContext, p.Response, nil, writer)
+		return err
 	case *plan.SubscriptionResponsePlan:
-		err = e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
+		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}
-
-	return err
 }
 
 func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
