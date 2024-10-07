@@ -119,6 +119,8 @@ type ResolverOptions struct {
 	MaxRecyclableParserSize int
 	// ResolvableOptions are configuration options for the Resolbable struct
 	ResolvableOptions ResolvableOptions
+	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
+	AllowedSubgraphErrorFields []string
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -132,6 +134,24 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	allowedExtensionFields := make(map[string]struct{}, len(options.AllowedErrorExtensionFields))
 	for _, field := range options.AllowedErrorExtensionFields {
 		allowedExtensionFields[field] = struct{}{}
+	}
+
+	// always allow "message" and "path"
+	allowedErrorFields := map[string]struct{}{
+		"message": {},
+		"path":    {},
+	}
+
+	if !options.OmitSubgraphErrorExtensions {
+		allowedErrorFields["extensions"] = struct{}{}
+	}
+
+	if !options.OmitSubgraphErrorLocations {
+		allowedErrorFields["locations"] = struct{}{}
+	}
+
+	for _, field := range options.AllowedSubgraphErrorFields {
+		allowedErrorFields[field] = struct{}{}
 	}
 
 	resolver := &Resolver{
@@ -158,6 +178,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 						allowedErrorExtensionFields:       allowedExtensionFields,
 						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
+						allowedSubgraphErrorFields:        allowedErrorFields,
 					},
 				}
 			},
