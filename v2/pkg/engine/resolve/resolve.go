@@ -136,7 +136,19 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedExtensionFields[field] = struct{}{}
 	}
 
-	allowedErrorFields := make(map[string]struct{}, len(options.AllowedSubgraphErrorFields))
+	// always allow "message"
+	allowedErrorFields := map[string]struct{}{
+		"message": {},
+	}
+
+	if !options.OmitSubgraphErrorExtensions {
+		allowedErrorFields["extensions"] = struct{}{}
+	}
+
+	if !options.OmitSubgraphErrorLocations {
+		allowedErrorFields["locations"] = struct{}{}
+	}
+
 	for _, field := range options.AllowedSubgraphErrorFields {
 		allowedErrorFields[field] = struct{}{}
 	}
