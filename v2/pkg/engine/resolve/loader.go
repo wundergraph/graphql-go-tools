@@ -76,7 +76,7 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
-	omitCustomSubgraphErrorFields     bool
+	allowedCustomSubgraphErrorFields  map[string]struct{}
 }
 
 func (l *Loader) Free() {
@@ -818,16 +818,17 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 
 // optionallyOmitCustomErrorFields removes all custom fields from the subgraph error
 func (l *Loader) optionallyOmitCustomErrorFields(values []*astjson.Value) {
-	if !l.omitCustomSubgraphErrorFields {
+	if len(l.allowedCustomSubgraphErrorFields) == 0 {
 		return
 	}
+
 	for _, value := range values {
 		if value.Type() == astjson.TypeObject {
 			obj := value.GetObject()
 			var keysToDelete []string
 			obj.Visit(func(k []byte, v *astjson.Value) {
 				key := unsafebytes.BytesToString(k)
-				if key != "message" && key != "extensions" {
+				if _, ok := l.allowedCustomSubgraphErrorFields[key]; !ok {
 					keysToDelete = append(keysToDelete, key)
 				}
 			})
