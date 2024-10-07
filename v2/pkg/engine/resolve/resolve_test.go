@@ -1857,13 +1857,12 @@ func testFnSubgraphErrorsPassthroughAndOmitCustomFields(fn func(t *testing.T, ct
 		rCtx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		r := New(rCtx, ResolverOptions{
-			MaxConcurrency:                1024,
-			Debug:                         false,
-			PropagateSubgraphErrors:       true,
-			PropagateSubgraphStatusCodes:  true,
-			SubgraphErrorPropagationMode:  SubgraphErrorPropagationModePassThrough,
-			OmitCustomSubgraphErrorFields: true,
-			AllowedErrorExtensionFields:   []string{"code"},
+			MaxConcurrency:               1024,
+			Debug:                        false,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+			AllowedErrorExtensionFields:  []string{"code"},
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
 

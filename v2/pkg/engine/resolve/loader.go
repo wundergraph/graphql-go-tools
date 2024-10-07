@@ -76,7 +76,7 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
-	omitCustomSubgraphErrorFields     bool
+	allowedSubgraphErrorFields        map[string]struct{}
 }
 
 func (l *Loader) Free() {
@@ -688,7 +688,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// Allow to delete extensions entirely
 		l.optionallyOmitErrorExtensions(values)
 
-		l.optionallyOmitCustomErrorFields(values)
+		l.optionallyOmitErrorFields(values)
 
 		if len(values) > 0 {
 			// Append the subgraph errors to the response payload
@@ -816,18 +816,15 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	}
 }
 
-// optionallyOmitCustomErrorFields removes all custom fields from the subgraph error
-func (l *Loader) optionallyOmitCustomErrorFields(values []*astjson.Value) {
-	if !l.omitCustomSubgraphErrorFields {
-		return
-	}
+// optionallyOmitErrorFields removes all fields from the subgraph error which are not whitelisted. We do not remove message.
+func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Type() == astjson.TypeObject {
 			obj := value.GetObject()
 			var keysToDelete []string
 			obj.Visit(func(k []byte, v *astjson.Value) {
 				key := unsafebytes.BytesToString(k)
-				if key != "message" && key != "extensions" {
+				if _, ok := l.allowedSubgraphErrorFields[key]; !ok {
 					keysToDelete = append(keysToDelete, key)
 				}
 			})
