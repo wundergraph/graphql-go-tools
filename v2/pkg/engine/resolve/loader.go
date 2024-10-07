@@ -816,7 +816,7 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	}
 }
 
-// optionallyOmitErrorFields removes all custom fields from the subgraph error
+// optionallyOmitErrorFields removes all fields from the subgraph error which are not whitelisted. We do not remove message.
 func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 	// always allow message
 	l.allowedSubgraphErrorFields["message"] = struct{}{}
