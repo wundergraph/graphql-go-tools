@@ -1036,8 +1036,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	}
 	r.pushNodePathElement(fieldPath)
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
-		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
-		r.addValueCompletion(errorMessage, InvalidGraphqlErrorCode)
+		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), InvalidGraphqlErrorCode)
 	} else {
 		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
@@ -1065,13 +1064,29 @@ func (r *Resolvable) renderFieldPath() string {
 	return buf.String()
 }
 
+func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
+	pathLength := len(r.path)
+	if pathLength < 1 {
+		return "invalid path"
+	}
+	lastPathItem := r.path[pathLength-1]
+	if lastPathItem.Name != "" {
+		return fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
+	}
+	// If the item has no name, it's a GraphQL list element. A list must be returned by a field.
+	if pathLength < 2 {
+		return "invalid path"
+	}
+	return fmt.Sprintf("Cannot return null for non-nullable array element of type %s at index %d.", r.enclosingTypeName, lastPathItem.Idx)
+}
+
 func (r *Resolvable) renderFieldCoordinates() string {
 	buf := pool.BytesBuffer.Get()
 	defer pool.BytesBuffer.Put(buf)
 	pathLength := len(r.path)
 	switch pathLength {
 	case 0:
-		_, _ = buf.WriteString("invalid path")
+		return "invalid path"
 	case 1:
 		switch r.operationType {
 		case ast.OperationTypeQuery:
@@ -1081,7 +1096,7 @@ func (r *Resolvable) renderFieldCoordinates() string {
 		case ast.OperationTypeSubscription:
 			_, _ = buf.WriteString("Subscription.")
 		default:
-			_, _ = buf.WriteString("invalid path")
+			return "invalid path"
 		}
 		_, _ = buf.WriteString(r.path[0].Name)
 	default:

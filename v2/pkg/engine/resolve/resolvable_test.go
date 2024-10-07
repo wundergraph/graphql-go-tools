@@ -256,6 +256,117 @@ func TestResolvable_NonNullableRootField_ApolloCompatabilityMode(t *testing.T) {
 	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field 'Query.topProducts'.","path":["topProducts"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 }
 
+func TestResolvable_NonNullableArrayItem_ApolloCompatabilityMode(t *testing.T) {
+	topProducts := `{"topProducts":[null]}`
+	res := NewResolvable(ResolvableOptions{
+		ApolloCompatibilityValueCompletionInExtensions: true,
+	})
+	ctx := &Context{
+		Variables: nil,
+	}
+	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("topProducts"),
+				Value: &Array{
+					Path: []string{"topProducts"},
+					Item: &Object{
+						TypeName: "Product",
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	err = res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable array element of type Product at index 0.","path":["topProducts",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+}
+
+func TestResolvable_NullableArrayNonNullableItem_ApolloCompatabilityMode(t *testing.T) {
+	topProducts := `{"topProducts":[null]}`
+	res := NewResolvable(ResolvableOptions{
+		ApolloCompatibilityValueCompletionInExtensions: true,
+	})
+	ctx := &Context{
+		Variables: nil,
+	}
+	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("topProducts"),
+				Value: &Array{
+					Nullable: true,
+					Path:     []string{"topProducts"},
+					Item: &Object{
+						TypeName: "Product",
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	err = res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":{"topProducts":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable array element of type Product at index 0.","path":["topProducts",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+}
+
+func TestResolvable_NonNullableArrayItemNestedField_ApolloCompatabilityMode(t *testing.T) {
+	topProducts := `{"topProducts":[{"author":{"name":"Name"}},{"author":null}]}`
+	res := NewResolvable(ResolvableOptions{
+		ApolloCompatibilityValueCompletionInExtensions: true,
+	})
+	ctx := &Context{
+		Variables: nil,
+	}
+	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	assert.NotNil(t, res)
+	object := &Object{
+		Fields: []*Field{
+			{
+				Name: []byte("topProducts"),
+				Value: &Array{
+					Path: []string{"topProducts"},
+					Item: &Object{
+						Fields: []*Field{
+							{
+								Name: []byte("author"),
+								Value: &Object{
+									Path: []string{"author"},
+									Fields: []*Field{
+										{
+											Name: []byte("name"),
+											Value: &String{
+												Path: []string{"name"},
+											},
+										},
+									},
+									TypeName: "User",
+								},
+							},
+						},
+						TypeName: "Product",
+					},
+				},
+			},
+		},
+	}
+
+	out := &bytes.Buffer{}
+	err = res.Resolve(context.Background(), object, nil, out)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field 'User.author'.","path":["topProducts",1,"author"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+}
+
 func TestResolvable_NonNullableNestedField_ApolloCompatabilityMode(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{
