@@ -832,7 +832,6 @@ func (l *Loader) optionallyOmitCustomErrorFields(values []*astjson.Value) {
 				}
 			})
 			for _, key := range keysToDelete {
-				fmt.Println(key)
 				obj.Del(key)
 			}
 		}
