@@ -76,6 +76,7 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
+	omitCustomSubgraphErrorFields     bool
 }
 
 func (l *Loader) Free() {
@@ -687,6 +688,8 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// Allow to delete extensions entirely
 		l.optionallyOmitErrorExtensions(values)
 
+		l.optionallyOmitCustomErrorFields(values)
+
 		if len(values) > 0 {
 			// Append the subgraph errors to the response payload
 			if err := l.appendSubgraphError(res, fetchItem, value, values); err != nil {
@@ -809,6 +812,29 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
 			value.Del("extensions")
+		}
+	}
+}
+
+// optionallyOmitCustomErrorFields removes all custom fields from the subgraph error
+func (l *Loader) optionallyOmitCustomErrorFields(values []*astjson.Value) {
+	if !l.omitCustomSubgraphErrorFields {
+		return
+	}
+	for _, value := range values {
+		if value.Type() == astjson.TypeObject {
+			obj := value.GetObject()
+			var keysToDelete []string
+			obj.Visit(func(k []byte, v *astjson.Value) {
+				key := unsafebytes.BytesToString(k)
+				if key != "message" && key != "extensions" {
+					keysToDelete = append(keysToDelete, key)
+				}
+			})
+			for _, key := range keysToDelete {
+				fmt.Println(key)
+				obj.Del(key)
+			}
 		}
 	}
 }

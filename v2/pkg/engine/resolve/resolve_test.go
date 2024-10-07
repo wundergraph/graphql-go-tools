@@ -1849,6 +1849,36 @@ func testFnWithError(fn func(t *testing.T, ctrl *gomock.Controller) (node *Graph
 	}
 }
 
+func testFnSubgraphErrorsPassthroughAndOmitCustomFields(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:                1024,
+			Debug:                         false,
+			PropagateSubgraphErrors:       true,
+			PropagateSubgraphStatusCodes:  true,
+			SubgraphErrorPropagationMode:  SubgraphErrorPropagationModePassThrough,
+			OmitCustomSubgraphErrorFields: true,
+			AllowedErrorExtensionFields:   []string{"code"},
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
 func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 	t.Run("empty graphql response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -2357,6 +2387,44 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				},
 			},
 		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage"}],"data":{"name":null}}`
+	}))
+	t.Run("fetch with pass through mode and omit custom fields", testFnSubgraphErrorsPassthroughAndOmitCustomFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) error {
+				_, err := w.Write([]byte(`{"errors":[{"message":"errorMessage","longMessage":"This is a long message","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":{"name":null}}`))
+				return err
+			})
+		return &GraphQLResponse{
+			Info: &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			},
+			Fetches: SingleWithPath(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}, "query"),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":{"name":null}}`
 	}))
 	t.Run("fetch with returned err (with DataSourceID)", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
