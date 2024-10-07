@@ -120,7 +120,7 @@ type ResolverOptions struct {
 	// ResolvableOptions are configuration options for the Resolbable struct
 	ResolvableOptions ResolvableOptions
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
-	AllowedCustomSubgraphErrorFields []string
+	AllowedSubgraphErrorFields []string
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -136,9 +136,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedExtensionFields[field] = struct{}{}
 	}
 
-	allowedCustomErrorFields := make(map[string]struct{}, len(options.AllowedCustomSubgraphErrorFields))
-	for _, field := range options.AllowedCustomSubgraphErrorFields {
-		allowedCustomErrorFields[field] = struct{}{}
+	allowedErrorFields := make(map[string]struct{}, len(options.AllowedSubgraphErrorFields))
+	for _, field := range options.AllowedSubgraphErrorFields {
+		allowedErrorFields[field] = struct{}{}
 	}
 
 	resolver := &Resolver{
@@ -165,7 +165,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 						allowedErrorExtensionFields:       allowedExtensionFields,
 						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
-						allowedCustomSubgraphErrorFields:  allowedCustomErrorFields,
+						allowedSubgraphErrorFields:        allowedErrorFields,
 					},
 				}
 			},
