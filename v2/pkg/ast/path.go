@@ -111,7 +111,7 @@ func (p Path) DotDelimitedString() string {
 		case ArrayIndex:
 			toGrow += 1
 		case InlineFragmentName:
-			toGrow += len(p[i].FieldName) + 1 // 1 for the prefix $
+			toGrow += len(p[i].FieldName) + 1 + 4 // 1 for the prefix $, 4 for the fragment ref
 		case FieldName:
 			toGrow += len(p[i].FieldName)
 		}
