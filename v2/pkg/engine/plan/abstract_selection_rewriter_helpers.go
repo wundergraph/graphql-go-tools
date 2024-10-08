@@ -124,6 +124,10 @@ func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragm
 
 func (r *fieldSelectionRewriter) entityHasFieldsAsRootNode(entityName string, fields []fieldSelection) bool {
 	for _, fieldSelection := range fields {
+		if fieldSelection.fieldName == typeNameField {
+			continue
+		}
+
 		if !r.dsConfiguration.HasRootNode(entityName, fieldSelection.fieldName) {
 			return false
 		}
@@ -225,6 +229,10 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 
 func (r *fieldSelectionRewriter) typeHasAllFieldLocal(typeName string, fields []fieldSelection) bool {
 	for _, field := range fields {
+		if field.fieldName == typeNameField {
+			continue
+		}
+
 		if !r.hasFieldOnDataSource(typeName, field.fieldName) {
 			return false
 		}
@@ -279,8 +287,16 @@ func (r *fieldSelectionRewriter) filterFragmentsByTypeNames(inlineFragments []in
 func (r *fieldSelectionRewriter) notSelectedFieldsForInlineFragment(inlineFragmentSelection inlineFragmentSelection, fields []fieldSelection) []fieldSelection {
 	notSelectedFields := make([]fieldSelection, 0, len(fields))
 	for _, fieldSelection := range fields {
+		if fieldSelection.fieldName == typeNameField {
+			continue
+		}
+
 		fieldIsSelected := false
 		for _, fragmentField := range inlineFragmentSelection.selectionSetInfo.fields {
+			if fragmentField.fieldName == typeNameField {
+				continue
+			}
+
 			if fieldSelection.fieldName == fragmentField.fieldName {
 				fieldIsSelected = true
 				break
@@ -302,6 +318,10 @@ func (r *fieldSelectionRewriter) inlineFragmentHasAllFieldsLocalToDatasource(inl
 	}
 
 	for _, notSelectedField := range notSelectedFields {
+		if notSelectedField.fieldName == typeNameField {
+			continue
+		}
+
 		hasField := r.hasFieldOnDataSource(inlineFragmentSelection.typeName, notSelectedField.fieldName)
 
 		if !hasField {
@@ -323,16 +343,11 @@ func (r *fieldSelectionRewriter) hasFieldOnDataSource(typeName string, fieldName
 		r.dsConfiguration.HasChildNode(typeName, fieldName)
 }
 
-func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields []fieldSelection, addTypeName bool) (selectionRef int) {
+func (r *fieldSelectionRewriter) createFragmentSelection(typeName string, fields []fieldSelection) (selectionRef int) {
 	selectionRefs := make([]int, 0, len(fields))
 	for _, sharedField := range fields {
 		newFieldSelectionRef := r.operation.CopySelection(sharedField.fieldSelectionRef)
 		selectionRefs = append(selectionRefs, newFieldSelectionRef)
-	}
-
-	if addTypeName {
-		typeNameSelectionRef, _ := r.typeNameSelection()
-		selectionRefs = append(selectionRefs, typeNameSelectionRef)
 	}
 
 	selectionSetRef := r.operation.AddSelectionSetToDocument(ast.SelectionSet{

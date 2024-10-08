@@ -1731,7 +1731,7 @@ func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err
 }
 
 type GraphQLSubscriptionClient interface {
-	// Subscribes to the origin source. The implementation must not block the calling goroutine.
+	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 }
