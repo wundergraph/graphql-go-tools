@@ -42,8 +42,9 @@ type DataSourceMetadata struct {
 	ChildNodes TypeFields
 	Directives *DirectiveConfigurations
 
-	rootNodesIndex  map[string]map[string]struct{}
-	childNodesIndex map[string]map[string]struct{}
+	rootNodesIndex         map[string]map[string]struct{}
+	externalRootNodesIndex map[string]map[string]struct{}
+	childNodesIndex        map[string]map[string]struct{}
 }
 
 type DirectivesConfigurations interface {
@@ -70,6 +71,7 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 	}
 
 	d.rootNodesIndex = make(map[string]map[string]struct{})
+	d.externalRootNodesIndex = make(map[string]map[string]struct{})
 	d.childNodesIndex = make(map[string]map[string]struct{})
 
 	for i := range d.RootNodes {
@@ -78,6 +80,12 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		}
 		for j := range d.RootNodes[i].FieldNames {
 			d.rootNodesIndex[d.RootNodes[i].TypeName][d.RootNodes[i].FieldNames[j]] = struct{}{}
+		}
+		if _, ok := d.externalRootNodesIndex[d.RootNodes[i].TypeName]; !ok {
+			d.externalRootNodesIndex[d.RootNodes[i].TypeName] = make(map[string]struct{})
+		}
+		for j := range d.RootNodes[i].ExternalFieldNames {
+			d.externalRootNodesIndex[d.RootNodes[i].TypeName][d.RootNodes[i].ExternalFieldNames[j]] = struct{}{}
 		}
 	}
 
@@ -110,7 +118,15 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 }
 
 func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
-	return d.RootNodes.HasExternalNode(typeName, fieldName)
+	if d.externalRootNodesIndex == nil {
+		return false
+	}
+	fields, ok := d.externalRootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = fields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
@@ -135,7 +151,7 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 }
 
 func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
-	return d.ChildNodes.HasExternalNode(typeName, fieldName)
+	return d.HasExternalRootNode(typeName, fieldName)
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
