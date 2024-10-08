@@ -451,10 +451,10 @@ func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
 				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
 			}
 
+			s.mux.Lock()
 			if _, err := s.writer.Write(data); err != nil {
 				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
 			}
-			s.mux.Lock()
 			err := s.writer.Flush()
 			s.mux.Unlock()
 			if err != nil {
