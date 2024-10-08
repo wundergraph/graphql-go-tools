@@ -19,6 +19,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+const (
+	HearbeatInterval = 5 * time.Second
+)
+
+var (
+	heartbeat = []byte("{}")
+)
+
 type Reporter interface {
 	// SubscriptionUpdateSent called when a new subscription update is sent
 	SubscriptionUpdateSent()
@@ -412,8 +420,55 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerInitialized(event.triggerID)
 	case subscriptionEventKindTriggerShutdown:
 		r.handleTriggerShutdown(event)
+	case subscriptionEventKindHeartbeat:
+		r.handleHeartbeat(event.triggerID, event.data)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
+	}
+}
+
+func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return
+	}
+	if r.options.Debug {
+		fmt.Printf("resolver:heartbeat:%d\n", id)
+	}
+	wg := &sync.WaitGroup{}
+	trig.inFlight = wg
+	for c, s := range trig.subscriptions {
+		c, s := c, s
+		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer r.triggerUpdateSem.Release(1)
+			defer wg.Done()
+
+			if r.options.Debug {
+				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
+			}
+
+			if _, err := s.writer.Write(data); err != nil {
+				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
+			}
+			s.mux.Lock()
+			err := s.writer.Flush()
+			s.mux.Unlock()
+			if err != nil {
+				// client disconnected
+				_ = r.AsyncUnsubscribeSubscription(s.id)
+				return
+			}
+			if r.options.Debug {
+				fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
+			}
+			if r.reporter != nil {
+				r.reporter.SubscriptionUpdateSent()
+			}
+		}()
 	}
 }
 
@@ -875,6 +930,25 @@ type subscriptionUpdater struct {
 	ctx       context.Context
 }
 
+func (s *subscriptionUpdater) Heartbeat() {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:heartbeat:%d\n", s.triggerID)
+	}
+	if s.done {
+		return
+	}
+
+	select {
+	case <-s.ctx.Done():
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindHeartbeat,
+		data:      heartbeat,
+	}:
+	}
+}
+
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
@@ -939,11 +1013,14 @@ const (
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerShutdown
+	subscriptionEventKindHeartbeat
 )
 
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// Heartbeat sends a heartbeat to the client. It is not guaranteed that the update is sent immediately.
+	Heartbeat()
 	// Done also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Done.
 	Done()
 }

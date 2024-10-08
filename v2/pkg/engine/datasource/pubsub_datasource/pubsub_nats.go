@@ -67,6 +67,7 @@ func (s *NatsSubscriptionSource) Start(ctx *resolve.Context, input []byte, updat
 	if err != nil {
 		return err
 	}
+	subscriptionConfiguration.SendHeartbeat = ctx.ExecutionOptions.SendHeartbeat
 
 	return s.pubSub.Subscribe(ctx.Context(), subscriptionConfiguration, updater)
 }

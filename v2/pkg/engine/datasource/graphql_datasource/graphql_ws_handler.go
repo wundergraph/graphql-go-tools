@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"io"
 	"net"
 	"strconv"
@@ -56,6 +57,11 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 
 	go h.readBlocking(readCtx, dataCh, errCh)
 
+	ticker := &time.Ticker{}
+	if sub.options.SendHeartbeat {
+		ticker = time.NewTicker(resolve.HearbeatInterval)
+	}
+
 	for {
 		err := h.ctx.Err()
 		if err != nil {
@@ -80,7 +86,13 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 			}
 			h.broadcastErrorMessage(err)
 			return
+		case <-tickerC(ticker):
+			sub.updater.Heartbeat()
 		case data := <-dataCh:
+			if sub.options.SendHeartbeat {
+				ticker.Reset(resolve.HearbeatInterval)
+			}
+
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
 				continue
@@ -257,4 +269,12 @@ func (h *gqlWSConnectionHandler) checkActiveSubscriptions() (hasActiveSubscripti
 		}
 	}
 	return len(h.subscriptions) != 0
+}
+
+func tickerC(ticker *time.Ticker) <-chan time.Time {
+	if ticker != nil {
+		return ticker.C
+	}
+	// Return nil channel, which will block forever
+	return nil
 }

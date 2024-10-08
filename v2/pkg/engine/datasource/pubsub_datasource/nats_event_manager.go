@@ -26,6 +26,7 @@ type NatsSubscriptionEventConfiguration struct {
 	ProviderID          string                   `json:"providerId"`
 	Subjects            []string                 `json:"subjects"`
 	StreamConfiguration *NatsStreamConfiguration `json:"streamConfiguration,omitempty"`
+	SendHeartbeat       bool                     `json:"sendHeartbeat"`
 }
 
 type NatsPublishAndRequestEventConfiguration struct {

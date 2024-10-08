@@ -112,6 +112,9 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
 func (c *subscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	if reqCtx.ExecutionOptions.SendHeartbeat {
+		options.SendHeartbeat = true
+	}
 	if options.UseSSE {
 		return c.subscribeSSE(reqCtx, options, updater)
 	}
