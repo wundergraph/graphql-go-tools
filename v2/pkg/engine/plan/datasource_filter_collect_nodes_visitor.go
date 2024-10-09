@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/kingledion/go-tools/tree"
 
@@ -34,22 +35,48 @@ func (c *nodesCollector) CollectNodes() *NodeSuggestions {
 }
 
 func (c *nodesCollector) collectNodes() {
-	walker := astvisitor.NewWalker(32)
-	visitor := &collectNodesVisitor{
-		operation:  c.operation,
-		definition: c.definition,
-		walker:     &walker,
-		nodes:      c.nodes,
-	}
-	walker.RegisterFieldVisitor(visitor)
 
-	for _, dataSource := range c.dataSources {
+	wg := &sync.WaitGroup{}
+	wg.Add(len(c.dataSources))
+	visitors := make([]*collectNodesVisitor, len(c.dataSources))
+	reports := make([]*operationreport.Report, len(c.dataSources))
+
+	for i, dataSource := range c.dataSources {
+		walker := astvisitor.NewWalker(32)
+		visitor := &collectNodesVisitor{
+			operation:  c.operation,
+			definition: c.definition,
+			walker:     &walker,
+			nodes:      c.nodes,
+		}
+		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
 		visitor.keyPaths = make(map[string]struct{})
-		walker.Walk(c.operation, c.definition, c.report)
-		if c.report.HasErrors() {
+		visitors[i] = visitor
+		report := operationreport.Report{}
+		reports[i] = &report
+		go func(walker *astvisitor.Walker, report *operationreport.Report) {
+			walker.Walk(c.operation, c.definition, report)
+			if report.HasErrors() {
+				return
+			}
+			wg.Done()
+		}(&walker, &report)
+	}
+	wg.Wait()
+	for _, report := range reports {
+		if report.HasErrors() {
+			for i := range report.ExternalErrors {
+				c.report.AddExternalError(report.ExternalErrors[i])
+			}
+			for i := range report.InternalErrors {
+				c.report.AddInternalError(report.InternalErrors[i])
+			}
 			return
 		}
+	}
+	for _, visitor := range visitors {
+		visitor.applySuggestions()
 	}
 }
 
@@ -113,7 +140,10 @@ type collectNodesVisitor struct {
 	operation  *ast.Document
 	definition *ast.Document
 	dataSource DataSource
-	nodes      *NodeSuggestions
+
+	localSuggestions []*NodeSuggestion
+
+	nodes *NodeSuggestions
 
 	keyPaths map[string]struct{}
 }
@@ -326,20 +356,27 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
 			IsExternal:                isExternal,
 			IsLeaf:                    !hasSelections,
+			currentNodeId:             currentNodeId,
 		}
 
-		f.nodes.addSuggestion(&node)
-		itemId := len(f.nodes.items) - 1
-
-		treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
-		itemIds := treeNode.GetData()
-		itemIds = append(itemIds, itemId)
-		treeNode.SetData(itemIds)
+		f.localSuggestions = append(f.localSuggestions, &node)
 	}
 }
 
 func (f *collectNodesVisitor) LeaveField(ref int) {
 
+}
+
+func (f *collectNodesVisitor) applySuggestions() {
+	for _, suggestion := range f.localSuggestions {
+		f.nodes.addSuggestion(suggestion)
+		itemId := len(f.nodes.items) - 1
+
+		treeNode, _ := f.nodes.responseTree.Find(suggestion.currentNodeId)
+		itemIds := treeNode.GetData()
+		itemIds = append(itemIds, itemId)
+		treeNode.SetData(itemIds)
+	}
 }
 
 func TreeNodeID(fieldRef int) uint {
