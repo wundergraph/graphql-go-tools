@@ -1743,7 +1743,6 @@ type GraphQLSubscriptionOptions struct {
 	Header                                  http.Header      `json:"header"`
 	UseSSE                                  bool             `json:"use_sse"`
 	SSEMethodPost                           bool             `json:"sse_method_post"`
-	SendHeartbeat                           bool             `json:"send_heartbeat"`
 	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 	WsSubProtocol                           string           `json:"ws_sub_protocol"`
@@ -1770,7 +1769,6 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater r
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	options.SendHeartbeat = ctx.ExecutionOptions.SendHeartbeat
 	return s.client.Subscribe(ctx, options, updater)
 }
 
