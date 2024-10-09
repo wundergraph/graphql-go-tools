@@ -8,15 +8,18 @@ import (
 )
 
 type Field struct {
-	Alias         Alias              // optional, e.g. renamed:
-	Name          ByteSliceReference // field name, e.g. id
-	HasArguments  bool
-	Arguments     ArgumentList // optional
-	HasDirectives bool
-	Directives    DirectiveList // optional
-	SelectionSet  int           // optional
-	HasSelections bool
-	Position      position.Position
+	Alias           Alias              // optional, e.g. renamed:
+	Name            ByteSliceReference // field name, e.g. id
+	HasArguments    bool
+	Arguments       ArgumentList // optional
+	HasDirectives   bool
+	Directives      DirectiveList // optional
+	SelectionSet    int           // optional
+	HasSelections   bool
+	Position        position.Position
+	Path            string
+	ParentPath      string
+	GrandParentPath string
 }
 
 func (d *Document) CopyField(ref int) int {

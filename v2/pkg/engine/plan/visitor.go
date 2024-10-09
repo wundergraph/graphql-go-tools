@@ -115,15 +115,20 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		// main planner visitor should always be allowed
 		return true
 	}
-	path := v.Walker.Path.DotDelimitedString()
-	isFragmentPath := false
+	var (
+		path           string
+		isFragmentPath bool
+	)
 
 	switch kind {
 	case astvisitor.EnterField, astvisitor.LeaveField:
-		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
-		path = path + "." + fieldAliasOrName
+		path = v.Operation.FieldPath(ref, v.Walker.Path)
 	case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
 		isFragmentPath = true
+	}
+
+	if path == "" {
+		path = v.Walker.Path.DotDelimitedString()
 	}
 
 	isRootPath := !strings.Contains(path, ".")
@@ -137,7 +142,10 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 	}
 
 	for _, config := range v.planners {
-		if config.Planner() == visitor && config.HasPath(path) {
+		if config.Planner() != visitor {
+			continue
+		}
+		if config.HasPath(path) {
 			switch kind {
 			case astvisitor.EnterField, astvisitor.LeaveField:
 				fieldName := v.Operation.FieldNameString(ref)
@@ -865,7 +873,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	plannerConfig := v.currentOrParentPlannerConfiguration()
+	plannerConfig := v.currentOrParentPlannerConfiguration(ref)
 
 	aliasOverride := false
 	if plannerConfig != nil && plannerConfig.Planner() != nil {
@@ -923,11 +931,11 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
 
-func (v *Visitor) currentOrParentPlannerConfiguration() PlannerConfiguration {
+func (v *Visitor) currentOrParentPlannerConfiguration(fieldRef int) PlannerConfiguration {
 	// TODO: this method should be dropped it is unnecessary expensive
 
 	const none = -1
-	currentPath := v.currentFullPath(false)
+	currentPath := v.Operation.FieldPath(fieldRef, v.Walker.Path)
 	plannerIndex := none
 	plannerPathDeepness := none
 

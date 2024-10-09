@@ -20,7 +20,6 @@ type nodesResolvableVisitor struct {
 func (f *nodesResolvableVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 
 	isTypeName := fieldName == typeNameField
 	isUnionParent := f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
@@ -30,8 +29,7 @@ func (f *nodesResolvableVisitor) EnterField(ref int) {
 		return
 	}
 
-	parentPath := f.walker.Path.DotDelimitedString()
-	currentPath := parentPath + "." + fieldAliasOrName
+	currentPath := f.operation.FieldPath(ref, f.walker.Path)
 
 	_, found := f.nodes.HasSuggestionForPath(typeName, fieldName, currentPath)
 	if !found {

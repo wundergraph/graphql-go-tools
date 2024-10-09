@@ -1,8 +1,6 @@
 package plan
 
 import (
-	"strings"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -95,6 +93,7 @@ type currentFiedInfo struct {
 
 type providesVisitor struct {
 	walker         *astvisitor.Walker
+	operation      *ast.Document
 	input          *providesInput
 	OperationNodes []ast.Node
 
@@ -107,7 +106,8 @@ func (v *providesVisitor) EnterFragmentDefinition(ref int) {
 	v.pathPrefix = v.input.providesFieldSet.FragmentDefinitionTypeNameString(ref)
 }
 
-func (v *providesVisitor) EnterDocument(_, _ *ast.Document) {
+func (v *providesVisitor) EnterDocument(operation, _ *ast.Document) {
+	v.operation = operation
 	v.OperationNodes = make([]ast.Node, 0, 3)
 	v.OperationNodes = append(v.OperationNodes,
 		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
@@ -151,8 +151,8 @@ func (v *providesVisitor) EnterField(ref int) {
 	}
 
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
-	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.pathPrefix)
-	currentPath := parentPath + "." + fieldName
+	parentPath := v.operation.FieldParentPath(ref, v.walker.Path)
+	currentPath := v.operation.FieldPath(ref, v.walker.Path)
 
 	if len(v.currentFields) > 0 {
 		v.currentFields[len(v.currentFields)-1].hasSelectedNestedFieldsInOperation = true

@@ -1,6 +1,8 @@
 package ast
 
 import (
+	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
@@ -27,6 +29,41 @@ func (d *Document) FieldAliasOrNameBytes(ref int) ByteSlice {
 
 func (d *Document) FieldAliasOrNameString(ref int) string {
 	return unsafebytes.BytesToString(d.FieldAliasOrNameBytes(ref))
+}
+
+func (d *Document) FieldPath(ref int, path Path) string {
+	if d.Fields[ref].Path == "" {
+		name := string(d.FieldAliasOrNameBytes(ref))
+		if len(path) == 0 {
+			d.Fields[ref].Path = name
+		} else {
+			d.Fields[ref].Path = fmt.Sprintf("%s.%s", path.DotDelimitedString(), name)
+		}
+	}
+	p := d.Fields[ref].Path
+	return p
+}
+
+func (d *Document) FieldParentPath(ref int, path Path) string {
+	if d.Fields[ref].ParentPath == "" {
+		if len(path) == 0 {
+			d.Fields[ref].ParentPath = ""
+		} else {
+			d.Fields[ref].ParentPath = path.DotDelimitedString()
+		}
+	}
+	return d.Fields[ref].ParentPath
+}
+
+func (d *Document) FieldGrandParentPath(ref int, path Path) string {
+	if d.Fields[ref].GrandParentPath == "" {
+		if len(path) < 2 {
+			d.Fields[ref].GrandParentPath = ""
+		} else {
+			d.Fields[ref].GrandParentPath = path[:len(path)-1].DotDelimitedString()
+		}
+	}
+	return d.Fields[ref].GrandParentPath
 }
 
 func (d *Document) FieldAliasBytes(ref int) ByteSlice {
