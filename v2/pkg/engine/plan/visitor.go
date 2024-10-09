@@ -38,6 +38,7 @@ type Visitor struct {
 	currentFields                []objectFields
 	currentField                 *resolve.Field
 	planners                     []PlannerConfiguration
+	plannerIDs                   []int
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
@@ -110,6 +111,10 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
+type Identifyable interface {
+	ID() int
+}
+
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		// main planner visitor should always be allowed
@@ -141,8 +146,14 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		return true
 	}
 
-	for _, config := range v.planners {
-		if config.Planner() != visitor {
+	idVisitor, ok := visitor.(Identifyable)
+	if !ok {
+		return false
+	}
+	visitorID := idVisitor.ID()
+
+	for i, config := range v.planners {
+		if v.plannerIDs[i] != visitorID {
 			continue
 		}
 		if config.HasPath(path) {

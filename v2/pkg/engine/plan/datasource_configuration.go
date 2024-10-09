@@ -6,7 +6,6 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
