@@ -11028,22 +11028,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				)
 			})
 
-			t.Run("do not query typename in case it is the only not external field", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							user {
-								hostedImage {
-									image {
-										__typename
-									}
-								}
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+			t.Run("it is allowed to query a typename even if other fields are external", func(t *testing.T) {
+				expectedPlan := func(service string) plan.Plan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -11061,7 +11048,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"` + service + `","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -11130,6 +11117,51 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
+					}
+				}
+
+				variant1 := expectedPlan("http://second.service")
+				variant2 := expectedPlan("http://third.service")
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							user {
+								hostedImage {
+									image {
+										__typename
+									}
+								}
+							}
+						}`,
+					"User",
+					[]plan.Plan{
+						variant1,
+						variant1,
+						variant2,
+						variant2,
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant2,
 					},
 					planConfiguration,
 					WithDefaultPostProcessor(),
@@ -11599,22 +11631,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				)
 			})
 
-			t.Run("do not query typename in case it is the only not external field", func(t *testing.T) {
-				RunWithPermutations(
-					t,
-					definition,
-					`
-						query User {
-							user {
-								hostedImage {
-									image {
-										__typename
-									}
-								}
-							}
-						}`,
-					"User",
-					&plan.SynchronousResponsePlan{
+			t.Run("it is allowed to query a typename even if other fields are external", func(t *testing.T) {
+				expectedPlan := func(service string) *plan.SynchronousResponsePlan {
+					return &plan.SynchronousResponsePlan{
 						Response: &resolve.GraphQLResponse{
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
@@ -11669,7 +11688,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"` + service + `","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -11738,6 +11757,51 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								},
 							},
 						},
+					}
+				}
+
+				variant1 := expectedPlan("http://second.service")
+				variant2 := expectedPlan("http://third.service")
+
+				RunWithPermutationsVariants(
+					t,
+					definition,
+					`
+						query User {
+							user {
+								hostedImage {
+									image {
+										__typename
+									}
+								}
+							}
+						}`,
+					"User",
+					[]plan.Plan{
+						variant1,
+						variant1,
+						variant2,
+						variant2,
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant1,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant2,
 					},
 					planConfiguration,
 					WithDefaultPostProcessor(),
