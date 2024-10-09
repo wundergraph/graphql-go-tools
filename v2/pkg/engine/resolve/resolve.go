@@ -310,6 +310,7 @@ type sub struct {
 	id             SubscriptionIdentifier
 	pendingUpdates int
 	completed      chan struct{}
+	sendHeartbeat  bool
 }
 
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
@@ -437,6 +438,10 @@ func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
 	}
 	for c, s := range trig.subscriptions {
 		c, s := c, s
+		// Only send heartbeats to subscriptions who have enabled it
+		if !s.sendHeartbeat {
+			continue
+		}
 		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
 			return
 		}
@@ -523,10 +528,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		resolve:   add.resolve,
-		writer:    add.writer,
-		id:        add.id,
-		completed: add.completed,
+		resolve:       add.resolve,
+		writer:        add.writer,
+		id:            add.id,
+		completed:     add.completed,
+		sendHeartbeat: add.ctx.ExecutionOptions.SendHeartbeat,
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
