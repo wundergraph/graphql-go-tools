@@ -96,6 +96,35 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	return p, nil
 }
 
+// Refresh resets the planner to its initial state.
+func (p *Planner) Refresh() {
+	p.configurationWalker.Reset()
+	p.configurationVisitor.reset()
+	p.nodeSelectionsWalker.Reset()
+	p.nodeSelectionsVisitor.reset()
+	p.planningWalker.Reset()
+	p.planningVisitor.reset()
+	p.prepareOperationWalker.Reset()
+
+	astnormalization.InlineFragmentAddOnType(p.prepareOperationWalker)
+
+	p.nodeSelectionsVisitor.walker = p.nodeSelectionsWalker
+	p.nodeSelectionsWalker.RegisterEnterDocumentVisitor(p.nodeSelectionsVisitor)
+	p.nodeSelectionsWalker.RegisterFieldVisitor(p.nodeSelectionsVisitor)
+	p.nodeSelectionsWalker.RegisterEnterOperationVisitor(p.nodeSelectionsVisitor)
+	p.nodeSelectionsWalker.RegisterSelectionSetVisitor(p.nodeSelectionsVisitor)
+
+	p.configurationVisitor.fieldConfigurations = p.config.Fields
+	p.configurationVisitor.walker = p.configurationWalker
+	p.configurationWalker.RegisterEnterDocumentVisitor(p.configurationVisitor)
+	p.configurationWalker.RegisterFieldVisitor(p.configurationVisitor)
+	p.configurationWalker.RegisterEnterOperationVisitor(p.configurationVisitor)
+	p.configurationWalker.RegisterSelectionSetVisitor(p.configurationVisitor)
+
+	p.planningVisitor.Walker = p.planningWalker
+	p.planningVisitor.disableResolveFieldPositions = p.config.DisableResolveFieldPositions
+}
+
 func (p *Planner) SetConfig(config Configuration) {
 	p.config = config
 }

@@ -47,6 +47,28 @@ type Visitor struct {
 	indirectInterfaceFields      map[int]indirectInterfaceField
 }
 
+func (v *Visitor) reset() {
+	v.Operation = nil
+	v.Definition = nil
+	v.Walker.Reset()
+	v.Importer = astimport.Importer{}
+	v.Config = Configuration{}
+	v.plan = nil
+	v.OperationName = ""
+	v.operationDefinition = 0
+	v.objects = v.objects[:0]
+	v.currentFields = v.currentFields[:0]
+	v.currentField = nil
+	v.planners = v.planners[:0]
+	v.skipFieldsRefs = v.skipFieldsRefs[:0]
+	v.fieldConfigs = map[int]*FieldConfiguration{}
+	v.exportedVariables = map[string]struct{}{}
+	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.disableResolveFieldPositions = false
+	v.includeQueryPlans = false
+	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
+}
+
 type indirectInterfaceField struct {
 	interfaceName string
 	node          ast.Node

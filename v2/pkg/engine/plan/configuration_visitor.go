@@ -60,6 +60,50 @@ type configurationVisitor struct {
 	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
 }
 
+func (c *configurationVisitor) reset() {
+	c.logger = nil
+	c.debug = DebugConfiguration{}
+	c.suggestionsSelectionReasonsEnabled = false
+
+	c.operationName = ""
+	c.operation = nil
+	c.definition = nil
+	if c.walker != nil {
+		c.walker.Reset()
+	}
+
+	c.dataSources = c.dataSources[:0]
+	c.fieldConfigurations = c.fieldConfigurations[:0]
+
+	c.planners = c.planners[:0]
+
+	c.nodeSuggestions = nil
+	c.nodeSuggestionHints = c.nodeSuggestionHints[:0]
+
+	c.parentTypeNodes = c.parentTypeNodes[:0]
+	c.arrayFields = c.arrayFields[:0]
+	c.selectionSetRefs = c.selectionSetRefs[:0]
+	c.skipFieldsRefs = c.skipFieldsRefs[:0]
+	c.missingPathTracker = map[string]struct{}{}
+	c.potentiallyMissingPathTracker = map[string]struct{}{}
+	c.addedPathTracker = c.addedPathTracker[:0]
+	c.addedPathTrackerIndex = map[string][]int{}
+
+	c.pendingRequiredFields = map[int]selectionSetPendingRequirements{}
+	c.processedFieldNotHavingRequires = map[int]struct{}{}
+	c.visitedFieldsAbstractChecks = map[int]struct{}{}
+	c.fieldDependenciesForPlanners = map[int][]int{}
+	c.fieldsPlannedOn = map[int][]int{}
+	c.fieldWaitingForRequiresDependency = map[int][]int{}
+	c.fieldRequiresDependencies = map[int][]int{}
+
+	c.secondaryRun = false
+	c.fieldRef = 0
+
+	c.fieldDependsOn = map[fieldIndexKey][]int{}
+	c.fieldRequirementsConfigs = map[fieldIndexKey][]FederationFieldConfiguration{}
+}
+
 type FailedToCreatePlanningPathsError struct {
 	MissingPaths                 []string
 	HasFieldWaitingForDependency bool

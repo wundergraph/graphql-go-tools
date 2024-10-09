@@ -103,6 +103,26 @@ func NewWalker(ancestorSize int) Walker {
 	}
 }
 
+func (w *Walker) Reset() {
+	w.Ancestors = w.Ancestors[:0]
+	w.Path = w.Path[:0]
+	w.EnclosingTypeDefinition = ast.Node{}
+	w.SelectionsBefore = w.SelectionsBefore[:0]
+	w.SelectionsAfter = w.SelectionsAfter[:0]
+	w.Report = nil
+	w.CurrentRef = 0
+	w.CurrentKind = 0
+	w.document = nil
+	w.definition = nil
+	w.ResetVisitors() // reset visitors and deferred
+	w.Depth = 0
+	w.TypeDefinitions = w.TypeDefinitions[:0]
+	w.stop = false
+	w.skip = false
+	w.revisit = false
+	w.filter = nil
+}
+
 type (
 	// EnterOperationDefinitionVisitor is the callback when the walker enters an operation definition
 	EnterOperationDefinitionVisitor interface {

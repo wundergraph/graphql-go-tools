@@ -247,6 +247,8 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 
 	e.plannerMu.Lock()
 	defer e.plannerMu.Unlock()
+
+	e.planner.Refresh()
 	planResult := e.planner.Plan(operation, definition, operationName, report)
 	if report.HasErrors() {
 		return nil

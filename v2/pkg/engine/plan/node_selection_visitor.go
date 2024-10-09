@@ -46,6 +46,41 @@ type nodeSelectionVisitor struct {
 	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates
 }
 
+func (c *nodeSelectionVisitor) reset() {
+	c.debug = DebugConfiguration{}
+
+	c.operationName = ""
+	c.operation = nil
+	c.definition = nil
+	if c.walker != nil {
+		c.walker.Reset()
+	}
+
+	c.dataSources = c.dataSources[:0]
+	c.nodeSuggestions = nil
+
+	c.selectionSetRefs = c.selectionSetRefs[:0]
+	c.skipFieldsRefs = c.skipFieldsRefs[:0]
+
+	c.pendingKeyRequirements = map[int]pendingKeyRequirements{}
+	c.pendingFieldRequirements = map[int]pendingFieldRequirements{}
+
+	c.visitedFieldsRequiresChecks = map[fieldIndexKey]struct{}{}
+	c.visitedFieldsKeyChecks = map[fieldIndexKey]struct{}{}
+	c.visitedFieldsAbstractChecks = map[int]struct{}{}
+	c.fieldDependsOn = map[fieldIndexKey][]int{}
+	c.fieldRefDependsOn = map[int][]int{}
+	c.fieldRequirementsConfigs = map[fieldIndexKey][]FederationFieldConfiguration{}
+	c.fieldLandedTo = map[int]DSHash{}
+
+	c.secondaryRun = false
+	c.hasNewFields = false
+	c.hasUnresolvedFields = false
+
+	c.fieldPathCoordinates = c.fieldPathCoordinates[:0]
+
+}
+
 func (c *nodeSelectionVisitor) shouldRevisit() bool {
 	return c.hasNewFields || c.hasUnresolvedFields
 }
