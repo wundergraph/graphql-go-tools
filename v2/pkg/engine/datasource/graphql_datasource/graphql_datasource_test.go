@@ -572,7 +572,7 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													Info: &resolve.FieldInfo{
 														Name:                "name",
-														ParentTypeNames:     []string{"Character"},
+														ParentTypeNames:     []string{"Character", "Droid", "Human"},
 														ExactParentTypeName: "Character",
 														NamedType:           "String",
 														Source: resolve.TypeFieldSource{
@@ -617,7 +617,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Info: &resolve.FieldInfo{
 										Name:                "name",
-										ParentTypeNames:     []string{"Character"},
+										ParentTypeNames:     []string{"Character", "Droid", "Human"},
 										ExactParentTypeName: "Character",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
