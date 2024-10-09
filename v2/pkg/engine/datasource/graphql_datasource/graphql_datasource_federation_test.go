@@ -10598,6 +10598,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FieldPath: []string{"hostedImageWithProvides", "image", "id"},
 									},
 								},
+								DisableEntityResolver: true,
 							},
 							{
 								TypeName:     "HostedImage",
@@ -10658,8 +10659,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					FederationMetaData: plan.FederationMetaData{
 						Keys: plan.FederationFieldConfigurations{
 							{
-								TypeName:     "User",
+								TypeName:     "HostedImage",
 								SelectionSet: "id",
+							},
+							{
+								TypeName:              "Image",
+								SelectionSet:          "id",
+								DisableEntityResolver: true,
 							},
 						},
 					},
@@ -10731,8 +10737,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
-					PrintQueryPlans:      true,
-					PrintNodeSuggestions: true,
+					// PrintOperationTransformations: true,
+					// PrintOperationEnableASTRefs:   true,
+					// PrintPlanningPaths:            true,
+					PrintQueryPlans: true,
+					// PrintNodeSuggestions:          true,
 					NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
 						FilterNotSelected: false,
 						SelectionReasons:  true,
@@ -10884,7 +10893,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				)
 			})
 
-			t.Run("do not query external conditional fields", func(t *testing.T) {
+			t.Run("do not query external conditional fields - Image.id key field is present in a query", func(t *testing.T) {
 				RunWithPermutations(
 					t,
 					definition,
@@ -10893,6 +10902,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							user {
 								hostedImage {
 									image {
+										id
 										cdnUrl
 									}
 								}
@@ -10917,7 +10927,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id __typename}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -11002,8 +11012,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 															{
 																Name: []byte("image"),
 																Value: &resolve.Object{
-																	Path: []string{"image"},
+																	Path:          []string{"image"},
+																	PossibleTypes: map[string]struct{}{"Image": {}},
+																	TypeName:      "Image",
 																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("id"),
+																			Value: &resolve.Scalar{
+																				Path: []string{"id"},
+																			},
+																		},
 																		{
 																			Name: []byte("cdnUrl"),
 																			Value: &resolve.String{

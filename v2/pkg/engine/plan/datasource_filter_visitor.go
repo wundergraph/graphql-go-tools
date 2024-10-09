@@ -286,12 +286,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// on a second pass we are selecting nodes which was not selected by previous stages
-		// we need to skip more complex checks, to have more selections to do the choice from
-		if !secondPass {
-			continue
-		}
-
 		// if after all checks node was not selected
 		// we need a couple more checks
 
@@ -336,6 +330,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return false
+				}
+
 				parents := f.findPossibleParents(i)
 				if len(parents) > 0 {
 					if f.selectWithExternalCheck(i, ReasonStage3SelectNodeUnderFirstParentRootNode) {
@@ -360,7 +358,15 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
 			},
 			func(i int) bool {
-				return !f.nodes.isLeaf(i)
+				if !f.nodes.isLeaf(i) {
+					return true
+				}
+
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return true
+				}
+
+				return false
 			}) {
 			continue
 		}
@@ -381,7 +387,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			}
 		}
 
-		f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+		if currentChildNodeCount > 0 {
+			// we can't select node if it doesn't have any child nodes to select
+			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+		}
 	}
 }
 
@@ -588,10 +597,6 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 			// we have to omit __typename field
 			// to not be in a situation when all fields are external but __typename is selectable
 			continue
-		}
-
-		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
-			return false
 		}
 
 		hasFields = true
