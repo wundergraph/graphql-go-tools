@@ -4853,9 +4853,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+				_, _ = w.Write([]byte("{}"))
+				return
 			})
 		return &GraphQLResponse{
 			Fetches: SingleWithPath(&SingleFetch{
@@ -4870,7 +4869,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 				FetchConfiguration: FetchConfiguration{
 					DataSource: mockDataSource,
 					PostProcessing: PostProcessingConfiguration{
-						SelectResponseErrorsPath: []string{"data"},
+						SelectResponseDataPath: []string{"data"},
 					},
 				},
 			}, "query"),
