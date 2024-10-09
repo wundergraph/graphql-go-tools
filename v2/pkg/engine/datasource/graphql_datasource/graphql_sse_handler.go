@@ -53,25 +53,18 @@ func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
 
 	go h.subscribe(reqCtx, sub, dataCh, errCh)
 
-	var ticker *time.Ticker
-	if sub.options.SendHeartbeat {
-		ticker = time.NewTicker(resolve.HearbeatInterval)
-		defer ticker.Stop()
-	}
+	ticker := time.NewTicker(resolve.HearbeatInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
-		case <-tickerC(ticker):
+		case <-ticker.C:
 			sub.updater.Heartbeat()
 		case data := <-dataCh:
-			if ticker != nil {
-				ticker.Reset(resolve.HearbeatInterval)
-			}
+			ticker.Reset(resolve.HearbeatInterval)
 			sub.updater.Update(data)
 		case data := <-errCh:
-			if ticker != nil {
-				ticker.Reset(resolve.HearbeatInterval)
-			}
+			ticker.Reset(resolve.HearbeatInterval)
 			sub.updater.Update(data)
 			return
 		case <-reqCtx.Done():

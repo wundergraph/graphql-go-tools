@@ -9,9 +9,8 @@ import (
 )
 
 type KafkaSubscriptionEventConfiguration struct {
-	ProviderID    string   `json:"providerId"`
-	Topics        []string `json:"topics"`
-	SendHeartbeat bool     `json:"sendHeartbeat"`
+	ProviderID string   `json:"providerId"`
+	Topics     []string `json:"topics"`
 }
 
 type KafkaPublishEventConfiguration struct {

@@ -391,7 +391,7 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"providerId":"default","subjects":["tenants.$$0$$.users.$$1$$"],"sendHeartbeat":false}`),
+					Input: []byte(`{"providerId":"default","subjects":["tenants.$$0$$.users.$$1$$"]}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a", "tenantId"},
@@ -442,7 +442,7 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"providerId":"default","subjects":["tenantsOne.$$0$$.users.$$1$$","tenantsTwo.$$2$$.users.$$3$$"],"sendHeartbeat":false}`),
+					Input: []byte(`{"providerId":"default","subjects":["tenantsOne.$$0$$.users.$$1$$","tenantsTwo.$$2$$.users.$$3$$"]}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a", "tenantId"},
@@ -501,7 +501,7 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"providerId":"default","subjects":["tenants.1.users.1"],"sendHeartbeat":false}`),
+					Input: []byte(`{"providerId":"default","subjects":["tenants.1.users.1"]}`),
 					Source: &NatsSubscriptionSource{
 						pubSub: &testPubsub{},
 					},
@@ -542,7 +542,7 @@ func TestPubSub(t *testing.T) {
 		expect := &plan.SubscriptionResponsePlan{
 			Response: &resolve.GraphQLSubscription{
 				Trigger: resolve.GraphQLSubscriptionTrigger{
-					Input: []byte(`{"providerId":"default","subjects":["tenants.1.users.$$0$$"],"sendHeartbeat":false}`),
+					Input: []byte(`{"providerId":"default","subjects":["tenants.1.users.$$0$$"]}`),
 					Variables: resolve.Variables{
 						&resolve.ContextVariable{
 							Path:     []string{"a", "user", "id"},

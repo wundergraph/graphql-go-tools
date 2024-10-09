@@ -24,7 +24,7 @@ const (
 )
 
 var (
-	heartbeat = []byte("{}")
+	multipartHeartbeat = []byte("{}")
 )
 
 type Reporter interface {
@@ -946,7 +946,10 @@ func (s *subscriptionUpdater) Heartbeat() {
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindHeartbeat,
-		data:      heartbeat,
+		data:      multipartHeartbeat,
+		// Currently, the only heartbeat we support is for multipart subscriptions. If we need to support future types
+		// of subscriptions, we can evaluate then how we can save on the subscription level what kind of heartbeat it
+		// requires
 	}:
 	}
 }

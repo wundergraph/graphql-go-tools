@@ -54,11 +54,8 @@ func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 
 	go h.readBlocking(readCtx, dataCh, errCh)
 
-	var ticker *time.Ticker
-	if sub.options.SendHeartbeat {
-		ticker = time.NewTicker(resolve.HearbeatInterval)
-		defer ticker.Stop()
-	}
+	ticker := time.NewTicker(resolve.HearbeatInterval)
+	defer ticker.Stop()
 
 	for {
 		err := h.ctx.Err()
@@ -84,12 +81,10 @@ func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 			h.log.Error("gqlWSConnectionHandler.StartBlocking", log.Error(err))
 			h.broadcastErrorMessage(err)
 			return
-		case <-tickerC(ticker):
+		case <-ticker.C:
 			sub.updater.Heartbeat()
 		case data := <-dataCh:
-			if ticker != nil {
-				ticker.Reset(resolve.HearbeatInterval)
-			}
+			ticker.Reset(resolve.HearbeatInterval)
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
 				continue
