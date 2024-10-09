@@ -61,6 +61,7 @@ type Resolvable struct {
 type ResolvableOptions struct {
 	ApolloCompatibilityValueCompletionInExtensions bool
 	ApolloCompatibilityTruncateFloatValues         bool
+	ApolloCompatibilitySuppressFetchErrors         bool
 }
 
 func NewResolvable(options ResolvableOptions) *Resolvable {

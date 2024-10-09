@@ -500,7 +500,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if astjson.ValueIsNull(value) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
-			if !hasErrors {
+			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
 				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 			}
 			// no data
