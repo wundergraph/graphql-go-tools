@@ -57,6 +57,7 @@ func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 	var ticker *time.Ticker
 	if sub.options.SendHeartbeat {
 		ticker = time.NewTicker(resolve.HearbeatInterval)
+		defer ticker.Stop()
 	}
 
 	for {

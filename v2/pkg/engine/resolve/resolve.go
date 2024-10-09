@@ -435,17 +435,13 @@ func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat:%d\n", id)
 	}
-	wg := &sync.WaitGroup{}
-	trig.inFlight = wg
 	for c, s := range trig.subscriptions {
 		c, s := c, s
 		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
 			return
 		}
-		wg.Add(1)
 		go func() {
 			defer r.triggerUpdateSem.Release(1)
-			defer wg.Done()
 
 			if r.options.Debug {
 				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
@@ -1019,7 +1015,9 @@ const (
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
-	// Heartbeat sends a heartbeat to the client. It is not guaranteed that the update is sent immediately.
+	// Heartbeat sends a heartbeat to the client. It is not guaranteed that the update is sent immediately. When calling,
+	// clients should reset their heartbeat timer after an Update call to make sure that we don't send needless heartbeats
+	// downstream
 	Heartbeat()
 	// Done also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Done.
 	Done()
