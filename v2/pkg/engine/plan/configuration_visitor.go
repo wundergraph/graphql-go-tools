@@ -331,8 +331,8 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	parentPath := c.operation.FieldGrandParentPath(ref, c.walker.Path)
-	currentPath := c.operation.FieldParentPath(ref, c.walker.Path)
+	parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+	currentPath := c.walker.Path.DotDelimitedString()
 	typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
 
 	for i, planner := range c.planners {
@@ -377,6 +377,7 @@ func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 
 func (c *configurationVisitor) EnterField(ref int) {
 	fieldName := c.operation.FieldNameUnsafeString(ref)
+	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
 	c.debugPrint("EnterField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
@@ -402,7 +403,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		precedingParentPath = precedingPath.DotDelimitedString()
 	}
 
-	currentPath := c.operation.FieldPath(ref, c.walker.Path)
+	currentPath := parentPath + "." + fieldAliasOrName
 
 	c.addArrayField(ref, currentPath)
 

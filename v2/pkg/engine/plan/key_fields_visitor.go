@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"strings"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -39,5 +41,10 @@ func (v *isKeyFieldVisitor) EnterField(ref int) {
 	if v.input.key.FieldHasSelections(ref) {
 		return
 	}
-	v.keyPaths = append(v.keyPaths, v.operation.FieldPath(ref, v.walker.Path))
+
+	fieldName := v.input.key.FieldNameUnsafeString(ref)
+	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.input.typeName)
+	currentPath := parentPath + "." + fieldName
+
+	v.keyPaths = append(v.keyPaths, currentPath)
 }

@@ -126,23 +126,21 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		isFragmentPath bool
 	)
 
-	switch kind {
-	case astvisitor.EnterField, astvisitor.LeaveField:
-		path = v.Operation.FieldPath(ref, v.Walker.Path)
-	case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
-		isFragmentPath = true
+	if entry, ok := v.pathCache[kind]; ok {
+		path = entry[ref]
+	} else {
+		v.pathCache[kind] = make(map[int]string)
+	}
+	if path == "" {
+		path = v.Walker.Path.DotDelimitedString()
+		if kind == astvisitor.EnterField || kind == astvisitor.LeaveField {
+			path = path + "." + v.Operation.FieldAliasOrNameString(ref)
+		}
+		v.pathCache[kind][ref] = path
 	}
 
-	if path == "" {
-		if entry, ok := v.pathCache[kind]; ok {
-			path = entry[ref]
-		} else {
-			v.pathCache[kind] = make(map[int]string)
-		}
-		if path == "" {
-			path = v.Walker.Path.DotDelimitedString()
-			v.pathCache[kind][ref] = path
-		}
+	if kind == astvisitor.EnterInlineFragment || kind == astvisitor.LeaveInlineFragment {
+		isFragmentPath = true
 	}
 
 	isRootPath := !strings.Contains(path, ".")
@@ -951,7 +949,7 @@ func (v *Visitor) currentOrParentPlannerConfiguration(fieldRef int) PlannerConfi
 	// TODO: this method should be dropped it is unnecessary expensive
 
 	const none = -1
-	currentPath := v.Operation.FieldPath(fieldRef, v.Walker.Path)
+	currentPath := v.currentFullPath(false)
 	plannerIndex := none
 	plannerPathDeepness := none
 

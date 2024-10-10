@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"strings"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -151,8 +153,8 @@ func (v *providesVisitor) EnterField(ref int) {
 	}
 
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
-	parentPath := v.operation.FieldParentPath(ref, v.walker.Path)
-	currentPath := v.operation.FieldPath(ref, v.walker.Path)
+	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.pathPrefix)
+	currentPath := parentPath + "." + fieldName
 
 	if len(v.currentFields) > 0 {
 		v.currentFields[len(v.currentFields)-1].hasSelectedNestedFieldsInOperation = true
