@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"io"
 	"net"
 	"strconv"
@@ -53,6 +54,9 @@ func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 
 	go h.readBlocking(readCtx, dataCh, errCh)
 
+	ticker := time.NewTicker(resolve.HearbeatInterval)
+	defer ticker.Stop()
+
 	for {
 		err := h.ctx.Err()
 		if err != nil {
@@ -77,7 +81,10 @@ func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 			h.log.Error("gqlWSConnectionHandler.StartBlocking", log.Error(err))
 			h.broadcastErrorMessage(err)
 			return
+		case <-ticker.C:
+			sub.updater.Heartbeat()
 		case data := <-dataCh:
+			ticker.Reset(resolve.HearbeatInterval)
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
 				continue

@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"time"
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
@@ -52,11 +53,18 @@ func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
 
 	go h.subscribe(reqCtx, sub, dataCh, errCh)
 
+	ticker := time.NewTicker(resolve.HearbeatInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
+		case <-ticker.C:
+			sub.updater.Heartbeat()
 		case data := <-dataCh:
+			ticker.Reset(resolve.HearbeatInterval)
 			sub.updater.Update(data)
 		case data := <-errCh:
+			ticker.Reset(resolve.HearbeatInterval)
 			sub.updater.Update(data)
 			return
 		case <-reqCtx.Done():

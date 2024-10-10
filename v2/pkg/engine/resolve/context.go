@@ -35,6 +35,7 @@ type Context struct {
 type ExecutionOptions struct {
 	SkipLoader                 bool
 	IncludeQueryPlanInResponse bool
+	SendHeartbeat              bool
 }
 
 type AuthorizationDeny struct {
