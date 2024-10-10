@@ -31,13 +31,60 @@ type PathItem struct {
 	FragmentRef int // only used for InlineFragmentName, allows to distinguish between multiple inline fragments on the same type
 }
 
+func (p *PathItem) Equals(another PathItem) bool {
+	if p.Kind != another.Kind {
+		return false
+	}
+	if p.ArrayIndex != another.ArrayIndex {
+		return false
+	}
+	if p.FragmentRef != another.FragmentRef {
+		return false
+	}
+	if !bytes.Equal(p.FieldName, another.FieldName) {
+		return false
+	}
+	return true
+}
+
 type Path []PathItem
+
+func (p Path) Hash() uint64 {
+	var hash uint64
+	for i := range p {
+		hash = hash*31 + uint64(p[i].Kind)
+		hash = hash*31 + uint64(p[i].ArrayIndex)
+		hash = hash*31 + uint64(p[i].FragmentRef)
+		for j := range p[i].FieldName {
+			hash = hash*31 + uint64(p[i].FieldName[j])
+		}
+	}
+	return hash
+}
+
+func (p Path) IsRoot() bool {
+	return len(p) <= 1
+}
+
+func (p Path) Clone() Path {
+	out := make(Path, len(p))
+	copy(out, p)
+	return out
+}
+
+func (p Path) CloneWithExtraField(fieldName ByteSlice) Path {
+	out := make(Path, len(p)+1)
+	copy(out, p)
+	out[len(p)].Kind = FieldName
+	out[len(p)].FieldName = fieldName
+	return out
+}
 
 func (p Path) Equals(another Path) bool {
 	if len(p) != len(another) {
 		return false
 	}
-	for i := range p {
+	for i := len(p) - 1; i >= 0; i-- {
 		if p[i].Kind != another[i].Kind {
 			return false
 		}
@@ -111,7 +158,7 @@ func (p Path) DotDelimitedString() string {
 		case ArrayIndex:
 			toGrow += 1
 		case InlineFragmentName:
-			toGrow += len(p[i].FieldName) + 1 // 1 for the prefix $
+			toGrow += len(p[i].FieldName) + 1 + 4 // 1 for the prefix $, 4 for the fragment ref
 		case FieldName:
 			toGrow += len(p[i].FieldName)
 		}
@@ -164,7 +211,7 @@ func (p *PathItem) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (p PathItem) MarshalJSON() ([]byte, error) {
+func (p *PathItem) MarshalJSON() ([]byte, error) {
 	switch p.Kind {
 	case ArrayIndex:
 		return strconv.AppendInt(nil, int64(p.ArrayIndex), 10), nil

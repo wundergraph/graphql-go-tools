@@ -95,6 +95,7 @@ type currentFiedInfo struct {
 
 type providesVisitor struct {
 	walker         *astvisitor.Walker
+	operation      *ast.Document
 	input          *providesInput
 	OperationNodes []ast.Node
 
@@ -107,7 +108,8 @@ func (v *providesVisitor) EnterFragmentDefinition(ref int) {
 	v.pathPrefix = v.input.providesFieldSet.FragmentDefinitionTypeNameString(ref)
 }
 
-func (v *providesVisitor) EnterDocument(_, _ *ast.Document) {
+func (v *providesVisitor) EnterDocument(operation, _ *ast.Document) {
+	v.operation = operation
 	v.OperationNodes = make([]ast.Node, 0, 3)
 	v.OperationNodes = append(v.OperationNodes,
 		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})

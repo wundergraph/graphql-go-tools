@@ -18,8 +18,9 @@ type keyVisitorInput struct {
 func keyFieldPaths(input *keyVisitorInput) []string {
 	walker := astvisitor.NewWalker(48)
 	visitor := &isKeyFieldVisitor{
-		walker: &walker,
-		input:  input,
+		walker:    &walker,
+		input:     input,
+		operation: input.key,
 	}
 
 	walker.RegisterEnterFieldVisitor(visitor)
@@ -29,8 +30,9 @@ func keyFieldPaths(input *keyVisitorInput) []string {
 }
 
 type isKeyFieldVisitor struct {
-	walker *astvisitor.Walker
-	input  *keyVisitorInput
+	walker    *astvisitor.Walker
+	operation *ast.Document
+	input     *keyVisitorInput
 
 	keyPaths []string
 }
