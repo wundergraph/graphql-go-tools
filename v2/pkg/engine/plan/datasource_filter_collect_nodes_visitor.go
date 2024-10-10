@@ -243,6 +243,52 @@ func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(treeNode tre
 	return false
 }
 
+func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath string) bool {
+	if _, ok := f.keyPaths[currentPath]; ok {
+		return true
+	}
+
+	keyFields := f.dataSource.RequiredFieldsByKey(typeName)
+	if len(keyFields) == 0 {
+		return false
+	}
+
+	for _, keyField := range keyFields {
+		// keys with disabled entity resolver can't be external
+		if keyField.DisableEntityResolver {
+			continue
+		}
+
+		// if key has conditions it is external and could only be provided
+		// on a certain path
+		if len(keyField.Conditions) > 0 {
+			continue
+		}
+
+		fieldSet, report := RequiredFieldsFragment(typeName, keyField.SelectionSet, false)
+		if report.HasErrors() {
+			return false
+		}
+
+		input := &keyVisitorInput{
+			typeName:   typeName,
+			key:        fieldSet,
+			definition: f.definition,
+			report:     report,
+			parentPath: parentPath,
+		}
+
+		keyPaths := keyFieldPaths(input)
+
+		for _, keyPath := range keyPaths {
+			f.keyPaths[keyPath] = struct{}{}
+		}
+	}
+
+	_, ok := f.keyPaths[currentPath]
+	return ok
+}
+
 func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	currentNodeId := TreeNodeID(fieldRef)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
@@ -302,6 +348,11 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 
 	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(treeNode)
 	hasSelections := f.operation.FieldHasSelections(fieldRef)
+
+	if isExternal && f.isFieldPartOfKey(typeName, currentPath, parentPath) {
+		// external fields which are part of the key should not be marked as external
+		isExternal = false
+	}
 
 	if hasRootNode || hasChildNode || isExternal {
 		disabledEntityResolver := hasRootNode && f.allKeysHasDisabledEntityResolver(typeName)
