@@ -54,11 +54,14 @@ type Resolvable struct {
 	typeNames [][]byte
 
 	marshalBuf []byte
+
+	enclosingTypeName string
 }
 
 type ResolvableOptions struct {
 	ApolloCompatibilityValueCompletionInExtensions bool
 	ApolloCompatibilityTruncateFloatValues         bool
+	ApolloCompatibilitySuppressFetchErrors         bool
 }
 
 func NewResolvable(options ResolvableOptions) *Resolvable {
@@ -467,7 +470,7 @@ func (r *Resolvable) walkNode(node Node, value, parent *astjson.Value) bool {
 	case *Null:
 		return r.walkNull()
 	case *String:
-		return r.walkString(n, value, parent)
+		return r.walkString(n, value)
 	case *Boolean:
 		return r.walkBoolean(n, value)
 	case *Integer:
@@ -490,6 +493,7 @@ func (r *Resolvable) walkNode(node Node, value, parent *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
+	r.enclosingTypeName = obj.TypeName
 	value := parent.Get(obj.Path...)
 	if value == nil || value.Type() == astjson.TypeNull {
 		if obj.Nullable {
@@ -811,7 +815,7 @@ func (r *Resolvable) walkNull() bool {
 	return false
 }
 
-func (r *Resolvable) walkString(s *String, value, grandParent *astjson.Value) bool {
+func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
 	}
@@ -1032,8 +1036,12 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 		}
 	}
 	r.pushNodePathElement(fieldPath)
-	errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
-	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
+	if r.options.ApolloCompatibilityValueCompletionInExtensions {
+		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), InvalidGraphqlErrorCode)
+	} else {
+		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
+	}
 	r.popNodePathElement(fieldPath)
 }
 
@@ -1053,6 +1061,49 @@ func (r *Resolvable) renderFieldPath() string {
 			_, _ = buf.WriteString(".")
 			_, _ = buf.WriteString(r.path[i].Name)
 		}
+	}
+	return buf.String()
+}
+
+func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
+	pathLength := len(r.path)
+	if pathLength < 1 {
+		return "invalid path"
+	}
+	lastPathItem := r.path[pathLength-1]
+	if lastPathItem.Name != "" {
+		return fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
+	}
+	// If the item has no name, it's a GraphQL list element. A list must be returned by a field.
+	if pathLength < 2 {
+		return "invalid path"
+	}
+	return fmt.Sprintf("Cannot return null for non-nullable array element of type %s at index %d.", r.enclosingTypeName, lastPathItem.Idx)
+}
+
+func (r *Resolvable) renderFieldCoordinates() string {
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+	pathLength := len(r.path)
+	switch pathLength {
+	case 0:
+		return "invalid path"
+	case 1:
+		switch r.operationType {
+		case ast.OperationTypeQuery:
+			_, _ = buf.WriteString("Query.")
+		case ast.OperationTypeMutation:
+			_, _ = buf.WriteString("Mutation.")
+		case ast.OperationTypeSubscription:
+			_, _ = buf.WriteString("Subscription.")
+		default:
+			return "invalid path"
+		}
+		_, _ = buf.WriteString(r.path[0].Name)
+	default:
+		_, _ = buf.WriteString(r.enclosingTypeName)
+		_, _ = buf.WriteString(".")
+		_, _ = buf.WriteString(r.path[pathLength-1].Name)
 	}
 	return buf.String()
 }

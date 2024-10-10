@@ -11,7 +11,7 @@ type NormalizationResult struct {
 	Errors     graphqlerrors.Errors
 }
 
-func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err error) {
+func (r *Request) Normalize(schema *Schema, options ...astnormalization.Option) (result NormalizationResult, err error) {
 	if schema == nil {
 		return NormalizationResult{Successful: false, Errors: nil}, ErrNilSchema
 	}
@@ -23,12 +23,17 @@ func (r *Request) Normalize(schema *Schema) (result NormalizationResult, err err
 
 	r.document.Input.Variables = r.Variables
 
-	normalizer := astnormalization.NewWithOpts(
-		astnormalization.WithExtractVariables(),
-		astnormalization.WithRemoveFragmentDefinitions(),
-		astnormalization.WithRemoveUnusedVariables(),
-		astnormalization.WithInlineFragmentSpreads(),
-	)
+	// use default normalization options if none are provided
+	if len(options) == 0 {
+		options = []astnormalization.Option{
+			astnormalization.WithExtractVariables(),
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+		}
+	}
+
+	normalizer := astnormalization.NewWithOpts(options...)
 
 	if r.OperationName != "" {
 		normalizer.NormalizeNamedOperation(&r.document, &schema.document, []byte(r.OperationName), &report)

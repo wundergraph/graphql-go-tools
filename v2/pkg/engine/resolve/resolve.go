@@ -19,6 +19,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+const (
+	HearbeatInterval = 5 * time.Second
+)
+
+var (
+	multipartHeartbeat = []byte("{}")
+)
+
 type Reporter interface {
 	// SubscriptionUpdateSent called when a new subscription update is sent
 	SubscriptionUpdateSent()
@@ -119,6 +127,8 @@ type ResolverOptions struct {
 	MaxRecyclableParserSize int
 	// ResolvableOptions are configuration options for the Resolbable struct
 	ResolvableOptions ResolvableOptions
+	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
+	AllowedSubgraphErrorFields []string
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -132,6 +142,24 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	allowedExtensionFields := make(map[string]struct{}, len(options.AllowedErrorExtensionFields))
 	for _, field := range options.AllowedErrorExtensionFields {
 		allowedExtensionFields[field] = struct{}{}
+	}
+
+	// always allow "message" and "path"
+	allowedErrorFields := map[string]struct{}{
+		"message": {},
+		"path":    {},
+	}
+
+	if !options.OmitSubgraphErrorExtensions {
+		allowedErrorFields["extensions"] = struct{}{}
+	}
+
+	if !options.OmitSubgraphErrorLocations {
+		allowedErrorFields["locations"] = struct{}{}
+	}
+
+	for _, field := range options.AllowedSubgraphErrorFields {
+		allowedErrorFields[field] = struct{}{}
 	}
 
 	resolver := &Resolver{
@@ -158,6 +186,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 						allowedErrorExtensionFields:       allowedExtensionFields,
 						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
+						allowedSubgraphErrorFields:        allowedErrorFields,
 					},
 				}
 			},
@@ -281,6 +310,7 @@ type sub struct {
 	id             SubscriptionIdentifier
 	pendingUpdates int
 	completed      chan struct{}
+	sendHeartbeat  bool
 }
 
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
@@ -391,8 +421,55 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerInitialized(event.triggerID)
 	case subscriptionEventKindTriggerShutdown:
 		r.handleTriggerShutdown(event)
+	case subscriptionEventKindHeartbeat:
+		r.handleHeartbeat(event.triggerID, event.data)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
+	}
+}
+
+func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return
+	}
+	if r.options.Debug {
+		fmt.Printf("resolver:heartbeat:%d\n", id)
+	}
+	for c, s := range trig.subscriptions {
+		c, s := c, s
+		// Only send heartbeats to subscriptions who have enabled it
+		if !s.sendHeartbeat {
+			continue
+		}
+		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
+			return
+		}
+		go func() {
+			defer r.triggerUpdateSem.Release(1)
+
+			if r.options.Debug {
+				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
+			}
+
+			s.mux.Lock()
+			if _, err := s.writer.Write(data); err != nil {
+				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
+			}
+			err := s.writer.Flush()
+			s.mux.Unlock()
+			if err != nil {
+				// client disconnected
+				_ = r.AsyncUnsubscribeSubscription(s.id)
+				return
+			}
+			if r.options.Debug {
+				fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
+			}
+			if r.reporter != nil {
+				r.reporter.SubscriptionUpdateSent()
+			}
+		}()
 	}
 }
 
@@ -451,10 +528,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		resolve:   add.resolve,
-		writer:    add.writer,
-		id:        add.id,
-		completed: add.completed,
+		resolve:       add.resolve,
+		writer:        add.writer,
+		id:            add.id,
+		completed:     add.completed,
+		sendHeartbeat: add.ctx.ExecutionOptions.SendHeartbeat,
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
@@ -854,6 +932,28 @@ type subscriptionUpdater struct {
 	ctx       context.Context
 }
 
+func (s *subscriptionUpdater) Heartbeat() {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:heartbeat:%d\n", s.triggerID)
+	}
+	if s.done {
+		return
+	}
+
+	select {
+	case <-s.ctx.Done():
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindHeartbeat,
+		data:      multipartHeartbeat,
+		// Currently, the only heartbeat we support is for multipart subscriptions. If we need to support future types
+		// of subscriptions, we can evaluate then how we can save on the subscription level what kind of heartbeat it
+		// requires
+	}:
+	}
+}
+
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
@@ -918,11 +1018,16 @@ const (
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerShutdown
+	subscriptionEventKindHeartbeat
 )
 
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// Heartbeat sends a heartbeat to the client. It is not guaranteed that the update is sent immediately. When calling,
+	// clients should reset their heartbeat timer after an Update call to make sure that we don't send needless heartbeats
+	// downstream
+	Heartbeat()
 	// Done also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Done.
 	Done()
 }

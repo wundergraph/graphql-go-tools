@@ -76,6 +76,7 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
+	allowedSubgraphErrorFields        map[string]struct{}
 }
 
 func (l *Loader) Free() {
@@ -499,7 +500,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if astjson.ValueIsNull(value) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
-			if !hasErrors {
+			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
 				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 			}
 			// no data
@@ -687,6 +688,8 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// Allow to delete extensions entirely
 		l.optionallyOmitErrorExtensions(values)
 
+		l.optionallyOmitErrorFields(values)
+
 		if len(values) > 0 {
 			// Append the subgraph errors to the response payload
 			if err := l.appendSubgraphError(res, fetchItem, value, values); err != nil {
@@ -809,6 +812,25 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
 			value.Del("extensions")
+		}
+	}
+}
+
+// optionallyOmitErrorFields removes all fields from the subgraph error which are not whitelisted. We do not remove message.
+func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
+	for _, value := range values {
+		if value.Type() == astjson.TypeObject {
+			obj := value.GetObject()
+			var keysToDelete []string
+			obj.Visit(func(k []byte, v *astjson.Value) {
+				key := unsafebytes.BytesToString(k)
+				if _, ok := l.allowedSubgraphErrorFields[key]; !ok {
+					keysToDelete = append(keysToDelete, key)
+				}
+			})
+			for _, key := range keysToDelete {
+				obj.Del(key)
+			}
 		}
 	}
 }
