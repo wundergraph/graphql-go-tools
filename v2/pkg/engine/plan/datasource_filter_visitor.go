@@ -252,20 +252,8 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// Select node based on a check for selected parent of a current node or its duplicates
-		// Additional considerations, if node is not leaf, e.g. it has children
-		// we need to check do we also already selected any child fields on the same datasource,
-		// When there is no child selections on the same datasource, we need to skip selecting this node,
-		// because it means we potentially planned all child fields on other datasources,
-		// also as this is the first pass, we won't count __typename field as a child.
-		// we will do it on the second pass, when we will have some other fields selected, or we only have __typename field selection
-		if secondPass {
-			if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
-				continue
-			}
-		} else {
-			if f.checkNodes(itemIDs, f.checkNodeParentSkipTypeName, nil) {
-				continue
-			}
+		if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
+			continue
 		}
 
 		// we are checking if we have selected any child fields on the same datasource
@@ -546,14 +534,6 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
-	return f.checkNodeParentWithTypeNameField(i, false)
-}
-
-func (f *DataSourceFilter) checkNodeParentSkipTypeName(i int) (nodeIsSelected bool) {
-	return f.checkNodeParentWithTypeNameField(i, true)
-}
-
-func (f *DataSourceFilter) checkNodeParentWithTypeNameField(i int, skipTypeNameField bool) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
 	if !ok {
 		return false
@@ -568,10 +548,6 @@ func (f *DataSourceFilter) checkNodeParentWithTypeNameField(i int, skipTypeNameF
 	// it means that there was provided some sibling, but not the current field
 	parentIsExternal := f.nodes.items[parentIdx].IsExternal
 	if parentIsExternal && !f.nodes.items[i].IsProvided {
-		return false
-	}
-
-	if !f.nodes.items[i].IsLeaf && skipTypeNameField && len(f.nodes.withoutTypeName(f.nodes.childNodesOnSameSource(i))) == 0 {
 		return false
 	}
 
