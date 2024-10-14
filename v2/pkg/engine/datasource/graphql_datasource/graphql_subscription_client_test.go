@@ -498,17 +498,11 @@ func TestSubscribeAsync(t *testing.T) {
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
 		assert.NoError(t, err)
 
-		time.Sleep(time.Millisecond)
-
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
 		assert.NoError(t, err)
 
-		time.Sleep(time.Millisecond)
-
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
 		assert.NoError(t, err)
-
-		time.Sleep(time.Millisecond)
 
 		msgType, data, err = conn.Read(ctx)
 		assert.NoError(t, err)

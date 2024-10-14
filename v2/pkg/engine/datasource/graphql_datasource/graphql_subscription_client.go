@@ -38,7 +38,10 @@ type subscriptionClient struct {
 	epoll epoller.Poller
 
 	connections   map[int]ConnectionHandler
-	connectionsMu sync.RWMutex
+	connectionsMu sync.Mutex
+
+	activeConnections   map[int]int
+	activeConnectionsMu sync.Mutex
 
 	triggers map[uint64]int
 }
@@ -486,42 +489,66 @@ func waitForAck(conn *ws.Conn) error {
 }
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
+	done := ctx.Done()
+	tick := time.NewTicker(time.Millisecond * 10)
 	for {
-		if ctx.Err() != nil {
-			return
-		}
 		connections, err := c.epoll.Wait(50)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
 			return
 		}
 		fmt.Printf("ePoll - time: %v, connections: %d\n", time.Now(), len(connections))
-		c.connectionsMu.RLock()
+		c.connectionsMu.Lock()
 		for _, conn := range connections {
 			id := socketFd(conn)
 			handler, ok := c.connections[id]
 			if !ok {
 				continue
 			}
-			c.handleConnection(id, handler, conn)
+			c.activeConnectionsMu.Lock()
+			if i, ok := c.activeConnections[id]; ok {
+				fmt.Printf("connection %d is active, queueing event\n", id)
+				c.activeConnections[id] = i + 1
+			}
+			c.activeConnectionsMu.Unlock()
+			go c.handleConnection(id, handler, conn)
 		}
-		c.connectionsMu.RUnlock()
+		c.connectionsMu.Unlock()
+		select {
+		case <-done:
+			return
+		case <-tick.C:
+			continue
+		}
 	}
 }
 
 func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler, conn net.Conn) {
 	fmt.Printf("handling connection %d\n", id)
-	done := handler.ReadMessage()
-	if done {
-		fmt.Printf("connection %d done\n", id)
-		c.connectionsMu.Lock()
-		delete(c.connections, id)
-		c.connectionsMu.Unlock()
-		handler.ServerClose()
-		_ = c.epoll.Remove(conn)
-		return
+	for {
+		done := handler.ReadMessage()
+		if done {
+			fmt.Printf("connection %d done\n", id)
+			c.connectionsMu.Lock()
+			delete(c.connections, id)
+			c.connectionsMu.Unlock()
+			handler.ServerClose()
+			_ = c.epoll.Remove(conn)
+			return
+		}
+		c.activeConnectionsMu.Lock()
+		if i, ok := c.activeConnections[id]; ok {
+			if i == 0 {
+				delete(c.activeConnections, id)
+				c.activeConnectionsMu.Unlock()
+				fmt.Printf("handleConnection: event queue empty, returning to ePoll for connection %d\n", id)
+				return
+			}
+			c.activeConnections[id] = i - 1
+			fmt.Printf("handleConnection: event queue not empty, processing next event for connection %d\n", id)
+		}
+		c.activeConnectionsMu.Unlock()
 	}
-	fmt.Printf("no new messages for connection %d, returning to ePoll\n", id)
 }
 
 func socketFd(conn net.Conn) int {
