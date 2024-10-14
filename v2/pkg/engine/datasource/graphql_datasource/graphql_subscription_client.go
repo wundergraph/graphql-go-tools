@@ -4,17 +4,20 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"net"
 	"net/http"
 	"net/textproto"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	ws "github.com/gorilla/websocket"
 	"github.com/jensneuse/abstractlogger"
-	"nhooyr.io/websocket"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/epoller"
 )
 
 const ackWaitTimeout = 30 * time.Second
@@ -31,6 +34,44 @@ type subscriptionClient struct {
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
 	readTimeout time.Duration
+
+	epoll epoller.Poller
+
+	connections   map[int]ConnectionHandler
+	connectionsMu sync.RWMutex
+
+	triggers map[uint64]int
+}
+
+func (c *subscriptionClient) SubscribeAsync(reqCtx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	if options.UseSSE {
+		return c.subscribeSSE(reqCtx, options, updater)
+	}
+
+	if strings.HasPrefix(options.URL, "https") {
+		options.URL = "wss" + options.URL[5:]
+	} else if strings.HasPrefix(options.URL, "http") {
+		options.URL = "ws" + options.URL[4:]
+	}
+
+	return c.asyncSubscribeWS(reqCtx, id, options, updater)
+}
+
+func (c *subscriptionClient) Unsubscribe(id uint64) {
+	c.connectionsMu.Lock()
+	defer c.connectionsMu.Unlock()
+	fd, ok := c.triggers[id]
+	if !ok {
+		return
+	}
+	delete(c.triggers, id)
+	handler, ok := c.connections[fd]
+	if !ok {
+		return
+	}
+	handler.ClientClose()
+	delete(c.connections, fd)
+	_ = c.epoll.Remove(handler.NetConn())
 }
 
 type InvalidWsSubprotocolError struct {
@@ -92,7 +133,11 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 	for _, option := range options {
 		option(op)
 	}
-	return &subscriptionClient{
+	epoll, err := epoller.NewPoller(1024, time.Second)
+	if err != nil {
+		fmt.Printf("failed to create epoll: %v\n", err)
+	}
+	client := &subscriptionClient{
 		httpClient:      httpClient,
 		streamingClient: streamingClient,
 		engineCtx:       engineCtx,
@@ -104,7 +149,11 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 			},
 		},
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
+		epoll:                      epoll,
+		connections:                make(map[int]ConnectionHandler),
+		triggers:                   make(map[uint64]int),
 	}
+	return client
 }
 
 // Subscribe initiates a new GraphQL Subscription with the origin
@@ -114,6 +163,12 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 func (c *subscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if options.UseSSE {
 		return c.subscribeSSE(reqCtx, options, updater)
+	}
+
+	if strings.HasPrefix(options.URL, "https") {
+		options.URL = "wss" + options.URL[5:]
+	} else if strings.HasPrefix(options.URL, "http") {
+		options.URL = "ws" + options.URL[4:]
 	}
 
 	return c.subscribeWS(reqCtx, options, updater)
@@ -175,6 +230,45 @@ func (c *subscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQ
 	}
 
 	go handler.StartBlocking(sub)
+
+	return nil
+}
+
+func (c *subscriptionClient) asyncSubscribeWS(reqCtx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	if c.httpClient == nil {
+		return fmt.Errorf("http client is nil")
+	}
+
+	sub := Subscription{
+		ctx:     reqCtx.Context(),
+		options: options,
+		updater: updater,
+	}
+
+	handler, err := c.newWSConnectionHandler(reqCtx.Context(), options)
+	if err != nil {
+		return err
+	}
+
+	netConn := handler.NetConn()
+	if err := c.epoll.Add(netConn); err != nil {
+		return err
+	}
+
+	c.connectionsMu.Lock()
+	fd := socketFd(netConn)
+	c.connections[fd] = handler
+	c.triggers[id] = fd
+	count := len(c.connections)
+	c.connectionsMu.Unlock()
+
+	if count == 1 {
+		go c.runEpoll(c.engineCtx)
+	}
+
+	fmt.Printf("added connection to epoll\n")
+
+	handler.Subscribe(sub)
 
 	return nil
 }
@@ -251,17 +345,16 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		subProtocols = []string{options.WsSubProtocol}
 	}
 
-	conn, upgradeResponse, err := websocket.Dial(reqCtx, options.URL, &websocket.DialOptions{
-		HTTPClient:      c.httpClient,
-		HTTPHeader:      options.Header,
-		CompressionMode: websocket.CompressionDisabled,
-		Subprotocols:    subProtocols,
-	})
+	dialer := ws.Dialer{
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: time.Second * 10,
+		Subprotocols:     subProtocols,
+	}
+
+	conn, upgradeResponse, err := dialer.DialContext(reqCtx, options.URL, options.Header)
 	if err != nil {
 		return nil, err
 	}
-	// Disable the maximum message size limit. Don't use MaxInt64 since
-	// the nhooyr.io/websocket doesn't handle it correctly on 32 bit systems.
 	conn.SetReadLimit(math.MaxInt32)
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 		return nil, fmt.Errorf("upgrade unsuccessful")
@@ -287,7 +380,7 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 	}
 
 	// init + ack
-	err = conn.Write(reqCtx, websocket.MessageText, connectionInitMessage)
+	err = conn.WriteMessage(ws.TextMessage, connectionInitMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +393,7 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		}
 	}
 
-	if err := waitForAck(reqCtx, conn); err != nil {
+	if err := waitForAck(conn); err != nil {
 		return nil, err
 	}
 
@@ -340,6 +433,11 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 
 type ConnectionHandler interface {
 	StartBlocking(sub Subscription)
+	NetConn() net.Conn
+	ReadMessage() (done bool)
+	ServerClose()
+	ClientClose()
+	Subscribe(sub Subscription)
 }
 
 type Subscription struct {
@@ -348,7 +446,7 @@ type Subscription struct {
 	updater resolve.SubscriptionUpdater
 }
 
-func waitForAck(ctx context.Context, conn *websocket.Conn) error {
+func waitForAck(conn *ws.Conn) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
@@ -357,11 +455,11 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		default:
 		}
 
-		msgType, msg, err := conn.Read(ctx)
+		msgType, msg, err := conn.ReadMessage()
 		if err != nil {
 			return err
 		}
-		if msgType != websocket.MessageText {
+		if msgType != ws.TextMessage {
 			return fmt.Errorf("unexpected message type")
 		}
 
@@ -374,11 +472,10 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
-			err := conn.Write(ctx, websocket.MessageText, []byte(pongMessage))
+			err := conn.WriteMessage(ws.TextMessage, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
 			}
-
 			continue
 		case messageTypeConnectionAck:
 			return nil
@@ -386,4 +483,61 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 			return fmt.Errorf("expected connection_ack or ka, got %s", respType)
 		}
 	}
+}
+
+func (c *subscriptionClient) runEpoll(ctx context.Context) {
+	for {
+		if ctx.Err() != nil {
+			return
+		}
+		connections, err := c.epoll.Wait(50)
+		if err != nil {
+			c.log.Error("epoll.Wait", abstractlogger.Error(err))
+			return
+		}
+		fmt.Printf("ePoll - time: %v, connections: %d\n", time.Now(), len(connections))
+		c.connectionsMu.RLock()
+		for _, conn := range connections {
+			id := socketFd(conn)
+			handler, ok := c.connections[id]
+			if !ok {
+				continue
+			}
+			c.handleConnection(id, handler, conn)
+		}
+		c.connectionsMu.RUnlock()
+	}
+}
+
+func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler, conn net.Conn) {
+	fmt.Printf("handling connection %d\n", id)
+	done := handler.ReadMessage()
+	if done {
+		fmt.Printf("connection %d done\n", id)
+		c.connectionsMu.Lock()
+		delete(c.connections, id)
+		c.connectionsMu.Unlock()
+		handler.ServerClose()
+		_ = c.epoll.Remove(conn)
+		return
+	}
+	fmt.Printf("no new messages for connection %d, returning to ePoll\n", id)
+}
+
+func socketFd(conn net.Conn) int {
+	if con, ok := conn.(syscall.Conn); ok {
+		raw, err := con.SyscallConn()
+		if err != nil {
+			return 0
+		}
+		sfd := 0
+		_ = raw.Control(func(fd uintptr) {
+			sfd = int(fd)
+		})
+		return sfd
+	}
+	if con, ok := conn.(epoller.ConnImpl); ok {
+		return con.GetFD()
+	}
+	return 0
 }

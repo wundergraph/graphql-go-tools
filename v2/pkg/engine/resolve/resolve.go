@@ -6,10 +6,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"io"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
@@ -574,7 +575,15 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 
-		err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+		if async, ok := add.resolve.Trigger.Source.(AsyncSubscriptionDataSource); ok {
+			trig.cancel = func() {
+				async.AsyncStop(triggerID)
+				cancel()
+			}
+			err = async.AsyncStart(cloneCtx, triggerID, add.input, updater)
+		} else {
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+		}
 		if err != nil {
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
@@ -718,6 +727,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 }
 
 func (r *Resolver) shutdownTrigger(id uint64) {
+	fmt.Printf("resolver:trigger:shutdown:%d\n", id)
 	trig, ok := r.triggers[id]
 	if !ok {
 		return

@@ -8834,6 +8834,14 @@ var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
+func (f *FailingSubscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	return errSubscriptionClientFail
+}
+
+func (f *FailingSubscriptionClient) Unsubscribe(id uint64) {
+
+}
+
 func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	return errSubscriptionClientFail
 }
