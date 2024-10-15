@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -60,8 +59,6 @@ func (e *internalExecutionContext) reset() {
 type ExecutionEngine struct {
 	logger             abstractlogger.Logger
 	config             Configuration
-	planner            *plan.Planner
-	plannerMu          sync.Mutex
 	resolver           *resolve.Resolver
 	executionPlanCache *lru.Cache
 }
@@ -124,15 +121,9 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		engineConfig.AddFieldConfiguration(fieldCfg)
 	}
 
-	planner, err := plan.NewPlanner(engineConfig.plannerConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
-		planner:            planner,
 		resolver:           resolve.New(ctx, resolverOptions),
 		executionPlanCache: executionPlanCache,
 	}, nil
@@ -245,9 +236,12 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 		}
 	}
 
-	e.plannerMu.Lock()
-	defer e.plannerMu.Unlock()
-	planResult := e.planner.Plan(operation, definition, operationName, report)
+	planner, err := plan.NewPlanner(e.config.plannerConfig)
+	if err != nil {
+		report.AddInternalError(err)
+		return nil
+	}
+	planResult := planner.Plan(operation, definition, operationName, report)
 	if report.HasErrors() {
 		return nil
 	}
