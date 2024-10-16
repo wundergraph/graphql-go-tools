@@ -5422,15 +5422,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
-							// PrintOperationTransformations: true,
-							// PrintOperationEnableASTRefs:   true,
-							// PrintPlanningPaths:            true,
-							PrintQueryPlans:      true,
-							PrintNodeSuggestions: true,
-							NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-								FilterNotSelected: false,
-								SelectionReasons:  true,
-							},
+							PrintQueryPlans: false,
 						},
 					}
 
@@ -6044,15 +6036,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
-							// PrintOperationTransformations: true,
-							// PrintOperationEnableASTRefs:   true,
-							// PrintPlanningPaths:            true,
-							PrintQueryPlans: true,
-							// PrintNodeSuggestions:          true,
-							// NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-							// 	FilterNotSelected: false,
-							// 	SelectionReasons:  true,
-							// },
+							PrintQueryPlans: false,
 						},
 					}
 
@@ -6675,15 +6659,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
-							// PrintOperationTransformations: true,
-							// PrintOperationEnableASTRefs:   true,
-							// PrintPlanningPaths:            true,
-							PrintQueryPlans:      true,
-							PrintNodeSuggestions: true,
-							NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-								FilterNotSelected: false,
-								SelectionReasons:  true,
-							},
+							PrintQueryPlans: false,
 						},
 					}
 
@@ -7209,15 +7185,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
-							// PrintOperationTransformations: true,
-							// PrintOperationEnableASTRefs:   true,
-							// PrintPlanningPaths:            true,
-							PrintQueryPlans: true,
-							// PrintNodeSuggestions:          true,
-							// NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-							// 	FilterNotSelected: false,
-							// 	SelectionReasons:  true,
-							// },
+							PrintQueryPlans: false,
 						},
 					}
 
@@ -7964,11 +7932,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 				},
 				DisableResolveFieldPositions: true,
-				Debug: plan.DebugConfiguration{
-					PrintQueryPlans:      false,
-					PrintNodeSuggestions: false,
-					PrintPlanningPaths:   false,
-				},
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("only shared field", func(t *testing.T) {
@@ -13275,15 +13239,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
-					// PrintOperationTransformations: true,
-					// PrintOperationEnableASTRefs:   true,
-					// PrintPlanningPaths:            true,
-					// PrintQueryPlans: true,
-					// PrintNodeSuggestions:          true,
-					NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-						FilterNotSelected: false,
-						SelectionReasons:  true,
-					},
+					PrintQueryPlans: false,
 				},
 			}
 
@@ -14185,12 +14141,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				},
 				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
-					PrintQueryPlans:      true,
-					PrintNodeSuggestions: true,
-					NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-						FilterNotSelected: false,
-						SelectionReasons:  true,
-					},
+					PrintQueryPlans: false,
 				},
 			}
 
@@ -14879,16 +14830,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 				},
 				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{
-					// PrintOperationTransformations: true,
-					// PrintOperationEnableASTRefs:   true,
-					// PrintPlanningPaths:            true,
-					// PrintQueryPlans:               true,
-					// PrintNodeSuggestions:          true,
-					// NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-					// 	FilterNotSelected: false,
-					// 	SelectionReasons:  true,
-					// },
+				Debug: plan.DebugConfiguration{
+					PrintQueryPlans: false,
 				},
 			}
 
