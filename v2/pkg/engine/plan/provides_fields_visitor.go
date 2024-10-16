@@ -161,6 +161,7 @@ func (v *providesVisitor) EnterField(ref int) {
 	isExternalRootNode := v.input.dataSource.HasExternalRootNode(typeName, fieldName)
 	isExternalChildNode := v.input.dataSource.HasExternalChildNode(typeName, fieldName)
 	isExternal := isExternalRootNode || isExternalChildNode
+	isTypeName := fieldName == typeNameField
 
 	hasSelections := v.input.operation.FieldHasSelections(operationFieldRef)
 	suggestion := &NodeSuggestion{
@@ -177,6 +178,7 @@ func (v *providesVisitor) EnterField(ref int) {
 		IsProvided:     true,
 		IsExternal:     isExternal,
 		IsLeaf:         !hasSelections,
+		isTypeName:     isTypeName,
 	}
 
 	v.currentFields = append(v.currentFields, &currentFiedInfo{

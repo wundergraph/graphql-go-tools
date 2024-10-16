@@ -114,6 +114,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 					IsExternal:     false,
 					IsLeaf:         true,
+					isTypeName:     true,
 				},
 				{
 					FieldRef:       3,
@@ -139,6 +140,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     false,
 					IsRootNode:     false,
 					IsLeaf:         true,
+					isTypeName:     true,
 				},
 			},
 		},
