@@ -7409,43 +7409,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
-											// resolve.SingleWithPath(&resolve.SingleFetch{
-											// 	FetchDependencies: resolve.FetchDependencies{
-											// 		FetchID:           2,
-											// 		DependsOnFetchIDs: []int{1},
-											// 	}, FetchConfiguration: resolve.FetchConfiguration{
-											// 		RequiresEntityBatchFetch:              false,
-											// 		RequiresEntityFetch:                   true,
-											// 		Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Image {__typename url id width height}}}","variables":{"representations":[$$0$$]}}}`,
-											// 		DataSource:                            &Source{},
-											// 		SetTemplateOutputToNullOnVariableNull: true,
-											// 		Variables: []resolve.Variable{
-											// 			&resolve.ResolvableObjectVariable{
-											// 				Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-											// 					Nullable: true,
-											// 					Fields: []*resolve.Field{
-											// 						{
-											// 							Name: []byte("__typename"),
-											// 							Value: &resolve.String{
-											// 								Path: []string{"__typename"},
-											// 							},
-											// 							OnTypeNames: [][]byte{[]byte("Image")},
-											// 						},
-											// 						{
-											// 							Name: []byte("id"),
-											// 							Value: &resolve.String{
-											// 								Path: []string{"id"},
-											// 							},
-											// 							OnTypeNames: [][]byte{[]byte("Image")},
-											// 						},
-											// 					},
-											// 				}),
-											// 			},
-											// 		},
-											// 		PostProcessing: SingleEntityPostProcessingConfiguration,
-											// 	},
-											// 	DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											// }, "user.hostedImage.image", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage"), resolve.ObjectPath("image")),
 										),
 										Data: &resolve.Object{
 											Fields: []*resolve.Field{
