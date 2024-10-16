@@ -244,6 +244,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
+		if !secondPass && f.nodes.items[itemIDs[0]].isTypeName {
+			// we want to select typename only after some fields were selected
+			continue
+		}
+
 		// if any item on the given node is already selected, we could skip it
 		if slices.ContainsFunc(itemIDs, func(i int) bool {
 			return f.nodes.items[i].Selected
@@ -551,7 +556,27 @@ func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 		return false
 	}
 
-	return f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedParent)
+	if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedParent) {
+		if f.nodes.items[i].IsProvided && !f.nodes.items[i].IsLeaf {
+			f.selectProvidedChildNodes(i)
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) selectProvidedChildNodes(i int) {
+	children := f.nodes.childNodesOnSameSource(i)
+	for _, childId := range children {
+		if f.nodes.items[childId].IsProvided {
+			f.nodes.items[childId].selectWithReason(ReasonProvidesProvidedByPlanner, f.enableSelectionReasons)
+			if !f.nodes.items[childId].IsLeaf {
+				f.selectProvidedChildNodes(childId)
+			}
+		}
+	}
 }
 
 func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIsSelected bool) {

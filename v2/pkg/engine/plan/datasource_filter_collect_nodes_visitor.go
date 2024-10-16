@@ -118,11 +118,17 @@ type collectNodesVisitor struct {
 	keyPaths map[string]struct{}
 }
 
-func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) bool {
-	return slices.ContainsFunc(itemIds, func(i int) bool {
+func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
+	idx := slices.IndexFunc(itemIds, func(i int) bool {
 		suggestion := f.nodes.items[i]
 		return suggestion.FieldRef == ref && suggestion.DataSourceHash == f.dataSource.Hash()
 	})
+
+	if idx != -1 {
+		return itemIds[idx], true
+	}
+
+	return -1, false
 }
 
 func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName string) (selectionSet string, ok bool) {
@@ -294,9 +300,17 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
 
-	if f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef) {
+	if itemID, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
 		// when we already have such suggestion we skip adding it
 		// we could have such suggestion if the field was provided or already added on previous steps
+
+		if f.nodes.items[itemID].IsProvided &&
+			f.nodes.items[itemID].IsExternal &&
+			!f.nodes.items[itemID].IsLeaf {
+			// we don't need to add a suggestion for an external provided field childs
+			f.walker.SkipNode()
+		}
+
 		return
 	}
 
@@ -347,7 +361,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	isExternal := isExternalRootNode || isExternalChildNode
 
 	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(treeNode)
-	hasSelections := f.operation.FieldHasSelections(fieldRef)
+	isLeaf := !f.operation.FieldHasSelections(fieldRef)
 
 	if isExternal && f.isFieldPartOfKey(typeName, currentPath, parentPath) {
 		// external fields which are part of the key should not be marked as external
@@ -372,7 +386,8 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: isTypeName && f.isEntityInterface(typeName),
 			IsExternal:                isExternal,
-			IsLeaf:                    !hasSelections,
+			IsLeaf:                    isLeaf,
+			isTypeName:                isTypeName,
 		}
 
 		f.nodes.addSuggestion(&node)
@@ -380,6 +395,13 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		itemIds = append(itemIds, itemId)
 		treeNode.SetData(itemIds)
 	}
+
+	if isExternal && !isLeaf {
+		// we don't need to add suggestions for a child fields of an external node
+		f.walker.SkipNode()
+		return
+	}
+
 }
 
 func (f *collectNodesVisitor) LeaveField(ref int) {

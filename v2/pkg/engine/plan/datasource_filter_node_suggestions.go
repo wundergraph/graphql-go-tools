@@ -25,6 +25,7 @@ type NodeSuggestion struct {
 	IsExternal                bool   `json:"isExternal"`
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
 	IsLeaf                    bool   `json:"isLeaf"`
+	isTypeName                bool
 
 	parentPathWithoutFragment *string
 	onFragment                bool
