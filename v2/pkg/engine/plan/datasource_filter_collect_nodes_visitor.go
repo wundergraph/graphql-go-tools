@@ -396,11 +396,15 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		treeNode.SetData(itemIds)
 	}
 
-	if isExternal && !isLeaf {
-		// we don't need to add suggestions for a child fields of an external node
-		f.walker.SkipNode()
-		return
-	}
+	//
+	// DO NOT UNCOMMENT
+	// this approach could be harmful because it could prevent us from accessing nested entities fields
+	// think of a case under which conditions it may be useful
+	// if isExternal && !isLeaf {
+	// 	// we don't need to add suggestions for a child fields of an external node
+	// 	f.walker.SkipNode()
+	// 	return
+	// }
 
 }
 
