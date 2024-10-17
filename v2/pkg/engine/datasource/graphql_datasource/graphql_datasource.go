@@ -342,11 +342,11 @@ func (p *Planner[T]) shouldSelectSingleEntity() bool {
 }
 
 func (p *Planner[T]) requiresEntityFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
+	return p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner[T]) requiresEntityBatchFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
+	return p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -710,6 +710,10 @@ func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner[T]) addRepresentationsVariable() {
+	if !p.hasFederationRoot {
+		return
+	}
+
 	if !p.dataSourcePlannerConfig.HasRequiredFields() {
 		return
 	}
@@ -1246,7 +1250,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 			"\n")
 	}
 
-	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
+	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
@@ -1281,7 +1285,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	var (
 		representations []resolve.Representation
 	)
-	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
+	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		representations = make([]resolve.Representation, len(p.dataSourcePlannerConfig.RequiredFields))
 		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)

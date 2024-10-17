@@ -122,7 +122,7 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	}
 
 	for i := range items {
-		if typeName == items[i].TypeName && fieldName == items[i].FieldName {
+		if items[i].Selected && typeName == items[i].TypeName && fieldName == items[i].FieldName {
 			suggestions = append(suggestions, items[i])
 		}
 	}
