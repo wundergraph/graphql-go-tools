@@ -52,9 +52,9 @@ type subscriptionClient struct {
 	triggers map[uint64]int
 }
 
-func (c *subscriptionClient) SubscribeAsync(reqCtx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if options.UseSSE {
-		return c.subscribeSSE(reqCtx, options, updater)
+		return c.subscribeSSE(ctx.Context(), c.engineCtx, options, updater)
 	}
 
 	if strings.HasPrefix(options.URL, "https") {
@@ -63,7 +63,7 @@ func (c *subscriptionClient) SubscribeAsync(reqCtx *resolve.Context, id uint64, 
 		options.URL = "ws" + options.URL[4:]
 	}
 
-	return c.asyncSubscribeWS(reqCtx, id, options, updater)
+	return c.asyncSubscribeWS(ctx.Context(), c.engineCtx, id, options, updater)
 }
 
 func (c *subscriptionClient) Unsubscribe(id uint64) {
@@ -179,12 +179,12 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 // If an existing WS connection with the same ID (Hash) exists, it is being re-used
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
-func (c *subscriptionClient) Subscribe(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if options.UseSSE {
-		return c.subscribeSSE(reqCtx, options, updater)
+		return c.subscribeSSE(ctx.Context(), c.engineCtx, options, updater)
 	}
 
-	return c.subscribeWS(reqCtx, options, updater)
+	return c.subscribeWS(ctx.Context(), c.engineCtx, options, updater)
 }
 
 var (
@@ -208,62 +208,49 @@ func (c *subscriptionClient) UniqueRequestID(ctx *resolve.Context, options Graph
 	return c.requestHash(ctx, options, hash)
 }
 
-func (c *subscriptionClient) subscribeSSE(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.streamingClient == nil {
 		return fmt.Errorf("streaming http client is nil")
 	}
 
-	sub := Subscription{
-		ctx:     reqCtx.Context(),
-		options: options,
-		updater: updater,
-	}
+	handler := newSSEConnectionHandler(requestContext, engineContext, c.streamingClient, updater, options, c.log)
 
-	handler := newSSEConnectionHandler(reqCtx, c.streamingClient, options, c.log)
-
-	go handler.StartBlocking(sub)
+	go handler.StartBlocking()
 
 	return nil
 }
 
-func (c *subscriptionClient) subscribeWS(reqCtx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
 
-	sub := Subscription{
-		ctx:     reqCtx.Context(),
-		options: options,
-		updater: updater,
-	}
-
-	handler, err := c.newWSConnectionHandler(reqCtx.Context(), options)
+	handler, err := c.newWSConnectionHandler(requestContext, engineContext, options, updater)
 	if err != nil {
 		return err
 	}
 
-	go handler.StartBlocking(sub)
+	go func() {
+		err := handler.StartBlocking()
+		if err != nil {
+			c.log.Error("subscriptionClient.subscribeWS", abstractlogger.Error(err))
+		}
+	}()
 
 	return nil
 }
 
-func (c *subscriptionClient) asyncSubscribeWS(reqCtx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext context.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
 
-	sub := Subscription{
-		ctx:     reqCtx.Context(),
-		options: options,
-		updater: updater,
-	}
-
-	handler, err := c.newWSConnectionHandler(reqCtx.Context(), options)
+	handler, err := c.newWSConnectionHandler(requestContext, engineContext, options, updater)
 	if err != nil {
 		return err
 	}
 
-	err = handler.Subscribe(sub)
+	err = handler.Subscribe()
 	if err != nil {
 		return err
 	}
@@ -363,7 +350,7 @@ func (u *UpgradeRequestError) Error() string {
 	return fmt.Sprintf("failed to upgrade connection to %s, status code: %d", u.URL, u.StatusCode)
 }
 
-func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, options GraphQLSubscriptionOptions) (ConnectionHandler, error) {
+func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (ConnectionHandler, error) {
 
 	var (
 		upgradeRequestHeader http.Header
@@ -398,7 +385,7 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		// as a workaround we create a "dummy" request which we run through the http.Client with the context
 		// we set the "SkipRoundTrip" header to true to signal the http.Client to not perform the request
 		// but only to modify the request Headers
-		req, err := http.NewRequestWithContext(reqCtx, "GET", options.URL, nil)
+		req, err := http.NewRequestWithContext(requestContext, "GET", options.URL, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -425,7 +412,7 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		Subprotocols:     subProtocols,
 	}
 
-	conn, upgradeResponse, err := dialer.DialContext(reqCtx, upgradeRequestURL, upgradeRequestHeader)
+	conn, upgradeResponse, err := dialer.DialContext(requestContext, upgradeRequestURL, upgradeRequestHeader)
 	if err != nil {
 		if upgradeResponse != nil && upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 			return nil, &UpgradeRequestError{
@@ -436,7 +423,7 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 		return nil, err
 	}
 	conn.SetReadLimit(math.MaxInt32)
-	connectionInitMessage, err := c.getConnectionInitMessage(reqCtx, options.URL, options.Header)
+	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
 		return nil, err
 	}
@@ -477,9 +464,9 @@ func (c *subscriptionClient) newWSConnectionHandler(reqCtx context.Context, opti
 
 	switch wsSubProtocol {
 	case ProtocolGraphQLWS:
-		return newGQLWSConnectionHandler(c.engineCtx, netConn, c.readTimeout, c.log), nil
+		return newGQLWSConnectionHandler(requestContext, engineContext, netConn, options, updater, c.log), nil
 	case ProtocolGraphQLTWS:
-		return newGQLTWSConnectionHandler(c.engineCtx, netConn, c.readTimeout, c.log), nil
+		return newGQLTWSConnectionHandler(requestContext, engineContext, netConn, options, updater, c.log), nil
 	default:
 		return nil, NewInvalidWsSubprotocolError(wsSubProtocol)
 	}
@@ -510,18 +497,12 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 }
 
 type ConnectionHandler interface {
-	StartBlocking(sub Subscription)
+	StartBlocking() error
 	NetConn() net.Conn
 	ReadMessage() (done, timeout bool)
 	ServerClose()
 	ClientClose()
-	Subscribe(sub Subscription) error
-}
-
-type Subscription struct {
-	ctx     context.Context
-	options GraphQLSubscriptionOptions
-	updater resolve.SubscriptionUpdater
+	Subscribe() error
 }
 
 func waitForAck(conn net.Conn) error {

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
@@ -23,35 +22,27 @@ import (
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlWSConnectionHandler struct {
-	conn net.Conn
-	ctx  context.Context
-	log  abstractlogger.Logger
-	// log                slog.Logger
-	subscribeCh        chan Subscription
-	nextSubscriptionID int
-	subscriptions      map[string]Subscription
-	readTimeout        time.Duration
+	conn                          net.Conn
+	requestContext, engineContext context.Context
+	log                           abstractlogger.Logger
+	options                       GraphQLSubscriptionOptions
+	updater                       resolve.SubscriptionUpdater
 }
 
 func (h *gqlWSConnectionHandler) ServerClose() {
-	for _, sub := range h.subscriptions {
-		sub.updater.Done()
-	}
+	h.updater.Done()
 	_ = h.conn.Close()
 }
 
 func (h *gqlWSConnectionHandler) ClientClose() {
-	for k, v := range h.subscriptions {
-		v.updater.Done()
-		delete(h.subscriptions, k)
-		stopRequest := fmt.Sprintf(stopMessage, k)
-		_ = wsutil.WriteClientText(h.conn, []byte(stopRequest))
-	}
+	h.updater.Done()
+	stopRequest := fmt.Sprintf(stopMessage, "1")
+	_ = wsutil.WriteClientText(h.conn, []byte(stopRequest))
 	_ = h.conn.Close()
 }
 
-func (h *gqlWSConnectionHandler) Subscribe(sub Subscription) error {
-	return h.subscribe(sub)
+func (h *gqlWSConnectionHandler) Subscribe() error {
+	return h.subscribe()
 }
 
 func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
@@ -118,30 +109,33 @@ func (h *gqlWSConnectionHandler) NetConn() net.Conn {
 	return h.conn
 }
 
-func newGQLWSConnectionHandler(ctx context.Context, conn net.Conn, readTimeout time.Duration, log abstractlogger.Logger) *gqlWSConnectionHandler {
+func newGQLWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, log abstractlogger.Logger) *gqlWSConnectionHandler {
 	return &gqlWSConnectionHandler{
-		conn:               conn,
-		ctx:                ctx,
-		log:                log,
-		nextSubscriptionID: 0,
-		subscriptions:      map[string]Subscription{},
-		readTimeout:        readTimeout,
+		conn:           conn,
+		requestContext: requestContext,
+		engineContext:  engineContext,
+		log:            log,
+		updater:        updater,
+		options:        options,
 	}
 }
 
 // StartBlocking starts the single threaded event loop of the handler
 // if the global context returns or the websocket connection is terminated, it will stop
-func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
+func (h *gqlWSConnectionHandler) StartBlocking() error {
 	dataCh := make(chan []byte)
 	errCh := make(chan error)
-	readCtx, cancel := context.WithCancel(h.ctx)
+	readCtx, cancel := context.WithCancel(h.requestContext)
 
 	defer func() {
-		h.unsubscribeAllAndCloseConn()
 		cancel()
+		h.unsubscribeAllAndCloseConn()
 	}()
 
-	h.subscribe(sub)
+	err := h.subscribe()
+	if err != nil {
+		return err
+	}
 
 	go h.readBlocking(readCtx, dataCh, errCh)
 
@@ -149,31 +143,19 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 	defer ticker.Stop()
 
 	for {
-		err := h.ctx.Err()
-		if err != nil {
-			if !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
-				h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
-			}
-			h.broadcastErrorMessage(err)
-			return
-		}
-		hasActiveSubscriptions := h.checkActiveSubscriptions()
-		if !hasActiveSubscriptions {
-			return
-		}
 		select {
+		case <-h.engineContext.Done():
+			return h.engineContext.Err()
 		case <-readCtx.Done():
-			return
-		case <-time.After(h.readTimeout):
-			continue
-		case err = <-errCh:
+			return readCtx.Err()
+		case err := <-errCh:
 			if !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 				h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			}
 			h.broadcastErrorMessage(err)
-			return
+			return err
 		case <-ticker.C:
-			sub.updater.Heartbeat()
+			h.updater.Heartbeat()
 		case data := <-dataCh:
 			ticker.Reset(resolve.HearbeatInterval)
 
@@ -184,11 +166,13 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 			switch messageType {
 			case messageTypeData:
 				h.handleMessageTypeData(data)
+				continue
 			case messageTypeComplete:
 				h.handleMessageTypeComplete(data)
+				return nil
 			case messageTypeConnectionError:
 				h.handleMessageTypeConnectionError()
-				return
+				return nil
 			case messageTypeError:
 				h.handleMessageTypeError(data)
 				continue
@@ -196,7 +180,7 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 				continue
 			case messageTypePing, messageTypeNext:
 				h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-ws, but currently it is set to graphql-transport-ws")
-				return
+				return errors.New("invalid subprotocol")
 			default:
 				h.log.Error("unknown message type", abstractlogger.String("type", messageType))
 				continue
@@ -209,9 +193,28 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 // because the library "nhooyr.io/websocket" doesn't allow reading with a context with Timeout
 // we'll block forever on reading until the context of the gqlWSConnectionHandler stops
 func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
+	netOpErr := &net.OpError{}
 	for {
+		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
+		if err != nil {
+			select {
+			case errCh <- err:
+			case <-ctx.Done():
+			}
+			return
+		}
 		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
+			if errors.As(err, &netOpErr) {
+				if netOpErr.Timeout() {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						continue
+					}
+				}
+			}
 			select {
 			case errCh <- err:
 			case <-ctx.Done():
@@ -227,30 +230,23 @@ func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan [
 }
 
 func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
-	for id := range h.subscriptions {
-		h.unsubscribe(id)
-	}
+	h.unsubscribe()
 	_ = h.conn.Close()
 }
 
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
-func (h *gqlWSConnectionHandler) subscribe(sub Subscription) error {
-	graphQLBody, err := json.Marshal(sub.options.Body)
+func (h *gqlWSConnectionHandler) subscribe() error {
+	graphQLBody, err := json.Marshal(h.options.Body)
 	if err != nil {
 		return err
 	}
 
-	h.nextSubscriptionID++
-
-	subscriptionID := strconv.Itoa(h.nextSubscriptionID)
-
-	startRequest := fmt.Sprintf(startMessage, subscriptionID, string(graphQLBody))
+	startRequest := fmt.Sprintf(startMessage, "1", string(graphQLBody))
 	err = wsutil.WriteClientText(h.conn, []byte(startRequest))
 	if err != nil {
 		return err
 	}
 
-	h.subscriptions[subscriptionID] = sub
 	return nil
 }
 
@@ -259,8 +255,7 @@ func (h *gqlWSConnectionHandler) handleMessageTypeData(data []byte) {
 	if err != nil {
 		return
 	}
-	sub, ok := h.subscriptions[id]
-	if !ok {
+	if id != "1" {
 		return
 	}
 	payload, _, _, err := jsonparser.Get(data, "payload")
@@ -268,20 +263,16 @@ func (h *gqlWSConnectionHandler) handleMessageTypeData(data []byte) {
 		return
 	}
 
-	sub.updater.Update(payload)
+	h.updater.Update(payload)
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeConnectionError() {
-	for _, sub := range h.subscriptions {
-		sub.updater.Update([]byte(connectionError))
-	}
+	h.updater.Update([]byte(connectionError))
 }
 
 func (h *gqlWSConnectionHandler) broadcastErrorMessage(err error) {
 	errMsg := fmt.Sprintf(errorMessageTemplate, err)
-	for _, sub := range h.subscriptions {
-		sub.updater.Update([]byte(errMsg))
-	}
+	h.updater.Update([]byte(errMsg))
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
@@ -289,12 +280,10 @@ func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if err != nil {
 		return
 	}
-	sub, ok := h.subscriptions[id]
-	if !ok {
+	if id != "1" {
 		return
 	}
-	sub.updater.Done()
-	delete(h.subscriptions, id)
+	h.updater.Done()
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
@@ -302,13 +291,12 @@ func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 	if err != nil {
 		return
 	}
-	sub, ok := h.subscriptions[id]
-	if !ok {
+	if id != "1" {
 		return
 	}
 	value, valueType, _, err := jsonparser.Get(data, "payload")
 	if err != nil {
-		sub.updater.Update([]byte(internalError))
+		h.updater.Update([]byte(internalError))
 		return
 	}
 	switch valueType {
@@ -316,39 +304,25 @@ func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 		response := []byte(`{}`)
 		response, err = jsonparser.Set(response, value, "errors")
 		if err != nil {
-			sub.updater.Update([]byte(internalError))
+			h.updater.Update([]byte(internalError))
 			return
 		}
-		sub.updater.Update(response)
+		h.updater.Update(response)
 	case jsonparser.Object:
 		response := []byte(`{"errors":[]}`)
 		response, err = jsonparser.Set(response, value, "errors", "[0]")
 		if err != nil {
-			sub.updater.Update([]byte(internalError))
+			h.updater.Update([]byte(internalError))
 			return
 		}
-		sub.updater.Update(response)
+		h.updater.Update(response)
 	default:
-		sub.updater.Update([]byte(internalError))
+		h.updater.Update([]byte(internalError))
 	}
 }
 
-func (h *gqlWSConnectionHandler) unsubscribe(subscriptionID string) {
-	sub, ok := h.subscriptions[subscriptionID]
-	if !ok {
-		return
-	}
-	sub.updater.Done()
-	delete(h.subscriptions, subscriptionID)
-	stopRequest := fmt.Sprintf(stopMessage, subscriptionID)
+func (h *gqlWSConnectionHandler) unsubscribe() {
+	h.updater.Done()
+	stopRequest := fmt.Sprintf(stopMessage, "1")
 	_ = wsutil.WriteClientText(h.conn, []byte(stopRequest))
-}
-
-func (h *gqlWSConnectionHandler) checkActiveSubscriptions() (hasActiveSubscriptions bool) {
-	for id, sub := range h.subscriptions {
-		if sub.ctx.Err() != nil {
-			h.unsubscribe(id)
-		}
-	}
-	return len(h.subscriptions) != 0
 }
