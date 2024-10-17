@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"runtime"
 	"testing"
 	"time"
 
@@ -12,6 +13,11 @@ import (
 )
 
 func TestPoller(t *testing.T) {
+
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
 	// connections
 	num := 10
 	// msg per connection
