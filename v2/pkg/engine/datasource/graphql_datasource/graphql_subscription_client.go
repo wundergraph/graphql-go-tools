@@ -56,9 +56,6 @@ func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, opt
 	if options.UseSSE {
 		return c.subscribeSSE(ctx.Context(), c.engineCtx, options, updater)
 	}
-	if c.epoll == nil {
-		return c.subscribeWS(ctx.Context(), c.engineCtx, options, updater)
-	}
 
 	if strings.HasPrefix(options.URL, "https") {
 		options.URL = "wss" + options.URL[5:]
