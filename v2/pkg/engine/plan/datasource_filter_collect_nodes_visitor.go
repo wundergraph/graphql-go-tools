@@ -296,24 +296,6 @@ func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath
 }
 
 func (f *collectNodesVisitor) EnterField(fieldRef int) {
-	currentNodeId := TreeNodeID(fieldRef)
-	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
-	itemIds := treeNode.GetData()
-
-	if itemID, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
-		// when we already have such suggestion we skip adding it
-		// we could have such suggestion if the field was provided or already added on previous steps
-
-		if f.nodes.items[itemID].IsProvided &&
-			f.nodes.items[itemID].IsExternal &&
-			!f.nodes.items[itemID].IsLeaf {
-			// we don't need to add a suggestion for an external provided field childs
-			f.walker.SkipNode()
-		}
-
-		return
-	}
-
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(fieldRef)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(fieldRef)
@@ -331,7 +313,27 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	currentPath := parentPath + "." + fieldAliasOrName
 
 	// add fields from provides directive on the current field
+	// it needs to be done each time we enter a field
+	// because we add provides suggestion only for a fields present in the query
 	f.handleProvidesSuggestions(fieldRef, typeName, fieldName, currentPath)
+
+	currentNodeId := TreeNodeID(fieldRef)
+	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
+	itemIds := treeNode.GetData()
+
+	if itemID, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
+		// when we already have such suggestion we skip adding it
+		// we could have such suggestion if the field was provided or already added on previous steps
+
+		if f.nodes.items[itemID].IsProvided &&
+			f.nodes.items[itemID].IsExternal &&
+			!f.nodes.items[itemID].IsLeaf {
+			// we don't need to add a suggestion for an external provided field childs
+			f.walker.SkipNode()
+		}
+
+		return
+	}
 
 	if isTypeName && f.isInterfaceObject(typeName) {
 		// we should not add a typename on the interface object

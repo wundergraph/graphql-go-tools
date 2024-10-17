@@ -31,13 +31,14 @@ type nodeSelectionVisitor struct {
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
 	pendingFieldRequirements map[int]pendingFieldRequirements // pendingFieldRequirements is a map[selectionSetRef]fieldRequirements
 
-	visitedFieldsRequiresChecks map[fieldIndexKey]struct{}                       // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for presence of @requires directive
-	visitedFieldsKeyChecks      map[fieldIndexKey]struct{}                       // visitedFieldsKeyChecks is a map[FieldRef] of already processed fields which we check for @key requirements
-	visitedFieldsAbstractChecks map[int]struct{}                                 // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
-	fieldDependsOn              map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
-	fieldRefDependsOn           map[int][]int                                    // fieldRefDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, it is a second index without datasource hash
-	fieldRequirementsConfigs    map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
-	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
+	visitedFieldsRequiresChecks   map[fieldIndexKey]struct{}                       // visitedFieldsRequiresChecks is a map[FieldRef] of already processed fields which we check for presence of @requires directive
+	visitedFieldsKeyChecks        map[fieldIndexKey]struct{}                       // visitedFieldsKeyChecks is a map[FieldRef] of already processed fields which we check for @key requirements
+	visitedFieldsAbstractChecks   map[int]struct{}                                 // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
+	fieldDependsOn                map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
+	fieldRefDependsOn             map[int][]int                                    // fieldRefDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, it is a second index without datasource hash
+	fieldRequirementsConfigs      map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldRef]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
+	fieldLandedTo                 map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
+	fieldHasRequiresConfiguration map[fieldIndexKey]struct{}                       // fieldHasRequiresConfiguration is a map[fieldRef]struct{} - holds a flag to indicate that field has @requires directive
 
 	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -189,11 +190,6 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for _, suggestion := range suggestions {
-		// TODO: change SuggestionsForPath to return only selected suggestions
-		if !suggestion.Selected {
-			continue
-		}
-
 		if suggestion.IsRequiredKeyField {
 			// it was already selected as a key field
 			// no need to process required fields for it
