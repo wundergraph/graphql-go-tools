@@ -32,7 +32,7 @@ func TestPoller(t *testing.T) {
 				return
 			}
 
-			poller.Add(conn)
+			poller.Add(conn) // nolint: errcheck
 		}
 	}()
 
@@ -54,7 +54,7 @@ func TestPoller(t *testing.T) {
 					t.Errorf("expect to write %d bytes but got %d bytes", len("hello world"), n)
 				}
 			}
-			conn.Close()
+			conn.Close() // nolint: errcheck
 		}()
 	}
 
@@ -82,8 +82,8 @@ func TestPoller(t *testing.T) {
 				n, err := conn.Read(buf)
 				if err != nil {
 					if err == io.EOF || errors.Is(err, net.ErrClosed) {
-						poller.Remove(conn)
-						conn.Close()
+						poller.Remove(conn) // nolint: errcheck
+						conn.Close()        // nolint: errcheck
 					} else {
 						t.Error(err)
 					}
@@ -153,7 +153,7 @@ func TestPoller_growstack(t *testing.T) {
 				return
 			}
 
-			poller.Add(conn)
+			poller.Add(conn) // nolint: errcheck
 		}
 	}()
 
@@ -164,7 +164,7 @@ func TestPoller_growstack(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 	for i := 0; i < 100; i++ {
-		conn.Write([]byte("hello world"))
+		conn.Write([]byte("hello world")) // nolint: errcheck
 	}
-	conn.Close()
+	conn.Close() // nolint: errcheck
 }

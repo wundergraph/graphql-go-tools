@@ -24,7 +24,7 @@ func socketFD(conn net.Conn) int {
 			return 0
 		}
 		sfd := 0
-		raw.Control(func(fd uintptr) {
+		raw.Control(func(fd uintptr) { // nolint: errcheck
 			sfd = int(fd)
 		})
 		return sfd
