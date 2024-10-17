@@ -3,8 +3,8 @@ package engine
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
-	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
@@ -60,8 +60,6 @@ func (e *internalExecutionContext) reset() {
 type ExecutionEngine struct {
 	logger             abstractlogger.Logger
 	config             Configuration
-	planner            *plan.Planner
-	plannerMu          sync.Mutex
 	resolver           *resolve.Resolver
 	executionPlanCache *lru.Cache
 }
@@ -124,15 +122,17 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		engineConfig.AddFieldConfiguration(fieldCfg)
 	}
 
-	planner, err := plan.NewPlanner(engineConfig.plannerConfig)
-	if err != nil {
-		return nil, err
+	dsIDs := make(map[string]struct{}, len(engineConfig.plannerConfig.DataSources))
+	for _, ds := range engineConfig.plannerConfig.DataSources {
+		if _, ok := dsIDs[ds.Id()]; ok {
+			return nil, fmt.Errorf("duplicate datasource id: %s", ds.Id())
+		}
+		dsIDs[ds.Id()] = struct{}{}
 	}
 
 	return &ExecutionEngine{
 		logger:             logger,
 		config:             engineConfig,
-		planner:            planner,
 		resolver:           resolve.New(ctx, resolverOptions),
 		executionPlanCache: executionPlanCache,
 	}, nil
@@ -163,14 +163,6 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		return result.Errors
 	}
 
-	// Validate user-supplied variables against the operation.
-	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
-		validator := variablesvalidation.NewVariablesValidator()
-		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
-			return err
-		}
-	}
-
 	if normalize {
 		// Normalize the operation again, this time just extracting additional variables from arguments.
 		result, err := operation.Normalize(e.config.schema,
@@ -180,6 +172,14 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 			return err
 		} else if !result.Successful {
 			return result.Errors
+		}
+	}
+
+	// Validate user-supplied and extracted variables against the operation.
+	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
+		validator := variablesvalidation.NewVariablesValidator()
+		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
+			return err
 		}
 	}
 
@@ -245,9 +245,8 @@ func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation
 		}
 	}
 
-	e.plannerMu.Lock()
-	defer e.plannerMu.Unlock()
-	planResult := e.planner.Plan(operation, definition, operationName, report)
+	planner, _ := plan.NewPlanner(e.config.plannerConfig)
+	planResult := planner.Plan(operation, definition, operationName, report)
 	if report.HasErrors() {
 		return nil
 	}
