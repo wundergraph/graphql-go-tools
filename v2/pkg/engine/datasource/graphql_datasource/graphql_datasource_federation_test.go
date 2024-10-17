@@ -2718,14 +2718,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						Debug: plan.DebugConfiguration{
-							PrintQueryPlans:      true,
-							PrintPlanningPaths:   true,
-							PrintNodeSuggestions: true,
-							NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-								SelectionReasons: true,
-							},
-						},
+						Debug: plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
