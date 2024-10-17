@@ -255,6 +255,15 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return err
 	}
 
+	if c.epoll == nil {
+		go func() {
+			err := handler.StartBlocking()
+			if err != nil {
+				c.log.Error("subscriptionClient.asyncSubscribeWS", abstractlogger.Error(err))
+			}
+		}()
+	}
+
 	netConn := handler.NetConn()
 	if err := c.epoll.Add(netConn); err != nil {
 		return err
