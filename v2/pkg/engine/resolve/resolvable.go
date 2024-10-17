@@ -1072,7 +1072,7 @@ func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
 	}
 	lastPathItem := r.path[pathLength-1]
 	if lastPathItem.Name != "" {
-		return fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldCoordinates())
+		return fmt.Sprintf("Cannot return null for non-nullable field %s.", r.renderFieldCoordinates())
 	}
 	// If the item has no name, it's a GraphQL list element. A list must be returned by a field.
 	if pathLength < 2 {
