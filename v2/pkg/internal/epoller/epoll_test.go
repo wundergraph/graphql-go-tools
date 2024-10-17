@@ -124,6 +124,9 @@ type netPoller struct {
 }
 
 func TestPoller_growstack(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
 	var nps []netPoller
 	for i := 0; i < 2; i++ {
 		poller, err := NewPoller(128, time.Second)
