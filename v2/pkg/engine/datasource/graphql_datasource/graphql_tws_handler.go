@@ -53,8 +53,8 @@ func (h *gqlTWSConnectionHandler) ClientClose() {
 	_ = h.conn.Close()
 }
 
-func (h *gqlTWSConnectionHandler) Subscribe(sub Subscription) {
-	h.subscribe(sub)
+func (h *gqlTWSConnectionHandler) Subscribe(sub Subscription) error {
+	return h.subscribe(sub)
 }
 
 func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
@@ -235,11 +235,10 @@ func (h *gqlTWSConnectionHandler) unsubscribe(subscriptionID string) {
 }
 
 // subscribe adds a new Subscription to the gqlTWSConnectionHandler and sends the subscribeMessage to the origin
-func (h *gqlTWSConnectionHandler) subscribe(sub Subscription) {
+func (h *gqlTWSConnectionHandler) subscribe(sub Subscription) error {
 	graphQLBody, err := json.Marshal(sub.options.Body)
 	if err != nil {
-		h.log.Error("failed to marshal GraphQL body", log.Error(err))
-		return
+		return err
 	}
 
 	h.nextSubscriptionID++
@@ -248,11 +247,11 @@ func (h *gqlTWSConnectionHandler) subscribe(sub Subscription) {
 	subscribeRequest := fmt.Sprintf(subscribeMessage, subscriptionID, string(graphQLBody))
 	err = wsutil.WriteClientText(h.conn, []byte(subscribeRequest))
 	if err != nil {
-		h.log.Error("failed to write subscribe message", log.Error(err))
-		return
+		return err
 	}
 
 	h.subscriptions[subscriptionID] = sub
+	return nil
 }
 
 func (h *gqlTWSConnectionHandler) broadcastErrorMessage(err error) {

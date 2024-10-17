@@ -263,6 +263,11 @@ func (c *subscriptionClient) asyncSubscribeWS(reqCtx *resolve.Context, id uint64
 		return err
 	}
 
+	err = handler.Subscribe(sub)
+	if err != nil {
+		return err
+	}
+
 	netConn := handler.NetConn()
 	if err := c.epoll.Add(netConn); err != nil {
 		return err
@@ -279,8 +284,6 @@ func (c *subscriptionClient) asyncSubscribeWS(reqCtx *resolve.Context, id uint64
 		c.stopEpollSignal = make(chan struct{})
 		go c.runEpoll(c.engineCtx)
 	}
-
-	handler.Subscribe(sub)
 
 	return nil
 }
@@ -512,7 +515,7 @@ type ConnectionHandler interface {
 	ReadMessage() (done, timeout bool)
 	ServerClose()
 	ClientClose()
-	Subscribe(sub Subscription)
+	Subscribe(sub Subscription) error
 }
 
 type Subscription struct {

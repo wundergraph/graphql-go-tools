@@ -50,8 +50,8 @@ func (h *gqlWSConnectionHandler) ClientClose() {
 	_ = h.conn.Close()
 }
 
-func (h *gqlWSConnectionHandler) Subscribe(sub Subscription) {
-	h.subscribe(sub)
+func (h *gqlWSConnectionHandler) Subscribe(sub Subscription) error {
+	return h.subscribe(sub)
 }
 
 func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
@@ -234,10 +234,10 @@ func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 }
 
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
-func (h *gqlWSConnectionHandler) subscribe(sub Subscription) {
+func (h *gqlWSConnectionHandler) subscribe(sub Subscription) error {
 	graphQLBody, err := json.Marshal(sub.options.Body)
 	if err != nil {
-		return
+		return err
 	}
 
 	h.nextSubscriptionID++
@@ -247,10 +247,11 @@ func (h *gqlWSConnectionHandler) subscribe(sub Subscription) {
 	startRequest := fmt.Sprintf(startMessage, subscriptionID, string(graphQLBody))
 	err = wsutil.WriteClientText(h.conn, []byte(startRequest))
 	if err != nil {
-		return
+		return err
 	}
 
 	h.subscriptions[subscriptionID] = sub
+	return nil
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeData(data []byte) {
