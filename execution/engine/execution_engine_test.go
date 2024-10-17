@@ -1001,7 +1001,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			return graphql.Request{
 				OperationName: "",
 				Variables: stringify(map[string]interface{}{
-					"ids": []int{1},
+					"ids": 1,
 				}),
 				Query: `query($ids: [Int]) { charactersByIds(ids: $ids) { name } }`,
 			}
