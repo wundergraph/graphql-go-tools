@@ -262,6 +262,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 				c.log.Error("subscriptionClient.asyncSubscribeWS", abstractlogger.Error(err))
 			}
 		}()
+		return nil
 	}
 
 	netConn := handler.NetConn()
