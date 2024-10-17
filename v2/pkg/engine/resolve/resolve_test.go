@@ -1725,6 +1725,7 @@ func testFnSubgraphErrorsWithExtensionFieldServiceName(fn func(t *testing.T, ctr
 			PropagateSubgraphStatusCodes:       true,
 			AttachServiceNameToErrorExtensions: true,
 			AllowedErrorExtensionFields:        []string{"code"},
+			DefaultErrorExtensionCode:          "DOWNSTREAM_SERVICE_ERROR",
 			SubgraphErrorPropagationMode:       SubgraphErrorPropagationModePassThrough,
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
@@ -4883,7 +4884,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field 'Query.name'.","path":["name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Query.name.","path":["name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, &options))
 	t.Run("complex fetch with fetch error suppression", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
@@ -5073,7 +5074,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":null}},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field 'Product.name'.","path":["me","reviews",0,"product","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":null}},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Product.name.","path":["me","reviews",0,"product","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, &options))
 }
 
