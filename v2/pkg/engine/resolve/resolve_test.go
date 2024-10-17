@@ -1725,6 +1725,7 @@ func testFnSubgraphErrorsWithExtensionFieldServiceName(fn func(t *testing.T, ctr
 			PropagateSubgraphStatusCodes:       true,
 			AttachServiceNameToErrorExtensions: true,
 			AllowedErrorExtensionFields:        []string{"code"},
+			DefaultErrorExtensionCode:          "DOWNSTREAM_SERVICE_ERROR",
 			SubgraphErrorPropagationMode:       SubgraphErrorPropagationModePassThrough,
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
