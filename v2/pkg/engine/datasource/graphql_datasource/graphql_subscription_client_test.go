@@ -115,8 +115,14 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"data","id":"1","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
 		assert.NoError(t, err)
 
+		msgType, data, err = conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"stop","id":"1"}`, string(data))
+
 		_, _, err = conn.Read(ctx)
 		assert.Error(t, err)
+
 		close(serverDone)
 	}))
 	defer server.Close()
@@ -478,142 +484,1122 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 	serverCancel()
 }
 
-func TestSubscribeAsync(t *testing.T) {
-	serverDone := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
-		assert.NoError(t, err)
-		ctx := context.Background()
-		msgType, data, err := conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"connection_init"}`, string(data))
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
-		assert.NoError(t, err)
-		msgType, data, err = conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+func TestAsyncSubscribe(t *testing.T) {
+	t.Parallel()
+	t.Run("subscribe async", func(t *testing.T) {
+		t.Parallel()
+		serverDone := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
 
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
-		assert.NoError(t, err)
+			time.Sleep(time.Second * 1)
 
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
-		assert.NoError(t, err)
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
-		assert.NoError(t, err)
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+			assert.NoError(t, err)
 
-		msgType, data, err = conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
-		close(serverDone)
-	}))
-	defer server.Close()
-	ctx, clientCancel := context.WithCancel(context.Background())
-	defer clientCancel()
-	serverCtx, serverCancel := context.WithCancel(context.Background())
-	defer serverCancel()
+			time.Sleep(time.Second * 1)
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Second),
-		WithLogger(logger()),
-	).(*subscriptionClient)
-	updater := &testSubscriptionUpdater{}
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+			assert.NoError(t, err)
 
-	err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		WsSubProtocol: ProtocolGraphQLTWS,
-	}, updater)
-	assert.NoError(t, err)
+			time.Sleep(time.Second * 1)
 
-	updater.AwaitUpdates(t, time.Second*5, 3)
-	assert.Equal(t, 3, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-	client.Unsubscribe(1)
-	clientCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
-	serverCancel()
-}
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+			assert.NoError(t, err)
 
-func TestSubscribeAsyncServerTimeout(t *testing.T) {
-	serverDone := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
-		assert.NoError(t, err)
-		ctx := context.Background()
-		msgType, data, err := conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"type":"connection_init"}`, string(data))
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
-		assert.NoError(t, err)
-		msgType, data, err = conn.Read(ctx)
-		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+			close(serverDone)
+		}))
+		defer server.Close()
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
 
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Second),
+			WithLogger(logger()),
+		).(*subscriptionClient)
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
 		assert.NoError(t, err)
 
-		time.Sleep(time.Second * 1)
+		updater.AwaitUpdates(t, time.Second*10, 3)
+		assert.Equal(t, 3, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+		client.Unsubscribe(1)
+		clientCancel()
+		assert.Eventuallyf(t, func() bool {
+			<-serverDone
+			return true
+		}, time.Second, time.Millisecond*10, "server did not close")
+		serverCancel()
+	})
+	t.Run("server timeout", func(t *testing.T) {
+		t.Parallel()
+		serverDone := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+			assert.NoError(t, err)
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+			assert.NoError(t, err)
+
+			time.Sleep(time.Second * 2)
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+			assert.NoError(t, err)
+
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+			close(serverDone)
+		}))
+		defer server.Close()
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Second),
+			WithLogger(logger()),
+		).(*subscriptionClient)
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
 		assert.NoError(t, err)
 
-		time.Sleep(time.Millisecond)
+		updater.AwaitUpdates(t, time.Second*10, 3)
+		assert.Equal(t, 3, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+		client.Unsubscribe(1)
+		clientCancel()
+		assert.Eventuallyf(t, func() bool {
+			<-serverDone
+			return true
+		}, time.Second, time.Millisecond*10, "server did not close")
+		serverCancel()
+	})
+	t.Run("server complete", func(t *testing.T) {
+		t.Parallel()
+		serverDone := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 
-		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+			assert.NoError(t, err)
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"complete","id":"1"}`))
+			assert.NoError(t, err)
+			close(serverDone)
+		}))
+		defer server.Close()
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Second),
+			WithLogger(logger()),
+		).(*subscriptionClient)
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
 		assert.NoError(t, err)
 
-		time.Sleep(time.Millisecond)
+		updater.AwaitUpdates(t, time.Second*10, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		client.Unsubscribe(1)
+		clientCancel()
+		assert.Eventuallyf(t, func() bool {
+			<-serverDone
+			return true
+		}, time.Second, time.Millisecond*10, "server did not close")
+		serverCancel()
+	})
+	t.Run("server ka", func(t *testing.T) {
+		t.Parallel()
+		serverDone := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			assert.NoError(t, err)
+			ctx := context.Background()
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
 
-		msgType, data, err = conn.Read(ctx)
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ka"}`))
+			assert.NoError(t, err)
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+			assert.NoError(t, err)
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ka"}`))
+			assert.NoError(t, err)
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"complete","id":"1"}`))
+			assert.NoError(t, err)
+			close(serverDone)
+		}))
+		defer server.Close()
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Second),
+			WithLogger(logger()),
+		).(*subscriptionClient)
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
 		assert.NoError(t, err)
-		assert.Equal(t, websocket.MessageText, msgType)
-		assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
-		close(serverDone)
-	}))
-	defer server.Close()
-	ctx, clientCancel := context.WithCancel(context.Background())
-	defer clientCancel()
-	serverCtx, serverCancel := context.WithCancel(context.Background())
-	defer serverCancel()
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Second),
-		WithLogger(logger()),
-	).(*subscriptionClient)
-	updater := &testSubscriptionUpdater{}
+		updater.AwaitUpdates(t, time.Second*10, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		client.Unsubscribe(1)
+		clientCancel()
+		assert.Eventuallyf(t, func() bool {
+			<-serverDone
+			return true
+		}, time.Second, time.Millisecond*10, "server did not close")
+		serverCancel()
+	})
+	t.Run("long timeout", func(t *testing.T) {
+		t.Parallel()
+		serverDone := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			assert.NoError(t, err)
 
-	err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
-		URL: server.URL,
-		Body: GraphQLBody{
-			Query: `subscription {messageAdded(roomName: "room"){text}}`,
-		},
-		WsSubProtocol: ProtocolGraphQLTWS,
-	}, updater)
-	assert.NoError(t, err)
+			defer conn.Close(websocket.StatusNormalClosure, "done")
 
-	updater.AwaitUpdates(t, time.Second*5, 3)
-	assert.Equal(t, 3, len(updater.updates))
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
-	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-	client.Unsubscribe(1)
-	clientCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
-	serverCancel()
+			ctx := context.Background()
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+			assert.NoError(t, err)
+
+			time.Sleep(time.Second * 2)
+
+			close(serverDone)
+		}))
+		defer server.Close()
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Second),
+			WithLogger(logger()),
+		).(*subscriptionClient)
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
+		assert.NoError(t, err)
+
+		updater.AwaitUpdates(t, time.Second*10, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		assert.Eventuallyf(t, func() bool {
+			<-serverDone
+			return true
+		}, time.Second*5, time.Millisecond*10, "server did not close")
+		time.Sleep(time.Second)
+		client.connectionsMu.Lock()
+		defer client.connectionsMu.Unlock()
+		assert.Equal(t, 0, len(client.connections))
+	})
+	t.Run("forever timeout", func(t *testing.T) {
+		t.Parallel()
+		globalCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			conn, err := websocket.Accept(w, r, nil)
+			assert.NoError(t, err)
+
+			defer conn.Close(websocket.StatusNormalClosure, "done")
+
+			ctx := context.Background()
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+			assert.NoError(t, err)
+			<-globalCtx.Done()
+		}))
+		defer server.Close()
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithReadTimeout(time.Second),
+			WithLogger(logger()),
+		).(*subscriptionClient)
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
+		assert.NoError(t, err)
+
+		updater.AwaitUpdates(t, time.Second*3, 1)
+		assert.Equal(t, 1, len(updater.updates))
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+		time.Sleep(time.Second * 2)
+		client.activeConnectionsMu.Lock()
+		defer client.activeConnectionsMu.Unlock()
+		assert.Equal(t, 0, len(client.activeConnections))
+	})
+	t.Run("graphql-ws", func(t *testing.T) {
+		t.Parallel()
+		t.Run("happy path", func(t *testing.T) {
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"data","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"data","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"data","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"stop","id":"1"}`, string(data))
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("connection error", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"connection_error"}`))
+				assert.NoError(t, err)
+
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"errors":[{"message":"connection error"}]}`, updater.updates[0])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+			client.connectionsMu.Lock()
+			defer client.connectionsMu.Unlock()
+			assert.Equal(t, 0, len(client.connections))
+		})
+		t.Run("error object", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"error","payload":{"message":"ws error"}}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"stop","id":"1"}`, string(data))
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[0])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("error array", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"start","id":"1","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"error","payload":[{"message":"ws error"}]}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"stop","id":"1"}`, string(data))
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[0])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+	})
+	t.Run("graphql-transport-ws", func(t *testing.T) {
+		t.Parallel()
+		t.Run("happy path", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("ping", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"pong"}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("ka", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ka"}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+				assert.NoError(t, err)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("error object", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"error","payload":{"message":"ws error"}}`))
+				assert.NoError(t, err)
+
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*5, 2)
+			assert.Equal(t, 2, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[1])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("error array", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"error","payload":[{"message":"ws error"}]}`))
+				assert.NoError(t, err)
+
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*5, 2)
+			assert.Equal(t, 2, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"errors":[{"message":"ws error"}]}`, updater.updates[1])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("data error", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"data","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+		t.Run("connection error", func(t *testing.T) {
+			t.Parallel()
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				conn, err := websocket.Accept(w, r, nil)
+				assert.NoError(t, err)
+				ctx := context.Background()
+				msgType, data, err := conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"type":"connection_init"}`, string(data))
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+				assert.NoError(t, err)
+
+				time.Sleep(time.Second * 1)
+
+				msgType, data, err = conn.Read(ctx)
+				assert.NoError(t, err)
+				assert.Equal(t, websocket.MessageText, msgType)
+				assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+				assert.NoError(t, err)
+
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"connection_error"}`))
+				assert.NoError(t, err)
+
+				close(serverDone)
+			}))
+			defer server.Close()
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Second),
+				WithLogger(logger()),
+			).(*subscriptionClient)
+			updater := &testSubscriptionUpdater{}
+
+			err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+			updater.AwaitUpdates(t, time.Second*5, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			client.Unsubscribe(1)
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+	})
 }

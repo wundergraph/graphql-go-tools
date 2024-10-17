@@ -1770,7 +1770,7 @@ func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input [
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	return s.client.Subscribe(ctx, options, updater)
+	return s.client.SubscribeAsync(ctx, id, options, updater)
 }
 
 func (s *SubscriptionSource) AsyncStop(id uint64) {

@@ -1,6 +1,7 @@
 package graphql_datasource
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	ws "github.com/gorilla/websocket"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/buger/jsonparser"
@@ -22,7 +23,7 @@ import (
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlTWSConnectionHandler struct {
-	conn               *ws.Conn
+	conn               net.Conn
 	ctx                context.Context
 	log                log.Logger
 	subscribeCh        chan Subscription
@@ -32,20 +33,19 @@ type gqlTWSConnectionHandler struct {
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
-	fmt.Printf("ServerClose\n")
 	for _, sub := range h.subscriptions {
 		sub.updater.Done()
 	}
+	_ = h.conn.Close()
 }
 
 func (h *gqlTWSConnectionHandler) ClientClose() {
-	fmt.Printf("ClientClose\n")
 	for k, v := range h.subscriptions {
 		v.updater.Done()
 		delete(h.subscriptions, k)
 
 		req := fmt.Sprintf(completeMessage, k)
-		err := h.conn.WriteMessage(ws.TextMessage, []byte(req))
+		err := wsutil.WriteClientText(h.conn, []byte(req))
 		if err != nil {
 			h.log.Error("failed to write complete message", log.Error(err))
 		}
@@ -57,64 +57,78 @@ func (h *gqlTWSConnectionHandler) Subscribe(sub Subscription) {
 	h.subscribe(sub)
 }
 
-func (h *gqlTWSConnectionHandler) ReadMessage() (done bool) {
-	fmt.Printf("ReadMessage\n")
+func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 
-	err := h.conn.SetReadDeadline(time.Now().Add(time.Second * 5))
-	if err != nil {
-		fmt.Printf("SetReadDeadline error: %v\n", err)
-		return h.isConnectionClosed(err)
-	}
-	msgType, data, err := h.conn.ReadMessage()
-	if err != nil {
-		fmt.Printf("ReadMessage error: %v\n", err)
-		return h.isConnectionClosed(err)
-	}
-	fmt.Printf("ReadMessage messageType %v, data: %v\n", msgType, string(data))
-	if msgType != ws.TextMessage {
-		return false
-	}
-	messageType, err := jsonparser.GetString(data, "type")
-	if err != nil {
-		return false
-	}
-	switch messageType {
-	case messageTypePing:
-		h.handleMessageTypePing()
-		return false
-	case messageTypeNext:
-		h.handleMessageTypeNext(data)
-		return false
-	case messageTypeComplete:
-		h.handleMessageTypeComplete(data)
-		return true
-	case messageTypeError:
-		h.handleMessageTypeError(data)
-		return false
-	case messageTypeConnectionKeepAlive:
-		return false
-	case messageTypeData, messageTypeConnectionError:
-		h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
-		return true
-	default:
-		h.log.Error("unknown message type", log.String("type", messageType))
-		return false
+	r := bufio.NewReader(h.conn)
+	wr := bufio.NewWriter(h.conn)
+	rwr := bufio.NewReadWriter(r, wr)
+
+	for {
+
+		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
+		if err != nil {
+			return h.handleConnectionError(err)
+		}
+
+		data, err := wsutil.ReadServerText(rwr)
+		if err != nil {
+			return h.handleConnectionError(err)
+		}
+
+		messageType, err := jsonparser.GetString(data, "type")
+		if err != nil {
+			return false, false
+		}
+		switch messageType {
+		case messageTypePing:
+			h.handleMessageTypePing()
+			continue
+		case messageTypeNext:
+			h.handleMessageTypeNext(data)
+			continue
+		case messageTypeComplete:
+			h.handleMessageTypeComplete(data)
+			return true, false
+		case messageTypeError:
+			h.handleMessageTypeError(data)
+			continue
+		case messageTypeConnectionKeepAlive:
+			continue
+		case messageTypeData, messageTypeConnectionError:
+			h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
+			return true, false
+		default:
+			h.log.Error("unknown message type", log.String("type", messageType))
+			return false, false
+		}
 	}
 }
 
-func (h *gqlTWSConnectionHandler) isConnectionClosed(err error) bool {
-	if strings.HasSuffix(err.Error(), "use of closed network connection") {
-		return true
+func (h *gqlTWSConnectionHandler) handleConnectionError(err error) (closed, timeout bool) {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false, true
 	}
-	fmt.Printf("isConnectionClosed: %v\n", err)
-	return false
+	netOpErr := &net.OpError{}
+	if errors.As(err, &netOpErr) {
+		if netOpErr.Timeout() {
+			return false, true
+		}
+		return true, false
+	}
+	if errors.As(err, &wsutil.ClosedError{}) {
+		return true, false
+	}
+	if strings.HasSuffix(err.Error(), "use of closed network connection") {
+		return true, false
+	}
+	return false, false
 }
 
 func (h *gqlTWSConnectionHandler) NetConn() net.Conn {
-	return h.conn.NetConn()
+	return h.conn
 }
 
-func newGQLTWSConnectionHandler(ctx context.Context, conn *ws.Conn, rt time.Duration, l log.Logger) *gqlTWSConnectionHandler {
+func newGQLTWSConnectionHandler(ctx context.Context, conn net.Conn, rt time.Duration, l log.Logger) *gqlTWSConnectionHandler {
 	return &gqlTWSConnectionHandler{
 		conn:               conn,
 		ctx:                ctx,
@@ -214,7 +228,7 @@ func (h *gqlTWSConnectionHandler) unsubscribe(subscriptionID string) {
 	delete(h.subscriptions, subscriptionID)
 
 	req := fmt.Sprintf(completeMessage, subscriptionID)
-	err := h.conn.WriteMessage(ws.TextMessage, []byte(req))
+	err := wsutil.WriteClientText(h.conn, []byte(req))
 	if err != nil {
 		h.log.Error("failed to write complete message", log.Error(err))
 	}
@@ -231,11 +245,8 @@ func (h *gqlTWSConnectionHandler) subscribe(sub Subscription) {
 	h.nextSubscriptionID++
 
 	subscriptionID := strconv.Itoa(h.nextSubscriptionID)
-
-	fmt.Printf("subscribe with subscriptionID: %s\n", subscriptionID)
-
 	subscribeRequest := fmt.Sprintf(subscribeMessage, subscriptionID, string(graphQLBody))
-	err = h.conn.WriteMessage(ws.TextMessage, []byte(subscribeRequest))
+	err = wsutil.WriteClientText(h.conn, []byte(subscribeRequest))
 	if err != nil {
 		h.log.Error("failed to write subscribe message", log.Error(err))
 		return
@@ -299,13 +310,21 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 			return
 		}
 		sub.updater.Update(response)
+	case jsonparser.Object:
+		response := []byte(`{"errors":[]}`)
+		response, err = jsonparser.Set(response, value, "errors", "[0]")
+		if err != nil {
+			sub.updater.Update([]byte(internalError))
+			return
+		}
+		sub.updater.Update(response)
 	default:
 		sub.updater.Update([]byte(internalError))
 	}
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
-	err := h.conn.WriteMessage(ws.TextMessage, []byte(pongMessage))
+	err := wsutil.WriteClientText(h.conn, []byte(pongMessage))
 	if err != nil {
 		h.log.Error("failed to write pong message", log.Error(err))
 	}
@@ -339,16 +358,13 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
 // we'll block forever on reading until the context of the gqlTWSConnectionHandler stops
 func (h *gqlTWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
 	for {
-		msgType, data, err := h.conn.ReadMessage()
+		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
 			select {
 			case errCh <- err:
 			case <-ctx.Done():
 			}
 			return
-		}
-		if msgType != ws.TextMessage {
-			continue
 		}
 		select {
 		case dataCh <- data:

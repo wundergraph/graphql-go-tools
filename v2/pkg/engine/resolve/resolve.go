@@ -577,8 +577,8 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 		if async, ok := add.resolve.Trigger.Source.(AsyncSubscriptionDataSource); ok {
 			trig.cancel = func() {
-				async.AsyncStop(triggerID)
 				cancel()
+				async.AsyncStop(triggerID)
 			}
 			err = async.AsyncStart(cloneCtx, triggerID, add.input, updater)
 		} else {
