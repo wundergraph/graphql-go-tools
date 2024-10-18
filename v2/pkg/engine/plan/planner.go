@@ -175,7 +175,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				plannerWithQueryPlan.IncludeQueryPlanInFetchConfiguration()
 			}
 		}
-		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {
+		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(Identifyable); ok {
 			plannerWithId.SetID(key)
 		}
 		if plannerWithDebug, ok := p.planningVisitor.planners[key].Debugger(); ok {

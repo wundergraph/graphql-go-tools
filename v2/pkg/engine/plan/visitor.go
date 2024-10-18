@@ -111,10 +111,6 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
-type Identifyable interface {
-	ID() int
-}
-
 func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any, skipFor astvisitor.SkipVisitors) bool {
 	if visitor == v {
 		// main planner visitor should always be allowed

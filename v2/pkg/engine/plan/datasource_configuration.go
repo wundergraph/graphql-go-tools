@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -393,9 +394,14 @@ type DataSourceBehavior interface {
 	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
 }
 
+type Identifyable interface {
+	astvisitor.VisitorIdentifier
+}
+
 type DataSourcePlanner[T any] interface {
 	DataSourceFetchPlanner
 	DataSourceBehavior
+	Identifyable
 	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
 }
 
