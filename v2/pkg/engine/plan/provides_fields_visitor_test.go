@@ -64,6 +64,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 					IsExternal:     true,
 					IsLeaf:         true,
+					treeNodeId:     100,
 				},
 				{
 					FieldRef:       1,
@@ -76,6 +77,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsProvided:     true,
 					IsRootNode:     true,
+					treeNodeId:     101,
 				},
 			},
 		},
@@ -102,6 +104,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 					IsExternal:     true,
 					IsLeaf:         true,
+					treeNodeId:     102,
 				},
 				{
 					FieldRef:       1,
@@ -115,6 +118,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     false,
 					IsLeaf:         true,
 					isTypeName:     true,
+					treeNodeId:     101,
 				},
 				{
 					FieldRef:       3,
@@ -127,6 +131,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsProvided:     true,
 					IsRootNode:     true,
 					IsExternal:     true,
+					treeNodeId:     103,
 				},
 				{
 					FieldRef:       0,
@@ -141,6 +146,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsRootNode:     false,
 					IsLeaf:         true,
 					isTypeName:     true,
+					treeNodeId:     100,
 				},
 			},
 		},
@@ -179,6 +185,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         true,
+					treeNodeId:     100,
 				},
 				{
 					FieldRef:       1,
@@ -192,6 +199,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     false,
 					IsLeaf:         true,
+					treeNodeId:     101,
 				},
 				{
 					FieldRef:       2,
@@ -205,6 +213,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         false,
+					treeNodeId:     102,
 				},
 			},
 		},
@@ -230,6 +239,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         true,
+					treeNodeId:     100,
 				},
 				{
 					FieldRef:       1,
@@ -243,6 +253,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     false,
 					IsRootNode:     true,
 					IsLeaf:         false,
+					treeNodeId:     101,
 				},
 			},
 		},
@@ -299,6 +310,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         true,
+					treeNodeId:     100,
 				},
 				{
 					FieldRef:       1,
@@ -312,6 +324,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     false,
 					IsLeaf:         true,
+					treeNodeId:     101,
 				},
 				{
 					FieldRef:       2,
@@ -325,6 +338,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         false,
+					treeNodeId:     102,
 				},
 				{
 					FieldRef:       3,
@@ -338,6 +352,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         true,
+					treeNodeId:     103,
 				},
 				{
 					FieldRef:       4,
@@ -351,6 +366,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     true,
 					IsRootNode:     true,
 					IsLeaf:         true,
+					treeNodeId:     104,
 				},
 				{
 					FieldRef:       5,
@@ -364,6 +380,7 @@ func TestProvidesSuggestions(t *testing.T) {
 					IsExternal:     false,
 					IsRootNode:     true,
 					IsLeaf:         false,
+					treeNodeId:     105,
 				},
 			},
 		},

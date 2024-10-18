@@ -73,6 +73,8 @@ func (c *nodesCollector) collectNodes() {
 			return
 		}
 	}
+	// NOTE: collect nodes should never modify the tree and nodes during the walk
+	// it will be a data race
 	for _, visitor := range visitors {
 		visitor.applySuggestions()
 	}
@@ -160,6 +162,18 @@ func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds [
 	return -1, false
 }
 
+func (f *collectNodesVisitor) hasLocalSuggestion(ref int) (localItemID int, ok bool) {
+	idx := slices.IndexFunc(f.localSuggestions, func(suggestion *NodeSuggestion) bool {
+		return suggestion.FieldRef == ref
+	})
+
+	if idx != -1 {
+		return idx, true
+	}
+
+	return -1, false
+}
+
 func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName string) (selectionSet string, ok bool) {
 	providesIdx := slices.IndexFunc(f.dataSource.FederationConfiguration().Provides, func(provide FederationFieldConfiguration) bool {
 		return provide.TypeName == typeName && provide.FieldName == fieldName
@@ -236,28 +250,18 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 	}
 
 	for _, suggestion := range suggestions {
-		nodeID := TreeNodeID(suggestion.FieldRef)
-		treeNode, _ := f.nodes.responseTree.Find(nodeID)
-
+		treeNode, _ := f.nodes.responseTree.Find(suggestion.treeNodeId)
 		nodesIndexes := treeNode.GetData()
 
-		exists := false
-		for _, idx := range nodesIndexes {
-			if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
-				// Not sure when this happens and why we need to check duplicates here
-				f.nodes.items[idx].IsProvided = true
-				f.nodes.items[idx].IsExternal = true
-				exists = true
-			}
-		}
+		exists := slices.ContainsFunc(nodesIndexes, func(i int) bool {
+			return f.nodes.items[i].DataSourceHash == f.dataSource.Hash()
+		})
 		if exists {
 			continue
 		}
 
 		// if suggestions is not exists we adding it
-		suggestionIdx := f.nodes.addSuggestion(suggestion)
-		nodesIndexes = append(nodesIndexes, suggestionIdx)
-		treeNode.SetData(nodesIndexes)
+		f.localSuggestions = append(f.localSuggestions, suggestion)
 	}
 }
 
@@ -312,7 +316,6 @@ func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath
 }
 
 func (f *collectNodesVisitor) EnterField(fieldRef int) {
-
 	info, ok := f.info[fieldRef]
 	if !ok {
 		return
@@ -327,6 +330,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
 
+	// this is the check for the global suggestions
 	if itemID, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
 		// when we already have such suggestion we skip adding it
 		// we could have such suggestion if the field was provided or already added on previous steps
@@ -339,6 +343,16 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		}
 
 		return
+	}
+
+	// this is the check for the current collect nodes iterations suggestions
+	if localItemId, ok := f.hasLocalSuggestion(fieldRef); ok {
+		if f.localSuggestions[localItemId].IsProvided &&
+			f.localSuggestions[localItemId].IsExternal &&
+			!f.localSuggestions[localItemId].IsLeaf {
+			// we don't need to add a suggestion for an external provided field childs
+			f.walker.SkipNode()
+		}
 	}
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
@@ -396,7 +410,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			IsExternal:                isExternal,
 			IsLeaf:                    isLeaf,
 			isTypeName:                info.isTypeName,
-			currentNodeId:             currentNodeId,
+			treeNodeId:                currentNodeId,
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
@@ -423,7 +437,7 @@ func (f *collectNodesVisitor) applySuggestions() {
 		f.nodes.addSuggestion(suggestion)
 		itemId := len(f.nodes.items) - 1
 
-		treeNode, _ := f.nodes.responseTree.Find(suggestion.currentNodeId)
+		treeNode, _ := f.nodes.responseTree.Find(suggestion.treeNodeId)
 		itemIds := treeNode.GetData()
 		itemIds = append(itemIds, itemId)
 		treeNode.SetData(itemIds)

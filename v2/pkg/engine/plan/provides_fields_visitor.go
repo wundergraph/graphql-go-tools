@@ -179,6 +179,7 @@ func (v *providesVisitor) EnterField(ref int) {
 		IsExternal:     isExternal,
 		IsLeaf:         !hasSelections,
 		isTypeName:     isTypeName,
+		treeNodeId:     TreeNodeID(operationFieldRef),
 	}
 
 	v.currentFields = append(v.currentFields, &currentFiedInfo{
