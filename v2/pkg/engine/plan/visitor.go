@@ -38,7 +38,6 @@ type Visitor struct {
 	currentFields                []objectFields
 	currentField                 *resolve.Field
 	planners                     []PlannerConfiguration
-	plannerIDs                   []int
 	skipFieldsRefs               []int
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
