@@ -574,7 +574,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
-
 		if async, ok := add.resolve.Trigger.Source.(AsyncSubscriptionDataSource); ok {
 			trig.cancel = func() {
 				cancel()

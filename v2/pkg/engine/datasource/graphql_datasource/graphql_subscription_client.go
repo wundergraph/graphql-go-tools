@@ -40,8 +40,7 @@ type subscriptionClient struct {
 
 	readTimeout time.Duration
 
-	epoll           epoller.Poller
-	stopEpollSignal chan struct{}
+	epoll epoller.Poller
 
 	connections   map[int]ConnectionHandler
 	connectionsMu sync.Mutex
@@ -81,9 +80,6 @@ func (c *subscriptionClient) Unsubscribe(id uint64) {
 	handler.ClientClose()
 	delete(c.connections, fd)
 	_ = c.epoll.Remove(handler.NetConn())
-	if len(c.connections) == 0 {
-		close(c.stopEpollSignal)
-	}
 }
 
 type InvalidWsSubprotocolError struct {
@@ -172,6 +168,9 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		triggers:                       make(map[uint64]int),
 		useHttpClientWithSkipRoundTrip: op.useHttpClientWithSkipRoundTrip,
 	}
+	if epoll != nil {
+		go client.runEpoll(engineCtx)
+	}
 	return client
 }
 
@@ -250,19 +249,13 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return err
 	}
 
+	if c.epoll == nil {
+		return handler.StartBlocking()
+	}
+
 	err = handler.Subscribe()
 	if err != nil {
 		return err
-	}
-
-	if c.epoll == nil {
-		go func() {
-			err := handler.StartBlocking()
-			if err != nil {
-				c.log.Error("subscriptionClient.asyncSubscribeWS", abstractlogger.Error(err))
-			}
-		}()
-		return nil
 	}
 
 	netConn := handler.NetConn()
@@ -274,13 +267,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	fd := socketFd(netConn)
 	c.connections[fd] = handler
 	c.triggers[id] = fd
-	count := len(c.connections)
 	c.connectionsMu.Unlock()
-
-	if count == 1 {
-		c.stopEpollSignal = make(chan struct{})
-		go c.runEpoll(c.engineCtx)
-	}
 
 	return nil
 }
@@ -590,8 +577,6 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 			return
 		case <-tick.C:
 			continue
-		case <-c.stopEpollSignal:
-			return
 		}
 	}
 }
