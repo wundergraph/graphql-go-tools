@@ -14,6 +14,7 @@ type Configuration struct {
 }
 
 type Planner[T Configuration] struct {
+	id                           int
 	introspectionData            *introspection.Data
 	v                            *plan.Visitor
 	rootField                    int
@@ -21,6 +22,14 @@ type Planner[T Configuration] struct {
 	rootFielPath                 string
 	hasIncludeDeprecatedArgument bool
 	isArrayItem                  bool
+}
+
+func (p *Planner[T]) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner[T]) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner[T]) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
