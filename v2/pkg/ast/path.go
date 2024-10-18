@@ -31,54 +31,7 @@ type PathItem struct {
 	FragmentRef int // only used for InlineFragmentName, allows to distinguish between multiple inline fragments on the same type
 }
 
-func (p *PathItem) Equals(another PathItem) bool {
-	if p.Kind != another.Kind {
-		return false
-	}
-	if p.ArrayIndex != another.ArrayIndex {
-		return false
-	}
-	if p.FragmentRef != another.FragmentRef {
-		return false
-	}
-	if !bytes.Equal(p.FieldName, another.FieldName) {
-		return false
-	}
-	return true
-}
-
 type Path []PathItem
-
-func (p Path) Hash() uint64 {
-	var hash uint64
-	for i := range p {
-		hash = hash*31 + uint64(p[i].Kind)
-		hash = hash*31 + uint64(p[i].ArrayIndex)
-		hash = hash*31 + uint64(p[i].FragmentRef)
-		for j := range p[i].FieldName {
-			hash = hash*31 + uint64(p[i].FieldName[j])
-		}
-	}
-	return hash
-}
-
-func (p Path) IsRoot() bool {
-	return len(p) <= 1
-}
-
-func (p Path) Clone() Path {
-	out := make(Path, len(p))
-	copy(out, p)
-	return out
-}
-
-func (p Path) CloneWithExtraField(fieldName ByteSlice) Path {
-	out := make(Path, len(p)+1)
-	copy(out, p)
-	out[len(p)].Kind = FieldName
-	out[len(p)].FieldName = fieldName
-	return out
-}
 
 func (p Path) Equals(another Path) bool {
 	if len(p) != len(another) {
