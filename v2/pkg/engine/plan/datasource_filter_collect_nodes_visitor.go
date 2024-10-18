@@ -5,8 +5,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/kingledion/go-tools/tree"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -60,9 +58,6 @@ func (c *nodesCollector) collectNodes() {
 		reports[i] = &report
 		go func(walker *astvisitor.Walker, report *operationreport.Report) {
 			walker.Walk(c.operation, c.definition, report)
-			if report.HasErrors() {
-				return
-			}
 			wg.Done()
 		}(&walker, &report)
 	}
@@ -260,21 +255,8 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 	}
 }
 
-func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(treeNode tree.Node[[]int]) bool {
-	if f.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
-		return false
-	}
-
-	parent := treeNode.GetParent()
-	parentItems := parent.GetData()
-
-	for _, idx := range parentItems {
-		if f.nodes.items[idx].DataSourceHash == f.dataSource.Hash() {
-			return true
-		}
-	}
-
-	return false
+func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldInfo) bool {
+	return info.isTypeName && f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
 }
 
 func (f *collectNodesVisitor) EnterField(fieldRef int) {
@@ -291,7 +273,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		// to not select it during node suggestions calculation
 		// we will add a typename field to the interface object query in the datasource planner
 
-		// at the same type we should allow to select a typename on the entity interface
+		// at the same time we should allow to select a typename on the entity interface
 		return
 	}
 
@@ -317,7 +299,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
 
-	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(treeNode)
+	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(info)
 	hasSelections := f.operation.FieldHasSelections(fieldRef)
 
 	if f.hasSuggestionForField(itemIds, fieldRef) {
