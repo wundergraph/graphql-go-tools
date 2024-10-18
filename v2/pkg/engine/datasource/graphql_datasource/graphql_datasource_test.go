@@ -572,7 +572,7 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													Info: &resolve.FieldInfo{
 														Name:                "name",
-														ParentTypeNames:     []string{"Character"},
+														ParentTypeNames:     []string{"Character", "Droid", "Human"},
 														ExactParentTypeName: "Character",
 														NamedType:           "String",
 														Source: resolve.TypeFieldSource{
@@ -617,7 +617,7 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Info: &resolve.FieldInfo{
 										Name:                "name",
-										ParentTypeNames:     []string{"Character"},
+										ParentTypeNames:     []string{"Character", "Droid", "Human"},
 										ExactParentTypeName: "Character",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
@@ -8886,6 +8886,12 @@ func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration
 	}
 }
 
+func (t *testSubscriptionUpdater) Heartbeat() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.updates = append(t.updates, "{}")
+}
+
 func (t *testSubscriptionUpdater) Update(data []byte) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
@@ -9023,6 +9029,31 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		assert.Len(t, updater.updates, 1)
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 	})
+
+	t.Run("should successfully send heartbeat", func(t *testing.T) {
+		ctx := resolve.NewContext(context.Background())
+		ctx.ExecutionOptions.SendHeartbeat = true
+		defer ctx.Context().Done()
+
+		updater := &testSubscriptionUpdater{}
+
+		source := newSubscriptionSource(ctx.Context())
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+
+		updater.AwaitUpdates(t, 7*time.Second, 2)
+		assert.Len(t, updater.updates, 2)
+		assert.Equal(t, `{}`, updater.updates[1])
+	})
 }
 
 func TestSubscription_GTWS_SubProtocol(t *testing.T) {
@@ -9130,6 +9161,32 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		updater.AwaitUpdates(t, time.Second, 1)
 		assert.Len(t, updater.updates, 1)
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+	})
+
+	t.Run("should successfully send heartbeat", func(t *testing.T) {
+		ctx := resolve.NewContext(context.Background())
+		ctx.ExecutionOptions.SendHeartbeat = true
+		defer ctx.Context().Done()
+
+		updater := &testSubscriptionUpdater{}
+
+		source := newSubscriptionSource(ctx.Context())
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		require.NoError(t, err)
+
+		username := "myuser"
+		message := "hello world!"
+		go sendChatMessage(t, username, message)
+
+		updater.AwaitUpdates(t, time.Second, 1)
+		assert.Len(t, updater.updates, 1)
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
+
+		updater.AwaitUpdates(t, 7*time.Second, 2)
+		assert.Len(t, updater.updates, 2)
+		assert.Equal(t, `{}`, updater.updates[1])
 	})
 }
 

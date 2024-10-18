@@ -128,7 +128,10 @@ func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
 		return
 	}
 
-	// if the node is the last one, we add a __typename to keep query valid
+	// when we removed a skipped node it could happen that it was the only remaining node in the selection set
+	// removing all nodes from the selection set will make query an invalid
+	// So we have to add a __typename selection to the selection set,
+	// but as this selection was not added by user it should not be added to resolved data
 
 	selectionSetRef := d.Ancestors[len(d.Ancestors)-2].Ref
 
@@ -141,6 +144,8 @@ func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
 func (d *directiveIncludeSkipVisitor) typeNameSelection() (selectionRef int, fieldRef int) {
 	field := d.operation.AddField(ast.Field{
 		Name: d.operation.Input.AppendInputString("__typename"),
+		// We are adding an alias to the __typename field to mark it as internally added
+		// So planner could ignore this field during creation of the response shape
 		Alias: ast.Alias{
 			IsDefined: true,
 			Name:      d.operation.Input.AppendInputString("__internal__typename_placeholder"),

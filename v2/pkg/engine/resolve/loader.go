@@ -500,7 +500,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if astjson.ValueIsNull(value) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
-			if !hasErrors {
+			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
 				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 			}
 			// no data
@@ -767,12 +767,15 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
 			extensions := value.Get("extensions")
-			if extensions.Type() != astjson.TypeObject {
-				continue
-			}
-
-			if !extensions.Exists("code") {
-				extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+			switch extensions.Type() {
+			case astjson.TypeObject:
+				if !extensions.Exists("code") {
+					extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+				}
+			case astjson.TypeNull:
+				extensionsObj := l.resolvable.astjsonArena.NewObject()
+				extensionsObj.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+				value.Set("extensions", extensionsObj)
 			}
 		} else {
 			extensionsObj := l.resolvable.astjsonArena.NewObject()
@@ -791,11 +794,14 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 	for _, value := range values {
 		if value.Exists("extensions") {
 			extensions := value.Get("extensions")
-			if extensions.Type() != astjson.TypeObject {
-				continue
+			switch extensions.Type() {
+			case astjson.TypeObject:
+				extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+			case astjson.TypeNull:
+				extensionsObj := l.resolvable.astjsonArena.NewObject()
+				extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+				value.Set("extensions", extensionsObj)
 			}
-
-			extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
 		} else {
 			extensionsObj := l.resolvable.astjsonArena.NewObject()
 			extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))

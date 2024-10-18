@@ -62,6 +62,8 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.info",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       1,
@@ -71,7 +73,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					Path:           "query.me.info",
 					ParentPath:     "query.me",
 					Selected:       false,
+					IsExternal:     true,
 					IsProvided:     true,
+					IsRootNode:     true,
 				},
 			},
 		},
@@ -96,6 +100,8 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.info",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       1,
@@ -106,6 +112,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.info",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     false,
+					IsLeaf:         true,
+					isTypeName:     true,
 				},
 				{
 					FieldRef:       3,
@@ -116,6 +125,8 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsRootNode:     true,
+					IsExternal:     true,
 				},
 				{
 					FieldRef:       0,
@@ -126,6 +137,10 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     false,
+					IsRootNode:     false,
+					IsLeaf:         true,
+					isTypeName:     true,
 				},
 			},
 		},
@@ -161,6 +176,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       1,
@@ -171,6 +189,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.info",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     false,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       2,
@@ -181,6 +202,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         false,
 				},
 			},
 		},
@@ -203,6 +227,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.address",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       1,
@@ -213,6 +240,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     false,
+					IsRootNode:     true,
+					IsLeaf:         false,
 				},
 			},
 		},
@@ -266,6 +296,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       1,
@@ -276,6 +309,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.info",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     false,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       2,
@@ -286,6 +322,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         false,
 				},
 				{
 					FieldRef:       3,
@@ -296,6 +335,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.address",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       4,
@@ -306,6 +348,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me.address",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     true,
+					IsRootNode:     true,
+					IsLeaf:         true,
 				},
 				{
 					FieldRef:       5,
@@ -316,6 +361,9 @@ func TestProvidesSuggestions(t *testing.T) {
 					ParentPath:     "query.me",
 					Selected:       false,
 					IsProvided:     true,
+					IsExternal:     false,
+					IsRootNode:     true,
+					IsLeaf:         false,
 				},
 			},
 		},
@@ -326,6 +374,37 @@ func TestProvidesSuggestions(t *testing.T) {
 			operation := unsafeparser.ParseGraphqlDocumentString(c.operation)
 			report := &operationreport.Report{}
 
+			meta := &DataSourceMetadata{
+				RootNodes: []TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
+					},
+					{
+						TypeName:           "User",
+						FieldNames:         []string{"address"},
+						ExternalFieldNames: []string{"name", "info"},
+					},
+
+					{
+						TypeName:           "Address",
+						ExternalFieldNames: []string{"street", "zip"},
+					},
+				},
+				ChildNodes: []TypeField{
+					{
+						TypeName:           "Info",
+						ExternalFieldNames: []string{"age"},
+					},
+				},
+			}
+			meta.InitNodesIndex()
+
+			ds := &dataSourceConfiguration[string]{
+				hash:               2023,
+				DataSourceMetadata: meta,
+			}
+
 			input := &providesInput{
 				operationSelectionSet: c.selectionSetRef,
 				providesFieldSet:      fieldSet,
@@ -333,7 +412,7 @@ func TestProvidesSuggestions(t *testing.T) {
 				definition:            &definition,
 				report:                report,
 				parentPath:            "query.me",
-				dataSourceHash:        2023,
+				dataSource:            ds,
 			}
 
 			suggestions := providesSuggestions(input)

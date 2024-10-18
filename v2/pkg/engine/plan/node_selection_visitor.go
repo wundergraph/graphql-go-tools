@@ -189,11 +189,6 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for _, suggestion := range suggestions {
-		// TODO: change SuggestionsForPath to return only selected suggestions
-		if !suggestion.Selected {
-			continue
-		}
-
 		if suggestion.IsRequiredKeyField {
 			// it was already selected as a key field
 			// no need to process required fields for it

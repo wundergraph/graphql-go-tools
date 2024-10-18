@@ -25,6 +25,7 @@ type NodeSuggestion struct {
 	IsExternal                bool   `json:"isExternal"`
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
 	IsLeaf                    bool   `json:"isLeaf"`
+	isTypeName                bool
 
 	parentPathWithoutFragment *string
 	onFragment                bool
@@ -122,7 +123,7 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	}
 
 	for i := range items {
-		if typeName == items[i].TypeName && fieldName == items[i].FieldName {
+		if items[i].Selected && typeName == items[i].TypeName && fieldName == items[i].FieldName {
 			suggestions = append(suggestions, items[i])
 		}
 	}
@@ -188,12 +189,17 @@ func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
 			continue
 		}
 
+		if f.items[childIdx].IsExternal && !f.items[childIdx].IsProvided {
+			continue
+		}
+
 		out = append(out, childIdx)
 	}
 	return
 }
 
 func (f *NodeSuggestions) withoutTypeName(in []int) (out []int) {
+	out = make([]int, 0, len(in))
 	for _, i := range in {
 		if f.items[i].FieldName != typeNameField {
 			out = append(out, i)
@@ -210,6 +216,10 @@ func (f *NodeSuggestions) siblingNodesOnSameSource(idx int) (out []int) {
 
 	for _, siblingIndex := range siblingIndexes {
 		if f.items[siblingIndex].DataSourceHash != f.items[idx].DataSourceHash {
+			continue
+		}
+
+		if f.items[siblingIndex].IsExternal && !f.items[siblingIndex].IsProvided {
 			continue
 		}
 

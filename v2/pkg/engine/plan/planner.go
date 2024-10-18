@@ -363,7 +363,7 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 		// we have to populate missing paths after the walk
 		p.configurationVisitor.populateMissingPahts()
 
-		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintPlanningPaths {
+		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("Create planning paths run #%d", i))
 		}
 
