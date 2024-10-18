@@ -192,6 +192,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 			report.AddInternalError(err)
 			return
 		}
+		p.planningVisitor.plannerIDs = append(p.planningVisitor.plannerIDs, key)
 	}
 
 	// process the plan
