@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -40,7 +41,8 @@ type subscriptionClient struct {
 
 	readTimeout time.Duration
 
-	epoll epoller.Poller
+	epoll       epoller.Poller
+	epollConfig EpollConfiguration
 
 	connections   map[int]ConnectionHandler
 	connectionsMu sync.Mutex
@@ -116,11 +118,37 @@ func UseHttpClientWithSkipRoundTrip() Options {
 	}
 }
 
+type EpollConfiguration struct {
+	Disable    bool
+	BufferSize int
+	Interval   time.Duration
+	Wait       time.Duration
+}
+
+func (e *EpollConfiguration) ApplyDefaults() {
+	if e.BufferSize == 0 {
+		e.BufferSize = 1024
+	}
+	if e.Interval == 0 {
+		e.Interval = time.Millisecond * 100
+	}
+	if e.Wait == 0 {
+		e.Wait = time.Millisecond * 100
+	}
+}
+
+func WithEpollConfiguration(config EpollConfiguration) Options {
+	return func(options *opts) {
+		options.epollConfiguration = config
+	}
+}
+
 type opts struct {
 	readTimeout                    time.Duration
 	log                            abstractlogger.Logger
 	onWsConnectionInitCallback     *OnWsConnectionInitCallback
 	useHttpClientWithSkipRoundTrip bool
+	epollConfiguration             EpollConfiguration
 }
 
 // GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
@@ -148,8 +176,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 	for _, option := range options {
 		option(op)
 	}
-	// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
-	epoll, _ := epoller.NewPoller(1024, time.Millisecond*100)
+	op.epollConfiguration.ApplyDefaults()
 	client := &subscriptionClient{
 		httpClient:      httpClient,
 		streamingClient: streamingClient,
@@ -162,14 +189,19 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 			},
 		},
 		onWsConnectionInitCallback:     op.onWsConnectionInitCallback,
-		epoll:                          epoll,
 		connections:                    make(map[int]ConnectionHandler),
 		activeConnections:              make(map[int]struct{}),
 		triggers:                       make(map[uint64]int),
 		useHttpClientWithSkipRoundTrip: op.useHttpClientWithSkipRoundTrip,
+		epollConfig:                    op.epollConfiguration,
 	}
-	if epoll != nil {
-		go client.runEpoll(engineCtx)
+	if !op.epollConfiguration.Disable {
+		// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
+		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.Interval)
+		if epoll != nil {
+			client.epoll = epoll
+			go client.runEpoll(engineCtx)
+		}
 	}
 	return client
 }
@@ -250,7 +282,13 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	}
 
 	if c.epoll == nil {
-		return handler.StartBlocking()
+		go func() {
+			err := handler.StartBlocking()
+			if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+				c.log.Error("subscriptionClient.asyncSubscribeWS", abstractlogger.Error(err))
+			}
+		}()
+		return nil
 	}
 
 	err = handler.Subscribe()
@@ -539,8 +577,19 @@ func waitForAck(conn net.Conn) error {
 }
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
-	done := ctx.Done()
-	tick := time.NewTicker(time.Millisecond * 50)
+	var (
+		ticker <-chan time.Time
+		done   = ctx.Done()
+	)
+	if c.epollConfig.Wait > 0 {
+		tick := time.NewTicker(time.Millisecond * 50)
+		defer tick.Stop()
+		ticker = tick.C
+	} else {
+		tick := make(chan time.Time)
+		close(tick)
+		ticker = tick
+	}
 	for {
 		connections, err := c.epoll.Wait(50)
 		if err != nil {
@@ -575,7 +624,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 		select {
 		case <-done:
 			return
-		case <-tick.C:
+		case <-ticker:
 			continue
 		}
 	}
