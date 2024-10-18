@@ -343,7 +343,7 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 	// Kill the upstream here. We should get an End-of-File error.
 	assert.NoError(t, wrappedListener.underlyingConnection.Close())
 	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, updater.updates[1])
+	assert.Equal(t, `{"errors":[{"message":"EOF"}]}`, updater.updates[1])
 
 	serverCancel()
 	clientCancel()

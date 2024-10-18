@@ -19,3 +19,9 @@ type SubscriptionDataSource interface {
 	Start(ctx *Context, input []byte, updater SubscriptionUpdater) error
 	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
 }
+
+type AsyncSubscriptionDataSource interface {
+	AsyncStart(ctx *Context, id uint64, input []byte, updater SubscriptionUpdater) error
+	AsyncStop(id uint64)
+	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
+}
