@@ -17,7 +17,7 @@ type Poller interface {
 	Close(closeConns bool) error
 }
 
-func socketFD(conn net.Conn) int {
+func SocketFD(conn net.Conn) int {
 	if con, ok := conn.(syscall.Conn); ok {
 		raw, err := con.SyscallConn()
 		if err != nil {

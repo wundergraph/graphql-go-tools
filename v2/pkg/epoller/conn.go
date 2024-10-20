@@ -12,7 +12,7 @@ func newConnImpl(in net.Conn) ConnImpl {
 
 	return ConnImpl{
 		Conn: in,
-		fd:   socketFD(in),
+		fd:   SocketFD(in),
 	}
 }
 

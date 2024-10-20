@@ -4,23 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/gobwas/ws/wsutil"
 	"math"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/textproto"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/gobwas/ws/wsutil"
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/epoller"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/epoller"
 )
 
 const ackWaitTimeout = 30 * time.Second
@@ -302,7 +302,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	}
 
 	c.connectionsMu.Lock()
-	fd := socketFd(netConn)
+	fd := epoller.SocketFD(netConn)
 	c.connections[fd] = handler
 	c.triggers[id] = fd
 	c.connectionsMu.Unlock()
@@ -386,78 +386,35 @@ func (u *UpgradeRequestError) Error() string {
 }
 
 func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (ConnectionHandler, error) {
-
-	var (
-		upgradeRequestHeader http.Header
-		subgraphHttpURL      string
-		upgradeRequestURL    string
-	)
-
 	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
 	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
 		subProtocols = []string{options.WsSubProtocol}
 	}
 
-	if strings.HasPrefix(options.URL, "https") {
-		upgradeRequestURL = "wss" + options.URL[5:]
-		subgraphHttpURL = options.URL
-	} else if strings.HasPrefix(options.URL, "http") {
-		upgradeRequestURL = "ws" + options.URL[4:]
-		subgraphHttpURL = options.URL
-	} else if strings.HasPrefix(options.URL, "wss") {
-		upgradeRequestURL = options.URL
-		subgraphHttpURL = "https" + options.URL[3:]
-	} else if strings.HasPrefix(options.URL, "ws") {
-		upgradeRequestURL = options.URL
-		subgraphHttpURL = "http" + options.URL[2:]
-	}
+	var netConn net.Conn
 
-	if c.useHttpClientWithSkipRoundTrip {
-		// gorilla websocket does not support using the http.Client directly
-		// but we need to use our existing client, or the transport more specifically
-		// to be able to forward headers in the upgrade request
-		//
-		// as a workaround we create a "dummy" request which we run through the http.Client with the context
-		// we set the "SkipRoundTrip" header to true to signal the http.Client to not perform the request
-		// but only to modify the request Headers
-		req, err := http.NewRequestWithContext(requestContext, "GET", options.URL, nil)
-		if err != nil {
-			return nil, err
-		}
-		if strings.HasPrefix(options.URL, "ws") {
-			req.URL.Scheme = "http"
-		} else {
-			req.URL.Scheme = "https"
-		}
-		if options.Header != nil {
-			req.Header = options.Header
-		}
-		req.Header.Set("SkipRoundTrip", "true")
-		_, _ = c.httpClient.Do(req)
-		req.Header.Del("SkipRoundTrip")
-		upgradeRequestHeader = req.Header
-		subgraphHttpURL = req.URL.String()
-	} else {
-		upgradeRequestHeader = options.Header
+	clientTrace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			netConn = info.Conn
+		},
 	}
-
-	dialer := websocket.Dialer{
-		Proxy:            http.ProxyFromEnvironment,
-		HandshakeTimeout: time.Second * 10,
-		Subprotocols:     subProtocols,
-	}
-
-	conn, upgradeResponse, err := dialer.DialContext(requestContext, upgradeRequestURL, upgradeRequestHeader)
+	clientTraceCtx := httptrace.WithClientTrace(requestContext, clientTrace)
+	conn, upgradeResponse, err := websocket.Dial(clientTraceCtx, options.URL, &websocket.DialOptions{
+		HTTPClient:      c.httpClient,
+		HTTPHeader:      options.Header,
+		CompressionMode: websocket.CompressionDisabled,
+		Subprotocols:    subProtocols,
+	})
 	if err != nil {
-		if upgradeResponse != nil && upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
-			return nil, &UpgradeRequestError{
-				URL:        subgraphHttpURL,
-				StatusCode: upgradeResponse.StatusCode,
-			}
-		}
 		return nil, err
 	}
+	// Disable the maximum message size limit. Don't use MaxInt64 since
+	// the github.com/coder/websocket doesn't handle it correctly on 32-bit systems.
 	conn.SetReadLimit(math.MaxInt32)
+	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		return nil, fmt.Errorf("upgrade unsuccessful")
+	}
+
 	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
 		return nil, err
@@ -476,8 +433,6 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 			return nil, err
 		}
 	}
-
-	netConn := conn.NetConn()
 
 	// init + ack
 	err = wsutil.WriteClientText(netConn, connectionInitMessage)
@@ -598,7 +553,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 		}
 		c.connectionsMu.Lock()
 		for _, conn := range connections {
-			id := socketFd(conn)
+			id := epoller.SocketFD(conn)
 			handler, ok := c.connections[id]
 			if !ok {
 				continue
@@ -652,22 +607,4 @@ func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler,
 		_ = c.epoll.Remove(conn)
 		return
 	}
-}
-
-func socketFd(conn net.Conn) int {
-	if con, ok := conn.(syscall.Conn); ok {
-		raw, err := con.SyscallConn()
-		if err != nil {
-			return 0
-		}
-		sfd := 0
-		_ = raw.Control(func(fd uintptr) {
-			sfd = int(fd)
-		})
-		return sfd
-	}
-	if con, ok := conn.(epoller.ConnImpl); ok {
-		return con.GetFD()
-	}
-	return 0
 }

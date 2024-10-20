@@ -7,6 +7,7 @@ require (
 	github.com/alitto/pond v1.8.3
 	github.com/buger/jsonparser v1.1.1
 	github.com/cespare/xxhash/v2 v2.2.0
+	github.com/coder/websocket v1.8.12
 	github.com/davecgh/go-spew v1.1.1
 	github.com/goccy/go-json v0.10.2
 	github.com/golang/mock v1.6.0
@@ -32,12 +33,10 @@ require (
 	golang.org/x/sync v0.7.0
 	gonum.org/v1/gonum v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
-	nhooyr.io/websocket v1.8.11
 )
 
 require (
 	github.com/agnivade/levenshtein v1.1.1 // indirect
-	github.com/coder/websocket v1.8.12 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
