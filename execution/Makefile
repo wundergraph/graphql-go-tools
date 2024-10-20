@@ -13,7 +13,7 @@ test-race:
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures
 updateTestFixtures:
-	go test ./pkg/... -update
+	go test ./engine/... -update
 
 .PHONY: format
 format:
