@@ -79,11 +79,12 @@ type FetchTreeTraceNode struct {
 }
 
 type FetchTraceNode struct {
-	Kind     string                 `json:"kind"`
-	Path     string                 `json:"path"`
-	SourceID string                 `json:"source_id"`
-	Trace    *DataSourceLoadTrace   `json:"trace,omitempty"`
-	Traces   []*DataSourceLoadTrace `json:"traces,omitempty"`
+	Kind       string                 `json:"kind"`
+	Path       string                 `json:"path"`
+	SourceID   string                 `json:"source_id"`
+	SourceName string                 `json:"source_name"`
+	Trace      *DataSourceLoadTrace   `json:"trace,omitempty"`
+	Traces     []*DataSourceLoadTrace `json:"traces,omitempty"`
 }
 
 func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
@@ -98,31 +99,35 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 		switch f := n.Item.Fetch.(type) {
 		case *SingleFetch:
 			trace.Fetch = &FetchTraceNode{
-				Kind:     "Single",
-				SourceID: f.Info.DataSourceID,
-				Trace:    f.Trace,
-				Path:     n.Item.ResponsePath,
+				Kind:       "Single",
+				SourceID:   f.Info.DataSourceID,
+				SourceName: f.Info.DataSourceName,
+				Trace:      f.Trace,
+				Path:       n.Item.ResponsePath,
 			}
 		case *EntityFetch:
 			trace.Fetch = &FetchTraceNode{
-				Kind:     "Entity",
-				SourceID: f.Info.DataSourceID,
-				Trace:    f.Trace,
-				Path:     n.Item.ResponsePath,
+				Kind:       "Entity",
+				SourceID:   f.Info.DataSourceID,
+				SourceName: f.Info.DataSourceName,
+				Trace:      f.Trace,
+				Path:       n.Item.ResponsePath,
 			}
 		case *BatchEntityFetch:
 			trace.Fetch = &FetchTraceNode{
-				Kind:     "BatchEntity",
-				SourceID: f.Info.DataSourceID,
-				Trace:    f.Trace,
-				Path:     n.Item.ResponsePath,
+				Kind:       "BatchEntity",
+				SourceID:   f.Info.DataSourceID,
+				SourceName: f.Info.DataSourceName,
+				Trace:      f.Trace,
+				Path:       n.Item.ResponsePath,
 			}
 		case *ParallelListItemFetch:
 			trace.Fetch = &FetchTraceNode{
-				Kind:     "ParallelList",
-				SourceID: f.Fetch.Info.DataSourceID,
-				Traces:   make([]*DataSourceLoadTrace, len(f.Traces)),
-				Path:     n.Item.ResponsePath,
+				Kind:       "ParallelList",
+				SourceID:   f.Fetch.Info.DataSourceID,
+				SourceName: f.Fetch.Info.DataSourceName,
+				Traces:     make([]*DataSourceLoadTrace, len(f.Traces)),
+				Path:       n.Item.ResponsePath,
 			}
 			for i, t := range f.Traces {
 				trace.Fetch.Traces[i] = t.Trace

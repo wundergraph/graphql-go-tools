@@ -752,8 +752,17 @@ func (f *FakeFactory[T]) Context() context.Context {
 }
 
 type FakePlanner[T any] struct {
+	id             int
 	source         *StatefulSource
 	upstreamSchema *ast.Document
+}
+
+func (f *FakePlanner[T]) ID() int {
+	return f.id
+}
+
+func (f *FakePlanner[T]) SetID(id int) {
+	f.id = id
 }
 
 func (f *FakePlanner[T]) EnterDocument(operation, definition *ast.Document) {

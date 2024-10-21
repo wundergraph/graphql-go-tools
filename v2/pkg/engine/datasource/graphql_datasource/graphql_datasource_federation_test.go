@@ -595,6 +595,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		// TODO: add test for requires from 2 sibling subgraphs - should be Serial: Parallel -> Single
 		// TODO: add test for requires when query already has the required field with the different argument - it is using field from a query not with default arg
 		// TODO: add test for partially provided required fields
+		// TODO: add test for provided fields which are not external e.g. "a externalA {A} notExternalB {B}"
 
 		usersDatasourceConfiguration := mustDataSourceConfiguration(t,
 			"user.service",

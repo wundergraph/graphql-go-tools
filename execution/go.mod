@@ -15,7 +15,7 @@ require (
 	github.com/sebdah/goldie/v2 v2.5.3
 	github.com/stretchr/testify v1.9.0
 	github.com/vektah/gqlparser/v2 v2.5.11
-	github.com/wundergraph/cosmo/composition-go v0.0.0-20240729154441-b20b00e892c6
+	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6
 	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.66
 	go.uber.org/atomic v1.11.0
@@ -28,7 +28,7 @@ require (
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/dlclark/regexp2 v1.7.0 // indirect
+	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/dop251/goja v0.0.0-20230906160731-9410bcaa81d2 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect

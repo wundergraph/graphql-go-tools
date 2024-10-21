@@ -31,7 +31,16 @@ func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguratio
 }
 
 type Planner[T Configuration] struct {
+	id     int
 	config Configuration
+}
+
+func (p *Planner[T]) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner[T]) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {

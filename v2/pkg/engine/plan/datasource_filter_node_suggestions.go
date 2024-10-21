@@ -31,6 +31,7 @@ type NodeSuggestion struct {
 	onFragment                bool
 	Selected                  bool     `json:"isSelected"`
 	SelectionReasons          []string `json:"selectReason"`
+	treeNodeId                uint
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
