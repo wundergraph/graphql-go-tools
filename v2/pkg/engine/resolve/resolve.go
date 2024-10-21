@@ -426,11 +426,9 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 		if skipHeartbeat {
 			continue
 		}
-
 		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
 			return
 		}
-
 		go func() {
 			defer r.triggerUpdateSem.Release(1)
 
@@ -650,7 +648,6 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
-
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
 	}
@@ -714,7 +711,9 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 }
 
 func (r *Resolver) shutdownTrigger(id uint64) {
-	fmt.Printf("resolver:trigger:shutdown:%d\n", id)
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:shutdown:%d\n", id)
+	}
 	trig, ok := r.triggers[id]
 	if !ok {
 		return
