@@ -15,8 +15,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 
+	"github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
-	"nhooyr.io/websocket"
 )
 
 func TestWebSocketSubscriptionClientInitIncludeKA_GQLWS(t *testing.T) {
@@ -143,7 +143,6 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 	updater := &testSubscriptionUpdater{}
 	go func() {
 		rCtx := resolve.NewContext(ctx)
-		rCtx.ExecutionOptions.SendHeartbeat = true
 		err := client.Subscribe(rCtx, GraphQLSubscriptionOptions{
 			URL: server.URL,
 			Body: GraphQLBody{
@@ -152,12 +151,11 @@ func TestWebsocketSubscriptionClient_GQLWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdates(t, 10*time.Second, 4)
-	assert.Equal(t, 4, len(updater.updates))
+	updater.AwaitUpdates(t, time.Second*5, 3)
+	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-	assert.Equal(t, `{}`, updater.updates[3])
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {
 		<-serverDone
@@ -343,7 +341,7 @@ func TestWebsocketSubscriptionClient_GQLWS_Upstream_Dies(t *testing.T) {
 	// Kill the upstream here. We should get an End-of-File error.
 	assert.NoError(t, wrappedListener.underlyingConnection.Close())
 	updater.AwaitUpdates(t, time.Second, 2)
-	assert.Equal(t, `{"errors":[{"message":"failed to get reader: failed to read frame header: EOF"}]}`, updater.updates[1])
+	assert.Equal(t, `{"errors":[{"message":"EOF"}]}`, updater.updates[1])
 
 	serverCancel()
 	clientCancel()

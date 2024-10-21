@@ -6,10 +6,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"golang.org/x/sync/semaphore"
 	"io"
 	"sync"
 	"time"
+
+	"golang.org/x/sync/semaphore"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
@@ -50,10 +51,11 @@ type Resolver struct {
 	bufPool        sync.Pool
 	maxConcurrency chan struct{}
 
-	triggers         map[uint64]*trigger
-	events           chan subscriptionEvent
-	triggerUpdateSem *semaphore.Weighted
-	triggerUpdateBuf *bytes.Buffer
+	triggers               map[uint64]*trigger
+	heartbeatSubscriptions map[*Context]*sub
+	events                 chan subscriptionEvent
+	triggerUpdateSem       *semaphore.Weighted
+	triggerUpdateBuf       *bytes.Buffer
 
 	connectionIDs atomic.Int64
 
@@ -169,6 +171,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
 		events:                       make(chan subscriptionEvent),
 		triggers:                     make(map[uint64]*trigger),
+		heartbeatSubscriptions:       make(map[*Context]*sub),
 		reporter:                     options.Reporter,
 		asyncErrorWriter:             options.AsyncErrorWriter,
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
@@ -291,33 +294,16 @@ type trigger struct {
 	initialized   bool
 }
 
-func (t *trigger) hasPendingUpdates() bool {
-	for _, s := range t.subscriptions {
-		s.mux.Lock()
-		hasUpdates := s.pendingUpdates != 0
-		s.mux.Unlock()
-		if hasUpdates {
-			return true
-		}
-	}
-	return false
-}
-
 type sub struct {
-	mux            sync.Mutex
-	resolve        *GraphQLSubscription
-	writer         SubscriptionResponseWriter
-	id             SubscriptionIdentifier
-	pendingUpdates int
-	completed      chan struct{}
-	sendHeartbeat  bool
+	mux       sync.Mutex
+	resolve   *GraphQLSubscription
+	writer    SubscriptionResponseWriter
+	id        SubscriptionIdentifier
+	completed chan struct{}
+	lastWrite time.Time
 }
 
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
-	sub.mux.Lock()
-	sub.pendingUpdates++
-	sub.mux.Unlock()
-
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
@@ -330,7 +316,6 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
-		sub.pendingUpdates--
 		sub.mux.Unlock()
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
@@ -344,7 +329,6 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
 		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
-		sub.pendingUpdates--
 		sub.mux.Unlock()
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
@@ -356,12 +340,10 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	}
 
 	sub.mux.Lock()
-	sub.pendingUpdates--
-	sub.mux.Unlock()
-
-	sub.mux.Lock()
-	sub.pendingUpdates--
-	defer sub.mux.Unlock()
+	defer func() {
+		sub.lastWrite = time.Now()
+		sub.mux.Unlock()
+	}()
 
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
@@ -394,6 +376,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 
 func (r *Resolver) handleEvents() {
 	done := r.ctx.Done()
+	heatbeat := time.NewTicker(HearbeatInterval)
+	defer heatbeat.Stop()
 	for {
 		select {
 		case <-done:
@@ -401,6 +385,8 @@ func (r *Resolver) handleEvents() {
 			return
 		case event := <-r.events:
 			r.handleEvent(event)
+		case <-heatbeat.C:
+			r.handleHeartbeat(multipartHeartbeat)
 		}
 	}
 }
@@ -421,25 +407,23 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerInitialized(event.triggerID)
 	case subscriptionEventKindTriggerShutdown:
 		r.handleTriggerShutdown(event)
-	case subscriptionEventKindHeartbeat:
-		r.handleHeartbeat(event.triggerID, event.data)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
 	}
 }
 
-func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
-	trig, ok := r.triggers[id]
-	if !ok {
-		return
-	}
+func (r *Resolver) handleHeartbeat(data []byte) {
 	if r.options.Debug {
-		fmt.Printf("resolver:heartbeat:%d\n", id)
+		fmt.Printf("resolver:heartbeat:%d\n", len(r.heartbeatSubscriptions))
 	}
-	for c, s := range trig.subscriptions {
+	now := time.Now()
+	for c, s := range r.heartbeatSubscriptions {
+		// check if the last write to the subscription was more than heartbeat interval ago
 		c, s := c, s
-		// Only send heartbeats to subscriptions who have enabled it
-		if !s.sendHeartbeat {
+		s.mux.Lock()
+		skipHeartbeat := now.Sub(s.lastWrite) < HearbeatInterval
+		s.mux.Unlock()
+		if skipHeartbeat {
 			continue
 		}
 		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
@@ -528,11 +512,14 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		resolve:       add.resolve,
-		writer:        add.writer,
-		id:            add.id,
-		completed:     add.completed,
-		sendHeartbeat: add.ctx.ExecutionOptions.SendHeartbeat,
+		resolve:   add.resolve,
+		writer:    add.writer,
+		id:        add.id,
+		completed: add.completed,
+		lastWrite: time.Now(),
+	}
+	if add.ctx.ExecutionOptions.SendHeartbeat {
+		r.heartbeatSubscriptions[add.ctx] = s
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
@@ -569,12 +556,25 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		r.reporter.SubscriptionCountInc(1)
 	}
 
+	var asyncDataSource AsyncSubscriptionDataSource
+
+	if async, ok := add.resolve.Trigger.Source.(AsyncSubscriptionDataSource); ok {
+		trig.cancel = func() {
+			cancel()
+			async.AsyncStop(triggerID)
+		}
+		asyncDataSource = async
+	}
+
 	go func() {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
-
-		err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+		if asyncDataSource != nil {
+			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
+		} else {
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+		}
 		if err != nil {
 			if r.options.Debug {
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
@@ -636,7 +636,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 				if ctx.Context().Err() == nil {
 					s.writer.Complete()
 				}
-
+				delete(r.heartbeatSubscriptions, ctx)
 				delete(trig.subscriptions, ctx)
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:removed:%d:%d\n", trig.id, id.SubscriptionID)
@@ -654,7 +654,6 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
-
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
 	}
@@ -718,6 +717,9 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 }
 
 func (r *Resolver) shutdownTrigger(id uint64) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:shutdown:%d\n", id)
+	}
 	trig, ok := r.triggers[id]
 	if !ok {
 		return
@@ -730,6 +732,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 		if s.completed != nil {
 			close(s.completed)
 		}
+		delete(r.heartbeatSubscriptions, c)
 		delete(trig.subscriptions, c)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
@@ -932,28 +935,6 @@ type subscriptionUpdater struct {
 	ctx       context.Context
 }
 
-func (s *subscriptionUpdater) Heartbeat() {
-	if s.debug {
-		fmt.Printf("resolver:subscription_updater:heartbeat:%d\n", s.triggerID)
-	}
-	if s.done {
-		return
-	}
-
-	select {
-	case <-s.ctx.Done():
-		return
-	case s.ch <- subscriptionEvent{
-		triggerID: s.triggerID,
-		kind:      subscriptionEventKindHeartbeat,
-		data:      multipartHeartbeat,
-		// Currently, the only heartbeat we support is for multipart subscriptions. If we need to support future types
-		// of subscriptions, we can evaluate then how we can save on the subscription level what kind of heartbeat it
-		// requires
-	}:
-	}
-}
-
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
@@ -1018,16 +999,11 @@ const (
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerShutdown
-	subscriptionEventKindHeartbeat
 )
 
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
-	// Heartbeat sends a heartbeat to the client. It is not guaranteed that the update is sent immediately. When calling,
-	// clients should reset their heartbeat timer after an Update call to make sure that we don't send needless heartbeats
-	// downstream
-	Heartbeat()
 	// Done also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Done.
 	Done()
 }
