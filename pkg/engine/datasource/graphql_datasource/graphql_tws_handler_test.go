@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/websocket"
 	"github.com/stretchr/testify/assert"
+	"nhooyr.io/websocket"
 )
 
 func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
