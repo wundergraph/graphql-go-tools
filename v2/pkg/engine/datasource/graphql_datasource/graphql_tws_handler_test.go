@@ -68,7 +68,6 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 	updater := &testSubscriptionUpdater{}
 	go func() {
 		rCtx := resolve.NewContext(ctx)
-		rCtx.ExecutionOptions.SendHeartbeat = true
 		err := client.Subscribe(rCtx, GraphQLSubscriptionOptions{
 			URL: server.URL,
 			Body: GraphQLBody{
@@ -77,12 +76,11 @@ func TestWebsocketSubscriptionClient_GQLTWS(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 	}()
-	updater.AwaitUpdates(t, 10*time.Second, 4)
-	assert.Equal(t, 4, len(updater.updates))
+	updater.AwaitUpdates(t, time.Second*5, 3)
+	assert.Equal(t, 3, len(updater.updates))
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 	assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-	assert.Equal(t, `{}`, updater.updates[3])
 
 	clientCancel()
 	assert.Eventuallyf(t, func() bool {

@@ -253,6 +253,9 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 	go func() {
 		err := handler.StartBlocking()
 		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				return
+			}
 			c.log.Error("subscriptionClient.subscribeWS", abstractlogger.Error(err))
 		}
 	}()
