@@ -68,7 +68,7 @@ func (e *Epoll) Close(closeConns bool) error {
 // Add adds a connection to the poller.
 func (e *Epoll) Add(conn net.Conn) error {
 	conn = newConnImpl(conn)
-	fd := socketFD(conn)
+	fd := SocketFD(conn)
 	if e := syscall.SetNonblock(int(fd), true); e != nil {
 		return errors.New("udev: unix.SetNonblock failed")
 	}
@@ -86,7 +86,7 @@ func (e *Epoll) Add(conn net.Conn) error {
 
 // Remove removes a connection from the poller.
 func (e *Epoll) Remove(conn net.Conn) error {
-	fd := socketFD(conn)
+	fd := SocketFD(conn)
 	err := unix.EpollCtl(e.fd, syscall.EPOLL_CTL_DEL, fd, nil)
 	if err != nil {
 		return err
