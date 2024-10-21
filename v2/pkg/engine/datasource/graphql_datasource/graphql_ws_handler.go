@@ -188,14 +188,6 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
 	netOpErr := &net.OpError{}
 	for {
-		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
-		if err != nil {
-			select {
-			case errCh <- err:
-			case <-ctx.Done():
-			}
-			return
-		}
 		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
 			if errors.As(err, &netOpErr) {
