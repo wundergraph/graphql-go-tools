@@ -139,9 +139,6 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 
 	go h.readBlocking(readCtx, dataCh, errCh)
 
-	ticker := time.NewTicker(resolve.HearbeatInterval)
-	defer ticker.Stop()
-
 	for {
 		select {
 		case <-h.engineContext.Done():
@@ -154,11 +151,7 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 			}
 			h.broadcastErrorMessage(err)
 			return err
-		case <-ticker.C:
-			h.updater.Heartbeat()
 		case data := <-dataCh:
-			ticker.Reset(resolve.HearbeatInterval)
-
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
 				continue

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/gobwas/ws/wsutil"
 	"math"
 	"net"
 	"net/http"
@@ -13,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gobwas/ws/wsutil"
 
 	"github.com/coder/websocket"
 
@@ -112,17 +113,10 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
-func UseHttpClientWithSkipRoundTrip() Options {
-	return func(options *opts) {
-		options.useHttpClientWithSkipRoundTrip = true
-	}
-}
-
 type EpollConfiguration struct {
 	Disable    bool
 	BufferSize int
 	Interval   time.Duration
-	Wait       time.Duration
 }
 
 func (e *EpollConfiguration) ApplyDefaults() {
@@ -131,9 +125,6 @@ func (e *EpollConfiguration) ApplyDefaults() {
 	}
 	if e.Interval == 0 {
 		e.Interval = time.Millisecond * 100
-	}
-	if e.Wait == 0 {
-		e.Wait = time.Millisecond * 100
 	}
 }
 
@@ -144,11 +135,10 @@ func WithEpollConfiguration(config EpollConfiguration) Options {
 }
 
 type opts struct {
-	readTimeout                    time.Duration
-	log                            abstractlogger.Logger
-	onWsConnectionInitCallback     *OnWsConnectionInitCallback
-	useHttpClientWithSkipRoundTrip bool
-	epollConfiguration             EpollConfiguration
+	readTimeout                time.Duration
+	log                        abstractlogger.Logger
+	onWsConnectionInitCallback *OnWsConnectionInitCallback
+	epollConfiguration         EpollConfiguration
 }
 
 // GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
@@ -188,12 +178,11 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 				return xxhash.New()
 			},
 		},
-		onWsConnectionInitCallback:     op.onWsConnectionInitCallback,
-		connections:                    make(map[int]ConnectionHandler),
-		activeConnections:              make(map[int]struct{}),
-		triggers:                       make(map[uint64]int),
-		useHttpClientWithSkipRoundTrip: op.useHttpClientWithSkipRoundTrip,
-		epollConfig:                    op.epollConfiguration,
+		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
+		connections:                make(map[int]ConnectionHandler),
+		activeConnections:          make(map[int]struct{}),
+		triggers:                   make(map[uint64]int),
+		epollConfig:                op.epollConfiguration,
 	}
 	if !op.epollConfiguration.Disable {
 		// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
@@ -406,6 +395,12 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 		Subprotocols:    subProtocols,
 	})
 	if err != nil {
+		if upgradeResponse != nil && upgradeResponse.StatusCode != 101 {
+			return nil, &UpgradeRequestError{
+				URL:        options.URL,
+				StatusCode: upgradeResponse.StatusCode,
+			}
+		}
 		return nil, err
 	}
 	// Disable the maximum message size limit. Don't use MaxInt64 since
@@ -533,18 +528,8 @@ func waitForAck(conn net.Conn) error {
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	var (
-		ticker <-chan time.Time
-		done   = ctx.Done()
+		done = ctx.Done()
 	)
-	if c.epollConfig.Wait > 0 {
-		tick := time.NewTicker(time.Millisecond * 50)
-		defer tick.Stop()
-		ticker = tick.C
-	} else {
-		tick := make(chan time.Time)
-		close(tick)
-		ticker = tick
-	}
 	for {
 		connections, err := c.epoll.Wait(50)
 		if err != nil {
@@ -571,16 +556,10 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 		}
 		c.connectionsMu.Unlock()
 
-		if len(connections) == 50 {
-			// we have more connections to process,
-			continue
-		}
-
 		select {
 		case <-done:
 			return
-		case <-ticker:
-			continue
+		default:
 		}
 	}
 }
