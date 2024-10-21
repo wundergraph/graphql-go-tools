@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net"
 	"net/http"
@@ -446,15 +447,15 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 		}
 	}
 
-	if err := waitForAck(netConn); err != nil {
+	if err := waitForAck(requestContext, conn); err != nil {
 		return nil, err
 	}
 
 	switch wsSubProtocol {
 	case ProtocolGraphQLWS:
-		return newGQLWSConnectionHandler(requestContext, engineContext, netConn, options, updater, c.log), nil
+		return newGQLWSConnectionHandler(requestContext, engineContext, conn, netConn, options, updater, c.log), nil
 	case ProtocolGraphQLTWS:
-		return newGQLTWSConnectionHandler(requestContext, engineContext, netConn, options, updater, c.log), nil
+		return newGQLTWSConnectionHandler(requestContext, engineContext, conn, netConn, options, updater, c.log), nil
 	default:
 		return nil, NewInvalidWsSubprotocolError(wsSubProtocol)
 	}
@@ -493,7 +494,7 @@ type ConnectionHandler interface {
 	Subscribe() error
 }
 
-func waitForAck(conn net.Conn) error {
+func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
@@ -502,12 +503,15 @@ func waitForAck(conn net.Conn) error {
 		default:
 		}
 
-		data, err := wsutil.ReadServerText(conn)
+		msgType, msg, err := conn.Read(ctx)
 		if err != nil {
-			return fmt.Errorf("failed to read message: %w", err)
+			return err
+		}
+		if msgType != websocket.MessageText {
+			return fmt.Errorf("unexpected message type")
 		}
 
-		respType, err := jsonparser.GetString(data, "type")
+		respType, err := jsonparser.GetString(msg, "type")
 		if err != nil {
 			return err
 		}
@@ -516,10 +520,11 @@ func waitForAck(conn net.Conn) error {
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
-			err := wsutil.WriteClientText(conn, []byte(pongMessage))
+			err := conn.Write(ctx, websocket.MessageText, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
 			}
+
 			continue
 		case messageTypeConnectionAck:
 			return nil
@@ -589,4 +594,28 @@ func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler,
 		_ = c.epoll.Remove(conn)
 		return
 	}
+}
+
+func handleConnectionError(err error) (closed, timeout bool) {
+	netOpErr := &net.OpError{}
+	if errors.As(err, &netOpErr) {
+		if netOpErr.Timeout() {
+			return false, true
+		}
+		return true, false
+	}
+
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true, false
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return false, true
+	}
+	if errors.As(err, &wsutil.ClosedError{}) {
+		return true, false
+	}
+	if strings.HasSuffix(err.Error(), "use of closed network connection") {
+		return true, false
+	}
+	return false, false
 }

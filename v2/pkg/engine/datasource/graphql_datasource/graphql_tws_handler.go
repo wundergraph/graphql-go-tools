@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/coder/websocket"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/gobwas/ws/wsutil"
@@ -21,7 +21,9 @@ import (
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlTWSConnectionHandler struct {
+	// The underlying net.Conn. Only used for epoll. Should not be used to shutdown the connection.
 	conn                          net.Conn
+	wsConn                        *websocket.Conn
 	requestContext, engineContext context.Context
 	log                           log.Logger
 	options                       GraphQLSubscriptionOptions
@@ -30,7 +32,7 @@ type gqlTWSConnectionHandler struct {
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
 	h.updater.Done()
-	_ = h.conn.Close()
+	_ = h.wsConn.CloseNow()
 }
 
 func (h *gqlTWSConnectionHandler) ClientClose() {
@@ -40,7 +42,7 @@ func (h *gqlTWSConnectionHandler) ClientClose() {
 	if err != nil {
 		h.log.Error("failed to write complete message", log.Error(err))
 	}
-	_ = h.conn.Close()
+	_ = h.wsConn.Close(websocket.StatusNormalClosure, "")
 }
 
 func (h *gqlTWSConnectionHandler) Subscribe() error {
@@ -57,12 +59,12 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 
 		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
 		if err != nil {
-			return h.handleConnectionError(err)
+			return handleConnectionError(err)
 		}
 
 		data, err := wsutil.ReadServerText(rwr)
 		if err != nil {
-			return h.handleConnectionError(err)
+			return handleConnectionError(err)
 		}
 
 		messageType, err := jsonparser.GetString(data, "type")
@@ -94,33 +96,14 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 	}
 }
 
-func (h *gqlTWSConnectionHandler) handleConnectionError(err error) (closed, timeout bool) {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return false, true
-	}
-	netOpErr := &net.OpError{}
-	if errors.As(err, &netOpErr) {
-		if netOpErr.Timeout() {
-			return false, true
-		}
-		return true, false
-	}
-	if errors.As(err, &wsutil.ClosedError{}) {
-		return true, false
-	}
-	if strings.HasSuffix(err.Error(), "use of closed network connection") {
-		return true, false
-	}
-	return false, false
-}
-
 func (h *gqlTWSConnectionHandler) NetConn() net.Conn {
 	return h.conn
 }
 
-func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, l log.Logger) *gqlTWSConnectionHandler {
+func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, wsConn *websocket.Conn, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, l log.Logger) *gqlTWSConnectionHandler {
 	return &gqlTWSConnectionHandler{
 		conn:           conn,
+		wsConn:         wsConn,
 		requestContext: requestContext,
 		engineContext:  engineContext,
 		log:            l,
@@ -190,7 +173,7 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 
 func (h *gqlTWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	h.unsubscribe()
-	_ = h.conn.Close()
+	_ = h.wsConn.Close(websocket.StatusNormalClosure, "")
 }
 
 func (h *gqlTWSConnectionHandler) unsubscribe() {
