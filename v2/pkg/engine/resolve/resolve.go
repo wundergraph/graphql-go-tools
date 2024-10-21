@@ -419,6 +419,7 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 	now := time.Now()
 	for c, s := range r.heartbeatSubscriptions {
 		// check if the last write to the subscription was more than heartbeat interval ago
+		c, s := c, s
 		s.mux.Lock()
 		skipHeartbeat := now.Sub(s.lastWrite) < HearbeatInterval
 		s.mux.Unlock()
