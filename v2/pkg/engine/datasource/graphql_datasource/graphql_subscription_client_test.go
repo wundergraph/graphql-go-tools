@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-
 	"github.com/coder/websocket"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"go.uber.org/atomic"
+	"go.uber.org/goleak"
 	"go.uber.org/zap"
 )
 
@@ -423,6 +422,9 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
 		assert.NoError(t, err)
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "done")
+		}()
 		ctx := context.Background()
 		msgType, data, err := conn.Read(ctx)
 		assert.NoError(t, err)
@@ -486,6 +488,84 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 	serverCancel()
 }
 
+func TestWebSocketClientLeaks(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := websocket.Accept(w, r, nil)
+		assert.NoError(t, err)
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "done")
+		}()
+		ctx := context.Background()
+		msgType, data, err := conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"connection_init"}`, string(data))
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assert.NoError(t, err)
+
+		time.Sleep(time.Second * 1)
+
+		msgType, data, err = conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"first"}}}}`))
+		assert.NoError(t, err)
+
+		time.Sleep(time.Second * 1)
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
+		assert.NoError(t, err)
+
+		time.Sleep(time.Second * 1)
+
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
+		assert.NoError(t, err)
+
+		msgType, data, err = conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+	}))
+	defer server.Close()
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+		WithReadTimeout(time.Second),
+		WithLogger(logger()),
+	).(*subscriptionClient)
+	wg := &sync.WaitGroup{}
+	wg.Add(2)
+	for i := 0; i < 2; i++ {
+		go func(i int) {
+			ctx, clientCancel := context.WithCancel(context.Background())
+			defer clientCancel()
+			updater := &testSubscriptionUpdater{}
+			err := client.SubscribeAsync(resolve.NewContext(ctx), uint64(i), GraphQLSubscriptionOptions{
+				URL: server.URL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+				WsSubProtocol: ProtocolGraphQLTWS,
+			}, updater)
+			assert.NoError(t, err)
+
+			updater.AwaitUpdates(t, time.Second*10, 3)
+			assert.Equal(t, 3, len(updater.updates))
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
+			client.Unsubscribe(uint64(i))
+			clientCancel()
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+}
+
 func TestAsyncSubscribe(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
@@ -497,6 +577,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
 			assert.NoError(t, err)
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
@@ -571,6 +654,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
 			assert.NoError(t, err)
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
@@ -640,6 +726,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
 			assert.NoError(t, err)
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
@@ -697,6 +786,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
 			assert.NoError(t, err)
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
@@ -760,9 +852,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
 			assert.NoError(t, err)
-
-			defer conn.Close(websocket.StatusNormalClosure, "done")
-
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
@@ -822,9 +914,9 @@ func TestAsyncSubscribe(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			conn, err := websocket.Accept(w, r, nil)
 			assert.NoError(t, err)
-
-			defer conn.Close(websocket.StatusNormalClosure, "done")
-
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
 			assert.NoError(t, err)
@@ -877,6 +969,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -909,6 +1004,9 @@ func TestAsyncSubscribe(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, websocket.MessageText, msgType)
 				assert.Equal(t, `{"type":"stop","id":"1"}`, string(data))
+
+				ctx = conn.CloseRead(ctx)
+				<-ctx.Done()
 				close(serverDone)
 			}))
 			defer server.Close()
@@ -951,6 +1049,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1014,6 +1115,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1076,6 +1180,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1141,6 +1248,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1173,6 +1283,11 @@ func TestAsyncSubscribe(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, websocket.MessageText, msgType)
 				assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
+
+				ctx = conn.CloseRead(ctx)
+				<-ctx.Done()
+				close(serverDone)
+
 				close(serverDone)
 			}))
 			defer server.Close()
@@ -1215,6 +1330,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1291,6 +1409,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1369,6 +1490,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1445,6 +1569,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1518,6 +1645,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1582,6 +1712,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1646,6 +1779,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)
@@ -1706,6 +1842,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
 				assert.NoError(t, err)
+				defer func() {
+					_ = conn.Close(websocket.StatusNormalClosure, "done")
+				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
 				assert.NoError(t, err)

@@ -1,11 +1,14 @@
 package graphql_datasource
 
 import (
+	"bufio"
 	"context"
+	"crypto/rand"
+	"crypto/sha1"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net"
 	"net/http"
 	"net/http/httptrace"
@@ -14,12 +17,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gobwas/ws/wsutil"
-
-	"github.com/coder/websocket"
-
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/epoller"
@@ -379,39 +379,10 @@ func (u *UpgradeRequestError) Error() string {
 }
 
 func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (ConnectionHandler, error) {
-	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
-	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
-		subProtocols = []string{options.WsSubProtocol}
-	}
 
-	var netConn net.Conn
-
-	clientTrace := &httptrace.ClientTrace{
-		GotConn: func(info httptrace.GotConnInfo) {
-			netConn = info.Conn
-		},
-	}
-	clientTraceCtx := httptrace.WithClientTrace(requestContext, clientTrace)
-	conn, upgradeResponse, err := websocket.Dial(clientTraceCtx, options.URL, &websocket.DialOptions{
-		HTTPClient:      c.httpClient,
-		HTTPHeader:      options.Header,
-		CompressionMode: websocket.CompressionDisabled,
-		Subprotocols:    subProtocols,
-	})
+	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
-		if upgradeResponse != nil && upgradeResponse.StatusCode != 101 {
-			return nil, &UpgradeRequestError{
-				URL:        options.URL,
-				StatusCode: upgradeResponse.StatusCode,
-			}
-		}
 		return nil, err
-	}
-	// Disable the maximum message size limit. Don't use MaxInt64 since
-	// the github.com/coder/websocket doesn't handle it correctly on 32-bit systems.
-	conn.SetReadLimit(math.MaxInt32)
-	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
-		return nil, fmt.Errorf("upgrade unsuccessful")
 	}
 
 	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
@@ -434,31 +405,107 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	}
 
 	// init + ack
-	err = wsutil.WriteClientText(netConn, connectionInitMessage)
+	err = wsutil.WriteClientText(conn, connectionInitMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	wsSubProtocol := subProtocols[0]
-	if options.WsSubProtocol == "" || options.WsSubProtocol == "auto" {
-		wsSubProtocol = conn.Subprotocol()
-		if wsSubProtocol == "" {
-			wsSubProtocol = ProtocolGraphQLWS
-		}
-	}
-
-	if err := waitForAck(requestContext, conn); err != nil {
+	if err := waitForAck(conn); err != nil {
 		return nil, err
 	}
 
-	switch wsSubProtocol {
+	switch subProtocol {
 	case ProtocolGraphQLWS:
-		return newGQLWSConnectionHandler(requestContext, engineContext, conn, netConn, options, updater, c.log), nil
+		return newGQLWSConnectionHandler(requestContext, engineContext, conn, options, updater, c.log), nil
 	case ProtocolGraphQLTWS:
-		return newGQLTWSConnectionHandler(requestContext, engineContext, conn, netConn, options, updater, c.log), nil
+		return newGQLTWSConnectionHandler(requestContext, engineContext, conn, options, updater, c.log), nil
 	default:
-		return nil, NewInvalidWsSubprotocolError(wsSubProtocol)
+		return nil, NewInvalidWsSubprotocolError(subProtocol)
 	}
+}
+
+func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscriptionOptions) (conn net.Conn, subProtocol string, err error) {
+	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
+	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
+		subProtocols = []string{options.WsSubProtocol}
+	}
+
+	clientTrace := &httptrace.ClientTrace{
+		GotConn: func(info httptrace.GotConnInfo) {
+			conn = info.Conn
+		},
+	}
+	clientTraceCtx := httptrace.WithClientTrace(ctx, clientTrace)
+	u := options.URL
+	if strings.HasPrefix(options.URL, "wss") {
+		u = "https" + options.URL[3:]
+	} else if strings.HasPrefix(options.URL, "ws") {
+		u = "http" + options.URL[2:]
+	}
+	req, err := http.NewRequestWithContext(clientTraceCtx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Proto = "HTTP/1.1"
+	req.ProtoMajor = 1
+	req.ProtoMinor = 1
+	if options.Header != nil {
+		req.Header = options.Header
+	}
+	req.Header.Set("Sec-WebSocket-Protocol", strings.Join(subProtocols, ","))
+	req.Header.Set("Sec-WebSocket-Version", "13")
+	req.Header.Set("Connection", "Upgrade")
+	req.Header.Set("Upgrade", "websocket")
+
+	challengeKey, err := generateChallengeKey()
+	if err != nil {
+		return nil, "", err
+	}
+
+	req.Header.Set("Sec-WebSocket-Key", challengeKey)
+
+	upgradeResponse, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		return nil, "", &UpgradeRequestError{
+			URL:        u,
+			StatusCode: upgradeResponse.StatusCode,
+		}
+	}
+
+	accept := computeAcceptKey(challengeKey)
+	if upgradeResponse.Header.Get("Sec-WebSocket-Accept") != accept {
+		return nil, "", fmt.Errorf("invalid Sec-WebSocket-Accept")
+	}
+
+	subProtocol = subProtocols[0]
+	if options.WsSubProtocol == "" || options.WsSubProtocol == "auto" {
+		subProtocol = upgradeResponse.Header.Get("Sec-WebSocket-Protocol")
+		if subProtocol == "" {
+			subProtocol = ProtocolGraphQLWS
+		}
+	}
+
+	return conn, subProtocol, nil
+}
+
+func generateChallengeKey() (string, error) {
+	p := make([]byte, 16)
+	if _, err := io.ReadFull(rand.Reader, p); err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(p), nil
+}
+
+var keyGUID = []byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+
+func computeAcceptKey(challengeKey string) string {
+	h := sha1.New() //#nosec G401 -- (CWE-326) https://datatracker.ietf.org/doc/html/rfc6455#page-54
+	h.Write([]byte(challengeKey))
+	h.Write(keyGUID)
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
 func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url string, header http.Header) ([]byte, error) {
@@ -494,7 +541,7 @@ type ConnectionHandler interface {
 	Subscribe() error
 }
 
-func waitForAck(ctx context.Context, conn *websocket.Conn) error {
+func waitForAck(conn net.Conn) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
@@ -502,29 +549,22 @@ func waitForAck(ctx context.Context, conn *websocket.Conn) error {
 			return fmt.Errorf("timeout while waiting for connection_ack")
 		default:
 		}
-
-		msgType, msg, err := conn.Read(ctx)
+		msg, err := wsutil.ReadServerText(conn)
 		if err != nil {
 			return err
 		}
-		if msgType != websocket.MessageText {
-			return fmt.Errorf("unexpected message type")
-		}
-
 		respType, err := jsonparser.GetString(msg, "type")
 		if err != nil {
 			return err
 		}
-
 		switch respType {
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
-			err := conn.Write(ctx, websocket.MessageText, []byte(pongMessage))
+			err = wsutil.WriteClientText(conn, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
 			}
-
 			continue
 		case messageTypeConnectionAck:
 			return nil
@@ -618,4 +658,29 @@ func handleConnectionError(err error) (closed, timeout bool) {
 		return true, false
 	}
 	return false, false
+}
+
+var (
+	readWriterPool = &ReadWriterPool{}
+)
+
+type ReadWriterPool struct {
+	pool sync.Pool
+}
+
+func (r *ReadWriterPool) Get(rw io.ReadWriter) *bufio.ReadWriter {
+	v := r.pool.Get()
+	if v == nil {
+		return bufio.NewReadWriter(bufio.NewReader(rw), bufio.NewWriter(rw))
+	}
+	rwr := v.(*bufio.ReadWriter)
+	rwr.Reader.Reset(rw)
+	rwr.Writer.Reset(rw)
+	return rwr
+}
+
+func (r *ReadWriterPool) Put(rw *bufio.ReadWriter) {
+	rw.Reader.Reset(nil)
+	rw.Writer.Reset(nil)
+	r.pool.Put(rw)
 }

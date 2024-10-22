@@ -1,20 +1,19 @@
 package graphql_datasource
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coder/websocket"
 	"net"
 	"time"
 
+	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
 	"github.com/buger/jsonparser"
-	log "github.com/jensneuse/abstractlogger"
+	"github.com/jensneuse/abstractlogger"
 )
 
 // gqlTWSConnectionHandler is responsible for handling a connection to an origin
@@ -23,26 +22,23 @@ import (
 type gqlTWSConnectionHandler struct {
 	// The underlying net.Conn. Only used for epoll. Should not be used to shutdown the connection.
 	conn                          net.Conn
-	wsConn                        *websocket.Conn
 	requestContext, engineContext context.Context
-	log                           log.Logger
+	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
 	h.updater.Done()
-	_ = h.wsConn.CloseNow()
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	_ = h.conn.Close()
 }
 
 func (h *gqlTWSConnectionHandler) ClientClose() {
 	h.updater.Done()
-	req := fmt.Sprintf(completeMessage, "1")
-	err := wsutil.WriteClientText(h.conn, []byte(req))
-	if err != nil {
-		h.log.Error("failed to write complete message", log.Error(err))
-	}
-	_ = h.wsConn.Close(websocket.StatusNormalClosure, "")
+	_ = wsutil.WriteClientText(h.conn, []byte(`{"id":"1","type":"complete"}`))
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	_ = h.conn.Close()
 }
 
 func (h *gqlTWSConnectionHandler) Subscribe() error {
@@ -51,18 +47,15 @@ func (h *gqlTWSConnectionHandler) Subscribe() error {
 
 func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 
-	r := bufio.NewReader(h.conn)
-	wr := bufio.NewWriter(h.conn)
-	rwr := bufio.NewReadWriter(r, wr)
+	rw := readWriterPool.Get(h.conn)
+	defer readWriterPool.Put(rw)
 
 	for {
-
 		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
 		if err != nil {
 			return handleConnectionError(err)
 		}
-
-		data, err := wsutil.ReadServerText(rwr)
+		data, err := wsutil.ReadServerText(rw)
 		if err != nil {
 			return handleConnectionError(err)
 		}
@@ -90,7 +83,7 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 			h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
 			return true, false
 		default:
-			h.log.Error("unknown message type", log.String("type", messageType))
+			h.log.Error("unknown message type", abstractlogger.String("type", messageType))
 			return false, false
 		}
 	}
@@ -100,10 +93,9 @@ func (h *gqlTWSConnectionHandler) NetConn() net.Conn {
 	return h.conn
 }
 
-func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, wsConn *websocket.Conn, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, l log.Logger) *gqlTWSConnectionHandler {
+func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, l abstractlogger.Logger) *gqlTWSConnectionHandler {
 	return &gqlTWSConnectionHandler{
 		conn:           conn,
-		wsConn:         wsConn,
 		requestContext: requestContext,
 		engineContext:  engineContext,
 		log:            l,
@@ -136,7 +128,7 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 		case <-readCtx.Done():
 			return readCtx.Err()
 		case err := <-errCh:
-			h.log.Error("gqlWSConnectionHandler.StartBlocking", log.Error(err))
+			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			h.broadcastErrorMessage(err)
 			return err
 		case data := <-dataCh:
@@ -164,7 +156,7 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 				h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
 				return errors.New("invalid subprotocol")
 			default:
-				h.log.Error("unknown message type", log.String("type", messageType))
+				h.log.Error("unknown message type", abstractlogger.String("type", messageType))
 				continue
 			}
 		}
@@ -173,7 +165,8 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 
 func (h *gqlTWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	h.unsubscribe()
-	_ = h.wsConn.Close(websocket.StatusNormalClosure, "")
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	_ = h.conn.Close()
 }
 
 func (h *gqlTWSConnectionHandler) unsubscribe() {
@@ -181,7 +174,7 @@ func (h *gqlTWSConnectionHandler) unsubscribe() {
 	req := fmt.Sprintf(completeMessage, "1")
 	err := wsutil.WriteClientText(h.conn, []byte(req))
 	if err != nil {
-		h.log.Error("failed to write complete message", log.Error(err))
+		h.log.Error("failed to write complete message", abstractlogger.Error(err))
 	}
 }
 
@@ -227,8 +220,8 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 	if err != nil {
 		h.log.Error(
 			"failed to get payload from error message",
-			log.Error(err),
-			log.ByteString("raw message", data),
+			abstractlogger.Error(err),
+			abstractlogger.ByteString("raw message", data),
 		)
 		h.updater.Update([]byte(internalError))
 		return
@@ -241,8 +234,8 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 		if err != nil {
 			h.log.Error(
 				"failed to set errors response",
-				log.Error(err),
-				log.ByteString("raw message", value),
+				abstractlogger.Error(err),
+				abstractlogger.ByteString("raw message", value),
 			)
 			h.updater.Update([]byte(internalError))
 			return
@@ -264,7 +257,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 	err := wsutil.WriteClientText(h.conn, []byte(pongMessage))
 	if err != nil {
-		h.log.Error("failed to write pong message", log.Error(err))
+		h.log.Error("failed to write pong message", abstractlogger.Error(err))
 	}
 }
 
@@ -280,7 +273,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
 	if err != nil {
 		h.log.Error(
 			"failed to get payload from next message",
-			log.Error(err),
+			abstractlogger.Error(err),
 		)
 		h.updater.Update([]byte(internalError))
 		return

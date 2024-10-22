@@ -1,16 +1,15 @@
 package graphql_datasource
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coder/websocket"
 	"io"
 	"net"
 	"time"
 
+	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 
@@ -24,7 +23,6 @@ import (
 type gqlWSConnectionHandler struct {
 	// The underlying net.Conn. Only used for epoll. Should not be used to shutdown the connection.
 	conn                          net.Conn
-	wsConn                        *websocket.Conn
 	requestContext, engineContext context.Context
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
@@ -33,14 +31,15 @@ type gqlWSConnectionHandler struct {
 
 func (h *gqlWSConnectionHandler) ServerClose() {
 	h.updater.Done()
-	_ = h.wsConn.CloseNow()
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	_ = h.conn.Close()
 }
 
 func (h *gqlWSConnectionHandler) ClientClose() {
 	h.updater.Done()
-	stopRequest := fmt.Sprintf(stopMessage, "1")
-	_ = wsutil.WriteClientText(h.conn, []byte(stopRequest))
-	_ = h.wsConn.Close(websocket.StatusNormalClosure, "")
+	_ = wsutil.WriteClientText(h.conn, []byte(`{"type":"stop","id":"1"}`))
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	_ = h.conn.Close()
 }
 
 func (h *gqlWSConnectionHandler) Subscribe() error {
@@ -49,16 +48,15 @@ func (h *gqlWSConnectionHandler) Subscribe() error {
 
 func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
 
-	r := bufio.NewReader(h.conn)
-	wr := bufio.NewWriter(h.conn)
-	rwr := bufio.NewReadWriter(r, wr)
+	rw := readWriterPool.Get(h.conn)
+	defer readWriterPool.Put(rw)
 
 	for {
 		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
 		if err != nil {
 			return handleConnectionError(err)
 		}
-		data, err := wsutil.ReadServerText(rwr)
+		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
 			return handleConnectionError(err)
 		}
@@ -91,10 +89,9 @@ func (h *gqlWSConnectionHandler) NetConn() net.Conn {
 	return h.conn
 }
 
-func newGQLWSConnectionHandler(requestContext, engineContext context.Context, wsConn *websocket.Conn, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, log abstractlogger.Logger) *gqlWSConnectionHandler {
+func newGQLWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, log abstractlogger.Logger) *gqlWSConnectionHandler {
 	return &gqlWSConnectionHandler{
 		conn:           conn,
-		wsConn:         wsConn,
 		requestContext: requestContext,
 		engineContext:  engineContext,
 		log:            log,
@@ -199,7 +196,8 @@ func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan [
 
 func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	h.unsubscribe()
-	_ = h.wsConn.Close(websocket.StatusNormalClosure, "")
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	_ = h.conn.Close()
 }
 
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
@@ -208,13 +206,11 @@ func (h *gqlWSConnectionHandler) subscribe() error {
 	if err != nil {
 		return err
 	}
-
 	startRequest := fmt.Sprintf(startMessage, "1", string(graphQLBody))
 	err = wsutil.WriteClientText(h.conn, []byte(startRequest))
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
