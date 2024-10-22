@@ -23,6 +23,8 @@ type Epoll struct {
 	changes        []syscall.Kevent_t
 	conns          map[int]net.Conn
 	connbuf        []net.Conn
+
+	events []syscall.Kevent_t
 }
 
 // NewPoller creates a new poller instance.
@@ -123,7 +125,10 @@ func (e *Epoll) Remove(conn net.Conn) error {
 
 // Wait waits for events and returns the connections.
 func (e *Epoll) Wait(count int) ([]net.Conn, error) {
-	events := make([]syscall.Kevent_t, count)
+	if e.events == nil {
+		e.events = make([]syscall.Kevent_t, count)
+	}
+	events := e.events[:count]
 
 	e.mu.RLock()
 	changes := e.changes

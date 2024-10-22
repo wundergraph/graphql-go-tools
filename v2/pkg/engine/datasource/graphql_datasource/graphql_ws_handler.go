@@ -56,7 +56,7 @@ func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
 		if err != nil {
 			return handleConnectionError(err)
 		}
-		data, err := wsutil.ReadServerText(h.conn)
+		data, err := wsutil.ReadServerText(rw)
 		if err != nil {
 			return handleConnectionError(err)
 		}

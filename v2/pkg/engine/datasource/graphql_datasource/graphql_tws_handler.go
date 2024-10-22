@@ -59,7 +59,6 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 		if err != nil {
 			return handleConnectionError(err)
 		}
-
 		messageType, err := jsonparser.GetString(data, "type")
 		if err != nil {
 			return false, false

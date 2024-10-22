@@ -25,6 +25,7 @@ type Epoll struct {
 	connbuf        []net.Conn
 
 	timeoutMsec int
+	events      []unix.EpollEvent
 }
 
 // NewPoller creates a new epoll poller.
@@ -100,7 +101,10 @@ func (e *Epoll) Remove(conn net.Conn) error {
 
 // Wait waits for at most count events and returns the connections.
 func (e *Epoll) Wait(count int) ([]net.Conn, error) {
-	events := make([]unix.EpollEvent, count)
+	if e.events == nil {
+		e.events = make([]unix.EpollEvent, count)
+	}
+	events := e.events[:count]
 
 retry:
 	n, err := unix.EpollWait(e.fd, events, e.timeoutMsec)

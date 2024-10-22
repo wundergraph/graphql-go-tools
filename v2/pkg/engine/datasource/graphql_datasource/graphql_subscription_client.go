@@ -52,7 +52,8 @@ type subscriptionClient struct {
 	activeConnections   map[int]struct{}
 	activeConnectionsMu sync.Mutex
 
-	triggers map[uint64]int
+	triggers                map[uint64]int
+	asyncUnsubscribeTrigger chan uint64
 }
 
 func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -70,20 +71,7 @@ func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, opt
 }
 
 func (c *subscriptionClient) Unsubscribe(id uint64) {
-	c.connectionsMu.Lock()
-	defer c.connectionsMu.Unlock()
-	fd, ok := c.triggers[id]
-	if !ok {
-		return
-	}
-	delete(c.triggers, id)
-	handler, ok := c.connections[fd]
-	if !ok {
-		return
-	}
-	handler.ClientClose()
-	delete(c.connections, fd)
-	_ = c.epoll.Remove(handler.NetConn())
+	c.asyncUnsubscribeTrigger <- id
 }
 
 type InvalidWsSubprotocolError struct {
@@ -183,6 +171,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		connections:                make(map[int]ConnectionHandler),
 		activeConnections:          make(map[int]struct{}),
 		triggers:                   make(map[uint64]int),
+		asyncUnsubscribeTrigger:    make(chan uint64, op.epollConfiguration.BufferSize),
 		epollConfig:                op.epollConfiguration,
 	}
 	if !op.epollConfiguration.Disable {
@@ -575,14 +564,12 @@ func waitForAck(conn net.Conn) error {
 }
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
-	var (
-		done = ctx.Done()
-	)
+	done := ctx.Done()
 	for {
-		connections, err := c.epoll.Wait(50)
+		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
-			return
+			continue
 		}
 		c.connectionsMu.Lock()
 		for _, conn := range connections {
@@ -602,12 +589,35 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 			}
 			go c.handleConnection(id, handler, conn)
 		}
+		c.handlePendingUnsubscribe()
 		c.connectionsMu.Unlock()
 
 		select {
 		case <-done:
 			return
 		default:
+		}
+	}
+}
+
+func (c *subscriptionClient) handlePendingUnsubscribe() {
+	for {
+		select {
+		case id := <-c.asyncUnsubscribeTrigger:
+			fd, ok := c.triggers[id]
+			if !ok {
+				continue
+			}
+			delete(c.triggers, id)
+			handler, ok := c.connections[fd]
+			if !ok {
+				continue
+			}
+			delete(c.connections, fd)
+			_ = c.epoll.Remove(handler.NetConn())
+			handler.ClientClose()
+		default:
+			return
 		}
 	}
 }
@@ -630,8 +640,8 @@ func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler,
 		delete(c.connections, id)
 		c.connectionsMu.Unlock()
 
-		handler.ServerClose()
 		_ = c.epoll.Remove(conn)
+		handler.ServerClose()
 		return
 	}
 }
