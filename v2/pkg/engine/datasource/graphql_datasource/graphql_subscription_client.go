@@ -564,6 +564,8 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	done := ctx.Done()
 	wg := sync.WaitGroup{}
 
+	go c.handlePendingUnsubscribe(ctx)
+
 	for {
 		select {
 		case <-done:
@@ -575,6 +577,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				c.log.Error("epoll.Wait", abstractlogger.Error(err))
 				continue
 			}
+
 			c.connectionsMu.RLock()
 			for _, cc := range connections {
 				conn := cc
@@ -591,17 +594,19 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 			}
 			c.connectionsMu.RUnlock()
 
-			c.handlePendingUnsubscribe()
-
 			wg.Wait()
 		}
 	}
 }
 
-func (c *subscriptionClient) handlePendingUnsubscribe() {
+func (c *subscriptionClient) handlePendingUnsubscribe(ctx context.Context) {
+
 	for {
 		select {
-		case id := <-c.asyncUnsubscribeTrigger:
+		case <-ctx.Done():
+			c.log.Debug("handlePendingUnsubscribe context done", abstractlogger.Error(ctx.Err()))
+			return
+		case id, ok := <-c.asyncUnsubscribeTrigger:
 			c.connectionsMu.Lock()
 
 			fd, ok := c.triggers[id]
@@ -623,10 +628,9 @@ func (c *subscriptionClient) handlePendingUnsubscribe() {
 
 			_ = c.epoll.Remove(handler.NetConn())
 			handler.ClientClose()
-		default:
-			return
 		}
 	}
+
 }
 
 func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler, conn net.Conn) {
