@@ -565,34 +565,34 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	wg := sync.WaitGroup{}
 
 	for {
-		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
-		if err != nil {
-			c.log.Error("epoll.Wait", abstractlogger.Error(err))
-			continue
-		}
-		c.connectionsMu.RLock()
-		for _, cc := range connections {
-			conn := cc
-			id := epoller.SocketFD(conn)
-			handler, ok := c.connections[id]
-			if !ok {
-				continue
-			}
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				c.handleConnection(id, handler, conn)
-			}()
-		}
-		c.connectionsMu.RUnlock()
-
-		c.handlePendingUnsubscribe()
-
 		select {
 		case <-done:
-			c.log.Debug("epoll done due to context done")
+			c.log.Debug("epoll context done", abstractlogger.Error(ctx.Err()))
 			return
 		default:
+			connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
+			if err != nil {
+				c.log.Error("epoll.Wait", abstractlogger.Error(err))
+				continue
+			}
+			c.connectionsMu.RLock()
+			for _, cc := range connections {
+				conn := cc
+				id := epoller.SocketFD(conn)
+				handler, ok := c.connections[id]
+				if !ok {
+					continue
+				}
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					c.handleConnection(id, handler, conn)
+				}()
+			}
+			c.connectionsMu.RUnlock()
+
+			c.handlePendingUnsubscribe()
+
 			wg.Wait()
 		}
 	}

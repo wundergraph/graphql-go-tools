@@ -3,6 +3,7 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
+	"go.uber.org/goleak"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
@@ -16,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"go.uber.org/atomic"
-	"go.uber.org/goleak"
 	"go.uber.org/zap"
 )
 
@@ -490,7 +490,13 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 
 func TestWebSocketClientLeaks(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	wg := &sync.WaitGroup{}
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		wg.Add(1)
+		defer wg.Done()
+
 		conn, err := websocket.Accept(w, r, nil)
 		assert.NoError(t, err)
 		defer func() {
@@ -537,7 +543,7 @@ func TestWebSocketClientLeaks(t *testing.T) {
 		WithReadTimeout(time.Second),
 		WithLogger(logger()),
 	).(*subscriptionClient)
-	wg := &sync.WaitGroup{}
+
 	wg.Add(2)
 	for i := 0; i < 2; i++ {
 		go func(i int) {
@@ -560,9 +566,13 @@ func TestWebSocketClientLeaks(t *testing.T) {
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(uint64(i))
 			clientCancel()
+
+			time.Sleep(200 * time.Millisecond)
+
 			wg.Done()
 		}(i)
 	}
+
 	wg.Wait()
 }
 
@@ -641,7 +651,11 @@ func TestAsyncSubscribe(t *testing.T) {
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 		client.Unsubscribe(1)
+
 		clientCancel()
+
+		time.Sleep(200 * time.Millisecond)
+
 		assert.Eventuallyf(t, func() bool {
 			<-serverDone
 			return true
@@ -675,7 +689,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"second"}}}}`))
 			assert.NoError(t, err)
 
-			time.Sleep(time.Second * 2)
+			time.Sleep(time.Second * 4)
 
 			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"third"}}}}`))
 			assert.NoError(t, err)
@@ -713,7 +727,11 @@ func TestAsyncSubscribe(t *testing.T) {
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 		client.Unsubscribe(1)
+
 		clientCancel()
+
+		time.Sleep(200 * time.Millisecond)
+
 		assert.Eventuallyf(t, func() bool {
 			<-serverDone
 			return true
@@ -1286,8 +1304,6 @@ func TestAsyncSubscribe(t *testing.T) {
 				ctx = conn.CloseRead(ctx)
 				<-ctx.Done()
 				close(serverDone)
-
-				close(serverDone)
 			}))
 			defer server.Close()
 			ctx, clientCancel := context.WithCancel(context.Background())
@@ -1316,7 +1332,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
+
 			clientCancel()
+
+			time.Sleep(200 * time.Millisecond)
+
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
@@ -1555,7 +1575,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
+
 			clientCancel()
+
+			time.Sleep(200 * time.Millisecond)
+
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
@@ -1631,7 +1655,11 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
+
 			clientCancel()
+
+			time.Sleep(200 * time.Millisecond)
+
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
