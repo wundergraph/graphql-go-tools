@@ -15,6 +15,7 @@ import (
 	"net/textproto"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -47,10 +48,9 @@ type subscriptionClient struct {
 	epollConfig EpollConfiguration
 
 	connections   map[int]ConnectionHandler
-	connectionsMu sync.Mutex
+	connectionsMu sync.RWMutex
 
-	activeConnections   map[int]struct{}
-	activeConnectionsMu sync.Mutex
+	activeConnections map[int]struct{}
 
 	triggers                map[uint64]int
 	asyncUnsubscribeTrigger chan uint64
@@ -110,7 +110,7 @@ type EpollConfiguration struct {
 
 func (e *EpollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
-		e.BufferSize = 1024
+		e.BufferSize = 2048
 	}
 	if e.Interval == 0 {
 		e.Interval = time.Millisecond * 100
@@ -565,37 +565,37 @@ func waitForAck(conn net.Conn) error {
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	done := ctx.Done()
+	wg := sync.WaitGroup{}
+
 	for {
 		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
 			continue
 		}
-		c.connectionsMu.Lock()
-		for _, conn := range connections {
+		c.connectionsMu.RLock()
+		for _, cc := range connections {
+			conn := cc
 			id := epoller.SocketFD(conn)
 			handler, ok := c.connections[id]
 			if !ok {
 				continue
 			}
-			c.activeConnectionsMu.Lock()
-			_, active := c.activeConnections[id]
-			if !active {
-				c.activeConnections[id] = struct{}{}
-			}
-			c.activeConnectionsMu.Unlock()
-			if active {
-				continue
-			}
-			go c.handleConnection(id, handler, conn)
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				c.handleConnection(id, handler, conn)
+			}()
 		}
 		c.handlePendingUnsubscribe()
-		c.connectionsMu.Unlock()
+		c.connectionsMu.RUnlock()
 
 		select {
 		case <-done:
+			c.log.Debug("epoll done due to context done")
 			return
 		default:
+			wg.Wait()
 		}
 	}
 }
@@ -604,16 +604,25 @@ func (c *subscriptionClient) handlePendingUnsubscribe() {
 	for {
 		select {
 		case id := <-c.asyncUnsubscribeTrigger:
+			c.connectionsMu.Lock()
+
 			fd, ok := c.triggers[id]
 			if !ok {
+				c.connectionsMu.Unlock()
 				continue
 			}
+
 			delete(c.triggers, id)
+
 			handler, ok := c.connections[fd]
 			if !ok {
+				c.connectionsMu.Unlock()
 				continue
 			}
+
 			delete(c.connections, fd)
+			c.connectionsMu.Unlock()
+
 			_ = c.epoll.Remove(handler.NetConn())
 			handler.ClientClose()
 		default:
@@ -625,17 +634,10 @@ func (c *subscriptionClient) handlePendingUnsubscribe() {
 func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler, conn net.Conn) {
 	done, timeout := handler.ReadMessage()
 	if timeout {
-		c.activeConnectionsMu.Lock()
-		delete(c.activeConnections, id)
-		c.activeConnectionsMu.Unlock()
 		return
 	}
 
 	if done {
-		c.activeConnectionsMu.Lock()
-		delete(c.activeConnections, id)
-		c.activeConnectionsMu.Unlock()
-
 		c.connectionsMu.Lock()
 		delete(c.connections, id)
 		c.connectionsMu.Unlock()
@@ -655,18 +657,35 @@ func handleConnectionError(err error) (closed, timeout bool) {
 		return true, false
 	}
 
+	// Check if we have errors during reading from the connection
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
 		return true, false
 	}
+
+	// Check if we have a context error
 	if errors.Is(err, context.DeadlineExceeded) {
 		return false, true
 	}
+
+	// Check if the error is a connection reset by peer
+	if errors.Is(err, syscall.ECONNRESET) {
+		return true, false
+	}
+	if errors.Is(err, syscall.EPIPE) {
+		return true, false
+	}
+
+	// Check if the error is a closed network connection. Introduced in go 1.16.
+	// This replaces the string match of "use of closed network connection"
+	if errors.Is(err, net.ErrClosed) {
+		return true, false
+	}
+
+	// Check if the error is closed websocket connection
 	if errors.As(err, &wsutil.ClosedError{}) {
 		return true, false
 	}
-	if strings.HasSuffix(err.Error(), "use of closed network connection") {
-		return true, false
-	}
+
 	return false, false
 }
 

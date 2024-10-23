@@ -52,7 +52,7 @@ func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
 	defer readWriterPool.Put(rw)
 
 	for {
-		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
+		err := h.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 		if err != nil {
 			return handleConnectionError(err)
 		}
