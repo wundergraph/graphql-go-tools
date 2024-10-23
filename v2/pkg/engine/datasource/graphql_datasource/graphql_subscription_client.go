@@ -607,6 +607,10 @@ func (c *subscriptionClient) handlePendingUnsubscribe(ctx context.Context) {
 			c.log.Debug("handlePendingUnsubscribe context done", abstractlogger.Error(ctx.Err()))
 			return
 		case id, ok := <-c.asyncUnsubscribeTrigger:
+			if !ok {
+				return
+			}
+
 			c.connectionsMu.Lock()
 
 			fd, ok := c.triggers[id]
