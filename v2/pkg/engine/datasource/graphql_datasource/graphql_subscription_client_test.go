@@ -958,9 +958,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		assert.Equal(t, 1, len(updater.updates))
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 		time.Sleep(time.Second * 2)
-		client.activeConnectionsMu.Lock()
-		defer client.activeConnectionsMu.Unlock()
-		assert.Equal(t, 0, len(client.activeConnections))
 	})
 	t.Run("graphql-ws", func(t *testing.T) {
 		t.Parallel()
@@ -1036,7 +1033,9 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
 			client.Unsubscribe(1)
+
 			clientCancel()
+
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true

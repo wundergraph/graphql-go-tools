@@ -50,8 +50,6 @@ type subscriptionClient struct {
 	connections   map[int]ConnectionHandler
 	connectionsMu sync.RWMutex
 
-	activeConnections map[int]struct{}
-
 	triggers                map[uint64]int
 	asyncUnsubscribeTrigger chan uint64
 }
@@ -169,7 +167,6 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		},
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
 		connections:                make(map[int]ConnectionHandler),
-		activeConnections:          make(map[int]struct{}),
 		triggers:                   make(map[uint64]int),
 		asyncUnsubscribeTrigger:    make(chan uint64, op.epollConfiguration.BufferSize),
 		epollConfig:                op.epollConfiguration,
@@ -587,8 +584,9 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				c.handleConnection(id, handler, conn)
 			}()
 		}
-		c.handlePendingUnsubscribe()
 		c.connectionsMu.RUnlock()
+
+		c.handlePendingUnsubscribe()
 
 		select {
 		case <-done:
