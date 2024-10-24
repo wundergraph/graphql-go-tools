@@ -13350,8 +13350,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			})
 
 			t.Run("do not query external conditional fields - No Image.id key in a query", func(t *testing.T) {
-				t.Skip("TODO: important to fix")
-
 				/*
 					Tricky edge case
 
@@ -13361,6 +13359,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					the problem here - at the first iterations we don't know yet that we should select image from some of the subgraphs, as it doesn't have selectable fields
 					because cdnUrl coming from the different subgraph
 				*/
+
+				// TODO: implement same kind of test but with HostedImage type as union and interface
+				// TODO: add test when parent nodes are shareable and should be selected basic on keys to child
 
 				RunWithPermutations(
 					t,
@@ -13394,7 +13395,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -13599,10 +13600,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 
-				variant1 := expectedPlan("http://second.service")
 				variant2 := expectedPlan("http://third.service")
 
-				RunWithPermutationsVariants(
+				RunWithPermutations(
 					t,
 					definition,
 					`
@@ -13616,32 +13616,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 						}`,
 					"User",
-					[]plan.Plan{
-						variant1,
-						variant1,
-						variant2,
-						variant2,
-						variant1,
-						variant2,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant1,
-						variant2,
-						variant1,
-						variant1,
-						variant2,
-						variant2,
-					},
+					variant2,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -14235,9 +14210,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 
 				variant1 := expectedPlan("http://second.service")
-				variant2 := expectedPlan("http://third.service")
 
-				RunWithPermutationsVariants(
+				RunWithPermutations(
 					t,
 					definition,
 					`
@@ -14251,32 +14225,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 						}`,
 					"User",
-					[]plan.Plan{
-						variant1,
-						variant1,
-						variant2,
-						variant2,
-						variant1,
-						variant2,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant1,
-						variant2,
-						variant1,
-						variant1,
-						variant2,
-						variant2,
-					},
+					variant1,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)

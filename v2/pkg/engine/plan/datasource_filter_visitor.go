@@ -142,6 +142,7 @@ const (
 	ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
 	ReasonStage3SelectParentRootNodeWithEnabledEntityResolver         = "stage3: first available parent node with enabled entity resolver"
 	ReasonStage3SelectNodeUnderFirstParentRootNode                    = "stage3: node under first available parent node with enabled entity resolver"
+	ReasonStage3SelectParentNodeWhichCouldGiveKeys                    = "stage3: select parent node which could provide keys for the child node"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
@@ -292,7 +293,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver)
 			},
-			func(i int) bool {
+			func(i int) (skip bool) {
 				if !f.nodes.items[i].IsRootNode {
 					return true
 				}
@@ -307,11 +308,22 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				}
 
 				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
-				if !f.nodes.items[i].IsLeaf && !f.couldProvideChildFields(i) {
-					return true
+				// it may be the case that all fields belongs to different datasource, but this node could serve as the connection point
+				// to the other datasources, so we check if parent could provide a key
+				// and that we could provide a key to the next childs
+				if f.nodes.items[i].IsLeaf {
+					return false
 				}
 
-				return false
+				if f.couldProvideChildFields(i) {
+					return false
+				}
+
+				if f.nodeCouldProvideKeysToChildNodes(i) {
+					return false
+				}
+
+				return true
 			}) {
 			continue
 		}
@@ -384,6 +396,23 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			// we can't select node if it doesn't have any child nodes to select
 			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
 		}
+
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				if f.nodeCouldProvideKeysToChildNodes(i) {
+					f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
+
+					return true
+				}
+
+				return false
+			},
+			func(i int) (skip bool) {
+				// do not evaluate childs for the leaf nodes
+				return f.nodes.items[i].IsLeaf
+			}) {
+			continue
+		}
 	}
 }
 
@@ -413,8 +442,48 @@ func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
 func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx int) bool {
 	treeNode := f.nodes.treeNode(idx)
 	parentNodeIndexes := treeNode.GetParent().GetData()
-	typeName := f.nodes.items[idx].TypeName
 
+	for _, parentIdx := range parentNodeIndexes {
+		if !f.nodes.items[parentIdx].Selected {
+			continue
+		}
+
+		if f.parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
+	childIds := f.nodes.childNodesIds(idx, false)
+
+	for _, childId := range childIds {
+		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int) bool {
+	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
+		for _, typeName := range f.nodes.items[idx].possibleTypeNames {
+			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	typeName := f.nodes.items[idx].TypeName
+	return f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName)
+}
+
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string) bool {
 	currentDsHash := f.nodes.items[idx].DataSourceHash
 	currenDsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
 		return ds.Hash() == currentDsHash
@@ -426,64 +495,58 @@ func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx in
 	currentDsKeys := currentDs.FederationConfiguration().Keys
 	possibleKeys := currentDsKeys.FilterByTypeAndResolvability(typeName, true)
 
-	for _, parentIdx := range parentNodeIndexes {
-		if !f.nodes.items[parentIdx].Selected {
+	dsHash := f.nodes.items[parentIdx].DataSourceHash
+	dsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
+		return ds.Hash() == dsHash
+	})
+	if dsIdx == -1 {
+		return false
+	}
+
+	ds := f.dataSources[dsIdx]
+	keys := ds.FederationConfiguration().Keys
+
+	keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
+
+	for _, possibleKey := range possibleKeys {
+		if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
+			return keyCfg.SelectionSet == possibleKey.SelectionSet
+		}) {
+			return true
+		}
+	}
+
+	// second check is for the keys which do not have entity resolver
+	// e.g. resolvable: false or implicit keys
+	keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
+
+	// NOTE: logic here is limited currently to only resolvable keys
+	// there also could be potential matches with implicit conditional keys
+	// if there will be a need to support such cases, we need to extend this logic
+
+	var (
+		implicitKeys []FederationFieldConfiguration
+	)
+
+	for _, keyCfg := range keyConfigurations {
+		if len(keyCfg.Conditions) == 0 {
+			implicitKeys = append(implicitKeys, keyCfg)
 			continue
 		}
+	}
 
-		dsHash := f.nodes.items[parentIdx].DataSourceHash
-		dsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
-			return ds.Hash() == dsHash
-		})
-		if dsIdx == -1 {
-			continue
-		}
-
-		ds := f.dataSources[dsIdx]
-		keys := ds.FederationConfiguration().Keys
-
-		keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
-
-		for _, possibleKey := range possibleKeys {
-			if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
-				return keyCfg.SelectionSet == possibleKey.SelectionSet
-			}) {
-				return true
-			}
-		}
-
-		// second check is for the keys which do not have entity resolver
-		// e.g. resolvable: false or implicit keys
-		keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
-
-		// NOTE: logic here is limited currently to only resolvable keys
-		// there also could be potential matches with implicit conditional keys
-		// if there will be a need to support such cases, we need to extend this logic
-
-		var (
-			implicitKeys []FederationFieldConfiguration
-		)
-
-		for _, keyCfg := range keyConfigurations {
-			if len(keyCfg.Conditions) == 0 {
-				implicitKeys = append(implicitKeys, keyCfg)
-				continue
-			}
-		}
-
-		for _, possibleKey := range possibleKeys {
-			if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
-				return keyCfg.SelectionSet == possibleKey.SelectionSet
-			}) {
-				return true
-			}
+	for _, possibleKey := range possibleKeys {
+		if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
+			return keyCfg.SelectionSet == possibleKey.SelectionSet
+		}) {
+			return true
 		}
 	}
 
 	return false
 }
 
-func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) bool) (nodeIsSelected bool) {
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
 	for _, i := range duplicates {
 		if skip != nil && skip(i) {
 			continue
