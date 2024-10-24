@@ -28,6 +28,8 @@ github.com/dgryski/trifles v0.0.0-20200323201526-dd97f9abfb48/go.mod h1:if7Fbed8
 github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
 github.com/dlclark/regexp2 v1.7.0 h1:7lJfhqlPssTb1WQx4yvTHN0uElPEv52sbaECrAQxjAo=
 github.com/dlclark/regexp2 v1.7.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
+github.com/dlclark/regexp2 v1.11.0 h1:G/nrcoOa7ZXlpoa/91N3X7mM3r8eIlMBBJZvsz/mxKI=
+github.com/dlclark/regexp2 v1.11.0/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06/go.mod h1:R9ET47fwRVRPZnOGvHxxhuZcbrMCuiqOz3Rlrh4KSnk=
 github.com/dop251/goja v0.0.0-20230906160731-9410bcaa81d2 h1:3J+RqSTu+JuyCYjoe82vvUUljEfgp8i6+nyhUsaYAbg=
 github.com/dop251/goja v0.0.0-20230906160731-9410bcaa81d2/go.mod h1:QMWlm50DNe14hD7t24KEqZuUdC9sOTy8W6XbCU1mlw4=
@@ -144,6 +146,8 @@ github.com/vektah/gqlparser/v2 v2.5.11 h1:JJxLtXIoN7+3x6MBdtIP59TP1RANnY7pXOaDnA
 github.com/vektah/gqlparser/v2 v2.5.11/go.mod h1:1rCcfwB2ekJofmluGWXMSEnPMZgbxzwj6FaZ/4OT8Cc=
 github.com/wundergraph/cosmo/composition-go v0.0.0-20240729154441-b20b00e892c6 h1:e9fqrUgU7Mr8FO8mRPzeJOQEbmrmJftOy+qME9poikY=
 github.com/wundergraph/cosmo/composition-go v0.0.0-20240729154441-b20b00e892c6/go.mod h1:WbKC2jd0g6BFsMpNDRVSoQyZ0QB6sWqpRfe0/1pTah4=
+github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99 h1:TGXDYfDhwFLFTuNuCwkuqXT5aXGz47zcurXLfTBS9w4=
+github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99/go.mod h1:fUuOAUAXUFB/mlSkAaImGeE4A841AKR5dTMWhV4ibxI=
 github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6 h1:oXnHjPyl2Wes+mnCQbR0F1v0WAUOf974PdANFMA4CmI=
 github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6/go.mod h1:0FOIMzc1cY8c4rUczyhmI2es84HGoEJV2MIbDbiEWzg=
 github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.66 h1:82Q13hifV6joW9cjAQmWylWP1JEB2/ceF8gBThczakw=
