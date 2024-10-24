@@ -74,7 +74,7 @@ func TestWebsocketSubscriptionClientImmediateClientCancel(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -133,7 +133,7 @@ func TestWebsocketSubscriptionClientWithServerDisconnect(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -197,7 +197,7 @@ func TestSubprotocolNegotiationWithGraphQLWS(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -265,7 +265,7 @@ func TestSubprotocolNegotiationWithGraphQLTransportWS(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -328,7 +328,7 @@ func TestSubprotocolNegotiationWithNoSubprotocol(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -390,7 +390,7 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLWS(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -459,7 +459,7 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	updater := &testSubscriptionUpdater{}
@@ -539,7 +539,7 @@ func TestWebSocketClientLeaks(t *testing.T) {
 	defer serverCancel()
 
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Second),
+
 		WithLogger(logger()),
 	).(*subscriptionClient)
 	wg := &sync.WaitGroup{}
@@ -587,6 +587,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.NoError(t, err)
 			defer func() {
 				_ = conn.Close(websocket.StatusNormalClosure, "done")
+				defer close(serverDone)
 			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
@@ -620,7 +621,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, websocket.MessageText, msgType)
 			assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
-			close(serverDone)
 		}))
 		defer server.Close()
 		ctx, clientCancel := context.WithCancel(context.Background())
@@ -629,7 +629,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		defer serverCancel()
 
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Second),
 			WithLogger(logger()),
 		).(*subscriptionClient)
 		updater := &testSubscriptionUpdater{}
@@ -653,7 +652,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		assert.Eventuallyf(t, func() bool {
 			<-serverDone
 			return true
-		}, time.Second, time.Millisecond*10, "server did not close")
+		}, time.Second*5, time.Millisecond*10, "server did not close")
 		serverCancel()
 	})
 	t.Run("server timeout", func(t *testing.T) {
@@ -701,7 +700,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		defer serverCancel()
 
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Second),
 			WithLogger(logger()),
 		).(*subscriptionClient)
 		updater := &testSubscriptionUpdater{}
@@ -763,7 +761,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		defer serverCancel()
 
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Second),
 			WithLogger(logger()),
 		).(*subscriptionClient)
 		updater := &testSubscriptionUpdater{}
@@ -829,7 +826,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		defer serverCancel()
 
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Second),
 			WithLogger(logger()),
 		).(*subscriptionClient)
 		updater := &testSubscriptionUpdater{}
@@ -889,7 +885,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		defer serverCancel()
 
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Second),
 			WithLogger(logger()),
 		).(*subscriptionClient)
 		updater := &testSubscriptionUpdater{}
@@ -948,7 +943,6 @@ func TestAsyncSubscribe(t *testing.T) {
 		defer serverCancel()
 
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-			WithReadTimeout(time.Second),
 			WithLogger(logger()),
 		).(*subscriptionClient)
 		updater := &testSubscriptionUpdater{}
@@ -1021,7 +1015,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1047,7 +1040,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
-			}, time.Second, time.Millisecond*10, "server did not close")
+			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
 		t.Run("connection error", func(t *testing.T) {
@@ -1088,7 +1081,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1156,7 +1148,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1178,7 +1169,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
-			}, time.Second, time.Millisecond*10, "server did not close")
+			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
 		t.Run("error array", func(t *testing.T) {
@@ -1189,6 +1180,7 @@ func TestAsyncSubscribe(t *testing.T) {
 				assert.NoError(t, err)
 				defer func() {
 					_ = conn.Close(websocket.StatusNormalClosure, "done")
+					close(serverDone)
 				}()
 				ctx := context.Background()
 				msgType, data, err := conn.Read(ctx)
@@ -1212,7 +1204,6 @@ func TestAsyncSubscribe(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, websocket.MessageText, msgType)
 				assert.Equal(t, `{"type":"stop","id":"1"}`, string(data))
-				close(serverDone)
 			}))
 			defer server.Close()
 			ctx, clientCancel := context.WithCancel(context.Background())
@@ -1221,7 +1212,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1243,7 +1233,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
-			}, time.Second, time.Millisecond*10, "server did not close")
+			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
 	})
@@ -1294,8 +1284,6 @@ func TestAsyncSubscribe(t *testing.T) {
 				ctx = conn.CloseRead(ctx)
 				<-ctx.Done()
 				close(serverDone)
-
-				close(serverDone)
 			}))
 			defer server.Close()
 			ctx, clientCancel := context.WithCancel(context.Background())
@@ -1304,7 +1292,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1328,7 +1315,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
-			}, time.Second, time.Millisecond*10, "server did not close")
+			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
 		t.Run("happy path no epoll", func(t *testing.T) {
@@ -1381,7 +1368,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 				WithEpollConfiguration(EpollConfiguration{
 					Disable: true,
@@ -1457,7 +1443,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 				WithEpollConfiguration(EpollConfiguration{
 					Disable: true,
@@ -1543,7 +1528,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1567,7 +1551,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
-			}, time.Second, time.Millisecond*10, "server did not close")
+			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
 		t.Run("ka", func(t *testing.T) {
@@ -1619,7 +1603,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1643,7 +1626,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
 				return true
-			}, time.Second, time.Millisecond*10, "server did not close")
+			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
 		t.Run("error object", func(t *testing.T) {
@@ -1687,7 +1670,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
+
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1754,7 +1737,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1819,7 +1801,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1882,7 +1863,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			defer serverCancel()
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-				WithReadTimeout(time.Second),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"time"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -45,23 +44,22 @@ func (h *gqlTWSConnectionHandler) Subscribe() error {
 	return h.subscribe()
 }
 
-func (h *gqlTWSConnectionHandler) ReadMessage() (done bool) {
+func (h *gqlTWSConnectionHandler) ReadMessage() ConnectionState {
 
-	rw := readWriterPool.Get(h.conn)
-	defer readWriterPool.Put(rw)
+	messageCount := 0
 
 	for {
-		err := h.conn.SetReadDeadline(time.Now().Add(time.Second))
+		if messageCount == 2 {
+			return ConnectionStateContinueReading
+		}
+		data, err := readMessage(h.conn, h.options.readTimeout)
 		if err != nil {
 			return handleConnectionError(err)
 		}
-		data, err := wsutil.ReadServerText(rw)
-		if err != nil {
-			return handleConnectionError(err)
-		}
+		messageCount++
 		messageType, err := jsonparser.GetString(data, "type")
 		if err != nil {
-			return false
+			continue
 		}
 		switch messageType {
 		case messageTypePing:
@@ -72,7 +70,7 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done bool) {
 			continue
 		case messageTypeComplete:
 			h.handleMessageTypeComplete(data)
-			return true
+			return ConnectionStateShouldClose
 		case messageTypeError:
 			h.handleMessageTypeError(data)
 			continue
@@ -80,10 +78,10 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done bool) {
 			continue
 		case messageTypeData, messageTypeConnectionError:
 			h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
-			return true
+			return ConnectionStateShouldClose
 		default:
 			h.log.Error("unknown message type", abstractlogger.String("type", messageType))
-			return false
+			continue
 		}
 	}
 }

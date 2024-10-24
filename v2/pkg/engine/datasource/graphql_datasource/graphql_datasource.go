@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -1752,6 +1753,7 @@ type GraphQLSubscriptionOptions struct {
 	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 	WsSubProtocol                           string           `json:"ws_sub_protocol"`
+	readTimeout                             time.Duration    `json:"-"`
 }
 
 type GraphQLBody struct {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"time"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -46,23 +45,22 @@ func (h *gqlWSConnectionHandler) Subscribe() error {
 	return h.subscribe()
 }
 
-func (h *gqlWSConnectionHandler) ReadMessage() (done bool) {
+func (h *gqlWSConnectionHandler) ReadMessage() ConnectionState {
 
-	rw := readWriterPool.Get(h.conn)
-	defer readWriterPool.Put(rw)
+	messageCount := 0
 
 	for {
-		err := h.conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+		if messageCount == 2 {
+			return ConnectionStateContinueReading
+		}
+		data, err := readMessage(h.conn, h.options.readTimeout)
 		if err != nil {
 			return handleConnectionError(err)
 		}
-		data, err := wsutil.ReadServerText(rw)
-		if err != nil {
-			return handleConnectionError(err)
-		}
+		messageCount++
 		messageType, err := jsonparser.GetString(data, "type")
 		if err != nil {
-			return false
+			continue
 		}
 		switch messageType {
 		case messageTypeConnectionKeepAlive:
@@ -72,15 +70,15 @@ func (h *gqlWSConnectionHandler) ReadMessage() (done bool) {
 			continue
 		case messageTypeComplete:
 			h.handleMessageTypeComplete(data)
-			return true
+			return ConnectionStateShouldClose
 		case messageTypeConnectionError:
 			h.handleMessageTypeConnectionError()
-			return true
+			return ConnectionStateShouldClose
 		case messageTypeError:
 			h.handleMessageTypeError(data)
 			continue
 		default:
-			return true
+			continue
 		}
 	}
 }

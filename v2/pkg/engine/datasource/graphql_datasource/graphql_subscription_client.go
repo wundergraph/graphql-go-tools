@@ -1,7 +1,6 @@
 package graphql_datasource
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"crypto/sha1"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -53,6 +53,7 @@ type subscriptionClient struct {
 	triggers          map[uint64]int
 	clientUnsubscribe chan uint64
 	serverUnsubscribe chan int
+	continueReading   chan int
 }
 
 func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -148,7 +149,7 @@ func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
 	op := &opts{
-		readTimeout: time.Second,
+		readTimeout: time.Millisecond * 100,
 		log:         abstractlogger.NoopLogger,
 	}
 	for _, option := range options {
@@ -171,6 +172,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		triggers:                   make(map[uint64]int),
 		clientUnsubscribe:          make(chan uint64, op.epollConfiguration.BufferSize),
 		serverUnsubscribe:          make(chan int, op.epollConfiguration.BufferSize),
+		continueReading:            make(chan int, op.epollConfiguration.BufferSize),
 		epollConfig:                op.epollConfiguration,
 	}
 	if !op.epollConfiguration.Disable {
@@ -196,6 +198,7 @@ type connection struct {
 // If connection protocol is SSE, a new connection is always created
 // If no connection exists, the client initiates a new one
 func (c *subscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	options.readTimeout = c.readTimeout
 	if options.UseSSE {
 		return c.subscribeSSE(ctx.Context(), c.engineCtx, options, updater)
 	}
@@ -225,6 +228,7 @@ func (c *subscriptionClient) UniqueRequestID(ctx *resolve.Context, options Graph
 }
 
 func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	options.readTimeout = c.readTimeout
 	if c.streamingClient == nil {
 		return fmt.Errorf("streaming http client is nil")
 	}
@@ -237,6 +241,7 @@ func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.
 }
 
 func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	options.readTimeout = c.readTimeout
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -260,6 +265,7 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 }
 
 func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext context.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	options.readTimeout = c.readTimeout
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -295,6 +301,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	c.connections[fd] = conn
 	c.triggers[id] = fd
 	c.connectionsMu.Unlock()
+	c.continueReading <- fd
 
 	return nil
 }
@@ -528,9 +535,17 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 	return msg, nil
 }
 
+type ConnectionState int
+
+const (
+	ConnectionStateShouldClose ConnectionState = iota
+	ConnectionStateContinueReading
+	ConnectionStateShouldWaitEpoll
+)
+
 type ConnectionHandler interface {
 	StartBlocking() error
-	ReadMessage() (done bool)
+	ReadMessage() ConnectionState
 	ServerClose()
 	ClientClose()
 	Subscribe() error
@@ -572,7 +587,11 @@ func waitForAck(conn net.Conn) error {
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	done := ctx.Done()
 	wg := sync.WaitGroup{}
+	active := make(map[int]struct{}, c.epollConfig.BufferSize)
 	for {
+		for k := range active {
+			delete(active, k)
+		}
 		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
@@ -587,11 +606,34 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				continue
 			}
 			hasWork = true
+			active[id] = struct{}{}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				c.handleConnection(conn)
 			}()
+		}
+	ContinueReadingLoop:
+		for {
+			select {
+			case id := <-c.continueReading:
+				_, ok := active[id]
+				if ok {
+					continue
+				}
+				conn, ok := c.connections[id]
+				if !ok {
+					continue
+				}
+				wg.Add(1)
+				hasWork = true
+				go func() {
+					defer wg.Done()
+					c.handleConnection(conn)
+				}()
+			default:
+				break ContinueReadingLoop
+			}
 		}
 		c.connectionsMu.Unlock()
 		if hasWork {
@@ -662,74 +704,94 @@ func (c *subscriptionClient) handlePendingServerUnsubscribe() {
 }
 
 func (c *subscriptionClient) handleConnection(conn *connection) {
-	done := conn.handler.ReadMessage()
-	if done {
+	state := conn.handler.ReadMessage()
+	switch state {
+	case ConnectionStateShouldClose:
 		c.serverUnsubscribe <- conn.fd
+		return
+	case ConnectionStateShouldWaitEpoll:
+		return
+	case ConnectionStateContinueReading:
+		c.continueReading <- conn.fd
+		return
 	}
 }
 
-func handleConnectionError(err error) (closed bool) {
+func handleConnectionError(err error) ConnectionState {
 	netOpErr := &net.OpError{}
 	if errors.As(err, &netOpErr) {
 		if netOpErr.Timeout() {
-			return false
+			return ConnectionStateShouldWaitEpoll
 		}
-		return true
+		return ConnectionStateShouldClose
 	}
 
 	// Check if we have errors during reading from the connection
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return true
+		return ConnectionStateShouldClose
 	}
 
 	// Check if we have a context error
 	if errors.Is(err, context.DeadlineExceeded) {
-		return false
+		return ConnectionStateShouldWaitEpoll
 	}
 
 	// Check if the error is a connection reset by peer
 	if errors.Is(err, syscall.ECONNRESET) {
-		return true
+		return ConnectionStateShouldClose
 	}
 	if errors.Is(err, syscall.EPIPE) {
-		return true
+		return ConnectionStateShouldClose
 	}
 
 	// Check if the error is a closed network connection. Introduced in go 1.16.
 	// This replaces the string match of "use of closed network connection"
 	if errors.Is(err, net.ErrClosed) {
-		return true
+		return ConnectionStateShouldClose
 	}
 
 	// Check if the error is closed websocket connection
 	if errors.As(err, &wsutil.ClosedError{}) {
-		return true
+		return ConnectionStateShouldClose
 	}
 
-	return false
+	return ConnectionStateContinueReading
 }
 
-var (
-	readWriterPool = &ReadWriterPool{}
-)
-
-type ReadWriterPool struct {
-	pool sync.Pool
-}
-
-func (r *ReadWriterPool) Get(rw io.ReadWriter) *bufio.ReadWriter {
-	v := r.pool.Get()
-	if v == nil {
-		return bufio.NewReadWriter(bufio.NewReader(rw), bufio.NewWriter(rw))
+func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
+	controlHandler := wsutil.ControlFrameHandler(conn, ws.StateClientSide)
+	rd := &wsutil.Reader{
+		Source:          conn,
+		State:           ws.StateClientSide,
+		CheckUTF8:       true,
+		SkipHeaderCheck: false,
+		OnIntermediate:  controlHandler,
 	}
-	rwr := v.(*bufio.ReadWriter)
-	rwr.Reader.Reset(rw)
-	rwr.Writer.Reset(rw)
-	return rwr
-}
-
-func (r *ReadWriterPool) Put(rw *bufio.ReadWriter) {
-	rw.Reader.Reset(nil)
-	rw.Writer.Reset(nil)
-	r.pool.Put(rw)
+	for {
+		err := conn.SetReadDeadline(time.Now().Add(timeout))
+		if err != nil {
+			return nil, err
+		}
+		hdr, err := rd.NextFrame()
+		if err != nil {
+			return nil, err
+		}
+		if hdr.OpCode.IsControl() {
+			if err := controlHandler(hdr, rd); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		if hdr.OpCode&ws.OpText == 0 {
+			if err := rd.Discard(); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		err = conn.SetReadDeadline(time.Now().Add(time.Second))
+		if err != nil {
+			return nil, err
+		}
+		return io.ReadAll(rd)
+	}
 }
