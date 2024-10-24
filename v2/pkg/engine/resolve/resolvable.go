@@ -604,6 +604,8 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
+		// Reset the enclosing type name before walking the field
+		r.enclosingTypeName = obj.TypeName
 		err := r.walkNode(obj.Fields[i].Value, value, parent)
 		if err {
 			if obj.Nullable {
