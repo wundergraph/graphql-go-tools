@@ -63,7 +63,12 @@ type Resolver struct {
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
 
-	tools *sync.Pool
+	// We create dedicated pools for request and subscription tools to more efficiently manage memory
+	// The assumption is that subscription responses are smaller than regular requests and we avoid
+	// the overhead of allocating memory for the larger request tools
+
+	requestTools      *sync.Pool
+	subscriptionTools *sync.Pool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -85,14 +90,21 @@ const (
 )
 
 type ResolverOptions struct {
-	// MaxConcurrency limits the number of concurrent resolve operations
-	// if set to 0, no limit is applied
+	// MaxConcurrency limits the number of concurrent tool calls which is used to resolve operations.
+	// The limit is only applied to getToolsWithLimit() calls. Intentionally, we don't use this limit for
+	// subscription updates to prevent blocking the subscription during a network collapse because a one-to-one
+	// relation is not given as in the case of single http request. We already enforce concurrency limits through
+	// the MaxSubscriptionWorkers option that is a semaphore to limit the number of concurrent subscription updates.
+	//
+	// If set to 0, no limit is applied
 	// It is advised to set this to a reasonable value to prevent excessive memory usage
 	// Each concurrent resolve operation allocates ~50kb of memory
 	// In addition, there's a limit of how many concurrent requests can be efficiently resolved
 	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
 	MaxConcurrency int
 
+	// MaxSubscriptionWorkers limits the concurrency on how many subscription updates can be processed concurrently
+	// This includes regular subscription updates and heartbeat updates.
 	MaxSubscriptionWorkers int
 
 	Debug bool
@@ -172,23 +184,14 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		reporter:                     options.Reporter,
 		asyncErrorWriter:             options.AsyncErrorWriter,
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
-		tools: &sync.Pool{
+		requestTools: &sync.Pool{
 			New: func() any {
-				return &tools{
-					resolvable: NewResolvable(options.ResolvableOptions),
-					loader: &Loader{
-						propagateSubgraphErrors:           options.PropagateSubgraphErrors,
-						propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
-						subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
-						rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
-						omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
-						omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
-						allowedErrorExtensionFields:       allowedExtensionFields,
-						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
-						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
-						allowedSubgraphErrorFields:        allowedErrorFields,
-					},
-				}
+				return newTools(options, allowedExtensionFields, allowedErrorFields)
+			},
+		},
+		subscriptionTools: &sync.Pool{
+			New: func() any {
+				return newTools(options, allowedExtensionFields, allowedErrorFields)
 			},
 		},
 	}
@@ -207,18 +210,51 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func (r *Resolver) getTools() (time.Duration, *tools) {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}) *tools {
+	return &tools{
+		resolvable: NewResolvable(options.ResolvableOptions),
+		loader: &Loader{
+			propagateSubgraphErrors:           options.PropagateSubgraphErrors,
+			propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
+			subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
+			rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
+			omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
+			omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
+			allowedErrorExtensionFields:       allowedExtensionFields,
+			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
+			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
+			allowedSubgraphErrorFields:        allowedErrorFields,
+		},
+	}
+}
+
+// getRequestTools returns a new tools struct with a limit of how many can be created concurrently
+// The limit is defined by the MaxConcurrency option. Use putRequestTools to return the tools struct back to the pool
+func (r *Resolver) getRequestTools() (time.Duration, *tools) {
 	start := time.Now()
 	<-r.maxConcurrency
-	tool := r.tools.Get().(*tools)
+	tool := r.requestTools.Get().(*tools)
 	return time.Since(start), tool
 }
 
-func (r *Resolver) putTools(t *tools) {
+// putRequestTools returns the tools struct back to the pool and releases the semaphore
+func (r *Resolver) putRequestTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
-	r.tools.Put(t)
+	r.requestTools.Put(t)
 	r.maxConcurrency <- struct{}{}
+}
+
+// getSubscriptionTools returns a new tools struct. Use putSubscriptionTools to return the tools struct back to the pool.
+func (r *Resolver) getSubscriptionTools() *tools {
+	return r.subscriptionTools.Get().(*tools)
+}
+
+// putSubscriptionTools returns the tools struct back to the pool
+func (r *Resolver) putSubscriptionTools(t *tools) {
+	t.loader.Free()
+	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
+	r.subscriptionTools.Put(t)
 }
 
 func (r *Resolver) getBuffer() *bytes.Buffer {
@@ -243,7 +279,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	resp := &GraphQLResolveInfo{}
 
 	toolsCleaned := false
-	acquireWaitTime, t := r.getTools()
+	acquireWaitTime, t := r.getRequestTools()
 	resp.ResolveAcquireWaitTime = acquireWaitTime
 
 	// Ensure that the tools are returned even on panic
@@ -251,7 +287,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	// and if we don't return the tools, we will have a deadlock
 	defer func() {
 		if !toolsCleaned {
-			r.putTools(t)
+			r.putRequestTools(t)
 		}
 	}()
 
@@ -272,7 +308,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 
 	// Return the tools as soon as possible. More efficient in case of a slow client / network.
-	r.putTools(t)
+	r.putRequestTools(t)
 	toolsCleaned = true
 
 	if err != nil {
@@ -321,8 +357,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	_, t := r.getTools()
-	defer r.putTools(t)
+	t := r.getSubscriptionTools()
+	defer r.putSubscriptionTools(t)
 
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
