@@ -31,6 +31,7 @@ func NewVariablesValidator() *VariablesValidator {
 	visitor := &variablesVisitor{
 		variables: &astjson.JSON{},
 		walker:    &walker,
+		dev_mode: (strings.ToLower(os.Getenv("DEV_MODE")) == "true"),
 	}
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	return &VariablesValidator{
@@ -64,6 +65,7 @@ type variablesVisitor struct {
 	currentVariableName        []byte
 	currentVariableJsonNodeRef int
 	path                       []pathItem
+	dev_mode				   bool
 }
 
 func (v *variablesVisitor) renderPath() string {
@@ -88,11 +90,6 @@ const (
 	pathItemKindObject pathItemKind = iota
 	pathItemKindArray
 )
-
-func devModeCheck() bool {
-	d := strings.ToLower(os.Getenv("DEV_MODE"))
-	return (d == "true")
-}
 
 type pathItem struct {
 	kind       pathItemKind
@@ -189,7 +186,7 @@ func (v *variablesVisitor) renderVariableInvalidObjectTypeError(typeName []byte,
 		return
 	}
 	variableContent := out.String()
-	if devModeCheck() {
+	if v.dev_mode {
 		v.err = &InvalidVariableError{
 			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be an object.`, string(v.currentVariableName), variableContent, string(typeName)),
 		}
@@ -214,7 +211,7 @@ func (v *variablesVisitor) renderVariableRequiredNotProvidedError(fieldName []by
 		v.err = err
 		return
 	}
-	if devModeCheck() {
+	if v.dev_mode {
 		v.err = &InvalidVariableError{
 			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Field "%s" of required type "%s" was not provided.`, string(v.currentVariableName), variableContent, string(fieldName), out.String()),
 		}
@@ -243,7 +240,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 	case ast.NodeKindScalarTypeDefinition:
 		switch typeName {
 		case "String":
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; String cannot represent a non string value: %s`, variableName, invalidValue, path, invalidValue),
 				}
@@ -253,7 +250,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			}
 		case "Int":
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Int cannot represent non-integer value: %s`, variableName, invalidValue, path, invalidValue),
 				}
@@ -263,7 +260,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			}
 		case "Float":
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Float cannot represent non numeric value: %s`, variableName, invalidValue, path, invalidValue),
 				}
@@ -273,7 +270,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			}
 		case "Boolean":
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Boolean cannot represent a non boolean value: %s`, variableName, invalidValue, path, invalidValue),
 				}
@@ -283,7 +280,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			}
 		case "ID":
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; ID cannot represent value: %s`, variableName, invalidValue, path, invalidValue),
 				}
@@ -293,7 +290,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			}
 		default:
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be a scalar.`, variableName, invalidValue, path, typeName),
 				}
@@ -305,7 +302,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 		}
 	case ast.NodeKindInputObjectTypeDefinition:
 		if expectedList {
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Got input type "%s", want: "[%s]"`, variableName, invalidValue, path, typeName, typeName),
 				}
@@ -315,7 +312,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			}
 		} else {
-			if devModeCheck() {
+			if v.dev_mode {
 				v.err = &InvalidVariableError{
 					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an input object.`, variableName, invalidValue, path, typeName),
 				}
@@ -326,7 +323,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 			}
 		}
 	case ast.NodeKindEnumTypeDefinition:
-		if devModeCheck() {
+		if v.dev_mode {
 			v.err = &InvalidVariableError{
 				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Enum "%s" cannot represent non-string value: %s.`, variableName, invalidValue, path, typeName, invalidValue),
 			}
@@ -348,7 +345,7 @@ func (v *variablesVisitor) renderVariableFieldNotDefinedError(fieldName []byte, 
 	}
 	invalidValue := buf.String()
 	path := v.renderPath()
-	if devModeCheck() {
+	if v.dev_mode {
 		v.err = &InvalidVariableError{
 			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s at "%s"; Field "%s" is not defined by type "%s".`, variableName, invalidValue, path, string(fieldName), string(typeName)),
 		}
@@ -372,7 +369,7 @@ func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []b
 	if len(v.path) > 1 {
 		path = fmt.Sprintf(` at "%s"`, v.renderPath())
 	}
-	if devModeCheck() {
+	if v.dev_mode {
 		v.err = &InvalidVariableError{
 			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Value "%s" does not exist in "%s" enum.`, variableName, invalidValue, path, string(enumValue), string(typeName)),
 		}
