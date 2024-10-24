@@ -249,7 +249,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value at %s; String cannot represent a non string value`, variableName, path),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; String cannot represent a non string value`, variableName, path),
 				}
 			}
 		case "Int":
@@ -259,7 +259,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Int cannot represent non-integer value`, variableName, path),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Int cannot represent non-integer value`, variableName, path),
 				}
 			}
 		case "Float":
@@ -269,7 +269,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Float cannot represent non numeric value`, variableName, path),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Float cannot represent non numeric value`, variableName, path),
 				}
 			}
 		case "Boolean":
@@ -279,7 +279,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Boolean cannot represent a non boolean value`, variableName, path),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Boolean cannot represent a non boolean value`, variableName, path),
 				}
 			}
 		case "ID":
@@ -289,7 +289,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; ID cannot represent value`, variableName, path),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; ID cannot represent value`, variableName, path),
 				}
 			}
 		default:
@@ -299,7 +299,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be a scalar.`, variableName, path, typeName),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Expected type "%s" to be a scalar.`, variableName, path, typeName),
 				}
 			}
 		}
@@ -311,7 +311,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Got input type "%s", want: "[%s]"`, variableName, path, typeName, typeName),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Got input type "%s", want: "[%s]"`, variableName, path, typeName, typeName),
 				}
 			}
 		} else {
@@ -321,7 +321,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 				}
 			} else {
 				v.err = &InvalidVariableError{
-					Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be an input object.`, variableName, path, typeName),
+					Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Expected type "%s" to be an input object.`, variableName, path, typeName),
 				}
 			}
 		}
@@ -332,7 +332,7 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 			}
 		} else {
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Enum "%s" cannot represent non-string value.`, variableName, path, typeName),
+				Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Enum "%s" cannot represent non-string value.`, variableName, path, typeName),
 			}
 		}
 	}
@@ -378,7 +378,7 @@ func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []b
 		}
 	} else {
 		v.err = &InvalidVariableError{
-			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Value "%s" does not exist in "%s" enum.`, variableName, path, string(enumValue), string(typeName)),
+			Message: fmt.Sprintf(`Variable "$%s" got invalid value%s; Value does not exist in "%s" enum.`, variableName, path, string(typeName)),
 		}
 	}
 }
