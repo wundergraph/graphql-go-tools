@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 
@@ -334,7 +336,311 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		},
 	}
 
-	processor := NewProcessor(DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableMergeFields(), DisableCreateParallelNodes(), DisableAddMissingNestedDependencies())
+	processor := NewProcessor(
+		DisableDeduplicateSingleFetches(),
+		DisableCreateConcreteSingleFetchTypes(),
+		DisableMergeFields(),
+		DisableCreateParallelNodes(),
+		DisableAddMissingNestedDependencies(),
+	)
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			actual := processor.Process(c.pre)
+
+			if !assert.Equal(t, c.expected, actual) {
+				formatterConfig := map[reflect.Type]interface{}{
+					reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+				}
+
+				prettyCfg := &pretty.Config{
+					Diffable:          true,
+					IncludeUnexported: false,
+					Formatter:         formatterConfig,
+				}
+
+				if diff := prettyCfg.Compare(c.expected, actual); diff != "" {
+					t.Errorf("Plan does not match(-want +got)\n%s", diff)
+				}
+			}
+		})
+	}
+}
+
+func TestProcess_ExtractServiceNames(t *testing.T) {
+	type TestCase struct {
+		name     string
+		pre      plan.Plan
+		expected plan.Plan
+	}
+
+	cases := []TestCase{
+		{
+			name: "Collect all service names",
+			pre: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("field1"),
+								Value: &resolve.String{
+									Path: []string{"field1"},
+								},
+							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "user-service",
+									DataSourceName: "user-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "user",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+							},
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service",
+									DataSourceName: "product-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+							},
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "review-service",
+									DataSourceName: "review-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "review",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+						},
+					},
+				},
+			},
+			expected: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					DataSources: []resolve.DataSourceInfo{
+						{ID: "user-service", Name: "user-service"},
+						{ID: "product-service", Name: "product-service"},
+						{ID: "review-service", Name: "review-service"},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("field1"),
+								Value: &resolve.String{
+									Path: []string{"field1"},
+								},
+							},
+						},
+					},
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							Info: &resolve.FetchInfo{
+								DataSourceID:   "user-service",
+								DataSourceName: "user-service",
+								OperationType:  ast.OperationTypeQuery,
+								RootFields: []resolve.GraphCoordinate{
+									{
+										TypeName:  "Query",
+										FieldName: "user",
+									},
+								},
+							},
+							FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						),
+						resolve.Single(
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service",
+									DataSourceName: "product-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+							},
+						),
+						resolve.Single(
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "review-service",
+									DataSourceName: "review-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "review",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+							},
+						),
+					),
+				},
+			},
+		},
+		{
+			name: "Deduplicate the same service names",
+			pre: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("field1"),
+								Value: &resolve.String{
+									Path: []string{"field1"},
+								},
+							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+							},
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service",
+									DataSourceName: "product-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+							},
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "products",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+							},
+						},
+					},
+				},
+			},
+			expected: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					DataSources: []resolve.DataSourceInfo{
+						{ID: "product-service-1", Name: "product-service-1"},
+						{ID: "product-service", Name: "product-service"},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("field1"),
+								Value: &resolve.String{
+									Path: []string{"field1"},
+								},
+							},
+						},
+					},
+					Fetches: resolve.Sequence(
+						resolve.Single(
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
+							},
+						),
+						resolve.Single(
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service",
+									DataSourceName: "product-service",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "product",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
+							},
+						),
+						resolve.Single(
+							&resolve.SingleFetch{
+								Info: &resolve.FetchInfo{
+									DataSourceID:   "product-service-1",
+									DataSourceName: "product-service-1",
+									OperationType:  ast.OperationTypeQuery,
+									RootFields: []resolve.GraphCoordinate{
+										{
+											TypeName:  "Query",
+											FieldName: "products",
+										},
+									},
+								},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+							},
+						),
+					),
+				},
+			},
+		},
+	}
+
+	processor := NewProcessor(
+		DisableDeduplicateSingleFetches(),
+		DisableCreateConcreteSingleFetchTypes(),
+		DisableMergeFields(),
+		DisableCreateParallelNodes(),
+		DisableAddMissingNestedDependencies(),
+		CollectDataSourceInfo(),
+	)
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -342,11 +342,11 @@ func (p *Planner[T]) shouldSelectSingleEntity() bool {
 }
 
 func (p *Planner[T]) requiresEntityFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
+	return p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner[T]) requiresEntityBatchFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
+	return p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
@@ -464,6 +464,8 @@ func (p *Planner[T]) EnterSelectionSet(ref int) {
 	}
 
 	// handle adding typename for the InterfaceObject
+	// In case we are inside selection set which returns an interface object
+	// we need to add __typename field to the selection set to get an initial typename value
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationConfiguration().InterfaceObjects {
 		if interfaceObjectCfg.InterfaceTypeName == typeName {
@@ -708,6 +710,10 @@ func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner[T]) addRepresentationsVariable() {
+	if !p.hasFederationRoot {
+		return
+	}
+
 	if !p.dataSourcePlannerConfig.HasRequiredFields() {
 		return
 	}
@@ -851,9 +857,12 @@ func (p *Planner[T]) addOnTypeInlineFragment() {
 		onTypeName = []byte(newName)
 	}
 
-	// we should not request a typename of interface object
+	// we should not request a typename when we jump to an interface object
 	if !shouldRenameInterfaceObjectType {
-		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+		// NOTE: we are adding __typename field to the selection set of the inline fragment,
+		// not the parent selection set, as it turns out that some subgraph implementations
+		// could not handle __typename field in the _entities selection set
+		p.addTypenameToSelectionSet(selectionSet.Ref)
 	}
 
 	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
@@ -1241,7 +1250,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 			"\n")
 	}
 
-	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
+	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
@@ -1276,7 +1285,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	var (
 		representations []resolve.Representation
 	)
-	if p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
+	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		representations = make([]resolve.Representation, len(p.dataSourcePlannerConfig.RequiredFields))
 		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
@@ -1726,7 +1735,7 @@ func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err
 }
 
 type GraphQLSubscriptionClient interface {
-	// Subscribes to the origin source. The implementation must not block the calling goroutine.
+	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 }

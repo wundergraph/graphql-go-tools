@@ -413,6 +413,11 @@ scalar openfed__FieldSet`
 
 	baseFederationSchema = `directive @tag(name: String!) repeatable on ARGUMENT_DEFINITION | ENUM | ENUM_VALUE | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | INPUT_OBJECT | INTERFACE | OBJECT | SCALAR | UNION
 
+type Query {
+  me: User
+  topProducts(first: Int = 5): [Product]
+}
+
 type User {
   id: ID!
   username: String!
@@ -430,10 +435,5 @@ type Review {
   body: String!
   author: User!
   product: Product!
-}
-
-type Query {
-  me: User
-  topProducts(first: Int = 5): [Product]
 }`
 )

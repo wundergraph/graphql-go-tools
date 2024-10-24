@@ -134,11 +134,6 @@ func (m *mergeFields) canMergeScalars(left, right *resolve.Field) bool {
 }
 
 func (m *mergeFields) mergeScalars(left, right *resolve.Field) {
-	switch l := left.Value.(type) {
-	case *resolve.String:
-		r := right.Value.(*resolve.String)
-		r.MergeAllowedValuesIntoAnother(l)
-	}
 	// when left has no type conditions, it will overwrite right
 	if left.OnTypeNames == nil && left.ParentOnTypeNames == nil {
 		return
@@ -244,9 +239,6 @@ func (m *mergeFields) sameParentOnTypeNames(left, right *resolve.Field) bool {
 
 func (m *mergeFields) mergeValues(left, right *resolve.Field) {
 	switch l := left.Value.(type) {
-	case *resolve.String:
-		r := right.Value.(*resolve.String)
-		r.MergeAllowedValuesIntoAnother(l)
 	case *resolve.Object:
 		r := right.Value.(*resolve.Object)
 		l.Fields = append(l.Fields, r.Fields...)

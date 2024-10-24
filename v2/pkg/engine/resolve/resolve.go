@@ -6,17 +6,25 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"golang.org/x/sync/semaphore"
 	"io"
 	"sync"
 	"time"
 
-	"github.com/alitto/pond"
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
+)
+
+const (
+	HearbeatInterval = 5 * time.Second
+)
+
+var (
+	multipartHeartbeat = []byte("{}")
 )
 
 type Reporter interface {
@@ -42,10 +50,10 @@ type Resolver struct {
 	bufPool        sync.Pool
 	maxConcurrency chan struct{}
 
-	triggers          map[uint64]*trigger
-	events            chan subscriptionEvent
-	triggerUpdatePool *pond.WorkerPool
-	triggerUpdateBuf  *bytes.Buffer
+	triggers         map[uint64]*trigger
+	events           chan subscriptionEvent
+	triggerUpdateSem *semaphore.Weighted
+	triggerUpdateBuf *bytes.Buffer
 
 	connectionIDs atomic.Int64
 
@@ -55,7 +63,12 @@ type Resolver struct {
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
 
-	tools *sync.Pool
+	// We create dedicated pools for request and subscription tools to more efficiently manage memory
+	// The assumption is that subscription responses are smaller than regular requests and we avoid
+	// the overhead of allocating memory for the larger request tools
+
+	requestTools      *sync.Pool
+	subscriptionTools *sync.Pool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -77,14 +90,21 @@ const (
 )
 
 type ResolverOptions struct {
-	// MaxConcurrency limits the number of concurrent resolve operations
-	// if set to 0, no limit is applied
+	// MaxConcurrency limits the number of concurrent tool calls which is used to resolve operations.
+	// The limit is only applied to getToolsWithLimit() calls. Intentionally, we don't use this limit for
+	// subscription updates to prevent blocking the subscription during a network collapse because a one-to-one
+	// relation is not given as in the case of single http request. We already enforce concurrency limits through
+	// the MaxSubscriptionWorkers option that is a semaphore to limit the number of concurrent subscription updates.
+	//
+	// If set to 0, no limit is applied
 	// It is advised to set this to a reasonable value to prevent excessive memory usage
 	// Each concurrent resolve operation allocates ~50kb of memory
 	// In addition, there's a limit of how many concurrent requests can be efficiently resolved
 	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
 	MaxConcurrency int
 
+	// MaxSubscriptionWorkers limits the concurrency on how many subscription updates can be processed concurrently
+	// This includes regular subscription updates and heartbeat updates.
 	MaxSubscriptionWorkers int
 
 	Debug bool
@@ -117,6 +137,10 @@ type ResolverOptions struct {
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
+	// ResolvableOptions are configuration options for the Resolbable struct
+	ResolvableOptions ResolvableOptions
+	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
+	AllowedSubgraphErrorFields []string
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -132,6 +156,24 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedExtensionFields[field] = struct{}{}
 	}
 
+	// always allow "message" and "path"
+	allowedErrorFields := map[string]struct{}{
+		"message": {},
+		"path":    {},
+	}
+
+	if !options.OmitSubgraphErrorExtensions {
+		allowedErrorFields["extensions"] = struct{}{}
+	}
+
+	if !options.OmitSubgraphErrorLocations {
+		allowedErrorFields["locations"] = struct{}{}
+	}
+
+	for _, field := range options.AllowedSubgraphErrorFields {
+		allowedErrorFields[field] = struct{}{}
+	}
+
 	resolver := &Resolver{
 		ctx:                          ctx,
 		options:                      options,
@@ -142,22 +184,14 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		reporter:                     options.Reporter,
 		asyncErrorWriter:             options.AsyncErrorWriter,
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
-		tools: &sync.Pool{
+		requestTools: &sync.Pool{
 			New: func() any {
-				return &tools{
-					resolvable: NewResolvable(),
-					loader: &Loader{
-						propagateSubgraphErrors:           options.PropagateSubgraphErrors,
-						propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
-						subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
-						rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
-						omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
-						omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
-						allowedErrorExtensionFields:       allowedExtensionFields,
-						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
-						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
-					},
-				}
+				return newTools(options, allowedExtensionFields, allowedErrorFields)
+			},
+		},
+		subscriptionTools: &sync.Pool{
+			New: func() any {
+				return newTools(options, allowedExtensionFields, allowedErrorFields)
 			},
 		},
 	}
@@ -168,30 +202,59 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
-	resolver.triggerUpdatePool = pond.New(
-		options.MaxSubscriptionWorkers,
-		0,
-		pond.Context(ctx),
-		pond.IdleTimeout(time.Second*30),
-		pond.Strategy(pond.Lazy()),
-		pond.MinWorkers(16),
-	)
+
+	resolver.triggerUpdateSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
+
 	go resolver.handleEvents()
+
 	return resolver
 }
 
-func (r *Resolver) getTools() (time.Duration, *tools) {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}) *tools {
+	return &tools{
+		resolvable: NewResolvable(options.ResolvableOptions),
+		loader: &Loader{
+			propagateSubgraphErrors:           options.PropagateSubgraphErrors,
+			propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
+			subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
+			rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
+			omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
+			omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
+			allowedErrorExtensionFields:       allowedExtensionFields,
+			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
+			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
+			allowedSubgraphErrorFields:        allowedErrorFields,
+		},
+	}
+}
+
+// getRequestTools returns a new tools struct with a limit of how many can be created concurrently
+// The limit is defined by the MaxConcurrency option. Use putRequestTools to return the tools struct back to the pool
+func (r *Resolver) getRequestTools() (time.Duration, *tools) {
 	start := time.Now()
 	<-r.maxConcurrency
-	tool := r.tools.Get().(*tools)
+	tool := r.requestTools.Get().(*tools)
 	return time.Since(start), tool
 }
 
-func (r *Resolver) putTools(t *tools) {
+// putRequestTools returns the tools struct back to the pool and releases the semaphore
+func (r *Resolver) putRequestTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
-	r.tools.Put(t)
+	r.requestTools.Put(t)
 	r.maxConcurrency <- struct{}{}
+}
+
+// getSubscriptionTools returns a new tools struct. Use putSubscriptionTools to return the tools struct back to the pool.
+func (r *Resolver) getSubscriptionTools() *tools {
+	return r.subscriptionTools.Get().(*tools)
+}
+
+// putSubscriptionTools returns the tools struct back to the pool
+func (r *Resolver) putSubscriptionTools(t *tools) {
+	t.loader.Free()
+	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
+	r.subscriptionTools.Put(t)
 }
 
 func (r *Resolver) getBuffer() *bytes.Buffer {
@@ -216,7 +279,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	resp := &GraphQLResolveInfo{}
 
 	toolsCleaned := false
-	acquireWaitTime, t := r.getTools()
+	acquireWaitTime, t := r.getRequestTools()
 	resp.ResolveAcquireWaitTime = acquireWaitTime
 
 	// Ensure that the tools are returned even on panic
@@ -224,7 +287,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	// and if we don't return the tools, we will have a deadlock
 	defer func() {
 		if !toolsCleaned {
-			r.putTools(t)
+			r.putRequestTools(t)
 		}
 	}()
 
@@ -245,7 +308,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 
 	// Return the tools as soon as possible. More efficient in case of a slow client / network.
-	r.putTools(t)
+	r.putRequestTools(t)
 	toolsCleaned = true
 
 	if err != nil {
@@ -283,19 +346,23 @@ type sub struct {
 	id             SubscriptionIdentifier
 	pendingUpdates int
 	completed      chan struct{}
+	sendHeartbeat  bool
 }
 
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
 	sub.mux.Lock()
 	sub.pendingUpdates++
 	sub.mux.Unlock()
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	_, t := r.getTools()
-	defer r.putTools(t)
+	t := r.getSubscriptionTools()
+	defer r.putSubscriptionTools(t)
+
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
+
 	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
@@ -309,6 +376,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
+
 	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
 		sub.mux.Lock()
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
@@ -322,15 +390,15 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
+
+	sub.mux.Lock()
+	sub.pendingUpdates--
+	sub.mux.Unlock()
+
 	sub.mux.Lock()
 	sub.pendingUpdates--
 	defer sub.mux.Unlock()
-	if sub.writer == nil {
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:writer:nil:%d\n", sub.id.SubscriptionID)
-		}
-		return // subscription was already closed by the client
-	}
+
 	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
@@ -389,8 +457,55 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleTriggerInitialized(event.triggerID)
 	case subscriptionEventKindTriggerShutdown:
 		r.handleTriggerShutdown(event)
+	case subscriptionEventKindHeartbeat:
+		r.handleHeartbeat(event.triggerID, event.data)
 	case subscriptionEventKindUnknown:
 		panic("unknown event")
+	}
+}
+
+func (r *Resolver) handleHeartbeat(id uint64, data []byte) {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return
+	}
+	if r.options.Debug {
+		fmt.Printf("resolver:heartbeat:%d\n", id)
+	}
+	for c, s := range trig.subscriptions {
+		c, s := c, s
+		// Only send heartbeats to subscriptions who have enabled it
+		if !s.sendHeartbeat {
+			continue
+		}
+		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
+			return
+		}
+		go func() {
+			defer r.triggerUpdateSem.Release(1)
+
+			if r.options.Debug {
+				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
+			}
+
+			s.mux.Lock()
+			if _, err := s.writer.Write(data); err != nil {
+				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
+			}
+			err := s.writer.Flush()
+			s.mux.Unlock()
+			if err != nil {
+				// client disconnected
+				_ = r.AsyncUnsubscribeSubscription(s.id)
+				return
+			}
+			if r.options.Debug {
+				fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
+			}
+			if r.reporter != nil {
+				r.reporter.SubscriptionUpdateSent()
+			}
+		}()
 	}
 }
 
@@ -449,10 +564,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		resolve:   add.resolve,
-		writer:    add.writer,
-		id:        add.id,
-		completed: add.completed,
+		resolve:       add.resolve,
+		writer:        add.writer,
+		id:            add.id,
+		completed:     add.completed,
+		sendHeartbeat: add.ctx.ExecutionOptions.SendHeartbeat,
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
@@ -554,10 +670,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 			if s.id == id {
 
 				if ctx.Context().Err() == nil {
-					s.mux.Lock()
 					s.writer.Complete()
-					s.writer = nil
-					s.mux.Unlock()
 				}
 
 				delete(trig.subscriptions, ctx)
@@ -577,6 +690,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 }
 
 func (r *Resolver) handleRemoveClient(id int64) {
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:client:%d\n", id)
 	}
@@ -586,10 +700,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 			if s.id.ConnectionID == id && !s.id.internal {
 
 				if c.Context().Err() == nil {
-					s.mux.Lock()
 					s.writer.Complete()
-					s.writer = nil
-					s.mux.Unlock()
 				}
 
 				delete(r.triggers[u].subscriptions, c)
@@ -628,11 +739,17 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if skip {
 			continue
 		}
+
+		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
+			return
+		}
+
 		wg.Add(1)
-		r.triggerUpdatePool.Submit(func() {
+		go func() {
+			defer r.triggerUpdateSem.Release(1)
+			defer wg.Done()
 			r.executeSubscriptionUpdate(c, s, data)
-			wg.Done()
-		})
+		}()
 	}
 }
 
@@ -644,10 +761,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	count := len(trig.subscriptions)
 	for c, s := range trig.subscriptions {
 		if c.Context().Err() == nil {
-			s.mux.Lock()
 			s.writer.Complete()
-			s.writer = nil
-			s.mux.Unlock()
 		}
 		if s.completed != nil {
 			close(s.completed)
@@ -854,6 +968,28 @@ type subscriptionUpdater struct {
 	ctx       context.Context
 }
 
+func (s *subscriptionUpdater) Heartbeat() {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:heartbeat:%d\n", s.triggerID)
+	}
+	if s.done {
+		return
+	}
+
+	select {
+	case <-s.ctx.Done():
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindHeartbeat,
+		data:      multipartHeartbeat,
+		// Currently, the only heartbeat we support is for multipart subscriptions. If we need to support future types
+		// of subscriptions, we can evaluate then how we can save on the subscription level what kind of heartbeat it
+		// requires
+	}:
+	}
+}
+
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
@@ -918,11 +1054,16 @@ const (
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerShutdown
+	subscriptionEventKindHeartbeat
 )
 
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// Heartbeat sends a heartbeat to the client. It is not guaranteed that the update is sent immediately. When calling,
+	// clients should reset their heartbeat timer after an Update call to make sure that we don't send needless heartbeats
+	// downstream
+	Heartbeat()
 	// Done also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Done.
 	Done()
 }

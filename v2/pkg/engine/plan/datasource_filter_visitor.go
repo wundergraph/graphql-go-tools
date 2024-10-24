@@ -244,6 +244,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
+		if !secondPass && f.nodes.items[itemIDs[0]].isTypeName {
+			// we want to select typename only after some fields were selected
+			continue
+		}
+
 		// if any item on the given node is already selected, we could skip it
 		if slices.ContainsFunc(itemIDs, func(i int) bool {
 			return f.nodes.items[i].Selected
@@ -252,20 +257,8 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// Select node based on a check for selected parent of a current node or its duplicates
-		// Additional considerations, if node is not leaf, e.g. it has children
-		// we need to check do we also already selected any child fields on the same datasource,
-		// When there is no child selections on the same datasource, we need to skip selecting this node,
-		// because it means we potentially planned all child fields on other datasources,
-		// also as this is the first pass, we won't count __typename field as a child.
-		// we will do it on the second pass, when we will have some other fields selected, or we only have __typename field selection
-		if secondPass {
-			if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
-				continue
-			}
-		} else {
-			if f.checkNodes(itemIDs, f.checkNodeParentSkipTypeName, nil) {
-				continue
-			}
+		if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
+			continue
 		}
 
 		// we are checking if we have selected any child fields on the same datasource
@@ -283,12 +276,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			// we should not select a __typename field based on a siblings, unless it is on a root query type
 			return f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
 		}) {
-			continue
-		}
-
-		// on a second pass we are selecting nodes which was not selected by previous stages
-		// we need to skip more complex checks, to have more selections to do the choice from
-		if !secondPass {
 			continue
 		}
 
@@ -319,6 +306,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
+				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
+				if !f.nodes.items[i].IsLeaf && !f.couldProvideChildFields(i) {
+					return true
+				}
+
 				return false
 			}) {
 			continue
@@ -331,6 +323,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return false
+				}
+
 				parents := f.findPossibleParents(i)
 				if len(parents) > 0 {
 					if f.selectWithExternalCheck(i, ReasonStage3SelectNodeUnderFirstParentRootNode) {
@@ -355,7 +351,15 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
 			},
 			func(i int) bool {
-				return !f.nodes.isLeaf(i)
+				if !f.nodes.isLeaf(i) {
+					return true
+				}
+
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return true
+				}
+
+				return false
 			}) {
 			continue
 		}
@@ -376,7 +380,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			}
 		}
 
-		f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+		if currentChildNodeCount > 0 {
+			// we can't select node if it doesn't have any child nodes to select
+			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+		}
 	}
 }
 
@@ -532,14 +539,6 @@ func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
-	return f.checkNodeParentWithTypeNameField(i, false)
-}
-
-func (f *DataSourceFilter) checkNodeParentSkipTypeName(i int) (nodeIsSelected bool) {
-	return f.checkNodeParentWithTypeNameField(i, true)
-}
-
-func (f *DataSourceFilter) checkNodeParentWithTypeNameField(i int, skipTypeNameField bool) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
 	if !ok {
 		return false
@@ -557,11 +556,27 @@ func (f *DataSourceFilter) checkNodeParentWithTypeNameField(i int, skipTypeNameF
 		return false
 	}
 
-	if !f.nodes.items[i].IsLeaf && skipTypeNameField && len(f.nodes.withoutTypeName(f.nodes.childNodesOnSameSource(i))) == 0 {
-		return false
+	if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedParent) {
+		if f.nodes.items[i].IsProvided && !f.nodes.items[i].IsLeaf {
+			f.selectProvidedChildNodes(i)
+		}
+
+		return true
 	}
 
-	return f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedParent)
+	return false
+}
+
+func (f *DataSourceFilter) selectProvidedChildNodes(i int) {
+	children := f.nodes.childNodesOnSameSource(i)
+	for _, childId := range children {
+		if f.nodes.items[childId].IsProvided {
+			f.nodes.items[childId].selectWithReason(ReasonProvidesProvidedByPlanner, f.enableSelectionReasons)
+			if !f.nodes.items[childId].IsLeaf {
+				f.selectProvidedChildNodes(childId)
+			}
+		}
+	}
 }
 
 func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIsSelected bool) {
@@ -571,4 +586,22 @@ func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIs
 
 	f.nodes.items[i].selectWithReason(reason, f.enableSelectionReasons)
 	return true
+}
+
+// couldProvideChildFields - checks if the node could provide any selectable child fields on the same datasource
+func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
+	nodesIds := f.nodes.childNodesOnSameSource(i)
+
+	hasFields := false
+	for _, i := range nodesIds {
+		if f.nodes.items[i].FieldName == typeNameField {
+			// we have to omit __typename field
+			// to not be in a situation when all fields are external but __typename is selectable
+			continue
+		}
+
+		hasFields = true
+	}
+
+	return hasFields
 }

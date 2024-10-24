@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -42,8 +43,8 @@ type DataSourceMetadata struct {
 	ChildNodes TypeFields
 	Directives *DirectiveConfigurations
 
-	rootNodesIndex  map[string]map[string]struct{}
-	childNodesIndex map[string]map[string]struct{}
+	rootNodesIndex  map[string]fieldsIndex
+	childNodesIndex map[string]fieldsIndex
 }
 
 type DirectivesConfigurations interface {
@@ -64,29 +65,46 @@ type NodesInfo interface {
 	HasChildNodeWithTypename(typeName string) bool
 }
 
+type fieldsIndex struct {
+	fields         map[string]struct{}
+	externalFields map[string]struct{}
+}
+
 func (d *DataSourceMetadata) InitNodesIndex() {
 	if d == nil {
 		return
 	}
 
-	d.rootNodesIndex = make(map[string]map[string]struct{})
-	d.childNodesIndex = make(map[string]map[string]struct{})
+	d.rootNodesIndex = make(map[string]fieldsIndex, len(d.RootNodes))
+	d.childNodesIndex = make(map[string]fieldsIndex, len(d.ChildNodes))
 
 	for i := range d.RootNodes {
 		if _, ok := d.rootNodesIndex[d.RootNodes[i].TypeName]; !ok {
-			d.rootNodesIndex[d.RootNodes[i].TypeName] = make(map[string]struct{})
+			d.rootNodesIndex[d.RootNodes[i].TypeName] = fieldsIndex{
+				make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
+				make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+			}
 		}
 		for j := range d.RootNodes[i].FieldNames {
-			d.rootNodesIndex[d.RootNodes[i].TypeName][d.RootNodes[i].FieldNames[j]] = struct{}{}
+			d.rootNodesIndex[d.RootNodes[i].TypeName].fields[d.RootNodes[i].FieldNames[j]] = struct{}{}
+		}
+		for j := range d.RootNodes[i].ExternalFieldNames {
+			d.rootNodesIndex[d.RootNodes[i].TypeName].externalFields[d.RootNodes[i].ExternalFieldNames[j]] = struct{}{}
 		}
 	}
 
 	for i := range d.ChildNodes {
 		if _, ok := d.childNodesIndex[d.ChildNodes[i].TypeName]; !ok {
-			d.childNodesIndex[d.ChildNodes[i].TypeName] = make(map[string]struct{})
+			d.childNodesIndex[d.ChildNodes[i].TypeName] = fieldsIndex{
+				make(map[string]struct{}),
+				make(map[string]struct{}),
+			}
 		}
 		for j := range d.ChildNodes[i].FieldNames {
-			d.childNodesIndex[d.ChildNodes[i].TypeName][d.ChildNodes[i].FieldNames[j]] = struct{}{}
+			d.childNodesIndex[d.ChildNodes[i].TypeName].fields[d.ChildNodes[i].FieldNames[j]] = struct{}{}
+		}
+		for j := range d.ChildNodes[i].ExternalFieldNames {
+			d.childNodesIndex[d.ChildNodes[i].TypeName].externalFields[d.ChildNodes[i].ExternalFieldNames[j]] = struct{}{}
 		}
 	}
 }
@@ -100,17 +118,25 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 		return false
 	}
 
-	fields, ok := d.rootNodesIndex[typeName]
+	index, ok := d.rootNodesIndex[typeName]
 	if !ok {
 		return false
 	}
 
-	_, ok = fields[fieldName]
+	_, ok = index.fields[fieldName]
 	return ok
 }
 
 func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
-	return d.RootNodes.HasExternalNode(typeName, fieldName)
+	if d.rootNodesIndex == nil {
+		return false
+	}
+	index, ok := d.rootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.externalFields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
@@ -125,17 +151,25 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 	if d.childNodesIndex == nil {
 		return false
 	}
-	fields, ok := d.childNodesIndex[typeName]
+	index, ok := d.childNodesIndex[typeName]
 	if !ok {
 		return false
 	}
 
-	_, ok = fields[fieldName]
+	_, ok = index.fields[fieldName]
 	return ok
 }
 
 func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
-	return d.ChildNodes.HasExternalNode(typeName, fieldName)
+	if d.childNodesIndex == nil {
+		return false
+	}
+	index, ok := d.childNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.externalFields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
@@ -360,9 +394,14 @@ type DataSourceBehavior interface {
 	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
 }
 
+type Identifyable interface {
+	astvisitor.VisitorIdentifier
+}
+
 type DataSourcePlanner[T any] interface {
 	DataSourceFetchPlanner
 	DataSourceBehavior
+	Identifyable
 	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
 }
 

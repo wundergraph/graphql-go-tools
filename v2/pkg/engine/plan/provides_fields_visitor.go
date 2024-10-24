@@ -13,9 +13,7 @@ type providesInput struct {
 	report                                  *operationreport.Report
 	operationSelectionSet                   int
 	parentPath                              string
-	dataSourceID                            string
-	dataSourceHash                          DSHash
-	dataSourceName                          string
+	dataSource                              DataSource
 }
 
 type addTypenamesVisitor struct {
@@ -87,7 +85,6 @@ func providesSuggestions(input *providesInput) []*NodeSuggestion {
 type currentFiedInfo struct {
 	fieldRef                           int
 	fieldName                          string
-	isSelected                         bool
 	hasSelections                      bool
 	hasSelectedNestedFieldsInOperation bool
 	suggestion                         *NodeSuggestion
@@ -158,23 +155,36 @@ func (v *providesVisitor) EnterField(ref int) {
 		v.currentFields[len(v.currentFields)-1].hasSelectedNestedFieldsInOperation = true
 	}
 
+	// we need to check both as for nested fields in provides we could have some root nodes with external nested fields
+	// e.g. address {street} while street is an external field, address is a root node
+	isRootNode := v.input.dataSource.HasRootNode(typeName, fieldName)
+	isExternalRootNode := v.input.dataSource.HasExternalRootNode(typeName, fieldName)
+	isExternalChildNode := v.input.dataSource.HasExternalChildNode(typeName, fieldName)
+	isExternal := isExternalRootNode || isExternalChildNode
+	isTypeName := fieldName == typeNameField
+
+	hasSelections := v.input.operation.FieldHasSelections(operationFieldRef)
 	suggestion := &NodeSuggestion{
 		FieldRef:       operationFieldRef,
 		TypeName:       typeName,
 		FieldName:      fieldName,
-		DataSourceHash: v.input.dataSourceHash,
-		DataSourceID:   v.input.dataSourceID,
-		DataSourceName: v.input.dataSourceName,
+		DataSourceHash: v.input.dataSource.Hash(),
+		DataSourceID:   v.input.dataSource.Id(),
+		DataSourceName: v.input.dataSource.Name(),
 		Path:           currentPath,
 		ParentPath:     parentPath,
+		IsRootNode:     isRootNode || isExternalRootNode,
 		Selected:       false,
 		IsProvided:     true,
+		IsExternal:     isExternal,
+		IsLeaf:         !hasSelections,
+		isTypeName:     isTypeName,
+		treeNodeId:     TreeNodeID(operationFieldRef),
 	}
 
 	v.currentFields = append(v.currentFields, &currentFiedInfo{
 		fieldRef:      ref,
 		fieldName:     fieldName,
-		isSelected:    true,
 		hasSelections: v.input.providesFieldSet.FieldHasSelections(ref),
 		suggestion:    suggestion,
 	})
@@ -187,10 +197,6 @@ func (v *providesVisitor) LeaveField(ref int) {
 
 	currentField := v.currentFields[len(v.currentFields)-1]
 	v.currentFields = v.currentFields[:len(v.currentFields)-1]
-
-	if !currentField.isSelected {
-		return
-	}
 
 	if currentField.hasSelections && !currentField.hasSelectedNestedFieldsInOperation {
 		// we don't have to add node suggestions for this field

@@ -76,6 +76,7 @@ type Loader struct {
 	attachServiceNameToErrorExtension bool
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
+	allowedSubgraphErrorFields        map[string]struct{}
 }
 
 func (l *Loader) Free() {
@@ -499,7 +500,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		if astjson.ValueIsNull(value) {
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
-			if !hasErrors {
+			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
 				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 			}
 			// no data
@@ -652,29 +653,28 @@ func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffe
 	return nil
 }
 
-func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
-	// Serialize subgraph errors from the response
-	// and append them to the subgraph downstream errors
-	if len(values) > 0 {
-		// print them into the buffer to be able to parse them
-		errorsJSON := value.MarshalTo(nil)
-		graphqlErrors := make([]GraphQLError, 0, len(values))
-		err := json.Unmarshal(errorsJSON, &graphqlErrors)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-
-		subgraphError := NewSubgraphError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason, res.statusCode)
-
-		for _, gqlError := range graphqlErrors {
-			gErr := gqlError
-			subgraphError.AppendDownstreamError(&gErr)
-		}
-
-		l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
-
+func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
+	// print them into the buffer to be able to parse them
+	errorsJSON := value.MarshalTo(nil)
+	graphqlErrors := make([]GraphQLError, 0, len(values))
+	err := json.Unmarshal(errorsJSON, &graphqlErrors)
+	if err != nil {
+		return errors.WithStack(err)
 	}
 
+	subgraphError := NewSubgraphError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason, res.statusCode)
+
+	for _, gqlError := range graphqlErrors {
+		gErr := gqlError
+		subgraphError.AppendDownstreamError(&gErr)
+	}
+
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+
+	return nil
+}
+
+func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
 	l.optionallyAllowCustomExtensionProperties(values)
@@ -688,9 +688,25 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		// Allow to delete extensions entirely
 		l.optionallyOmitErrorExtensions(values)
 
+		l.optionallyOmitErrorFields(values)
+
+		if len(values) > 0 {
+			// Append the subgraph errors to the response payload
+			if err := l.appendSubgraphError(res, fetchItem, value, values); err != nil {
+				return err
+			}
+		}
+
 		// If the error propagation mode is pass-through, we append the errors to the root array
 		astjson.MergeValues(l.resolvable.errors, value)
 		return nil
+	}
+
+	if len(values) > 0 {
+		// Append the subgraph errors to the response payload
+		if err := l.appendSubgraphError(res, fetchItem, value, values); err != nil {
+			return err
+		}
 	}
 
 	// Wrap mode (default)
@@ -751,12 +767,15 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
 			extensions := value.Get("extensions")
-			if extensions.Type() != astjson.TypeObject {
-				continue
-			}
-
-			if !extensions.Exists("code") {
-				extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+			switch extensions.Type() {
+			case astjson.TypeObject:
+				if !extensions.Exists("code") {
+					extensions.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+				}
+			case astjson.TypeNull:
+				extensionsObj := l.resolvable.astjsonArena.NewObject()
+				extensionsObj.Set("code", l.resolvable.astjsonArena.NewString(l.defaultErrorExtensionCode))
+				value.Set("extensions", extensionsObj)
 			}
 		} else {
 			extensionsObj := l.resolvable.astjsonArena.NewObject()
@@ -775,11 +794,14 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 	for _, value := range values {
 		if value.Exists("extensions") {
 			extensions := value.Get("extensions")
-			if extensions.Type() != astjson.TypeObject {
-				continue
+			switch extensions.Type() {
+			case astjson.TypeObject:
+				extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+			case astjson.TypeNull:
+				extensionsObj := l.resolvable.astjsonArena.NewObject()
+				extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
+				value.Set("extensions", extensionsObj)
 			}
-
-			extensions.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
 		} else {
 			extensionsObj := l.resolvable.astjsonArena.NewObject()
 			extensionsObj.Set("serviceName", l.resolvable.astjsonArena.NewString(serviceName))
@@ -796,6 +818,25 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
 			value.Del("extensions")
+		}
+	}
+}
+
+// optionallyOmitErrorFields removes all fields from the subgraph error which are not whitelisted. We do not remove message.
+func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
+	for _, value := range values {
+		if value.Type() == astjson.TypeObject {
+			obj := value.GetObject()
+			var keysToDelete []string
+			obj.Visit(func(k []byte, v *astjson.Value) {
+				key := unsafebytes.BytesToString(k)
+				if _, ok := l.allowedSubgraphErrorFields[key]; !ok {
+					keysToDelete = append(keysToDelete, key)
+				}
+			})
+			for _, key := range keysToDelete {
+				obj.Del(key)
+			}
 		}
 	}
 }

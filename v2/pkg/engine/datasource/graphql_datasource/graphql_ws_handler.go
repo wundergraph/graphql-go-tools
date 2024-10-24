@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"io"
+	"net"
 	"strconv"
 	"time"
 
@@ -32,33 +35,35 @@ func newGQLWSConnectionHandler(ctx context.Context, conn *websocket.Conn, readTi
 		conn:               conn,
 		ctx:                ctx,
 		log:                log,
-		subscribeCh:        make(chan Subscription),
 		nextSubscriptionID: 0,
 		subscriptions:      map[string]Subscription{},
 		readTimeout:        readTimeout,
 	}
 }
 
-func (h *gqlWSConnectionHandler) SubscribeCH() chan<- Subscription {
-	return h.subscribeCh
-}
-
 // StartBlocking starts the single threaded event loop of the handler
 // if the global context returns or the websocket connection is terminated, it will stop
 func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
+	dataCh := make(chan []byte)
+	errCh := make(chan error)
 	readCtx, cancel := context.WithCancel(h.ctx)
+
 	defer func() {
 		h.unsubscribeAllAndCloseConn()
 		cancel()
 	}()
+
 	h.subscribe(sub)
-	dataCh := make(chan []byte)
-	errCh := make(chan error)
+
 	go h.readBlocking(readCtx, dataCh, errCh)
+
+	ticker := time.NewTicker(resolve.HearbeatInterval)
+	defer ticker.Stop()
+
 	for {
 		err := h.ctx.Err()
 		if err != nil {
-			if !errors.Is(err, context.Canceled) {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) {
 				h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			}
 			h.broadcastErrorMessage(err)
@@ -69,17 +74,21 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 			return
 		}
 		select {
+		case <-readCtx.Done():
+			return
 		case <-time.After(h.readTimeout):
 			continue
-		case sub = <-h.subscribeCh:
-			h.subscribe(sub)
 		case err = <-errCh:
-			if !errors.Is(err, context.Canceled) {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 				h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			}
 			h.broadcastErrorMessage(err)
 			return
+		case <-ticker.C:
+			sub.updater.Heartbeat()
 		case data := <-dataCh:
+			ticker.Reset(resolve.HearbeatInterval)
+
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
 				continue
@@ -114,12 +123,11 @@ func (h *gqlWSConnectionHandler) StartBlocking(sub Subscription) {
 func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
 	for {
 		msgType, data, err := h.conn.Read(ctx)
-		if ctx.Err() != nil {
-			errCh <- ctx.Err()
-			return
-		}
 		if err != nil {
-			errCh <- err
+			select {
+			case errCh <- err:
+			case <-ctx.Done():
+			}
 			return
 		}
 		if msgType != websocket.MessageText {

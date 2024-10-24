@@ -3,7 +3,7 @@ package resolve
 import (
 	"bytes"
 	"fmt"
-	"strings"
+	"slices"
 )
 
 type GraphQLError struct {
@@ -41,62 +41,36 @@ func (e *SubgraphError) AppendDownstreamError(error *GraphQLError) {
 	e.DownstreamErrors = append(e.DownstreamErrors, error)
 }
 
-func (e *SubgraphError) Error() string {
+func (e *SubgraphError) Codes() []string {
+	codes := make([]string, 0, len(e.DownstreamErrors))
 
+	for _, downstreamError := range e.DownstreamErrors {
+		if downstreamError.Extensions != nil {
+			if ok := downstreamError.Extensions["code"]; ok != nil {
+				if code, ok := downstreamError.Extensions["code"].(string); ok && !slices.Contains(codes, code) {
+					codes = append(codes, code)
+				}
+			}
+		}
+	}
+
+	return codes
+}
+
+// Error returns the high-level error without downstream errors. For more details, call Summary().
+func (e *SubgraphError) Error() string {
 	var bf bytes.Buffer
 
-	if e.DataSourceInfo.Name == "" {
-		fmt.Fprintf(&bf, "Failed to fetch Subgraph at Path: '%s'", e.Path)
-	} else {
+	if e.DataSourceInfo.Name != "" && e.Path != "" {
 		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s' at Path: '%s'", e.DataSourceInfo.Name, e.Path)
+	} else {
+		fmt.Fprintf(&bf, "Failed to fetch from Subgraph '%s'", e.DataSourceInfo.Name)
 	}
 
 	if e.Reason != "" {
 		fmt.Fprintf(&bf, ", Reason: %s.", e.Reason)
 	} else {
 		fmt.Fprintf(&bf, ".")
-	}
-
-	if len(e.DownstreamErrors) > 0 {
-
-		fmt.Fprintf(&bf, "\n")
-		fmt.Fprintf(&bf, "Downstream errors:\n")
-
-		for i, downstreamError := range e.DownstreamErrors {
-			extensionCodeErrorString := ""
-			if downstreamError.Extensions != nil {
-				if ok := downstreamError.Extensions["code"]; ok != nil {
-					if code, ok := downstreamError.Extensions["code"].(string); ok {
-						extensionCodeErrorString = code
-					}
-				}
-			}
-
-			if len(downstreamError.Path) > 0 {
-				builder := strings.Builder{}
-				for i := range downstreamError.Path {
-					switch t := downstreamError.Path[i].(type) {
-					case string:
-						builder.WriteString(t)
-					case int:
-						builder.WriteString(fmt.Sprintf("%d", t))
-					}
-					if i < len(downstreamError.Path)-1 {
-						builder.WriteRune('.')
-					}
-				}
-				path := builder.String()
-				fmt.Fprintf(&bf, "%d. Subgraph error at Path '%s', Message: %s", i+1, path, downstreamError.Message)
-			} else {
-				fmt.Fprintf(&bf, "%d. Subgraph error with Message: %s", i+1, downstreamError.Message)
-			}
-
-			if extensionCodeErrorString != "" {
-				fmt.Fprintf(&bf, ", Extension Code: %s.", extensionCodeErrorString)
-			}
-
-			fmt.Fprintf(&bf, "\n")
-		}
 	}
 
 	return bf.String()

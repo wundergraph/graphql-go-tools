@@ -3,7 +3,11 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"io"
+	"net"
 	"strconv"
 	"time"
 
@@ -30,44 +34,57 @@ func newGQLTWSConnectionHandler(ctx context.Context, conn *websocket.Conn, rt ti
 		conn:               conn,
 		ctx:                ctx,
 		log:                l,
-		subscribeCh:        make(chan Subscription),
 		nextSubscriptionID: 0,
 		subscriptions:      map[string]Subscription{},
 		readTimeout:        rt,
 	}
 }
 
-func (h *gqlTWSConnectionHandler) SubscribeCH() chan<- Subscription {
-	return h.subscribeCh
-}
-
 func (h *gqlTWSConnectionHandler) StartBlocking(sub Subscription) {
 	readCtx, cancel := context.WithCancel(h.ctx)
+	dataCh := make(chan []byte)
+	errCh := make(chan error)
+
 	defer func() {
 		h.unsubscribeAllAndCloseConn()
 		cancel()
 	}()
 
 	h.subscribe(sub)
-	dataCh := make(chan []byte)
-	errCh := make(chan error)
+
 	go h.readBlocking(readCtx, dataCh, errCh)
 
+	ticker := time.NewTicker(resolve.HearbeatInterval)
+	defer ticker.Stop()
+
 	for {
-		if h.ctx.Err() != nil || !h.hasActiveSubscriptions() {
+		err := h.ctx.Err()
+		if err != nil {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+				h.log.Error("gqlWSConnectionHandler.StartBlocking", log.Error(err))
+			}
+			h.broadcastErrorMessage(err)
+			return
+		}
+
+		hasActiveSubscriptions := h.hasActiveSubscriptions()
+		if !hasActiveSubscriptions {
 			return
 		}
 
 		select {
+		case <-readCtx.Done():
+			return
 		case <-time.After(h.readTimeout):
 			continue
-		case sub = <-h.subscribeCh:
-			h.subscribe(sub)
 		case err := <-errCh:
 			h.log.Error("gqlWSConnectionHandler.StartBlocking", log.Error(err))
 			h.broadcastErrorMessage(err)
 			return
+		case <-ticker.C:
+			sub.updater.Heartbeat()
 		case data := <-dataCh:
+			ticker.Reset(resolve.HearbeatInterval)
 			messageType, err := jsonparser.GetString(data, "type")
 			if err != nil {
 				continue
@@ -236,12 +253,11 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
 func (h *gqlTWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
 	for {
 		msgType, data, err := h.conn.Read(ctx)
-		if ctx.Err() != nil {
-			errCh <- err
-			return
-		}
 		if err != nil {
-			errCh <- err
+			select {
+			case errCh <- err:
+			case <-ctx.Done():
+			}
 			return
 		}
 		if msgType != websocket.MessageText {

@@ -175,7 +175,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 				plannerWithQueryPlan.IncludeQueryPlanInFetchConfiguration()
 			}
 		}
-		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(astvisitor.VisitorIdentifier); ok {
+		if plannerWithId, ok := p.planningVisitor.planners[key].Planner().(Identifyable); ok {
 			plannerWithId.SetID(key)
 		}
 		if plannerWithDebug, ok := p.planningVisitor.planners[key].Debugger(); ok {
@@ -338,11 +338,12 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 	if report.HasErrors() {
 		return
 	}
+	// we have to populate missing paths after the walk
+	p.configurationVisitor.populateMissingPahts()
 
 	// walk ends in 2 cases:
 	// - we have finished visiting document
 	// - walker.Stop was called and visiting was halted
-	p.configurationVisitor.populateMissingPahts()
 
 	if p.config.Debug.PrintPlanningPaths {
 		p.debugMessage("Planning paths after initial run")
@@ -359,8 +360,10 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 		if report.HasErrors() {
 			return
 		}
+		// we have to populate missing paths after the walk
+		p.configurationVisitor.populateMissingPahts()
 
-		if p.config.Debug.PrintOperationTransformations || p.config.Debug.PrintPlanningPaths {
+		if p.config.Debug.PrintPlanningPaths {
 			p.debugMessage(fmt.Sprintf("Create planning paths run #%d", i))
 		}
 
@@ -448,7 +451,6 @@ func (p *Planner) printOperation(operation *ast.Document) {
 
 func (p *Planner) printRevisitInfo() {
 	fmt.Println("Should revisit:", p.configurationVisitor.shouldRevisit())
-	fmt.Println("Has new fields:", p.configurationVisitor.hasNewFields)
 	fmt.Println("Has missing paths:", p.configurationVisitor.hasMissingPaths())
 	fmt.Println("Has fields waiting for dependency:", p.configurationVisitor.hasFieldsWaitingForDependency())
 

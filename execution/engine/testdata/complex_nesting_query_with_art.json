@@ -91,6 +91,7 @@
               "kind": "Single",
               "path": "",
               "source_id": "0",
+              "source_name": "0",
               "trace": {
                 "raw_input_data": {},
                 "input": {
@@ -240,6 +241,7 @@
                   "kind": "BatchEntity",
                   "path": "me.history.@.product",
                   "source_id": "1",
+                  "source_name": "1",
                   "trace": {
                     "raw_input_data": {
                       "upc": "top-2",
@@ -247,7 +249,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name}}}",
                         "variables": {
                           "representations": [
                             {
@@ -376,6 +378,7 @@
                   "kind": "Entity",
                   "path": "me",
                   "source_id": "2",
+                  "source_name": "2",
                   "trace": {
                     "raw_input_data": {
                       "id": "1234",
@@ -406,7 +409,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
                         "variables": {
                           "representations": [
                             {

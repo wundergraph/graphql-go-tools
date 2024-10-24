@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
@@ -132,8 +133,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByID"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
-									Nullable: true,
+									Path:          []string{"heroByID"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -214,8 +217,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByIDInput"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByIDInput"},
-									Nullable: true,
+									Path:          []string{"heroByIDInput"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -279,8 +284,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByID"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
-									Nullable: true,
+									Path:          []string{"heroByID"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -365,8 +372,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByID"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
-									Nullable: true,
+									Path:          []string{"heroByID"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -451,8 +460,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByID"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
-									Nullable: true,
+									Path:          []string{"heroByID"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -541,8 +552,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByID"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByID"},
-									Nullable: true,
+									Path:          []string{"heroByID"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -644,8 +657,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByIDInput"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByIDInput"},
-									Nullable: true,
+									Path:          []string{"heroByIDInput"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -757,8 +772,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByIDMultipleArgs"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByIDMultipleArgs"},
-									Nullable: true,
+									Path:          []string{"heroByIDMultipleArgs"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -877,8 +894,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByIDMultipleArgs"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByIDMultipleArgs"},
-									Nullable: true,
+									Path:          []string{"heroByIDMultipleArgs"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -975,8 +994,10 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 							{
 								Name: []byte("heroByIDs"),
 								Value: &resolve.Object{
-									Path:     []string{"heroByIDs"},
-									Nullable: true,
+									Path:          []string{"heroByIDs"},
+									Nullable:      true,
+									TypeName:      "Hero",
+									PossibleTypes: map[string]struct{}{"Hero": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),

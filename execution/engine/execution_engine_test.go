@@ -801,7 +801,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
-	t.Run("execute operation with null variable on required type", runWithoutError(ExecutionEngineTestCase{
+	t.Run("execute operation with null variable on required type", runWithAndCompareError(ExecutionEngineTestCase{
 		schema: func(t *testing.T) *graphql.Schema {
 			t.Helper()
 			schema := `
@@ -856,7 +856,74 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph 'id', Reason: empty response."}],"data":null}`,
+	},
+		`Variable "$heroName" got invalid value null; Expected non-nullable type "String!" not to be null.`,
+	))
+
+	t.Run("execute operation with all fields skipped", runWithoutError(ExecutionEngineTestCase{
+		schema: func(t *testing.T) *graphql.Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): String!
+			}`
+			parseSchema, err := graphql.NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": null}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName) @skip(if: true)
+					}`,
+			}
+		},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"__internal__typename_placeholder":"Query"}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): String! }`,
+					),
+				}),
+			),
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{}}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{

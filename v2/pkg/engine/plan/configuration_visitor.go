@@ -16,10 +16,8 @@ import (
 
 // configurationVisitor - walks through the operation multiple times to collect plannings paths
 // to resolve fields from different datasources.
-// During walks, it is adding required fields and rewrites abstract selection if it is necessary
 // we are revisiting query when we have:
-// - missing path
-// - new fields were added
+// - missing path, which was not planned on the previuos walks
 // - we have fields which are waiting for dependencies
 type configurationVisitor struct {
 	logger                             abstractlogger.Logger
@@ -47,16 +45,10 @@ type configurationVisitor struct {
 	addedPathTracker              []pathConfiguration // addedPathTracker is a list of paths which were added
 	addedPathTrackerIndex         map[string][]int    // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
-	pendingRequiredFields             map[int]selectionSetPendingRequirements // pendingRequiredFields is a map[selectionSetRef][]fieldsRequirementConfig
-	processedFieldNotHavingRequires   map[int]struct{}                        // processedFieldNotHavingRequires is a map[FieldRef] of already processed fields which do not have @requires directive
-	visitedFieldsAbstractChecks       map[int]struct{}                        // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
-	fieldDependenciesForPlanners      map[int][]int                           // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
-	fieldsPlannedOn                   map[int][]int                           // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
-	fieldWaitingForRequiresDependency map[int][]int                           // fieldWaitingForRequiresDependency is a map[fieldRef][]fieldRef holds list of field refs which are waiting for a dependency to be planned. Used for @requires directive dependencies
-	fieldRequiresDependencies         map[int][]int                           // fieldRequiresDependencies is a map[fieldRef][]fieldRef - is the same as fieldWaitingForRequiresDependency, but we do not remove values from it
+	fieldDependenciesForPlanners map[int][]int // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
+	fieldsPlannedOn              map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
 
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the configurationVisitor not the first time
-	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	fieldRef     int  // fieldRef is the reference for the current field; it is required by subscription filter to retrieve any variables
 
 	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
@@ -77,7 +69,7 @@ func (e *FailedToCreatePlanningPathsError) Error() string {
 }
 
 func (c *configurationVisitor) shouldRevisit() bool {
-	return c.hasNewFields || c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
+	return c.hasMissingPaths() || c.hasFieldsWaitingForDependency()
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of fieldsRequirementConfig but at the same time deduplicate fieldsRequirementConfig
@@ -102,15 +94,6 @@ type fieldsRequirementConfig struct {
 type arrayField struct {
 	fieldRef  int
 	fieldPath string
-}
-
-type missingPath struct {
-	path                  string
-	precedingRootNodePath string
-}
-
-func (p *missingPath) String() string {
-	return fmt.Sprintf(`{"path":"%s","precedingRootNodePath":"%s"}`, p.path, p.precedingRootNodePath)
 }
 
 type objectFetchConfiguration struct {
@@ -269,8 +252,6 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 }
 
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
-	c.hasNewFields = false
-
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
@@ -306,14 +287,8 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
 	c.addedPathTrackerIndex = make(map[string][]int)
 
-	c.pendingRequiredFields = make(map[int]selectionSetPendingRequirements)
 	c.fieldDependenciesForPlanners = make(map[int][]int)
 	c.fieldsPlannedOn = make(map[int][]int)
-	c.fieldWaitingForRequiresDependency = make(map[int][]int)
-	c.fieldRequiresDependencies = make(map[int][]int)
-
-	c.processedFieldNotHavingRequires = make(map[int]struct{})
-	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 }
 
 func (c *configurationVisitor) LeaveDocument(operation, definition *ast.Document) {
@@ -334,7 +309,12 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
-	// We have to add a fragment path to the planner paths
+	// We have to add a fragment path to the planner paths,
+	// otherwise concrete planner will not pick up any path from such fragment
+	// because we always check for the planner does it have a parent path for the current path
+	// NOTE: in some cases datasource could have parent path, but no fields were planned within the fragment
+	// such fragment paths do not have any nested fields, so they are obsolete and will be removed
+	// when all paths for the query are planned. It happens in Planner.removeUnnecessaryFragmentPaths method
 	ancestor := c.walker.Ancestor()
 	if ancestor.Kind != ast.NodeKindInlineFragment {
 		return
@@ -352,7 +332,11 @@ func (c *configurationVisitor) EnterSelectionSet(ref int) {
 		hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
 		hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
 		if !(hasRootNode || hasChildNode) {
-			continue
+			// we need to check also if an enclosing type is a union
+			// because we don't have root/child node for a union type
+			if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+				continue
+			}
 		}
 
 		if planner.HasPath(currentPath) {
@@ -380,12 +364,12 @@ func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
-func (c *configurationVisitor) EnterField(ref int) {
-	fieldName := c.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+func (c *configurationVisitor) EnterField(fieldRef int) {
+	fieldName := c.operation.FieldNameUnsafeString(fieldRef)
+	fieldAliasOrName := c.operation.FieldAliasOrNameString(fieldRef)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
-	c.debugPrint("EnterField ref:", ref, "fieldName:", fieldName, "typeName:", typeName)
+	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName)
 
 	parentPath := c.walker.Path.DotDelimitedString()
 	// we need to also check preceding path for inline fragments
@@ -393,13 +377,24 @@ func (c *configurationVisitor) EnterField(ref int) {
 	// but planner path still will not include it
 	// this required to not produce multiple planners for the inline fragments
 	precedingParentPath := parentPath
-	if c.walker.Path[len(c.walker.Path)-1].Kind == ast.InlineFragmentName {
-		precedingParentPath = c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
+
+	var precedingPath ast.Path
+	// we evaluate here the chain of inline fragments to get the preceding parent path
+	// we will need to skip all consecutive inline fragments to get the correct parent path
+	for i := len(c.walker.Path); i > 1; i-- {
+		if c.walker.Path[i-1].Kind != ast.InlineFragmentName {
+			break
+		}
+
+		precedingPath = c.walker.Path[:i-1]
+	}
+	if precedingPath != nil {
+		precedingParentPath = precedingPath.DotDelimitedString()
 	}
 
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	c.addArrayField(ref, currentPath)
+	c.addArrayField(fieldRef, currentPath)
 
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
@@ -410,11 +405,6 @@ func (c *configurationVisitor) EnterField(ref int) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 	shareable := len(suggestions) > 1
 	for _, suggestion := range suggestions {
-		// TODO: change SuggestionsForPath to return only selected suggestions
-		if !suggestion.Selected {
-			continue
-		}
-
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
 			return d.Hash() == suggestion.DataSourceHash
 		})
@@ -424,7 +414,7 @@ func (c *configurationVisitor) EnterField(ref int) {
 		}
 		ds := c.dataSources[dsIdx]
 
-		if !c.couldPlanField(ref, ds.Hash()) {
+		if !c.couldPlanField(fieldRef, ds.Hash()) {
 			c.handleMissingPath(false, typeName, fieldName, currentPath, shareable)
 
 			// if we could not plan the field, we should skip walking into it
@@ -435,20 +425,20 @@ func (c *configurationVisitor) EnterField(ref int) {
 			return
 		}
 
-		c.handlePlanningField(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath, isSubscription, suggestion, ds, shareable)
+		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, isSubscription, suggestion, ds, shareable)
 	}
 }
 
-func (c *configurationVisitor) handlePlanningField(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, isSubscription bool, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
-	plannerIdx, planned := c.planWithExistingPlanners(ref, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
+func (c *configurationVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, isSubscription bool, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
+	plannerIdx, planned := c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
 	if !planned {
-		plannerIdx, planned = c.addNewPlanner(ref, typeName, fieldName, currentPath, parentPath, isSubscription, ds)
+		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isSubscription, ds)
 	}
 
 	if planned {
-		c.recordFieldPlannedOn(ref, plannerIdx)
-		c.addFieldDependencies(ref, typeName, fieldName, plannerIdx)
-		c.addRootField(ref, plannerIdx)
+		c.recordFieldPlannedOn(fieldRef, plannerIdx)
+		c.addFieldDependencies(fieldRef, typeName, fieldName, plannerIdx)
+		c.addRootField(fieldRef, plannerIdx)
 	}
 
 	c.handleMissingPath(planned, typeName, fieldName, currentPath, shareable)
@@ -572,6 +562,13 @@ func (c *configurationVisitor) addFieldDependencies(fieldRef int, typeName, fiel
 		plannerIds := c.fieldsPlannedOn[waitingForFieldRef]
 
 		for _, plannerIdx := range plannerIds {
+			// do not notify planner about itself
+			// this could happen when we have requires directive on a field
+			// but all fields from requires selection set were planned on the same planner because they are provided
+			if plannerIdx == currentPlannerIdx {
+				continue
+			}
+
 			notified := slices.Contains(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
 			if !notified {
 				fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, plannerIdx)
@@ -605,7 +602,28 @@ func (c *configurationVisitor) isPlannerDependenciesAllowsToPlanField(fieldRef i
 	return true
 }
 
-func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion) (plannerIdx int, planned bool) {
+func (c *configurationVisitor) isAllFieldDependenciesOnSameDataSource(fieldRef int, currentPlannerIdx int) bool {
+	fieldKey := fieldIndexKey{fieldRef, c.planners[currentPlannerIdx].DataSourceConfiguration().Hash()}
+
+	// we have a field which have `requires` directive and depends on some fields,
+	waitingFor := c.fieldDependsOn[fieldKey]
+
+	// iterate over fields we depends on
+	for _, waitingForFieldRef := range waitingFor {
+		// get all planners which planned the field we depend on
+		plannedOnPlannerIds := c.fieldsPlannedOn[waitingForFieldRef]
+
+		for _, plannedOnPlannerId := range plannedOnPlannerIds {
+			if plannedOnPlannerId != currentPlannerIdx {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func (c *configurationVisitor) planWithExistingPlanners(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion) (plannerIdx int, planned bool) {
 	for plannerIdx, plannerConfig := range c.planners {
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
@@ -629,21 +647,27 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 			return plannerIdx, true
 		}
 
-		_, fieldHasRequiresDirective := dsConfiguration.RequiredFieldsByRequires(typeName, fieldName)
+		dsHash := dsConfiguration.Hash()
+		fieldKey := fieldIndexKey{fieldRef, dsHash}
+		requiresConfigurations := c.fieldRequirementsConfigs[fieldKey]
+		fieldHasRequiresDirective := slices.ContainsFunc(requiresConfigurations, func(config FederationFieldConfiguration) bool {
+			return config.FieldName != ""
+		})
+
 		if fieldHasRequiresDirective {
 			// we should not plan fields with requires on a root level planner
 			// because field with requires always will need an additional fetch before could be planned
-			if !plannerConfig.IsNestedPlanner() {
+			if !plannerConfig.IsNestedPlanner() && !c.isAllFieldDependenciesOnSameDataSource(fieldRef, plannerIdx) {
 				continue
 			}
 
-			if !c.isPlannerDependenciesAllowsToPlanField(ref, plannerIdx) {
+			if !c.isPlannerDependenciesAllowsToPlanField(fieldRef, plannerIdx) {
 				continue
 			}
 		}
 
 		if plannerConfig.HasPath(parentPath) || plannerConfig.HasPath(precedingParentPath) {
-			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, ref, fieldName, typeName, planningBehaviour); pathAdded {
+			if pathAdded := c.addPlannerPathForTypename(plannerIdx, currentPath, parentPath, fieldRef, fieldName, typeName, planningBehaviour); pathAdded {
 				return plannerIdx, true
 			}
 
@@ -653,7 +677,7 @@ func (c *configurationVisitor) planWithExistingPlanners(ref int, typeName, field
 					path:             currentPath,
 					shouldWalkFields: true,
 					typeName:         typeName,
-					fieldRef:         ref,
+					fieldRef:         fieldRef,
 					fragmentRef:      ast.InvalidRef,
 					enclosingNode:    c.walker.EnclosingTypeDefinition,
 					dsHash:           currentPlannerDSHash,
@@ -687,7 +711,7 @@ func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string,
 	return c.isParentPathIsRootOperationPath(parentPath)
 }
 
-func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, currentPath, parentPath string, isSubscription bool, dsConfig DataSource) (plannerIdx int, planned bool) {
+func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath string, isSubscription bool, dsConfig DataSource) (plannerIdx int, planned bool) {
 	if !dsConfig.HasRootNode(typeName, fieldName) {
 		if fieldName != typeNameField {
 			return -1, false
@@ -703,7 +727,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		path:             currentPath,
 		shouldWalkFields: true,
 		typeName:         typeName,
-		fieldRef:         ref,
+		fieldRef:         fieldRef,
 		fragmentRef:      ast.InvalidRef,
 		enclosingNode:    c.walker.EnclosingTypeDefinition,
 		dsHash:           dsConfig.Hash(),
@@ -780,7 +804,7 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 		plannerPath = precedingFragmentPath
 	}
 
-	fieldDefinition, ok := c.walker.FieldDefinition(ref)
+	fieldDefinition, ok := c.walker.FieldDefinition(fieldRef)
 	if !ok {
 		return -1, false
 	}
@@ -789,11 +813,11 @@ func (c *configurationVisitor) addNewPlanner(ref int, typeName, fieldName, curre
 	fetchID := len(c.planners)
 
 	// the filter needs access to fieldRef to retrieve the field argument variable
-	c.fieldRef = ref
+	c.fieldRef = fieldRef
 
 	fetchConfiguration := &objectFetchConfiguration{
 		isSubscription:     isSubscription,
-		fieldRef:           ref,
+		fieldRef:           fieldRef,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
 		sourceID:           dsConfig.Id(),

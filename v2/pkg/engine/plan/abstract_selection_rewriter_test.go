@@ -721,7 +721,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name:       "one field is external. query has admin and user fragment and shared __typename",
+			name:       "one field is external (Admin.name). query has admin and user fragment and shared __typename",
 			definition: definition,
 			upstreamDefinition: `
 				interface Node {
@@ -761,8 +761,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			operation: `
 				query {
 					iface {
-						name
 						__typename
+						name
 						... on User {
 							isUser
 						}
@@ -776,14 +776,130 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				query {
 					iface {
 						... on Admin {
-							name
 							__typename
+							name
 							id
 						}
 						... on User {
-							name
 							__typename
+							name
 							isUser
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "one field is external (Admin.name). query has fragment on interface node inside union",
+			fieldName:  "accounts",
+			definition: definition,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin {
+					id: ID!
+				}
+
+				union Account = User | Admin
+			`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					accounts {
+						... on Node {
+							__typename
+							name
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					accounts {
+						... on Admin {
+							__typename
+							name
+						}	
+						... on User {
+							__typename
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:       "one field is external (Admin.name). query has fragment on node and shared __typename on a union - should preserve __typename",
+			fieldName:  "accounts",
+			definition: definition,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin {
+					id: ID!
+				}
+
+				union Account = User | Admin
+			`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					accounts {
+						__typename
+						... on Node {
+							__typename
+							name
+						}
+					}
+				}`,
+
+			expectedOperation: `
+				query {
+					accounts {
+						__typename
+						... on Admin {
+							__typename
+							name
+						}	
+						... on User {
+							__typename
+							name
 						}
 					}
 				}`,

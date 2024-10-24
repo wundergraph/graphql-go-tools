@@ -52,6 +52,7 @@ type Configuration struct {
 }
 
 type Planner[T Configuration] struct {
+	id                      int
 	config                  Configuration
 	natsPubSubByProviderID  map[string]NatsPubSub
 	kafkaPubSubByProviderID map[string]KafkaPubSub
@@ -59,6 +60,14 @@ type Planner[T Configuration] struct {
 	rootFieldRef            int
 	variables               resolve.Variables
 	visitor                 *plan.Visitor
+}
+
+func (p *Planner[T]) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner[T]) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner[T]) EnterField(ref int) {
