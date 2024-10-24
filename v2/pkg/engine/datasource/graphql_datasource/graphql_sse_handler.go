@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"net/http"
-	"time"
 
 	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
@@ -25,65 +24,61 @@ var (
 )
 
 type gqlSSEConnectionHandler struct {
-	conn    *http.Client
-	ctx     context.Context
-	log     log.Logger
-	options GraphQLSubscriptionOptions
+	conn                          *http.Client
+	requestContext, engineContext context.Context
+	log                           log.Logger
+	options                       GraphQLSubscriptionOptions
+	updater                       resolve.SubscriptionUpdater
 }
 
-func newSSEConnectionHandler(ctx *resolve.Context, conn *http.Client, opts GraphQLSubscriptionOptions, l log.Logger) *gqlSSEConnectionHandler {
+func newSSEConnectionHandler(requestContext, engineContext context.Context, conn *http.Client, updater resolve.SubscriptionUpdater, options GraphQLSubscriptionOptions, l log.Logger) *gqlSSEConnectionHandler {
 	return &gqlSSEConnectionHandler{
-		conn:    conn,
-		ctx:     ctx.Context(),
-		log:     l,
-		options: opts,
+		conn:           conn,
+		requestContext: requestContext,
+		engineContext:  engineContext,
+		log:            l,
+		updater:        updater,
+		options:        options,
 	}
 }
 
-func (h *gqlSSEConnectionHandler) StartBlocking(sub Subscription) {
-	reqCtx := sub.ctx
-
+func (h *gqlSSEConnectionHandler) StartBlocking() {
 	dataCh := make(chan []byte)
 	errCh := make(chan []byte)
 	defer func() {
 		close(dataCh)
 		close(errCh)
-		sub.updater.Done()
+		h.updater.Done()
 	}()
 
-	go h.subscribe(reqCtx, sub, dataCh, errCh)
-
-	ticker := time.NewTicker(resolve.HearbeatInterval)
-	defer ticker.Stop()
+	go h.subscribe(dataCh, errCh)
 
 	for {
 		select {
-		case <-ticker.C:
-			sub.updater.Heartbeat()
 		case data := <-dataCh:
-			ticker.Reset(resolve.HearbeatInterval)
-			sub.updater.Update(data)
+			h.updater.Update(data)
 		case data := <-errCh:
-			ticker.Reset(resolve.HearbeatInterval)
-			sub.updater.Update(data)
+			h.updater.Update(data)
 			return
-		case <-reqCtx.Done():
+		case <-h.requestContext.Done():
+			return
+		case <-h.engineContext.Done():
 			return
 		}
 	}
 }
 
-func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscription, dataCh, errCh chan []byte) {
-	resp, err := h.performSubscriptionRequest(ctx)
+func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
+	resp, err := h.performSubscriptionRequest()
 	if err != nil {
 		h.log.Error("failed to perform subscription request", log.Error(err))
 
-		if ctx.Err() != nil {
+		if h.requestContext.Err() != nil {
 			// request context was canceled do not send an error as channel will be closed
 			return
 		}
 
-		sub.updater.Update([]byte(internalError))
+		h.updater.Update([]byte(internalError))
 
 		return
 	}
@@ -94,8 +89,12 @@ func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscriptio
 	reader := sse.NewEventStreamReader(resp.Body, math.MaxInt)
 
 	for {
-		if ctx.Err() != nil {
+		select {
+		case <-h.requestContext.Done():
 			return
+		case <-h.engineContext.Done():
+			return
+		default:
 		}
 
 		msg, err := reader.ReadEvent()
@@ -126,7 +125,7 @@ func (h *gqlSSEConnectionHandler) subscribe(ctx context.Context, sub Subscriptio
 					continue
 				}
 
-				if ctx.Err() != nil {
+				if h.requestContext.Err() != nil {
 					// request context was canceled do not send an error as channel will be closed
 					return
 				}
@@ -205,16 +204,16 @@ func trim(data []byte) []byte {
 	return data
 }
 
-func (h *gqlSSEConnectionHandler) performSubscriptionRequest(ctx context.Context) (*http.Response, error) {
+func (h *gqlSSEConnectionHandler) performSubscriptionRequest() (*http.Response, error) {
 
 	var req *http.Request
 	var err error
 
 	// default to GET requests when SSEMethodPost is not enabled in the SubscriptionConfiguration
 	if h.options.SSEMethodPost {
-		req, err = h.buildPOSTRequest(ctx)
+		req, err = h.buildPOSTRequest(h.requestContext)
 	} else {
-		req, err = h.buildGETRequest(ctx)
+		req, err = h.buildGETRequest(h.requestContext)
 	}
 
 	if err != nil {
