@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	HearbeatInterval = 5 * time.Second
+	HeartbeatInterval = 5 * time.Second
 )
 
 var (
@@ -54,7 +54,8 @@ type Resolver struct {
 	triggers               map[uint64]*trigger
 	heartbeatSubscriptions map[*Context]*sub
 	events                 chan subscriptionEvent
-	triggerUpdateSem       *semaphore.Weighted
+	triggerEventsSem       *semaphore.Weighted
+	triggerUpdatesSem      *semaphore.Weighted
 	triggerUpdateBuf       *bytes.Buffer
 
 	connectionIDs atomic.Int64
@@ -105,9 +106,12 @@ type ResolverOptions struct {
 	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
 	MaxConcurrency int
 
-	// MaxSubscriptionWorkers limits the concurrency on how many subscription updates can be processed concurrently
-	// This includes regular subscription updates and heartbeat updates.
+	// MaxSubscriptionWorkers limits the concurrency on how many subscription can be added / removed concurrently.
+	// This does not include subscription updates, for that we have a separate semaphore MaxSubscriptionUpdates.
 	MaxSubscriptionWorkers int
+
+	// MaxSubscriptionUpdates limits the number of concurrent subscription updates that can be sent to the event loop.
+	MaxSubscriptionUpdates int
 
 	Debug bool
 
@@ -139,7 +143,7 @@ type ResolverOptions struct {
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
-	// ResolvableOptions are configuration options for the Resolbable struct
+	// ResolvableOptions are configuration options for the Resolvable struct
 	ResolvableOptions ResolvableOptions
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
@@ -205,8 +209,12 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
+	if options.MaxSubscriptionUpdates == 0 {
+		options.MaxSubscriptionUpdates = 1024
+	}
 
-	resolver.triggerUpdateSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
+	resolver.triggerEventsSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
+	resolver.triggerUpdatesSem = semaphore.NewWeighted(int64(options.MaxSubscriptionUpdates))
 
 	go resolver.handleEvents()
 
@@ -412,8 +420,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 
 func (r *Resolver) handleEvents() {
 	done := r.ctx.Done()
-	heatbeat := time.NewTicker(HearbeatInterval)
-	defer heatbeat.Stop()
+	heartbeat := time.NewTicker(HeartbeatInterval)
+	defer heartbeat.Stop()
 	for {
 		select {
 		case <-done:
@@ -421,12 +429,16 @@ func (r *Resolver) handleEvents() {
 			return
 		case event := <-r.events:
 			r.handleEvent(event)
-		case <-heatbeat.C:
+		case <-heartbeat.C:
 			r.handleHeartbeat(multipartHeartbeat)
 		}
 	}
 }
 
+// handleEvent is a single threaded function that processes events from the events channel
+// All events are processed in the order they are received and need to be processed quickly
+// to prevent blocking the event loop and any other events from being processed.
+// TODO: consider using a worker pool that distributes events from different triggers to different workers
 func (r *Resolver) handleEvent(event subscriptionEvent) {
 	switch event.kind {
 	case subscriptionEventKindAddSubscription:
@@ -457,17 +469,13 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 		// check if the last write to the subscription was more than heartbeat interval ago
 		c, s := c, s
 		s.mux.Lock()
-		skipHeartbeat := now.Sub(s.lastWrite) < HearbeatInterval
+		skipHeartbeat := now.Sub(s.lastWrite) < HeartbeatInterval
 		s.mux.Unlock()
 		if skipHeartbeat {
 			continue
 		}
-		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
-			return
-		}
-		go func() {
-			defer r.triggerUpdateSem.Release(1)
 
+		go func() {
 			if r.options.Debug {
 				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
 			}
@@ -578,6 +586,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
+		updateSem: r.triggerUpdatesSem,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -616,11 +625,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 				fmt.Printf("resolver:trigger:failed:%d\n", triggerID)
 			}
 			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
-			r.emitTriggerShutdown(triggerID)
+			_ = r.emitTriggerShutdown(triggerID)
 			return
 		}
 
-		r.emitTriggerInitialized(triggerID)
+		_ = r.emitTriggerInitialized(triggerID)
 
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:started:%d\n", triggerID)
@@ -629,34 +638,48 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 }
 
-func (r *Resolver) emitTriggerShutdown(triggerID uint64) {
+func (r *Resolver) emitTriggerShutdown(triggerID uint64) error {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:shutdown:%d\n", triggerID)
 	}
 
+	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+		return err
+	}
+	defer r.triggerEventsSem.Release(1)
+
 	select {
 	case <-r.ctx.Done():
-		return
+		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: triggerID,
 		kind:      subscriptionEventKindTriggerShutdown,
 	}:
 	}
+
+	return nil
 }
 
-func (r *Resolver) emitTriggerInitialized(triggerID uint64) {
+func (r *Resolver) emitTriggerInitialized(triggerID uint64) error {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:initialized:%d\n", triggerID)
 	}
 
+	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+		return err
+	}
+	defer r.triggerEventsSem.Release(1)
+
 	select {
 	case <-r.ctx.Done():
-		return
+		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: triggerID,
 		kind:      subscriptionEventKindTriggerInitialized,
 	}:
 	}
+
+	return nil
 }
 
 func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
@@ -739,13 +762,8 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			continue
 		}
 
-		if err := r.triggerUpdateSem.Acquire(r.ctx, 1); err != nil {
-			return
-		}
-
 		wg.Add(1)
 		go func() {
-			defer r.triggerUpdateSem.Release(1)
 			defer wg.Done()
 			r.executeSubscriptionUpdate(c, s, data)
 		}()
@@ -807,6 +825,11 @@ type SubscriptionIdentifier struct {
 }
 
 func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error {
+	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+		return err
+	}
+	defer r.triggerEventsSem.Release(1)
+
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -819,6 +842,11 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 }
 
 func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
+	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+		return err
+	}
+	defer r.triggerEventsSem.Release(1)
+
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -833,6 +861,11 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
+	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+		return err
+	}
+	defer r.triggerEventsSem.Release(1)
+
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -907,6 +940,11 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 }
 
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
+	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+		return err
+	}
+	defer r.triggerEventsSem.Release(1)
+
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -923,6 +961,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, msg)
 	}
 	uniqueID := xxh.Sum64()
+
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -969,12 +1008,19 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
+	updateSem *semaphore.Weighted
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
+
+	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
+		return
+	}
+	defer s.updateSem.Release(1)
+
 	if s.done {
 		return
 	}
@@ -993,6 +1039,12 @@ func (s *subscriptionUpdater) Done() {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
+
+	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
+		return
+	}
+	defer s.updateSem.Release(1)
+
 	if s.done {
 		return
 	}
