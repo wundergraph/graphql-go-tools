@@ -65,7 +65,7 @@ type variablesVisitor struct {
 	currentVariableName        []byte
 	currentVariableJsonNodeRef int
 	path                       []pathItem
-	dev_mode				   bool
+	dev_mode                   bool
 }
 
 func (v *variablesVisitor) renderPath() string {
