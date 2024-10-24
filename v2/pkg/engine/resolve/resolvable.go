@@ -55,7 +55,7 @@ type Resolvable struct {
 
 	marshalBuf []byte
 
-	enclosingTypeName string
+	enclosingTypeNames []string
 }
 
 type ResolvableOptions struct {
@@ -91,6 +91,7 @@ func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	}
 	r.parsers = r.parsers[:0]
 	r.typeNames = r.typeNames[:0]
+	r.enclosingTypeNames = r.enclosingTypeNames[:0]
 	r.wroteErrors = false
 	r.wroteData = false
 	r.data = nil
@@ -222,6 +223,13 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 	r.printBytes(rBrace)
 	return r.printErr
+}
+
+func (r *Resolvable) enclosingTypeName() string {
+	if len(r.enclosingTypeNames) > 0 {
+		return r.enclosingTypeNames[len(r.enclosingTypeNames)-1]
+	}
+	return ""
 }
 
 func (r *Resolvable) err() bool {
@@ -493,7 +501,10 @@ func (r *Resolvable) walkNode(node Node, value, parent *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
-	r.enclosingTypeName = obj.TypeName
+	r.enclosingTypeNames = append(r.enclosingTypeNames, obj.TypeName)
+	defer func() {
+		r.enclosingTypeNames = r.enclosingTypeNames[:len(r.enclosingTypeNames)-1]
+	}()
 	value := parent.Get(obj.Path...)
 	if value == nil || value.Type() == astjson.TypeNull {
 		if obj.Nullable {
@@ -1078,7 +1089,7 @@ func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
 	if pathLength < 2 {
 		return "invalid path"
 	}
-	return fmt.Sprintf("Cannot return null for non-nullable array element of type %s at index %d.", r.enclosingTypeName, lastPathItem.Idx)
+	return fmt.Sprintf("Cannot return null for non-nullable array element of type %s at index %d.", r.enclosingTypeName(), lastPathItem.Idx)
 }
 
 func (r *Resolvable) renderFieldCoordinates() string {
@@ -1101,7 +1112,7 @@ func (r *Resolvable) renderFieldCoordinates() string {
 		}
 		_, _ = buf.WriteString(r.path[0].Name)
 	default:
-		_, _ = buf.WriteString(r.enclosingTypeName)
+		_, _ = buf.WriteString(r.enclosingTypeName())
 		_, _ = buf.WriteString(".")
 		_, _ = buf.WriteString(r.path[pathLength-1].Name)
 	}

@@ -367,7 +367,75 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"topProduct":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Product.name.","path":["topProduct","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+	})
+	t.Run("Non-Nullable sibling field", func(t *testing.T) {
+		topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","reviews":[{"author":{"__typename":"User","name":"Bob"},"body":null}]}]}`
+		res := NewResolvable(ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("topProducts"),
+					Value: &Array{
+						Path: []string{"topProducts"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("reviews"),
+									Value: &Array{
+										Path: []string{"reviews"},
+										Item: &Object{
+											Fields: []*Field{
+												{
+													Name: []byte("author"),
+													Value: &Object{
+														Path: []string{"author"},
+														Fields: []*Field{
+															{
+																Name: []byte("name"),
+																Value: &String{
+																	Path: []string{"name"},
+																},
+															},
+														},
+														TypeName: "User",
+													},
+												},
+												{
+													Name: []byte("body"),
+													Value: &String{
+														Path: []string{"body"},
+													},
+												},
+											},
+											TypeName: "Review",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
 
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Review.body.","path":["topProducts",0,"reviews",0,"body"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
 	t.Run("Non-nullable array and array item", func(t *testing.T) {
 		topProducts := `{"topProducts":[null]}`
