@@ -45,7 +45,7 @@ func (h *gqlTWSConnectionHandler) Subscribe() error {
 	return h.subscribe()
 }
 
-func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
+func (h *gqlTWSConnectionHandler) ReadMessage() (done bool) {
 
 	rw := readWriterPool.Get(h.conn)
 	defer readWriterPool.Put(rw)
@@ -61,7 +61,7 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 		}
 		messageType, err := jsonparser.GetString(data, "type")
 		if err != nil {
-			return false, false
+			return false
 		}
 		switch messageType {
 		case messageTypePing:
@@ -72,7 +72,7 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 			continue
 		case messageTypeComplete:
 			h.handleMessageTypeComplete(data)
-			return true, false
+			return true
 		case messageTypeError:
 			h.handleMessageTypeError(data)
 			continue
@@ -80,10 +80,10 @@ func (h *gqlTWSConnectionHandler) ReadMessage() (done, timeout bool) {
 			continue
 		case messageTypeData, messageTypeConnectionError:
 			h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
-			return true, false
+			return true
 		default:
 			h.log.Error("unknown message type", abstractlogger.String("type", messageType))
-			return false, false
+			return false
 		}
 	}
 }
@@ -92,14 +92,18 @@ func (h *gqlTWSConnectionHandler) NetConn() net.Conn {
 	return h.conn
 }
 
-func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, l abstractlogger.Logger) *gqlTWSConnectionHandler {
-	return &gqlTWSConnectionHandler{
+func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, l abstractlogger.Logger) *connection {
+	handler := &gqlTWSConnectionHandler{
 		conn:           conn,
 		requestContext: requestContext,
 		engineContext:  engineContext,
 		log:            l,
 		updater:        updater,
 		options:        options,
+	}
+	return &connection{
+		handler: handler,
+		conn:    conn,
 	}
 }
 

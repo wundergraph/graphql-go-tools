@@ -47,11 +47,12 @@ type subscriptionClient struct {
 	epoll       epoller.Poller
 	epollConfig EpollConfiguration
 
-	connections   map[int]ConnectionHandler
-	connectionsMu sync.RWMutex
+	connections   map[int]*connection
+	connectionsMu sync.Mutex
 
-	triggers                map[uint64]int
-	asyncUnsubscribeTrigger chan uint64
+	triggers          map[uint64]int
+	clientUnsubscribe chan uint64
+	serverUnsubscribe chan int
 }
 
 func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -69,7 +70,7 @@ func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, opt
 }
 
 func (c *subscriptionClient) Unsubscribe(id uint64) {
-	c.asyncUnsubscribeTrigger <- id
+	c.clientUnsubscribe <- id
 }
 
 type InvalidWsSubprotocolError struct {
@@ -108,7 +109,7 @@ type EpollConfiguration struct {
 
 func (e *EpollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
-		e.BufferSize = 2048
+		e.BufferSize = 1024 * 2
 	}
 	if e.Interval == 0 {
 		e.Interval = time.Millisecond * 100
@@ -166,9 +167,10 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 			},
 		},
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
-		connections:                make(map[int]ConnectionHandler),
+		connections:                make(map[int]*connection),
 		triggers:                   make(map[uint64]int),
-		asyncUnsubscribeTrigger:    make(chan uint64, op.epollConfiguration.BufferSize),
+		clientUnsubscribe:          make(chan uint64, op.epollConfiguration.BufferSize),
+		serverUnsubscribe:          make(chan int, op.epollConfiguration.BufferSize),
 		epollConfig:                op.epollConfiguration,
 	}
 	if !op.epollConfiguration.Disable {
@@ -180,6 +182,13 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		}
 	}
 	return client
+}
+
+type connection struct {
+	id      uint64
+	fd      int
+	conn    net.Conn
+	handler ConnectionHandler
 }
 
 // Subscribe initiates a new GraphQL Subscription with the origin
@@ -232,13 +241,13 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 		return fmt.Errorf("http client is nil")
 	}
 
-	handler, err := c.newWSConnectionHandler(requestContext, engineContext, options, updater)
+	conn, err := c.newWSConnectionHandler(requestContext, engineContext, options, updater)
 	if err != nil {
 		return err
 	}
 
 	go func() {
-		err := handler.StartBlocking()
+		err := conn.handler.StartBlocking()
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 				return
@@ -255,14 +264,14 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return fmt.Errorf("http client is nil")
 	}
 
-	handler, err := c.newWSConnectionHandler(requestContext, engineContext, options, updater)
+	conn, err := c.newWSConnectionHandler(requestContext, engineContext, options, updater)
 	if err != nil {
 		return err
 	}
 
 	if c.epoll == nil {
 		go func() {
-			err := handler.StartBlocking()
+			err := conn.handler.StartBlocking()
 			if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 				c.log.Error("subscriptionClient.asyncSubscribeWS", abstractlogger.Error(err))
 			}
@@ -270,19 +279,20 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return nil
 	}
 
-	err = handler.Subscribe()
+	err = conn.handler.Subscribe()
 	if err != nil {
 		return err
 	}
 
-	netConn := handler.NetConn()
-	if err := c.epoll.Add(netConn); err != nil {
+	if err := c.epoll.Add(conn.conn); err != nil {
 		return err
 	}
 
 	c.connectionsMu.Lock()
-	fd := epoller.SocketFD(netConn)
-	c.connections[fd] = handler
+	fd := epoller.SocketFD(conn.conn)
+	conn.id = id
+	conn.fd = fd
+	c.connections[fd] = conn
 	c.triggers[id] = fd
 	c.connectionsMu.Unlock()
 
@@ -364,7 +374,7 @@ func (u *UpgradeRequestError) Error() string {
 	return fmt.Sprintf("failed to upgrade connection to %s, status code: %d", u.URL, u.StatusCode)
 }
 
-func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (ConnectionHandler, error) {
+func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (*connection, error) {
 
 	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
@@ -520,8 +530,7 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 
 type ConnectionHandler interface {
 	StartBlocking() error
-	NetConn() net.Conn
-	ReadMessage() (done, timeout bool)
+	ReadMessage() (done bool)
 	ServerClose()
 	ClientClose()
 	Subscribe() error
@@ -563,128 +572,141 @@ func waitForAck(conn net.Conn) error {
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	done := ctx.Done()
 	wg := sync.WaitGroup{}
-
 	for {
 		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
 			continue
 		}
-		c.connectionsMu.RLock()
-		for _, cc := range connections {
-			conn := cc
-			id := epoller.SocketFD(conn)
-			handler, ok := c.connections[id]
+		c.connectionsMu.Lock()
+		hasWork := false
+		for i := range connections {
+			id := epoller.SocketFD(connections[i])
+			conn, ok := c.connections[id]
 			if !ok {
 				continue
 			}
+			hasWork = true
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				c.handleConnection(id, handler, conn)
+				c.handleConnection(conn)
 			}()
 		}
-		c.connectionsMu.RUnlock()
-
-		c.handlePendingUnsubscribe()
-
+		c.connectionsMu.Unlock()
+		if hasWork {
+			wg.Wait()
+		}
+		c.handlePendingClientUnsubscribe()
+		c.handlePendingServerUnsubscribe()
 		select {
 		case <-done:
 			c.log.Debug("epoll done due to context done")
 			return
 		default:
-			wg.Wait()
+			continue
 		}
 	}
 }
 
-func (c *subscriptionClient) handlePendingUnsubscribe() {
+func (c *subscriptionClient) handlePendingClientUnsubscribe() {
+	c.connectionsMu.Lock()
+	defer c.connectionsMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.Interval)
+	defer cancel()
 	for {
 		select {
-		case id := <-c.asyncUnsubscribeTrigger:
-			c.connectionsMu.Lock()
-
+		case id := <-c.clientUnsubscribe:
 			fd, ok := c.triggers[id]
 			if !ok {
-				c.connectionsMu.Unlock()
 				continue
 			}
-
 			delete(c.triggers, id)
-
-			handler, ok := c.connections[fd]
+			conn, ok := c.connections[fd]
 			if !ok {
-				c.connectionsMu.Unlock()
 				continue
 			}
-
 			delete(c.connections, fd)
-			c.connectionsMu.Unlock()
-
-			_ = c.epoll.Remove(handler.NetConn())
-			handler.ClientClose()
+			_ = c.epoll.Remove(conn.conn)
+			go conn.handler.ClientClose()
+		case <-ctx.Done():
+			return
 		default:
 			return
 		}
 	}
 }
 
-func (c *subscriptionClient) handleConnection(id int, handler ConnectionHandler, conn net.Conn) {
-	done, timeout := handler.ReadMessage()
-	if timeout {
-		return
-	}
-
-	if done {
-		c.connectionsMu.Lock()
-		delete(c.connections, id)
-		c.connectionsMu.Unlock()
-
-		_ = c.epoll.Remove(conn)
-		handler.ServerClose()
-		return
+func (c *subscriptionClient) handlePendingServerUnsubscribe() {
+	c.connectionsMu.Lock()
+	defer c.connectionsMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.Interval)
+	defer cancel()
+	for {
+		select {
+		case id := <-c.serverUnsubscribe:
+			conn, ok := c.connections[id]
+			if !ok {
+				continue
+			}
+			delete(c.connections, id)
+			delete(c.triggers, conn.id)
+			_ = c.epoll.Remove(conn.conn)
+			go conn.handler.ServerClose()
+		case <-ctx.Done():
+			return
+		default:
+			return
+		}
 	}
 }
 
-func handleConnectionError(err error) (closed, timeout bool) {
+func (c *subscriptionClient) handleConnection(conn *connection) {
+	done := conn.handler.ReadMessage()
+	if done {
+		c.serverUnsubscribe <- conn.fd
+	}
+}
+
+func handleConnectionError(err error) (closed bool) {
 	netOpErr := &net.OpError{}
 	if errors.As(err, &netOpErr) {
 		if netOpErr.Timeout() {
-			return false, true
+			return false
 		}
-		return true, false
+		return true
 	}
 
 	// Check if we have errors during reading from the connection
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return true, false
+		return true
 	}
 
 	// Check if we have a context error
 	if errors.Is(err, context.DeadlineExceeded) {
-		return false, true
+		return false
 	}
 
 	// Check if the error is a connection reset by peer
 	if errors.Is(err, syscall.ECONNRESET) {
-		return true, false
+		return true
 	}
 	if errors.Is(err, syscall.EPIPE) {
-		return true, false
+		return true
 	}
 
 	// Check if the error is a closed network connection. Introduced in go 1.16.
 	// This replaces the string match of "use of closed network connection"
 	if errors.Is(err, net.ErrClosed) {
-		return true, false
+		return true
 	}
 
 	// Check if the error is closed websocket connection
 	if errors.As(err, &wsutil.ClosedError{}) {
-		return true, false
+		return true
 	}
 
-	return false, false
+	return false
 }
 
 var (

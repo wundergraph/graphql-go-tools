@@ -46,7 +46,7 @@ func (h *gqlWSConnectionHandler) Subscribe() error {
 	return h.subscribe()
 }
 
-func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
+func (h *gqlWSConnectionHandler) ReadMessage() (done bool) {
 
 	rw := readWriterPool.Get(h.conn)
 	defer readWriterPool.Put(rw)
@@ -62,7 +62,7 @@ func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
 		}
 		messageType, err := jsonparser.GetString(data, "type")
 		if err != nil {
-			return false, false
+			return false
 		}
 		switch messageType {
 		case messageTypeConnectionKeepAlive:
@@ -72,15 +72,15 @@ func (h *gqlWSConnectionHandler) ReadMessage() (done, timeout bool) {
 			continue
 		case messageTypeComplete:
 			h.handleMessageTypeComplete(data)
-			return true, false
+			return true
 		case messageTypeConnectionError:
 			h.handleMessageTypeConnectionError()
-			return true, false
+			return true
 		case messageTypeError:
 			h.handleMessageTypeError(data)
 			continue
 		default:
-			return true, false
+			return true
 		}
 	}
 }
@@ -89,14 +89,18 @@ func (h *gqlWSConnectionHandler) NetConn() net.Conn {
 	return h.conn
 }
 
-func newGQLWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, log abstractlogger.Logger) *gqlWSConnectionHandler {
-	return &gqlWSConnectionHandler{
+func newGQLWSConnectionHandler(requestContext, engineContext context.Context, conn net.Conn, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater, log abstractlogger.Logger) *connection {
+	handler := &gqlWSConnectionHandler{
 		conn:           conn,
 		requestContext: requestContext,
 		engineContext:  engineContext,
 		log:            log,
 		updater:        updater,
 		options:        options,
+	}
+	return &connection{
+		handler: handler,
+		conn:    conn,
 	}
 }
 

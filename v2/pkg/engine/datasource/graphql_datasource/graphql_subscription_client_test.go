@@ -489,12 +489,17 @@ func TestSubprotocolNegotiationWithConfiguredGraphQLTransportWS(t *testing.T) {
 }
 
 func TestWebSocketClientLeaks(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	defer goleak.VerifyNone(t,
+		goleak.IgnoreCurrent(), // ignore the test itself
+	)
+	serverDone := &sync.WaitGroup{}
+	serverDone.Add(2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := websocket.Accept(w, r, nil)
 		assert.NoError(t, err)
 		defer func() {
 			_ = conn.Close(websocket.StatusNormalClosure, "done")
+			serverDone.Done()
 		}()
 		ctx := context.Background()
 		msgType, data, err := conn.Read(ctx)
@@ -564,6 +569,9 @@ func TestWebSocketClientLeaks(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+	serverCancel()
+	time.Sleep(time.Second)
+	serverDone.Wait()
 }
 
 func TestAsyncSubscribe(t *testing.T) {
@@ -656,6 +664,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.NoError(t, err)
 			defer func() {
 				_ = conn.Close(websocket.StatusNormalClosure, "done")
+				close(serverDone)
 			}()
 			ctx := context.Background()
 			msgType, data, err := conn.Read(ctx)
@@ -684,7 +693,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, websocket.MessageText, msgType)
 			assert.Equal(t, `{"id":"1","type":"complete"}`, string(data))
-			close(serverDone)
 		}))
 		defer server.Close()
 		ctx, clientCancel := context.WithCancel(context.Background())
@@ -717,7 +725,7 @@ func TestAsyncSubscribe(t *testing.T) {
 		assert.Eventuallyf(t, func() bool {
 			<-serverDone
 			return true
-		}, time.Second, time.Millisecond*10, "server did not close")
+		}, time.Second*5, time.Millisecond*10, "server did not close")
 		serverCancel()
 	})
 	t.Run("server complete", func(t *testing.T) {
