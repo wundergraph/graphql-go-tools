@@ -85,14 +85,21 @@ const (
 )
 
 type ResolverOptions struct {
-	// MaxConcurrency limits the number of concurrent resolve operations
-	// if set to 0, no limit is applied
+	// MaxConcurrency limits the number of concurrent tool calls which is used to resolve operations.
+	// The limit is only applied to getToolsWithLimit() calls. Intentionally, we don't use this limit for
+	// subscription updates to prevent blocking the subscription during a network collapse because a one-to-one
+	// relation is not given as in the case of single http request. We already enforce concurrency limits through
+	// the MaxSubscriptionWorkers option that is a semaphore to limit the number of concurrent subscription updates.
+	//
+	// If set to 0, no limit is applied
 	// It is advised to set this to a reasonable value to prevent excessive memory usage
 	// Each concurrent resolve operation allocates ~50kb of memory
 	// In addition, there's a limit of how many concurrent requests can be efficiently resolved
 	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
 	MaxConcurrency int
 
+	// MaxSubscriptionWorkers limits the concurrency on how many subscription updates can be processed concurrently
+	// This includes regular subscription updates and heartbeat updates.
 	MaxSubscriptionWorkers int
 
 	Debug bool
@@ -207,18 +214,33 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func (r *Resolver) getTools() (time.Duration, *tools) {
+// getToolsWithLimit returns a new tools struct with a limit of how many can be created concurrently
+// The limit is defined by the MaxConcurrency option. Use putToolsWithLimit to return the tools struct back to the pool
+func (r *Resolver) getToolsWithLimit() (time.Duration, *tools) {
 	start := time.Now()
 	<-r.maxConcurrency
 	tool := r.tools.Get().(*tools)
 	return time.Since(start), tool
 }
 
-func (r *Resolver) putTools(t *tools) {
+// putToolsWithLimit returns the tools struct back to the pool and releases the semaphore
+func (r *Resolver) putToolsWithLimit(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
 	r.tools.Put(t)
 	r.maxConcurrency <- struct{}{}
+}
+
+// getTools returns a new tools struct. Use putTools to return the tools struct back to the pool.
+func (r *Resolver) getTools() *tools {
+	return r.tools.Get().(*tools)
+}
+
+// putTools returns the tools struct back to the pool
+func (r *Resolver) putTools(t *tools) {
+	t.loader.Free()
+	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
+	r.tools.Put(t)
 }
 
 func (r *Resolver) getBuffer() *bytes.Buffer {
@@ -243,7 +265,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	resp := &GraphQLResolveInfo{}
 
 	toolsCleaned := false
-	acquireWaitTime, t := r.getTools()
+	acquireWaitTime, t := r.getToolsWithLimit()
 	resp.ResolveAcquireWaitTime = acquireWaitTime
 
 	// Ensure that the tools are returned even on panic
@@ -251,7 +273,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	// and if we don't return the tools, we will have a deadlock
 	defer func() {
 		if !toolsCleaned {
-			r.putTools(t)
+			r.putToolsWithLimit(t)
 		}
 	}()
 
@@ -272,7 +294,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 
 	// Return the tools as soon as possible. More efficient in case of a slow client / network.
-	r.putTools(t)
+	r.putToolsWithLimit(t)
 	toolsCleaned = true
 
 	if err != nil {
@@ -321,7 +343,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	_, t := r.getTools()
+	t := r.getTools()
 	defer r.putTools(t)
 
 	input := make([]byte, len(sharedInput))
