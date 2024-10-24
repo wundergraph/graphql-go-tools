@@ -13,7 +13,7 @@ import (
 )
 
 func TestVariablesValidation(t *testing.T) {
-	
+
 	t.Run("required field argument not provided", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(arg: String!): String }`,
@@ -46,7 +46,8 @@ func TestVariablesValidation(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("unprovided required input fields without default values produce validation errors #1", func(t *testing.T) {
+	t.Run("dev_mode unprovided required input fields without default values produce validation errors #1", func(t *testing.T) {
+		t.Setenv("DEV_MODE", "true")
 		tc := testCase{
 			schema:    inputSchema,
 			operation: `query Foo($input: SelfUnsatisfiedInput!) { unsatisfied(input: $input) }`,
@@ -56,6 +57,18 @@ func TestVariablesValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$input" got invalid value {}; Field "nested" of required type "NestedSelfSatisfiedInput!" was not provided.`, err.Error())
 	})
+
+	t.Run("unprovided required input fields without default values produce validation errors #1", func(t *testing.T) {
+		tc := testCase{
+			schema:    inputSchema,
+			operation: `query Foo($input: SelfUnsatisfiedInput!) { unsatisfied(input: $input) }`,
+			variables: `{ "input": { } }`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value; Field "nested" of required type "NestedSelfSatisfiedInput!" was not provided.`, err.Error())
+	})
+
 
 	t.Run("dev_mode unprovided required input fields without default values produce validation errors #2", func(t *testing.T) {
 		t.Setenv("DEV_MODE", "true")
@@ -146,7 +159,6 @@ func TestVariablesValidation(t *testing.T) {
 	})
 
 	t.Run("nested enum argument is value instead of list", func(t *testing.T) {
-		t.Setenv("DEV_MODE", "true")
 		tc := testCase{
 			schema:    `type Query { hello(input: Input): String } input Input { bar: [MyNum]! } enum MyNum { ONE TWO }`,
 			operation: `query Foo($input: Input) { hello(input: $input) }`,
@@ -941,7 +953,7 @@ func TestVariablesValidation(t *testing.T) {
 		}
 		err := runTest(t, tc)
 		require.Error(t, err)
-		assert.Equal(t, `Variable "$bar" got invalid value 123 at "bar.[0].bar"; String cannot represent a non string value: 123`, err.Error())
+		assert.Equal(t, `Variable "$bar" got invalid value at "bar.[0].bar"; String cannot represent a non string value`, err.Error())
 	})
 
 	t.Run("dev_mode required string argument on input object list provided with wrong value", func(t *testing.T) {
