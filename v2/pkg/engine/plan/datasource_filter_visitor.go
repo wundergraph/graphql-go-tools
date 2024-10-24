@@ -142,6 +142,7 @@ const (
 	ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
 	ReasonStage3SelectParentRootNodeWithEnabledEntityResolver         = "stage3: first available parent node with enabled entity resolver"
 	ReasonStage3SelectNodeUnderFirstParentRootNode                    = "stage3: node under first available parent node with enabled entity resolver"
+	ReasonStage3SelectParentNodeWhichCouldGiveKeys                    = "stage3: select parent node which could provide keys for the child node"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
@@ -394,6 +395,23 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if currentChildNodeCount > 0 {
 			// we can't select node if it doesn't have any child nodes to select
 			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+		}
+
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				if f.nodeCouldProvideKeysToChildNodes(i) {
+					f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
+
+					return true
+				}
+
+				return false
+			},
+			func(i int) (skip bool) {
+				// do not evaluate childs for the leaf nodes
+				return f.nodes.items[i].IsLeaf
+			}) {
+			continue
 		}
 	}
 }

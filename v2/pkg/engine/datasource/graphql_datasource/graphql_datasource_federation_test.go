@@ -13361,6 +13361,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				*/
 
 				// TODO: implement same kind of test but with HostedImage type as union and interface
+				// TODO: add test when parent nodes are shareable and should be selected basic on keys to child
 
 				RunWithPermutations(
 					t,
