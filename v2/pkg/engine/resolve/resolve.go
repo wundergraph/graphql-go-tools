@@ -63,7 +63,12 @@ type Resolver struct {
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
 
-	tools *sync.Pool
+	// We create dedicated pools for request and subscription tools to more efficiently manage memory
+	// The assumption is that subscription responses are smaller than regular requests and we avoid
+	// the overhead of allocating memory for the larger request tools
+
+	requestTools      *sync.Pool
+	subscriptionTools *sync.Pool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -179,23 +184,14 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		reporter:                     options.Reporter,
 		asyncErrorWriter:             options.AsyncErrorWriter,
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
-		tools: &sync.Pool{
+		requestTools: &sync.Pool{
 			New: func() any {
-				return &tools{
-					resolvable: NewResolvable(options.ResolvableOptions),
-					loader: &Loader{
-						propagateSubgraphErrors:           options.PropagateSubgraphErrors,
-						propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
-						subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
-						rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
-						omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
-						omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
-						allowedErrorExtensionFields:       allowedExtensionFields,
-						attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
-						defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
-						allowedSubgraphErrorFields:        allowedErrorFields,
-					},
-				}
+				return newTools(options, allowedExtensionFields, allowedErrorFields)
+			},
+		},
+		subscriptionTools: &sync.Pool{
+			New: func() any {
+				return newTools(options, allowedExtensionFields, allowedErrorFields)
 			},
 		},
 	}
@@ -214,33 +210,51 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-// getToolsWithLimit returns a new tools struct with a limit of how many can be created concurrently
-// The limit is defined by the MaxConcurrency option. Use putToolsWithLimit to return the tools struct back to the pool
-func (r *Resolver) getToolsWithLimit() (time.Duration, *tools) {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}) *tools {
+	return &tools{
+		resolvable: NewResolvable(options.ResolvableOptions),
+		loader: &Loader{
+			propagateSubgraphErrors:           options.PropagateSubgraphErrors,
+			propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
+			subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
+			rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
+			omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
+			omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
+			allowedErrorExtensionFields:       allowedExtensionFields,
+			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
+			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
+			allowedSubgraphErrorFields:        allowedErrorFields,
+		},
+	}
+}
+
+// getRequestTools returns a new tools struct with a limit of how many can be created concurrently
+// The limit is defined by the MaxConcurrency option. Use putRequestTools to return the tools struct back to the pool
+func (r *Resolver) getRequestTools() (time.Duration, *tools) {
 	start := time.Now()
 	<-r.maxConcurrency
-	tool := r.tools.Get().(*tools)
+	tool := r.requestTools.Get().(*tools)
 	return time.Since(start), tool
 }
 
-// putToolsWithLimit returns the tools struct back to the pool and releases the semaphore
-func (r *Resolver) putToolsWithLimit(t *tools) {
+// putRequestTools returns the tools struct back to the pool and releases the semaphore
+func (r *Resolver) putRequestTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
-	r.tools.Put(t)
+	r.requestTools.Put(t)
 	r.maxConcurrency <- struct{}{}
 }
 
-// getTools returns a new tools struct. Use putTools to return the tools struct back to the pool.
-func (r *Resolver) getTools() *tools {
-	return r.tools.Get().(*tools)
+// getSubscriptionTools returns a new tools struct. Use putSubscriptionTools to return the tools struct back to the pool.
+func (r *Resolver) getSubscriptionTools() *tools {
+	return r.subscriptionTools.Get().(*tools)
 }
 
-// putTools returns the tools struct back to the pool
-func (r *Resolver) putTools(t *tools) {
+// putSubscriptionTools returns the tools struct back to the pool
+func (r *Resolver) putSubscriptionTools(t *tools) {
 	t.loader.Free()
 	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
-	r.tools.Put(t)
+	r.subscriptionTools.Put(t)
 }
 
 func (r *Resolver) getBuffer() *bytes.Buffer {
@@ -265,7 +279,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	resp := &GraphQLResolveInfo{}
 
 	toolsCleaned := false
-	acquireWaitTime, t := r.getToolsWithLimit()
+	acquireWaitTime, t := r.getRequestTools()
 	resp.ResolveAcquireWaitTime = acquireWaitTime
 
 	// Ensure that the tools are returned even on panic
@@ -273,7 +287,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	// and if we don't return the tools, we will have a deadlock
 	defer func() {
 		if !toolsCleaned {
-			r.putToolsWithLimit(t)
+			r.putRequestTools(t)
 		}
 	}()
 
@@ -294,7 +308,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 
 	// Return the tools as soon as possible. More efficient in case of a slow client / network.
-	r.putToolsWithLimit(t)
+	r.putRequestTools(t)
 	toolsCleaned = true
 
 	if err != nil {
@@ -343,8 +357,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	t := r.getTools()
-	defer r.putTools(t)
+	t := r.getSubscriptionTools()
+	defer r.putSubscriptionTools(t)
 
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
