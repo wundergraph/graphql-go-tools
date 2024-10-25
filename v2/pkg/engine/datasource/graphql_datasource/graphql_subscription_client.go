@@ -53,7 +53,6 @@ type subscriptionClient struct {
 	triggers          map[uint64]int
 	clientUnsubscribe chan uint64
 	serverUnsubscribe chan int
-	continueReading   chan int
 }
 
 func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -172,7 +171,6 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		triggers:                   make(map[uint64]int),
 		clientUnsubscribe:          make(chan uint64, op.epollConfiguration.BufferSize),
 		serverUnsubscribe:          make(chan int, op.epollConfiguration.BufferSize),
-		continueReading:            make(chan int, op.epollConfiguration.BufferSize),
 		epollConfig:                op.epollConfiguration,
 	}
 	if !op.epollConfiguration.Disable {
@@ -301,7 +299,6 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	c.connections[fd] = conn
 	c.triggers[id] = fd
 	c.connectionsMu.Unlock()
-	c.continueReading <- fd
 
 	return nil
 }
@@ -539,7 +536,6 @@ type ConnectionState int
 
 const (
 	ConnectionStateShouldClose ConnectionState = iota
-	ConnectionStateContinueReading
 	ConnectionStateShouldWaitEpoll
 )
 
@@ -587,11 +583,7 @@ func waitForAck(conn net.Conn) error {
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	done := ctx.Done()
 	wg := sync.WaitGroup{}
-	active := make(map[int]struct{}, c.epollConfig.BufferSize)
 	for {
-		for k := range active {
-			delete(active, k)
-		}
 		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
@@ -606,34 +598,11 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				continue
 			}
 			hasWork = true
-			active[id] = struct{}{}
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				c.handleConnection(conn)
 			}()
-		}
-	ContinueReadingLoop:
-		for {
-			select {
-			case id := <-c.continueReading:
-				_, ok := active[id]
-				if ok {
-					continue
-				}
-				conn, ok := c.connections[id]
-				if !ok {
-					continue
-				}
-				wg.Add(1)
-				hasWork = true
-				go func() {
-					defer wg.Done()
-					c.handleConnection(conn)
-				}()
-			default:
-				break ContinueReadingLoop
-			}
 		}
 		c.connectionsMu.Unlock()
 		if hasWork {
@@ -711,9 +680,6 @@ func (c *subscriptionClient) handleConnection(conn *connection) {
 		return
 	case ConnectionStateShouldWaitEpoll:
 		return
-	case ConnectionStateContinueReading:
-		c.continueReading <- conn.fd
-		return
 	}
 }
 
@@ -755,7 +721,7 @@ func handleConnectionError(err error) ConnectionState {
 		return ConnectionStateShouldClose
 	}
 
-	return ConnectionStateContinueReading
+	return ConnectionStateShouldWaitEpoll
 }
 
 func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {

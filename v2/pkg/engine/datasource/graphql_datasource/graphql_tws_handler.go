@@ -46,17 +46,11 @@ func (h *gqlTWSConnectionHandler) Subscribe() error {
 
 func (h *gqlTWSConnectionHandler) ReadMessage() ConnectionState {
 
-	messageCount := 0
-
 	for {
-		if messageCount == 2 {
-			return ConnectionStateContinueReading
-		}
 		data, err := readMessage(h.conn, h.options.readTimeout)
 		if err != nil {
 			return handleConnectionError(err)
 		}
-		messageCount++
 		messageType, err := jsonparser.GetString(data, "type")
 		if err != nil {
 			continue
