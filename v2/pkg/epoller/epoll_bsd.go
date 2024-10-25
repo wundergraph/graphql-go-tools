@@ -125,17 +125,16 @@ func (e *Epoll) Remove(conn net.Conn) error {
 
 // Wait waits for events and returns the connections.
 func (e *Epoll) Wait(count int) ([]net.Conn, error) {
-	if e.events == nil {
+	if len(e.events) != count {
 		e.events = make([]syscall.Kevent_t, count)
 	}
-	events := e.events[:count]
 
 	e.mu.RLock()
 	changes := e.changes
 	e.mu.RUnlock()
 
 retry:
-	n, err := syscall.Kevent(e.fd, changes, events, &e.ts)
+	n, err := syscall.Kevent(e.fd, changes, e.events, &e.ts)
 	if err != nil {
 		if err == syscall.EINTR {
 			goto retry
@@ -152,7 +151,7 @@ retry:
 
 	e.mu.RLock()
 	for i := 0; i < n; i++ {
-		conn := e.conns[int(events[i].Ident)]
+		conn := e.conns[int(e.events[i].Ident)]
 		if conn != nil {
 			conns = append(conns, conn)
 		}

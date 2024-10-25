@@ -102,17 +102,21 @@ func WithReadTimeout(timeout time.Duration) Options {
 }
 
 type EpollConfiguration struct {
-	Disable    bool
-	BufferSize int
-	Interval   time.Duration
+	Disable          bool
+	BufferSize       int
+	WaitForNumEvents int
+	TickInterval     time.Duration
 }
 
 func (e *EpollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
-		e.BufferSize = 1024 * 2
+		e.BufferSize = 1024
 	}
-	if e.Interval == 0 {
-		e.Interval = time.Millisecond * 100
+	if e.WaitForNumEvents == 0 {
+		e.WaitForNumEvents = 512
+	}
+	if e.TickInterval == 0 {
+		e.TickInterval = time.Millisecond * 100
 	}
 }
 
@@ -175,7 +179,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 	}
 	if !op.epollConfiguration.Disable {
 		// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
-		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.Interval)
+		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.TickInterval)
 		if epoll != nil {
 			client.epoll = epoll
 			go client.runEpoll(engineCtx)
@@ -532,16 +536,9 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 	return msg, nil
 }
 
-type ConnectionState int
-
-const (
-	ConnectionStateShouldClose ConnectionState = iota
-	ConnectionStateShouldWaitEpoll
-)
-
 type ConnectionHandler interface {
 	StartBlocking() error
-	ReadMessage() ConnectionState
+	HandleMessage(data []byte) (done bool)
 	ServerClose()
 	ClientClose()
 	Subscribe() error
@@ -581,41 +578,70 @@ func waitForAck(conn net.Conn) error {
 }
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
+	defer c.close()
 	done := ctx.Done()
+	tick := time.NewTicker(c.epollConfig.TickInterval)
+	defer tick.Stop()
 	wg := sync.WaitGroup{}
+	readN := c.epollConfig.WaitForNumEvents
+	maxReadN := c.epollConfig.WaitForNumEvents * 4
 	for {
-		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
+		connections, err := c.epoll.Wait(readN)
 		if err != nil {
 			c.log.Error("epoll.Wait", abstractlogger.Error(err))
 			continue
 		}
+		if len(connections) == readN {
+			if readN < maxReadN {
+				readN = readN * 2
+			}
+			tick.Reset(time.Millisecond)
+		} else {
+			readN = c.epollConfig.WaitForNumEvents
+			tick.Reset(c.epollConfig.TickInterval)
+		}
 		c.connectionsMu.Lock()
-		hasWork := false
+		work := 0
 		for i := range connections {
 			id := epoller.SocketFD(connections[i])
 			conn, ok := c.connections[id]
 			if !ok {
 				continue
 			}
-			hasWork = true
-			wg.Add(1)
-			go func() {
+			work++
+			go func(conn *connection) {
 				defer wg.Done()
 				c.handleConnection(conn)
-			}()
+			}(conn)
 		}
 		c.connectionsMu.Unlock()
-		if hasWork {
+		if work > 0 {
+			wg.Add(work)
 			wg.Wait()
 		}
 		c.handlePendingClientUnsubscribe()
 		c.handlePendingServerUnsubscribe()
 		select {
 		case <-done:
-			c.log.Debug("epoll done due to context done")
 			return
-		default:
+		case <-tick.C:
 			continue
+		}
+	}
+}
+
+func (c *subscriptionClient) close() {
+	defer c.log.Debug("subscriptionClient.close", abstractlogger.String("reason", "epoll closed by context"))
+	c.connectionsMu.Lock()
+	defer c.connectionsMu.Unlock()
+	for _, conn := range c.connections {
+		_ = c.epoll.Remove(conn.conn)
+		conn.handler.ServerClose()
+	}
+	if c.epoll != nil {
+		err := c.epoll.Close(false)
+		if err != nil {
+			c.log.Error("subscriptionClient.close", abstractlogger.Error(err))
 		}
 	}
 }
@@ -623,7 +649,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 func (c *subscriptionClient) handlePendingClientUnsubscribe() {
 	c.connectionsMu.Lock()
 	defer c.connectionsMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.Interval)
+	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.TickInterval)
 	defer cancel()
 	for {
 		select {
@@ -651,7 +677,7 @@ func (c *subscriptionClient) handlePendingClientUnsubscribe() {
 func (c *subscriptionClient) handlePendingServerUnsubscribe() {
 	c.connectionsMu.Lock()
 	defer c.connectionsMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.Interval)
+	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.TickInterval)
 	defer cancel()
 	for {
 		select {
@@ -673,55 +699,56 @@ func (c *subscriptionClient) handlePendingServerUnsubscribe() {
 }
 
 func (c *subscriptionClient) handleConnection(conn *connection) {
-	state := conn.handler.ReadMessage()
-	switch state {
-	case ConnectionStateShouldClose:
-		c.serverUnsubscribe <- conn.fd
+	data, err := readMessage(conn.conn, c.readTimeout)
+	if err != nil {
+		if handleConnectionError(err) {
+			c.serverUnsubscribe <- conn.fd
+			return
+		}
 		return
-	case ConnectionStateShouldWaitEpoll:
+	}
+	if conn.handler.HandleMessage(data) {
+		c.serverUnsubscribe <- conn.fd
 		return
 	}
 }
 
-func handleConnectionError(err error) ConnectionState {
+func handleConnectionError(err error) (done bool) {
 	netOpErr := &net.OpError{}
 	if errors.As(err, &netOpErr) {
-		if netOpErr.Timeout() {
-			return ConnectionStateShouldWaitEpoll
-		}
-		return ConnectionStateShouldClose
+		return !netOpErr.Timeout()
 	}
 
 	// Check if we have errors during reading from the connection
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
 	// Check if we have a context error
 	if errors.Is(err, context.DeadlineExceeded) {
-		return ConnectionStateShouldWaitEpoll
+		return false
 	}
 
 	// Check if the error is a connection reset by peer
 	if errors.Is(err, syscall.ECONNRESET) {
-		return ConnectionStateShouldClose
+		return true
 	}
 	if errors.Is(err, syscall.EPIPE) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
 	// Check if the error is a closed network connection. Introduced in go 1.16.
 	// This replaces the string match of "use of closed network connection"
 	if errors.Is(err, net.ErrClosed) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
 	// Check if the error is closed websocket connection
 	if errors.As(err, &wsutil.ClosedError{}) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
-	return ConnectionStateShouldWaitEpoll
+	return false
 }
 
 func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
