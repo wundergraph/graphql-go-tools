@@ -3,8 +3,6 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -31,7 +29,7 @@ func NewVariablesValidator() *VariablesValidator {
 	visitor := &variablesVisitor{
 		variables: &astjson.JSON{},
 		walker:    &walker,
-		dev_mode: (strings.ToLower(os.Getenv("DEV_MODE")) == "true"),
+		dev_mode: false,
 	}
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	return &VariablesValidator{
@@ -40,8 +38,11 @@ func NewVariablesValidator() *VariablesValidator {
 	}
 }
 
-func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte) error {
+func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte, devMode bool) error {
 	v.visitor.err = nil
+	if devMode {
+		v.visitor.dev_mode = devMode
+	}
 	v.visitor.definition = definition
 	v.visitor.operation = operation
 	err := v.visitor.variables.ParseObject(variables)
