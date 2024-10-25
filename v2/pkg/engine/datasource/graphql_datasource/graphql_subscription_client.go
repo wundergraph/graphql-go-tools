@@ -716,10 +716,7 @@ func (c *subscriptionClient) handleConnection(conn *connection) {
 func handleConnectionError(err error) (done bool) {
 	netOpErr := &net.OpError{}
 	if errors.As(err, &netOpErr) {
-		if netOpErr.Timeout() {
-			return false
-		}
-		return true
+		return !netOpErr.Timeout()
 	}
 
 	// Check if we have errors during reading from the connection
