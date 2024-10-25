@@ -569,6 +569,7 @@ func TestWebSocketClientLeaks(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+	time.Sleep(time.Second)
 	serverCancel()
 	time.Sleep(time.Second)
 	serverDone.Wait()

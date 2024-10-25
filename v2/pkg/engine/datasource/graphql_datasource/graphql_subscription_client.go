@@ -583,6 +583,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	defer tick.Stop()
 	wg := sync.WaitGroup{}
 	readN := c.epollConfig.WaitForNumEvents
+	maxReadN := c.epollConfig.WaitForNumEvents * 4
 	for {
 		connections, err := c.epoll.Wait(readN)
 		if err != nil {
@@ -590,7 +591,9 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 			continue
 		}
 		if len(connections) == readN {
-			readN = readN * 2
+			if readN < maxReadN {
+				readN = readN * 2
+			}
 			tick.Reset(time.Millisecond)
 		} else {
 			readN = c.epollConfig.WaitForNumEvents
@@ -619,14 +622,26 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 		c.handlePendingServerUnsubscribe()
 		select {
 		case <-done:
-			c.log.Debug("epoll done due to context done")
-			err = c.epoll.Close(true)
-			if err != nil {
-				c.log.Error("epoll.Close", abstractlogger.Error(err))
-			}
+			c.close()
 			return
 		case <-tick.C:
 			continue
+		}
+	}
+}
+
+func (c *subscriptionClient) close() {
+	defer c.log.Debug("subscriptionClient.close", abstractlogger.String("reason", "epoll closed by context"))
+	c.connectionsMu.Lock()
+	defer c.connectionsMu.Unlock()
+	for _, conn := range c.connections {
+		_ = c.epoll.Remove(conn.conn)
+		conn.handler.ServerClose()
+	}
+	if c.epoll != nil {
+		err := c.epoll.Close(false)
+		if err != nil {
+			c.log.Error("subscriptionClient.close", abstractlogger.Error(err))
 		}
 	}
 }
