@@ -396,6 +396,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		node := NodeSuggestion{
 			FieldRef:                  fieldRef,
 			TypeName:                  info.typeName,
+			possibleTypeNames:         info.possibleTypeNames,
 			FieldName:                 info.fieldName,
 			DataSourceHash:            f.dataSource.Hash(),
 			DataSourceID:              f.dataSource.Id(),
@@ -484,10 +485,21 @@ type fieldInfo struct {
 	typeName, fieldName, fieldAliasOrName, parentPath, currentPath string
 	onFragment, isTypeName                                         bool
 	parentPathWithoutFragment                                      *string
+	possibleTypeNames                                              []string
 }
 
 func (f *fieldInfoVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
+
+	var possibleTypes []string
+	switch f.walker.EnclosingTypeDefinition.Kind {
+	case ast.NodeKindUnionTypeDefinition:
+		possibleTypes, _ = f.definition.UnionTypeDefinitionMemberTypeNames(f.walker.EnclosingTypeDefinition.Ref)
+	case ast.NodeKindInterfaceTypeDefinition:
+		possibleTypes, _ = f.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(f.walker.EnclosingTypeDefinition.Ref)
+	default:
+	}
+
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 	isTypeName := fieldName == typeNameField
@@ -501,6 +513,7 @@ func (f *fieldInfoVisitor) EnterField(ref int) {
 	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
 	f.infoCache[ref] = fieldInfo{
 		typeName:                  typeName,
+		possibleTypeNames:         possibleTypes,
 		fieldName:                 fieldName,
 		fieldAliasOrName:          fieldAliasOrName,
 		parentPath:                parentPath,

@@ -32,6 +32,7 @@ type NodeSuggestion struct {
 	Selected                  bool     `json:"isSelected"`
 	SelectionReasons          []string `json:"selectReason"`
 	treeNodeId                uint
+	possibleTypeNames         []string
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -179,13 +180,17 @@ func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
 }
 
 func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
+	return f.childNodesIds(idx, true)
+}
+
+func (f *NodeSuggestions) childNodesIds(idx int, onSameDataSource bool) (out []int) {
 	treeNode := f.treeNode(idx)
 	childIndexes := treeNodeChildren(treeNode)
 
 	out = make([]int, 0, len(childIndexes))
 
 	for _, childIdx := range childIndexes {
-		if f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
+		if onSameDataSource && f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
 			continue
 		}
 

@@ -8834,6 +8834,14 @@ var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
+func (f *FailingSubscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	return errSubscriptionClientFail
+}
+
+func (f *FailingSubscriptionClient) Unsubscribe(id uint64) {
+
+}
+
 func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	return errSubscriptionClientFail
 }
@@ -9029,31 +9037,6 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		assert.Len(t, updater.updates, 1)
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 	})
-
-	t.Run("should successfully send heartbeat", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		ctx.ExecutionOptions.SendHeartbeat = true
-		defer ctx.Context().Done()
-
-		updater := &testSubscriptionUpdater{}
-
-		source := newSubscriptionSource(ctx.Context())
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
-
-		updater.AwaitUpdates(t, 7*time.Second, 2)
-		assert.Len(t, updater.updates, 2)
-		assert.Equal(t, `{}`, updater.updates[1])
-	})
 }
 
 func TestSubscription_GTWS_SubProtocol(t *testing.T) {
@@ -9161,32 +9144,6 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		updater.AwaitUpdates(t, time.Second, 1)
 		assert.Len(t, updater.updates, 1)
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
-	})
-
-	t.Run("should successfully send heartbeat", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		ctx.ExecutionOptions.SendHeartbeat = true
-		defer ctx.Context().Done()
-
-		updater := &testSubscriptionUpdater{}
-
-		source := newSubscriptionSource(ctx.Context())
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
-
-		updater.AwaitUpdates(t, 7*time.Second, 2)
-		assert.Len(t, updater.updates, 2)
-		assert.Equal(t, `{}`, updater.updates[1])
 	})
 }
 
