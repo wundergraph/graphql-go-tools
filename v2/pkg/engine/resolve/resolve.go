@@ -74,6 +74,10 @@ type Resolver struct {
 	subscriptionTools *sync.Pool
 }
 
+func (r *Resolver) Options() ResolvableOptions {
+	return r.options.ResolvableOptions
+}
+
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
 	r.asyncErrorWriter = w
 }

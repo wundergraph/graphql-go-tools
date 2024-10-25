@@ -26,12 +26,26 @@ const (
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
 	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
+	OperationFieldUndefined                 = "OPERATION_FIELD_UNDEFINED"
+	GraohQLValidationFailed                 = "GRAPHQL_VALIDATION_FAILED"
 )
 
+type ApolloCompatibilityError struct {
+	Code          string
+	ExtensionCode string
+	Message       string
+	StatusCode    int
+}
+
+func (e *ApolloCompatibilityError) Error() string {
+	return e.Message
+}
+
 type ExternalError struct {
-	Message   string     `json:"message"`
-	Path      ast.Path   `json:"path"`
-	Locations []Location `json:"locations"`
+	Message                  string                    `json:"message"`
+	Path                     ast.Path                  `json:"path"`
+	Locations                []Location                `json:"locations"`
+	ApolloCompatibilityError *ApolloCompatibilityError `json:"-"`
 }
 
 func LocationsFromPosition(position ...position.Position) []Location {
@@ -50,6 +64,12 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
+	err.ApolloCompatibilityError = &ApolloCompatibilityError{
+		Code:          OperationFieldUndefined,
+		ExtensionCode: GraohQLValidationFailed,
+		Message:       fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName),
+		StatusCode:    400,
+	}
 	return err
 }
 

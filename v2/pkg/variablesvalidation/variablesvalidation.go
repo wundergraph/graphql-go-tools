@@ -11,8 +11,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+const (
+	BadUserInput = "BAD_USER_INPUT"
+)
+
 type InvalidVariableError struct {
-	Message string
+	ExtensionCode string
+	Message       string
 }
 
 func (e *InvalidVariableError) Error() string {
@@ -170,7 +175,8 @@ func (v *variablesVisitor) renderVariableRequiredError(variableName []byte, type
 		return
 	}
 	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" of required type "%s" was not provided.`, string(variableName), out.String()),
+		ExtensionCode: BadUserInput,
+		Message:       fmt.Sprintf(`Variable "$%s" of required type "%s" was not provided.`, string(variableName), out.String()),
 	}
 }
 
@@ -183,7 +189,8 @@ func (v *variablesVisitor) renderVariableInvalidObjectTypeError(typeName []byte,
 	}
 	variableContent := out.String()
 	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be an object.`, string(v.currentVariableName), variableContent, string(typeName)),
+		ExtensionCode: BadUserInput,
+		Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be an object.`, string(v.currentVariableName), variableContent, string(typeName)),
 	}
 }
 
@@ -202,7 +209,8 @@ func (v *variablesVisitor) renderVariableRequiredNotProvidedError(fieldName []by
 		return
 	}
 	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" got invalid value %s; Field "%s" of required type "%s" was not provided.`, string(v.currentVariableName), variableContent, string(fieldName), out.String()),
+		ExtensionCode: BadUserInput,
+		Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s; Field "%s" of required type "%s" was not provided.`, string(v.currentVariableName), variableContent, string(fieldName), out.String()),
 	}
 }
 
@@ -225,42 +233,51 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 		switch typeName {
 		case "String":
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; String cannot represent a non string value: %s`, variableName, invalidValue, path, invalidValue),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; String cannot represent a non string value: %s`, variableName, invalidValue, path, invalidValue),
 			}
 		case "Int":
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Int cannot represent non-integer value: %s`, variableName, invalidValue, path, invalidValue),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Int cannot represent non-integer value: %s`, variableName, invalidValue, path, invalidValue),
 			}
 		case "Float":
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Float cannot represent non numeric value: %s`, variableName, invalidValue, path, invalidValue),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Float cannot represent non numeric value: %s`, variableName, invalidValue, path, invalidValue),
 			}
 		case "Boolean":
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Boolean cannot represent a non boolean value: %s`, variableName, invalidValue, path, invalidValue),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Boolean cannot represent a non boolean value: %s`, variableName, invalidValue, path, invalidValue),
 			}
 		case "ID":
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; ID cannot represent value: %s`, variableName, invalidValue, path, invalidValue),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; ID cannot represent value: %s`, variableName, invalidValue, path, invalidValue),
 			}
 		default:
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be a scalar.`, variableName, invalidValue, path, typeName),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be a scalar.`, variableName, invalidValue, path, typeName),
 			}
 		}
 	case ast.NodeKindInputObjectTypeDefinition:
 		if expectedList {
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Got input type "%s", want: "[%s]"`, variableName, invalidValue, path, typeName, typeName),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Got input type "%s", want: "[%s]"`, variableName, invalidValue, path, typeName, typeName),
 			}
 		} else {
 			v.err = &InvalidVariableError{
-				Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an input object.`, variableName, invalidValue, path, typeName),
+				ExtensionCode: BadUserInput,
+				Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an input object.`, variableName, invalidValue, path, typeName),
 			}
 		}
 	case ast.NodeKindEnumTypeDefinition:
 		v.err = &InvalidVariableError{
-			Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Enum "%s" cannot represent non-string value: %s.`, variableName, invalidValue, path, typeName, invalidValue),
+			ExtensionCode: BadUserInput,
+			Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Enum "%s" cannot represent non-string value: %s.`, variableName, invalidValue, path, typeName, invalidValue),
 		}
 	}
 }
@@ -276,7 +293,8 @@ func (v *variablesVisitor) renderVariableFieldNotDefinedError(fieldName []byte, 
 	invalidValue := buf.String()
 	path := v.renderPath()
 	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" got invalid value %s at "%s"; Field "%s" is not defined by type "%s".`, variableName, invalidValue, path, string(fieldName), string(typeName)),
+		ExtensionCode: BadUserInput,
+		Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s at "%s"; Field "%s" is not defined by type "%s".`, variableName, invalidValue, path, string(fieldName), string(typeName)),
 	}
 }
 
@@ -294,7 +312,8 @@ func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []b
 		path = fmt.Sprintf(` at "%s"`, v.renderPath())
 	}
 	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Value "%s" does not exist in "%s" enum.`, variableName, invalidValue, path, string(enumValue), string(typeName)),
+		ExtensionCode: BadUserInput,
+		Message:       fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Value "%s" does not exist in "%s" enum.`, variableName, invalidValue, path, string(enumValue), string(typeName)),
 	}
 }
 
@@ -307,7 +326,8 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 	}
 	typeName := buf.String()
 	v.err = &InvalidVariableError{
-		Message: fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName),
+		ExtensionCode: BadUserInput,
+		Message:       fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName),
 	}
 }
 

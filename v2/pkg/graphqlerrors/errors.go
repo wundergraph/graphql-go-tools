@@ -49,6 +49,18 @@ func RequestErrorsFromError(err error) RequestErrors {
 	}
 }
 
+// Used by Cosmo
+func RequestErrorsFromApolloCompatibilityError(err *operationreport.ApolloCompatibilityError) RequestErrors {
+	return RequestErrors{
+		{
+			Extensions: &ApolloExtensions{
+				Code: err.ExtensionCode,
+			},
+			Message: err.Error(),
+		},
+	}
+}
+
 func RequestErrorsFromOperationReport(report operationreport.Report) (errors RequestErrors) {
 	if len(report.ExternalErrors) == 0 {
 		return nil
@@ -111,20 +123,27 @@ func (o RequestErrors) ErrorByIndex(i int) error {
 	return o[i]
 }
 
+type ApolloExtensions struct {
+	Code string `json:"code"`
+}
+
 type RequestError struct {
-	Message   string                     `json:"message"`
-	Locations []operationreport.Location `json:"locations,omitempty"`
-	Path      ErrorPath                  `json:"path"`
+	Message    string                     `json:"message"`
+	Locations  []operationreport.Location `json:"locations,omitempty"`
+	Path       ErrorPath                  `json:"path"`
+	Extensions *ApolloExtensions          `json:"extensions,omitempty"`
 }
 
 func (o RequestError) MarshalJSON() ([]byte, error) {
 	if o.Path.Len() == 0 {
 		return json.Marshal(struct {
-			Message   string                     `json:"message"`
-			Locations []operationreport.Location `json:"locations,omitempty"`
+			Message    string                     `json:"message"`
+			Locations  []operationreport.Location `json:"locations,omitempty"`
+			Extensions *ApolloExtensions          `json:"extensions,omitempty"`
 		}{
-			Message:   o.Message,
-			Locations: o.Locations,
+			Message:    o.Message,
+			Locations:  o.Locations,
+			Extensions: o.Extensions,
 		})
 	}
 	path, err := o.Path.MarshalJSON()
@@ -132,13 +151,15 @@ func (o RequestError) MarshalJSON() ([]byte, error) {
 		return nil, err
 	}
 	return json.Marshal(struct {
-		Message   string                     `json:"message"`
-		Locations []operationreport.Location `json:"locations,omitempty"`
-		Path      json.RawMessage            `json:"path"`
+		Message    string                     `json:"message"`
+		Locations  []operationreport.Location `json:"locations,omitempty"`
+		Path       json.RawMessage            `json:"path"`
+		Extensions *ApolloExtensions          `json:"extensions,omitempty"`
 	}{
-		Message:   o.Message,
-		Locations: o.Locations,
-		Path:      path,
+		Message:    o.Message,
+		Locations:  o.Locations,
+		Path:       path,
+		Extensions: o.Extensions,
 	})
 }
 
