@@ -578,6 +578,7 @@ func waitForAck(conn net.Conn) error {
 }
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
+	defer c.close()
 	done := ctx.Done()
 	tick := time.NewTicker(c.epollConfig.TickInterval)
 	defer tick.Stop()
@@ -622,7 +623,6 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 		c.handlePendingServerUnsubscribe()
 		select {
 		case <-done:
-			c.close()
 			return
 		case <-tick.C:
 			continue
