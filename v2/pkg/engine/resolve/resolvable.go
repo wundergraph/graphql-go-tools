@@ -495,6 +495,8 @@ func (r *Resolvable) walkNode(node Node, value, parent *astjson.Value) bool {
 		return r.walkEmptyArray(n)
 	case *CustomNode:
 		return r.walkCustom(n, value)
+	case *Enum:
+		return r.walkEnum(n, value)
 	default:
 		return false
 	}
@@ -1031,6 +1033,42 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 	}
 	if r.print {
 		r.printBytes(resolved)
+	}
+	return false
+}
+
+func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
+	if r.print {
+		r.ctx.Stats.ResolvedLeafs++
+	}
+	parent := value
+	value = value.Get(e.Path...)
+	if astjson.ValueIsNull(value) {
+		if e.Nullable {
+			return r.walkNull()
+		}
+		r.addNonNullableFieldError(e.Path, parent)
+		return r.err()
+	}
+	if value.Type() != astjson.TypeString {
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf(`Enum "%s" cannot represent value: "%s""`, e.TypeName, string(r.marshalBuf)), e.Path)
+		return r.err()
+	}
+	valueString := string(value.GetStringBytes())
+	if !e.isValidValue(valueString) {
+		r.addError(fmt.Sprintf(`Enum "%s" cannot represent value: "%s""`, e.TypeName, valueString), e.Path)
+		return r.err()
+	}
+	if !e.isAccessibleValue(valueString) {
+		if e.Nullable {
+			return r.walkNull()
+		}
+		r.addNonNullableFieldError(e.Path, parent)
+		return r.err()
+	}
+	if r.print {
+		r.printNode(value)
 	}
 	return false
 }
