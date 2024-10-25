@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -1738,6 +1739,8 @@ type GraphQLSubscriptionClient interface {
 	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
+	SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
+	Unsubscribe(id uint64)
 }
 
 type GraphQLSubscriptionOptions struct {
@@ -1750,6 +1753,7 @@ type GraphQLSubscriptionOptions struct {
 	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 	WsSubProtocol                           string           `json:"ws_sub_protocol"`
+	readTimeout                             time.Duration    `json:"-"`
 }
 
 type GraphQLBody struct {
@@ -1761,6 +1765,22 @@ type GraphQLBody struct {
 
 type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
+}
+
+func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
+	var options GraphQLSubscriptionOptions
+	err := json.Unmarshal(input, &options)
+	if err != nil {
+		return err
+	}
+	if options.Body.Query == "" {
+		return resolve.ErrUnableToResolve
+	}
+	return s.client.SubscribeAsync(ctx, id, options, updater)
+}
+
+func (s *SubscriptionSource) AsyncStop(id uint64) {
+	s.client.Unsubscribe(id)
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
