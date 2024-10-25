@@ -45,35 +45,28 @@ func (h *gqlWSConnectionHandler) Subscribe() error {
 	return h.subscribe()
 }
 
-func (h *gqlWSConnectionHandler) ReadMessage() ConnectionState {
-
-	for {
-		data, err := readMessage(h.conn, h.options.readTimeout)
-		if err != nil {
-			return handleConnectionError(err)
-		}
-		messageType, err := jsonparser.GetString(data, "type")
-		if err != nil {
-			continue
-		}
-		switch messageType {
-		case messageTypeConnectionKeepAlive:
-			continue
-		case messageTypeData:
-			h.handleMessageTypeData(data)
-			continue
-		case messageTypeComplete:
-			h.handleMessageTypeComplete(data)
-			return ConnectionStateShouldClose
-		case messageTypeConnectionError:
-			h.handleMessageTypeConnectionError()
-			return ConnectionStateShouldClose
-		case messageTypeError:
-			h.handleMessageTypeError(data)
-			continue
-		default:
-			continue
-		}
+func (h *gqlWSConnectionHandler) HandleMessage(data []byte) (done bool) {
+	messageType, err := jsonparser.GetString(data, "type")
+	if err != nil {
+		return false
+	}
+	switch messageType {
+	case messageTypeConnectionKeepAlive:
+		return false
+	case messageTypeData:
+		h.handleMessageTypeData(data)
+		return false
+	case messageTypeComplete:
+		h.handleMessageTypeComplete(data)
+		return true
+	case messageTypeConnectionError:
+		h.handleMessageTypeConnectionError()
+		return true
+	case messageTypeError:
+		h.handleMessageTypeError(data)
+		return false
+	default:
+		return false
 	}
 }
 
