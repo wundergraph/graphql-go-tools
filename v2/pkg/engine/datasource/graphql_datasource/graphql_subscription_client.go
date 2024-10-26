@@ -48,7 +48,7 @@ type subscriptionClient struct {
 	epollConfig EpollConfiguration
 
 	connections   map[int]*connection
-	connectionsMu sync.Mutex
+	connectionsMu sync.RWMutex
 
 	triggers          map[uint64]int
 	clientUnsubscribe chan uint64
@@ -638,7 +638,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				continue
 			}
 
-			c.connectionsMu.Lock()
+			c.connectionsMu.RLock()
 			for i := range connections {
 				id := epoller.SocketFD(connections[i])
 				conn, ok := c.connections[id]
@@ -649,7 +649,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				// handle connection in worker. Channel must block to not overload the event loop
 				handleConnCh <- conn
 			}
-			c.connectionsMu.Unlock()
+			c.connectionsMu.RUnlock()
 
 			// sleep for the remaining time of the delay
 			// to not spinlock the CPU
