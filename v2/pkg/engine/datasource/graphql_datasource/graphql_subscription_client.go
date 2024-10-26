@@ -120,7 +120,7 @@ func (e *EpollConfiguration) ApplyDefaults() {
 		e.BufferSize = 1024
 	}
 	if e.MaxEventWorkers == 0 {
-		e.MaxEventWorkers = 4
+		e.MaxEventWorkers = 6
 	}
 	if e.WaitForNumEvents == 0 {
 		e.WaitForNumEvents = 1024
