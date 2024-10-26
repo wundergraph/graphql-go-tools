@@ -117,13 +117,13 @@ type EpollConfiguration struct {
 
 func (e *EpollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
-		e.BufferSize = 128
+		e.BufferSize = 1024
 	}
 	if e.MaxEventWorkers == 0 {
 		e.MaxEventWorkers = 4
 	}
 	if e.WaitForNumEvents == 0 {
-		e.WaitForNumEvents = 128
+		e.WaitForNumEvents = 1024
 	}
 	if e.TickInterval == 0 {
 		e.TickInterval = time.Millisecond * 100
@@ -638,18 +638,21 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 				continue
 			}
 
-			c.connectionsMu.RLock()
 			for i := range connections {
+
 				id := epoller.SocketFD(connections[i])
+
+				c.connectionsMu.RLock()
 				conn, ok := c.connections[id]
+				c.connectionsMu.RUnlock()
+
 				if !ok {
+					// Should never happen
 					continue
 				}
 
-				// handle connection in worker. Channel must block to not overload the event loop
 				handleConnCh <- conn
 			}
-			c.connectionsMu.RUnlock()
 
 			// sleep for the remaining time of the delay
 			// to not spinlock the CPU
