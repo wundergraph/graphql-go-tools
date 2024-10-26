@@ -48,7 +48,7 @@ type subscriptionClient struct {
 	epollConfig EpollConfiguration
 
 	connections   map[int]*connection
-	connectionsMu sync.Mutex
+	connectionsMu sync.RWMutex
 
 	triggers          map[uint64]int
 	clientUnsubscribe chan uint64
@@ -102,18 +102,28 @@ func WithReadTimeout(timeout time.Duration) Options {
 }
 
 type EpollConfiguration struct {
-	Disable          bool
-	BufferSize       int
+	// Disable can be set to true to disable epoll
+	Disable bool
+	// BufferSize defines the size of the buffer for the epoll loop
+	BufferSize int
+	// WaitForNumEvents defines how many events are waited for in the epoll loop before TickInterval cancels the wait
 	WaitForNumEvents int
-	TickInterval     time.Duration
+	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
+	// The higher the number, the more CPU is used.
+	MaxEventWorkers int
+	// TickInterval defines the time between each epoll loop when WaitForNumEvents is not reached
+	TickInterval time.Duration
 }
 
 func (e *EpollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
 		e.BufferSize = 1024
 	}
+	if e.MaxEventWorkers == 0 {
+		e.MaxEventWorkers = 6
+	}
 	if e.WaitForNumEvents == 0 {
-		e.WaitForNumEvents = 512
+		e.WaitForNumEvents = 1024
 	}
 	if e.TickInterval == 0 {
 		e.TickInterval = time.Millisecond * 100
@@ -579,53 +589,79 @@ func waitForAck(conn net.Conn) error {
 
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
 	defer c.close()
+
 	done := ctx.Done()
-	tick := time.NewTicker(c.epollConfig.TickInterval)
-	defer tick.Stop()
-	wg := sync.WaitGroup{}
-	readN := c.epollConfig.WaitForNumEvents
-	maxReadN := c.epollConfig.WaitForNumEvents * 4
+
+	handleConnCh := make(chan *connection)
+
+	// Start workers to handle incoming connections
+	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
+	// This is the critical number on how much CPU is used
+	for i := 0; i < c.epollConfig.MaxEventWorkers; i++ {
+		go func() {
+			for {
+				select {
+				case id, ok := <-c.clientUnsubscribe:
+					if !ok {
+						return
+					}
+					c.handlePendingClientUnsubscribe(id)
+				case id, ok := <-c.serverUnsubscribe:
+					if !ok {
+						return
+					}
+					c.handlePendingServerUnsubscribe(id)
+				case conn, ok := <-handleConnCh:
+					if !ok {
+						return
+					}
+					c.handleConnection(conn)
+				case <-done:
+					return
+				}
+			}
+		}()
+	}
+
+	delay := time.Millisecond * 100
+
 	for {
-		connections, err := c.epoll.Wait(readN)
-		if err != nil {
-			c.log.Error("epoll.Wait", abstractlogger.Error(err))
-			continue
-		}
-		if len(connections) == readN {
-			if readN < maxReadN {
-				readN = readN * 2
-			}
-			tick.Reset(time.Millisecond)
-		} else {
-			readN = c.epollConfig.WaitForNumEvents
-			tick.Reset(c.epollConfig.TickInterval)
-		}
-		c.connectionsMu.Lock()
-		work := 0
-		for i := range connections {
-			id := epoller.SocketFD(connections[i])
-			conn, ok := c.connections[id]
-			if !ok {
-				continue
-			}
-			work++
-			go func(conn *connection) {
-				defer wg.Done()
-				c.handleConnection(conn)
-			}(conn)
-		}
-		c.connectionsMu.Unlock()
-		if work > 0 {
-			wg.Add(work)
-			wg.Wait()
-		}
-		c.handlePendingClientUnsubscribe()
-		c.handlePendingServerUnsubscribe()
 		select {
 		case <-done:
 			return
-		case <-tick.C:
-			continue
+		default:
+			now := time.Now()
+			connections, err := c.epoll.Wait(c.epollConfig.WaitForNumEvents)
+
+			if err != nil {
+				c.log.Error("epoll.Wait", abstractlogger.Error(err))
+				continue
+			}
+
+			for i := range connections {
+
+				id := epoller.SocketFD(connections[i])
+
+				c.connectionsMu.RLock()
+				conn, ok := c.connections[id]
+				c.connectionsMu.RUnlock()
+
+				if !ok {
+					// Should never happen
+					continue
+				}
+
+				handleConnCh <- conn
+			}
+
+			// sleep for the remaining time of the delay
+			// to not spinlock the CPU
+
+			sleepTime := delay - time.Since(now)
+
+			if sleepTime > 0 {
+				time.Sleep(sleepTime)
+			}
 		}
 	}
 }
@@ -646,56 +682,38 @@ func (c *subscriptionClient) close() {
 	}
 }
 
-func (c *subscriptionClient) handlePendingClientUnsubscribe() {
+func (c *subscriptionClient) handlePendingClientUnsubscribe(id uint64) {
 	c.connectionsMu.Lock()
 	defer c.connectionsMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.TickInterval)
-	defer cancel()
-	for {
-		select {
-		case id := <-c.clientUnsubscribe:
-			fd, ok := c.triggers[id]
-			if !ok {
-				continue
-			}
-			delete(c.triggers, id)
-			conn, ok := c.connections[fd]
-			if !ok {
-				continue
-			}
-			delete(c.connections, fd)
-			_ = c.epoll.Remove(conn.conn)
-			go conn.handler.ClientClose()
-		case <-ctx.Done():
-			return
-		default:
-			return
-		}
+
+	fd, ok := c.triggers[id]
+	if !ok {
+		return
 	}
+	delete(c.triggers, id)
+	conn, ok := c.connections[fd]
+	if !ok {
+		return
+	}
+	delete(c.connections, fd)
+
+	_ = c.epoll.Remove(conn.conn)
+	conn.handler.ClientClose()
 }
 
-func (c *subscriptionClient) handlePendingServerUnsubscribe() {
+func (c *subscriptionClient) handlePendingServerUnsubscribe(id int) {
 	c.connectionsMu.Lock()
 	defer c.connectionsMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.TickInterval)
-	defer cancel()
-	for {
-		select {
-		case id := <-c.serverUnsubscribe:
-			conn, ok := c.connections[id]
-			if !ok {
-				continue
-			}
-			delete(c.connections, id)
-			delete(c.triggers, conn.id)
-			_ = c.epoll.Remove(conn.conn)
-			go conn.handler.ServerClose()
-		case <-ctx.Done():
-			return
-		default:
-			return
-		}
+
+	conn, ok := c.connections[id]
+	if !ok {
+		return
 	}
+	delete(c.connections, id)
+	delete(c.triggers, conn.id)
+
+	_ = c.epoll.Remove(conn.conn)
+	conn.handler.ServerClose()
 }
 
 func (c *subscriptionClient) handleConnection(conn *connection) {
