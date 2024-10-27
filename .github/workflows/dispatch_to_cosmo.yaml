@@ -1,0 +1,19 @@
+name: Notify Cosmo of New Tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  dispatch-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Cosmo Repository
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.COSMO_TOKEN }}  # GitHub token with access to `cosmo`
+          repository: wundergraph/cosmo  # Replace with the actual org/repo for cosmo
+          event-type: new_graphql_go_tools_tag
+          client-payload: '{"tag": "${GITHUB_REF##*/}"}'
