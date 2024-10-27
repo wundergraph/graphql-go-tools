@@ -907,8 +907,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			return true
 		}, time.Second*5, time.Millisecond*10, "server did not close")
 		time.Sleep(time.Second)
-		client.connectionsMu.Lock()
-		defer client.connectionsMu.Unlock()
 		assert.Equal(t, 0, len(client.connections))
 	})
 	t.Run("forever timeout", func(t *testing.T) {
@@ -1105,8 +1103,6 @@ func TestAsyncSubscribe(t *testing.T) {
 				return true
 			}, time.Second, time.Millisecond*10, "server did not close")
 			serverCancel()
-			client.connectionsMu.Lock()
-			defer client.connectionsMu.Unlock()
 			assert.Equal(t, 0, len(client.connections))
 		})
 		t.Run("error object", func(t *testing.T) {
@@ -1390,7 +1386,6 @@ func TestAsyncSubscribe(t *testing.T) {
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 			assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-			client.Unsubscribe(1)
 			clientCancel()
 			assert.Eventuallyf(t, func() bool {
 				<-serverDone
@@ -1470,7 +1465,6 @@ func TestAsyncSubscribe(t *testing.T) {
 					assert.Equal(t, `{"data":{"messageAdded":{"text":"first"}}}`, updater.updates[0])
 					assert.Equal(t, `{"data":{"messageAdded":{"text":"second"}}}`, updater.updates[1])
 					assert.Equal(t, `{"data":{"messageAdded":{"text":"third"}}}`, updater.updates[2])
-					client.Unsubscribe(uint64(i))
 					clientCancel()
 					wg.Done()
 				}(i)
