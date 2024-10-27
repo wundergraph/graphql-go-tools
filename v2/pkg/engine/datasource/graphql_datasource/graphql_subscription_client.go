@@ -24,6 +24,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/epoller"
+	"go.uber.org/atomic"
 )
 
 const ackWaitTimeout = 30 * time.Second
@@ -48,7 +49,8 @@ type subscriptionClient struct {
 	epollConfig EpollConfiguration
 
 	// connections is a map of fd -> connection to keep track of all active connections
-	connections map[int]*connection
+	connections    map[int]*connection
+	hasConnections atomic.Bool
 	// triggers is a map of subscription id -> fd to easily look up the connection for a subscription id
 	triggers map[uint64]int
 
@@ -724,6 +726,7 @@ func (c *subscriptionClient) handleAddConn(conn *connection) {
 	if len(c.connections) == 1 {
 		c.waitForEventsTicker = time.NewTicker(c.epollConfig.TickInterval)
 		c.waitForEventsTick = c.waitForEventsTicker.C
+		c.hasConnections.Store(true)
 	}
 }
 
@@ -744,6 +747,7 @@ func (c *subscriptionClient) handleClientUnsubscribe(id uint64) {
 	if len(c.connections) == 0 {
 		c.waitForEventsTicker.Stop()
 		c.waitForEventsTick = nil
+		c.hasConnections.Store(false)
 	}
 }
 
@@ -760,6 +764,7 @@ func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
 	if len(c.connections) == 0 {
 		c.waitForEventsTicker.Stop()
 		c.waitForEventsTick = nil
+		c.hasConnections.Store(false)
 	}
 }
 
