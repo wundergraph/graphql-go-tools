@@ -5,6 +5,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"io"
 
 	"github.com/cespare/xxhash/v2"
@@ -17,10 +18,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
-)
-
-const (
-	InvalidGraphqlErrorCode = "INVALID_GRAPHQL"
 )
 
 type Resolvable struct {
@@ -531,9 +528,9 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			if !r.print {
 				// during prewalk we need to add an error when the typename do not match a possible type
 				if r.options.ApolloCompatibilityValueCompletionInExtensions {
-					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), InvalidGraphqlErrorCode)
+					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
 				} else {
-					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), InvalidGraphqlErrorCode)
+					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), errorcodes.InvalidGraphql)
 				}
 
 				// if object is not nullable at prewalk we need to return an error
@@ -1050,7 +1047,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 	}
 	r.pushNodePathElement(fieldPath)
 	if r.options.ApolloCompatibilityValueCompletionInExtensions {
-		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), InvalidGraphqlErrorCode)
+		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
 		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)

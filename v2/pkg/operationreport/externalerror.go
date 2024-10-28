@@ -3,7 +3,9 @@ package operationreport
 import (
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
+	"net/http"
 )
 
 const (
@@ -25,8 +27,6 @@ const (
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
 	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
-	GraphQLValidationFailed                 = "GRAPHQL_VALIDATION_FAILED"
-	httpStatusBadRequest                    = 400
 )
 
 type ExternalError struct {
@@ -60,8 +60,8 @@ func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalErr
 
 func ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName)
-	err.ExtensionCode = GraphQLValidationFailed
-	err.StatusCode = httpStatusBadRequest
+	err.ExtensionCode = errorcodes.GraphQLValidationFailed
+	err.StatusCode = http.StatusBadRequest
 	return err
 }
 

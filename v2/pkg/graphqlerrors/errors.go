@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-)
-
-const (
-	httpStatusOK = 200
 )
 
 type Errors interface {
@@ -63,7 +60,7 @@ func RequestErrorsFromOperationReportWithStatusCode(report operationreport.Repor
 }
 
 func requestErrorsFromOperationReportWithStatusCode(report operationreport.Report, overrideStatusCode bool) (statusCode int, errors RequestErrors) {
-	statusCode = httpStatusOK
+	statusCode = http.StatusOK
 	if len(report.ExternalErrors) == 0 {
 		return statusCode, nil
 	}
@@ -97,7 +94,7 @@ func requestErrorsFromOperationReportWithStatusCode(report operationreport.Repor
 			validationError.Path = ErrorPath{}
 		}
 
-		if externalError.StatusCode > 0 && statusCode == httpStatusOK {
+		if externalError.StatusCode > 0 && statusCode == http.StatusOK {
 			statusCode = externalError.StatusCode
 		}
 
