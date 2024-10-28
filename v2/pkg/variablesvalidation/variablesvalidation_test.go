@@ -1,6 +1,8 @@
 package variablesvalidation
 
 import (
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -777,6 +779,22 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.NoError(t, err)
 	})
+	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloCompatibilityFlags: apollocompatibility.Flags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.BadUserInput,
+			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
+		}, err)
+	})
 }
 
 type testCase struct {
@@ -785,6 +803,10 @@ type testCase struct {
 }
 
 func runTest(t *testing.T, tc testCase) error {
+	return runTestWithOptions(t, tc, VariablesValidatorOptions{})
+}
+
+func runTestWithOptions(t *testing.T, tc testCase, options VariablesValidatorOptions) error {
 	t.Helper()
 	def := unsafeparser.ParseGraphqlDocumentString(tc.schema)
 	op := unsafeparser.ParseGraphqlDocumentString(tc.operation)
@@ -801,7 +823,7 @@ func runTest(t *testing.T, tc testCase) error {
 			t.Fatal(report.Error())
 		}
 	}
-	validator := NewVariablesValidator()
+	validator := NewVariablesValidator(options)
 	return validator.Validate(&op, &def, op.Input.Variables)
 }
 
