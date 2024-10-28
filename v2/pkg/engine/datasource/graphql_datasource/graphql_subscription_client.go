@@ -24,6 +24,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/epoller"
+	"go.uber.org/atomic"
 )
 
 const ackWaitTimeout = 30 * time.Second
@@ -47,12 +48,22 @@ type subscriptionClient struct {
 	epoll       epoller.Poller
 	epollConfig EpollConfiguration
 
-	connections   map[int]*connection
-	connectionsMu sync.Mutex
+	// connections is a map of fd -> connection to keep track of all active connections
+	connections    map[int]*connection
+	hasConnections atomic.Bool
+	// triggers is a map of subscription id -> fd to easily look up the connection for a subscription id
+	triggers map[uint64]int
 
-	triggers          map[uint64]int
+	// clientUnsubscribe is a channel to signal to the epoll run loop that a client needs to be unsubscribed
 	clientUnsubscribe chan uint64
-	serverUnsubscribe chan int
+	// addConn is a channel to signal to the epoll run loop that a new connection needs to be added
+	addConn chan *connection
+	// waitForEventsTicker is the ticker for the epoll run loop
+	// it is used to prevent busy waiting and to limit the CPU usage
+	// instead of polling the epoll instance all the time, we wait until the next tick to throttle the epoll loop
+	waitForEventsTicker *time.Ticker
+	// waitForEventsTick is the channel to receive the tick from the waitForEventsTicker
+	waitForEventsTick <-chan time.Time
 }
 
 func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -102,17 +113,31 @@ func WithReadTimeout(timeout time.Duration) Options {
 }
 
 type EpollConfiguration struct {
-	Disable    bool
+	// Disable can be set to true to disable epoll
+	Disable bool
+	// BufferSize defines the size of the buffer for the epoll loop
 	BufferSize int
-	Interval   time.Duration
+	// WaitForNumEvents defines how many events are waited for in the epoll loop before TickInterval cancels the wait
+	WaitForNumEvents int
+	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
+	// The higher the number, the more CPU is used.
+	MaxEventWorkers int
+	// TickInterval defines the time between each epoll loop when WaitForNumEvents is not reached
+	TickInterval time.Duration
 }
 
 func (e *EpollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
-		e.BufferSize = 1024 * 2
+		e.BufferSize = 1024
 	}
-	if e.Interval == 0 {
-		e.Interval = time.Millisecond * 100
+	if e.MaxEventWorkers == 0 {
+		e.MaxEventWorkers = 6
+	}
+	if e.WaitForNumEvents == 0 {
+		e.WaitForNumEvents = 1024
+	}
+	if e.TickInterval == 0 {
+		e.TickInterval = time.Millisecond * 100
 	}
 }
 
@@ -167,15 +192,21 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 			},
 		},
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
-		connections:                make(map[int]*connection),
-		triggers:                   make(map[uint64]int),
-		clientUnsubscribe:          make(chan uint64, op.epollConfiguration.BufferSize),
-		serverUnsubscribe:          make(chan int, op.epollConfiguration.BufferSize),
 		epollConfig:                op.epollConfiguration,
 	}
 	if !op.epollConfiguration.Disable {
+		client.connections = make(map[int]*connection)
+		client.triggers = make(map[uint64]int)
+		client.clientUnsubscribe = make(chan uint64, op.epollConfiguration.BufferSize)
+		client.addConn = make(chan *connection, op.epollConfiguration.BufferSize)
+		// this is not needed, but we want to make it explicit that we're starting with nil as the tick channel
+		// reading from nil channels blocks forever, which allows us to prevent the epoll loop from starting
+		// once we add the first connection, we start the ticker and set the tick channel
+		// after the last connection is removed, we set the tick channel to nil again
+		// this way we can start and stop the epoll loop dynamically
+		client.waitForEventsTick = nil
 		// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
-		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.Interval)
+		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.TickInterval)
 		if epoll != nil {
 			client.epoll = epoll
 			go client.runEpoll(engineCtx)
@@ -185,10 +216,11 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 }
 
 type connection struct {
-	id      uint64
-	fd      int
-	conn    net.Conn
-	handler ConnectionHandler
+	id          uint64
+	fd          int
+	conn        net.Conn
+	handler     ConnectionHandler
+	shouldClose bool
 }
 
 // Subscribe initiates a new GraphQL Subscription with the origin
@@ -282,24 +314,16 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		}()
 		return nil
 	}
-
+	// init the subscription
 	err = conn.handler.Subscribe()
 	if err != nil {
 		return err
 	}
 
-	if err := c.epoll.Add(conn.conn); err != nil {
-		return err
-	}
-
-	c.connectionsMu.Lock()
 	fd := epoller.SocketFD(conn.conn)
-	conn.id = id
-	conn.fd = fd
-	c.connections[fd] = conn
-	c.triggers[id] = fd
-	c.connectionsMu.Unlock()
-
+	conn.id, conn.fd = id, fd
+	// submit the connection to the epoll run loop
+	c.addConn <- conn
 	return nil
 }
 
@@ -532,16 +556,9 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 	return msg, nil
 }
 
-type ConnectionState int
-
-const (
-	ConnectionStateShouldClose ConnectionState = iota
-	ConnectionStateShouldWaitEpoll
-)
-
 type ConnectionHandler interface {
 	StartBlocking() error
-	ReadMessage() ConnectionState
+	HandleMessage(data []byte) (done bool)
 	ServerClose()
 	ClientClose()
 	Subscribe() error
@@ -580,148 +597,221 @@ func waitForAck(conn net.Conn) error {
 	}
 }
 
+type connResult struct {
+	fd          int
+	shouldClose bool
+}
+
 func (c *subscriptionClient) runEpoll(ctx context.Context) {
+	defer c.close()
 	done := ctx.Done()
-	wg := sync.WaitGroup{}
-	for {
-		connections, err := c.epoll.Wait(c.epollConfig.BufferSize)
-		if err != nil {
-			c.log.Error("epoll.Wait", abstractlogger.Error(err))
-			continue
-		}
-		c.connectionsMu.Lock()
-		hasWork := false
-		for i := range connections {
-			id := epoller.SocketFD(connections[i])
-			conn, ok := c.connections[id]
-			if !ok {
-				continue
+	// both handleConnCh and connResults are buffered channels with a size of WaitForNumEvents
+	// this is important because we submit all events before we start processing them
+	// and we start evaluating the results only after all events have been submitted
+	// this would not be possible with unbuffered channels
+	handleConnCh := make(chan *connection, c.epollConfig.WaitForNumEvents)
+	connResults := make(chan connResult, c.epollConfig.WaitForNumEvents)
+
+	// Start workers to handle connection events
+	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
+	// This is the critical number on how much CPU is used
+	for i := 0; i < c.epollConfig.MaxEventWorkers; i++ {
+		go func() {
+			for {
+				select {
+				case conn := <-handleConnCh:
+					shouldClose := c.handleConnectionEvent(conn)
+					connResults <- connResult{fd: conn.fd, shouldClose: shouldClose}
+				case <-done:
+					return
+				}
 			}
-			hasWork = true
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				c.handleConnection(conn)
-			}()
-		}
-		c.connectionsMu.Unlock()
-		if hasWork {
-			wg.Wait()
-		}
-		c.handlePendingClientUnsubscribe()
-		c.handlePendingServerUnsubscribe()
+		}()
+	}
+
+	// This is the main epoll run loop
+	// It's a single threaded event loop that reacts to several events, such as added connections, clients unsubscribing, etc.
+	for {
 		select {
+		// if the engine context is done, we close the epoll loop
 		case <-done:
-			c.log.Debug("epoll done due to context done")
 			return
-		default:
-			continue
-		}
-	}
-}
-
-func (c *subscriptionClient) handlePendingClientUnsubscribe() {
-	c.connectionsMu.Lock()
-	defer c.connectionsMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.Interval)
-	defer cancel()
-	for {
-		select {
+		case conn := <-c.addConn:
+			c.handleAddConn(conn)
 		case id := <-c.clientUnsubscribe:
-			fd, ok := c.triggers[id]
-			if !ok {
+			c.handleClientUnsubscribe(id)
+			// while len(c.connections) == 0, this channel is nil, so we will never try to wait for epoll events
+			// this is important to prevent busy waiting
+			// once we add the first connection, we start the ticker and set the tick channel
+			// the ticker ensures that we don't poll the epoll instance all the time,
+			// but at most every TickInterval
+		case <-c.waitForEventsTick:
+			events, err := c.epoll.Wait(c.epollConfig.WaitForNumEvents)
+			if err != nil {
+				c.log.Error("epoll.Wait", abstractlogger.Error(err))
 				continue
 			}
-			delete(c.triggers, id)
-			conn, ok := c.connections[fd]
-			if !ok {
-				continue
+
+			waitForEvents := len(events)
+
+			for i := range events {
+				fd := epoller.SocketFD(events[i])
+				conn, ok := c.connections[fd]
+				if !ok {
+					// Should never happen
+					panic(fmt.Sprintf("connection with fd %d not found", fd))
+				}
+				// submit the connection to the worker pool
+				handleConnCh <- conn
 			}
-			delete(c.connections, fd)
-			_ = c.epoll.Remove(conn.conn)
-			go conn.handler.ClientClose()
-		case <-ctx.Done():
-			return
-		default:
-			return
+
+			// we submit all events to the worker pool to handle all events in parallel
+			// instead of just waiting until all handlers are done, we can handle newly added connections or clients unsubscribing simultaneously
+			// we keep doing this until we have results for all events or the engine context is done
+			// this allows us to keep handling events in parallel while being able to manage connections without locks
+			// as a result, we can handle a large number of connections with a single threaded event loop
+
+			for {
+				if waitForEvents == 0 {
+					// once we have results for all events, we can return to the top level loop and wait for the next tick
+					break
+				}
+				select {
+				case result := <-connResults:
+					// if the connection indicates that it should be closed, we close and remove it
+					if result.shouldClose {
+						c.handleServerUnsubscribe(result.fd)
+					}
+					// we decrease the number of events we're waiting for to eventually break the loop
+					waitForEvents--
+				case conn := <-c.addConn:
+					c.handleAddConn(conn)
+				case id := <-c.clientUnsubscribe:
+					c.handleClientUnsubscribe(id)
+				case <-done:
+					return
+				}
+			}
 		}
 	}
 }
 
-func (c *subscriptionClient) handlePendingServerUnsubscribe() {
-	c.connectionsMu.Lock()
-	defer c.connectionsMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), c.epollConfig.Interval)
-	defer cancel()
-	for {
-		select {
-		case id := <-c.serverUnsubscribe:
-			conn, ok := c.connections[id]
-			if !ok {
-				continue
-			}
-			delete(c.connections, id)
-			delete(c.triggers, conn.id)
-			_ = c.epoll.Remove(conn.conn)
-			go conn.handler.ServerClose()
-		case <-ctx.Done():
-			return
-		default:
-			return
+func (c *subscriptionClient) close() {
+	defer c.log.Debug("subscriptionClient.close", abstractlogger.String("reason", "epoll closed by context"))
+	if c.waitForEventsTicker != nil {
+		c.waitForEventsTicker.Stop()
+	}
+	for _, conn := range c.connections {
+		_ = c.epoll.Remove(conn.conn)
+		conn.handler.ServerClose()
+	}
+	if c.epoll != nil {
+		err := c.epoll.Close(false)
+		if err != nil {
+			c.log.Error("subscriptionClient.close", abstractlogger.Error(err))
 		}
 	}
 }
 
-func (c *subscriptionClient) handleConnection(conn *connection) {
-	state := conn.handler.ReadMessage()
-	switch state {
-	case ConnectionStateShouldClose:
-		c.serverUnsubscribe <- conn.fd
+func (c *subscriptionClient) handleAddConn(conn *connection) {
+	if err := c.epoll.Add(conn.conn); err != nil {
+		c.log.Error("subscriptionClient.handleAddConn", abstractlogger.Error(err))
+		conn.handler.ServerClose()
 		return
-	case ConnectionStateShouldWaitEpoll:
-		return
+	}
+	c.connections[conn.fd] = conn
+	c.triggers[conn.id] = conn.fd
+	// when we previously had 0 connections, we will have 1 connection now
+	// this means we need to start the ticker so that we get epoll events
+	if len(c.connections) == 1 {
+		c.waitForEventsTicker = time.NewTicker(c.epollConfig.TickInterval)
+		c.waitForEventsTick = c.waitForEventsTicker.C
+		c.hasConnections.Store(true)
 	}
 }
 
-func handleConnectionError(err error) ConnectionState {
+func (c *subscriptionClient) handleClientUnsubscribe(id uint64) {
+	fd, ok := c.triggers[id]
+	if !ok {
+		return
+	}
+	delete(c.triggers, id)
+	conn, ok := c.connections[fd]
+	if !ok {
+		return
+	}
+	delete(c.connections, fd)
+	_ = c.epoll.Remove(conn.conn)
+	conn.handler.ClientClose()
+	// if we have no connections left, we stop the ticker
+	if len(c.connections) == 0 {
+		c.waitForEventsTicker.Stop()
+		c.waitForEventsTick = nil
+		c.hasConnections.Store(false)
+	}
+}
+
+func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
+	conn, ok := c.connections[fd]
+	if !ok {
+		return
+	}
+	delete(c.connections, fd)
+	delete(c.triggers, conn.id)
+	_ = c.epoll.Remove(conn.conn)
+	conn.handler.ServerClose()
+	// if we have no connections left, we stop the ticker
+	if len(c.connections) == 0 {
+		c.waitForEventsTicker.Stop()
+		c.waitForEventsTick = nil
+		c.hasConnections.Store(false)
+	}
+}
+
+func (c *subscriptionClient) handleConnectionEvent(conn *connection) bool {
+	data, err := readMessage(conn.conn, c.readTimeout)
+	if err != nil {
+		return handleConnectionError(err)
+	}
+	return conn.handler.HandleMessage(data)
+}
+
+func handleConnectionError(err error) (done bool) {
 	netOpErr := &net.OpError{}
 	if errors.As(err, &netOpErr) {
-		if netOpErr.Timeout() {
-			return ConnectionStateShouldWaitEpoll
-		}
-		return ConnectionStateShouldClose
+		return !netOpErr.Timeout()
 	}
 
 	// Check if we have errors during reading from the connection
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
 	// Check if we have a context error
 	if errors.Is(err, context.DeadlineExceeded) {
-		return ConnectionStateShouldWaitEpoll
+		return false
 	}
 
 	// Check if the error is a connection reset by peer
 	if errors.Is(err, syscall.ECONNRESET) {
-		return ConnectionStateShouldClose
+		return true
 	}
 	if errors.Is(err, syscall.EPIPE) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
 	// Check if the error is a closed network connection. Introduced in go 1.16.
 	// This replaces the string match of "use of closed network connection"
 	if errors.Is(err, net.ErrClosed) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
 	// Check if the error is closed websocket connection
 	if errors.As(err, &wsutil.ClosedError{}) {
-		return ConnectionStateShouldClose
+		return true
 	}
 
-	return ConnectionStateShouldWaitEpoll
+	return false
 }
 
 func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {

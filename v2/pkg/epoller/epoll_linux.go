@@ -101,13 +101,12 @@ func (e *Epoll) Remove(conn net.Conn) error {
 
 // Wait waits for at most count events and returns the connections.
 func (e *Epoll) Wait(count int) ([]net.Conn, error) {
-	if e.events == nil {
+	if len(e.events) != count {
 		e.events = make([]unix.EpollEvent, count)
 	}
-	events := e.events[:count]
 
 retry:
-	n, err := unix.EpollWait(e.fd, events, e.timeoutMsec)
+	n, err := unix.EpollWait(e.fd, e.events, e.timeoutMsec)
 	if err != nil {
 		if err == unix.EINTR {
 			goto retry
@@ -123,7 +122,7 @@ retry:
 	}
 	e.lock.RLock()
 	for i := 0; i < n; i++ {
-		conn := e.conns[int(events[i].Fd)]
+		conn := e.conns[int(e.events[i].Fd)]
 		if conn != nil {
 			conns = append(conns, conn)
 		}

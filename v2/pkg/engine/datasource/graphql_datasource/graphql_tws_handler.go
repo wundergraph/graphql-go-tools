@@ -44,39 +44,32 @@ func (h *gqlTWSConnectionHandler) Subscribe() error {
 	return h.subscribe()
 }
 
-func (h *gqlTWSConnectionHandler) ReadMessage() ConnectionState {
-
-	for {
-		data, err := readMessage(h.conn, h.options.readTimeout)
-		if err != nil {
-			return handleConnectionError(err)
-		}
-		messageType, err := jsonparser.GetString(data, "type")
-		if err != nil {
-			continue
-		}
-		switch messageType {
-		case messageTypePing:
-			h.handleMessageTypePing()
-			continue
-		case messageTypeNext:
-			h.handleMessageTypeNext(data)
-			continue
-		case messageTypeComplete:
-			h.handleMessageTypeComplete(data)
-			return ConnectionStateShouldClose
-		case messageTypeError:
-			h.handleMessageTypeError(data)
-			continue
-		case messageTypeConnectionKeepAlive:
-			continue
-		case messageTypeData, messageTypeConnectionError:
-			h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
-			return ConnectionStateShouldClose
-		default:
-			h.log.Error("unknown message type", abstractlogger.String("type", messageType))
-			continue
-		}
+func (h *gqlTWSConnectionHandler) HandleMessage(data []byte) (done bool) {
+	messageType, err := jsonparser.GetString(data, "type")
+	if err != nil {
+		return false
+	}
+	switch messageType {
+	case messageTypePing:
+		h.handleMessageTypePing()
+		return false
+	case messageTypeNext:
+		h.handleMessageTypeNext(data)
+		return false
+	case messageTypeComplete:
+		h.handleMessageTypeComplete(data)
+		return true
+	case messageTypeError:
+		h.handleMessageTypeError(data)
+		return false
+	case messageTypeConnectionKeepAlive:
+		return false
+	case messageTypeData, messageTypeConnectionError:
+		h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
+		return true
+	default:
+		h.log.Error("unknown message type", abstractlogger.String("type", messageType))
+		return false
 	}
 }
 
