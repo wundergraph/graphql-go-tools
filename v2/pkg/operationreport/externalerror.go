@@ -2,7 +2,6 @@ package operationreport
 
 import (
 	"fmt"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
@@ -26,26 +25,18 @@ const (
 	UnknownFieldOfInputObjectErrMsg         = `Field "%s" is not defined by type "%s".`
 	DuplicatedFieldInputObjectErrMsg        = `There can be only one input field named "%s".`
 	ValueIsNotAnInputObjectTypeErrMsg       = `Expected value of type "%s", found %s.`
-	OperationFieldUndefined                 = "OPERATION_FIELD_UNDEFINED"
-	GraohQLValidationFailed                 = "GRAPHQL_VALIDATION_FAILED"
+	GraphQLValidationFailed                 = "GRAPHQL_VALIDATION_FAILED"
+	httpStatusBadRequest                    = 400
 )
 
-type ApolloCompatibilityError struct {
-	Code          string
-	ExtensionCode string
-	Message       string
-	StatusCode    int
-}
-
-func (e *ApolloCompatibilityError) Error() string {
-	return e.Message
-}
-
 type ExternalError struct {
-	Message                  string                    `json:"message"`
-	Path                     ast.Path                  `json:"path"`
-	Locations                []Location                `json:"locations"`
-	ApolloCompatibilityError *ApolloCompatibilityError `json:"-"`
+	Message   string     `json:"message"`
+	Path      ast.Path   `json:"path"`
+	Locations []Location `json:"locations"`
+	// ExtensionCode is the error code that is propagated in the extensions property, e.g., "GRAPHQL_VALIDATION_FAILED"
+	ExtensionCode string `json:"-"`
+	// StatusCode is the replacement status code, e.g., 400
+	StatusCode int `json:"-"`
 }
 
 func LocationsFromPosition(position ...position.Position) []Location {
@@ -64,12 +55,13 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
-	err.ApolloCompatibilityError = &ApolloCompatibilityError{
-		Code:          OperationFieldUndefined,
-		ExtensionCode: GraohQLValidationFailed,
-		Message:       fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName),
-		StatusCode:    400,
-	}
+	return err
+}
+
+func ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName)
+	err.ExtensionCode = GraphQLValidationFailed
+	err.StatusCode = httpStatusBadRequest
 	return err
 }
 

@@ -9,6 +9,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+const (
+	httpStatusOK = 200
+)
+
 type Errors interface {
 	error
 	WriteResponse(writer io.Writer) (n int, err error)
@@ -49,21 +53,19 @@ func RequestErrorsFromError(err error) RequestErrors {
 	}
 }
 
-// Used by Cosmo
-func RequestErrorsFromApolloCompatibilityError(err *operationreport.ApolloCompatibilityError) RequestErrors {
-	return RequestErrors{
-		{
-			Extensions: &ApolloExtensions{
-				Code: err.ExtensionCode,
-			},
-			Message: err.Error(),
-		},
-	}
+func RequestErrorsFromOperationReport(report operationreport.Report) (errors RequestErrors) {
+	_, errors = requestErrorsFromOperationReportWithStatusCode(report, false)
+	return errors
 }
 
-func RequestErrorsFromOperationReport(report operationreport.Report) (errors RequestErrors) {
+func RequestErrorsFromOperationReportWithStatusCode(report operationreport.Report) (statusCode int, errors RequestErrors) {
+	return requestErrorsFromOperationReportWithStatusCode(report, true)
+}
+
+func requestErrorsFromOperationReportWithStatusCode(report operationreport.Report, overrideStatusCode bool) (statusCode int, errors RequestErrors) {
+	statusCode = httpStatusOK
 	if len(report.ExternalErrors) == 0 {
-		return nil
+		return statusCode, nil
 	}
 
 	for _, externalError := range report.ExternalErrors {
@@ -83,10 +85,26 @@ func RequestErrorsFromOperationReport(report operationreport.Report) (errors Req
 			Locations: locations,
 		}
 
+		if !overrideStatusCode {
+			errors = append(errors, validationError)
+			continue
+		}
+
+		if externalError.ExtensionCode != "" {
+			validationError.Extensions = &Extensions{
+				Code: externalError.ExtensionCode,
+			}
+			validationError.Path = ErrorPath{}
+		}
+
+		if externalError.StatusCode > 0 && statusCode == httpStatusOK {
+			statusCode = externalError.StatusCode
+		}
+
 		errors = append(errors, validationError)
 	}
 
-	return errors
+	return statusCode, errors
 }
 
 func (o RequestErrors) Error() string {
@@ -123,15 +141,16 @@ func (o RequestErrors) ErrorByIndex(i int) error {
 	return o[i]
 }
 
-type ApolloExtensions struct {
+type Extensions struct {
 	Code string `json:"code"`
 }
 
 type RequestError struct {
-	Message    string                     `json:"message"`
-	Locations  []operationreport.Location `json:"locations,omitempty"`
-	Path       ErrorPath                  `json:"path"`
-	Extensions *ApolloExtensions          `json:"extensions,omitempty"`
+	Message   string                     `json:"message"`
+	Locations []operationreport.Location `json:"locations,omitempty"`
+	Path      ErrorPath                  `json:"path"`
+	// Extensions is typically used for Apollo compatibility
+	Extensions *Extensions `json:"extensions,omitempty"`
 }
 
 func (o RequestError) MarshalJSON() ([]byte, error) {
@@ -139,7 +158,7 @@ func (o RequestError) MarshalJSON() ([]byte, error) {
 		return json.Marshal(struct {
 			Message    string                     `json:"message"`
 			Locations  []operationreport.Location `json:"locations,omitempty"`
-			Extensions *ApolloExtensions          `json:"extensions,omitempty"`
+			Extensions *Extensions                `json:"extensions,omitempty"`
 		}{
 			Message:    o.Message,
 			Locations:  o.Locations,
@@ -154,7 +173,7 @@ func (o RequestError) MarshalJSON() ([]byte, error) {
 		Message    string                     `json:"message"`
 		Locations  []operationreport.Location `json:"locations,omitempty"`
 		Path       json.RawMessage            `json:"path"`
-		Extensions *ApolloExtensions          `json:"extensions,omitempty"`
+		Extensions *Extensions                `json:"extensions,omitempty"`
 	}{
 		Message:    o.Message,
 		Locations:  o.Locations,

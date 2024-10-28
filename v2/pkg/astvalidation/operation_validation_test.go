@@ -318,7 +318,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment aliasedLyingFieldTargetNotDefined on Dog {
 								barkVolume: kawVolume
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("104 variant", func(t *testing.T) {
 				run(t, `
@@ -327,7 +327,7 @@ func TestExecutionValidation(t *testing.T) {
 									barkVolume: kawVolume
 								}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("103", func(t *testing.T) {
 				run(t, `	{
@@ -338,7 +338,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment interfaceFieldSelection on Pet {
 								name
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("104", func(t *testing.T) {
 				run(t, `
@@ -350,7 +350,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment definedOnImplementorsButNotInterface on Pet {
 								nickname
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("105", func(t *testing.T) {
 				run(t, `	fragment inDirectFieldSelectionOnUnion on CatOrDog {
@@ -362,7 +362,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							name
 	  							}
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
 				run(t, `
@@ -375,7 +375,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							name
 	  							}
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
 				run(t, `
@@ -388,7 +388,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							x
 	  							}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106", func(t *testing.T) {
 				run(t, `
@@ -396,7 +396,7 @@ func TestExecutionValidation(t *testing.T) {
 								name
 								barkVolume
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106 variant", func(t *testing.T) {
 				run(t, `
@@ -405,7 +405,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
@@ -2021,7 +2021,7 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `	fragment scalarSelection on Dog {
 								barkVolume
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("114", func(t *testing.T) {
 				run(t, `
@@ -2030,32 +2030,32 @@ func TestExecutionValidation(t *testing.T) {
 									sinceWhen
 								}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("116", func(t *testing.T) {
 				run(t, `	
 							query directQueryOnObjectWithoutSubFields {
 								human
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(OperationValidatorOptions{}), Invalid)
 				run(t, `	query directQueryOnInterfaceWithoutSubFields {
 								pet
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(OperationValidatorOptions{}), Invalid)
 				run(t, `	query directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(OperationValidatorOptions{}), Invalid)
 				run(t, `
 							mutation directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				run(t, `
 							subscription directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 		})
 	})
