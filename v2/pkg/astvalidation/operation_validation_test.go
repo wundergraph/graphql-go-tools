@@ -2,6 +2,8 @@ package astvalidation
 
 import (
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -4487,6 +4489,61 @@ func BenchmarkValidation(b *testing.B) {
 							}
 						}
 					}`, Valid)
+	})
+}
+
+func TestWithApolloCompatibilityFlags(t *testing.T) {
+	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
+	op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
+
+	t.Run("With propagated true flag", func(t *testing.T) {
+		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
+			apollocompatibility.Flags{
+				ReplaceInvalidVarError:       false,
+				ReplaceUndefinedOpFieldError: true,
+			},
+		))
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		expectedError := operationreport.ExternalError{
+			ExtensionCode: errorcodes.GraphQLValidationFailed,
+			Message:       `Cannot query "age" on type "Query".`,
+		}
+		assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+	})
+	t.Run("With propagated false flag", func(t *testing.T) {
+		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
+			apollocompatibility.Flags{
+				ReplaceInvalidVarError:       false,
+				ReplaceUndefinedOpFieldError: false,
+			},
+		))
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		expectedError := operationreport.ExternalError{
+			Message: `field: age not defined on type: Query`,
+		}
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+	})
+	t.Run("Without propagated false flag", func(t *testing.T) {
+		operationValidator := DefaultOperationValidator()
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		expectedError := operationreport.ExternalError{
+			Message: `field: age not defined on type: Query`,
+		}
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
 	})
 }
 
