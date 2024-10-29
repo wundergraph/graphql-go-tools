@@ -8,13 +8,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"go.uber.org/atomic"
 )
 
 type Context struct {
 	ctx              context.Context
-	Variables        []byte
+	Variables        *astjson.Value
 	Files            []httpclient.File
 	Request          Request
 	RenameTypeNames  []RenameTypeName
@@ -149,7 +150,10 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
-	cpy.Variables = append([]byte(nil), c.Variables...)
+	if c.Variables != nil {
+		variablesData := c.Variables.MarshalTo(nil)
+		cpy.Variables = astjson.MustParseBytes(variablesData)
+	}
 	cpy.Files = append([]httpclient.File(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)

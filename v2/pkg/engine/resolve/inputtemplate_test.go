@@ -8,6 +8,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
+	"github.com/wundergraph/astjson"
 )
 
 func TestInputTemplate_Render(t *testing.T) {
@@ -25,7 +26,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			},
 		}
 		ctx := &Context{
-			Variables: []byte(variables),
+			Variables: astjson.MustParseBytes([]byte(variables)),
 		}
 		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
@@ -126,7 +127,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			},
 		}
 		ctx := &Context{
-			Variables: []byte(`{"a":["foo","bar"]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"a":["foo","bar"]}`)),
 		}
 		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
@@ -146,7 +147,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			},
 		}
 		ctx := &Context{
-			Variables: []byte(`{"a":[1,2,3]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"a":[1,2,3]}`)),
 		}
 		buf := &bytes.Buffer{}
 		err := template.Render(ctx, nil, buf)
@@ -175,7 +176,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				},
 			}
 			ctx := &Context{
-				Variables: []byte(""),
+				Variables: astjson.MustParseBytes([]byte(`{}`)),
 			}
 			buf := &bytes.Buffer{}
 			err := template.Render(ctx, nil, buf)
@@ -203,7 +204,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				},
 			}
 			ctx := &Context{
-				Variables: []byte(""),
+				Variables: astjson.MustParseBytes([]byte(`{}`)),
 				Request: Request{
 					Header: http.Header{"Auth": []string{"value"}},
 				},
@@ -234,7 +235,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				},
 			}
 			ctx := &Context{
-				Variables: []byte(""),
+				Variables: astjson.MustParseBytes([]byte(`{}`)),
 				Request: Request{
 					Header: http.Header{"Auth": []string{"value1", "value2"}},
 				},
@@ -269,7 +270,7 @@ func TestInputTemplate_Render(t *testing.T) {
 			}
 			ctx := &Context{
 				ctx:       context.Background(),
-				Variables: []byte(""),
+				Variables: astjson.MustParseBytes([]byte(`{}`)),
 			}
 			buf := &bytes.Buffer{}
 			err := template.Render(ctx, nil, buf)
@@ -300,7 +301,7 @@ func TestInputTemplate_Render(t *testing.T) {
 					SetTemplateOutputToNullOnVariableNull: true,
 				}
 				ctx := &Context{
-					Variables: []byte(""),
+					Variables: astjson.MustParseBytes([]byte(`{}`)),
 				}
 				buf := &bytes.Buffer{}
 				err := template.Render(ctx, nil, buf)
@@ -330,7 +331,7 @@ func TestInputTemplate_Render(t *testing.T) {
 					SetTemplateOutputToNullOnVariableNull: true,
 				}
 				ctx := &Context{
-					Variables: []byte(`{"x":null}`),
+					Variables: astjson.MustParseBytes([]byte(`{"x":null}`)),
 				}
 				buf := &bytes.Buffer{}
 				err := template.Render(ctx, nil, buf)
@@ -359,7 +360,7 @@ func TestInputTemplate_Render(t *testing.T) {
 					SetTemplateOutputToNullOnVariableNull: true,
 				}
 				ctx := &Context{
-					Variables: []byte(""),
+					Variables: astjson.MustParseBytes([]byte(`{}`)),
 				}
 				buf := &bytes.Buffer{}
 				err := template.Render(ctx, nil, buf)
@@ -432,10 +433,10 @@ func TestInputTemplate_Render(t *testing.T) {
 			}
 			ctx := &Context{
 				ctx:       context.Background(),
-				Variables: []byte(""),
+				Variables: astjson.MustParseBytes([]byte(`{}`)),
 			}
 			buf := &bytes.Buffer{}
-			err := template.Render(ctx, []byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`), buf)
+			err := template.Render(ctx, astjson.MustParseBytes([]byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`)), buf)
 			assert.NoError(t, err)
 			out := buf.String()
 			assert.Equal(t, `{"key":{"address":{"zip":"00000","items":[{"active":true}]}}}`, out)
@@ -493,10 +494,10 @@ func TestInputTemplate_Render(t *testing.T) {
 			}
 			ctx := &Context{
 				ctx:       context.Background(),
-				Variables: []byte(""),
+				Variables: astjson.MustParseBytes([]byte(`{}`)),
 			}
 			buf := &bytes.Buffer{}
-			err := template.Render(ctx, []byte(`{"__typename":"Address","address":{"zip":"00000"}}`), buf)
+			err := template.Render(ctx, astjson.MustParseBytes([]byte(`{"__typename":"Address","address":{"zip":"00000"}}`)), buf)
 			assert.NoError(t, err)
 			out := buf.String()
 			assert.Equal(t, `{"representations":[{"__typename":"Address","address":{"zip":"00000"}}]}`, out)

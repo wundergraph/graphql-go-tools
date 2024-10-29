@@ -5,8 +5,9 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"io"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/goccy/go-json"
@@ -121,12 +122,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
-	if len(ctx.Variables) != 0 {
-		r.variables, err = astjson.ParseBytes(ctx.Variables)
-		if err != nil {
-			return err
-		}
-	}
+	r.variables = ctx.Variables
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytes(initialData)
 		if err != nil {
@@ -141,9 +137,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
-	if len(ctx.Variables) != 0 {
-		r.variables = astjson.MustParseBytes(ctx.Variables)
-	}
+	r.variables = ctx.Variables
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytes(initialData)
 		if err != nil {

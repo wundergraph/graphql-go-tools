@@ -17,6 +17,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
@@ -368,7 +369,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"skip":true}`))}, `{"data":{"user":{}}}`
 	}))
 	t.Run("skip multiple fields should resolve to empty response", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -402,7 +403,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"skip":true}`))}, `{"data":{"user":{}}}`
 	}))
 	t.Run("skip __typename field be possible", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -434,7 +435,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1"}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"skip":true}`))}, `{"data":{"user":{"id":"1"}}}`
 	}))
 	t.Run("include __typename field be possible", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -466,7 +467,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","__typename":"User"}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"include":true}`))}, `{"data":{"user":{"id":"1","__typename":"User"}}}`
 	}))
 	t.Run("include __typename field with false value", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -498,7 +499,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1"}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"include":false}`))}, `{"data":{"user":{"id":"1"}}}`
 	}))
 	t.Run("skip field when skip variable is true", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -556,7 +557,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"skip":true}`))}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
 	}))
 	t.Run("don't skip field when skip variable is false", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -614,7 +615,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"skip":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"skip":false}`))}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("don't skip field when skip variable is missing", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -672,7 +673,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{}`))}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("include field when include variable is true", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -730,7 +731,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"include":true}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"include":true}`))}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky","kind":"Dog"}}}}`
 	}))
 	t.Run("exclude field when include variable is false", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -788,7 +789,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"include":false}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"include":false}`))}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
 	}))
 	t.Run("exclude field when include variable is missing", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -846,7 +847,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{}`)}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{}`))}, `{"data":{"user":{"id":"1","name":"Jens","registered":true,"pet":{"name":"Barky"}}}}`
 	}))
 	t.Run("fetch with context variable resolver", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
@@ -895,7 +896,7 @@ func TestResolver_ResolveNode(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"id":1}`)}, `{"data":{"name":"Jens"}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"id":1}`))}, `{"data":{"name":"Jens"}}`
 	}))
 	t.Run("resolve array of strings", testFn(false, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		return &GraphQLResponse{
@@ -3278,7 +3279,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: []byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`)}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
+		}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"firstArg":"firstArgValue","thirdArg":123,"secondArg": true, "fourthArg": 12.34}`))}, `{"data":{"serviceOne":{"fieldOne":"fieldOneValue"},"serviceTwo":{"fieldTwo":"fieldTwoValue","serviceOneResponse":{"fieldOne":"fieldOneValue"}},"anotherServiceOne":{"fieldOne":"anotherFieldOneValue"},"secondServiceTwo":{"fieldTwo":"secondFieldTwoValue"},"reusingServiceOne":{"fieldOne":"reUsingFieldOneValue"}}}`
 	}))
 	t.Run("federation", func(t *testing.T) {
 		t.Run("simple", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -4839,7 +4840,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 						},
 					},
 				},
-			}, Context{ctx: context.Background(), Variables: []byte(`{"companyId":"abc123","date":null}`)}, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
+			}, Context{ctx: context.Background(), Variables: astjson.MustParseBytes([]byte(`{"companyId":"abc123","date":null}`))}, `{"data":{"me":{"employment":{"id":"xyz987","times":[{"id":"t1","employee":{"id":"xyz987"},"start":"2022-11-02T08:00:00","end":"2022-11-02T12:00:00"}]}}}}`
 		}))
 	})
 }
@@ -5660,7 +5661,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"id":1}`),
+			Variables: astjson.MustParseBytes([]byte(`{"id":1}`)),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
@@ -5755,7 +5756,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"id":2}`),
+			Variables: astjson.MustParseBytes([]byte(`{"id":2}`)),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
@@ -5848,7 +5849,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"ids":[1,2]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"ids":[1,2]}`)),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
@@ -5946,7 +5947,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"ids":["2","3"]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"ids":["2","3"]}`)),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
@@ -6054,7 +6055,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
-			Variables: []byte(`{"a":[1,2],"b":[3,4]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"a":[1,2],"b":[3,4]}`)),
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, out, id)
@@ -6067,245 +6068,6 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			`{"errors":[{"message":"invalid subscription filter template"}],"data":null}`,
 			`{"errors":[{"message":"invalid subscription filter template"}],"data":null}`,
 		}, out.Messages())
-	})
-}
-
-func Benchmark_ResolveGraphQLResponse(b *testing.B) {
-	rCtx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	resolver := newResolver(rCtx)
-
-	userService := FakeDataSource(`{"data":{"users":[{"name":"Bill","info":{"id":11,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}},{"name":"John","info":{"id":12,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}},{"name":"Jane","info":{"id":13,"__typename":"Info"},"address":{"id":55,"__typename":"Address"}}]}}`)
-	infoService := FakeDataSource(`{"data":{"_entities":[{"age":21,"__typename":"Info"},{"line1":"Munich","__typename":"Address"},{"age":22,"__typename":"Info"},{"age":23,"__typename":"Info"}]}}`)
-
-	plan := &GraphQLResponse{
-		Data: &Object{
-			Fetch: &SingleFetch{
-				InputTemplate: InputTemplate{
-					Segments: []TemplateSegment{
-						{
-							Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{ users { name info {id __typename} address {id __typename} } }"}}`),
-							SegmentType: StaticSegmentType,
-						},
-					},
-				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: userService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
-				},
-			},
-			Fields: []*Field{
-				{
-					Name: []byte("users"),
-					Value: &Array{
-						Path: []string{"users"},
-						Item: &Object{
-							Fetch: &BatchEntityFetch{
-								Input: BatchInput{
-									Header: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age } ... on Address { line1 }}}}}","variables":{"representations":[`),
-												SegmentType: StaticSegmentType,
-											},
-										},
-									},
-									Items: []InputTemplate{
-										{
-											Segments: []TemplateSegment{
-												{
-													SegmentType:  VariableSegmentType,
-													VariableKind: ResolvableObjectVariableKind,
-													Renderer: NewGraphQLVariableResolveRenderer(&Object{
-														Path: []string{"info"},
-														Fields: []*Field{
-															{
-																Name: []byte("id"),
-																Value: &Integer{
-																	Path: []string{"id"},
-																},
-															},
-															{
-																Name: []byte("__typename"),
-																Value: &String{
-																	Path: []string{"__typename"},
-																},
-															},
-														},
-													}),
-												},
-											},
-										},
-										{
-											Segments: []TemplateSegment{
-												{
-													SegmentType:  VariableSegmentType,
-													VariableKind: ResolvableObjectVariableKind,
-													Renderer: NewGraphQLVariableResolveRenderer(&Object{
-														Path: []string{"address"},
-														Fields: []*Field{
-															{
-																Name: []byte("id"),
-																Value: &Integer{
-																	Path: []string{"id"},
-																},
-															},
-															{
-																Name: []byte("__typename"),
-																Value: &String{
-																	Path: []string{"__typename"},
-																},
-															},
-														},
-													}),
-												},
-											},
-										},
-									},
-									Separator: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`,`),
-												SegmentType: StaticSegmentType,
-											},
-										},
-									},
-									Footer: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`]}}}`),
-												SegmentType: StaticSegmentType,
-											},
-										},
-									},
-								},
-								DataSource: infoService,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data", "_entities"},
-									ResponseTemplate: &InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												SegmentType:  VariableSegmentType,
-												VariableKind: ResolvableObjectVariableKind,
-												Renderer: NewGraphQLVariableResolveRenderer(&Object{
-													Fields: []*Field{
-														{
-															Name: []byte("info"),
-															Value: &Object{
-																Fields: []*Field{
-																	{
-																		Name: []byte("age"),
-																		Value: &Integer{
-																			Path: []string{"0", "age"},
-																		},
-																	},
-																},
-															},
-														},
-														{
-															Name: []byte("address"),
-															Value: &Object{
-																Fields: []*Field{
-																	{
-																		Name: []byte("line1"),
-																		Value: &String{
-																			Path: []string{"1", "line1"},
-																		},
-																	},
-																},
-															},
-														},
-													},
-												}),
-											},
-										},
-									},
-								},
-							},
-							Fields: []*Field{
-								{
-									Name: []byte("name"),
-									Value: &String{
-										Path: []string{"name"},
-									},
-								},
-								{
-									Name: []byte("info"),
-									Value: &Object{
-										Path: []string{"info"},
-										Fields: []*Field{
-											{
-												Name: []byte("age"),
-												Value: &Integer{
-													Path: []string{"age"},
-												},
-											},
-										},
-									},
-								},
-								{
-									Name: []byte("address"),
-									Value: &Object{
-										Path: []string{"address"},
-										Fields: []*Field{
-											{
-												Name: []byte("line1"),
-												Value: &String{
-													Path: []string{"line1"},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	var err error
-	expected := []byte(`{"data":{"users":[{"name":"Bill","info":{"age":21},"address":{"line1":"Munich"}},{"name":"John","info":{"age":22},"address":{"line1":"Munich"}},{"name":"Jane","info":{"age":23},"address":{"line1":"Munich"}}]}}`)
-
-	pool := sync.Pool{
-		New: func() interface{} {
-			return bytes.NewBuffer(make([]byte, 0, 1024))
-		},
-	}
-
-	ctxPool := sync.Pool{
-		New: func() interface{} {
-			return NewContext(context.Background())
-		},
-	}
-
-	b.ReportAllocs()
-	b.SetBytes(int64(len(expected)))
-	b.ResetTimer()
-
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			// _ = resolver.ResolveGraphQLResponse(ctx, plan, nil, ioutil.Discard)
-			ctx := ctxPool.Get().(*Context)
-			buf := pool.Get().(*bytes.Buffer)
-			_, err = resolver.ResolveGraphQLResponse(ctx, plan, nil, buf)
-			if err != nil {
-				b.Fatal(err)
-			}
-			if !bytes.Equal(expected, buf.Bytes()) {
-				b.Fatalf("want:\n%s\ngot:\n%s\n", string(expected), buf.String())
-			}
-
-			buf.Reset()
-			pool.Put(buf)
-
-			ctx.Free()
-			ctxPool.Put(ctx)
-		}
 	})
 }
 

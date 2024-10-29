@@ -9,6 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -50,7 +51,9 @@ func (e *internalExecutionContext) setContext(ctx context.Context) {
 }
 
 func (e *internalExecutionContext) setVariables(variables []byte) {
-	e.resolveContext.Variables = variables
+	if len(variables) != 0 {
+		e.resolveContext.Variables = astjson.MustParseBytes(variables)
+	}
 }
 
 func (e *internalExecutionContext) reset() {

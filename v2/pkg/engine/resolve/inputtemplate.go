@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/buger/jsonparser"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -52,7 +52,7 @@ func SetInputUndefinedVariables(preparedInput *bytes.Buffer, undefinedVariables 
 
 var setTemplateOutputNull = errors.New("set to null")
 
-func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *bytes.Buffer) error {
+func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput *bytes.Buffer) error {
 	var undefinedVariables []string
 
 	if err := i.renderSegments(ctx, data, i.Segments, preparedInput, &undefinedVariables); err != nil {
@@ -62,12 +62,12 @@ func (i *InputTemplate) Render(ctx *Context, data []byte, preparedInput *bytes.B
 	return SetInputUndefinedVariables(preparedInput, undefinedVariables)
 }
 
-func (i *InputTemplate) RenderAndCollectUndefinedVariables(ctx *Context, data []byte, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
+func (i *InputTemplate) RenderAndCollectUndefinedVariables(ctx *Context, data *astjson.Value, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
 	err = i.renderSegments(ctx, data, i.Segments, preparedInput, undefinedVariables)
 	return
 }
 
-func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []TemplateSegment, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
+func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segments []TemplateSegment, preparedInput *bytes.Buffer, undefinedVariables *[]string) (err error) {
 	for _, segment := range segments {
 		switch segment.SegmentType {
 		case StaticSegmentType:
@@ -104,50 +104,29 @@ func (i *InputTemplate) renderSegments(ctx *Context, data []byte, segments []Tem
 	return err
 }
 
-func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables []byte, segment TemplateSegment, preparedInput *bytes.Buffer) error {
-	value, valueType, offset, err := jsonparser.Get(variables, segment.VariableSourcePath...)
-	if err != nil || valueType == jsonparser.Null {
+func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *astjson.Value, segment TemplateSegment, preparedInput *bytes.Buffer) error {
+	value := variables.Get(segment.VariableSourcePath...)
+	if value == nil || value.Type() == astjson.TypeNull {
 		if i.SetTemplateOutputToNullOnVariableNull {
 			return setTemplateOutputNull
 		}
 		_, _ = preparedInput.Write(literal.NULL)
 		return nil
 	}
-	if valueType == jsonparser.String {
-		value = variables[offset-len(value)-2 : offset]
-		switch segment.Renderer.GetKind() {
-		case VariableRendererKindPlain, VariableRendererKindPlanWithValidation:
-			if plainRenderer, ok := (segment.Renderer).(*PlainVariableRenderer); ok {
-				plainRenderer.mu.Lock()
-				plainRenderer.rootValueType.Value = valueType
-				plainRenderer.mu.Unlock()
-			}
-		}
-	}
 	return segment.Renderer.RenderVariable(ctx, value, preparedInput)
 }
 
-func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData []byte, segment TemplateSegment, preparedInput *bytes.Buffer) error {
+func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, objectData *astjson.Value, segment TemplateSegment, preparedInput *bytes.Buffer) error {
 	return segment.Renderer.RenderVariable(ctx, objectData, preparedInput)
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *bytes.Buffer) (variableWasUndefined bool, err error) {
-	value, valueType, offset, err := jsonparser.Get(ctx.Variables, segment.VariableSourcePath...)
-	if err != nil || valueType == jsonparser.Null {
-		if err == jsonparser.KeyPathNotFoundError {
-			_, _ = preparedInput.Write(literal.NULL)
-			return true, nil
-		}
+	value := ctx.Variables.Get(segment.VariableSourcePath...)
+	if value == nil {
+		_, _ = preparedInput.Write(literal.NULL)
+		return true, nil
+	} else if value.Type() == astjson.TypeNull {
 		return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
-	}
-	if valueType == jsonparser.String {
-		value = ctx.Variables[offset-len(value)-2 : offset]
-		switch segment.Renderer.GetKind() {
-		case VariableRendererKindPlain, VariableRendererKindPlanWithValidation:
-			if plainRenderer, ok := (segment.Renderer).(*PlainVariableRenderer); ok {
-				plainRenderer.rootValueType.Value = valueType
-			}
-		}
 	}
 	return false, segment.Renderer.RenderVariable(ctx.Context(), value, preparedInput)
 }
