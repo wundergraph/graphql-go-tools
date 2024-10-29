@@ -83,12 +83,6 @@ func (p *PlainVariableRenderer) RenderVariable(ctx context.Context, data *astjso
 	return err
 }
 
-func NewGraphQLVariableRenderer() *GraphQLVariableRenderer {
-	return &GraphQLVariableRenderer{
-		Kind: VariableRendererKindGraphqlWithValidation,
-	}
-}
-
 func NewGraphQLVariableRendererFromTypeRefWithoutValidation(operation, definition *ast.Document, variableTypeRef int) (*GraphQLVariableRenderer, error) {
 	return &GraphQLVariableRenderer{
 		Kind:          VariableRendererKindGraphqlWithValidation,
