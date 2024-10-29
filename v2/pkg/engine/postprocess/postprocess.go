@@ -29,6 +29,7 @@ type processorOptions struct {
 	disableDeduplicateSingleFetches       bool
 	disableCreateConcreteSingleFetchTypes bool
 	disableMergeFields                    bool
+	disableMergeSameSources               bool
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
@@ -47,6 +48,12 @@ func DisableDeduplicateSingleFetches() ProcessorOption {
 func DisableCreateConcreteSingleFetchTypes() ProcessorOption {
 	return func(o *processorOptions) {
 		o.disableCreateConcreteSingleFetchTypes = true
+	}
+}
+
+func DisableMergeSameSources() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableMergeSameSources = true
 	}
 }
 
@@ -115,6 +122,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 			},
 			&createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
+			},
+			&mergeSameSourceFetches{
+				disable: opts.disableMergeSameSources,
 			},
 		},
 		processResponseTree: []ResponseTreeProcessor{

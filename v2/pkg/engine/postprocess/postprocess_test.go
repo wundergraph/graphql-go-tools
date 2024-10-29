@@ -340,6 +340,7 @@ func TestProcess_ExtractFetches(t *testing.T) {
 		DisableDeduplicateSingleFetches(),
 		DisableCreateConcreteSingleFetchTypes(),
 		DisableMergeFields(),
+		DisableMergeSameSources(),
 		DisableCreateParallelNodes(),
 		DisableAddMissingNestedDependencies(),
 	)
