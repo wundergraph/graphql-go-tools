@@ -37,10 +37,6 @@ type VariablesValidator struct {
 	walker  *astvisitor.Walker
 }
 
-type ApolloCompatibilityFlags struct {
-	ReplaceInvalidVarError bool
-}
-
 type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags apollocompatibility.Flags
 }
