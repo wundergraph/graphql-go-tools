@@ -3,18 +3,17 @@ package resolve
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/buger/jsonparser"
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
 	VariableRendererKindPlain                 = "plain"
-	VariableRendererKindPlanWithValidation    = "plainWithValidation"
 	VariableRendererKindJson                  = "json"
 	VariableRendererKindGraphqlWithValidation = "graphqlWithValidation"
 	VariableRendererKindGraphqlResolve        = "graphqlResolve"
@@ -366,18 +365,42 @@ func (g *GraphQLVariableResolveRenderer) GetKind() string {
 	return g.Kind
 }
 
+var (
+	_graphQLVariableResolveRendererPool = &sync.Pool{}
+)
+
+func (g *GraphQLVariableResolveRenderer) getResolvable() *Resolvable {
+	v := _graphQLVariableResolveRendererPool.Get()
+	if v == nil {
+		return NewResolvable(ResolvableOptions{})
+	}
+	return v.(*Resolvable)
+}
+
+func (g *GraphQLVariableResolveRenderer) putResolvable(r *Resolvable) {
+	r.Reset(1024)
+	_graphQLVariableResolveRendererPool.Put(r)
+}
+
 func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error {
-	resolver := NewSimpleResolver()
 
-	buf := pool.FastBuffer.Get()
-	defer pool.FastBuffer.Put(buf)
+	r := g.getResolvable()
+	defer g.putResolvable(r)
 
-	dataJson := data.MarshalTo(nil)
+	switch g.Node.(type) {
+	case *Object:
+		_, _ = out.Write(literal.LBRACE)
+	}
 
-	if err := resolver.resolveNode(g.Node, dataJson, buf); err != nil {
+	err := r.ResolveNode(g.Node, data, out)
+	if err != nil {
 		return err
 	}
 
-	_, err := out.Write(buf.Bytes())
-	return err
+	switch g.Node.(type) {
+	case *Object:
+		_, _ = out.Write(literal.RBRACE)
+	}
+
+	return nil
 }

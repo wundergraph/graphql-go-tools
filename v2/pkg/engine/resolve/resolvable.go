@@ -167,6 +167,27 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	return
 }
 
+func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) error {
+	r.out = out
+	r.print = false
+	r.printErr = nil
+	r.authorizationError = nil
+	r.ctx = &Context{}
+	r.errors = r.astjsonArena.NewArray()
+
+	hasErrors := r.walkNode(node, data, nil)
+	if hasErrors {
+		return fmt.Errorf("error resolving node")
+	}
+
+	r.print = true
+	hasErrors = r.walkNode(node, data, nil)
+	if hasErrors {
+		return fmt.Errorf("error resolving node: %w", r.printErr)
+	}
+	return nil
+}
+
 func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
 	r.print = false

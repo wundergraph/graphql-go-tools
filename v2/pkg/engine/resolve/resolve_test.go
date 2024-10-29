@@ -3301,6 +3301,7 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
+					//           {"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":["id":"1234","__typename":"User"]}}}
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
 					pair := NewBufPair()
