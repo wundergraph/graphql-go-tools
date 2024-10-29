@@ -3,6 +3,7 @@ package astvalidation
 import (
 	"bytes"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -26,7 +27,7 @@ type fieldDefined struct {
 	*astvisitor.Walker
 	operation                *ast.Document
 	definition               *ast.Document
-	apolloCompatibilityFlags ApolloCompatibilityFlags
+	apolloCompatibilityFlags apollocompatibility.Flags
 }
 
 func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
@@ -65,7 +66,7 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 			return
 		}
 	}
-	if f.apolloCompatibilityFlags.ReplaceUndefinedOpFieldErrorEnabled {
+	if f.apolloCompatibilityFlags.ReplaceUndefinedOpFieldError {
 		f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName))
 		return
 	}
