@@ -1440,8 +1440,8 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			}
 		}
 		if typeName == nil {
-			typeName := w.definition.NodeNameBytes(w.TypeDefinitions[len(w.TypeDefinitions)-1])
-			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
+			w.EnclosingTypeDefinition = ast.InvalidNode
+			w.TypeDefinitions = append(w.TypeDefinitions, w.EnclosingTypeDefinition)
 			return
 		}
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
@@ -1465,7 +1465,6 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 }
 
 func (w *Walker) removeLastAncestor() {
-
 	ancestor := w.Ancestors[len(w.Ancestors)-1]
 	w.Ancestors = w.Ancestors[:len(w.Ancestors)-1]
 

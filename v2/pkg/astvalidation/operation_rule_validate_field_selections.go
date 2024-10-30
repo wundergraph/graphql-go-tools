@@ -3,6 +3,7 @@ package astvalidation
 import (
 	"bytes"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -11,10 +12,11 @@ import (
 )
 
 // FieldSelections validates if all FieldSelections are possible and valid
-func FieldSelections() Rule {
+func FieldSelections(options OperationValidatorOptions) Rule {
 	return func(walker *astvisitor.Walker) {
 		fieldDefined := fieldDefined{
-			Walker: walker,
+			Walker:                   walker,
+			apolloCompatibilityFlags: options.ApolloCompatibilityFlags,
 		}
 		walker.RegisterEnterDocumentVisitor(&fieldDefined)
 		walker.RegisterEnterFieldVisitor(&fieldDefined)
@@ -23,8 +25,9 @@ func FieldSelections() Rule {
 
 type fieldDefined struct {
 	*astvisitor.Walker
-	operation  *ast.Document
-	definition *ast.Document
+	operation                *ast.Document
+	definition               *ast.Document
+	apolloCompatibilityFlags apollocompatibility.Flags
 }
 
 func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
@@ -41,7 +44,7 @@ func (f *fieldDefined) ValidateUnionField(ref int, enclosingTypeDefinition ast.N
 	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnUnion(fieldName, unionName))
 }
 
-func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDefinition ast.Node) {
+func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingTypeDefinition ast.Node) {
 	fieldName := f.operation.FieldNameBytes(ref)
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		return
@@ -63,7 +66,10 @@ func (f *fieldDefined) ValidateInterfaceObjectTypeField(ref int, enclosingTypeDe
 			return
 		}
 	}
-
+	if f.apolloCompatibilityFlags.ReplaceUndefinedOpFieldError {
+		f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName))
+		return
+	}
 	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 }
 
@@ -78,7 +84,7 @@ func (f *fieldDefined) EnterField(ref int) {
 	case ast.NodeKindUnionTypeDefinition:
 		f.ValidateUnionField(ref, f.EnclosingTypeDefinition)
 	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindObjectTypeDefinition:
-		f.ValidateInterfaceObjectTypeField(ref, f.EnclosingTypeDefinition)
+		f.ValidateInterfaceOrObjectTypeField(ref, f.EnclosingTypeDefinition)
 	case ast.NodeKindScalarTypeDefinition:
 		f.ValidateScalarField(ref, f.EnclosingTypeDefinition)
 	default:
