@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"io"
+	"strconv"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/goccy/go-json"
@@ -19,6 +20,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
+
+const invalidPath = "invalid path"
 
 type Resolvable struct {
 	options ResolvableOptions
@@ -462,7 +465,7 @@ func (r *Resolvable) popNodePathElement(path []string) {
 	r.depth--
 }
 
-func (r *Resolvable) walkNode(node Node, value, parent *astjson.Value) bool {
+func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	if r.authorizationError != nil {
 		return true
 	}
@@ -528,15 +531,15 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 
 		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
 			if !r.print {
-				// during prewalk we need to add an error when the typename do not match a possible type
+				// during pre-walk we need to add an error when the typename do not match a possible type
 				if r.options.ApolloCompatibilityValueCompletionInExtensions {
 					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
 				} else {
 					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), errorcodes.InvalidGraphql)
 				}
 
-				// if object is not nullable at prewalk we need to return an error
-				// to immediately stop the resolving of the current object and buble up null
+				// if object is not nullable at pre-walk we need to return an error
+				// to immediately stop the resolving of the current object and bubble up null
 				if !obj.Nullable {
 					return r.err()
 				}
@@ -616,7 +619,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
-		err := r.walkNode(obj.Fields[i].Value, value, parent)
+		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
 			if obj.Nullable {
 				if len(obj.Path) > 0 {
@@ -799,7 +802,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 			r.printBytes(comma)
 		}
 		r.pushArrayPathElement(i)
-		err := r.walkNode(arr.Item, arrayValue, parent)
+		err := r.walkNode(arr.Item, arrayValue)
 		r.popArrayPathElement()
 		if err {
 			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
@@ -1036,6 +1039,63 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 	return false
 }
 
+func (r *Resolvable) writeArrayElementToBuffer(buf *bytes.Buffer, typeName string) {
+	_, _ = buf.WriteString("array element of type ")
+	_, _ = buf.WriteString(typeName)
+	_, _ = buf.WriteString(" at index ")
+	_, _ = buf.WriteString(strconv.Itoa(r.path[len(r.path)-1].Idx))
+	_, _ = buf.WriteString(".")
+}
+
+func (r *Resolvable) renderInaccessibleEnumValueError(e *Enum) {
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+	_, _ = buf.WriteString("Invalid value found for ")
+	pathLength := len(r.path)
+	// The enum is an array element
+	if pathLength > 1 && r.path[pathLength-1].Name == "" {
+		r.writeArrayElementToBuffer(buf, e.TypeName)
+		if r.options.ApolloCompatibilityValueCompletionInExtensions {
+			r.addValueCompletion(buf.String(), errorcodes.InvalidGraphql)
+		} else {
+			r.addErrorWithCode(buf.String(), errorcodes.InvalidGraphql)
+		}
+		return
+	}
+	// The enum is a leaf field
+	_, _ = buf.WriteString("field ")
+	if e.Path == nil {
+		if pathLength < 1 {
+			_, _ = buf.WriteString(invalidPath)
+		} else {
+			_, _ = buf.WriteString(r.renderRootFieldCoordinates(r.path[pathLength-1].Name))
+		}
+		_, _ = buf.WriteString(".")
+		return
+	}
+	leafPathLength := len(e.Path)
+	if leafPathLength < 1 {
+		_, _ = buf.WriteString(invalidPath)
+		_, _ = buf.WriteString(".")
+		return
+	}
+	switch pathLength {
+	case 0:
+		_, _ = buf.WriteString(r.renderRootFieldCoordinates(e.Path[leafPathLength-1]))
+		_, _ = buf.WriteString(".")
+	default:
+		_, _ = buf.WriteString(r.enclosingTypeName())
+		_, _ = buf.WriteString(".")
+		_, _ = buf.WriteString(e.Path[leafPathLength-1])
+		_, _ = buf.WriteString(".")
+	}
+	if r.options.ApolloCompatibilityValueCompletionInExtensions {
+		r.addValueCompletionWithPath(buf.String(), errorcodes.InvalidGraphql, e.Path)
+	} else {
+		r.addErrorWithCodeAndPath(buf.String(), errorcodes.InvalidGraphql, e.Path)
+	}
+}
+
 func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 	if r.print {
 		r.ctx.Stats.ResolvedLeafs++
@@ -1051,19 +1111,37 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 	}
 	if value.Type() != astjson.TypeString {
 		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-		r.addError(fmt.Sprintf(`Enum "%s" cannot represent value: "%s""`, e.TypeName, string(r.marshalBuf)), e.Path)
+		r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: %s`, e.TypeName, string(r.marshalBuf)), errorcodes.InternalServerError, e.Path)
 		return r.err()
 	}
 	valueString := string(value.GetStringBytes())
 	if !e.isValidValue(valueString) {
-		r.addError(fmt.Sprintf(`Enum "%s" cannot represent value: "%s""`, e.TypeName, valueString), e.Path)
-		return r.err()
-	}
-	if !e.isAccessibleValue(valueString) {
+		/* When an invalid value is returned, the data is set to null.
+		 * If the value is nullable, the null data should not propagate up, so r.walkNull() is returned.
+		 * To avoid appending an error twice, the appending only happens on the first walk
+		 * and not the second walk (which prints the data).
+		 */
+		if !r.print {
+			r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: "%s"`, e.TypeName, valueString), errorcodes.InternalServerError, e.Path)
+		}
 		if e.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(e.Path, parent)
+		return r.err()
+	}
+	if !e.isAccessibleValue(valueString) {
+		/* When an inaccessible value is returned, the data is set to null.
+		 * If the value is nullable, the null data should not propagate up, so r.walkNull() is returned.
+		 * To avoid appending an error/value completion twice, the appending only happens on the first walk
+		 * and not the second walk (which prints the data).
+		 */
+		if !r.print {
+			r.renderInaccessibleEnumValueError(e)
+		}
+		// Inaccessible enum values are always converted to null
+		if e.Nullable {
+			return r.walkNull()
+		}
 		return r.err()
 	}
 	if r.print {
@@ -1103,6 +1181,8 @@ func (r *Resolvable) renderFieldPath() string {
 		_, _ = buf.WriteString("Mutation")
 	case ast.OperationTypeSubscription:
 		_, _ = buf.WriteString("Subscription")
+	default:
+		return invalidPath
 	}
 	for i := range r.path {
 		if r.path[i].Name != "" {
@@ -1116,7 +1196,7 @@ func (r *Resolvable) renderFieldPath() string {
 func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
 	pathLength := len(r.path)
 	if pathLength < 1 {
-		return "invalid path"
+		return invalidPath
 	}
 	lastPathItem := r.path[pathLength-1]
 	if lastPathItem.Name != "" {
@@ -1124,36 +1204,34 @@ func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
 	}
 	// If the item has no name, it's a GraphQL list element. A list must be returned by a field.
 	if pathLength < 2 {
-		return "invalid path"
+		return invalidPath
 	}
 	return fmt.Sprintf("Cannot return null for non-nullable array element of type %s at index %d.", r.enclosingTypeName(), lastPathItem.Idx)
 }
 
+func (r *Resolvable) renderRootFieldCoordinates(fieldName string) string {
+	switch r.operationType {
+	case ast.OperationTypeQuery:
+		return fmt.Sprintf("Query.%s", fieldName)
+	case ast.OperationTypeMutation:
+		return fmt.Sprintf("Mutation.%s", fieldName)
+	case ast.OperationTypeSubscription:
+		return fmt.Sprintf("Subscription.%s", fieldName)
+	default:
+		return invalidPath
+	}
+}
+
 func (r *Resolvable) renderFieldCoordinates() string {
-	buf := pool.BytesBuffer.Get()
-	defer pool.BytesBuffer.Put(buf)
 	pathLength := len(r.path)
 	switch pathLength {
 	case 0:
-		return "invalid path"
+		return invalidPath
 	case 1:
-		switch r.operationType {
-		case ast.OperationTypeQuery:
-			_, _ = buf.WriteString("Query.")
-		case ast.OperationTypeMutation:
-			_, _ = buf.WriteString("Mutation.")
-		case ast.OperationTypeSubscription:
-			_, _ = buf.WriteString("Subscription.")
-		default:
-			return "invalid path"
-		}
-		_, _ = buf.WriteString(r.path[0].Name)
+		return r.renderRootFieldCoordinates(r.path[0].Name)
 	default:
-		_, _ = buf.WriteString(r.enclosingTypeName())
-		_, _ = buf.WriteString(".")
-		_, _ = buf.WriteString(r.path[pathLength-1].Name)
+		return fmt.Sprintf("%s.%s", r.enclosingTypeName(), r.path[pathLength-1].Name)
 	}
-	return buf.String()
 }
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
@@ -1166,11 +1244,26 @@ func (r *Resolvable) addErrorWithCode(message, code string) {
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
 }
 
+func (r *Resolvable) addErrorWithCodeAndPath(message, code string, fieldPath []string) {
+	r.pushNodePathElement(fieldPath)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
+	r.popNodePathElement(fieldPath)
+}
+
 func (r *Resolvable) addValueCompletion(message, code string) {
 	if r.valueCompletion == nil {
 		r.valueCompletion = r.astjsonArena.NewArray()
 	}
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
+}
+
+func (r *Resolvable) addValueCompletionWithPath(message, code string, fieldPath []string) {
+	if r.valueCompletion == nil {
+		r.valueCompletion = r.astjsonArena.NewArray()
+	}
+	r.pushNodePathElement(fieldPath)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
+	r.popNodePathElement(fieldPath)
 }
 
 func (r *Resolvable) pathLastElementDescription(typeName string) string {
@@ -1182,6 +1275,8 @@ func (r *Resolvable) pathLastElementDescription(typeName string) string {
 			typeName = "Mutation"
 		case ast.OperationTypeSubscription:
 			typeName = "Subscription"
+		default:
+			typeName = invalidPath
 		}
 
 		if len(r.path) == 0 {

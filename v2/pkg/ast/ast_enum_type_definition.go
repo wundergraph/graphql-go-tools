@@ -55,6 +55,9 @@ func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
 
 func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueName ByteSlice) bool {
 	for _, i := range d.EnumTypeDefinitions[enumTypeDef].EnumValuesDefinition.Refs {
+		if _, isInaccessible := d.EnumValueDefinitionDirectiveByName(i, []byte("inaccessible")); isInaccessible {
+			continue
+		}
 		if bytes.Equal(valueName, d.EnumValueDefinitionNameBytes(i)) {
 			return true
 		}
