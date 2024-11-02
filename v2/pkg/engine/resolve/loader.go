@@ -503,6 +503,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
 				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 			}
+
+			// we have no data but only errors
+			// skip value completion
+			if hasErrors && l.resolvable.options.ApolloCompatibilityValueCompletionInExtensions {
+				l.resolvable.skipValueCompletion = true
+			}
+
 			// no data
 			return nil
 		}
