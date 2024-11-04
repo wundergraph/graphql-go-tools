@@ -1063,9 +1063,6 @@ func (r *Resolvable) renderInaccessibleEnumValueError(e *Enum) {
 }
 
 func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(e.Path...)
 	if astjson.ValueIsNull(value) {

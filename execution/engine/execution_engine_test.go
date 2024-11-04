@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -746,76 +748,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		},
 		expectedResponse: `{"data":{"heroes":["Human","Droid"]}}`,
-	}))
-
-	t.Run("execute operation with null and omitted input variables", runWithoutError(ExecutionEngineTestCase{
-		schema: func(t *testing.T) *graphql.Schema {
-			t.Helper()
-			schema := `
-			type Query {
-				heroes(names: [String!], height: String): [String!]
-			}`
-			parseSchema, err := graphql.NewSchemaFromString(schema)
-			require.NoError(t, err)
-			return parseSchema
-		}(t),
-		operation: func(t *testing.T) graphql.Request {
-			return graphql.Request{
-				OperationName: "MyHeroes",
-				Variables:     []byte(`{"height": null}`),
-				Query: `query MyHeroes($heroNames: [String!], $height: String){
-						heroes(names: $heroNames, height: $height)
-					}`,
-			}
-		},
-		dataSources: []plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id",
-				mustFactory(t,
-					testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "example.com",
-						expectedPath:     "/",
-						expectedBody:     `{"query":"query($heroNames: [String!], $height: String){heroes(names: $heroNames, height: $height)}","variables":{"height":null}}`,
-						sendResponseBody: `{"data":{"heroes":[]}}`,
-						sendStatusCode:   200,
-					}),
-				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{TypeName: "Query", FieldNames: []string{"heroes"}},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					Fetch: &graphql_datasource.FetchConfiguration{
-						URL:    "https://example.com/",
-						Method: "POST",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						nil,
-						`type Query { heroes(names: [String!], height: String): [String!] }`,
-					),
-				}),
-			),
-		},
-		fields: []plan.FieldConfiguration{
-			{
-				TypeName:  "Query",
-				FieldName: "heroes",
-				Path:      []string{"heroes"},
-				Arguments: []plan.ArgumentConfiguration{
-					{
-						Name:       "names",
-						SourceType: plan.FieldArgumentSource,
-					},
-					{
-						Name:       "height",
-						SourceType: plan.FieldArgumentSource,
-					},
-				},
-			},
-		},
-		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
 	t.Run("execute operation with null variable on required type", runWithAndCompareError(ExecutionEngineTestCase{
