@@ -326,32 +326,21 @@ func (c *CSVVariableRenderer) RenderVariable(_ context.Context, data *astjson.Va
 	return nil
 }
 
-func extractStringWithQuotes(rootValueType JsonRootType, data []byte) ([]byte, jsonparser.ValueType) {
-	desiredType := jsonparser.Unknown
-	switch rootValueType.Kind {
-	case JsonRootTypeKindSingle:
-		desiredType = rootValueType.Value
-	case JsonRootTypeKindMultiple:
-		_, tt, _, _ := jsonparser.Get(data)
-		if rootValueType.Satisfies(tt) {
-			desiredType = tt
-		}
-	}
-	if desiredType == jsonparser.String {
-		return data[1 : len(data)-1], desiredType
-	}
-	return data, desiredType
-}
-
 type GraphQLVariableResolveRenderer struct {
-	Kind string
-	Node Node
+	Kind       string
+	Node       Node
+	isArray    bool
+	isObject   bool
+	isNullable bool
 }
 
 func NewGraphQLVariableResolveRenderer(node Node) *GraphQLVariableResolveRenderer {
 	return &GraphQLVariableResolveRenderer{
-		Kind: VariableRendererKindGraphqlResolve,
-		Node: node,
+		Kind:       VariableRendererKindGraphqlResolve,
+		Node:       node,
+		isArray:    node.NodeKind() == NodeKindArray,
+		isObject:   node.NodeKind() == NodeKindObject,
+		isNullable: node.NodeNullable(),
 	}
 }
 
@@ -381,18 +370,24 @@ func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, dat
 	r := g.getResolvable()
 	defer g.putResolvable(r)
 
-	switch g.Node.(type) {
-	case *Object:
+	if g.isObject {
 		_, _ = out.Write(literal.LBRACE)
 	}
 
 	err := r.ResolveNode(g.Node, data, out)
 	if err != nil {
+		if g.isNullable {
+			if g.isObject {
+				_, _ = out.Write(literal.RBRACE)
+				return nil
+			}
+			_, _ = out.Write(literal.NULL)
+			return nil
+		}
 		return err
 	}
 
-	switch g.Node.(type) {
-	case *Object:
+	if g.isObject {
 		_, _ = out.Write(literal.RBRACE)
 	}
 

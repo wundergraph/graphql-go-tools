@@ -370,7 +370,9 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 	if len(items) == 1 {
 		return items[0]
 	}
-	arr := l.resolvable.astjsonArena.NewArray()
+	// previously, we used: l.resolvable.astjsonArena.NewArray()
+	// however, itemsData can be called concurrently, so this might result in a race
+	arr := astjson.MustParseBytes([]byte(`[]`))
 	for i, item := range items {
 		arr.SetArrayItem(i, item)
 	}
@@ -1143,11 +1145,11 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 	err = fetch.Input.Item.Render(l.ctx, input, buf.item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
-			err = nil // nolint:ineffassign
 			// skip fetch on render item error
 			if l.ctx.TracingOptions.Enable {
 				fetch.Trace.LoadSkipped = true
 			}
+			res.fetchSkipped = true
 			return nil
 		}
 		return errors.WithStack(err)
@@ -1251,7 +1253,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 		return errors.WithStack(err)
 	}
 	res.batchStats = make([][]int, len(items))
-	itemHashes := make([]uint64, 0, len(items)*len(fetch.Input.Items))
+	itemHashes := make([]uint64, 0, len(items))
 	batchItemIndex := 0
 	addSeparator := false
 
@@ -1556,9 +1558,6 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 	}
 
 	res.statusCode = responseContext.StatusCode
-
-	l.ctx.Stats.NumberOfFetches.Inc()
-	l.ctx.Stats.CombinedResponseSize.Add(int64(res.out.Len()))
 
 	if l.ctx.TracingOptions.Enable {
 		stats := GetSingleFlightStats(ctx)

@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -203,28 +202,25 @@ func TestDataSourceInput_Process(t *testing.T) {
 							{
 								SegmentType:  resolve.VariableSegmentType,
 								VariableKind: resolve.ResolvableObjectVariableKind,
-								Renderer: &resolve.GraphQLVariableResolveRenderer{
-									Kind: resolve.VariableRendererKindGraphqlResolve,
-									Node: &resolve.Object{
-										Nullable: false,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path:     []string{"__typename"},
-													Nullable: false,
-												},
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:     []string{"__typename"},
+												Nullable: false,
 											},
-											{
-												Name: []byte("id"),
-												Value: &resolve.String{
-													Path:     []string{"id"},
-													Nullable: false,
-												},
+										},
+										{
+											Name: []byte("id"),
+											Value: &resolve.String{
+												Path:     []string{"id"},
+												Nullable: false,
 											},
 										},
 									},
-								},
+								}),
 							},
 							{
 								SegmentType: resolve.StaticSegmentType,
@@ -252,28 +248,25 @@ func TestDataSourceInput_Process(t *testing.T) {
 							{
 								SegmentType:  resolve.VariableSegmentType,
 								VariableKind: resolve.ResolvableObjectVariableKind,
-								Renderer: &resolve.GraphQLVariableResolveRenderer{
-									Kind: resolve.VariableRendererKindGraphqlResolve,
-									Node: &resolve.Object{
-										Nullable: false,
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("__typename"),
-												Value: &resolve.String{
-													Path:     []string{"__typename"},
-													Nullable: false,
-												},
+								Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+									Nullable: false,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:     []string{"__typename"},
+												Nullable: false,
 											},
-											{
-												Name: []byte("upc"),
-												Value: &resolve.String{
-													Path:     []string{"upc"},
-													Nullable: false,
-												},
+										},
+										{
+											Name: []byte("upc"),
+											Value: &resolve.String{
+												Path:     []string{"upc"},
+												Nullable: false,
 											},
 										},
 									},
-								},
+								}),
 							},
 							{
 								SegmentType: resolve.StaticSegmentType,
@@ -353,10 +346,10 @@ func TestDataSourceInput_Process(t *testing.T) {
 	processor := NewProcessor(DisableMergeFields(), DisableDeduplicateSingleFetches(), DisableCreateConcreteSingleFetchTypes(), DisableCreateParallelNodes(), DisableAddMissingNestedDependencies())
 	processor.Process(pre)
 
-	if !assert.Equal(t, expected, pre) {
+	assert.Equal(t, expected, pre)
+	if t.Failed() {
 		actualBytes, _ := json.MarshalIndent(pre, "", "  ")
 		expectedBytes, _ := json.MarshalIndent(expected, "", "  ")
-
 		if string(expectedBytes) != string(actualBytes) {
 			assert.Equal(t, string(expectedBytes), string(actualBytes))
 			t.Error(cmp.Diff(string(expectedBytes), string(actualBytes)))
