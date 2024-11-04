@@ -168,8 +168,20 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 									},
 									{
 										Name: []byte("kind"),
-										Value: &resolve.String{
-											Path: []string{"kind"},
+										Value: &resolve.Enum{
+											TypeName: "__TypeKind",
+											Path:     []string{"kind"},
+											Values: []string{
+												"SCALAR",
+												"OBJECT",
+												"INTERFACE",
+												"UNION",
+												"ENUM",
+												"INPUT_OBJECT",
+												"LIST",
+												"NON_NULL",
+											},
+											InaccessibleValues: []string{},
 										},
 										Position: resolve.Position{
 											Line:   5,

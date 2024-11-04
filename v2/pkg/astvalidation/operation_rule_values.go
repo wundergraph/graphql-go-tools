@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
@@ -286,7 +287,8 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef in
 	}
 	enumValue := v.operation.EnumValueNameBytes(value.Ref)
 
-	if !v.definition.EnumTypeDefinitionContainsEnumValue(node.Ref, enumValue) {
+	hasValue, isInaccessible := v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(node.Ref, enumValue, federation.InaccessibleDirectiveNameBytes)
+	if !hasValue || isInaccessible {
 		v.handleNotExistingEnumValueError(value, definitionTypeRef)
 		return false
 	}

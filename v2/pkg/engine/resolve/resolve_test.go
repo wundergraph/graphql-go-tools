@@ -1618,6 +1618,7 @@ func testFnApolloCompatibility(fn func(t *testing.T, ctrl *gomock.Controller) (n
 			MaxConcurrency:               1024,
 			Debug:                        false,
 			PropagateSubgraphErrors:      true,
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
 			PropagateSubgraphStatusCodes: true,
 			AsyncErrorWriter:             &TestErrorWriter{},
 			ResolvableOptions:            resolvableOptions,
@@ -4849,7 +4850,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 		valueCompletion:     true,
 		suppressFetchErrors: true,
 	}
-	t.Run("simple fetch with fetch error suppression", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("simple fetch with fetch error suppression - empty response", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -4870,7 +4871,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 				FetchConfiguration: FetchConfiguration{
 					DataSource: mockDataSource,
 					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
 					},
 				},
 			}, "query"),
@@ -4886,6 +4888,46 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 			},
 		}, Context{ctx: context.Background()}, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Query.name.","path":["name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
 	}, &options))
+
+	t.Run("simple fetch with fetch error suppression - response with error", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				_, _ = w.Write([]byte(`{"errors":[{"message":"Cannot query field 'name' on type 'Query'"}]}`))
+				return
+			})
+		return &GraphQLResponse{
+			Fetches: SingleWithPath(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{query{name}}"}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath:   []string{"data"},
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+			}, "query"),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path: []string{"name"},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Cannot query field 'name' on type 'Query'"}],"data":null}`
+	}, &options))
+
 	t.Run("complex fetch with fetch error suppression", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
@@ -5006,7 +5048,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					FetchConfiguration: FetchConfiguration{
 						DataSource: productService,
 						PostProcessing: PostProcessingConfiguration{
-							SelectResponseDataPath: []string{"data", "_entities"},
+							SelectResponseDataPath:   []string{"data", "_entities"},
+							SelectResponseErrorsPath: []string{"errors"},
 						},
 					},
 				}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
@@ -5074,7 +5117,7 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"me":{"id":"1234","username":"Me","reviews":null}},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Product.name.","path":["me","reviews",0,"product","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`
+		}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"errorMessage"}],"data":{"me":{"id":"1234","username":"Me","reviews":null}}}`
 	}, &options))
 }
 
