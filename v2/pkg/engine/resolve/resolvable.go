@@ -45,8 +45,9 @@ type Resolvable struct {
 	authorizationAllow map[uint64]struct{}
 	authorizationDeny  map[uint64]string
 
-	wroteErrors bool
-	wroteData   bool
+	wroteErrors         bool
+	wroteData           bool
+	skipValueCompletion bool
 
 	typeNames [][]byte
 
@@ -99,6 +100,7 @@ func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	r.enclosingTypeNames = r.enclosingTypeNames[:0]
 	r.wroteErrors = false
 	r.wroteData = false
+	r.skipValueCompletion = false
 	r.data = nil
 	r.errors = nil
 	r.valueCompletion = nil
@@ -320,7 +322,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
-	if r.valueCompletion != nil {
+	if !r.skipValueCompletion && r.valueCompletion != nil {
 		if writeComma {
 			r.printBytes(comma)
 		}
@@ -401,7 +403,7 @@ func (r *Resolvable) hasExtensions() bool {
 	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		return true
 	}
-	if r.valueCompletion != nil {
+	if !r.skipValueCompletion && r.valueCompletion != nil {
 		return true
 	}
 	return false
