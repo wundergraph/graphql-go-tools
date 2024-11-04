@@ -371,10 +371,8 @@ schema {
 		normalizer := NewNormalizer(true, true)
 		normalizer.NormalizeOperation(&operation, &definition, &report)
 
-		assert.True(t, report.HasErrors())
-		assert.Equal(t, 1, len(report.ExternalErrors))
-		assert.Equal(t, 0, len(report.InternalErrors))
-		assert.Equal(t, "external: field: nam not defined on type: Country, locations: [], path: [query,country,nam]", report.Error())
+		// Invalid operation fields are caught in validation
+		assert.False(t, report.HasErrors())
 	})
 }
 

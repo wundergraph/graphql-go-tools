@@ -2,9 +2,10 @@ package operationreport
 
 import (
 	"fmt"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
+	"net/http"
 )
 
 const (
@@ -32,6 +33,10 @@ type ExternalError struct {
 	Message   string     `json:"message"`
 	Path      ast.Path   `json:"path"`
 	Locations []Location `json:"locations"`
+	// ExtensionCode is the error code that is propagated in the extensions property, e.g., "GRAPHQL_VALIDATION_FAILED"
+	ExtensionCode string `json:"-"`
+	// StatusCode is the replacement status code, e.g., 400
+	StatusCode int `json:"-"`
 }
 
 func LocationsFromPosition(position ...position.Position) []Location {
@@ -50,6 +55,13 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
+	return err
+}
+
+func ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName)
+	err.ExtensionCode = errorcodes.GraphQLValidationFailed
+	err.StatusCode = http.StatusBadRequest
 	return err
 }
 

@@ -112,3 +112,141 @@ func TestOperationValidationErrors_ErrorByIndex(t *testing.T) {
 	assert.Equal(t, existingValidationError, validationErrs.ErrorByIndex(0))
 	assert.Nil(t, validationErrs.ErrorByIndex(1))
 }
+
+func TestRequestErrorsFromOperationReport(t *testing.T) {
+	report := operationreport.Report{
+		ExternalErrors: []operationreport.ExternalError{
+			{
+				Message:       "Message1",
+				ExtensionCode: "ExtensionCode1",
+			},
+			{
+				Message:       "Message2",
+				ExtensionCode: "ExtensionCode2",
+				StatusCode:    418,
+			},
+			{
+				Message:       "Message3",
+				ExtensionCode: "ExtensionCode3",
+				StatusCode:    409,
+			},
+		},
+	}
+	expectation := RequestErrors{
+		{
+			Message:   "Message1",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+		},
+		{
+			Message:   "Message2",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+		},
+		{
+			Message:   "Message3",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+		},
+	}
+	requestErrors := RequestErrorsFromOperationReport(report)
+	assert.Equal(t, expectation, requestErrors)
+}
+
+func TestRequestErrorsFromOperationReportWithStatusCode_AndStatusCodeOverride(t *testing.T) {
+	report := operationreport.Report{
+		ExternalErrors: []operationreport.ExternalError{
+			{
+				Message:       "Message1",
+				ExtensionCode: "ExtensionCode1",
+			},
+			{
+				Message:       "Message2",
+				ExtensionCode: "ExtensionCode2",
+				StatusCode:    418,
+			},
+			{
+				Message:       "Message3",
+				ExtensionCode: "ExtensionCode3",
+				StatusCode:    409,
+			},
+		},
+	}
+	expectation := RequestErrors{
+		{
+			Message:   "Message1",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+			Extensions: &Extensions{
+				Code: "ExtensionCode1",
+			},
+		},
+		{
+			Message:   "Message2",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+			Extensions: &Extensions{
+				Code: "ExtensionCode2",
+			},
+		},
+		{
+			Message:   "Message3",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+			Extensions: &Extensions{
+				Code: "ExtensionCode3",
+			},
+		},
+	}
+	statusCode, requestErrors := RequestErrorsFromOperationReportWithStatusCode(report)
+	assert.Equal(t, 418, statusCode)
+	assert.Equal(t, expectation, requestErrors)
+}
+
+func TestRequestErrorsFromOperationReportWithStatusCode_AndNoStatusCodeOverride(t *testing.T) {
+	report := operationreport.Report{
+		ExternalErrors: []operationreport.ExternalError{
+			{
+				Message:       "Message1",
+				ExtensionCode: "ExtensionCode1",
+			},
+			{
+				Message:       "Message2",
+				ExtensionCode: "ExtensionCode2",
+			},
+			{
+				Message:       "Message3",
+				ExtensionCode: "ExtensionCode3",
+			},
+		},
+	}
+	expectation := RequestErrors{
+		{
+			Message:   "Message1",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+			Extensions: &Extensions{
+				Code: "ExtensionCode1",
+			},
+		},
+		{
+			Message:   "Message2",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+			Extensions: &Extensions{
+				Code: "ExtensionCode2",
+			},
+		},
+		{
+			Message:   "Message3",
+			Locations: []operationreport.Location{},
+			Path:      ErrorPath{},
+			Extensions: &Extensions{
+				Code: "ExtensionCode3",
+			},
+		},
+	}
+	statusCode, requestErrors := RequestErrorsFromOperationReportWithStatusCode(report)
+	assert.Equal(t, 200, statusCode)
+	assert.Equal(t, expectation, requestErrors)
+}
