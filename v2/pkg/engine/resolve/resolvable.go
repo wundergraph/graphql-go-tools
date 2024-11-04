@@ -78,10 +78,16 @@ var (
 	parsers = &astjson.ParserPool{}
 )
 
-func (r *Resolvable) parseJSON(data []byte) (*astjson.Value, error) {
+func (r *Resolvable) parseJSONBytes(data []byte) (*astjson.Value, error) {
 	parser := parsers.Get()
 	r.parsers = append(r.parsers, parser)
 	return parser.ParseBytes(data)
+}
+
+func (r *Resolvable) parseJSONString(data string) (*astjson.Value, error) {
+	parser := parsers.Get()
+	r.parsers = append(r.parsers, parser)
+	return parser.Parse(data)
 }
 
 func (r *Resolvable) Reset(maxRecyclableParserSize int) {
@@ -122,9 +128,14 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
-	r.variables = ctx.Variables
+	if len(ctx.Variables) != 0 {
+		r.variables, err = r.parseJSONBytes(ctx.Variables)
+		if err != nil {
+			return err
+		}
+	}
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytes(initialData)
+		initialValue, err := r.parseJSONBytes(initialData)
 		if err != nil {
 			return err
 		}
@@ -137,9 +148,15 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.variables = ctx.Variables
+	if len(ctx.Variables) != 0 {
+		variablesBytes, err := r.parseJSONBytes(ctx.Variables)
+		if err != nil {
+			return err
+		}
+		r.variables = variablesBytes
+	}
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytes(initialData)
+		initialValue, err := r.parseJSONBytes(initialData)
 		if err != nil {
 			return err
 		}
