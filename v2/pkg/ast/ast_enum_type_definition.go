@@ -56,10 +56,19 @@ func (d *Document) EnumTypeDefinitionHasEnumValueDefinition(ref int) bool {
 func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueName ByteSlice) bool {
 	for _, i := range d.EnumTypeDefinitions[enumTypeDef].EnumValuesDefinition.Refs {
 		if bytes.Equal(valueName, d.EnumValueDefinitionNameBytes(i)) {
-			if _, isInaccessible := d.EnumValueDefinitionDirectiveByName(i, []byte("inaccessible")); isInaccessible {
-				return false
-			}
 			return true
+		}
+	}
+	return false
+}
+
+func (d *Document) EnumTypeDefinitionContainsEnumValueWithDirective(enumTypeDefRef int, valueName, directiveName ByteSlice) bool {
+	for _, i := range d.EnumTypeDefinitions[enumTypeDefRef].EnumValuesDefinition.Refs {
+		if bytes.Equal(valueName, d.EnumValueDefinitionNameBytes(i)) {
+			if _, hasDirective := d.EnumValueDefinitionDirectiveByName(i, directiveName); hasDirective {
+				return true
+			}
+			return false
 		}
 	}
 	return false
