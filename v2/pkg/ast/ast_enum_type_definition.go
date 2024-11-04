@@ -62,16 +62,16 @@ func (d *Document) EnumTypeDefinitionContainsEnumValue(enumTypeDef int, valueNam
 	return false
 }
 
-func (d *Document) EnumTypeDefinitionContainsEnumValueWithDirective(enumTypeDefRef int, valueName, directiveName ByteSlice) bool {
+func (d *Document) EnumTypeDefinitionContainsEnumValueWithDirective(enumTypeDefRef int, valueName, directiveName ByteSlice) (hasValue, hasDirective bool) {
 	for _, i := range d.EnumTypeDefinitions[enumTypeDefRef].EnumValuesDefinition.Refs {
 		if bytes.Equal(valueName, d.EnumValueDefinitionNameBytes(i)) {
 			if _, hasDirective := d.EnumValueDefinitionDirectiveByName(i, directiveName); hasDirective {
-				return true
+				return true, true
 			}
-			return false
+			return true, false
 		}
 	}
-	return false
+	return false, false
 }
 
 func (d *Document) AddEnumTypeDefinition(definition EnumTypeDefinition) (ref int) {

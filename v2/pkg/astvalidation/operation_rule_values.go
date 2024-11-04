@@ -287,12 +287,13 @@ func (v *valuesVisitor) valueSatisfiesEnum(value ast.Value, definitionTypeRef in
 	}
 	enumValue := v.operation.EnumValueNameBytes(value.Ref)
 
-	if v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(node.Ref, enumValue, federation.InaccessibleDirectiveNameBytes) {
-		return true
+	hasValue, isInaccessible := v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(node.Ref, enumValue, federation.InaccessibleDirectiveNameBytes)
+	if !hasValue || isInaccessible {
+		v.handleNotExistingEnumValueError(value, definitionTypeRef)
+		return false
 	}
 
-	v.handleNotExistingEnumValueError(value, definitionTypeRef)
-	return false
+	return true
 }
 
 func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, definitionTypeRef int, scalar int) bool {

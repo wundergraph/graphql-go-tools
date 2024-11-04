@@ -21,7 +21,6 @@ type EnumValueDefinition struct {
 	EnumValue     ByteSliceReference // e.g. NORTH (Name but not true, false or null
 	HasDirectives bool
 	Directives    DirectiveList // optional, e.g. @foo
-
 }
 
 func (d *Document) EnumValueDefinitionNameBytes(ref int) ByteSlice {

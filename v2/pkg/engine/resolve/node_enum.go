@@ -49,19 +49,9 @@ func (e *Enum) Equals(n Node) bool {
 }
 
 func (e *Enum) isValidValue(returnedValue string) bool {
-	for _, value := range e.Values {
-		if value == returnedValue {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(e.Values, returnedValue)
 }
 
 func (e *Enum) isAccessibleValue(returnedValue string) bool {
-	for _, value := range e.InaccessibleValues {
-		if value == returnedValue {
-			return false
-		}
-	}
-	return true
+	return !slices.Contains(e.InaccessibleValues, returnedValue)
 }

@@ -458,9 +458,9 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 			return
 		}
 		value := v.variables.Nodes[jsonNodeRef].ValueBytes(v.variables)
-		if v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(fieldTypeDefinitionNode.Ref, value, federation.InaccessibleDirectiveNameBytes) {
-			return
+		hasValue, isInaccessible := v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(fieldTypeDefinitionNode.Ref, value, federation.InaccessibleDirectiveNameBytes)
+		if !hasValue || isInaccessible {
+			v.renderVariableEnumValueDoesNotExistError(typeName, value)
 		}
-		v.renderVariableEnumValueDoesNotExistError(typeName, value)
 	}
 }
