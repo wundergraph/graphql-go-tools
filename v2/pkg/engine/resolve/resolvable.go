@@ -26,7 +26,6 @@ type Resolvable struct {
 
 	data                 *astjson.Value
 	errors               *astjson.Value
-	variables            *astjson.Value
 	valueCompletion      *astjson.Value
 	skipAddingNullErrors bool
 
@@ -103,7 +102,6 @@ func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	r.data = nil
 	r.errors = nil
 	r.valueCompletion = nil
-	r.variables = nil
 	r.depth = 0
 	r.print = false
 	r.out = nil
@@ -128,12 +126,6 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
-	if len(ctx.Variables) != 0 {
-		r.variables, err = r.parseJSONBytes(ctx.Variables)
-		if err != nil {
-			return err
-		}
-	}
 	if initialData != nil {
 		initialValue, err := r.parseJSONBytes(initialData)
 		if err != nil {
@@ -148,13 +140,6 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
-	if len(ctx.Variables) != 0 {
-		variablesBytes, err := r.parseJSONBytes(ctx.Variables)
-		if err != nil {
-			return err
-		}
-		r.variables = variablesBytes
-	}
 	if initialData != nil {
 		initialValue, err := r.parseJSONBytes(initialData)
 		if err != nil {
@@ -593,16 +578,6 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
 	for i := range obj.Fields {
-		if obj.Fields[i].SkipDirectiveDefined {
-			if r.skipField(obj.Fields[i].SkipVariableName) {
-				continue
-			}
-		}
-		if obj.Fields[i].IncludeDirectiveDefined {
-			if r.excludeField(obj.Fields[i].IncludeVariableName) {
-				continue
-			}
-		}
 		if obj.Fields[i].ParentOnTypeNames != nil {
 			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
 				continue
@@ -786,22 +761,6 @@ func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {
 		}
 	}
 	return true
-}
-
-func (r *Resolvable) skipField(skipVariableName string) bool {
-	variable := r.variables.Get(skipVariableName)
-	if variable == nil {
-		return false
-	}
-	return variable.Type() == astjson.TypeTrue
-}
-
-func (r *Resolvable) excludeField(includeVariableName string) bool {
-	variable := r.variables.Get(includeVariableName)
-	if variable == nil {
-		return true
-	}
-	return variable.Type() == astjson.TypeFalse
 }
 
 func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
