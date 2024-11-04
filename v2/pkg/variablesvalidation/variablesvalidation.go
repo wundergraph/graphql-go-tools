@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
@@ -457,9 +458,9 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 			return
 		}
 		value := v.variables.Nodes[jsonNodeRef].ValueBytes(v.variables)
-		if !v.definition.EnumTypeDefinitionContainsEnumValue(fieldTypeDefinitionNode.Ref, value) {
+		hasValue, isInaccessible := v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(fieldTypeDefinitionNode.Ref, value, federation.InaccessibleDirectiveNameBytes)
+		if !hasValue || isInaccessible {
 			v.renderVariableEnumValueDoesNotExistError(typeName, value)
-			return
 		}
 	}
 }

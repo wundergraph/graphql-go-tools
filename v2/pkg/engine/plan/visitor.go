@@ -707,10 +707,22 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
-			return &resolve.String{
-				Path:                 path,
-				Nullable:             nullable,
-				UnescapeResponseJson: unescapeResponseJson,
+			values := make([]string, 0, len(v.Definition.EnumTypeDefinitions[typeDefinitionNode.Ref].EnumValuesDefinition.Refs))
+			inaccessibleValues := make([]string, 0)
+			for _, valueRef := range v.Definition.EnumTypeDefinitions[typeDefinitionNode.Ref].EnumValuesDefinition.Refs {
+				valueName := v.Definition.EnumValueDefinitionNameString(valueRef)
+				values = append(values, valueName)
+
+				if _, isInaccessible := v.Definition.EnumValueDefinitionDirectiveByName(valueRef, []byte("inaccessible")); isInaccessible {
+					inaccessibleValues = append(inaccessibleValues, valueName)
+				}
+			}
+			return &resolve.Enum{
+				Path:               path,
+				Nullable:           nullable,
+				TypeName:           typeName,
+				Values:             values,
+				InaccessibleValues: inaccessibleValues,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
