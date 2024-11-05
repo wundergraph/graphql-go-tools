@@ -28,7 +28,6 @@ const (
 	SSE_METHOD_POST                             = "sse_method_post"
 	SCHEME                                      = "scheme"
 	HOST                                        = "host"
-	UNNULL_VARIABLES                            = "unnull_variables"
 	UNDEFINED_VARIABLES                         = "undefined"
 	FORWARDED_CLIENT_HEADER_NAMES               = "forwarded_client_header_names"
 	FORWARDED_CLIENT_HEADER_REGULAR_EXPRESSIONS = "forwarded_client_header_regular_expressions"

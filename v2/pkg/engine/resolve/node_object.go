@@ -90,18 +90,14 @@ func (_ *EmptyObject) Copy() Node {
 }
 
 type Field struct {
-	Name                    []byte
-	Value                   Node
-	Position                Position
-	Defer                   *DeferField
-	Stream                  *StreamField
-	OnTypeNames             [][]byte
-	ParentOnTypeNames       []ParentOnTypeNames
-	SkipDirectiveDefined    bool
-	SkipVariableName        string
-	IncludeDirectiveDefined bool
-	IncludeVariableName     string
-	Info                    *FieldInfo
+	Name              []byte
+	Value             Node
+	Position          Position
+	Defer             *DeferField
+	Stream            *StreamField
+	OnTypeNames       [][]byte
+	ParentOnTypeNames []ParentOnTypeNames
+	Info              *FieldInfo
 }
 
 type ParentOnTypeNames struct {
@@ -111,17 +107,13 @@ type ParentOnTypeNames struct {
 
 func (f *Field) Copy() *Field {
 	return &Field{
-		Name:                    f.Name,
-		Value:                   f.Value.Copy(),
-		Position:                f.Position,
-		Defer:                   f.Defer,
-		Stream:                  f.Stream,
-		OnTypeNames:             f.OnTypeNames,
-		SkipDirectiveDefined:    f.SkipDirectiveDefined,
-		SkipVariableName:        f.SkipVariableName,
-		IncludeDirectiveDefined: f.IncludeDirectiveDefined,
-		IncludeVariableName:     f.IncludeVariableName,
-		Info:                    f.Info,
+		Name:        f.Name,
+		Value:       f.Value.Copy(),
+		Position:    f.Position,
+		Defer:       f.Defer,
+		Stream:      f.Stream,
+		OnTypeNames: f.OnTypeNames,
+		Info:        f.Info,
 	}
 }
 
