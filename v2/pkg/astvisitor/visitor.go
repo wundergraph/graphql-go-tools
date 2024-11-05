@@ -1791,33 +1791,22 @@ func (w *Walker) walkSelectionSet(ref int, skipFor SkipVisitors) {
 		return
 	}
 
-RefsChanged:
-	for {
-		refs := make([]int, 0, len(w.document.SelectionSets[ref].SelectionRefs))
-		refs = append(refs, w.document.SelectionSets[ref].SelectionRefs...)
+	refs := w.document.SelectionSets[ref].SelectionRefs
+	for i := 0; i < len(refs); i++ {
+		selectionRef := refs[i]
 
-		for i, j := range refs {
-
-			w.SelectionsBefore = refs[:i]
-			w.SelectionsAfter = refs[i+1:]
-
-			switch w.document.Selections[j].Kind {
-			case ast.SelectionKindField:
-				w.walkField(w.document.Selections[j].Ref, skipFor)
-			case ast.SelectionKindFragmentSpread:
-				w.walkFragmentSpread(w.document.Selections[j].Ref, skipFor)
-			case ast.SelectionKindInlineFragment:
-				w.walkInlineFragment(w.document.Selections[j].Ref, skipFor)
-			}
-
-			if w.stop {
-				return
-			}
-			if !w.refsEqual(refs, w.document.SelectionSets[ref].SelectionRefs) {
-				continue RefsChanged
-			}
+		switch w.document.Selections[selectionRef].Kind {
+		case ast.SelectionKindField:
+			w.walkField(w.document.Selections[selectionRef].Ref, skipFor)
+		case ast.SelectionKindFragmentSpread:
+			w.walkFragmentSpread(w.document.Selections[selectionRef].Ref, skipFor)
+		case ast.SelectionKindInlineFragment:
+			w.walkInlineFragment(w.document.Selections[selectionRef].Ref, skipFor)
 		}
-		break
+
+		if w.stop {
+			return
+		}
 	}
 
 	w.removeLastAncestor()
