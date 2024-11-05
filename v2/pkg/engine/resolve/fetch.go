@@ -104,12 +104,6 @@ type PostProcessingConfiguration struct {
 	// If this is set, the response will be considered an error if the jsonparser.Get call returns a non-empty value
 	// The value will be expected to be a GraphQL error object
 	SelectResponseErrorsPath []string
-	// ResponseTemplate is processed after the SelectResponseDataPath is applied
-	// It can be used to "render" the response data into a different format
-	// E.g. when you're making a representations Request with two entities, you will get back an array of two objects
-	// However, you might want to render this into a single object with two properties
-	// This can be done with a ResponseTemplate
-	ResponseTemplate *InputTemplate
 	// MergePath can be defined to merge the result of the post-processing into the parent object at the given path
 	// e.g. if the parent is {"a":1}, result is {"foo":"bar"} and the MergePath is ["b"],
 	// the result will be {"a":1,"b":{"foo":"bar"}}

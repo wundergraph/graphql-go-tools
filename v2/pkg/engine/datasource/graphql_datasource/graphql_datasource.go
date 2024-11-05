@@ -31,8 +31,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-const removeNullVariablesDirectiveName = "removeNullVariables"
-
 var (
 	DefaultPostProcessingConfiguration = resolve.PostProcessingConfiguration{
 		SelectResponseDataPath:   []string{"data"},
@@ -74,7 +72,6 @@ type Planner[T Configuration] struct {
 	addDirectivesToVariableDefinitions map[int][]int
 	insideCustomScalarField            bool
 	customScalarFieldRef               int
-	unnulVariables                     bool
 	parentTypeNodes                    []ast.Node
 
 	// federation
@@ -296,10 +293,6 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
-	if p.unnulVariables {
-		input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
-	}
-
 	header, err := json.Marshal(p.config.fetch.Header)
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
@@ -406,12 +399,6 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 }
 
 func (p *Planner[T]) EnterOperationDefinition(ref int) {
-	if p.visitor.Operation.OperationDefinitions[ref].HasDirectives &&
-		p.visitor.Operation.OperationDefinitions[ref].Directives.HasDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName) {
-		p.unnulVariables = true
-		p.visitor.Operation.OperationDefinitions[ref].Directives.RemoveDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName)
-	}
-
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.dataSourcePlannerConfig.IsNested {
 		operationType = ast.OperationTypeQuery
@@ -1643,30 +1630,6 @@ type Source struct {
 	httpClient *http.Client
 }
 
-func (s *Source) compactAndUnNullVariables(input []byte) []byte {
-	undefinedVariables := httpclient.UndefinedVariables(input)
-	variables, _, _, err := jsonparser.Get(input, "body", "variables")
-	if err != nil {
-		return input
-	}
-	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
-		return input
-	}
-	if bytes.ContainsAny(variables, " \t\n\r") {
-		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
-		if err := json.Compact(buf, variables); err != nil {
-			panic(fmt.Errorf("compacting variables: %w", err))
-		}
-		variables = buf.Bytes()
-	}
-
-	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULL_VARIABLES)
-	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
-
-	input, _ = jsonparser.Set(input, variables, "body", "variables")
-	return input
-}
-
 // cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
 // otherwise returns the input as is
 func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, undefinedVariables []string) []byte {
@@ -1726,12 +1689,12 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 }
 
 func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
-	input = s.compactAndUnNullVariables(input)
+	//input = s.compactAndUnNullVariables(input)
 	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, out)
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
-	input = s.compactAndUnNullVariables(input)
+	//input = s.compactAndUnNullVariables(input)
 	return httpclient.Do(s.httpClient, ctx, input, out)
 }
 
