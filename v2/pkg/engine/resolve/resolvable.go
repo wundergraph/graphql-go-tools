@@ -5,9 +5,10 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"io"
 	"strconv"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/goccy/go-json"
@@ -28,7 +29,6 @@ type Resolvable struct {
 
 	data                 *astjson.Value
 	errors               *astjson.Value
-	variables            *astjson.Value
 	valueCompletion      *astjson.Value
 	skipAddingNullErrors bool
 
@@ -107,7 +107,6 @@ func (r *Resolvable) Reset(maxRecyclableParserSize int) {
 	r.data = nil
 	r.errors = nil
 	r.valueCompletion = nil
-	r.variables = nil
 	r.depth = 0
 	r.print = false
 	r.out = nil
@@ -132,12 +131,6 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
-	if len(ctx.Variables) != 0 {
-		r.variables, err = r.parseJSONBytes(ctx.Variables)
-		if err != nil {
-			return err
-		}
-	}
 	if initialData != nil {
 		initialValue, err := r.parseJSONBytes(initialData)
 		if err != nil {
@@ -152,13 +145,6 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
-	if len(ctx.Variables) != 0 {
-		variablesBytes, err := r.parseJSONBytes(ctx.Variables)
-		if err != nil {
-			return err
-		}
-		r.variables = variablesBytes
-	}
 	if initialData != nil {
 		initialValue, err := r.parseJSONBytes(initialData)
 		if err != nil {
@@ -186,6 +172,26 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 		r.errors = r.astjsonArena.NewArray()
 	}
 	return
+}
+
+func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) error {
+	r.out = out
+	r.print = false
+	r.printErr = nil
+	r.authorizationError = nil
+	r.errors = r.astjsonArena.NewArray()
+
+	hasErrors := r.walkNode(node, data)
+	if hasErrors {
+		return fmt.Errorf("error resolving node")
+	}
+
+	r.print = true
+	hasErrors = r.walkNode(node, data)
+	if hasErrors {
+		return fmt.Errorf("error resolving node: %w", r.printErr)
+	}
+	return nil
 }
 
 func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
@@ -481,9 +487,6 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	if r.authorizationError != nil {
 		return true
 	}
-	if r.print {
-		r.ctx.Stats.ResolvedNodes++
-	}
 	switch n := node.(type) {
 	case *Object:
 		return r.walkObject(n, value)
@@ -569,7 +572,6 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
-		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
 
@@ -578,16 +580,6 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
 	for i := range obj.Fields {
-		if obj.Fields[i].SkipDirectiveDefined {
-			if r.skipField(obj.Fields[i].SkipVariableName) {
-				continue
-			}
-		}
-		if obj.Fields[i].IncludeDirectiveDefined {
-			if r.excludeField(obj.Fields[i].IncludeVariableName) {
-				continue
-			}
-		}
 		if obj.Fields[i].ParentOnTypeNames != nil {
 			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
 				continue
@@ -773,22 +765,6 @@ func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {
 	return true
 }
 
-func (r *Resolvable) skipField(skipVariableName string) bool {
-	variable := r.variables.Get(skipVariableName)
-	if variable == nil {
-		return false
-	}
-	return variable.Type() == astjson.TypeTrue
-}
-
-func (r *Resolvable) excludeField(includeVariableName string) bool {
-	variable := r.variables.Get(includeVariableName)
-	if variable == nil {
-		return true
-	}
-	return variable.Type() == astjson.TypeFalse
-}
-
 func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 	parent := value
 	value = value.Get(arr.Path...)
@@ -837,15 +813,11 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 func (r *Resolvable) walkNull() bool {
 	if r.print {
 		r.printBytes(null)
-		r.ctx.Stats.ResolvedLeafs++
 	}
 	return false
 }
 
 func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(s.Path...)
 	if astjson.ValueIsNull(value) {
@@ -892,9 +864,6 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(b.Path...)
 	if astjson.ValueIsNull(value) {
@@ -916,9 +885,6 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(i.Path...)
 	if astjson.ValueIsNull(value) {
@@ -940,9 +906,6 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(f.Path...)
 	if astjson.ValueIsNull(value) {
@@ -973,9 +936,6 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(b.Path...)
 	if astjson.ValueIsNull(value) {
@@ -992,9 +952,6 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 }
 
 func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(s.Path...)
 	if astjson.ValueIsNull(value) {
@@ -1027,9 +984,6 @@ func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
 }
 
 func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(c.Path...)
 	if astjson.ValueIsNull(value) {
@@ -1109,9 +1063,6 @@ func (r *Resolvable) renderInaccessibleEnumValueError(e *Enum) {
 }
 
 func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
 	parent := value
 	value = value.Get(e.Path...)
 	if astjson.ValueIsNull(value) {
