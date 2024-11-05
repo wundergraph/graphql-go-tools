@@ -14,6 +14,7 @@ const (
 	NodeKindCustom
 	NodeKindScalar
 	NodeKindStaticString
+	NodeKindEnum
 )
 
 type Node interface {

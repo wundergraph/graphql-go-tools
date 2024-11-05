@@ -4171,8 +4171,24 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										OnTypeNames: [][]byte{[]byte("Error")},
 										Name:        []byte("code"),
-										Value: &resolve.String{
-											Path: []string{"code"},
+										Value: &resolve.Enum{
+											TypeName: "ErrorCode",
+											Path:     []string{"code"},
+											Values: []string{
+												"Internal",
+												"AuthenticationRequired",
+												"Unauthorized",
+												"NotFound",
+												"Conflict",
+												"UserAlreadyHasPersonalNamespace",
+												"TeamPlanInPersonalNamespace",
+												"InvalidName",
+												"UnableToDeployEnvironment",
+												"InvalidWunderGraphConfig",
+												"ApiEnvironmentNamespaceMismatch",
+												"UnableToUpdateEdgesOnPersonalEnvironment",
+											},
+											InaccessibleValues: []string{},
 										},
 									},
 									{
@@ -8751,9 +8767,16 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								{
 									Name: []byte("tier"),
-									Value: &resolve.String{
+									Value: &resolve.Enum{
 										Nullable: true,
+										TypeName: "custom_Tier",
 										Path:     []string{"tier"},
+										Values: []string{
+											"A",
+											"B",
+											"C",
+										},
+										InaccessibleValues: []string{},
 									},
 								},
 								{
