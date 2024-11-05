@@ -40,3 +40,4 @@ jobs:
         run: |
           npm i -g @commitlint/cli@17.0.2 @commitlint/config-conventional@17.0.2
           echo "$PR_TITLE" | commitlint
+
