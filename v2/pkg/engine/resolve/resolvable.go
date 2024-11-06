@@ -3,6 +3,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	goerrors "errors"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/goccy/go-json"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
