@@ -1,6 +1,7 @@
 package apollocompatibility
 
 type Flags struct {
-	ReplaceInvalidVarError       bool
+	ReplaceInvalidVarError bool
+
 	ReplaceUndefinedOpFieldError bool
 }
