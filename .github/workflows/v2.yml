@@ -18,7 +18,6 @@ on:
       - '.github/workflows/pr-title.yml'
       - '.github/workflows/release.yml'
       - 'commitlint.config.js'
-# trigger
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
@@ -26,7 +25,7 @@ jobs:
     strategy:
       matrix:
         go: [ '1.21' ]
-        os: [ubuntu-latest-m, windows-latest-m]
+        os: [blacksmith-4cpu-ubuntu-2204, windows-latest-m]
     steps:
       - name: Set git to use LF
         run: |
@@ -35,7 +34,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
       - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v4
+        uses: useblacksmith/setup-go@v6
         with:
           go-version: ^${{ matrix.go }}
         id: go
@@ -54,7 +53,7 @@ jobs:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
       - name: Set up Go 1.21
-        uses: actions/setup-go@v4
+        uses: useblacksmith/setup-go@v6
         with:
           go-version: 1.21
       - name: Run linters
