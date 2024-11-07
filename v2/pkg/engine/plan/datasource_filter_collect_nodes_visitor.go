@@ -42,11 +42,11 @@ func (c *nodesCollector) collectNodes() {
 	reports := make([]*operationreport.Report, len(c.dataSources))
 
 	for i, dataSource := range c.dataSources {
-		walker := astvisitor.NewWalker(32)
+		walker := astvisitor.WalkerFromPool()
 		visitor := &collectNodesVisitor{
 			operation:  c.operation,
 			definition: c.definition,
-			walker:     &walker,
+			walker:     walker,
 			nodes:      c.nodes,
 			info:       info,
 		}
@@ -58,8 +58,9 @@ func (c *nodesCollector) collectNodes() {
 		reports[i] = &report
 		go func(walker *astvisitor.Walker, report *operationreport.Report) {
 			walker.Walk(c.operation, c.definition, report)
+			walker.Release()
 			wg.Done()
-		}(&walker, &report)
+		}(walker, &report)
 	}
 	wg.Wait()
 	for _, report := range reports {
@@ -467,7 +468,7 @@ func getFieldInfo(operation, definition *ast.Document) map[int]fieldInfo {
 		walker:     &walker,
 		operation:  operation,
 		definition: definition,
-		infoCache:  make(map[int]fieldInfo),
+		infoCache:  make(map[int]fieldInfo, len(operation.Fields)),
 	}
 	walker.RegisterEnterFieldVisitor(visitor)
 	report := &operationreport.Report{}

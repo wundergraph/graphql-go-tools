@@ -44,23 +44,6 @@ func IsIntrospectionDataSource(dataSourceID string) bool {
 	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
 }
 
-var (
-	loaderBufPool = sync.Pool{}
-)
-
-func acquireLoaderBuf() *bytes.Buffer {
-	v := loaderBufPool.Get()
-	if v == nil {
-		return bytes.NewBuffer(make([]byte, 0, 1024))
-	}
-	return v.(*bytes.Buffer)
-}
-
-func releaseLoaderBuf(buf *bytes.Buffer) {
-	buf.Reset()
-	loaderBufPool.Put(buf)
-}
-
 type Loader struct {
 	resolvable *Resolvable
 	ctx        *Context
@@ -118,8 +101,12 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		i := i
 		results[i] = &result{}
 		itemsItems[i] = l.selectItemsForPath(nodes[i].Item.FetchPath)
+		f := nodes[i].Item.Fetch
+		item := nodes[i].Item
+		items := itemsItems[i]
+		res := results[i]
 		g.Go(func() error {
-			return l.loadFetch(ctx, nodes[i].Item.Fetch, nodes[i].Item, itemsItems[i], results[i])
+			return l.loadFetch(ctx, f, item, items, res)
 		})
 	}
 	err := g.Wait()
@@ -168,7 +155,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
 		res := &result{
-			out: acquireLoaderBuf(),
+			out: &bytes.Buffer{},
 		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 		if err != nil {
@@ -181,7 +168,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *BatchEntityFetch:
 		res := &result{
-			out: acquireLoaderBuf(),
+			out: &bytes.Buffer{},
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
@@ -194,7 +181,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *EntityFetch:
 		res := &result{
-			out: acquireLoaderBuf(),
+			out: &bytes.Buffer{},
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
@@ -214,7 +201,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: acquireLoaderBuf(),
+				out: &bytes.Buffer{},
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -382,7 +369,7 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		res.out = acquireLoaderBuf()
+		res.out = &bytes.Buffer{}
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
@@ -393,7 +380,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: acquireLoaderBuf(),
+				out: &bytes.Buffer{},
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -414,17 +401,16 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		res.nestedMergeItems = results
 		return nil
 	case *EntityFetch:
-		res.out = acquireLoaderBuf()
+		res.out = &bytes.Buffer{}
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
-		res.out = acquireLoaderBuf()
+		res.out = &bytes.Buffer{}
 		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil
 }
 
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
-	defer releaseLoaderBuf(res.out)
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
 	}
@@ -1060,27 +1046,9 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 	return l.rateLimitFetch(input, info, res)
 }
 
-var (
-	singleFetchPool = sync.Pool{
-		New: func() any {
-			return &bytes.Buffer{}
-		},
-	}
-)
-
-func acquireSingleFetchBuffer() *bytes.Buffer {
-	return singleFetchPool.Get().(*bytes.Buffer)
-}
-
-func releaseSingleFetchBuffer(buf *bytes.Buffer) {
-	buf.Reset()
-	singleFetchPool.Put(buf)
-}
-
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	buf := acquireSingleFetchBuffer()
-	defer releaseSingleFetchBuffer(buf)
+	buf := &bytes.Buffer{}
 	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}

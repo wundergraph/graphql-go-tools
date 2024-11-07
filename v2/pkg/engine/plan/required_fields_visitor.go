@@ -45,12 +45,13 @@ type addRequiredFieldsInput struct {
 }
 
 func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.WalkerFromPool()
+	defer walker.Release()
 
 	importer := &astimport.Importer{}
 
 	visitor := &requiredFieldsVisitor{
-		Walker:            &walker,
+		Walker:            walker,
 		input:             input,
 		importer:          importer,
 		skipFieldRefs:     make([]int, 0, 2),

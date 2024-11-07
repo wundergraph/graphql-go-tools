@@ -109,7 +109,7 @@ func NewDocument() *Document {
 func NewSmallDocument() *Document {
 	return &Document{
 		BooleanValues: [2]BooleanValue{false, true},
-		Refs:          make([][8]int, 48),
+		Refs:          make([][8]int, 4),
 		RefIndex:      -1,
 		Index: Index{
 			nodes: make(map[uint64][]Node, 4),

@@ -361,7 +361,7 @@ func (g *GraphQLVariableResolveRenderer) getResolvable() *Resolvable {
 }
 
 func (g *GraphQLVariableResolveRenderer) putResolvable(r *Resolvable) {
-	r.Reset(1024)
+	r.Reset(256)
 	_graphQLVariableResolveRendererPool.Put(r)
 }
 
