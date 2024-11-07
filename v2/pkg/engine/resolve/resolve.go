@@ -48,7 +48,6 @@ type AsyncErrorWriter interface {
 type Resolver struct {
 	ctx            context.Context
 	options        ResolverOptions
-	bufPool        sync.Pool
 	maxConcurrency chan struct{}
 
 	triggers               map[uint64]*trigger
@@ -268,19 +267,6 @@ func (r *Resolver) putSubscriptionTools(t *tools) {
 	r.subscriptionTools.Put(t)
 }
 
-func (r *Resolver) getBuffer() *bytes.Buffer {
-	maybeBuffer := r.bufPool.Get()
-	if maybeBuffer == nil {
-		return &bytes.Buffer{}
-	}
-	return maybeBuffer.(*bytes.Buffer)
-}
-
-func (r *Resolver) releaseBuffer(buf *bytes.Buffer) {
-	buf.Reset()
-	r.bufPool.Put(buf)
-}
-
 type GraphQLResolveInfo struct {
 	ResolveAcquireWaitTime time.Duration
 }
@@ -314,8 +300,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		}
 	}
 
-	buf := r.getBuffer()
-	defer r.releaseBuffer(buf)
+	buf := &bytes.Buffer{}
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 
 	// Return the tools as soon as possible. More efficient in case of a slow client / network.

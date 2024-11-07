@@ -165,10 +165,11 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		allow := config.HasPathWithFieldRef(ref) || config.HasParent(path)
 
 		if !allow {
-			if pp, ok := config.Debugger(); ok {
-				pp.DebugPrint("allow:", false, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+			if v.Config.Debug.PlanningVisitor {
+				if pp, ok := config.Debugger(); ok {
+					pp.DebugPrint("allow:", false, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+				}
 			}
-
 			return false
 		}
 
@@ -180,8 +181,10 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 				// or if there was added missing parent path
 				config.ShouldWalkFieldsOnPath(path, "")
 
-		if pp, ok := config.Debugger(); ok {
-			pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+			}
 		}
 
 		return shouldWalkFieldsOnPath
@@ -190,17 +193,21 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 
 		hasFragmentPath := config.HasFragmentPath(ref)
 
-		if pp, ok := config.Debugger(); ok {
-			typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-			pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+				pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+			}
 		}
 
 		return hasFragmentPath
 	case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 		allowedByParent := skipFor.Allow(config.Planner())
 
-		if pp, ok := config.Debugger(); ok {
-			pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
+			}
 		}
 
 		return allowedByParent

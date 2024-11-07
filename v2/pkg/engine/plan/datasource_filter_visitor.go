@@ -111,7 +111,7 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (nodes *NodeSuggestions) {
+func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) (nodes *NodeSuggestions) {
 	if existingNodes == nil {
 		existingNodes = NewNodeSuggestions()
 	}
