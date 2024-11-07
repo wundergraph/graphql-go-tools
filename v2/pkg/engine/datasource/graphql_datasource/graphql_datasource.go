@@ -1630,32 +1630,44 @@ type Source struct {
 	httpClient *http.Client
 }
 
+func (s *Source) compactAndUnNullVariables(input []byte) []byte {
+	undefinedVariables := httpclient.UndefinedVariables(input)
+	variables, _, _, err := jsonparser.Get(input, "body", "variables")
+	if err != nil {
+		return input
+	}
+	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
+		return input
+	}
+	variables = s.cleanupVariables(variables, undefinedVariables)
+	if bytes.ContainsAny(variables, " \t\n\r") {
+		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
+		if err := json.Compact(buf, variables); err != nil {
+			return variables
+		}
+		variables = buf.Bytes()
+		input, _ = jsonparser.Set(input, variables, "body", "variables")
+	}
+	return input
+}
+
 // cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
 // otherwise returns the input as is
-func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, undefinedVariables []string) []byte {
-	cp := make([]byte, len(variables))
-	copy(cp, variables)
-
+func (s *Source) cleanupVariables(variables []byte, undefinedVariables []string) []byte {
 	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
-	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	if len(undefinedVariables) == 0 {
+		return variables
+	}
+	_ = jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		if dataType == jsonparser.Null {
 			stringKey := unsafebytes.BytesToString(key)
-			if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
-				cp = jsonparser.Delete(cp, stringKey)
+			if slices.Contains(undefinedVariables, stringKey) {
+				variables = jsonparser.Delete(variables, stringKey)
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return variables
-	}
-
-	// remove empty objects
-	if removeNullVariables {
-		cp = s.removeEmptyObjects(cp)
-	}
-
-	return cp
+	return variables
 }
 
 // removeEmptyObjects removes empty objects from JSON: {"b": "b", "c": {}} -> {"b": "b"}
@@ -1689,12 +1701,12 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 }
 
 func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
-	//input = s.compactAndUnNullVariables(input)
+	input = s.compactAndUnNullVariables(input)
 	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, out)
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
-	//input = s.compactAndUnNullVariables(input)
+	input = s.compactAndUnNullVariables(input)
 	return httpclient.Do(s.httpClient, ctx, input, out)
 }
 
