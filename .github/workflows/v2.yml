@@ -25,7 +25,7 @@ jobs:
     strategy:
       matrix:
         go: [ '1.21' ]
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest-m, windows-latest]
     steps:
       - name: Set git to use LF
         run: |
