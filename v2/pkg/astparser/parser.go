@@ -4,6 +4,7 @@ package astparser
 import (
 	"fmt"
 	"runtime"
+	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
@@ -14,12 +15,33 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
+var (
+	parserPool = sync.Pool{}
+)
+
+func getParser() *Parser {
+	if v := parserPool.Get(); v != nil {
+		return v.(*Parser)
+	}
+	return NewParser()
+}
+
+func releaseParser(p *Parser) {
+	parserPool.Put(p)
+}
+
 // ParseGraphqlDocumentString takes a raw GraphQL document in string format and parses it into an AST.
 // This function creates a new parser as well as a new AST for every call.
 // Therefore you shouldn't use this function in a hot path.
 // Instead create a parser as well as AST objects and re-use them.
 func ParseGraphqlDocumentString(input string) (ast.Document, operationreport.Report) {
-	return ParseGraphqlDocumentBytes([]byte(input))
+	parser := getParser()
+	defer releaseParser(parser)
+	doc := ast.NewSmallDocument()
+	doc.Input.ResetInputString(input)
+	report := operationreport.Report{}
+	parser.Parse(doc, &report)
+	return *doc, report
 }
 
 // ParseGraphqlDocumentBytes takes a raw GraphQL document in byte slice format and parses it into an AST.
@@ -27,12 +49,13 @@ func ParseGraphqlDocumentString(input string) (ast.Document, operationreport.Rep
 // Therefore you shouldn't use this function in a hot path.
 // Instead create a parser as well as AST objects and re-use them.
 func ParseGraphqlDocumentBytes(input []byte) (ast.Document, operationreport.Report) {
-	parser := NewParser()
-	doc := *ast.NewSmallDocument()
+	parser := getParser()
+	defer releaseParser(parser)
+	doc := ast.NewSmallDocument()
 	doc.Input.ResetInputBytes(input)
 	report := operationreport.Report{}
-	parser.Parse(&doc, &report)
-	return doc, report
+	parser.Parse(doc, &report)
+	return *doc, report
 }
 
 // Parser takes a raw input and turns it into an AST
