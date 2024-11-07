@@ -18,6 +18,7 @@ on:
       - '.github/workflows/pr-title.yml'
       - '.github/workflows/release.yml'
       - 'commitlint.config.js'
+# trigger
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
