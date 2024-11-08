@@ -1706,9 +1706,7 @@ func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpcl
 }
 
 func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
-	fmt.Printf("Source.Load: %s\n", string(input))
 	input = s.compactAndUnNullVariables(input)
-	fmt.Printf("Source.Load.compacted: %s\n", string(input))
 	return httpclient.Do(s.httpClient, ctx, input, out)
 }
 
