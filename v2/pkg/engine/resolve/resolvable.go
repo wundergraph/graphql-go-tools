@@ -112,7 +112,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytes(initialData)
+		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytes(initialData)
+		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
 		if err != nil {
 			return err
 		}
