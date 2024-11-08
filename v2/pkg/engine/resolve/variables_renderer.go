@@ -355,7 +355,7 @@ func (g *GraphQLVariableResolveRenderer) getResolvable() *Resolvable {
 }
 
 func (g *GraphQLVariableResolveRenderer) putResolvable(r *Resolvable) {
-	r.Reset(256)
+	r.Reset()
 	_graphQLVariableResolveRendererPool.Put(r)
 }
 
@@ -365,7 +365,5 @@ func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, dat
 
 	// make depth 1 to not render as the root object fields - we need braces
 	r.depth = 1
-	_ = r.ResolveNode(g.Node, data, out)
-
-	return nil
+	return r.ResolveNode(g.Node, data, out)
 }

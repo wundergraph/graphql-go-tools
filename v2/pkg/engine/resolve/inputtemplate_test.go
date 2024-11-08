@@ -372,6 +372,58 @@ func TestInputTemplate_Render(t *testing.T) {
 	})
 
 	t.Run("GraphQLVariableResolveRenderer", func(t *testing.T) {
+		t.Run("optional fields", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType:  VariableSegmentType,
+						VariableKind: ResolvableObjectVariableKind,
+						Renderer: NewGraphQLVariableResolveRenderer(&Object{
+							Nullable: false,
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: true,
+									},
+								},
+							},
+						}),
+					},
+				},
+			}
+
+			data := astjson.MustParseBytes([]byte(`{"name":"foo"}`))
+			ctx := &Context{
+				ctx: context.Background(),
+			}
+			buf := &bytes.Buffer{}
+
+			err := template.Render(ctx, data, buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"name":"foo"}`, out)
+
+			data = astjson.MustParseBytes([]byte(`{}`))
+			buf.Reset()
+			err = template.Render(ctx, data, buf)
+			assert.NoError(t, err)
+			out = buf.String()
+			assert.Equal(t, `{"name":null}`, out)
+
+			data = astjson.MustParseBytes([]byte(`{"name":null}`))
+			buf.Reset()
+			err = template.Render(ctx, data, buf)
+			assert.NoError(t, err)
+			out = buf.String()
+			assert.Equal(t, `{"name":null}`, out)
+
+			data = astjson.MustParseBytes([]byte(`{"name":123}`))
+			buf.Reset()
+			err = template.Render(ctx, data, buf)
+			assert.Error(t, err)
+		})
 		t.Run("nested objects", func(t *testing.T) {
 			template := InputTemplate{
 				Segments: []TemplateSegment{
@@ -426,9 +478,10 @@ func TestInputTemplate_Render(t *testing.T) {
 			}
 
 			cases := []struct {
-				name     string
-				input    string
-				expected string
+				name      string
+				input     string
+				expected  string
+				expectErr bool
 			}{
 				{
 					name:     "data is present",
@@ -436,14 +489,14 @@ func TestInputTemplate_Render(t *testing.T) {
 					expected: `{"address":{"zip":"00000","items":[{"active":true}]}}`,
 				},
 				{
-					name:     "data is missing",
-					input:    `{"name":"home"}`,
-					expected: `null`,
+					name:      "data is missing",
+					input:     `{"name":"home"}`,
+					expectErr: true,
 				},
 				{
-					name:     "partial data",
-					input:    `{"name":"home","address":{}}`,
-					expected: `null`,
+					name:      "partial data",
+					input:     `{"name":"home","address":{}}`,
+					expectErr: true,
 				},
 			}
 
@@ -451,7 +504,11 @@ func TestInputTemplate_Render(t *testing.T) {
 				t.Run(c.name, func(t *testing.T) {
 					buf := &bytes.Buffer{}
 					err := template.Render(ctx, astjson.MustParseBytes([]byte(c.input)), buf)
-					assert.NoError(t, err)
+					if c.expectErr {
+						assert.Error(t, err)
+					} else {
+						assert.NoError(t, err)
+					}
 					out := buf.String()
 					assert.Equal(t, c.expected, out)
 				})
