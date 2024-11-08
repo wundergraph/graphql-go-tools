@@ -327,20 +327,14 @@ func (c *CSVVariableRenderer) RenderVariable(_ context.Context, data *astjson.Va
 }
 
 type GraphQLVariableResolveRenderer struct {
-	Kind       string
-	Node       Node
-	isArray    bool
-	isObject   bool
-	isNullable bool
+	Kind string
+	Node Node
 }
 
 func NewGraphQLVariableResolveRenderer(node Node) *GraphQLVariableResolveRenderer {
 	return &GraphQLVariableResolveRenderer{
-		Kind:       VariableRendererKindGraphqlResolve,
-		Node:       node,
-		isArray:    node.NodeKind() == NodeKindArray,
-		isObject:   node.NodeKind() == NodeKindObject,
-		isNullable: node.NodeNullable(),
+		Kind: VariableRendererKindGraphqlResolve,
+		Node: node,
 	}
 }
 
@@ -361,35 +355,15 @@ func (g *GraphQLVariableResolveRenderer) getResolvable() *Resolvable {
 }
 
 func (g *GraphQLVariableResolveRenderer) putResolvable(r *Resolvable) {
-	r.Reset(256)
+	r.Reset()
 	_graphQLVariableResolveRendererPool.Put(r)
 }
 
 func (g *GraphQLVariableResolveRenderer) RenderVariable(ctx context.Context, data *astjson.Value, out io.Writer) error {
-
 	r := g.getResolvable()
 	defer g.putResolvable(r)
 
-	if g.isObject {
-		_, _ = out.Write(literal.LBRACE)
-	}
-
-	err := r.ResolveNode(g.Node, data, out)
-	if err != nil {
-		if g.isNullable {
-			if g.isObject {
-				_, _ = out.Write(literal.RBRACE)
-				return nil
-			}
-			_, _ = out.Write(literal.NULL)
-			return nil
-		}
-		return err
-	}
-
-	if g.isObject {
-		_, _ = out.Write(literal.RBRACE)
-	}
-
-	return nil
+	// make depth 1 to not render as the root object fields - we need braces
+	r.depth = 1
+	return r.ResolveNode(g.Node, data, out)
 }

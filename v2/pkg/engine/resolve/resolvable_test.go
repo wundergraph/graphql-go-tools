@@ -946,7 +946,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"object":null},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.object.","path":["object"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 
-		res.Reset(1024)
+		res.Reset()
 		err = res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"Hello"}}`), ast.OperationTypeQuery)
 		assert.NoError(t, err)
 		out.Reset()
@@ -954,7 +954,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"object":{"hello":"world"}}}`, out.String())
 
-		res.Reset(1024)
+		res.Reset()
 		err = res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"NotEvenATinyBitHello"}}`), ast.OperationTypeQuery)
 		assert.NoError(t, err)
 		out.Reset()

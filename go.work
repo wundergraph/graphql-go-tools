@@ -23,3 +23,5 @@ use (
 replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.22
 
 replace github.com/tidwall/sjson => github.com/tidwall/sjson v1.0.4
+
+//replace github.com/wundergraph/astjson => ../wundergraph-projects/astjson
