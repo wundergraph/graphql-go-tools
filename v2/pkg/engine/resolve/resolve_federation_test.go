@@ -769,6 +769,9 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 										},
 									},
 								},
+								SkipNullItems:        true,
+								SkipEmptyObjectItems: true,
+								SkipErrItems:         true,
 							},
 							DataSource: infoService,
 							PostProcessing: PostProcessingConfiguration{
@@ -1051,6 +1054,9 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 										},
 									},
 								},
+								SkipNullItems:        true,
+								SkipEmptyObjectItems: true,
+								SkipErrItems:         true,
 							},
 							DataSource: infoService,
 							PostProcessing: PostProcessingConfiguration{
@@ -1093,7 +1099,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21}},{"name":"John","info":null,{"name":"Jane","info":{"age":23}}]}}`
+				}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21}},{"name":"John","info":null},{"name":"Jane","info":{"age":23}}]}}`
 			}))
 
 			t.Run("batching with all null entries", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -1186,6 +1192,9 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 										},
 									},
 								},
+								SkipNullItems:        true,
+								SkipEmptyObjectItems: true,
+								SkipErrItems:         true,
 							},
 							DataSource: infoService,
 							PostProcessing: PostProcessingConfiguration{
@@ -1228,7 +1237,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":null},{"name":"John","info":null,{"name":"Jane","info":null}]}}`
+				}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":null},{"name":"John","info":null},{"name":"Jane","info":null}]}}`
 			}))
 
 			t.Run("batching with render error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
@@ -1250,10 +1259,10 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 					Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 					DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 						actual := string(input)
-						expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age }}}}}","variables":{"representations":[{"id":11,"__typename":"Info"},{"id":12,"__typename":"Info"},{"id":13,"__typename":"Info"}]}}}`
+						expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations) { ... on Info { age }}}}}","variables":{"representations":[{"id":12,"__typename":"Info"},{"id":13,"__typename":"Info"}]}}}`
 						assert.Equal(t, expected, actual)
 						pair := NewBufPair()
-						pair.Data.WriteString(`{"_entities":[{"age":21,"__typename":"Info"},{"age":22,"__typename":"Info"},{"age":23,"__typename":"Info"}]}`)
+						pair.Data.WriteString(`{"_entities":[{"age":21,"__typename":"Info"},{"age":22,"__typename":"Info"}]}`)
 						return writeGraphqlResponse(pair, w, false)
 					})
 
@@ -1329,6 +1338,9 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 										},
 									},
 								},
+								SkipNullItems:        true,
+								SkipEmptyObjectItems: true,
+								SkipErrItems:         true,
 							},
 							DataSource: infoService,
 							PostProcessing: PostProcessingConfiguration{
@@ -1370,7 +1382,7 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 							},
 						},
 					},
-				}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"users":[{"name":"Bill","info":{"age":21}},{"name":"John","info":{"age":22}},{"name":"Jane","info":{"age":23}}]}}`
+				}, Context{ctx: context.Background(), Variables: nil}, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.users.info.age'.","path":["users",0,"info","age"]}],"data":null}`
 			}))
 		})
 
