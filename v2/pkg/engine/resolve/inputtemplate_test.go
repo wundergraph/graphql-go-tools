@@ -376,14 +376,10 @@ func TestInputTemplate_Render(t *testing.T) {
 			template := InputTemplate{
 				Segments: []TemplateSegment{
 					{
-						SegmentType: StaticSegmentType,
-						Data:        []byte(`{"key":`),
-					},
-					{
 						SegmentType:  VariableSegmentType,
 						VariableKind: ResolvableObjectVariableKind,
 						Renderer: NewGraphQLVariableResolveRenderer(&Object{
-							Nullable: false,
+							Nullable: true,
 							Fields: []*Field{
 								{
 									Name: []byte("address"),
@@ -422,21 +418,44 @@ func TestInputTemplate_Render(t *testing.T) {
 							},
 						}),
 					},
-					{
-						SegmentType: StaticSegmentType,
-						Data:        []byte(`}`),
-					},
 				},
 			}
 			ctx := &Context{
 				ctx:       context.Background(),
 				Variables: astjson.MustParseBytes([]byte(`{}`)),
 			}
-			buf := &bytes.Buffer{}
-			err := template.Render(ctx, astjson.MustParseBytes([]byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`)), buf)
-			assert.NoError(t, err)
-			out := buf.String()
-			assert.Equal(t, `{"key":{"address":{"zip":"00000","items":[{"active":true}]}}}`, out)
+
+			cases := []struct {
+				name     string
+				input    string
+				expected string
+			}{
+				{
+					name:     "data is present",
+					input:    `{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`,
+					expected: `{"address":{"zip":"00000","items":[{"active":true}]}}`,
+				},
+				{
+					name:     "data is missing",
+					input:    `{"name":"home"}`,
+					expected: `null`,
+				},
+				{
+					name:     "partial data",
+					input:    `{"name":"home","address":{}}`,
+					expected: `null`,
+				},
+			}
+
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					buf := &bytes.Buffer{}
+					err := template.Render(ctx, astjson.MustParseBytes([]byte(c.input)), buf)
+					assert.NoError(t, err)
+					out := buf.String()
+					assert.Equal(t, c.expected, out)
+				})
+			}
 		})
 	})
 
