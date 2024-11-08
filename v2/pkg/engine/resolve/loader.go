@@ -450,6 +450,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	value, err := l.resolvable.parseJSONBytes(res.out.Bytes())
 	if err != nil {
+		fmt.Printf("Failed to parse JSON: %s\n", res.out.String())
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
