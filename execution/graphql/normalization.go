@@ -33,11 +33,14 @@ func (r *Request) Normalize(schema *Schema, options ...astnormalization.Option) 
 		}
 	}
 
-	normalizer := astnormalization.NewWithOpts(options...)
-
 	if r.OperationName != "" {
+		options = append(options, astnormalization.WithRemoveNotMatchingOperationDefinitions())
+		normalizer := astnormalization.NewWithOpts(options...)
 		normalizer.NormalizeNamedOperation(&r.document, &schema.document, []byte(r.OperationName), &report)
 	} else {
+		// TODO: we should validate count of operations - to throw an error
+		// and do full normalization for the single anonymous operation
+		normalizer := astnormalization.NewWithOpts(options...)
 		normalizer.NormalizeOperation(&r.document, &schema.document, &report)
 	}
 
