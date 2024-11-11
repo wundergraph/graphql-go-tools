@@ -18,7 +18,6 @@ func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
-	walker.RegisterEnterOperationVisitor(visitor)
 	return visitor
 }
 
@@ -26,25 +25,12 @@ type variablesExtractionVisitor struct {
 	*astvisitor.Walker
 	operation, definition     *ast.Document
 	importer                  astimport.Importer
-	operationName             []byte
 	skip                      bool
 	extractedVariables        [][]byte
 	extractedVariableTypeRefs []int
 }
 
-func (v *variablesExtractionVisitor) EnterOperationDefinition(ref int) {
-	if len(v.operationName) == 0 {
-		v.skip = false
-		return
-	}
-	operationName := v.operation.OperationDefinitionNameBytes(ref)
-	v.skip = !bytes.Equal(operationName, v.operationName)
-}
-
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
-	if v.skip {
-		return
-	}
 	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
 		return
 	}

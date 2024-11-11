@@ -2,6 +2,8 @@ package astnormalization
 
 import (
 	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
 func TestVariablesExtraction(t *testing.T) {
@@ -64,7 +66,7 @@ func TestVariablesExtraction(t *testing.T) {
 			}`, `{"foo":"bar"}`, `{"a":{"foo":"bar"},"foo":"bar"}`)
 	})
 	t.Run("multiple queries", func(t *testing.T) {
-		runWithVariablesExtraction(t, extractVariables, forumExampleSchema, `
+		runWithVariablesExtractionAndPreNormalize(t, extractVariables, forumExampleSchema, `
 			mutation Register {
 			  createUser(input: {user: {id: "jens" username: "jens"}}){
 				user {
@@ -92,19 +94,11 @@ func TestVariablesExtraction(t *testing.T) {
 				  username
 				}
 			  }
-			}
-			mutation CreatePost {
-			  createPost(input: {post: {authorId: "jens" title: "my post" body: "my body"}}){
-				post {
-				  id
-				  title
-				  body
-				  userByAuthorId {
-					username
-				  }
-				}
-			  }
-			}`, ``, `{"a":{"user":{"id":"jens","username":"jens"}}}`)
+			}`, ``, `{"a":{"user":{"id":"jens","username":"jens"}}}`,
+			func(walker *astvisitor.Walker) {
+				rm := removeOperationDefinitions(walker)
+				rm.operationName = []byte("Register")
+			})
 	})
 	t.Run("values on directives should be ignored", func(t *testing.T) {
 		runWithVariablesExtraction(t, extractVariables, forumExampleSchema, `

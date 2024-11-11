@@ -851,11 +851,11 @@ func TestVariablesNormalizer(t *testing.T) {
 
 	normalizer := NewVariablesNormalizer()
 	report := operationreport.Report{}
-	normalizer.NormalizeNamedOperation(&operationDocument, &definitionDocument, "HttpBinPost", &report)
+	normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 	require.False(t, report.HasErrors(), report.Error())
 
 	out := unsafeprinter.Print(&operationDocument)
-	require.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
+	assert.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
 	require.Equal(t, `{"a":{"foo":"bar","bar":null}}`, string(operationDocument.Input.Variables))
 }
 
@@ -934,21 +934,69 @@ var runWithVariablesAssert = func(t *testing.T, registerVisitor func(walker *ast
 	assert.Equal(t, expectedVariables, actualVariables)
 }
 
+// runWithVariablesAssertAndPreNormalize - runs pre-normalization functions before the main normalization function
+var runWithVariablesAssertAndPreNormalize = func(t *testing.T, registerVisitor func(walker *astvisitor.Walker), definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, prerequisites ...registerNormalizeFunc) {
+	t.Helper()
+
+	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
+	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+	if err != nil {
+		panic(err)
+	}
+
+	operationDocument := unsafeparser.ParseGraphqlDocumentString(operation)
+	expectedOutputDocument := unsafeparser.ParseGraphqlDocumentString(expectedOutput)
+	report := operationreport.Report{}
+
+	if variablesInput != "" {
+		operationDocument.Input.Variables = []byte(variablesInput)
+	}
+
+	additionalWalker := astvisitor.NewWalker(48)
+	for _, fn := range prerequisites {
+		fn(&additionalWalker)
+	}
+	report = operationreport.Report{}
+	additionalWalker.Walk(&operationDocument, &definitionDocument, &report)
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	initialWorker := astvisitor.NewWalker(48)
+	registerVisitor(&initialWorker)
+	initialWorker.Walk(&operationDocument, &definitionDocument, &report)
+	if report.HasErrors() {
+		panic(report.Error())
+	}
+
+	actualAST := mustString(astprinter.PrintString(&operationDocument))
+	expectedAST := mustString(astprinter.PrintString(&expectedOutputDocument))
+	assert.Equal(t, expectedAST, actualAST)
+	actualVariables := string(operationDocument.Input.Variables)
+	assert.Equal(t, expectedVariables, actualVariables)
+}
+
 var runWithVariablesExtraction = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, additionalNormalizers ...registerNormalizeFunc) {
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		visitor := normalizeFunc(walker)
-		visitor.operationName = []byte(operationName)
+		normalizeFunc(walker)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, additionalNormalizers...)
+}
+
+var runWithVariablesExtractionAndPreNormalize = func(t *testing.T, normalizeFunc registerNormalizeVariablesFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string, prerequisites ...registerNormalizeFunc) {
+	t.Helper()
+
+	runWithVariablesAssertAndPreNormalize(t, func(walker *astvisitor.Walker) {
+		normalizeFunc(walker)
+	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables, prerequisites...)
 }
 
 var runWithVariablesDefaultValues = func(t *testing.T, normalizeFunc registerNormalizeVariablesDefaulValueFunc, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables string) {
 	t.Helper()
 
 	runWithVariablesAssert(t, func(walker *astvisitor.Walker) {
-		visitor := normalizeFunc(walker)
-		visitor.operationName = []byte(operationName)
+		normalizeFunc(walker)
 	}, definition, operation, operationName, expectedOutput, variablesInput, expectedVariables)
 }
 
