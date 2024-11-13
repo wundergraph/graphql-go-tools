@@ -3,15 +3,16 @@
   "always-update": true,
   "packages": {
     "v2": {
+      "package-name": "graphql-go-tools",
       "path": "v2",
       "release-type": "go",
       "include-component-in-tag": false,
       "include-v-in-tag": true,
-      "changelog-path": "v2/CHANGELOG.md",
       "prerelease": true,
       "prerelease-type": "rc"
     },
     "execution": {
+      "package-name": "execution",
       "path": "execution",
       "release-type": "go",
       "include-v-in-tag": true,
