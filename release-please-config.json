@@ -7,7 +7,7 @@
       "release-type": "go",
       "include-component-in-tag": false,
       "include-v-in-tag": true,
-      "changelog-path": "v2/CHANGELOG.md"
+      "changelog-path": "v2/CHANGELOG.md",
       "prerelease": true,
       "prerelease-type": "rc"
     },
