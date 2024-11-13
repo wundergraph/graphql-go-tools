@@ -16,7 +16,7 @@
       "release-type": "go",
       "include-v-in-tag": true,
       "include-component-in-tag": true,
-      "tag-separator": "/",
+      "tag-separator": "/"
     }
   },
   "exclude-paths": [
