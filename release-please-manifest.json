@@ -1,4 +1,5 @@
 {
   "v2": "v2.0.0-rc.122",
-  "execution": "execution/v1.0.9"
+  "execution": "execution/v1.0.9",
+  ".": "1.0.0"
 }
