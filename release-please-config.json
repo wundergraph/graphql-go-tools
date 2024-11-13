@@ -2,7 +2,7 @@
   "separate-pull-requests": true,
   "always-update": true,
   "packages": {
-    ".": {
+    "v2": {
       "path": "v2",
       "release-type": "go",
       "include-component-in-tag": false,
