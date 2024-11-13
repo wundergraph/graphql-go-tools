@@ -853,7 +853,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		loader.Free()
-		resolvable.Reset(0)
+		resolvable.Reset()
 		err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 		if err != nil {
 			b.Fatal(err)

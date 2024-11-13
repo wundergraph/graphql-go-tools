@@ -372,18 +372,66 @@ func TestInputTemplate_Render(t *testing.T) {
 	})
 
 	t.Run("GraphQLVariableResolveRenderer", func(t *testing.T) {
-		t.Run("nested objects", func(t *testing.T) {
+		t.Run("optional fields", func(t *testing.T) {
 			template := InputTemplate{
 				Segments: []TemplateSegment{
-					{
-						SegmentType: StaticSegmentType,
-						Data:        []byte(`{"key":`),
-					},
 					{
 						SegmentType:  VariableSegmentType,
 						VariableKind: ResolvableObjectVariableKind,
 						Renderer: NewGraphQLVariableResolveRenderer(&Object{
 							Nullable: false,
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path:     []string{"name"},
+										Nullable: true,
+									},
+								},
+							},
+						}),
+					},
+				},
+			}
+
+			data := astjson.MustParseBytes([]byte(`{"name":"foo"}`))
+			ctx := &Context{
+				ctx: context.Background(),
+			}
+			buf := &bytes.Buffer{}
+
+			err := template.Render(ctx, data, buf)
+			assert.NoError(t, err)
+			out := buf.String()
+			assert.Equal(t, `{"name":"foo"}`, out)
+
+			data = astjson.MustParseBytes([]byte(`{}`))
+			buf.Reset()
+			err = template.Render(ctx, data, buf)
+			assert.NoError(t, err)
+			out = buf.String()
+			assert.Equal(t, `{"name":null}`, out)
+
+			data = astjson.MustParseBytes([]byte(`{"name":null}`))
+			buf.Reset()
+			err = template.Render(ctx, data, buf)
+			assert.NoError(t, err)
+			out = buf.String()
+			assert.Equal(t, `{"name":null}`, out)
+
+			data = astjson.MustParseBytes([]byte(`{"name":123}`))
+			buf.Reset()
+			err = template.Render(ctx, data, buf)
+			assert.Error(t, err)
+		})
+		t.Run("nested objects", func(t *testing.T) {
+			template := InputTemplate{
+				Segments: []TemplateSegment{
+					{
+						SegmentType:  VariableSegmentType,
+						VariableKind: ResolvableObjectVariableKind,
+						Renderer: NewGraphQLVariableResolveRenderer(&Object{
+							Nullable: true,
 							Fields: []*Field{
 								{
 									Name: []byte("address"),
@@ -422,21 +470,49 @@ func TestInputTemplate_Render(t *testing.T) {
 							},
 						}),
 					},
-					{
-						SegmentType: StaticSegmentType,
-						Data:        []byte(`}`),
-					},
 				},
 			}
 			ctx := &Context{
 				ctx:       context.Background(),
 				Variables: astjson.MustParseBytes([]byte(`{}`)),
 			}
-			buf := &bytes.Buffer{}
-			err := template.Render(ctx, astjson.MustParseBytes([]byte(`{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`)), buf)
-			assert.NoError(t, err)
-			out := buf.String()
-			assert.Equal(t, `{"key":{"address":{"zip":"00000","items":[{"active":true}]}}}`, out)
+
+			cases := []struct {
+				name      string
+				input     string
+				expected  string
+				expectErr bool
+			}{
+				{
+					name:     "data is present",
+					input:    `{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`,
+					expected: `{"address":{"zip":"00000","items":[{"active":true}]}}`,
+				},
+				{
+					name:      "data is missing",
+					input:     `{"name":"home"}`,
+					expectErr: true,
+				},
+				{
+					name:      "partial data",
+					input:     `{"name":"home","address":{}}`,
+					expectErr: true,
+				},
+			}
+
+			for _, c := range cases {
+				t.Run(c.name, func(t *testing.T) {
+					buf := &bytes.Buffer{}
+					err := template.Render(ctx, astjson.MustParseBytes([]byte(c.input)), buf)
+					if c.expectErr {
+						assert.Error(t, err)
+					} else {
+						assert.NoError(t, err)
+					}
+					out := buf.String()
+					assert.Equal(t, c.expected, out)
+				})
+			}
 		})
 	})
 

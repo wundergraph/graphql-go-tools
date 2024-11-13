@@ -15,7 +15,6 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -116,23 +115,6 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
-var (
-	requestBufferPool = &sync.Pool{
-		New: func() any {
-			return &bytes.Buffer{}
-		},
-	}
-)
-
-func getBuffer() *bytes.Buffer {
-	return requestBufferPool.Get().(*bytes.Buffer)
-}
-
-func releaseBuffer(buf *bytes.Buffer) {
-	buf.Reset()
-	requestBufferPool.Put(buf)
-}
-
 type bodyHashContextKey struct{}
 
 func BodyHashFromContext(ctx context.Context) (uint64, bool) {
@@ -217,14 +199,16 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	}
 
 	if !enableTrace {
+		if response.ContentLength > 0 {
+			out.Grow(int(response.ContentLength))
+		} else {
+			out.Grow(1024 * 4)
+		}
 		_, err = out.ReadFrom(respReader)
 		return
 	}
 
-	buf := getBuffer()
-	defer releaseBuffer(buf)
-
-	_, err = buf.ReadFrom(respReader)
+	data, err := io.ReadAll(respReader)
 	if err != nil {
 		return err
 	}
@@ -238,14 +222,14 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
 			Headers:    redactHeaders(response.Header),
-			BodySize:   buf.Len(),
+			BodySize:   len(data),
 		},
 	}
 	trace, err := json.Marshal(responseTrace)
 	if err != nil {
 		return err
 	}
-	responseWithTraceExtension, err := jsonparser.Set(buf.Bytes(), trace, "extensions", "trace")
+	responseWithTraceExtension, err := jsonparser.Set(data, trace, "extensions", "trace")
 	if err != nil {
 		return err
 	}

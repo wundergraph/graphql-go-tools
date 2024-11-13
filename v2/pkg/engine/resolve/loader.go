@@ -448,7 +448,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.out.Len() == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-	value, err := l.resolvable.parseJSONBytes(res.out.Bytes())
+	value, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
@@ -647,7 +647,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	}
 
 	// Wrap mode (default)
-	errorObject, err := l.resolvable.parseJSONString(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
+	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, failedToFetchNoReason))
 	if err != nil {
 		return err
 	}
@@ -826,7 +826,7 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
 				}
 				newPathJSON, _ := json.Marshal(newPath)
-				pathBytes, err := l.resolvable.parseJSONBytes(newPathJSON)
+				pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)
 				if err != nil {
 					continue
 				}
@@ -852,13 +852,13 @@ func (l *Loader) setSubgraphStatusCode(values []*astjson.Value, statusCode int) 
 			if extensions.Type() != astjson.TypeObject {
 				continue
 			}
-			v, err := l.resolvable.parseJSONString(strconv.Itoa(statusCode))
+			v, err := astjson.ParseWithoutCache(strconv.Itoa(statusCode))
 			if err != nil {
 				continue
 			}
 			extensions.Set("statusCode", v)
 		} else {
-			v, err := l.resolvable.parseJSONString(`{"statusCode":` + strconv.Itoa(statusCode) + `}`)
+			v, err := astjson.ParseWithoutCache(`{"statusCode":` + strconv.Itoa(statusCode) + `}`)
 			if err != nil {
 				continue
 			}
@@ -883,7 +883,7 @@ func (l *Loader) renderAtPathErrorPart(path string) string {
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
 	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
-	errorObject, err := l.resolvable.parseJSONString(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
+	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
@@ -914,13 +914,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s."}`, pathPart))
+				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s."}`, pathPart))
 				if err != nil {
 					continue
 				}
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s."}`, pathPart, reason))
+				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s."}`, pathPart, reason))
 				if err != nil {
 					continue
 				}
@@ -930,13 +930,13 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	} else {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
-				errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s."}`, res.ds.Name, pathPart))
+				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 				if err != nil {
 					continue
 				}
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, reason))
+				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, reason))
 				if err != nil {
 					continue
 				}
@@ -952,13 +952,13 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	if res.ds.Name == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
+			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			if err != nil {
 				return err
 			}
 			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
+			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
@@ -966,13 +966,13 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
+			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 			if err != nil {
 				return err
 			}
 			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := l.resolvable.parseJSONString(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
+			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
@@ -1570,7 +1570,7 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	out := dst.Bytes()
-	v, err := astjson.ParseBytes(out)
+	v, err := astjson.ParseBytesWithoutCache(out)
 	if err != nil {
 		return nil, err
 	}
