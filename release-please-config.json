@@ -1,5 +1,4 @@
 {
-  "include-v-in-tag": true,
   "separate-pull-requests": true,
   "always-update": true,
   "packages": {
@@ -7,17 +6,17 @@
       "path": "v2",
       "release-type": "go",
       "include-component-in-tag": false,
-      "changelog-path": "v2/CHANGELOG.md",
+      "include-v-in-tag": true,
+      "changelog-path": "v2/CHANGELOG.md"
       "prerelease": true,
       "prerelease-type": "rc"
-
     },
     "execution": {
       "path": "execution",
       "release-type": "go",
+      "include-v-in-tag": true,
       "include-component-in-tag": true,
       "tag-separator": "/",
-      "changelog-path": "execution/CHANGELOG.md"
     }
   },
   "exclude-paths": [
