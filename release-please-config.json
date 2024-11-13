@@ -1,0 +1,41 @@
+{
+  "include-v-in-tag": true,
+  "separate-pull-requests": true,
+  "always-update": true,
+  "packages": {
+    ".": {
+      "path": "v2",
+      "release-type": "go",
+      "include-component-in-tag": false,
+      "changelog-path": "v2/CHANGELOG.md",
+      "prerelease": true,
+      "prerelease-type": "rc"
+
+    },
+    "execution": {
+      "path": "execution",
+      "release-type": "go",
+      "include-component-in-tag": true,
+      "tag-separator": "/",
+      "changelog-path": "execution/CHANGELOG.md"
+    }
+  },
+  "exclude-paths": [
+    ".github",
+    "examples",
+    "pkg",
+    "testapps",
+    ".gitignore",
+    ".golangci.yml",
+    "commitlint.config.js",
+    "doc.go",
+    "go.mod",
+    "go.sum",
+    "go.work",
+    "go.work.sum",
+    "LICENSE",
+    "Makefile",
+    "README.md"
+  ],
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}
