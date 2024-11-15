@@ -17,9 +17,12 @@ func (_ *Enum) NodeKind() NodeKind {
 
 func (e *Enum) Copy() Node {
 	return &Enum{
-		Path:     e.Path,
-		Nullable: e.Nullable,
-		Export:   e.Export,
+		Path:               e.Path,
+		Nullable:           e.Nullable,
+		Export:             e.Export,
+		TypeName:           e.TypeName,
+		Values:             e.Values,
+		InaccessibleValues: e.InaccessibleValues,
 	}
 }
 
