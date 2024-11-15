@@ -9,14 +9,13 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -77,27 +76,7 @@ func NewResolvable(options ResolvableOptions) *Resolvable {
 	}
 }
 
-var (
-	parsers = &astjson.ParserPool{}
-)
-
-func (r *Resolvable) parseJSONBytes(data []byte) (*astjson.Value, error) {
-	parser := parsers.Get()
-	r.parsers = append(r.parsers, parser)
-	return parser.ParseBytes(data)
-}
-
-func (r *Resolvable) parseJSONString(data string) (*astjson.Value, error) {
-	parser := parsers.Get()
-	r.parsers = append(r.parsers, parser)
-	return parser.Parse(data)
-}
-
-func (r *Resolvable) Reset(maxRecyclableParserSize int) {
-	for i := range r.parsers {
-		parsers.PutIfSizeLessThan(r.parsers[i], maxRecyclableParserSize)
-		r.parsers[i] = nil
-	}
+func (r *Resolvable) Reset() {
 	r.parsers = r.parsers[:0]
 	r.typeNames = r.typeNames[:0]
 	r.enclosingTypeNames = r.enclosingTypeNames[:0]
@@ -132,7 +111,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.data = r.astjsonArena.NewObject()
 	r.errors = r.astjsonArena.NewArray()
 	if initialData != nil {
-		initialValue, err := r.parseJSONBytes(initialData)
+		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
 		if err != nil {
 			return err
 		}
@@ -146,7 +125,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if initialData != nil {
-		initialValue, err := r.parseJSONBytes(initialData)
+		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
 		if err != nil {
 			return err
 		}
