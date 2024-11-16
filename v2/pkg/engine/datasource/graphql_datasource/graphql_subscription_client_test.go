@@ -907,7 +907,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			return true
 		}, time.Second*5, time.Millisecond*10, "server did not close")
 		time.Sleep(time.Second)
-		assert.Equal(t, false, client.hasConnections.Load())
+		assert.Equal(t, false, client.epollState.hasConnections.Load())
 	})
 	t.Run("forever timeout", func(t *testing.T) {
 		t.Parallel()
@@ -1103,7 +1103,7 @@ func TestAsyncSubscribe(t *testing.T) {
 				return true
 			}, time.Second, time.Millisecond*10, "server did not close")
 			serverCancel()
-			assert.Equal(t, false, client.hasConnections.Load())
+			assert.Equal(t, false, client.epollState.hasConnections.Load())
 		})
 		t.Run("error object", func(t *testing.T) {
 			t.Parallel()
