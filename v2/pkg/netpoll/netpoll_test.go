@@ -38,7 +38,7 @@ func TestPoller(t *testing.T) {
 				return
 			}
 
-			poller.Add(conn) // nolint: errcheck
+			require.NoError(t, poller.Add(conn))
 		}
 	}()
 
@@ -162,7 +162,7 @@ func TestPoller_growstack(t *testing.T) {
 				return
 			}
 
-			poller.Add(conn) // nolint: errcheck
+			require.NoError(t, poller.Add(conn))
 		}
 	}()
 
