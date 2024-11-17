@@ -123,7 +123,7 @@ func WithReadTimeout(timeout time.Duration) Options {
 
 type NetPollConfiguration struct {
 	// Disable can be set to true to disable netPoll
-	Disable bool
+	Enable bool
 	// BufferSize defines the size of the buffer for the netPoll loop
 	BufferSize int
 	// WaitForNumEvents defines how many events are waited for in the netPoll loop before TickInterval cancels the wait
@@ -203,7 +203,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
 		netPollConfig:              op.netPollConfiguration,
 	}
-	if !op.netPollConfiguration.Disable {
+	if op.netPollConfiguration.Enable {
 		client.netPollState = &netPollState{
 			connections:       make(map[int]*connection),
 			triggers:          make(map[uint64]int),
