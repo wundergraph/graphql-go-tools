@@ -136,6 +136,8 @@ type NetPollConfiguration struct {
 }
 
 func (e *NetPollConfiguration) ApplyDefaults() {
+	e.Enable = true
+
 	if e.BufferSize == 0 {
 		e.BufferSize = 1024
 	}
@@ -185,10 +187,13 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		readTimeout: time.Millisecond * 100,
 		log:         abstractlogger.NoopLogger,
 	}
+
+	op.netPollConfiguration.ApplyDefaults()
+
 	for _, option := range options {
 		option(op)
 	}
-	op.netPollConfiguration.ApplyDefaults()
+
 	client := &subscriptionClient{
 		httpClient:      httpClient,
 		streamingClient: streamingClient,
