@@ -86,7 +86,7 @@ func Supported() error {
 				return fmt.Errorf("failed to remove connection from poller: %w", err)
 			}
 
-			return nil
+			return nil //nolint intentionally return nil
 		}
 	})
 
