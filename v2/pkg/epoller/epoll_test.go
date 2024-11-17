@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"os"
 	"runtime"
 	"testing"
 	"time"
@@ -179,6 +180,11 @@ func TestPoller_growstack(t *testing.T) {
 }
 
 func TestEpollSupported(t *testing.T) {
+	// syscall are not allowed in CI
+	if os.Getenv("CI") == "true" {
+		t.SkipNow()
+	}
+	// epoll is not supported on windows
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
 	}
