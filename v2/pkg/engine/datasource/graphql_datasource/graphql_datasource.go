@@ -1754,8 +1754,8 @@ func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input [
 	return s.client.SubscribeAsync(ctx, id, options, updater)
 }
 
-// AsyncStop stops the subscription with the given id. AsyncStop is only effective when epoll is enabled
-// because without epoll we manage the lifecycle of the connection in the subscription client.
+// AsyncStop stops the subscription with the given id. AsyncStop is only effective when netPoll is enabled
+// because without netPoll we manage the lifecycle of the connection in the subscription client.
 func (s *SubscriptionSource) AsyncStop(id uint64) {
 	s.client.Unsubscribe(id)
 }

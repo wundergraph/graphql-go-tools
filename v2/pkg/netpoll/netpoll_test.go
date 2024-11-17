@@ -140,7 +140,7 @@ func TestPoller_growstack(t *testing.T) {
 		// the following line cause goroutine stack grow and copy local variables to new allocated stack and switch to new stack
 		// but runtime.adjustpointers will check whether pointers bigger than runtime.minLegalPointer(4096) or throw a panic
 		// fatal error: invalid pointer found on stack (runtime/stack.go:599@go1.14.3)
-		// since NewEpoller return A pointer created by CreateIoCompletionPort may less than 4096
+		// since NewPoller return A pointer created by CreateIoCompletionPort may less than 4096
 		np := netPoller{
 			Poller:   poller,
 			WriteReq: make(chan uint64, 1000000),
@@ -179,12 +179,12 @@ func TestPoller_growstack(t *testing.T) {
 	conn.Close() // nolint: errcheck
 }
 
-func TestEpollSupported(t *testing.T) {
+func TestNetPollSupported(t *testing.T) {
 	// syscall are not allowed in CI
 	if os.Getenv("CI") == "true" {
 		t.SkipNow()
 	}
-	// epoll is not supported on windows
+	// netPoll is not supported on windows
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
 	}
