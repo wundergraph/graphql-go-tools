@@ -64,36 +64,34 @@ func Supported() error {
 	var addConnErrGroup errgroup.Group
 
 	addConnErrGroup.Go(func() error {
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				return fmt.Errorf("failed to accept connection: %w", err)
-			}
-
-			// Add the connection to the poller
-			if err := poller.Add(conn); err != nil {
-				return fmt.Errorf("failed to add connection to poller: %w", err)
-			}
-
-			// Test the wait functionality
-			_, err = poller.Wait(1)
-			if err != nil {
-				return fmt.Errorf("failed to wait for events: %w", err)
-			}
-
-			// Remove the connection from the poller
-			if err := poller.Remove(conn); err != nil {
-				return fmt.Errorf("failed to remove connection from poller: %w", err)
-			}
-
-			return nil //nolint intentionally return nil
+		conn, err := ln.Accept()
+		if err != nil {
+			return fmt.Errorf("failed to accept connection: %w", err)
 		}
+
+		// Add the connection to the poller
+		if err := poller.Add(conn); err != nil {
+			return fmt.Errorf("failed to add connection to poller: %w", err)
+		}
+
+		// Test the wait functionality
+		_, err = poller.Wait(1)
+		if err != nil {
+			return fmt.Errorf("failed to wait for events: %w", err)
+		}
+
+		// Remove the connection from the poller
+		if err := poller.Remove(conn); err != nil {
+			return fmt.Errorf("failed to remove connection from poller: %w", err)
+		}
+
+		return nil //nolint intentionally return nil
+
 	})
 
 	var dialErrGroup errgroup.Group
 
 	dialErrGroup.Go(func() error {
-
 		conn, err := net.Dial("tcp", ln.Addr().String())
 		if err != nil {
 			return err
