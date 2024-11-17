@@ -3,6 +3,7 @@ package netpoll
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/sync/errgroup"
 	"net"
 	"syscall"
 	"time"
@@ -53,27 +54,64 @@ func Supported() error {
 	}
 	defer poller.Close(true)
 
-	// Create a dummy in-memory connection for testing
-	conn1, conn2 := net.Pipe()
-	defer conn1.Close()
-	defer conn2.Close()
-
-	// Add the connection to the poller
-	if err := poller.Add(conn1); err != nil {
-		return fmt.Errorf("failed to add connection to poller: %w", err)
-	}
-
-	// Test the wait functionality
-	_, err = poller.Wait(1)
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
-		return fmt.Errorf("failed to wait for events: %w", err)
+		return fmt.Errorf("failed to create listener: %w", err)
 	}
 
-	// Remove the connection from the poller
-	if err := poller.Remove(conn1); err != nil {
-		return fmt.Errorf("failed to remove connection from poller: %w", err)
-	}
+	defer ln.Close()
+
+	var addConnErrGroup errgroup.Group
+
+	addConnErrGroup.Go(func() error {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return fmt.Errorf("failed to accept connection: %w", err)
+			}
+
+			// Add the connection to the poller
+			if err := poller.Add(conn); err != nil {
+				return fmt.Errorf("failed to add connection to poller: %w", err)
+			}
+
+			// Test the wait functionality
+			_, err = poller.Wait(1)
+			if err != nil {
+				return fmt.Errorf("failed to wait for events: %w", err)
+			}
+
+			// Remove the connection from the poller
+			if err := poller.Remove(conn); err != nil {
+				return fmt.Errorf("failed to remove connection from poller: %w", err)
+			}
+
+			return nil
+		}
+	})
+
+	var dialErrGroup errgroup.Group
+
+	dialErrGroup.Go(func() error {
+
+		conn, err := net.Dial("tcp", ln.Addr().String())
+		if err != nil {
+			return err
+		}
+
+		if err := addConnErrGroup.Wait(); err != nil {
+			return err
+		}
+
+		_, err = conn.Write([]byte("hello"))
+		if err != nil {
+			return err
+		}
+		_ = conn.Close()
+
+		return nil
+	})
 
 	// If all operations succeed, implementation is functional
-	return nil
+	return dialErrGroup.Wait()
 }
