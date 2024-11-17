@@ -177,3 +177,12 @@ func TestPoller_growstack(t *testing.T) {
 	}
 	conn.Close() // nolint: errcheck
 }
+
+func TestEpollSupported(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	err := EpollSupported()
+	require.NoError(t, err)
+}
