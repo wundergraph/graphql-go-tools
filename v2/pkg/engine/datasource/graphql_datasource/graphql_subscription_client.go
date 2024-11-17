@@ -122,7 +122,7 @@ func WithReadTimeout(timeout time.Duration) Options {
 }
 
 type NetPollConfiguration struct {
-	// Disable can be set to true to disable netPoll
+	// Enable can be set to true to enable netPoll
 	Enable bool
 	// BufferSize defines the size of the buffer for the netPoll loop
 	BufferSize int
