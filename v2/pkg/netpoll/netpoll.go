@@ -99,6 +99,8 @@ func Supported() error {
 			return err
 		}
 
+		defer conn.Close()
+
 		if err := addConnErrGroup.Wait(); err != nil {
 			return err
 		}
@@ -107,7 +109,6 @@ func Supported() error {
 		if err != nil {
 			return err
 		}
-		_ = conn.Close()
 
 		return nil
 	})
