@@ -1,4 +1,4 @@
-package epoller
+package netpoll
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrUnsupported = errors.New("epoll is not supported on this system")
+	ErrUnsupported = errors.New("epoll/kqueue is not supported on this system")
 )
 
 // Poller is the interface for epoll/kqueue poller, special for network connections.
@@ -41,12 +41,12 @@ func SocketFD(conn net.Conn) int {
 	return 0
 }
 
-// EpollSupported checks if epoll is functional on the current system using the provided Epoll module.
-// It returns ErrUnsupported error if epoll is not supported. Any other error indicates non-functionality.
-// This function does an integration test of the concrete Epoll implementation
+// Supported checks if the more efficient network poll library is functional on the current system.
+// It returns ErrUnsupported error if implementation is not supported. Any other error indicates non-functionality.
+// This function does an integration test of the concrete network implementation
 // to ensure that system calls are working as expected.
-func EpollSupported() error {
-	// Create an instance of the Epoll poller
+func Supported() error {
+	// Create an instance of the poller
 	poller, err := NewPoller(1, 10*time.Millisecond)
 	if err != nil {
 		return ErrUnsupported
@@ -74,6 +74,6 @@ func EpollSupported() error {
 		return fmt.Errorf("failed to remove connection from poller: %w", err)
 	}
 
-	// If all operations succeed, epoll is functional
+	// If all operations succeed, implementation is functional
 	return nil
 }

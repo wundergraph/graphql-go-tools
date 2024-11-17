@@ -1,7 +1,7 @@
 //go:build darwin || netbsd || freebsd || openbsd || dragonfly
 // +build darwin netbsd freebsd openbsd dragonfly
 
-package epoller
+package netpoll
 
 import (
 	"errors"
@@ -11,10 +11,10 @@ import (
 	"time"
 )
 
-var _ Poller = (*Epoll)(nil)
+var _ Poller = (*KQueue)(nil)
 
-// Epoll is an epoll based poller.
-type Epoll struct {
+// KQueue is a poll based connection implementation.
+type KQueue struct {
 	fd int
 	ts syscall.Timespec
 
@@ -28,12 +28,12 @@ type Epoll struct {
 }
 
 // NewPoller creates a new poller instance.
-func NewPoller(connBufferSize int, pollTimeout time.Duration) (*Epoll, error) {
+func NewPoller(connBufferSize int, pollTimeout time.Duration) (*KQueue, error) {
 	return newPollerWithBuffer(connBufferSize, pollTimeout)
 }
 
 // newPollerWithBuffer creates a new poller instance with buffer size.
-func newPollerWithBuffer(count int, pollTimeout time.Duration) (*Epoll, error) {
+func newPollerWithBuffer(count int, pollTimeout time.Duration) (*KQueue, error) {
 	p, err := syscall.Kqueue()
 	if err != nil {
 		panic(err)
@@ -47,7 +47,7 @@ func newPollerWithBuffer(count int, pollTimeout time.Duration) (*Epoll, error) {
 		panic(err)
 	}
 
-	return &Epoll{
+	return &KQueue{
 		fd:             p,
 		ts:             syscall.NsecToTimespec(pollTimeout.Nanoseconds()),
 		connBufferSize: count,
@@ -58,7 +58,7 @@ func newPollerWithBuffer(count int, pollTimeout time.Duration) (*Epoll, error) {
 }
 
 // Close closes the poller.
-func (e *Epoll) Close(closeConns bool) error {
+func (e *KQueue) Close(closeConns bool) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -76,7 +76,7 @@ func (e *Epoll) Close(closeConns bool) error {
 }
 
 // Add adds a network connection to the poller.
-func (e *Epoll) Add(conn net.Conn) error {
+func (e *KQueue) Add(conn net.Conn) error {
 	conn = newConnImpl(conn)
 	fd := SocketFD(conn)
 	if e := syscall.SetNonblock(int(fd), true); e != nil {
@@ -99,7 +99,7 @@ func (e *Epoll) Add(conn net.Conn) error {
 
 // Remove removes a connection from the poller.
 // If close is true, the connection will be closed.
-func (e *Epoll) Remove(conn net.Conn) error {
+func (e *KQueue) Remove(conn net.Conn) error {
 	fd := SocketFD(conn)
 
 	e.mu.Lock()
@@ -124,7 +124,7 @@ func (e *Epoll) Remove(conn net.Conn) error {
 }
 
 // Wait waits for events and returns the connections.
-func (e *Epoll) Wait(count int) ([]net.Conn, error) {
+func (e *KQueue) Wait(count int) ([]net.Conn, error) {
 	if len(e.events) != count {
 		e.events = make([]syscall.Kevent_t, count)
 	}

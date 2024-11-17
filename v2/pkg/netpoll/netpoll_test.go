@@ -1,4 +1,4 @@
-package epoller
+package netpoll
 
 import (
 	"errors"
@@ -115,7 +115,7 @@ func TestPoller(t *testing.T) {
 	}
 
 	if total != expected {
-		t.Fatalf("epoller does not work. expect %d bytes but got %d bytes", expected, total)
+		t.Fatalf("netpoll does not work. expect %d bytes but got %d bytes", expected, total)
 	}
 }
 
@@ -189,6 +189,6 @@ func TestEpollSupported(t *testing.T) {
 		t.SkipNow()
 	}
 
-	err := EpollSupported()
+	err := Supported()
 	require.NoError(t, err)
 }

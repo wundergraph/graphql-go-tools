@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package epoller
+package netpoll
 
 import (
 	"time"

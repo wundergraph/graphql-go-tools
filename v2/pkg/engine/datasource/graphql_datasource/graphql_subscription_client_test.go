@@ -1366,7 +1366,7 @@ func TestAsyncSubscribe(t *testing.T) {
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
-				WithEpollConfiguration(EpollConfiguration{
+				WithNetPollConfiguration(NetPollConfiguration{
 					Disable: true,
 				}),
 			).(*subscriptionClient)
@@ -1440,7 +1440,7 @@ func TestAsyncSubscribe(t *testing.T) {
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
-				WithEpollConfiguration(EpollConfiguration{
+				WithNetPollConfiguration(NetPollConfiguration{
 					Disable: true,
 				}),
 			).(*subscriptionClient)

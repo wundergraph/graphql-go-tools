@@ -23,7 +23,7 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/epoller"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/netpoll"
 	"go.uber.org/atomic"
 )
 
@@ -65,8 +65,8 @@ type subscriptionClient struct {
 
 	readTimeout time.Duration
 
-	epoll       epoller.Poller
-	epollConfig EpollConfiguration
+	epoll       netpoll.Poller
+	epollConfig NetPollConfiguration
 	epollState  *epollState
 }
 
@@ -121,7 +121,7 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
-type EpollConfiguration struct {
+type NetPollConfiguration struct {
 	// Disable can be set to true to disable epoll
 	Disable bool
 	// BufferSize defines the size of the buffer for the epoll loop
@@ -135,7 +135,7 @@ type EpollConfiguration struct {
 	TickInterval time.Duration
 }
 
-func (e *EpollConfiguration) ApplyDefaults() {
+func (e *NetPollConfiguration) ApplyDefaults() {
 	if e.BufferSize == 0 {
 		e.BufferSize = 1024
 	}
@@ -150,7 +150,7 @@ func (e *EpollConfiguration) ApplyDefaults() {
 	}
 }
 
-func WithEpollConfiguration(config EpollConfiguration) Options {
+func WithNetPollConfiguration(config NetPollConfiguration) Options {
 	return func(options *opts) {
 		options.epollConfiguration = config
 	}
@@ -160,7 +160,7 @@ type opts struct {
 	readTimeout                time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
-	epollConfiguration         EpollConfiguration
+	epollConfiguration         NetPollConfiguration
 }
 
 // GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
@@ -218,7 +218,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		}
 
 		// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
-		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.TickInterval)
+		epoll, _ := netpoll.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.TickInterval)
 		if epoll != nil {
 			client.epoll = epoll
 			go client.runEpoll(engineCtx)
@@ -332,7 +332,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return err
 	}
 
-	fd := epoller.SocketFD(conn.conn)
+	fd := netpoll.SocketFD(conn.conn)
 	conn.id, conn.fd = id, fd
 	// submit the connection to the epoll run loop
 	c.epollState.addConn <- conn
@@ -667,7 +667,7 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 			waitForEvents := len(events)
 
 			for i := range events {
-				fd := epoller.SocketFD(events[i])
+				fd := netpoll.SocketFD(events[i])
 				conn, ok := c.epollState.connections[fd]
 				if !ok {
 					// Should never happen
