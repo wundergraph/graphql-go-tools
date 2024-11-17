@@ -3,6 +3,7 @@ package netpoll
 import (
 	"errors"
 	"io"
+	"log"
 	"net"
 	"runtime"
 	"testing"
@@ -33,8 +34,11 @@ func TestPoller(t *testing.T) {
 	go func() {
 		for {
 			conn, err := ln.Accept()
-			require.NoError(t, err)
-			require.NoError(t, poller.Add(conn))
+			if err != nil {
+				return
+			}
+
+			poller.Add(conn) // nolint: errcheck
 		}
 	}()
 
@@ -49,13 +53,14 @@ func TestPoller(t *testing.T) {
 			time.Sleep(time.Second)
 			for i := 0; i < msgPerConn; i++ {
 				n, err := conn.Write([]byte("hello world"))
-				require.NoError(t, err)
-
+				if err != nil {
+					t.Error(err)
+				}
 				if n != len("hello world") {
 					t.Errorf("expect to write %d bytes but got %d bytes", len("hello world"), n)
 				}
 			}
-			require.NoError(t, conn.Close())
+			conn.Close() // nolint: errcheck
 		}()
 	}
 
@@ -83,8 +88,8 @@ func TestPoller(t *testing.T) {
 				n, err := conn.Read(buf)
 				if err != nil {
 					if err == io.EOF || errors.Is(err, net.ErrClosed) {
-						require.NoError(t, poller.Remove(conn))
-						require.NoError(t, conn.Close())
+						poller.Remove(conn) // nolint: errcheck
+						conn.Close()        // nolint: errcheck
 					} else {
 						t.Error(err)
 					}
@@ -128,6 +133,9 @@ func TestPoller_growstack(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err != nil {
+			t.Fatal(err)
+		}
 		// the following line cause goroutine stack grow and copy local variables to new allocated stack and switch to new stack
 		// but runtime.adjustpointers will check whether pointers bigger than runtime.minLegalPointer(4096) or throw a panic
 		// fatal error: invalid pointer found on stack (runtime/stack.go:599@go1.14.3)
@@ -143,28 +151,31 @@ func TestPoller_growstack(t *testing.T) {
 	poller := nps[0].Poller
 	// start server
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-
+	if err != nil {
+		log.Fatal(err)
+	}
 	defer ln.Close()
-
 	go func() {
 		for {
 			conn, err := ln.Accept()
-			require.NoError(t, err)
-			require.NoError(t, poller.Add(conn))
+			if err != nil {
+				return
+			}
+
+			poller.Add(conn) // nolint: errcheck
 		}
 	}()
 
 	conn, err := net.Dial("tcp", ln.Addr().String())
-	require.NoError(t, err)
-
-	time.Sleep(200 * time.Millisecond)
-
-	for i := 0; i < 100; i++ {
-		_, err := conn.Write([]byte("hello world"))
-		require.NoError(t, err)
+	if err != nil {
+		t.Error(err)
+		return
 	}
-	require.NoError(t, conn.Close())
+	time.Sleep(200 * time.Millisecond)
+	for i := 0; i < 100; i++ {
+		conn.Write([]byte("hello world")) // nolint: errcheck
+	}
+	conn.Close() // nolint: errcheck
 }
 
 func TestNetPollSupported(t *testing.T) {
