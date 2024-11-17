@@ -65,6 +65,9 @@ func EpollSupported() error {
 
 	// Test the wait functionality
 	_, err = poller.Wait(1)
+	if err != nil {
+		return fmt.Errorf("failed to wait for events: %w", err)
+	}
 
 	// Remove the connection from the poller
 	if err := poller.Remove(conn1); err != nil {
