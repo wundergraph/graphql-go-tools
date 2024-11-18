@@ -1636,23 +1636,29 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	if err != nil {
 		return input
 	}
+
+	// if variables are null or empty object, do nothing
 	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
 		return input
 	}
+
+	// remove null variables which actually was undefined in the original user request
 	variables = s.cleanupVariables(variables, undefinedVariables)
-	if bytes.ContainsAny(variables, " \t\n\r") {
+
+	// compact
+	if !bytes.ContainsAny(variables, " \t\n\r") {
 		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
 		if err := json.Compact(buf, variables); err != nil {
 			return variables
 		}
 		variables = buf.Bytes()
-		input, _ = jsonparser.Set(input, variables, "body", "variables")
 	}
+
+	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 
-// cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
-// otherwise returns the input as is
+// cleanupVariables removes null variables which listed in the list of undefinedVariables
 func (s *Source) cleanupVariables(variables []byte, undefinedVariables []string) []byte {
 	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
 	if len(undefinedVariables) == 0 {
