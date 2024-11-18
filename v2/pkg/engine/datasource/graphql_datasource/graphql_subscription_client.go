@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -235,7 +236,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 type connection struct {
 	id          uint64
 	fd          int
-	conn        net.Conn
+	netConn     net.Conn
 	handler     ConnectionHandler
 	shouldClose bool
 }
@@ -331,13 +332,28 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		}()
 		return nil
 	}
+
+	// if we have netPoll, we need to add the connection to the netPoll
+
 	// init the subscription
 	err = conn.handler.Subscribe()
 	if err != nil {
 		return err
 	}
 
-	fd := netpoll.SocketFD(conn.conn)
+	var fd int
+
+	if tlsConn, ok := conn.netConn.(*tls.Conn); ok {
+		netConn := tlsConn.NetConn()
+		fd = netpoll.SocketFD(netConn)
+	} else {
+		fd = netpoll.SocketFD(conn.netConn)
+	}
+
+	if fd == 0 {
+		return fmt.Errorf("failed to get file descriptor from connection")
+	}
+
 	conn.id, conn.fd = id, fd
 	// submit the connection to the netPoll run loop
 	c.netPollState.addConn <- conn
@@ -424,6 +440,10 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
 		return nil, err
+	}
+
+	if conn == nil {
+		return nil, fmt.Errorf("failed to dial connection")
 	}
 
 	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
@@ -675,8 +695,9 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 				fd := netpoll.SocketFD(events[i])
 				conn, ok := c.netPollState.connections[fd]
 				if !ok {
-					// Should never happen
-					panic(fmt.Sprintf("connection with fd %d not found", fd))
+					// This can happen if the client was unsubscribed
+					// and the ticker is still running because we haven't removed the last connection yet
+					continue
 				}
 				// submit the connection to the worker pool
 				handleConnCh <- conn
@@ -719,7 +740,7 @@ func (c *subscriptionClient) close() {
 		c.netPollState.waitForEventsTicker.Stop()
 	}
 	for _, conn := range c.netPollState.connections {
-		_ = c.netPoll.Remove(conn.conn)
+		_ = c.netPoll.Remove(conn.netConn)
 		conn.handler.ServerClose()
 	}
 	if c.netPoll != nil {
@@ -731,7 +752,14 @@ func (c *subscriptionClient) close() {
 }
 
 func (c *subscriptionClient) handleAddConn(conn *connection) {
-	if err := c.netPoll.Add(conn.conn); err != nil {
+	if tlsConn, ok := conn.netConn.(*tls.Conn); ok {
+		netConn := tlsConn.NetConn()
+		if err := c.netPoll.Add(netConn); err != nil {
+			c.log.Error("subscriptionClient.handleAddConn", abstractlogger.Error(err))
+			conn.handler.ServerClose()
+			return
+		}
+	} else if err := c.netPoll.Add(conn.netConn); err != nil {
 		c.log.Error("subscriptionClient.handleAddConn", abstractlogger.Error(err))
 		conn.handler.ServerClose()
 		return
@@ -758,7 +786,7 @@ func (c *subscriptionClient) handleClientUnsubscribe(id uint64) {
 		return
 	}
 	delete(c.netPollState.connections, fd)
-	_ = c.netPoll.Remove(conn.conn)
+	_ = c.netPoll.Remove(conn.netConn)
 	conn.handler.ClientClose()
 	// if we have no connections left, we stop the ticker
 	if len(c.netPollState.connections) == 0 {
@@ -775,7 +803,7 @@ func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
 	}
 	delete(c.netPollState.connections, fd)
 	delete(c.netPollState.triggers, conn.id)
-	_ = c.netPoll.Remove(conn.conn)
+	_ = c.netPoll.Remove(conn.netConn)
 	conn.handler.ServerClose()
 	// if we have no connections left, we stop the ticker
 	if len(c.netPollState.connections) == 0 {
@@ -786,7 +814,7 @@ func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
 }
 
 func (c *subscriptionClient) handleConnectionEvent(conn *connection) bool {
-	data, err := readMessage(conn.conn, c.readTimeout)
+	data, err := readMessage(conn.netConn, c.readTimeout)
 	if err != nil {
 		return handleConnectionError(err)
 	}
