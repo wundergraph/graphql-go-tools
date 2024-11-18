@@ -1,14 +1,13 @@
 //go:build windows
 // +build windows
 
-package epoller
+package netpoll
 
 import (
-	"errors"
 	"time"
 )
 
-// NewPoller creates a new epoll poller.
+// NewPoller creates a new poll based connection implementation.
 func NewPoller(connBufferSize int, _ time.Duration) (Poller, error) {
-	return nil, errors.New("epoll is not supported on windows")
+	return nil, ErrUnsupported
 }

@@ -23,11 +23,31 @@ import (
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/epoller"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/netpoll"
 	"go.uber.org/atomic"
 )
 
 const ackWaitTimeout = 30 * time.Second
+
+type netPollState struct {
+	// connections is a map of fd -> connection to keep track of all active connections
+	connections    map[int]*connection
+	hasConnections atomic.Bool
+	// triggers is a map of subscription id -> fd to easily look up the connection for a subscription id
+	triggers map[uint64]int
+
+	// clientUnsubscribe is a channel to signal to the netPoll run loop that a client needs to be unsubscribed
+	clientUnsubscribe chan uint64
+	// addConn is a channel to signal to the netPoll run loop that a new connection needs to be added
+	addConn chan *connection
+	// waitForEventsTicker is the ticker for the netPoll run loop
+	// it is used to prevent busy waiting and to limit the CPU usage
+	// instead of polling the netPoll instance all the time, we wait until the next tick to throttle the netPoll loop
+	waitForEventsTicker *time.Ticker
+
+	// waitForEventsTick is the channel to receive the tick from the waitForEventsTicker
+	waitForEventsTick <-chan time.Time
+}
 
 // subscriptionClient allows running multiple subscriptions via the same WebSocket either SSE connection
 // It takes care of de-duplicating connections to the same origin under certain circumstances
@@ -45,25 +65,9 @@ type subscriptionClient struct {
 
 	readTimeout time.Duration
 
-	epoll       epoller.Poller
-	epollConfig EpollConfiguration
-
-	// connections is a map of fd -> connection to keep track of all active connections
-	connections    map[int]*connection
-	hasConnections atomic.Bool
-	// triggers is a map of subscription id -> fd to easily look up the connection for a subscription id
-	triggers map[uint64]int
-
-	// clientUnsubscribe is a channel to signal to the epoll run loop that a client needs to be unsubscribed
-	clientUnsubscribe chan uint64
-	// addConn is a channel to signal to the epoll run loop that a new connection needs to be added
-	addConn chan *connection
-	// waitForEventsTicker is the ticker for the epoll run loop
-	// it is used to prevent busy waiting and to limit the CPU usage
-	// instead of polling the epoll instance all the time, we wait until the next tick to throttle the epoll loop
-	waitForEventsTicker *time.Ticker
-	// waitForEventsTick is the channel to receive the tick from the waitForEventsTicker
-	waitForEventsTick <-chan time.Time
+	netPoll       netpoll.Poller
+	netPollConfig NetPollConfiguration
+	netPollState  *netPollState
 }
 
 func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -81,7 +85,12 @@ func (c *subscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, opt
 }
 
 func (c *subscriptionClient) Unsubscribe(id uint64) {
-	c.clientUnsubscribe <- id
+	// if we don't have netPoll, we don't have a channel consumer of the clientUnsubscribe channel
+	// we have to return to prevent a deadlock
+	if c.netPoll == nil {
+		return
+	}
+	c.netPollState.clientUnsubscribe <- id
 }
 
 type InvalidWsSubprotocolError struct {
@@ -112,21 +121,23 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
-type EpollConfiguration struct {
-	// Disable can be set to true to disable epoll
-	Disable bool
-	// BufferSize defines the size of the buffer for the epoll loop
+type NetPollConfiguration struct {
+	// Enable can be set to true to enable netPoll
+	Enable bool
+	// BufferSize defines the size of the buffer for the netPoll loop
 	BufferSize int
-	// WaitForNumEvents defines how many events are waited for in the epoll loop before TickInterval cancels the wait
+	// WaitForNumEvents defines how many events are waited for in the netPoll loop before TickInterval cancels the wait
 	WaitForNumEvents int
 	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
 	// The higher the number, the more CPU is used.
 	MaxEventWorkers int
-	// TickInterval defines the time between each epoll loop when WaitForNumEvents is not reached
+	// TickInterval defines the time between each netPoll loop when WaitForNumEvents is not reached
 	TickInterval time.Duration
 }
 
-func (e *EpollConfiguration) ApplyDefaults() {
+func (e *NetPollConfiguration) ApplyDefaults() {
+	e.Enable = true
+
 	if e.BufferSize == 0 {
 		e.BufferSize = 1024
 	}
@@ -141,9 +152,9 @@ func (e *EpollConfiguration) ApplyDefaults() {
 	}
 }
 
-func WithEpollConfiguration(config EpollConfiguration) Options {
+func WithNetPollConfiguration(config NetPollConfiguration) Options {
 	return func(options *opts) {
-		options.epollConfiguration = config
+		options.netPollConfiguration = config
 	}
 }
 
@@ -151,7 +162,7 @@ type opts struct {
 	readTimeout                time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
-	epollConfiguration         EpollConfiguration
+	netPollConfiguration       NetPollConfiguration
 }
 
 // GraphQLSubscriptionClientFactory abstracts the way of creating a new GraphQLSubscriptionClient.
@@ -176,10 +187,13 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		readTimeout: time.Millisecond * 100,
 		log:         abstractlogger.NoopLogger,
 	}
+
+	op.netPollConfiguration.ApplyDefaults()
+
 	for _, option := range options {
 		option(op)
 	}
-	op.epollConfiguration.ApplyDefaults()
+
 	client := &subscriptionClient{
 		httpClient:      httpClient,
 		streamingClient: streamingClient,
@@ -192,24 +206,27 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 			},
 		},
 		onWsConnectionInitCallback: op.onWsConnectionInitCallback,
-		epollConfig:                op.epollConfiguration,
+		netPollConfig:              op.netPollConfiguration,
 	}
-	if !op.epollConfiguration.Disable {
-		client.connections = make(map[int]*connection)
-		client.triggers = make(map[uint64]int)
-		client.clientUnsubscribe = make(chan uint64, op.epollConfiguration.BufferSize)
-		client.addConn = make(chan *connection, op.epollConfiguration.BufferSize)
-		// this is not needed, but we want to make it explicit that we're starting with nil as the tick channel
-		// reading from nil channels blocks forever, which allows us to prevent the epoll loop from starting
-		// once we add the first connection, we start the ticker and set the tick channel
-		// after the last connection is removed, we set the tick channel to nil again
-		// this way we can start and stop the epoll loop dynamically
-		client.waitForEventsTick = nil
-		// ignore error is ok, it means that epoll is not supported, which is handled gracefully by the client
-		epoll, _ := epoller.NewPoller(op.epollConfiguration.BufferSize, op.epollConfiguration.TickInterval)
-		if epoll != nil {
-			client.epoll = epoll
-			go client.runEpoll(engineCtx)
+	if op.netPollConfiguration.Enable {
+		client.netPollState = &netPollState{
+			connections:       make(map[int]*connection),
+			triggers:          make(map[uint64]int),
+			clientUnsubscribe: make(chan uint64, op.netPollConfiguration.BufferSize),
+			addConn:           make(chan *connection, op.netPollConfiguration.BufferSize),
+			// this is not needed, but we want to make it explicit that we're starting with nil as the tick channel
+			// reading from nil channels blocks forever, which allows us to prevent the netPoll loop from starting
+			// once we add the first connection, we start the ticker and set the tick channel
+			// after the last connection is removed, we set the tick channel to nil again
+			// this way we can start and stop the epoll loop dynamically
+			waitForEventsTick: nil,
+		}
+
+		// ignore error is ok, it means that netPoll is not supported, which is handled gracefully by the client
+		poller, _ := netpoll.NewPoller(op.netPollConfiguration.BufferSize, op.netPollConfiguration.TickInterval)
+		if poller != nil {
+			client.netPoll = poller
+			go client.runNetPoll(engineCtx)
 		}
 	}
 	return client
@@ -305,7 +322,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return err
 	}
 
-	if c.epoll == nil {
+	if c.netPoll == nil {
 		go func() {
 			err := conn.handler.StartBlocking()
 			if err != nil && !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
@@ -320,10 +337,10 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 		return err
 	}
 
-	fd := epoller.SocketFD(conn.conn)
+	fd := netpoll.SocketFD(conn.conn)
 	conn.id, conn.fd = id, fd
-	// submit the connection to the epoll run loop
-	c.addConn <- conn
+	// submit the connection to the netPoll run loop
+	c.netPollState.addConn <- conn
 	return nil
 }
 
@@ -602,20 +619,20 @@ type connResult struct {
 	shouldClose bool
 }
 
-func (c *subscriptionClient) runEpoll(ctx context.Context) {
+func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 	defer c.close()
 	done := ctx.Done()
 	// both handleConnCh and connResults are buffered channels with a size of WaitForNumEvents
 	// this is important because we submit all events before we start processing them
 	// and we start evaluating the results only after all events have been submitted
 	// this would not be possible with unbuffered channels
-	handleConnCh := make(chan *connection, c.epollConfig.WaitForNumEvents)
-	connResults := make(chan connResult, c.epollConfig.WaitForNumEvents)
+	handleConnCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
+	connResults := make(chan connResult, c.netPollConfig.WaitForNumEvents)
 
 	// Start workers to handle connection events
 	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
 	// This is the critical number on how much CPU is used
-	for i := 0; i < c.epollConfig.MaxEventWorkers; i++ {
+	for i := 0; i < c.netPollConfig.MaxEventWorkers; i++ {
 		go func() {
 			for {
 				select {
@@ -629,34 +646,34 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 		}()
 	}
 
-	// This is the main epoll run loop
+	// This is the main netPoll run loop
 	// It's a single threaded event loop that reacts to several events, such as added connections, clients unsubscribing, etc.
 	for {
 		select {
-		// if the engine context is done, we close the epoll loop
+		// if the engine context is done, we close the netPoll loop
 		case <-done:
 			return
-		case conn := <-c.addConn:
+		case conn := <-c.netPollState.addConn:
 			c.handleAddConn(conn)
-		case id := <-c.clientUnsubscribe:
+		case id := <-c.netPollState.clientUnsubscribe:
 			c.handleClientUnsubscribe(id)
-			// while len(c.connections) == 0, this channel is nil, so we will never try to wait for epoll events
+			// while len(c.connections) == 0, this channel is nil, so we will never try to wait for netPoll events
 			// this is important to prevent busy waiting
 			// once we add the first connection, we start the ticker and set the tick channel
-			// the ticker ensures that we don't poll the epoll instance all the time,
+			// the ticker ensures that we don't poll the netPoll instance all the time,
 			// but at most every TickInterval
-		case <-c.waitForEventsTick:
-			events, err := c.epoll.Wait(c.epollConfig.WaitForNumEvents)
+		case <-c.netPollState.waitForEventsTick:
+			events, err := c.netPoll.Wait(c.netPollConfig.WaitForNumEvents)
 			if err != nil {
-				c.log.Error("epoll.Wait", abstractlogger.Error(err))
+				c.log.Error("netPoll.Wait", abstractlogger.Error(err))
 				continue
 			}
 
 			waitForEvents := len(events)
 
 			for i := range events {
-				fd := epoller.SocketFD(events[i])
-				conn, ok := c.connections[fd]
+				fd := netpoll.SocketFD(events[i])
+				conn, ok := c.netPollState.connections[fd]
 				if !ok {
 					// Should never happen
 					panic(fmt.Sprintf("connection with fd %d not found", fd))
@@ -684,9 +701,9 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 					}
 					// we decrease the number of events we're waiting for to eventually break the loop
 					waitForEvents--
-				case conn := <-c.addConn:
+				case conn := <-c.netPollState.addConn:
 					c.handleAddConn(conn)
-				case id := <-c.clientUnsubscribe:
+				case id := <-c.netPollState.clientUnsubscribe:
 					c.handleClientUnsubscribe(id)
 				case <-done:
 					return
@@ -697,16 +714,16 @@ func (c *subscriptionClient) runEpoll(ctx context.Context) {
 }
 
 func (c *subscriptionClient) close() {
-	defer c.log.Debug("subscriptionClient.close", abstractlogger.String("reason", "epoll closed by context"))
-	if c.waitForEventsTicker != nil {
-		c.waitForEventsTicker.Stop()
+	defer c.log.Debug("subscriptionClient.close", abstractlogger.String("reason", "netPoll closed by context"))
+	if c.netPollState.waitForEventsTicker != nil {
+		c.netPollState.waitForEventsTicker.Stop()
 	}
-	for _, conn := range c.connections {
-		_ = c.epoll.Remove(conn.conn)
+	for _, conn := range c.netPollState.connections {
+		_ = c.netPoll.Remove(conn.conn)
 		conn.handler.ServerClose()
 	}
-	if c.epoll != nil {
-		err := c.epoll.Close(false)
+	if c.netPoll != nil {
+		err := c.netPoll.Close(false)
 		if err != nil {
 			c.log.Error("subscriptionClient.close", abstractlogger.Error(err))
 		}
@@ -714,57 +731,57 @@ func (c *subscriptionClient) close() {
 }
 
 func (c *subscriptionClient) handleAddConn(conn *connection) {
-	if err := c.epoll.Add(conn.conn); err != nil {
+	if err := c.netPoll.Add(conn.conn); err != nil {
 		c.log.Error("subscriptionClient.handleAddConn", abstractlogger.Error(err))
 		conn.handler.ServerClose()
 		return
 	}
-	c.connections[conn.fd] = conn
-	c.triggers[conn.id] = conn.fd
+	c.netPollState.connections[conn.fd] = conn
+	c.netPollState.triggers[conn.id] = conn.fd
 	// when we previously had 0 connections, we will have 1 connection now
-	// this means we need to start the ticker so that we get epoll events
-	if len(c.connections) == 1 {
-		c.waitForEventsTicker = time.NewTicker(c.epollConfig.TickInterval)
-		c.waitForEventsTick = c.waitForEventsTicker.C
-		c.hasConnections.Store(true)
+	// this means we need to start the ticker so that we get netPoll events
+	if len(c.netPollState.connections) == 1 {
+		c.netPollState.waitForEventsTicker = time.NewTicker(c.netPollConfig.TickInterval)
+		c.netPollState.waitForEventsTick = c.netPollState.waitForEventsTicker.C
+		c.netPollState.hasConnections.Store(true)
 	}
 }
 
 func (c *subscriptionClient) handleClientUnsubscribe(id uint64) {
-	fd, ok := c.triggers[id]
+	fd, ok := c.netPollState.triggers[id]
 	if !ok {
 		return
 	}
-	delete(c.triggers, id)
-	conn, ok := c.connections[fd]
+	delete(c.netPollState.triggers, id)
+	conn, ok := c.netPollState.connections[fd]
 	if !ok {
 		return
 	}
-	delete(c.connections, fd)
-	_ = c.epoll.Remove(conn.conn)
+	delete(c.netPollState.connections, fd)
+	_ = c.netPoll.Remove(conn.conn)
 	conn.handler.ClientClose()
 	// if we have no connections left, we stop the ticker
-	if len(c.connections) == 0 {
-		c.waitForEventsTicker.Stop()
-		c.waitForEventsTick = nil
-		c.hasConnections.Store(false)
+	if len(c.netPollState.connections) == 0 {
+		c.netPollState.waitForEventsTicker.Stop()
+		c.netPollState.waitForEventsTick = nil
+		c.netPollState.hasConnections.Store(false)
 	}
 }
 
 func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
-	conn, ok := c.connections[fd]
+	conn, ok := c.netPollState.connections[fd]
 	if !ok {
 		return
 	}
-	delete(c.connections, fd)
-	delete(c.triggers, conn.id)
-	_ = c.epoll.Remove(conn.conn)
+	delete(c.netPollState.connections, fd)
+	delete(c.netPollState.triggers, conn.id)
+	_ = c.netPoll.Remove(conn.conn)
 	conn.handler.ServerClose()
 	// if we have no connections left, we stop the ticker
-	if len(c.connections) == 0 {
-		c.waitForEventsTicker.Stop()
-		c.waitForEventsTick = nil
-		c.hasConnections.Store(false)
+	if len(c.netPollState.connections) == 0 {
+		c.netPollState.waitForEventsTicker.Stop()
+		c.netPollState.waitForEventsTick = nil
+		c.netPollState.hasConnections.Store(false)
 	}
 }
 

@@ -1,7 +1,7 @@
 //go:build linux
 // +build linux
 
-package epoller
+package netpoll
 
 import (
 	"errors"
@@ -15,7 +15,7 @@ import (
 
 var _ Poller = (*Epoll)(nil)
 
-// Epoll is an epoll based poller.
+// EPoll is a poll based connection implementation.
 type Epoll struct {
 	fd int
 
