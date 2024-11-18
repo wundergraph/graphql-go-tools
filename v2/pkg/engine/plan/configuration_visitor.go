@@ -21,7 +21,7 @@ import (
 // - we have fields which are waiting for dependencies
 type configurationVisitor struct {
 	logger                             abstractlogger.Logger
-	debug                              DebugConfiguration
+	plannerConfiguration               Configuration
 	suggestionsSelectionReasonsEnabled bool
 
 	operationName         string        // graphql query name
@@ -180,7 +180,7 @@ func (c *configurationVisitor) addPath(plannerIdx int, configuration pathConfigu
 }
 
 func (c *configurationVisitor) saveAddedPath(configuration pathConfiguration) {
-	if c.debug.ConfigurationVisitor {
+	if c.plannerConfiguration.Debug.ConfigurationVisitor {
 		c.debugPrint("saveAddedPath", configuration.String())
 	}
 
@@ -242,7 +242,7 @@ func (c *configurationVisitor) removeMissingPath(path string) {
 }
 
 func (c *configurationVisitor) debugPrint(args ...any) {
-	if !c.debug.ConfigurationVisitor {
+	if !c.plannerConfiguration.Debug.ConfigurationVisitor {
 		return
 	}
 
@@ -832,7 +832,7 @@ func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, 
 		paths,
 	)
 
-	plannerConfig := dsConfig.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig)
+	plannerConfig := dsConfig.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig, c.plannerConfiguration)
 
 	c.planners = append(c.planners, plannerConfig)
 
@@ -990,7 +990,7 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 			// __typename field on a union could not have a suggestion
 			return
 		} else {
-			if c.debug.PrintPlanningPaths {
+			if c.plannerConfiguration.Debug.PrintPlanningPaths {
 				fmt.Println("Adding potentially missing path", currentPath)
 			}
 

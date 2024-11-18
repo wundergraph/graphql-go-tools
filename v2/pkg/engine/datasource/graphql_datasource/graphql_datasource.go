@@ -403,9 +403,26 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 	if p.dataSourcePlannerConfig.IsNested {
 		operationType = ast.OperationTypeQuery
 	}
+
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
 		OperationType: operationType,
 	})
+
+	if !p.dataSourcePlannerConfig.DisableOperationNamePropagation {
+		operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
+		p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputBytes(operationName)
+
+		// TODO
+		// subgraphName := p.dataSourceConfig.Name()
+		// fetchPath := p.dataSourcePlannerConfig.ParentPath
+		// fetchID := p.dataSourcePlannerConfig.FetchID
+
+		// __<subgraphName>__<fetchID>
+		// if enabled
+		// attach fetch parent path
+		// __query_user_product
+	}
+
 	p.nodes = append(p.nodes, definition)
 }
 

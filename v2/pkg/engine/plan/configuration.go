@@ -2,6 +2,7 @@ package plan
 
 import (
 	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -15,7 +16,10 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
-	CustomResolveMap             map[string]resolve.CustomResolve
+	// DisableOperationNamePropagation should be set to true for testing purposes
+	// This setting removes the operation name from nested operations
+	DisableOperationNamePropagation bool
+	CustomResolveMap                map[string]resolve.CustomResolve
 
 	// Debug - configure debug options
 	Debug DebugConfiguration
