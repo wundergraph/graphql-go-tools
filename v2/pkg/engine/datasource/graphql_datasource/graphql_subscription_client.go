@@ -752,18 +752,20 @@ func (c *subscriptionClient) close() {
 }
 
 func (c *subscriptionClient) handleAddConn(conn *connection) {
+	var netConn net.Conn
+
 	if tlsConn, ok := conn.netConn.(*tls.Conn); ok {
-		netConn := tlsConn.NetConn()
-		if err := c.netPoll.Add(netConn); err != nil {
-			c.log.Error("subscriptionClient.handleAddConn", abstractlogger.Error(err))
-			conn.handler.ServerClose()
-			return
-		}
-	} else if err := c.netPoll.Add(conn.netConn); err != nil {
+		netConn = tlsConn.NetConn()
+	} else {
+		netConn = conn.netConn
+	}
+
+	if err := c.netPoll.Add(netConn); err != nil {
 		c.log.Error("subscriptionClient.handleAddConn", abstractlogger.Error(err))
 		conn.handler.ServerClose()
 		return
 	}
+
 	c.netPollState.connections[conn.fd] = conn
 	c.netPollState.triggers[conn.id] = conn.fd
 	// when we previously had 0 connections, we will have 1 connection now
