@@ -8,7 +8,6 @@
       "release-type": "go",
       "include-component-in-tag": false,
       "include-v-in-tag": true,
-      "draft": true,
       "prerelease-type": "rc",
       "versioning": "prerelease"
     },
