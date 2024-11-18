@@ -907,7 +907,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			return true
 		}, time.Second*5, time.Millisecond*10, "server did not close")
 		time.Sleep(time.Second)
-		assert.Equal(t, false, client.epollState.hasConnections.Load())
+		assert.Equal(t, false, client.netPollState.hasConnections.Load())
 	})
 	t.Run("forever timeout", func(t *testing.T) {
 		t.Parallel()
@@ -1103,7 +1103,7 @@ func TestAsyncSubscribe(t *testing.T) {
 				return true
 			}, time.Second, time.Millisecond*10, "server did not close")
 			serverCancel()
-			assert.Equal(t, false, client.epollState.hasConnections.Load())
+			assert.Equal(t, false, client.netPollState.hasConnections.Load())
 		})
 		t.Run("error object", func(t *testing.T) {
 			t.Parallel()
@@ -1315,7 +1315,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, time.Second*5, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
-		t.Run("happy path no epoll", func(t *testing.T) {
+		t.Run("happy path no netPoll", func(t *testing.T) {
 			t.Parallel()
 			serverDone := make(chan struct{})
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1366,8 +1366,8 @@ func TestAsyncSubscribe(t *testing.T) {
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
-				WithEpollConfiguration(EpollConfiguration{
-					Disable: true,
+				WithNetPollConfiguration(NetPollConfiguration{
+					Enable: false,
 				}),
 			).(*subscriptionClient)
 			updater := &testSubscriptionUpdater{}
@@ -1393,7 +1393,7 @@ func TestAsyncSubscribe(t *testing.T) {
 			}, time.Second, time.Millisecond*10, "server did not close")
 			serverCancel()
 		})
-		t.Run("happy path no epoll two clients", func(t *testing.T) {
+		t.Run("happy path no netPoll two clients", func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				conn, err := websocket.Accept(w, r, nil)
@@ -1440,8 +1440,8 @@ func TestAsyncSubscribe(t *testing.T) {
 
 			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 				WithLogger(logger()),
-				WithEpollConfiguration(EpollConfiguration{
-					Disable: true,
+				WithNetPollConfiguration(NetPollConfiguration{
+					Enable: false,
 				}),
 			).(*subscriptionClient)
 			wg := &sync.WaitGroup{}

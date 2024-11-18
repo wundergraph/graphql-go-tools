@@ -1,4 +1,4 @@
-package epoller
+package netpoll
 
 import (
 	"errors"
@@ -38,7 +38,7 @@ func TestPoller(t *testing.T) {
 				return
 			}
 
-			poller.Add(conn) // nolint: errcheck
+			require.NoError(t, poller.Add(conn))
 		}
 	}()
 
@@ -114,7 +114,7 @@ func TestPoller(t *testing.T) {
 	}
 
 	if total != expected {
-		t.Fatalf("epoller does not work. expect %d bytes but got %d bytes", expected, total)
+		t.Fatalf("netpoll does not work. expect %d bytes but got %d bytes", expected, total)
 	}
 }
 
@@ -139,7 +139,7 @@ func TestPoller_growstack(t *testing.T) {
 		// the following line cause goroutine stack grow and copy local variables to new allocated stack and switch to new stack
 		// but runtime.adjustpointers will check whether pointers bigger than runtime.minLegalPointer(4096) or throw a panic
 		// fatal error: invalid pointer found on stack (runtime/stack.go:599@go1.14.3)
-		// since NewEpoller return A pointer created by CreateIoCompletionPort may less than 4096
+		// since NewPoller return A pointer created by CreateIoCompletionPort may less than 4096
 		np := netPoller{
 			Poller:   poller,
 			WriteReq: make(chan uint64, 1000000),
@@ -162,7 +162,7 @@ func TestPoller_growstack(t *testing.T) {
 				return
 			}
 
-			poller.Add(conn) // nolint: errcheck
+			require.NoError(t, poller.Add(conn))
 		}
 	}()
 
@@ -176,4 +176,14 @@ func TestPoller_growstack(t *testing.T) {
 		conn.Write([]byte("hello world")) // nolint: errcheck
 	}
 	conn.Close() // nolint: errcheck
+}
+
+func TestNetPollSupported(t *testing.T) {
+	// netPoll is not supported on windows
+	if runtime.GOOS == "windows" {
+		t.SkipNow()
+	}
+
+	err := Supported()
+	require.NoError(t, err)
 }

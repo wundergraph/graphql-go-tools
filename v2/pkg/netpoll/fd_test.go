@@ -1,4 +1,4 @@
-package epoller
+package netpoll
 
 import (
 	"net"
