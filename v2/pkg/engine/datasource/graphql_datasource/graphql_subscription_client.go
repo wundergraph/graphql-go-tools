@@ -209,6 +209,11 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		netPollConfig:              op.netPollConfiguration,
 	}
 	if op.netPollConfiguration.Enable {
+
+		if netpoll.Supported() != nil {
+			return client
+		}
+
 		client.netPollState = &netPollState{
 			connections:       make(map[int]*connection),
 			triggers:          make(map[uint64]int),
@@ -229,6 +234,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 			go client.runNetPoll(engineCtx)
 		}
 	}
+
 	return client
 }
 
