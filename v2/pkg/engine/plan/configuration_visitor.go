@@ -17,7 +17,7 @@ import (
 // configurationVisitor - walks through the operation multiple times to collect plannings paths
 // to resolve fields from different datasources.
 // we are revisiting query when we have:
-// - missing path, which was not planned on the previuos walks
+// - missing path, which was not planned on the previous walks
 // - we have fields which are waiting for dependencies
 type configurationVisitor struct {
 	logger                             abstractlogger.Logger

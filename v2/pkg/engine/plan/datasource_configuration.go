@@ -257,7 +257,8 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
 		options: plannerConfigurationOptions{
-			DisableOperationNamePropagation: configuration.DisableOperationNamePropagation,
+			EnableOperationNamePropagation: configuration.EnableOperationNamePropagation,
+			EnableSubgraphPathPropagation:  configuration.EnableSubgraphPathPropagation,
 		},
 	}
 
@@ -285,12 +286,13 @@ func (d *dataSourceConfiguration[T]) Hash() DSHash {
 }
 
 type DataSourcePlannerConfiguration struct {
-	RequiredFields                  FederationFieldConfigurations
-	ParentPath                      string
-	PathType                        PlannerPathType
-	IsNested                        bool
-	DisableOperationNamePropagation bool
-	FetchID                         int
+	RequiredFields                 FederationFieldConfigurations
+	ParentPath                     string
+	PathType                       PlannerPathType
+	IsNested                       bool
+	EnableOperationNamePropagation bool
+	EnableSubgraphPathPropagation  bool
+	FetchID                        int
 }
 
 type PlannerPathType int

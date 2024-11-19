@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -408,19 +409,22 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 		OperationType: operationType,
 	})
 
-	if !p.dataSourcePlannerConfig.DisableOperationNamePropagation {
-		operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
-		p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputBytes(operationName)
+	if p.dataSourcePlannerConfig.EnableOperationNamePropagation {
 
-		// TODO
-		// subgraphName := p.dataSourceConfig.Name()
-		// fetchPath := p.dataSourcePlannerConfig.ParentPath
-		// fetchID := p.dataSourcePlannerConfig.FetchID
+		operation := fmt.Sprintf("%s__%s__%d",
+			p.visitor.Operation.OperationDefinitionNameBytes(ref),
+			p.dataSourceConfig.Name(),
+			p.dataSourcePlannerConfig.FetchID,
+		)
 
-		// __<subgraphName>__<fetchID>
-		// if enabled
-		// attach fetch parent path
-		// __query_user_product
+		if p.dataSourcePlannerConfig.EnableSubgraphPathPropagation {
+			operation = fmt.Sprintf("%s__%s",
+				operation,
+				strings.ReplaceAll(p.dataSourcePlannerConfig.ParentPath, ".", "_"),
+			)
+		}
+
+		p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputBytes(unsafebytes.StringToBytes(operation))
 	}
 
 	p.nodes = append(p.nodes, definition)

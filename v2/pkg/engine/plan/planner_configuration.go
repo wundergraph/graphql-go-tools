@@ -19,7 +19,8 @@ type plannerConfiguration[T any] struct {
 }
 
 type plannerConfigurationOptions struct {
-	DisableOperationNamePropagation bool
+	EnableOperationNamePropagation bool
+	EnableSubgraphPathPropagation  bool
 }
 
 type PlannerConfiguration interface {
@@ -38,11 +39,13 @@ type PlannerConfiguration interface {
 
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	dataSourcePlannerConfig := DataSourcePlannerConfiguration{
-		RequiredFields: p.requiredFields,
-		ParentPath:     p.parentPath,
-		PathType:       p.parentPathType,
-		IsNested:       p.IsNestedPlanner(),
-		FetchID:        p.objectFetchConfiguration.fetchID,
+		RequiredFields:                 p.requiredFields,
+		ParentPath:                     p.parentPath,
+		PathType:                       p.parentPathType,
+		IsNested:                       p.IsNestedPlanner(),
+		FetchID:                        p.objectFetchConfiguration.fetchID,
+		EnableOperationNamePropagation: p.options.EnableOperationNamePropagation,
+		EnableSubgraphPathPropagation:  p.options.EnableSubgraphPathPropagation,
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
