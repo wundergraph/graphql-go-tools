@@ -39,13 +39,12 @@ type PlannerConfiguration interface {
 
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	dataSourcePlannerConfig := DataSourcePlannerConfiguration{
-		RequiredFields:                 p.requiredFields,
-		ParentPath:                     p.parentPath,
-		PathType:                       p.parentPathType,
-		IsNested:                       p.IsNestedPlanner(),
-		FetchID:                        p.objectFetchConfiguration.fetchID,
-		EnableOperationNamePropagation: p.options.EnableOperationNamePropagation,
-		EnableSubgraphPathPropagation:  p.options.EnableSubgraphPathPropagation,
+		RequiredFields: p.requiredFields,
+		ParentPath:     p.parentPath,
+		PathType:       p.parentPathType,
+		IsNested:       p.IsNestedPlanner(),
+		FetchID:        p.objectFetchConfiguration.fetchID,
+		Options:        p.options,
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)

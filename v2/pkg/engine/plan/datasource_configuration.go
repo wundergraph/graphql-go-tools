@@ -286,13 +286,12 @@ func (d *dataSourceConfiguration[T]) Hash() DSHash {
 }
 
 type DataSourcePlannerConfiguration struct {
-	RequiredFields                 FederationFieldConfigurations
-	ParentPath                     string
-	PathType                       PlannerPathType
-	IsNested                       bool
-	EnableOperationNamePropagation bool
-	EnableSubgraphPathPropagation  bool
-	FetchID                        int
+	RequiredFields FederationFieldConfigurations
+	ParentPath     string
+	PathType       PlannerPathType
+	IsNested       bool
+	Options        plannerConfigurationOptions
+	FetchID        int
 }
 
 type PlannerPathType int
