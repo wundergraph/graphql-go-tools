@@ -343,6 +343,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 
 	var fd int
 
+	// we have to check if the connection is a tls connection to get the underlying net.Conn
 	if tlsConn, ok := conn.netConn.(*tls.Conn); ok {
 		netConn := tlsConn.NetConn()
 		fd = netpoll.SocketFD(netConn)
@@ -351,6 +352,7 @@ func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext cont
 	}
 
 	if fd == 0 {
+		c.log.Error("failed to get file descriptor from connection. This indicates a problem with the netPoll implementation")
 		return fmt.Errorf("failed to get file descriptor from connection")
 	}
 
