@@ -8302,6 +8302,55 @@ func runTestOnTestDefinition(t *testing.T, operation, operationName string, expe
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config)
 }
 
+func TestSource_Load(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_, _ = fmt.Fprint(w, string(body))
+	}))
+	defer ts.Close()
+
+	t.Run("null variables", func(t *testing.T) {
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a":null,"b":"b","c":{}}`)
+		)
+
+		t.Run("should not touch null variables", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+
+			buf := bytes.NewBuffer(nil)
+
+			require.NoError(t, src.Load(context.Background(), input, buf))
+			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
+		})
+	})
+	t.Run("remove undefined variables", func(t *testing.T) {
+		var (
+			src       = &Source{httpClient: &http.Client{}}
+			serverUrl = ts.URL
+			variables = []byte(`{"a":null,"b":null, "c": null}`)
+		)
+		t.Run("should remove undefined variables and leave null variables", func(t *testing.T) {
+			var input []byte
+			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
+			input = httpclient.SetInputURL(input, []byte(serverUrl))
+			buf := bytes.NewBuffer(nil)
+
+			undefinedVariables := []string{"a", "c"}
+			ctx := context.Background()
+			var err error
+			input, err = httpclient.SetUndefinedVariables(input, undefinedVariables)
+			assert.NoError(t, err)
+
+			require.NoError(t, src.Load(ctx, input, buf))
+			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
+		})
+	})
+}
+
 type ExpectedFile struct {
 	Name string
 	Size int64

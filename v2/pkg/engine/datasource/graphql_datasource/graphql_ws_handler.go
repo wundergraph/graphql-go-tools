@@ -85,7 +85,7 @@ func newGQLWSConnectionHandler(requestContext, engineContext context.Context, co
 	}
 	return &connection{
 		handler: handler,
-		conn:    conn,
+		netConn: conn,
 	}
 }
 
