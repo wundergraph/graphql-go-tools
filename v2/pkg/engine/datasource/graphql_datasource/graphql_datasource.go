@@ -409,7 +409,7 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 		OperationType: operationType,
 	})
 
-	if p.dataSourcePlannerConfig.EnableOperationNamePropagation {
+	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
 
 		operation := fmt.Sprintf("%s__%s__%d",
 			p.visitor.Operation.OperationDefinitionNameBytes(ref),
@@ -417,7 +417,7 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 			p.dataSourcePlannerConfig.FetchID,
 		)
 
-		if p.dataSourcePlannerConfig.EnableSubgraphPathPropagation {
+		if p.dataSourcePlannerConfig.Options.EnableSubgraphPathPropagation {
 			operation = fmt.Sprintf("%s__%s",
 				operation,
 				strings.ReplaceAll(p.dataSourcePlannerConfig.ParentPath, ".", "_"),
