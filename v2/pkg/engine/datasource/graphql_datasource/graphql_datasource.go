@@ -411,20 +411,26 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 
 	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
 
-		operation := fmt.Sprintf("%s__%s__%d",
-			p.visitor.Operation.OperationDefinitionNameBytes(ref),
-			p.dataSourceConfig.Name(),
-			p.dataSourcePlannerConfig.FetchID,
-		)
+		operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
 
-		if p.dataSourcePlannerConfig.Options.EnableSubgraphPathPropagation {
-			operation = fmt.Sprintf("%s__%s",
-				operation,
-				strings.ReplaceAll(p.dataSourcePlannerConfig.ParentPath, ".", "_"),
+		if len(operationName) > 0 {
+			operation := fmt.Sprintf("%s__%s__%d",
+				p.visitor.Operation.OperationDefinitionNameBytes(ref),
+				p.dataSourceConfig.Name(),
+				p.dataSourcePlannerConfig.FetchID,
 			)
-		}
 
-		p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputBytes(unsafebytes.StringToBytes(operation))
+			if p.dataSourcePlannerConfig.Options.EnableSubgraphPathPropagation {
+				if parentPath := p.dataSourcePlannerConfig.ParentPath; parentPath != "" {
+					operation = fmt.Sprintf("%s__%s",
+						operation,
+						strings.NewReplacer("$", "Frag", ".", "_").Replace(parentPath),
+					)
+				}
+			}
+
+			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputBytes(unsafebytes.StringToBytes(operation))
+		}
 	}
 
 	p.nodes = append(p.nodes, definition)
