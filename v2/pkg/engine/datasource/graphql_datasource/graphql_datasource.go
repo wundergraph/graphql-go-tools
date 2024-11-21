@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -399,6 +400,53 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 }
 
+func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
+	operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
+	if len(operationName) == 0 {
+		return ""
+	}
+
+	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
+	builder := strings.Builder{}
+	builder.Grow(len(operationName) + len(p.dataSourceConfig.Name()) + len(fetchID) + 4) // 4 is for delimiters "__"
+
+	builder.Write(operationName)
+	builder.WriteString("__")
+	builder.WriteString(p.dataSourceConfig.Name())
+	builder.WriteString("__")
+	builder.WriteString(fetchID)
+
+	if !p.dataSourcePlannerConfig.Options.EnableSubgraphPathPropagation {
+		return builder.String()
+	}
+
+	parentPath := p.dataSourcePlannerConfig.ParentPath
+
+	if parentPath == "" {
+		return builder.String()
+	}
+
+	builder.Grow(len(parentPath) + 2)
+	builder.WriteString("__")
+
+	for _, r := range parentPath {
+		if r == '$' {
+			builder.Grow(4)
+			builder.WriteString("Frag")
+			continue
+		}
+
+		if r == '.' {
+			builder.WriteRune('_')
+			continue
+		}
+
+		builder.WriteRune(r)
+	}
+
+	return builder.String()
+}
+
 func (p *Planner[T]) EnterOperationDefinition(ref int) {
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.dataSourcePlannerConfig.IsNested {
@@ -410,26 +458,9 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 	})
 
 	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
-
-		operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
-
-		if len(operationName) > 0 {
-			operation := fmt.Sprintf("%s__%s__%d",
-				p.visitor.Operation.OperationDefinitionNameBytes(ref),
-				p.dataSourceConfig.Name(),
-				p.dataSourcePlannerConfig.FetchID,
-			)
-
-			if p.dataSourcePlannerConfig.Options.EnableSubgraphPathPropagation {
-				if parentPath := p.dataSourcePlannerConfig.ParentPath; parentPath != "" {
-					operation = fmt.Sprintf("%s__%s",
-						operation,
-						strings.NewReplacer("$", "Frag", ".", "_").Replace(parentPath),
-					)
-				}
-			}
-
-			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputBytes(unsafebytes.StringToBytes(operation))
+		operation := p.buildUpstreamOperationName(ref)
+		if operation != "" {
+			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)
 		}
 	}
 
