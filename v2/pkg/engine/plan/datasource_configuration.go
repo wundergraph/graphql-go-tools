@@ -257,8 +257,7 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
 		options: plannerConfigurationOptions{
-			EnableOperationNamePropagation: configuration.EnableOperationNamePropagation,
-			EnableSubgraphPathPropagation:  configuration.EnableSubgraphPathPropagation,
+			DisableOperationNamePropagation: configuration.DisableOperationNamePropagation,
 		},
 	}
 

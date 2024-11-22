@@ -407,42 +407,12 @@ func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
 	}
 
 	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
+
 	builder := strings.Builder{}
 	builder.Grow(len(operationName) + len(p.dataSourceConfig.Name()) + len(fetchID) + 4) // 4 is for delimiters "__"
 
 	builder.Write(operationName)
-	builder.WriteString("__")
-	builder.WriteString(p.dataSourceConfig.Name())
-	builder.WriteString("__")
-	builder.WriteString(fetchID)
-
-	if !p.dataSourcePlannerConfig.Options.EnableSubgraphPathPropagation {
-		return builder.String()
-	}
-
-	parentPath := p.dataSourcePlannerConfig.ParentPath
-
-	if parentPath == "" {
-		return builder.String()
-	}
-
-	builder.Grow(len(parentPath) + 2)
-	builder.WriteString("__")
-
-	for _, r := range parentPath {
-		if r == '$' {
-			builder.Grow(4)
-			builder.WriteString("Frag")
-			continue
-		}
-
-		if r == '.' {
-			builder.WriteRune('_')
-			continue
-		}
-
-		builder.WriteRune(r)
-	}
+	builder.WriteString("__" + p.dataSourceConfig.Name() + "__" + fetchID)
 
 	return builder.String()
 }
@@ -457,7 +427,7 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 		OperationType: operationType,
 	})
 
-	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
+	if !p.dataSourcePlannerConfig.Options.DisableOperationNamePropagation {
 		operation := p.buildUpstreamOperationName(ref)
 		if operation != "" {
 			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)

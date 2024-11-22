@@ -88,7 +88,8 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 						}),
 					),
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 			}))
 	})
 
@@ -161,7 +162,8 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions: true,
+			DisableResolveFieldPositions:    true,
+			DisableOperationNamePropagation: true,
 		}
 
 		t.Run("on query", RunTest(
@@ -380,8 +382,9 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 				ds1,
 				ds4,
 			},
-			DisableResolveFieldPositions: true,
-			Debug:                        plan.DebugConfiguration{},
+			DisableResolveFieldPositions:    true,
+			DisableOperationNamePropagation: true,
+			Debug:                           plan.DebugConfiguration{},
 		}
 
 		t.Run("only __typename", RunTest(
@@ -886,9 +889,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		}
 
 		planConfiguration := plan.Configuration{
-			DataSources:                  dataSources,
-			DisableResolveFieldPositions: true,
-			DisableIncludeInfo:           true,
+			DataSources:                     dataSources,
+			DisableResolveFieldPositions:    true,
+			DisableIncludeInfo:              true,
+			DisableOperationNamePropagation: true,
 			Fields: plan.FieldConfigurations{
 				{
 					TypeName:  "Address",
@@ -1414,8 +1418,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					subgraphADatasourceConfiguration,
 					subgraphBDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				DisableIncludeInfo:           true,
+				DisableResolveFieldPositions:    true,
+				DisableIncludeInfo:              true,
+				DisableOperationNamePropagation: true,
 			}
 
 			t.Run("query having a fetch after fetch with composite key", func(t *testing.T) {
@@ -1769,194 +1774,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							subgraphADatasourceConfiguration,
 							subgraphBDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:   true,
-						DisableIncludeInfo:             true,
-						EnableOperationNamePropagation: true,
-						EnableSubgraphPathPropagation:  false,
-					},
-				))
-			})
-			t.Run("query having a fetch after fetch with composite key and operation and subgraph path propagation", func(t *testing.T) {
-				t.Run("run", RunTest(
-					definition,
-					`
-				query CompositeKey {
-					user {
-						foo
-					}
-					otherUser {
-						foo
-					}
-				}`,
-					"CompositeKey",
-					&plan.SynchronousResponsePlan{
-						Response: &resolve.GraphQLResponse{
-							Data: &resolve.Object{
-								Fetches: []resolve.Fetch{
-									&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 0,
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__service-a__0__query {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
-											DataSource:     &Source{},
-											PostProcessing: DefaultPostProcessingConfiguration,
-										},
-									},
-								},
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("user"),
-										Value: &resolve.Object{
-											Fetches: []resolve.Fetch{
-												&resolve.SingleFetch{
-													FetchDependencies: resolve.FetchDependencies{
-														FetchID:           1,
-														DependsOnFetchIDs: []int{0},
-													},
-													DataSourceIdentifier: []byte("graphql_datasource.Source"),
-													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service-b__1__query_user($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-														Variables: resolve.NewVariables(
-															&resolve.ResolvableObjectVariable{
-																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																	Nullable: true,
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &resolve.String{
-																				Path: []string{"__typename"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("User")},
-																		},
-																		{
-																			Name: []byte("account"),
-																			Value: &resolve.Object{
-																				Path: []string{"account"},
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("id"),
-																						Value: &resolve.Scalar{
-																							Path: []string{"id"},
-																						},
-																					},
-																				},
-																			},
-																			OnTypeNames: [][]byte{[]byte("User")},
-																		},
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"id"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("User")},
-																		},
-																	},
-																}),
-															},
-														),
-														DataSource:                            &Source{},
-														RequiresEntityFetch:                   true,
-														PostProcessing:                        SingleEntityPostProcessingConfiguration,
-														SetTemplateOutputToNullOnVariableNull: true,
-													},
-												},
-											},
-											Path: []string{"user"},
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("foo"),
-													Value: &resolve.Boolean{
-														Path: []string{"foo"},
-													},
-												},
-											},
-										},
-									},
-									{
-										Name: []byte("otherUser"),
-										Value: &resolve.Object{
-											Fetches: []resolve.Fetch{
-												&resolve.SingleFetch{
-													FetchDependencies: resolve.FetchDependencies{
-														FetchID:           2,
-														DependsOnFetchIDs: []int{0},
-													},
-													DataSourceIdentifier: []byte("graphql_datasource.Source"),
-													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service-b__2__query_otherUser($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
-														Variables: resolve.NewVariables(
-															&resolve.ResolvableObjectVariable{
-																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																	Nullable: true,
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &resolve.String{
-																				Path: []string{"__typename"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("User")},
-																		},
-																		{
-																			Name: []byte("account"),
-																			Value: &resolve.Object{
-																				Path: []string{"account"},
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("id"),
-																						Value: &resolve.Scalar{
-																							Path: []string{"id"},
-																						},
-																					},
-																				},
-																			},
-																			OnTypeNames: [][]byte{[]byte("User")},
-																		},
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"id"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("User")},
-																		},
-																	},
-																}),
-															},
-														),
-														DataSource:                            &Source{},
-														RequiresEntityFetch:                   true,
-														PostProcessing:                        SingleEntityPostProcessingConfiguration,
-														SetTemplateOutputToNullOnVariableNull: true,
-													},
-												},
-											},
-											Path: []string{"otherUser"},
-											Fields: []*resolve.Field{
-												{
-													Name: []byte("foo"),
-													Value: &resolve.Boolean{
-														Path: []string{"foo"},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					plan.Configuration{
-						Logger:                     nil,
-						DefaultFlushIntervalMillis: 0,
-						DataSources: []plan.DataSource{
-							subgraphADatasourceConfiguration,
-							subgraphBDatasourceConfiguration,
-						},
-						DisableResolveFieldPositions:   true,
-						DisableIncludeInfo:             true,
-						EnableOperationNamePropagation: true,
-						EnableSubgraphPathPropagation:  true,
+						DisableResolveFieldPositions: true,
+						DisableIncludeInfo:           true,
 					},
 				))
 			})
@@ -2137,10 +1956,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							subgraphADatasourceConfiguration,
 							subgraphBDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:   true,
-						DisableIncludeInfo:             true,
-						EnableOperationNamePropagation: true,
-						EnableSubgraphPathPropagation:  true,
+						DisableResolveFieldPositions: true,
+						DisableIncludeInfo:           true,
 					},
 				))
 			})
@@ -2629,6 +2446,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
+						DisableOperationNamePropagation: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -2933,6 +2751,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
+						DisableOperationNamePropagation: true,
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -3169,7 +2988,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						Debug: plan.DebugConfiguration{},
+						DisableOperationNamePropagation: true,
+						Debug:                           plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -3272,7 +3092,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						Debug: plan.DebugConfiguration{},
+						DisableOperationNamePropagation: true,
+						Debug:                           plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -3419,8 +3240,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						firstDatasourceConfiguration,
 						secondDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions: true,
-					Debug:                        plan.DebugConfiguration{},
+					DisableResolveFieldPositions:    true,
+					DisableOperationNamePropagation: true,
+					Debug:                           plan.DebugConfiguration{},
 				}
 
 				t.Run("selected only field with requires directive", func(t *testing.T) {
@@ -4152,7 +3974,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						firstDatasourceConfiguration,
 						secondDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions: true,
+					DisableResolveFieldPositions:    true,
+					DisableOperationNamePropagation: true,
 					Debug: plan.DebugConfiguration{
 						PrintQueryPlans: false,
 					},
@@ -4468,8 +4291,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						secondDatasourceConfiguration,
 						thirdDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions: true,
-					Debug:                        plan.DebugConfiguration{},
+					DisableResolveFieldPositions:    true,
+					DisableOperationNamePropagation: true,
+					Debug:                           plan.DebugConfiguration{},
 				}
 
 				t.Run("selected only fields with requires", func(t *testing.T) {
@@ -4954,7 +4778,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						firstDatasourceConfiguration,
 						secondDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions: true,
+					DisableResolveFieldPositions:    true,
+					DisableOperationNamePropagation: true,
 					Debug: plan.DebugConfiguration{
 						PrintQueryPlans:               false,
 						PrintNodeSuggestions:          false,
@@ -5819,7 +5644,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
+						DisableResolveFieldPositions:    true,
+						DisableOperationNamePropagation: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -6433,7 +6259,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
+						DisableResolveFieldPositions:    true,
+						DisableOperationNamePropagation: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -7056,7 +6883,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
+						DisableResolveFieldPositions:    true,
+						DisableOperationNamePropagation: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -7582,7 +7410,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
+						DisableResolveFieldPositions:    true,
+						DisableOperationNamePropagation: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -8293,8 +8122,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
+				Debug:                           plan.DebugConfiguration{},
 			}
 
 			t.Run("only shared field", func(t *testing.T) {
@@ -8704,7 +8534,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							firstDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
+						DisableResolveFieldPositions:    true,
+						DisableOperationNamePropagation: true,
 					}
 
 					expectedPlan := func(input1, input2 string) *plan.SynchronousResponsePlan {
@@ -9184,7 +9015,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 				Debug: plan.DebugConfiguration{
 					PrintPlanningPaths: false,
 				},
@@ -9775,7 +9607,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 			}
 
 			t.Run("union query on array", func(t *testing.T) {
@@ -9969,7 +9802,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first-service__0__query {accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first-service__0 {accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},
@@ -9980,7 +9813,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchID:           1,
 										DependsOnFetchIDs: []int{0},
 									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query Accounts__second-service__1__query_accounts($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query Accounts__second-service__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -10031,7 +9864,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DependsOnFetchIDs: []int{0},
 									},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query Accounts__third-service__2__query_accounts($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject address {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query Accounts__third-service__2($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject address {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -10068,7 +9901,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DependsOnFetchIDs: []int{2},
 									},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first-service__3__query_accounts_Frag2Moderator_address($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first-service__3($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -10160,9 +9993,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:   true,
-						EnableSubgraphPathPropagation:  true,
-						EnableOperationNamePropagation: true,
+						DisableResolveFieldPositions: true,
 					},
 					WithDefaultPostProcessor(),
 				)
@@ -10532,7 +10363,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 					fourthDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 			}
 
 			RunWithPermutations(
@@ -10941,8 +10773,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			planConfiguration := plan.Configuration{
-				DataSources:                  dataSources,
-				DisableResolveFieldPositions: true,
+				DataSources:                     dataSources,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 			}
 
 			t.Run("only fields", func(t *testing.T) {
@@ -11496,8 +11329,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
+				Debug:                           plan.DebugConfiguration{},
 			}
 
 			t.Run("do not jump to resolvable false", func(t *testing.T) {
@@ -11802,8 +11636,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
+				Debug:                           plan.DebugConfiguration{},
 			}
 
 			t.Run("query", func(t *testing.T) {
@@ -12034,8 +11869,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
+				Debug:                           plan.DebugConfiguration{},
 			}
 
 			t.Run("query", func(t *testing.T) {
@@ -12363,8 +12199,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
+				Debug:                           plan.DebugConfiguration{},
 			}
 
 			t.Run("query", func(t *testing.T) {
@@ -12987,8 +12824,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				firstDatasourceConfiguration,
 				secondDatasourceConfiguration,
 			},
-			DisableResolveFieldPositions: true,
-			Debug:                        plan.DebugConfiguration{},
+			DisableResolveFieldPositions:    true,
+			DisableOperationNamePropagation: true,
+			Debug:                           plan.DebugConfiguration{},
 		}
 
 		t.Run("properly select userID aliased as ID", func(t *testing.T) {
@@ -13381,7 +13219,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 					fourthDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans: false,
 				},
@@ -14258,7 +14097,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 					fourthDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans: false,
 				},
@@ -14672,8 +14512,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
+				Debug:                           plan.DebugConfiguration{},
 			}
 
 			t.Run("run", func(t *testing.T) {
@@ -14922,7 +14763,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions: true,
+				DisableResolveFieldPositions:    true,
+				DisableOperationNamePropagation: true,
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans: false,
 				},

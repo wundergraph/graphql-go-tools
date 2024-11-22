@@ -19,8 +19,7 @@ type plannerConfiguration[T any] struct {
 }
 
 type plannerConfigurationOptions struct {
-	EnableOperationNamePropagation bool
-	EnableSubgraphPathPropagation  bool
+	DisableOperationNamePropagation bool
 }
 
 type PlannerConfiguration interface {
