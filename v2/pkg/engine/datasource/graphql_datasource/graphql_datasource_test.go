@@ -159,8 +159,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						}),
 					),
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 			},
 		))
 	})
@@ -347,8 +346,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Path:      []string{"nestedStringList"},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("simple named Query with field info", RunTest(starWarsSchema, `
@@ -659,8 +657,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Path:      []string{"nestedStringList"},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}, WithFieldInfo()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
@@ -739,9 +736,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			),
 		},
-		Fields:                          []plan.FieldConfiguration{},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("selections on interface type with on type condition", func(t *testing.T) {
@@ -943,9 +939,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			),
 		},
-		Fields:                          []plan.FieldConfiguration{},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("skip directive with inline value false", RunTest(interfaceSelectionSchema, `
@@ -1024,9 +1019,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			),
 		},
-		Fields:                          []plan.FieldConfiguration{},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("include directive with inline value true", RunTest(interfaceSelectionSchema, `
@@ -1105,9 +1099,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			),
 		},
-		Fields:                          []plan.FieldConfiguration{},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 	t.Run("include directive with inline value false", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -1179,9 +1172,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			),
 		},
-		Fields:                          []plan.FieldConfiguration{},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("selections on interface type with object type interface", RunTest(interfaceSelectionSchema, `
@@ -1270,9 +1262,8 @@ func TestGraphQLDataSource(t *testing.T) {
 				}),
 			),
 		},
-		Fields:                          []plan.FieldConfiguration{},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		Fields:                       []plan.FieldConfiguration{},
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("variable at top level and recursively", RunTestWithVariables(variableSchema, `
@@ -1372,8 +1363,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("exported ID scalar field", RunTest(starWarsSchemaWithExportDirective, `
@@ -1487,8 +1477,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("exported string field", RunTest(starWarsSchemaWithExportDirective, `
@@ -1713,8 +1702,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("Query with renamed root fields", RunTest(renamedStarWarsSchema, `
@@ -2501,8 +2489,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2622,8 +2609,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2751,8 +2737,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -2880,8 +2865,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -3274,8 +3258,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 			},
 			WithDefaultPostProcessor(),
 		))
@@ -3399,8 +3382,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		},
 	))
 
@@ -3547,8 +3529,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 			},
 		))
 	})
@@ -3727,9 +3708,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					Path:                  []string{},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
-			DefaultFlushIntervalMillis:      500,
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
 		},
 	))
 
@@ -3833,9 +3813,8 @@ func TestGraphQLDataSource(t *testing.T) {
 					Path:                  []string{},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
-			DefaultFlushIntervalMillis:      500,
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
 		}))
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -3946,8 +3925,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("federation", RunTest(federationTestSchema,
@@ -4352,8 +4330,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					FieldName: "reviews",
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("simple parallel federation queries", RunTest(complexFederationSchema,
@@ -4527,8 +4504,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		},
 		WithDefaultPostProcessor(),
 	))
@@ -4896,8 +4872,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("complex nested federation different order", RunTest(complexFederationSchema,
@@ -5256,8 +5231,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Path: []string{"user"},
 				},
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
@@ -5443,8 +5417,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("federation with renamed schema", RunTest(renamedFederationTestSchema,
@@ -5976,8 +5949,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}
 
 		t.Run("federation with object query and inline fragment", RunTest(federatedSchemaWithInterfaceQuery,
@@ -6499,8 +6471,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 			Debug: plan.DebugConfiguration{
 				PrintOperationTransformations: false,
 			},
@@ -7280,8 +7251,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("Federation with field query (defined in user subgraph) featuring consecutive inline union fragments", RunTest(
@@ -7596,8 +7566,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}))
 
 	t.Run("custom scalar replacement query", RunTest(starWarsSchema, `
@@ -7770,8 +7739,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}))
 
 	t.Run("custom scalar type fields", RunTest(customUserSchema, `
@@ -7907,8 +7875,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}))
 }
 
@@ -8329,8 +8296,7 @@ func runTestOnTestDefinition(t *testing.T, operation, operationName string, expe
 				},
 			},
 		},
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DisableResolveFieldPositions: true,
 	}
 
 	return RunTest(testDefinition, operation, operationName, expectedPlan, config)

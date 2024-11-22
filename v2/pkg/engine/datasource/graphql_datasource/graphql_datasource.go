@@ -427,7 +427,7 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 		OperationType: operationType,
 	})
 
-	if !p.dataSourcePlannerConfig.Options.DisableOperationNamePropagation {
+	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
 		operation := p.buildUpstreamOperationName(ref)
 		if operation != "" {
 			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)

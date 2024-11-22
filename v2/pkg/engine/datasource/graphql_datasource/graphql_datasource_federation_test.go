@@ -88,8 +88,7 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 						}),
 					),
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 			}))
 	})
 
@@ -162,8 +161,7 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 					}),
 				),
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
+			DisableResolveFieldPositions: true,
 		}
 
 		t.Run("on query", RunTest(
@@ -382,9 +380,8 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 				ds1,
 				ds4,
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
-			Debug:                           plan.DebugConfiguration{},
+			DisableResolveFieldPositions: true,
+			Debug:                        plan.DebugConfiguration{},
 		}
 
 		t.Run("only __typename", RunTest(
@@ -889,10 +886,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		}
 
 		planConfiguration := plan.Configuration{
-			DataSources:                     dataSources,
-			DisableResolveFieldPositions:    true,
-			DisableIncludeInfo:              true,
-			DisableOperationNamePropagation: true,
+			DataSources:                  dataSources,
+			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
 			Fields: plan.FieldConfigurations{
 				{
 					TypeName:  "Address",
@@ -1418,9 +1414,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					subgraphADatasourceConfiguration,
 					subgraphBDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableIncludeInfo:              true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
+				DisableIncludeInfo:           true,
 			}
 
 			t.Run("query having a fetch after fetch with composite key", func(t *testing.T) {
@@ -1774,12 +1769,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							subgraphADatasourceConfiguration,
 							subgraphBDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
-						DisableIncludeInfo:           true,
+						DisableResolveFieldPositions:   true,
+						DisableIncludeInfo:             true,
+						EnableOperationNamePropagation: true,
 					},
 				))
 			})
-			t.Run("query with operation and subgraph path propagation but without operation name", func(t *testing.T) {
+			t.Run("query with operation propagation but without operation name", func(t *testing.T) {
 				t.Run("run", RunTest(
 					definition,
 					`
@@ -1956,8 +1952,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							subgraphADatasourceConfiguration,
 							subgraphBDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
-						DisableIncludeInfo:           true,
+						DisableResolveFieldPositions:   true,
+						DisableIncludeInfo:             true,
+						EnableOperationNamePropagation: true,
 					},
 				))
 			})
@@ -2446,7 +2443,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						DisableOperationNamePropagation: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -2751,7 +2747,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						DisableOperationNamePropagation: true,
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -2988,8 +2983,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						DisableOperationNamePropagation: true,
-						Debug:                           plan.DebugConfiguration{},
+						Debug: plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -3092,8 +3086,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					operationName,
 					expectedPlan(),
 					plan.Configuration{
-						DisableOperationNamePropagation: true,
-						Debug:                           plan.DebugConfiguration{},
+						Debug: plan.DebugConfiguration{},
 						DataSources: []plan.DataSource{
 							usersDatasourceConfiguration,
 							accountsDatasourceConfiguration,
@@ -3240,9 +3233,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						firstDatasourceConfiguration,
 						secondDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions:    true,
-					DisableOperationNamePropagation: true,
-					Debug:                           plan.DebugConfiguration{},
+					DisableResolveFieldPositions: true,
+					Debug:                        plan.DebugConfiguration{},
 				}
 
 				t.Run("selected only field with requires directive", func(t *testing.T) {
@@ -3974,8 +3966,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						firstDatasourceConfiguration,
 						secondDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions:    true,
-					DisableOperationNamePropagation: true,
+					DisableResolveFieldPositions: true,
 					Debug: plan.DebugConfiguration{
 						PrintQueryPlans: false,
 					},
@@ -4291,9 +4282,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						secondDatasourceConfiguration,
 						thirdDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions:    true,
-					DisableOperationNamePropagation: true,
-					Debug:                           plan.DebugConfiguration{},
+					DisableResolveFieldPositions: true,
+					Debug:                        plan.DebugConfiguration{},
 				}
 
 				t.Run("selected only fields with requires", func(t *testing.T) {
@@ -4778,8 +4768,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						firstDatasourceConfiguration,
 						secondDatasourceConfiguration,
 					},
-					DisableResolveFieldPositions:    true,
-					DisableOperationNamePropagation: true,
+					DisableResolveFieldPositions: true,
 					Debug: plan.DebugConfiguration{
 						PrintQueryPlans:               false,
 						PrintNodeSuggestions:          false,
@@ -5644,8 +5633,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:    true,
-						DisableOperationNamePropagation: true,
+						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -6259,8 +6247,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:    true,
-						DisableOperationNamePropagation: true,
+						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -6883,8 +6870,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:    true,
-						DisableOperationNamePropagation: true,
+						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -7410,8 +7396,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:    true,
-						DisableOperationNamePropagation: true,
+						DisableResolveFieldPositions: true,
 						Debug: plan.DebugConfiguration{
 							PrintQueryPlans: false,
 						},
@@ -8122,9 +8107,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
-				Debug:                           plan.DebugConfiguration{},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("only shared field", func(t *testing.T) {
@@ -8534,8 +8518,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							firstDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions:    true,
-						DisableOperationNamePropagation: true,
+						DisableResolveFieldPositions: true,
 					}
 
 					expectedPlan := func(input1, input2 string) *plan.SynchronousResponsePlan {
@@ -9015,8 +8998,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
 					PrintPlanningPaths: false,
 				},
@@ -9607,8 +9589,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 			}
 
 			t.Run("union query on array", func(t *testing.T) {
@@ -9993,7 +9974,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							secondDatasourceConfiguration,
 							thirdDatasourceConfiguration,
 						},
-						DisableResolveFieldPositions: true,
+						DisableResolveFieldPositions:   true,
+						EnableOperationNamePropagation: true,
 					},
 					WithDefaultPostProcessor(),
 				)
@@ -10363,8 +10345,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 					fourthDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 			}
 
 			RunWithPermutations(
@@ -10773,9 +10754,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			}
 
 			planConfiguration := plan.Configuration{
-				DataSources:                     dataSources,
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DataSources:                  dataSources,
+				DisableResolveFieldPositions: true,
 			}
 
 			t.Run("only fields", func(t *testing.T) {
@@ -11329,9 +11309,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
-				Debug:                           plan.DebugConfiguration{},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("do not jump to resolvable false", func(t *testing.T) {
@@ -11636,9 +11615,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
-				Debug:                           plan.DebugConfiguration{},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("query", func(t *testing.T) {
@@ -11869,9 +11847,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
-				Debug:                           plan.DebugConfiguration{},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("query", func(t *testing.T) {
@@ -12199,9 +12176,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
-				Debug:                           plan.DebugConfiguration{},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("query", func(t *testing.T) {
@@ -12824,9 +12800,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				firstDatasourceConfiguration,
 				secondDatasourceConfiguration,
 			},
-			DisableResolveFieldPositions:    true,
-			DisableOperationNamePropagation: true,
-			Debug:                           plan.DebugConfiguration{},
+			DisableResolveFieldPositions: true,
+			Debug:                        plan.DebugConfiguration{},
 		}
 
 		t.Run("properly select userID aliased as ID", func(t *testing.T) {
@@ -13219,8 +13194,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 					fourthDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans: false,
 				},
@@ -14097,8 +14071,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 					fourthDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans: false,
 				},
@@ -14512,9 +14485,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					firstDatasourceConfiguration,
 					secondDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
-				Debug:                           plan.DebugConfiguration{},
+				DisableResolveFieldPositions: true,
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("run", func(t *testing.T) {
@@ -14763,8 +14735,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					secondDatasourceConfiguration,
 					thirdDatasourceConfiguration,
 				},
-				DisableResolveFieldPositions:    true,
-				DisableOperationNamePropagation: true,
+				DisableResolveFieldPositions: true,
 				Debug: plan.DebugConfiguration{
 					PrintQueryPlans: false,
 				},

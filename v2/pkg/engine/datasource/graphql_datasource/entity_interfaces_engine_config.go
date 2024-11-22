@@ -380,9 +380,8 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 	}
 
 	planConfiguration := plan.Configuration{
-		DataSources:                     dataSources,
-		DisableResolveFieldPositions:    true,
-		DisableOperationNamePropagation: true,
+		DataSources:                  dataSources,
+		DisableResolveFieldPositions: true,
 		Fields: []plan.FieldConfiguration{
 			{
 				TypeName:  "Query",

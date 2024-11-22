@@ -19,7 +19,7 @@ type plannerConfiguration[T any] struct {
 }
 
 type plannerConfigurationOptions struct {
-	DisableOperationNamePropagation bool
+	EnableOperationNamePropagation bool
 }
 
 type PlannerConfiguration interface {

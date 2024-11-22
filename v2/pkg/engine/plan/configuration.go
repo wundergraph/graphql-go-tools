@@ -16,9 +16,9 @@ type Configuration struct {
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
 	DisableResolveFieldPositions bool
-	// DisableOperationNamePropagation disables the propagation of operation names to nested operations
-	DisableOperationNamePropagation bool
-	CustomResolveMap                map[string]resolve.CustomResolve
+	// EnableOperationNamePropagation appends the operation name from nested operations
+	EnableOperationNamePropagation bool
+	CustomResolveMap               map[string]resolve.CustomResolve
 
 	// Debug - configure debug options
 	Debug DebugConfiguration
