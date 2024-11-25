@@ -1,6 +1,12 @@
 name: v2-ci
 on:
   pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - labeled
+      - unlabeled
     branches:
       - master
     paths:
@@ -22,6 +28,7 @@ jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    if: ${{ ! contains(github.event.pull_request.labels.*.name, 'release') }}
     strategy:
       matrix:
         go: [ '1.21' ]
@@ -49,6 +56,7 @@ jobs:
   lint:
     name: Linters
     runs-on: ubuntu-latest
+    if: ${{ ! contains(github.event.pull_request.labels.*.name, 'release') }}
     steps:
       - name: Check out code into the Go module directory
         uses: actions/checkout@v3
