@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -398,14 +400,40 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 }
 
+func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
+	operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
+	if len(operationName) == 0 {
+		return ""
+	}
+
+	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
+
+	builder := strings.Builder{}
+	builder.Grow(len(operationName) + len(p.dataSourceConfig.Name()) + len(fetchID) + 4) // 4 is for delimiters "__"
+
+	builder.Write(operationName)
+	builder.WriteString("__" + p.dataSourceConfig.Name() + "__" + fetchID)
+
+	return builder.String()
+}
+
 func (p *Planner[T]) EnterOperationDefinition(ref int) {
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.dataSourcePlannerConfig.IsNested {
 		operationType = ast.OperationTypeQuery
 	}
+
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
 		OperationType: operationType,
 	})
+
+	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
+		operation := p.buildUpstreamOperationName(ref)
+		if operation != "" {
+			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)
+		}
+	}
+
 	p.nodes = append(p.nodes, definition)
 }
 
