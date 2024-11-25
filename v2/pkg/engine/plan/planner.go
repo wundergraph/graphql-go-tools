@@ -323,7 +323,7 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 		p.debugMessage("Create planning paths")
 	}
 
-	p.configurationVisitor.debug = p.config.Debug
+	p.configurationVisitor.plannerConfiguration = p.config
 
 	// set initial suggestions and used data sources
 	p.configurationVisitor.dataSources, p.configurationVisitor.nodeSuggestions =
