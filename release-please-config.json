@@ -38,5 +38,5 @@
     "Makefile",
     "README.md"
   ],
-  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
 }
