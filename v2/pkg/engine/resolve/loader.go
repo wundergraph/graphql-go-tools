@@ -207,8 +207,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 				out: f.GetBuffer(),
 			}
 			if l.ctx.TracingOptions.Enable {
-				f.Traces[i] = new(SingleFetch)
-				*f.Traces[i] = *f.Fetch
+				f.Traces[i] = f.Fetch
 				g.Go(func() error {
 					return l.loadFetch(ctx, f.Traces[i], item, items[i:i+1], results[i])
 				})
