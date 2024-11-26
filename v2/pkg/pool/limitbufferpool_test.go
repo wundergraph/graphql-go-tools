@@ -60,6 +60,7 @@ func TestLimitBufferPool(t *testing.T) {
 		assert.NotNil(t, buf.Buf)
 		assert.Equal(t, 1024, buf.Buf.Cap()) // default size
 		_, err = buf.Buf.Write(bytes.Repeat([]byte("a"), 2048))
+		assert.NoError(t, err)
 		p.Put(buf)
 	}
 
