@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"runtime"
 	"sync"
 	"time"
 
@@ -177,6 +178,19 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 
 	for _, field := range options.AllowedSubgraphErrorFields {
 		allowedErrorFields[field] = struct{}{}
+	}
+
+	if options.BufferPoolOptions.MaxBuffers == 0 {
+		options.BufferPoolOptions.MaxBuffers = runtime.GOMAXPROCS(-1)
+	}
+	if options.BufferPoolOptions.MaxBuffers < 8 {
+		options.BufferPoolOptions.MaxBuffers = 8
+	}
+	if options.BufferPoolOptions.MaxBufferSize == 0 {
+		options.BufferPoolOptions.MaxBufferSize = 1024 * 1024 * 10 // 10MB
+	}
+	if options.BufferPoolOptions.DefaultBufferSize < 1024*8 {
+		options.BufferPoolOptions.DefaultBufferSize = 1024 * 8 // 8KB
 	}
 
 	resolver := &Resolver{

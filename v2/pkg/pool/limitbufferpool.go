@@ -3,7 +3,6 @@ package pool
 import (
 	"bytes"
 	"context"
-	"runtime"
 	"time"
 )
 
@@ -33,20 +32,22 @@ type LimitBufferPoolOptions struct {
 	// DefaultBufferSize is used to initialize the buffer with a default size
 	// If set to 0, a default size of 8KB is used
 	DefaultBufferSize int
+	// GCTime is the time interval to run the GC to reset the buffer
+	GCTime time.Duration
 }
 
 func NewLimitBufferPool(ctx context.Context, options LimitBufferPoolOptions) *LimitBufferPool {
 	if options.MaxBufferSize == 0 {
 		options.MaxBufferSize = 1024 * 1024 * 10 // 10MB
 	}
-	if options.DefaultBufferSize < 1024*8 {
+	if options.DefaultBufferSize == 0 {
 		options.DefaultBufferSize = 1024 * 8 // 8KB
 	}
 	if options.MaxBuffers == 0 {
-		options.MaxBuffers = runtime.GOMAXPROCS(-1)
-	}
-	if options.MaxBuffers < 8 {
 		options.MaxBuffers = 8
+	}
+	if options.GCTime == 0 {
+		options.GCTime = time.Second
 	}
 	pool := &LimitBufferPool{
 		buffers: make([]*ResolvableBuffer, options.MaxBuffers),
@@ -64,7 +65,7 @@ func NewLimitBufferPool(ctx context.Context, options LimitBufferPoolOptions) *Li
 }
 
 func (p *LimitBufferPool) runGC(ctx context.Context) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(p.options.GCTime)
 	defer ticker.Stop()
 	for {
 		select {
