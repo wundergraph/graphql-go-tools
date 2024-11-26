@@ -165,10 +165,11 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		allow := config.HasPathWithFieldRef(ref) || config.HasParent(path)
 
 		if !allow {
-			if pp, ok := config.Debugger(); ok {
-				pp.DebugPrint("allow:", false, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+			if v.Config.Debug.PlanningVisitor {
+				if pp, ok := config.Debugger(); ok {
+					pp.DebugPrint("allow:", false, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+				}
 			}
-
 			return false
 		}
 
@@ -180,8 +181,10 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 				// or if there was added missing parent path
 				config.ShouldWalkFieldsOnPath(path, "")
 
-		if pp, ok := config.Debugger(); ok {
-			pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+			}
 		}
 
 		return shouldWalkFieldsOnPath
@@ -190,17 +193,21 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 
 		hasFragmentPath := config.HasFragmentPath(ref)
 
-		if pp, ok := config.Debugger(); ok {
-			typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-			pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+				pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+			}
 		}
 
 		return hasFragmentPath
 	case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
 		allowedByParent := skipFor.Allow(config.Planner())
 
-		if pp, ok := config.Debugger(); ok {
-			pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
+			}
 		}
 
 		return allowedByParent
@@ -319,19 +326,13 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
-
 	onTypeNames := v.resolveOnTypeNames(ref)
 
 	v.currentField = &resolve.Field{
-		Name:                    fieldAliasOrName,
-		OnTypeNames:             onTypeNames,
-		Position:                v.resolveFieldPosition(ref),
-		SkipDirectiveDefined:    skipIncludeInfo.skip,
-		SkipVariableName:        skipIncludeInfo.skipVariableName,
-		IncludeDirectiveDefined: skipIncludeInfo.include,
-		IncludeVariableName:     skipIncludeInfo.includeVariableName,
-		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		Name:        fieldAliasOrName,
+		OnTypeNames: onTypeNames,
+		Position:    v.resolveFieldPosition(ref),
+		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -478,27 +479,6 @@ func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
 	}
 
 	return skipIncludeInfo{}, false
-}
-
-func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
-	if info, ok := v.resolveSkipIncludeOnParent(); ok {
-		return info
-	}
-
-	directiveRefs := v.Operation.Fields[fieldRef].Directives.Refs
-	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directiveRefs)
-	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directiveRefs)
-
-	if skip || include {
-		return skipIncludeInfo{
-			skip:                skip,
-			skipVariableName:    skipVariableName,
-			include:             include,
-			includeVariableName: includeVariableName,
-		}
-	}
-
-	return skipIncludeInfo{}
 }
 
 func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
@@ -707,10 +687,22 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
-			return &resolve.String{
-				Path:                 path,
-				Nullable:             nullable,
-				UnescapeResponseJson: unescapeResponseJson,
+			values := make([]string, 0, len(v.Definition.EnumTypeDefinitions[typeDefinitionNode.Ref].EnumValuesDefinition.Refs))
+			inaccessibleValues := make([]string, 0)
+			for _, valueRef := range v.Definition.EnumTypeDefinitions[typeDefinitionNode.Ref].EnumValuesDefinition.Refs {
+				valueName := v.Definition.EnumValueDefinitionNameString(valueRef)
+				values = append(values, valueName)
+
+				if _, isInaccessible := v.Definition.EnumValueDefinitionDirectiveByName(valueRef, []byte("inaccessible")); isInaccessible {
+					inaccessibleValues = append(inaccessibleValues, valueName)
+				}
+			}
+			return &resolve.Enum{
+				Path:               path,
+				Nullable:           nullable,
+				TypeName:           typeName,
+				Values:             values,
+				InaccessibleValues: inaccessibleValues,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{

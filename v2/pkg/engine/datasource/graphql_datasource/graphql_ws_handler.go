@@ -20,7 +20,7 @@ import (
 // it is responsible for managing all subscriptions using the underlying WebSocket connection
 // if all Subscriptions are complete or cancelled/unsubscribed the handler will terminate
 type gqlWSConnectionHandler struct {
-	// The underlying net.Conn. Only used for epoll. Should not be used to shutdown the connection.
+	// The underlying net.Conn. Only used for netPoll. Should not be used to shutdown the connection.
 	conn                          net.Conn
 	requestContext, engineContext context.Context
 	log                           abstractlogger.Logger
@@ -85,7 +85,7 @@ func newGQLWSConnectionHandler(requestContext, engineContext context.Context, co
 	}
 	return &connection{
 		handler: handler,
-		conn:    conn,
+		netConn: conn,
 	}
 }
 

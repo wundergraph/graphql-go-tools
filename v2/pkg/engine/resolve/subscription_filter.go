@@ -7,6 +7,7 @@ import (
 	"regexp"
 
 	"github.com/buger/jsonparser"
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
@@ -106,8 +107,24 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 				var valueType jsonparser.ValueType
 
 				if f.Values[i].Segments[0].SegmentType == VariableSegmentType {
-					_, valueType, _, err = jsonparser.Get(ctx.Variables, f.Values[i].Segments[0].VariableSourcePath...)
-					if err != nil {
+					value := ctx.Variables.Get(f.Values[i].Segments[0].VariableSourcePath...)
+					if value == nil {
+						return true, nil
+					}
+					switch value.Type() {
+					case astjson.TypeString:
+						valueType = jsonparser.String
+					case astjson.TypeNumber:
+						valueType = jsonparser.Number
+					case astjson.TypeTrue, astjson.TypeFalse:
+						valueType = jsonparser.Boolean
+					case astjson.TypeNull:
+						valueType = jsonparser.Null
+					case astjson.TypeObject:
+						valueType = jsonparser.Object
+					case astjson.TypeArray:
+						valueType = jsonparser.Array
+					default:
 						return true, nil
 					}
 				} else if f.Values[i].Segments[0].SegmentType == StaticSegmentType {

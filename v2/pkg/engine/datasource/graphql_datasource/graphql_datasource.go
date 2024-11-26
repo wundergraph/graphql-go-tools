@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,8 +32,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
-
-const removeNullVariablesDirectiveName = "removeNullVariables"
 
 var (
 	DefaultPostProcessingConfiguration = resolve.PostProcessingConfiguration{
@@ -74,7 +74,6 @@ type Planner[T Configuration] struct {
 	addDirectivesToVariableDefinitions map[int][]int
 	insideCustomScalarField            bool
 	customScalarFieldRef               int
-	unnulVariables                     bool
 	parentTypeNodes                    []ast.Node
 
 	// federation
@@ -296,10 +295,6 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
-	if p.unnulVariables {
-		input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
-	}
-
 	header, err := json.Marshal(p.config.fetch.Header)
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
@@ -405,20 +400,40 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 }
 
-func (p *Planner[T]) EnterOperationDefinition(ref int) {
-	if p.visitor.Operation.OperationDefinitions[ref].HasDirectives &&
-		p.visitor.Operation.OperationDefinitions[ref].Directives.HasDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName) {
-		p.unnulVariables = true
-		p.visitor.Operation.OperationDefinitions[ref].Directives.RemoveDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName)
+func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
+	operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
+	if len(operationName) == 0 {
+		return ""
 	}
 
+	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
+
+	builder := strings.Builder{}
+	builder.Grow(len(operationName) + len(p.dataSourceConfig.Name()) + len(fetchID) + 4) // 4 is for delimiters "__"
+
+	builder.Write(operationName)
+	builder.WriteString("__" + p.dataSourceConfig.Name() + "__" + fetchID)
+
+	return builder.String()
+}
+
+func (p *Planner[T]) EnterOperationDefinition(ref int) {
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.dataSourcePlannerConfig.IsNested {
 		operationType = ast.OperationTypeQuery
 	}
+
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
 		OperationType: operationType,
 	})
+
+	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
+		operation := p.buildUpstreamOperationName(ref)
+		if operation != "" {
+			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)
+		}
+	}
+
 	p.nodes = append(p.nodes, definition)
 }
 
@@ -1649,50 +1664,44 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	if err != nil {
 		return input
 	}
+
+	// if variables are null or empty object, do nothing
 	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
 		return input
 	}
-	if bytes.ContainsAny(variables, " \t\n\r") {
+
+	// remove null variables which actually was undefined in the original user request
+	variables = s.cleanupVariables(variables, undefinedVariables)
+
+	// compact
+	if !bytes.ContainsAny(variables, " \t\n\r") {
 		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
 		if err := json.Compact(buf, variables); err != nil {
-			panic(fmt.Errorf("compacting variables: %w", err))
+			return variables
 		}
 		variables = buf.Bytes()
 	}
-
-	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULL_VARIABLES)
-	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
 
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 
-// cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
-// otherwise returns the input as is
-func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, undefinedVariables []string) []byte {
-	cp := make([]byte, len(variables))
-	copy(cp, variables)
-
+// cleanupVariables removes null variables which listed in the list of undefinedVariables
+func (s *Source) cleanupVariables(variables []byte, undefinedVariables []string) []byte {
 	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
-	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	if len(undefinedVariables) == 0 {
+		return variables
+	}
+	_ = jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		if dataType == jsonparser.Null {
 			stringKey := unsafebytes.BytesToString(key)
-			if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
-				cp = jsonparser.Delete(cp, stringKey)
+			if slices.Contains(undefinedVariables, stringKey) {
+				variables = jsonparser.Delete(variables, stringKey)
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return variables
-	}
-
-	// remove empty objects
-	if removeNullVariables {
-		cp = s.removeEmptyObjects(cp)
-	}
-
-	return cp
+	return variables
 }
 
 // removeEmptyObjects removes empty objects from JSON: {"b": "b", "c": {}} -> {"b": "b"}
@@ -1779,6 +1788,8 @@ func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input [
 	return s.client.SubscribeAsync(ctx, id, options, updater)
 }
 
+// AsyncStop stops the subscription with the given id. AsyncStop is only effective when netPoll is enabled
+// because without netPoll we manage the lifecycle of the connection in the subscription client.
 func (s *SubscriptionSource) AsyncStop(id uint64) {
 	s.client.Unsubscribe(id)
 }

@@ -239,14 +239,14 @@ type DataSource interface {
 	Name() string
 	Hash() DSHash
 	FederationConfiguration() FederationMetaData
-	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
+	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration Configuration) PlannerConfiguration
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
 	return d.custom
 }
 
-func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {
+func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration Configuration) PlannerConfiguration {
 	planner := d.factory.Planner(logger)
 
 	fetchConfig.planner = planner
@@ -256,6 +256,9 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		objectFetchConfiguration:  fetchConfig,
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
+		options: plannerConfigurationOptions{
+			EnableOperationNamePropagation: configuration.EnableOperationNamePropagation,
+		},
 	}
 
 	return plannerConfig
@@ -286,6 +289,8 @@ type DataSourcePlannerConfiguration struct {
 	ParentPath     string
 	PathType       PlannerPathType
 	IsNested       bool
+	Options        plannerConfigurationOptions
+	FetchID        int
 }
 
 type PlannerPathType int

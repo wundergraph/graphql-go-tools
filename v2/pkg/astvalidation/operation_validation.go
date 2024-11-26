@@ -2,20 +2,17 @@
 package astvalidation
 
 import (
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-type ApolloCompatibilityFlags struct {
-	ReplaceUndefinedOpFieldErrorEnabled bool
-}
-
 type OperationValidatorOptions struct {
-	ApolloCompatibilityFlags ApolloCompatibilityFlags
+	ApolloCompatibilityFlags apollocompatibility.Flags
 }
 
-func WithApolloCompatibilityFlags(flags ApolloCompatibilityFlags) Option {
+func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
 	return func(options *OperationValidatorOptions) {
 		options.ApolloCompatibilityFlags = flags
 	}

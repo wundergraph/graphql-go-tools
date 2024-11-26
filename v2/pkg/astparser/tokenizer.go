@@ -19,7 +19,7 @@ type Tokenizer struct {
 // NewTokenizer returns a new tokenizer
 func NewTokenizer() *Tokenizer {
 	return &Tokenizer{
-		tokens:       make([]token.Token, 256),
+		tokens:       make([]token.Token, 0, 64),
 		lexer:        &lexer.Lexer{},
 		skipComments: true,
 	}

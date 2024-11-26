@@ -28,9 +28,7 @@ type variablesDefaultValueExtractionVisitor struct {
 	*astvisitor.Walker
 	operation, definition                             *ast.Document
 	importer                                          astimport.Importer
-	operationName                                     []byte
 	operationRef                                      int
-	skip                                              bool
 	variablesNamesUsedInPositionsExpectingNonNullType [][]byte
 	variableRefsWithDefaultValuesDefined              []int
 }
@@ -39,9 +37,6 @@ func (v *variablesDefaultValueExtractionVisitor) EnterArgument(ref int) {
 	// variable could be used in directive argument which requires non-null type
 	// in case such variable has default value and not of non-null type, we need to make it non-null
 
-	if v.skip {
-		return
-	}
 	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
 	}
@@ -62,10 +57,6 @@ func (v *variablesDefaultValueExtractionVisitor) EnterArgument(ref int) {
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
-	if v.skip {
-		return
-	}
-
 	// find field definition from document
 	fieldName := v.operation.FieldNameBytes(ref)
 	fieldDefRef, ok := v.definition.NodeFieldDefinitionByName(v.EnclosingTypeDefinition, fieldName)
@@ -91,10 +82,6 @@ func (v *variablesDefaultValueExtractionVisitor) EnterField(ref int) {
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int) {
-	if v.skip {
-		return
-	}
-
 	// skip when we have no default value for variable
 	if !v.operation.VariableDefinitionHasDefaultValue(ref) {
 		return
@@ -135,23 +122,10 @@ func (v *variablesDefaultValueExtractionVisitor) EnterVariableDefinition(ref int
 }
 
 func (v *variablesDefaultValueExtractionVisitor) EnterOperationDefinition(ref int) {
-	if len(v.operationName) == 0 {
-		v.skip = false
-		return
-	}
-	operationName := v.operation.OperationDefinitionNameBytes(ref)
 	v.operationRef = ref
-	v.skip = !bytes.Equal(operationName, v.operationName)
-
-	v.variablesNamesUsedInPositionsExpectingNonNullType = make([][]byte, 0, len(v.operation.VariableDefinitions))
-	v.variableRefsWithDefaultValuesDefined = make([]int, 0, len(v.operation.VariableDefinitions))
 }
 
-func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(_ int) {
-	if v.skip {
-		return
-	}
-
+func (v *variablesDefaultValueExtractionVisitor) LeaveOperationDefinition(ref int) {
 	// find and make variable not null
 	for j := 0; j < len(v.variableRefsWithDefaultValuesDefined); j++ {
 		variableDefRef := v.variableRefsWithDefaultValuesDefined[j]
@@ -232,4 +206,6 @@ func (v *variablesDefaultValueExtractionVisitor) saveArgumentsWithTypeNotNull(op
 
 func (v *variablesDefaultValueExtractionVisitor) EnterDocument(operation, definition *ast.Document) {
 	v.operation, v.definition = operation, definition
+	v.variablesNamesUsedInPositionsExpectingNonNullType = make([][]byte, 0, len(v.operation.VariableDefinitions))
+	v.variableRefsWithDefaultValuesDefined = make([]int, 0, len(v.operation.VariableDefinitions))
 }

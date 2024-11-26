@@ -48,7 +48,6 @@ type AsyncErrorWriter interface {
 type Resolver struct {
 	ctx            context.Context
 	options        ResolverOptions
-	bufPool        sync.Pool
 	maxConcurrency chan struct{}
 
 	triggers               map[uint64]*trigger
@@ -58,6 +57,9 @@ type Resolver struct {
 	triggerUpdatesSem      *semaphore.Weighted
 	triggerUpdateBuf       *bytes.Buffer
 
+	allowedErrorExtensionFields map[string]struct{}
+	allowedErrorFields          map[string]struct{}
+
 	connectionIDs atomic.Int64
 
 	reporter         Reporter
@@ -65,13 +67,6 @@ type Resolver struct {
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
-
-	// We create dedicated pools for request and subscription tools to more efficiently manage memory
-	// The assumption is that subscription responses are smaller than regular requests and we avoid
-	// the overhead of allocating memory for the larger request tools
-
-	requestTools      *sync.Pool
-	subscriptionTools *sync.Pool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -191,16 +186,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		reporter:                     options.Reporter,
 		asyncErrorWriter:             options.AsyncErrorWriter,
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
-		requestTools: &sync.Pool{
-			New: func() any {
-				return newTools(options, allowedExtensionFields, allowedErrorFields)
-			},
-		},
-		subscriptionTools: &sync.Pool{
-			New: func() any {
-				return newTools(options, allowedExtensionFields, allowedErrorFields)
-			},
-		},
+		allowedErrorExtensionFields:  allowedExtensionFields,
+		allowedErrorFields:           allowedErrorFields,
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
@@ -239,48 +226,6 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 	}
 }
 
-// getRequestTools returns a new tools struct with a limit of how many can be created concurrently
-// The limit is defined by the MaxConcurrency option. Use putRequestTools to return the tools struct back to the pool
-func (r *Resolver) getRequestTools() (time.Duration, *tools) {
-	start := time.Now()
-	<-r.maxConcurrency
-	tool := r.requestTools.Get().(*tools)
-	return time.Since(start), tool
-}
-
-// putRequestTools returns the tools struct back to the pool and releases the semaphore
-func (r *Resolver) putRequestTools(t *tools) {
-	t.loader.Free()
-	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
-	r.requestTools.Put(t)
-	r.maxConcurrency <- struct{}{}
-}
-
-// getSubscriptionTools returns a new tools struct. Use putSubscriptionTools to return the tools struct back to the pool.
-func (r *Resolver) getSubscriptionTools() *tools {
-	return r.subscriptionTools.Get().(*tools)
-}
-
-// putSubscriptionTools returns the tools struct back to the pool
-func (r *Resolver) putSubscriptionTools(t *tools) {
-	t.loader.Free()
-	t.resolvable.Reset(r.options.MaxRecyclableParserSize)
-	r.subscriptionTools.Put(t)
-}
-
-func (r *Resolver) getBuffer() *bytes.Buffer {
-	maybeBuffer := r.bufPool.Get()
-	if maybeBuffer == nil {
-		return &bytes.Buffer{}
-	}
-	return maybeBuffer.(*bytes.Buffer)
-}
-
-func (r *Resolver) releaseBuffer(buf *bytes.Buffer) {
-	buf.Reset()
-	r.bufPool.Put(buf)
-}
-
 type GraphQLResolveInfo struct {
 	ResolveAcquireWaitTime time.Duration
 }
@@ -289,18 +234,14 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 	resp := &GraphQLResolveInfo{}
 
-	toolsCleaned := false
-	acquireWaitTime, t := r.getRequestTools()
-	resp.ResolveAcquireWaitTime = acquireWaitTime
-
-	// Ensure that the tools are returned even on panic
-	// This is important because getTools() acquires a semaphore
-	// and if we don't return the tools, we will have a deadlock
+	start := time.Now()
+	<-r.maxConcurrency
+	resp.ResolveAcquireWaitTime = time.Since(start)
 	defer func() {
-		if !toolsCleaned {
-			r.putRequestTools(t)
-		}
+		r.maxConcurrency <- struct{}{}
 	}()
+
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -314,14 +255,8 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		}
 	}
 
-	buf := r.getBuffer()
-	defer r.releaseBuffer(buf)
+	buf := &bytes.Buffer{}
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
-
-	// Return the tools as soon as possible. More efficient in case of a slow client / network.
-	r.putRequestTools(t)
-	toolsCleaned = true
-
 	if err != nil {
 		return nil, err
 	}
@@ -351,8 +286,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	t := r.getSubscriptionTools()
-	defer r.putSubscriptionTools(t)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)

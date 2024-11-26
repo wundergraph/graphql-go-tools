@@ -3,9 +3,15 @@ package graphql_datasource
 import (
 	"testing"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
@@ -3722,4 +3728,60 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 
 	})
 
+}
+
+func BenchmarkPlanner(b *testing.B) {
+
+	federationFactory := &Factory[Configuration]{}
+	definition := EntityInterfacesDefinition
+	planConfiguration := *EntityInterfacesPlanConfigurationBench(b, federationFactory)
+
+	operation := `
+				query _13_InterfaceToInterfaceObjects_InterfaceFragment_ExternalField {
+					allAccountsInterface {
+						... on Account {
+							id
+							title
+							locations {
+								country
+							}
+							age
+						}
+					}
+				}`
+
+	operationName := "_13_InterfaceToInterfaceObjects_InterfaceFragment_ExternalField"
+
+	def := unsafeparser.ParseGraphqlDocumentString(definition)
+	op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+	err := asttransform.MergeDefinitionWithBaseSchema(&def)
+	if err != nil {
+		b.Fatal(err)
+	}
+	norm := astnormalization.NewWithOpts(astnormalization.WithExtractVariables(), astnormalization.WithInlineFragmentSpreads(), astnormalization.WithRemoveFragmentDefinitions(), astnormalization.WithRemoveUnusedVariables())
+	var report operationreport.Report
+	norm.NormalizeOperation(&op, &def, &report)
+
+	normalized := unsafeprinter.PrettyPrint(&op)
+	_ = normalized
+
+	valid := astvalidation.DefaultOperationValidator()
+	valid.Validate(&op, &def, &report)
+
+	p, err := plan.NewPlanner(planConfiguration)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		actualPlan := p.Plan(&op, &def, operationName, &report)
+		_ = actualPlan
+		if report.HasErrors() {
+			b.Fatal(report.Error())
+		}
+	}
 }

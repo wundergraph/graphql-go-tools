@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"net/http"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -50,7 +52,9 @@ func (e *internalExecutionContext) setContext(ctx context.Context) {
 }
 
 func (e *internalExecutionContext) setVariables(variables []byte) {
-	e.resolveContext.Variables = variables
+	if len(variables) != 0 {
+		e.resolveContext.Variables = astjson.MustParseBytes(variables)
+	}
 }
 
 func (e *internalExecutionContext) reset() {
@@ -58,10 +62,11 @@ func (e *internalExecutionContext) reset() {
 }
 
 type ExecutionEngine struct {
-	logger             abstractlogger.Logger
-	config             Configuration
-	resolver           *resolve.Resolver
-	executionPlanCache *lru.Cache
+	logger                   abstractlogger.Logger
+	config                   Configuration
+	resolver                 *resolve.Resolver
+	executionPlanCache       *lru.Cache
+	apolloCompatibilityFlags apollocompatibility.Flags
 }
 
 type WebsocketBeforeStartHook interface {
@@ -135,6 +140,9 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		config:             engineConfig,
 		resolver:           resolve.New(ctx, resolverOptions),
 		executionPlanCache: executionPlanCache,
+		apolloCompatibilityFlags: apollocompatibility.Flags{
+			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
+		},
 	}, nil
 }
 
@@ -177,7 +185,9 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 
 	// Validate user-supplied and extracted variables against the operation.
 	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
-		validator := variablesvalidation.NewVariablesValidator()
+		validator := variablesvalidation.NewVariablesValidator(variablesvalidation.VariablesValidatorOptions{
+			ApolloCompatibilityFlags: e.apolloCompatibilityFlags,
+		})
 		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
 			return err
 		}

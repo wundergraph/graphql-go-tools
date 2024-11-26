@@ -15,6 +15,11 @@ type plannerConfiguration[T any] struct {
 	objectFetchConfiguration *objectFetchConfiguration
 
 	requiredFields FederationFieldConfigurations
+	options        plannerConfigurationOptions
+}
+
+type plannerConfigurationOptions struct {
+	EnableOperationNamePropagation bool
 }
 
 type PlannerConfiguration interface {
@@ -37,6 +42,8 @@ func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 		ParentPath:     p.parentPath,
 		PathType:       p.parentPathType,
 		IsNested:       p.IsNestedPlanner(),
+		FetchID:        p.objectFetchConfiguration.fetchID,
+		Options:        p.options,
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
