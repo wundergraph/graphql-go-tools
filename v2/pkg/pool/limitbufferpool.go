@@ -43,7 +43,7 @@ func NewLimitBufferPool(ctx context.Context, options LimitBufferPoolOptions) *Li
 		options.DefaultBufferSize = 1024 * 8 // 8KB
 	}
 	if options.MaxBuffers == 0 {
-		options.MaxBuffers = runtime.NumCPU()
+		options.MaxBuffers = runtime.GOMAXPROCS(-1)
 	}
 	if options.MaxBuffers < 8 {
 		options.MaxBuffers = 8
