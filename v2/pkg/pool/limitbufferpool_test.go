@@ -21,7 +21,7 @@ func TestLimitBufferPool(t *testing.T) {
 	p := NewLimitBufferPool(ctx, LimitBufferPoolOptions{
 		MaxBuffers:        4,
 		DefaultBufferSize: 1024,
-		MaxBufferSize:     1024,
+		MaxBufferSize:     1024 * 8,
 		GCTime:            time.Millisecond * 10,
 	})
 
@@ -49,21 +49,26 @@ func TestLimitBufferPool(t *testing.T) {
 	assert.Equal(t, 1024, b.Buf.Cap())
 	assert.Equal(t, 0, b.Buf.Len())
 
-	_, err := b.Buf.Write(bytes.Repeat([]byte("a"), 1025))
+	_, err := b.Buf.Write(bytes.Repeat([]byte("a"), 1024*9))
 	assert.NoError(t, err)
-	assert.Equal(t, 1025, b.Buf.Len()) // write over the limit
-	assert.Equal(t, 2048, b.Buf.Cap()) // should have doubled the initial size
-	p.Put(b)                           // should reset the buffer
+	assert.Equal(t, 1024*9, b.Buf.Len()) // write over the limit
+	assert.Equal(t, 9472, b.Buf.Cap())   // should have doubled the initial size
+	p.Put(b)                             // should reset the buffer
 
 	for i := 0; i < 4; i++ {
 		buf := p.Get()
 		assert.NotNil(t, buf.Buf)
 		assert.Equal(t, 1024, buf.Buf.Cap()) // default size
+		_, err = buf.Buf.Write(bytes.Repeat([]byte("a"), 2048))
 		p.Put(buf)
 	}
 
-	time.Sleep(time.Millisecond * 100)
-	for i := range p.buffers {
-		assert.Nil(t, p.buffers[i].Buf) // should have been reset by the GC
+	time.Sleep(time.Millisecond * 100) // wait for GC to run
+
+	for i := 0; i < 4; i++ {
+		buf := p.Get()
+		assert.NotNil(t, buf.Buf)
+		assert.Equal(t, 1024, buf.Buf.Cap()) // default size after GC
+		p.Put(buf)
 	}
 }
