@@ -1,8 +1,10 @@
 package resolve
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
+	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -20,6 +22,42 @@ type Fetch interface {
 	FetchKind() FetchKind
 	Dependencies() FetchDependencies
 	DataSourceInfo() DataSourceInfo
+
+	GetBuffer() *bytes.Buffer
+	ReportResponseSize(out *bytes.Buffer)
+}
+
+// FetchBufferSizeCalculator calculates the right size for a buffer based on the previous 64 fetches
+// Instead of using a buffer with a random default size and growing it to the right cap
+// FetchBufferSizeCalculator uses information about previous fetches to suggest a reasonable size
+// Overall, this has shown to reduce bytes.growSlice operations to almost zero in hot paths
+type FetchBufferSizeCalculator struct {
+	mux   sync.RWMutex
+	count int
+	total int
+}
+
+func (f *FetchBufferSizeCalculator) GetBuffer() *bytes.Buffer {
+	f.mux.RLock()
+	defer f.mux.RUnlock()
+	if f.count == 0 {
+		return bytes.NewBuffer(make([]byte, 0, 1024*4))
+	}
+	size := f.total / f.count
+	return bytes.NewBuffer(make([]byte, 0, size))
+}
+
+func (f *FetchBufferSizeCalculator) ReportResponseSize(out *bytes.Buffer) {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	inc := out.Cap()
+	if f.count > 64 { // reset after 64 fetches
+		f.total = inc
+		f.count = 1
+	} else {
+		f.count++
+		f.total += inc
+	}
 }
 
 type FetchItem struct {
@@ -71,6 +109,7 @@ const (
 )
 
 type SingleFetch struct {
+	FetchBufferSizeCalculator
 	FetchConfiguration
 	FetchDependencies
 	InputTemplate        InputTemplate
@@ -140,6 +179,7 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 // allows to join nested fetches to the same subgraph into a single fetch
 // representations variable will contain multiple items according to amount of entities matching this query
 type BatchEntityFetch struct {
+	FetchBufferSizeCalculator
 	FetchDependencies
 	Input                BatchInput
 	DataSource           DataSource
@@ -182,6 +222,7 @@ func (_ *BatchEntityFetch) FetchKind() FetchKind {
 // EntityFetch - represents nested entity fetch on object field
 // representations variable will contain single item
 type EntityFetch struct {
+	FetchBufferSizeCalculator
 	FetchDependencies
 	Input                EntityInput
 	DataSource           DataSource
@@ -217,6 +258,7 @@ func (_ *EntityFetch) FetchKind() FetchKind {
 // Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
 // However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
 type ParallelListItemFetch struct {
+	FetchBufferSizeCalculator
 	Fetch  *SingleFetch
 	Traces []*SingleFetch
 	Trace  *DataSourceLoadTrace

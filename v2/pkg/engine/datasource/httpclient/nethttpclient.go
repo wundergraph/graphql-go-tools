@@ -199,11 +199,6 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	}
 
 	if !enableTrace {
-		if response.ContentLength > 0 {
-			out.Grow(int(response.ContentLength))
-		} else {
-			out.Grow(1024 * 4)
-		}
 		_, err = out.ReadFrom(respReader)
 		return
 	}

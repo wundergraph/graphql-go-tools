@@ -155,12 +155,13 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
 		res := &result{
-			out: &bytes.Buffer{},
+			out: f.GetBuffer(),
 		}
 		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 		if err != nil {
 			return err
 		}
+		f.ReportResponseSize(res.out)
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
@@ -168,12 +169,13 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *BatchEntityFetch:
 		res := &result{
-			out: &bytes.Buffer{},
+			out: f.GetBuffer(),
 		}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		f.ReportResponseSize(res.out)
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
@@ -181,12 +183,13 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return err
 	case *EntityFetch:
 		res := &result{
-			out: &bytes.Buffer{},
+			out: f.GetBuffer(),
 		}
 		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		f.ReportResponseSize(res.out)
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
@@ -201,7 +204,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: &bytes.Buffer{},
+				out: f.GetBuffer(),
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -220,6 +223,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		for i := range results {
+			f.ReportResponseSize(results[i].out)
 			err = l.mergeResult(item, results[i], items[i:i+1])
 			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
 				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
@@ -369,7 +373,8 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		res.out = &bytes.Buffer{}
+		res.out = fetch.GetBuffer()
+		defer fetch.ReportResponseSize(res.out)
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
@@ -380,7 +385,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		for i := range items {
 			i := i
 			results[i] = &result{
-				out: &bytes.Buffer{},
+				out: fetch.GetBuffer(),
 			}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
@@ -399,12 +404,17 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 			return errors.WithStack(err)
 		}
 		res.nestedMergeItems = results
+		for i := range results {
+			fetch.ReportResponseSize(results[i].out)
+		}
 		return nil
 	case *EntityFetch:
-		res.out = &bytes.Buffer{}
+		res.out = fetch.GetBuffer()
+		defer fetch.ReportResponseSize(res.out)
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
-		res.out = &bytes.Buffer{}
+		res.out = fetch.GetBuffer()
+		defer fetch.ReportResponseSize(res.out)
 		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil

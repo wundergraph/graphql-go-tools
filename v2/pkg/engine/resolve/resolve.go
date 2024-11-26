@@ -67,6 +67,8 @@ type Resolver struct {
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
+
+	resolvableBufferPool *pool.LimitBufferPool
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -142,6 +144,8 @@ type ResolverOptions struct {
 	ResolvableOptions ResolvableOptions
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
+	// BufferPoolOptions defines the size & limits of the resolvable buffer pool
+	BufferPoolOptions pool.LimitBufferPoolOptions
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -188,6 +192,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
 		allowedErrorExtensionFields:  allowedExtensionFields,
 		allowedErrorFields:           allowedErrorFields,
+		resolvableBufferPool:         pool.NewLimitBufferPool(ctx, options.BufferPoolOptions),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
@@ -242,6 +247,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}()
 
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	defer t.resolvable.Reset() // set all references to nil, e.g. pointers to buffers
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -254,15 +260,17 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 			return nil, err
 		}
 	}
-
-	buf := &bytes.Buffer{}
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	buf := r.resolvableBufferPool.Get()
+	defer r.resolvableBufferPool.Put(buf)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf.Buf)
 	if err != nil {
 		return nil, err
 	}
-
-	_, err = buf.WriteTo(writer)
-	return resp, err
+	_, err = buf.Buf.WriteTo(writer)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 type trigger struct {
@@ -287,6 +295,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	defer t.resolvable.Reset() // reset all references
 
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
