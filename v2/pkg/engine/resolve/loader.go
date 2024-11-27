@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
+	"net/http"
 	"net/http/httptrace"
 	"slices"
 	"strconv"
@@ -38,6 +39,10 @@ type LoaderHooks interface {
 	OnLoad(ctx context.Context, ds DataSourceInfo) context.Context
 	// OnFinished is called after the fetch has been executed and the response has been processed and merged
 	OnFinished(ctx context.Context, statusCode int, ds DataSourceInfo, err error)
+}
+
+type HttpLoaderHooks interface {
+	OnHttpFinished(ctx context.Context, ds DataSourceInfo, err error, request *http.Request, response *http.Response)
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -120,6 +125,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
 					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].ds, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
 				}
+				if l.ctx.HttpLoaderHooks != nil && results[i].nestedMergeItems[j].httpResponseContext != nil {
+					l.ctx.HttpLoaderHooks.OnHttpFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].ds, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors), results[i].nestedMergeItems[j].httpResponseContext.Request, results[i].nestedMergeItems[j].httpResponseContext.Response)
+				}
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -128,6 +136,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
 				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			}
+			if l.ctx.HttpLoaderHooks != nil && results[i].httpResponseContext != nil {
+				l.ctx.HttpLoaderHooks.OnHttpFinished(results[i].loaderHookContext, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors), results[i].httpResponseContext.Request, results[i].httpResponseContext.Response)
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -165,6 +176,10 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
+		if l.ctx.HttpLoaderHooks != nil && res.httpResponseContext != nil {
+			l.ctx.HttpLoaderHooks.OnHttpFinished(res.loaderHookContext, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors), res.httpResponseContext.Request, res.httpResponseContext.Response)
+		}
+
 		return err
 	case *BatchEntityFetch:
 		res := &result{
@@ -178,6 +193,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
 		}
+		if l.ctx.HttpLoaderHooks != nil && res.httpResponseContext != nil {
+			l.ctx.HttpLoaderHooks.OnHttpFinished(res.loaderHookContext, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors), res.httpResponseContext.Request, res.httpResponseContext.Response)
+		}
 		return err
 	case *EntityFetch:
 		res := &result{
@@ -190,6 +208,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
+		}
+		if l.ctx.HttpLoaderHooks != nil && res.httpResponseContext != nil {
+			l.ctx.HttpLoaderHooks.OnHttpFinished(res.loaderHookContext, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors), res.httpResponseContext.Request, res.httpResponseContext.Response)
 		}
 		return err
 	case *ParallelListItemFetch:
@@ -223,6 +244,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			err = l.mergeResult(item, results[i], items[i:i+1])
 			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
 				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
+			}
+			if l.ctx.HttpLoaderHooks != nil && results[i].httpResponseContext != nil {
+				l.ctx.HttpLoaderHooks.OnHttpFinished(results[i].loaderHookContext, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors), results[i].httpResponseContext.Request, results[i].httpResponseContext.Response)
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -552,6 +576,8 @@ type result struct {
 	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
 	// Only set when the OnLoad is called
 	loaderHookContext context.Context
+
+	httpResponseContext *httpclient.ResponseContext
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -1533,6 +1559,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 	}
 
 	res.statusCode = responseContext.StatusCode
+	res.httpResponseContext = responseContext
 
 	if l.ctx.TracingOptions.Enable {
 		stats := GetSingleFlightStats(ctx)

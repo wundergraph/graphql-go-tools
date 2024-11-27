@@ -70,6 +70,8 @@ type responseContextKey struct{}
 
 type ResponseContext struct {
 	StatusCode int
+	Request    *http.Request
+	Response   *http.Response
 }
 
 func InjectResponseContext(ctx context.Context) (context.Context, *ResponseContext) {
@@ -77,9 +79,11 @@ func InjectResponseContext(ctx context.Context) (context.Context, *ResponseConte
 	return context.WithValue(ctx, responseContextKey{}, value), value
 }
 
-func setResponseStatusCode(ctx context.Context, statusCode int) {
+func setResponseStatus(ctx context.Context, request *http.Request, response *http.Response) {
 	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
-		value.StatusCode = statusCode
+		value.StatusCode = response.StatusCode
+		value.Request = request
+		value.Response = response
 	}
 }
 
@@ -190,8 +194,10 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		return err
 	}
 	defer response.Body.Close()
+	request.Header = redactHeaders(request.Header)
+	response.Header = redactHeaders(response.Header)
 
-	setResponseStatusCode(ctx, response.StatusCode)
+	setResponseStatus(ctx, request, response)
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
@@ -216,12 +222,12 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		Request: TraceHTTPRequest{
 			Method:  request.Method,
 			URL:     request.URL.String(),
-			Headers: redactHeaders(request.Header),
+			Headers: request.Header,
 		},
 		Response: TraceHTTPResponse{
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
-			Headers:    redactHeaders(response.Header),
+			Headers:    response.Header,
 			BodySize:   len(data),
 		},
 	}

@@ -24,6 +24,7 @@ type Context struct {
 	InitialPayload   []byte
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
+	HttpLoaderHooks  HttpLoaderHooks
 
 	authorizer  Authorizer
 	rateLimiter RateLimiter
@@ -66,6 +67,10 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
+}
+
+func (c *Context) SetEngineHttpLoaderHooks(hooks HttpLoaderHooks) {
+	c.HttpLoaderHooks = hooks
 }
 
 type RateLimitOptions struct {
@@ -153,6 +158,7 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
+	c.HttpLoaderHooks = nil
 }
 
 type traceStartKey struct{}
