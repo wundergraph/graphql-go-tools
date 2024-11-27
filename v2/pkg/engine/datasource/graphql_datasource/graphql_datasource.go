@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -400,19 +401,58 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	}
 }
 
+func sanitize(element string) string {
+	// replace all invalid characters with underscore
+	return strings.Map(func(r rune) rune {
+		if !unicode.IsDigit(r) && !unicode.IsLetter(r) && r != '_' {
+			return '_'
+		}
+		return r
+	}, element)
+}
+
+func sanitizeKey(element string) string {
+	if element == "" {
+		return ""
+	}
+
+	sanitized := sanitize(element)
+
+	// remove consecutive underscores and leave only one
+	builder := strings.Builder{}
+	var prev rune
+
+	for _, r := range sanitized {
+		if r == '_' && prev == '_' {
+			continue
+		}
+
+		builder.WriteRune(r)
+		prev = r
+	}
+
+	return builder.String()
+}
+
+// buildUpstreamOperationName builds the name of the upstream operation.
+// An operation name can only contain characters, digits and underscores. All other characters are replaced with underscores.
+// As the subgraph name can contain special characters we need to make sure to sanitize it.
 func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
-	operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref)
-	if len(operationName) == 0 {
+	operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref).String()
+	if operationName == "" {
 		return ""
 	}
 
 	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
 
 	builder := strings.Builder{}
-	builder.Grow(len(operationName) + len(p.dataSourceConfig.Name()) + len(fetchID) + 4) // 4 is for delimiters "__"
+	operationName = strings.Trim(operationName, "_")
 
-	builder.Write(operationName)
-	builder.WriteString("__" + p.dataSourceConfig.Name() + "__" + fetchID)
+	subgraphName := sanitizeKey(p.dataSourceConfig.Name())
+	subgraphName = strings.Trim(subgraphName, "_")
+
+	builder.Grow(len(operationName) + len(subgraphName) + len(fetchID) + 4) // 4 is for delimiters "__"
+	builder.WriteString(operationName + "__" + subgraphName + "__" + fetchID)
 
 	return builder.String()
 }
