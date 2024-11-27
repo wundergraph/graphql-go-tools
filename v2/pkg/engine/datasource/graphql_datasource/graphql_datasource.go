@@ -416,11 +416,6 @@ func sanitizeKey(element string) string {
 		return ""
 	}
 
-	// remove leading digits from element
-	element = strings.TrimLeftFunc(element, func(r rune) bool {
-		return unicode.IsDigit(r)
-	})
-
 	sanitized := sanitize(element)
 
 	// remove consecutive underscores and leave only one
