@@ -8500,6 +8500,42 @@ func TestLoadFiles(t *testing.T) {
 	})
 }
 
+func TestSanitizeKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "should replace leading and trailing whitespace with underscores",
+			input:    "  key  ",
+			expected: "_key_",
+		},
+		{
+			name:     "should replace special characters with underscores and deduplicate them",
+			input:    "#$%^&*()key!@#$%^&*()_+{}|:\"<>?`~[]\\;',./",
+			expected: "_key_",
+		},
+		{
+			name:     "should ignore empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "should deduplicate underscores within the string",
+			input:    "a____b___c___$%d____e__g___6$%_7",
+			expected: "a_b_c_d_e_g_6_7",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, test.expected, sanitizeKey(test.input))
+		})
+	}
+}
+
 const interfaceSelectionSchema = `
 
 scalar String
