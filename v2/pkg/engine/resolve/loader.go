@@ -54,6 +54,16 @@ type ResponseInfo struct {
 	ResponseHeaders http.Header
 }
 
+func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
+	responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, subgraphError)}
+	if res.httpResponseContext != nil {
+		responseInfo.Request = res.httpResponseContext.Request
+		responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+	}
+
+	return responseInfo
+}
+
 type result struct {
 	postProcessing   PostProcessingConfiguration
 	out              *bytes.Buffer
@@ -166,12 +176,9 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
 				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-					responseInfo := &ResponseInfo{StatusCode: results[i].nestedMergeItems[j].statusCode, Err: goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors)}
-					if results[i].nestedMergeItems[j].httpResponseContext != nil {
-						responseInfo.Request = results[i].nestedMergeItems[j].httpResponseContext.Request
-						responseInfo.ResponseHeaders = results[i].nestedMergeItems[j].httpResponseContext.Response.Header
-					}
-					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].ds, responseInfo)
+					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext,
+						results[i].nestedMergeItems[j].ds,
+						newResponseInfo(results[i].nestedMergeItems[j], l.ctx.subgraphErrors))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -180,13 +187,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			if l.ctx.LoaderHooks != nil {
-				responseInfo := &ResponseInfo{StatusCode: results[i].statusCode, Err: goerrors.Join(results[i].err, l.ctx.subgraphErrors)}
-				if results[i].httpResponseContext != nil {
-					responseInfo.Request = results[i].httpResponseContext.Request
-					responseInfo.ResponseHeaders = results[i].httpResponseContext.Response.Header
-				}
-
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, responseInfo)
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -222,13 +223,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
-			responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, l.ctx.subgraphErrors)}
-			if res.httpResponseContext != nil {
-				responseInfo.Request = res.httpResponseContext.Request
-				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
-			}
-
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, responseInfo)
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 
 		return err
@@ -242,13 +237,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
-			responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, l.ctx.subgraphErrors)}
-			if res.httpResponseContext != nil {
-				responseInfo.Request = res.httpResponseContext.Request
-				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
-			}
-
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, responseInfo)
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
 	case *EntityFetch:
@@ -261,13 +250,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
-			responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, l.ctx.subgraphErrors)}
-			if res.httpResponseContext != nil {
-				responseInfo.Request = res.httpResponseContext.Request
-				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
-			}
-
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, responseInfo)
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
 	case *ParallelListItemFetch:
@@ -300,12 +283,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		for i := range results {
 			err = l.mergeResult(item, results[i], items[i:i+1])
 			if l.ctx.LoaderHooks != nil {
-				responseInfo := &ResponseInfo{StatusCode: results[i].statusCode, Err: goerrors.Join(results[i].err, l.ctx.subgraphErrors)}
-				if results[i].httpResponseContext != nil {
-					responseInfo.Request = results[i].httpResponseContext.Request
-					responseInfo.ResponseHeaders = results[i].httpResponseContext.Response.Header
-				}
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, responseInfo)
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
 			}
 			if err != nil {
 				return errors.WithStack(err)
