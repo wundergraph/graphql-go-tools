@@ -58,7 +58,9 @@ func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, subgraphError)}
 	if res.httpResponseContext != nil {
 		responseInfo.Request = res.httpResponseContext.Request
-		responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+		if res.httpResponseContext.Response != nil {
+			responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+		}
 	}
 
 	return responseInfo
