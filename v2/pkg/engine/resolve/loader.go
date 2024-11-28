@@ -38,11 +38,54 @@ type LoaderHooks interface {
 	// OnLoad is called before the fetch is executed
 	OnLoad(ctx context.Context, ds DataSourceInfo) context.Context
 	// OnFinished is called after the fetch has been executed and the response has been processed and merged
-	OnFinished(ctx context.Context, statusCode int, ds DataSourceInfo, err error)
+	OnFinished(ctx context.Context, ds DataSourceInfo, info *ResponseInfo)
 }
 
-type HttpLoaderHooks interface {
-	OnHttpFinished(ctx context.Context, ds DataSourceInfo, err error, request *http.Request, response *http.Response)
+type DataSourceInfo struct {
+	ID   string
+	Name string
+}
+
+type ResponseInfo struct {
+	StatusCode int
+	Err        error
+	// When accessing the request, consumers should avoid accessing the Body field, because it is already read and closed.
+	Request         *http.Request
+	ResponseHeaders http.Header
+}
+
+type result struct {
+	postProcessing   PostProcessingConfiguration
+	out              *bytes.Buffer
+	batchStats       [][]int
+	fetchSkipped     bool
+	nestedMergeItems []*result
+
+	statusCode int
+	err        error
+	ds         DataSourceInfo
+
+	authorizationRejected        bool
+	authorizationRejectedReasons []string
+
+	rateLimitRejected       bool
+	rateLimitRejectedReason string
+
+	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
+	// It should be valid even when OnLoad isn't called
+	loaderHookContext context.Context
+
+	httpResponseContext *httpclient.ResponseContext
+}
+
+func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
+	r.postProcessing = postProcessing
+	if info != nil {
+		r.ds = DataSourceInfo{
+			ID:   info.DataSourceID,
+			Name: info.DataSourceName,
+		}
+	}
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -123,10 +166,12 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			for j := range results[i].nestedMergeItems {
 				err = l.mergeResult(nodes[i].Item, results[i].nestedMergeItems[j], itemsItems[i][j:j+1])
 				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
-					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].statusCode, results[i].nestedMergeItems[j].ds, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors))
-				}
-				if l.ctx.HttpLoaderHooks != nil && results[i].nestedMergeItems[j].httpResponseContext != nil {
-					l.ctx.HttpLoaderHooks.OnHttpFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].ds, goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors), results[i].nestedMergeItems[j].httpResponseContext.Request, results[i].nestedMergeItems[j].httpResponseContext.Response)
+					responseInfo := &ResponseInfo{StatusCode: results[i].nestedMergeItems[j].statusCode, Err: goerrors.Join(results[i].nestedMergeItems[j].err, l.ctx.subgraphErrors)}
+					if results[i].nestedMergeItems[j].httpResponseContext != nil {
+						responseInfo.Request = results[i].nestedMergeItems[j].httpResponseContext.Request
+						responseInfo.ResponseHeaders = results[i].nestedMergeItems[j].httpResponseContext.Response.Header
+					}
+					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext, results[i].nestedMergeItems[j].ds, responseInfo)
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -134,11 +179,14 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 			}
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
-			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
-			}
-			if l.ctx.HttpLoaderHooks != nil && results[i].httpResponseContext != nil {
-				l.ctx.HttpLoaderHooks.OnHttpFinished(results[i].loaderHookContext, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors), results[i].httpResponseContext.Request, results[i].httpResponseContext.Response)
+			if l.ctx.LoaderHooks != nil {
+				responseInfo := &ResponseInfo{StatusCode: results[i].statusCode, Err: goerrors.Join(results[i].err, l.ctx.subgraphErrors)}
+				if results[i].httpResponseContext != nil {
+					responseInfo.Request = results[i].httpResponseContext.Request
+					responseInfo.ResponseHeaders = results[i].httpResponseContext.Response.Header
+				}
+
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, responseInfo)
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -173,11 +221,14 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
-		}
-		if l.ctx.HttpLoaderHooks != nil && res.httpResponseContext != nil {
-			l.ctx.HttpLoaderHooks.OnHttpFinished(res.loaderHookContext, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors), res.httpResponseContext.Request, res.httpResponseContext.Response)
+		if l.ctx.LoaderHooks != nil {
+			responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, l.ctx.subgraphErrors)}
+			if res.httpResponseContext != nil {
+				responseInfo.Request = res.httpResponseContext.Request
+				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+			}
+
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, responseInfo)
 		}
 
 		return err
@@ -190,11 +241,14 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
-		}
-		if l.ctx.HttpLoaderHooks != nil && res.httpResponseContext != nil {
-			l.ctx.HttpLoaderHooks.OnHttpFinished(res.loaderHookContext, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors), res.httpResponseContext.Request, res.httpResponseContext.Response)
+		if l.ctx.LoaderHooks != nil {
+			responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, l.ctx.subgraphErrors)}
+			if res.httpResponseContext != nil {
+				responseInfo.Request = res.httpResponseContext.Request
+				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+			}
+
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, responseInfo)
 		}
 		return err
 	case *EntityFetch:
@@ -206,11 +260,14 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil && res.loaderHookContext != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.statusCode, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors))
-		}
-		if l.ctx.HttpLoaderHooks != nil && res.httpResponseContext != nil {
-			l.ctx.HttpLoaderHooks.OnHttpFinished(res.loaderHookContext, res.ds, goerrors.Join(res.err, l.ctx.subgraphErrors), res.httpResponseContext.Request, res.httpResponseContext.Response)
+		if l.ctx.LoaderHooks != nil {
+			responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, l.ctx.subgraphErrors)}
+			if res.httpResponseContext != nil {
+				responseInfo.Request = res.httpResponseContext.Request
+				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+			}
+
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, responseInfo)
 		}
 		return err
 	case *ParallelListItemFetch:
@@ -242,11 +299,13 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		for i := range results {
 			err = l.mergeResult(item, results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil && results[i].loaderHookContext != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].statusCode, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors))
-			}
-			if l.ctx.HttpLoaderHooks != nil && results[i].httpResponseContext != nil {
-				l.ctx.HttpLoaderHooks.OnHttpFinished(results[i].loaderHookContext, results[i].ds, goerrors.Join(results[i].err, l.ctx.subgraphErrors), results[i].httpResponseContext.Request, results[i].httpResponseContext.Response)
+			if l.ctx.LoaderHooks != nil {
+				responseInfo := &ResponseInfo{StatusCode: results[i].statusCode, Err: goerrors.Join(results[i].err, l.ctx.subgraphErrors)}
+				if results[i].httpResponseContext != nil {
+					responseInfo.Request = results[i].httpResponseContext.Request
+					responseInfo.ResponseHeaders = results[i].httpResponseContext.Response.Header
+				}
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, responseInfo)
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -549,45 +608,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 	return nil
-}
-
-type DataSourceInfo struct {
-	ID   string
-	Name string
-}
-
-type result struct {
-	postProcessing   PostProcessingConfiguration
-	out              *bytes.Buffer
-	batchStats       [][]int
-	fetchSkipped     bool
-	nestedMergeItems []*result
-
-	statusCode int
-	err        error
-	ds         DataSourceInfo
-
-	authorizationRejected        bool
-	authorizationRejectedReasons []string
-
-	rateLimitRejected       bool
-	rateLimitRejectedReason string
-
-	// loaderHookContext used to share data between the OnLoad and OnFinished hooks
-	// Only set when the OnLoad is called
-	loaderHookContext context.Context
-
-	httpResponseContext *httpclient.ResponseContext
-}
-
-func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
-	r.postProcessing = postProcessing
-	if info != nil {
-		r.ds = DataSourceInfo{
-			ID:   info.DataSourceID,
-			Name: info.DataSourceName,
-		}
-	}
 }
 
 var (
@@ -1552,6 +1572,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			res.err = l.loadByContext(res.loaderHookContext, source, input, res)
 		} else {
 			res.err = l.loadByContext(ctx, source, input, res)
+			res.loaderHookContext = ctx // Set the context to the original context to ensure that OnFinished hook gets valid context
 		}
 
 	} else {
