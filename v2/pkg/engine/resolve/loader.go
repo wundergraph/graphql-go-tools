@@ -49,17 +49,24 @@ type DataSourceInfo struct {
 type ResponseInfo struct {
 	StatusCode int
 	Err        error
-	// When accessing the request, consumers should avoid accessing the Body field, because it is already read and closed.
-	Request         *http.Request
+	// Request is the original request that was sent to the subgraph. This should only be used for reading purposes,
+	// in order to ensure there aren't memory conflicts, and the body will be nil, as it was read already.
+	Request *http.Request
+	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
 }
 
 func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, subgraphError)}
 	if res.httpResponseContext != nil {
-		responseInfo.Request = res.httpResponseContext.Request
+		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
+		// cause a memory leak.
 		if res.httpResponseContext.Response != nil {
-			responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header
+			responseInfo.Request = res.httpResponseContext.Response.Request
+			responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header.Clone()
+		} else {
+			// In cases where the request errors, the response will be nil, and so we need to get the original request
+			responseInfo.Request = res.httpResponseContext.Request
 		}
 	}
 

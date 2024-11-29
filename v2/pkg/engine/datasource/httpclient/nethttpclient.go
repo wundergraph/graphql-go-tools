@@ -194,8 +194,6 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		return err
 	}
 	defer response.Body.Close()
-	request.Header = redactHeaders(request.Header)
-	response.Header = redactHeaders(response.Header)
 
 	setResponseStatus(ctx, request, response)
 
@@ -222,12 +220,12 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		Request: TraceHTTPRequest{
 			Method:  request.Method,
 			URL:     request.URL.String(),
-			Headers: request.Header,
+			Headers: redactHeaders(request.Header.Clone()),
 		},
 		Response: TraceHTTPResponse{
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
-			Headers:    response.Header,
+			Headers:    redactHeaders(response.Header.Clone()),
 			BodySize:   len(data),
 		},
 	}
