@@ -220,12 +220,12 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		Request: TraceHTTPRequest{
 			Method:  request.Method,
 			URL:     request.URL.String(),
-			Headers: redactHeaders(request.Header.Clone()),
+			Headers: redactHeaders(request.Header),
 		},
 		Response: TraceHTTPResponse{
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
-			Headers:    redactHeaders(response.Header.Clone()),
+			Headers:    redactHeaders(response.Header),
 			BodySize:   len(data),
 		},
 	}
