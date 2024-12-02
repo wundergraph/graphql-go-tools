@@ -159,7 +159,11 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.printErr = nil
 	r.authorizationError = nil
 	r.errors = r.astjsonArena.NewArray()
-
+	defer func() {
+		// remove references to buffers when no longer needed
+		r.out = nil
+		r.errors = nil
+	}()
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
 		return fmt.Errorf("error resolving node")
