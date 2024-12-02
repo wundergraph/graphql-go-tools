@@ -5201,6 +5201,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
+			ctx:       context.Background(),
 			Variables: astjson.MustParseBytes([]byte(`{"id":1}`)),
 		}
 
@@ -5296,6 +5297,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
+			ctx:       context.Background(),
 			Variables: astjson.MustParseBytes([]byte(`{"id":2}`)),
 		}
 
@@ -5389,6 +5391,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
+			ctx:       context.Background(),
 			Variables: astjson.MustParseBytes([]byte(`{"ids":[1,2]}`)),
 		}
 
@@ -5487,6 +5490,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
+			ctx:       context.Background(),
 			Variables: astjson.MustParseBytes([]byte(`{"ids":["2","3"]}`)),
 		}
 
@@ -5595,6 +5599,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 		resolver := newResolver(c)
 
 		ctx := &Context{
+			ctx:       context.Background(),
 			Variables: astjson.MustParseBytes([]byte(`{"a":[1,2],"b":[3,4]}`)),
 		}
 
