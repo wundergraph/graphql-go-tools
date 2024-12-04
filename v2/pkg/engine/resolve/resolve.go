@@ -65,9 +65,9 @@ type Resolver struct {
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
 
-	propagateSubgraphErrors      bool
-	propagateSubgraphStatusCodes bool
-	heartbeatInterval            time.Duration
+	propagateSubgraphErrors       bool
+	propagateSubgraphStatusCodes  bool
+	multipartSubHeartbeatInterval time.Duration
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -143,8 +143,8 @@ type ResolverOptions struct {
 	ResolvableOptions ResolvableOptions
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
-	// HeartbeatInterval defines the interval in which a heartbeat is sent to all subscriptions
-	HeartbeatInterval time.Duration
+	// MultipartSubHeartbeatInterval defines the interval in which a heartbeat is sent to all multipart subscriptions
+	MultipartSubHeartbeatInterval time.Duration
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -154,8 +154,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		options.MaxConcurrency = 32
 	}
 
-	if options.HeartbeatInterval <= 0 {
-		options.HeartbeatInterval = DefaultHeartbeatInterval
+	if options.MultipartSubHeartbeatInterval <= 0 {
+		options.MultipartSubHeartbeatInterval = DefaultHeartbeatInterval
 	}
 
 	// We transform the allowed fields into a map for faster lookups
@@ -183,19 +183,19 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	}
 
 	resolver := &Resolver{
-		ctx:                          ctx,
-		options:                      options,
-		propagateSubgraphErrors:      options.PropagateSubgraphErrors,
-		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
-		events:                       make(chan subscriptionEvent),
-		triggers:                     make(map[uint64]*trigger),
-		heartbeatSubscriptions:       make(map[*Context]*sub),
-		reporter:                     options.Reporter,
-		asyncErrorWriter:             options.AsyncErrorWriter,
-		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
-		allowedErrorExtensionFields:  allowedExtensionFields,
-		allowedErrorFields:           allowedErrorFields,
-		heartbeatInterval:            options.HeartbeatInterval,
+		ctx:                           ctx,
+		options:                       options,
+		propagateSubgraphErrors:       options.PropagateSubgraphErrors,
+		propagateSubgraphStatusCodes:  options.PropagateSubgraphStatusCodes,
+		events:                        make(chan subscriptionEvent),
+		triggers:                      make(map[uint64]*trigger),
+		heartbeatSubscriptions:        make(map[*Context]*sub),
+		reporter:                      options.Reporter,
+		asyncErrorWriter:              options.AsyncErrorWriter,
+		triggerUpdateBuf:              bytes.NewBuffer(make([]byte, 0, 1024)),
+		allowedErrorExtensionFields:   allowedExtensionFields,
+		allowedErrorFields:            allowedErrorFields,
+		multipartSubHeartbeatInterval: options.MultipartSubHeartbeatInterval,
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
@@ -366,7 +366,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 
 func (r *Resolver) handleEvents() {
 	done := r.ctx.Done()
-	heartbeat := time.NewTicker(r.heartbeatInterval)
+	heartbeat := time.NewTicker(r.multipartSubHeartbeatInterval)
 	defer heartbeat.Stop()
 	for {
 		select {
@@ -415,7 +415,7 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 		// check if the last write to the subscription was more than heartbeat interval ago
 		c, s := c, s
 		s.mux.Lock()
-		skipHeartbeat := now.Sub(s.lastWrite) < r.heartbeatInterval
+		skipHeartbeat := now.Sub(s.lastWrite) < r.multipartSubHeartbeatInterval
 		s.mux.Unlock()
 		if skipHeartbeat {
 			continue
