@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"gonum.org/v1/gonum/stat/combin"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -168,22 +171,34 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			}
 		}
 
-		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
-		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
+		formatterConfig := map[reflect.Type]interface{}{
+			// normalize byte slices to strings
+			reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			// normalize map[string]struct{} to json array of keys
+			reflect.TypeOf(map[string]struct{}{}): func(m map[string]struct{}) string {
+				var keys []string
+				for k := range m {
+					keys = append(keys, k)
+				}
+				slices.Sort(keys)
 
-		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
-			formatterConfig := map[reflect.Type]interface{}{
-				reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
-			}
+				keysPrinted, _ := json.Marshal(keys)
+				return string(keysPrinted)
+			},
+		}
 
-			prettyCfg := &pretty.Config{
-				Diffable:          true,
-				IncludeUnexported: false,
-				Formatter:         formatterConfig,
-			}
+		prettyCfg := &pretty.Config{
+			Diffable:          true,
+			IncludeUnexported: false,
+			Formatter:         formatterConfig,
+		}
 
-			if diff := prettyCfg.Compare(expectedPlan, actualPlan); diff != "" {
-				t.Errorf("Plan does not match(-want +got)\n%s", diff)
+		exp := prettyCfg.Sprint(expectedPlan)
+		act := prettyCfg.Sprint(actualPlan)
+
+		if !assert.Equal(t, exp, act) {
+			if diffResult := diff.Diff(exp, act); diffResult != "" {
+				t.Errorf("Plan does not match(-want +got)\n%s", diffResult)
 			}
 		}
 	}
