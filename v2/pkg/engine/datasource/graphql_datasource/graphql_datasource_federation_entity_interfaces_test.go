@@ -63,7 +63,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Account")},
@@ -102,6 +102,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 											},
 										},
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 									},
 								},
 							},
@@ -148,6 +154,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Nullable: true,
 									Item: &resolve.Object{
 										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -170,6 +182,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																},
 															},
 														},
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 													},
 												},
 												OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -195,6 +211,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																},
 															},
 														},
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 													},
 												},
 												OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -220,6 +240,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																},
 															},
 														},
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 													},
 												},
 												OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -248,7 +272,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																	},
 																	{
 																		Name: []byte("id"),
-																		Value: &resolve.String{
+																		Value: &resolve.Scalar{
 																			Path: []string{"id"},
 																		},
 																		OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -263,7 +287,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																	},
 																	{
 																		Name: []byte("id"),
-																		Value: &resolve.String{
+																		Value: &resolve.Scalar{
 																			Path: []string{"id"},
 																		},
 																		OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -278,7 +302,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																	},
 																	{
 																		Name: []byte("id"),
-																		Value: &resolve.String{
+																		Value: &resolve.Scalar{
 																			Path: []string{"id"},
 																		},
 																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -354,7 +378,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -369,7 +393,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -384,7 +408,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -422,7 +446,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -437,7 +461,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -452,7 +476,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -478,6 +502,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Nullable: true,
 									Item: &resolve.Object{
 										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -492,6 +522,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -524,6 +558,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -556,6 +594,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -621,6 +663,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -658,7 +706,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																	},
 																	{
 																		Name: []byte("id"),
-																		Value: &resolve.String{
+																		Value: &resolve.Scalar{
 																			Path: []string{"id"},
 																		},
 																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -737,7 +785,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -761,6 +809,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"user"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -840,7 +892,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -878,7 +930,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -902,6 +954,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"user"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -921,6 +977,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												Path:     []string{"locations"},
 												Nullable: true,
 												Item: &resolve.Object{
+													PossibleTypes: map[string]struct{}{
+														"Location": {},
+													},
+													TypeName: "Location",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("country"),
@@ -995,7 +1055,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1019,6 +1079,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"admin"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"Admin": {},
+									},
+									TypeName: "Admin",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -1098,7 +1162,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1136,7 +1200,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1160,6 +1224,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"admin"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"Admin": {},
+									},
+									TypeName: "Admin",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -1179,6 +1247,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												Path:     []string{"locations"},
 												Nullable: true,
 												Item: &resolve.Object{
+													PossibleTypes: map[string]struct{}{
+														"Location": {},
+													},
+													TypeName: "Location",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("country"),
@@ -1251,7 +1323,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -1265,7 +1337,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1302,7 +1374,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -1326,6 +1398,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -1409,7 +1487,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -1447,7 +1525,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1462,7 +1540,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -1477,7 +1555,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -1503,6 +1581,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Nullable: true,
 									Item: &resolve.Object{
 										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Accounts",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -1524,6 +1608,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -1556,6 +1644,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -1588,6 +1680,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -1662,7 +1758,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -1700,7 +1796,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1715,7 +1811,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -1730,7 +1826,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -1768,7 +1864,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -1783,7 +1879,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -1798,7 +1894,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -1824,6 +1920,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Nullable: true,
 									Item: &resolve.Object{
 										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Accounts",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -1845,6 +1947,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -1884,6 +1990,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -1923,6 +2033,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -1998,7 +2112,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -2012,7 +2126,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -2026,7 +2140,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -2063,7 +2177,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -2087,6 +2201,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2186,7 +2306,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -2200,7 +2320,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -2214,7 +2334,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -2251,7 +2371,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -2275,6 +2395,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2400,7 +2526,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -2415,7 +2541,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -2430,7 +2556,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -2467,7 +2593,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -2481,7 +2607,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -2495,7 +2621,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -2532,7 +2658,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -2556,6 +2682,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2682,7 +2814,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -2697,7 +2829,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -2712,7 +2844,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -2750,7 +2882,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -2765,7 +2897,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -2780,7 +2912,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -2806,6 +2938,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Nullable: true,
 									Item: &resolve.Object{
 										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -2820,6 +2958,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -2852,6 +2994,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -2884,6 +3030,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -2965,7 +3115,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin")},
@@ -3003,7 +3153,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -3018,7 +3168,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -3033,7 +3183,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -3071,7 +3221,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -3086,7 +3236,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -3101,7 +3251,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -3127,6 +3277,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 									Nullable: true,
 									Item: &resolve.Object{
 										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("id"),
@@ -3148,6 +3304,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -3187,6 +3347,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -3226,6 +3390,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -3301,7 +3469,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -3316,7 +3484,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -3331,7 +3499,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -3355,6 +3523,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("age"),
@@ -3434,7 +3608,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -3449,7 +3623,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -3464,7 +3638,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -3501,7 +3675,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Admin"), []byte("Account")},
@@ -3515,7 +3689,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("Moderator"), []byte("Account")},
@@ -3529,7 +3703,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 												},
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path: []string{"id"},
 													},
 													OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
@@ -3553,6 +3727,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("age"),
@@ -3650,6 +3830,12 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 								Value: &resolve.Array{
 									Path: []string{"accountLocations"},
 									Item: &resolve.Object{
+										PossibleTypes: map[string]struct{}{
+											"Admin":     {},
+											"Moderator": {},
+											"User":      {},
+										},
+										TypeName: "Account",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("title"),
@@ -3664,6 +3850,10 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 													Path:     []string{"locations"},
 													Nullable: true,
 													Item: &resolve.Object{
+														PossibleTypes: map[string]struct{}{
+															"Location": {},
+														},
+														TypeName: "Location",
 														Fields: []*resolve.Field{
 															{
 																Name: []byte("country"),
@@ -3699,7 +3889,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 																	},
 																	{
 																		Name: []byte("id"),
-																		Value: &resolve.String{
+																		Value: &resolve.Scalar{
 																			Path: []string{"id"},
 																		},
 																		OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},

@@ -113,6 +113,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"a"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"A": {},
+									},
+									TypeName: "A",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("a"),
@@ -208,6 +212,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+							},
+							TypeName: "Droid",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -228,6 +236,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path:     []string{"friends"},
 										Item: &resolve.Object{
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Droid": {},
+												"Human": {},
+											},
+											TypeName: "Character",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -253,6 +266,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+								"Human": {},
+							},
+							TypeName: "Character",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -429,6 +447,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+							},
+							SourceName: "https://swapi.com",
+							TypeName:   "Droid",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -479,6 +502,12 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path:     []string{"friends"},
 										Item: &resolve.Object{
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Droid": {},
+												"Human": {},
+											},
+											TypeName:   "Character",
+											SourceName: "https://swapi.com",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -524,6 +553,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+								"Human": {},
+							},
+							TypeName:   "Character",
+							SourceName: "https://swapi.com",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -686,10 +721,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"RegisteredUser": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -794,6 +833,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"thing"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"Thing": {},
+									},
+									TypeName: "Thing",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -806,6 +849,11 @@ func TestGraphQLDataSource(t *testing.T) {
 											Value: &resolve.Object{
 												Path:     []string{"abstractThing"},
 												Nullable: true,
+												PossibleTypes: map[string]struct{}{
+													"ConcreteOne": {},
+													"ConcreteTwo": {},
+												},
+												TypeName: "AbstractThing",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -895,10 +943,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"RegisteredUser": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -969,10 +1021,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"RegisteredUser": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -1049,10 +1105,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"RegisteredUser": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -1128,10 +1188,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"RegisteredUser": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -1205,10 +1269,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"RegisteredUser": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -1301,6 +1369,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"User": {},
+							},
+							TypeName: "User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("normalized"),
@@ -1401,6 +1473,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"droid"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"Droid": {},
+								},
+								TypeName: "Droid",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -1416,10 +1492,15 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"hero"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"Droid": {},
+									"Human": {},
+								},
+								TypeName: "Character",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
-										Value: &resolve.String{
+										Value: &resolve.Scalar{
 											Path: []string{"id"},
 											Export: &resolve.FieldExport{
 												Path:     []string{"heroId"},
@@ -1533,6 +1614,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+							},
+							TypeName: "Droid",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -1553,6 +1638,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path:     []string{"friends"},
 										Item: &resolve.Object{
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Droid": {},
+												"Human": {},
+											},
+											TypeName: "Character",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -1578,6 +1668,11 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"hero"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+								"Human": {},
+							},
+							TypeName: "Character",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -1597,6 +1692,12 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Nullable: true,
 							Path:     []string{"search"},
+							PossibleTypes: map[string]struct{}{
+								"Droid":    {},
+								"Human":    {},
+								"Starship": {},
+							},
+							TypeName: "SearchResult",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("primaryFunction"),
@@ -2090,6 +2191,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Item: &resolve.Object{
 								Nullable: true,
 								Path:     nil,
+								PossibleTypes: map[string]struct{}{
+									"Product": {},
+									"User":    {},
+								},
+								TypeName: "_Entity",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("reviews"),
@@ -2099,6 +2205,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Item: &resolve.Object{
 												Nullable: true,
 												Path:     nil,
+												PossibleTypes: map[string]struct{}{
+													"Review": {},
+												},
+												TypeName: "Review",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("body"),
@@ -2112,6 +2222,10 @@ func TestGraphQLDataSource(t *testing.T) {
 														Value: &resolve.Object{
 															Nullable: false,
 															Path:     []string{"author"},
+															PossibleTypes: map[string]struct{}{
+																"User": {},
+															},
+															TypeName: "User",
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("username"),
@@ -2122,7 +2236,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path:     []string{"id"},
 																		Nullable: false,
 																	},
@@ -2256,6 +2370,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									Item: &resolve.Object{
 										Nullable: true,
 										Path:     nil,
+										PossibleTypes: map[string]struct{}{
+											"Droid": {},
+										},
+										TypeName: "Droid",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("name"),
@@ -2314,6 +2432,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"droid"},
+									PossibleTypes: map[string]struct{}{
+										"Droid": {},
+									},
+									TypeName: "Droid",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("name"),
@@ -2370,6 +2492,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"heroByBirthdate"},
+									PossibleTypes: map[string]struct{}{
+										"Droid": {},
+										"Human": {},
+									},
+									TypeName: "Character",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("name"),
@@ -2421,10 +2548,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("addFriend"),
 							Value: &resolve.Object{
+								PossibleTypes: map[string]struct{}{
+									"Friend": {},
+								},
+								TypeName: "Friend",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
-										Value: &resolve.String{
+										Value: &resolve.Scalar{
 											Path: []string{"id"},
 										},
 									},
@@ -2538,6 +2669,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"foo"},
+								PossibleTypes: map[string]struct{}{
+									"Baz": {},
+								},
+								TypeName: "Baz",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("bar"),
@@ -2655,6 +2790,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"country"},
+								PossibleTypes: map[string]struct{}{
+									"Country": {},
+								},
+								TypeName: "Country",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -2671,6 +2810,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"alias"},
+								PossibleTypes: map[string]struct{}{
+									"Country": {},
+								},
+								TypeName: "Country",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -2783,6 +2926,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"country"},
+								PossibleTypes: map[string]struct{}{
+									"Country": {},
+								},
+								TypeName: "Country",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -2799,6 +2946,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Nullable: true,
 								Path:     []string{"countryAlias"},
+								PossibleTypes: map[string]struct{}{
+									"Country": {},
+								},
+								TypeName: "Country",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("name"),
@@ -3001,6 +3152,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"serviceOne"},
+									PossibleTypes: map[string]struct{}{
+										"ServiceOneResponse": {},
+									},
+									TypeName: "ServiceOneResponse",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldOne"),
@@ -3013,6 +3168,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Value: &resolve.Array{
 												Path: []string{"countries"},
 												Item: &resolve.Object{
+													PossibleTypes: map[string]struct{}{
+														"Country": {},
+													},
+													TypeName: "Country",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("name"),
@@ -3032,6 +3191,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"serviceTwo"},
+									PossibleTypes: map[string]struct{}{
+										"ServiceTwoResponse": {},
+									},
+									TypeName: "ServiceTwoResponse",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldTwo"),
@@ -3045,6 +3208,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Value: &resolve.Object{
 												Nullable: true,
 												Path:     []string{"serviceOneResponse"},
+												PossibleTypes: map[string]struct{}{
+													"ServiceOneResponse": {},
+												},
+												TypeName: "ServiceOneResponse",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("fieldOne"),
@@ -3063,6 +3230,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"anotherServiceOne"},
+									PossibleTypes: map[string]struct{}{
+										"ServiceOneResponse": {},
+									},
+									TypeName: "ServiceOneResponse",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldOne"),
@@ -3078,6 +3249,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"secondServiceTwo"},
+									PossibleTypes: map[string]struct{}{
+										"ServiceTwoResponse": {},
+									},
+									TypeName: "ServiceTwoResponse",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldTwo"),
@@ -3101,6 +3276,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"reusingServiceOne"},
+									PossibleTypes: map[string]struct{}{
+										"ServiceOneResponse": {},
+									},
+									TypeName: "ServiceOneResponse",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldOne"),
@@ -3301,6 +3480,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"addTask"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"AddTaskPayload": {},
+								},
+								TypeName: "AddTaskPayload",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("task"),
@@ -3309,10 +3492,14 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"task"},
 											Item: &resolve.Object{
 												Nullable: true,
+												PossibleTypes: map[string]struct{}{
+													"Task": {},
+												},
+												TypeName: "Task",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("id"),
-														Value: &resolve.String{
+														Value: &resolve.Scalar{
 															Path: []string{"id"},
 														},
 													},
@@ -3448,12 +3635,20 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"createUser"},
+									PossibleTypes: map[string]struct{}{
+										"CreateUser": {},
+									},
+									TypeName: "CreateUser",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("user"),
 											Value: &resolve.Object{
 												Path:     []string{"user"},
 												Nullable: true,
+												PossibleTypes: map[string]struct{}{
+													"User": {},
+												},
+												TypeName: "User",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("id"),
@@ -3583,6 +3778,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("namespaceCreate"),
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
+								PossibleTypes: map[string]struct{}{
+									"Error":            {},
+									"NamespaceCreated": {},
+								},
+								TypeName: "CreateNamespaceResponse",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("__typename"),
@@ -3597,10 +3797,14 @@ func TestGraphQLDataSource(t *testing.T) {
 										Name:        []byte("namespace"),
 										Value: &resolve.Object{
 											Path: []string{"namespace"},
+											PossibleTypes: map[string]struct{}{
+												"Namespace": {},
+											},
+											TypeName: "Namespace",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
-													Value: &resolve.String{
+													Value: &resolve.Scalar{
 														Path:     []string{"id"},
 														Nullable: false,
 													},
@@ -3743,6 +3947,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Name: []byte("namespaceCreate"),
 							Value: &resolve.Object{
 								Path: []string{"namespaceCreate"},
+								PossibleTypes: map[string]struct{}{
+									"Error":            {},
+									"NamespaceCreated": {},
+								},
+								TypeName: "CreateNamespaceResponse",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("__typename"),
@@ -3993,7 +4202,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															{
 																Name: []byte("id"),
-																Value: &resolve.String{
+																Value: &resolve.Scalar{
 																	Path: []string{"id"},
 																},
 																OnTypeNames: [][]byte{[]byte("User")},
@@ -4012,10 +4221,14 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								Path:     []string{"me"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
-										Value: &resolve.String{
+										Value: &resolve.Scalar{
 											Path: []string{"id"},
 										},
 									},
@@ -4032,6 +4245,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
+												PossibleTypes: map[string]struct{}{
+													"Review": {},
+												},
+												TypeName: "Review",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("body"),
@@ -4043,10 +4260,14 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("author"),
 														Value: &resolve.Object{
 															Path: []string{"author"},
+															PossibleTypes: map[string]struct{}{
+																"User": {},
+															},
+															TypeName: "User",
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																},
@@ -4063,6 +4284,10 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("product"),
 														Value: &resolve.Object{
 															Path: []string{"product"},
+															PossibleTypes: map[string]struct{}{
+																"Product": {},
+															},
+															TypeName: "Product",
 															Fetches: []resolve.Fetch{
 																&resolve.SingleFetch{
 																	FetchDependencies: resolve.FetchDependencies{
@@ -4122,6 +4347,10 @@ func TestGraphQLDataSource(t *testing.T) {
 																		Path:     []string{"reviews"},
 																		Item: &resolve.Object{
 																			Nullable: true,
+																			PossibleTypes: map[string]struct{}{
+																				"Review": {},
+																			},
+																			TypeName: "Review",
 																			Fields: []*resolve.Field{
 																				{
 																					Name: []byte("body"),
@@ -4133,10 +4362,14 @@ func TestGraphQLDataSource(t *testing.T) {
 																					Name: []byte("author"),
 																					Value: &resolve.Object{
 																						Path: []string{"author"},
+																						PossibleTypes: map[string]struct{}{
+																							"User": {},
+																						},
+																						TypeName: "User",
 																						Fields: []*resolve.Field{
 																							{
 																								Name: []byte("id"),
-																								Value: &resolve.String{
+																								Value: &resolve.Scalar{
 																									Path: []string{"id"},
 																								},
 																							},
@@ -4388,6 +4621,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"user"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("username"),
@@ -4404,6 +4641,11 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"vehicle"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"Car": {},
+									"Van": {},
+								},
+								TypeName: "Vehicle",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("description"),
@@ -4588,7 +4830,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															{
 																Name: []byte("id"),
-																Value: &resolve.String{
+																Value: &resolve.Scalar{
 																	Path: []string{"id"},
 																},
 																OnTypeNames: [][]byte{[]byte("User")},
@@ -4606,10 +4848,14 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								Path:     []string{"user"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
-										Value: &resolve.String{
+										Value: &resolve.Scalar{
 											Path: []string{"id"},
 										},
 									},
@@ -4618,6 +4864,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"name"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Name": {},
+											},
+											TypeName: "Name",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("first"),
@@ -4655,6 +4905,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"vehicle"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Car": {},
+												"Van": {},
+											},
+											TypeName: "Vehicle",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -4691,6 +4946,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"account"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"PasswordAccount": {},
+												"SMSAccount":      {},
+											},
+											TypeName: "AccountType",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("email"),
@@ -4717,6 +4977,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
+												PossibleTypes: map[string]struct{}{
+													"UserMetadata": {},
+												},
+												TypeName: "UserMetadata",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -4931,6 +5195,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fetches: []resolve.Fetch{
 									&resolve.SingleFetch{
 										FetchDependencies: resolve.FetchDependencies{
@@ -4953,7 +5221,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															{
 																Name: []byte("id"),
-																Value: &resolve.String{
+																Value: &resolve.Scalar{
 																	Path: []string{"id"},
 																},
 																OnTypeNames: [][]byte{[]byte("User")},
@@ -4975,7 +5243,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
-										Value: &resolve.String{
+										Value: &resolve.Scalar{
 											Path: []string{"id"},
 										},
 									},
@@ -4984,6 +5252,10 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"name"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Name": {},
+											},
+											TypeName: "Name",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("first"),
@@ -5021,6 +5293,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"account"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"PasswordAccount": {},
+												"SMSAccount":      {},
+											},
+											TypeName: "AccountType",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("email"),
@@ -5047,6 +5324,10 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: true,
+												PossibleTypes: map[string]struct{}{
+													"UserMetadata": {},
+												},
+												TypeName: "UserMetadata",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -5078,6 +5359,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Value: &resolve.Object{
 											Path:     []string{"vehicle"},
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Car": {},
+												"Van": {},
+											},
+											TypeName: "Vehicle",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("id"),
@@ -5314,6 +5600,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								Path:     []string{"serviceOne"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"ServiceOneType": {},
+								},
+								TypeName: "ServiceOneType",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("serviceTwoFieldOne"),
@@ -6007,7 +6297,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
@@ -6026,10 +6316,14 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Path:     []string{"me"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
-											Value: &resolve.String{
+											Value: &resolve.Scalar{
 												Path: []string{"id"},
 											},
 										},
@@ -6043,7 +6337,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										{
 											Name: []byte("uid"),
-											Value: &resolve.String{
+											Value: &resolve.Scalar{
 												Path: []string{"uid"},
 											},
 										},
@@ -6060,6 +6354,10 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: true,
 												Item: &resolve.Object{
 													Nullable: true,
+													PossibleTypes: map[string]struct{}{
+														"Review": {},
+													},
+													TypeName: "Review",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("body"),
@@ -6136,7 +6434,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
@@ -6155,10 +6453,14 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Path:     []string{"self"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "Identity",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
-											Value: &resolve.String{
+											Value: &resolve.Scalar{
 												Path: []string{"id"},
 											},
 										},
@@ -6172,7 +6474,7 @@ func TestGraphQLDataSource(t *testing.T) {
 										},
 										{
 											Name: []byte("uid"),
-											Value: &resolve.String{
+											Value: &resolve.Scalar{
 												Path: []string{"uid"},
 											},
 											OnTypeNames: [][]byte{[]byte("User")},
@@ -6191,6 +6493,10 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: true,
 												Item: &resolve.Object{
 													Nullable: true,
+													PossibleTypes: map[string]struct{}{
+														"Review": {},
+													},
+													TypeName: "Review",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("body"),
@@ -6272,7 +6578,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
@@ -6291,6 +6597,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Path:     []string{"self"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "Identity",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("reviews"),
@@ -6299,6 +6609,10 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: true,
 												Item: &resolve.Object{
 													Nullable: true,
+													PossibleTypes: map[string]struct{}{
+														"Review": {},
+													},
+													TypeName: "Review",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("body"),
@@ -6310,6 +6624,11 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("attachment"),
 															Value: &resolve.Object{
 																Path: []string{"attachment"},
+																PossibleTypes: map[string]struct{}{
+																	"Image": {},
+																	"Video": {},
+																},
+																TypeName: "Medium",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("extension"),
@@ -6320,7 +6639,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																	},
 																	{
 																		Name: []byte("length"),
-																		Value: &resolve.String{
+																		Value: &resolve.Integer{
 																			Path: []string{"length"},
 																		},
 																		OnTypeNames: [][]byte{[]byte("Video")},
@@ -6542,7 +6861,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
@@ -6561,6 +6880,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Path:     []string{"user"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("username"),
@@ -6575,6 +6898,11 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: false,
 												Item: &resolve.Object{
 													Nullable: false,
+													PossibleTypes: map[string]struct{}{
+														"Cat": {},
+														"Dog": {},
+													},
+													TypeName: "Pet",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("name"),
@@ -6593,6 +6921,10 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("details"),
 															Value: &resolve.Object{
 																Path: []string{"details"},
+																PossibleTypes: map[string]struct{}{
+																	"Details": {},
+																},
+																TypeName: "Details",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("age"),
@@ -6622,6 +6954,10 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("details"),
 															Value: &resolve.Object{
 																Path: []string{"details"},
+																PossibleTypes: map[string]struct{}{
+																	"Details": {},
+																},
+																TypeName: "Details",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("hasOwner"),
@@ -6710,7 +7046,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
@@ -6729,6 +7065,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Path:     []string{"user"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("username"),
@@ -6743,6 +7083,11 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: false,
 												Item: &resolve.Object{
 													Nullable: false,
+													PossibleTypes: map[string]struct{}{
+														"Cat": {},
+														"Dog": {},
+													},
+													TypeName: "Pet",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("catField"),
@@ -6755,6 +7100,10 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("details"),
 															Value: &resolve.Object{
 																Path: []string{"details"},
+																PossibleTypes: map[string]struct{}{
+																	"Details": {},
+																},
+																TypeName: "Details",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("age"),
@@ -6790,6 +7139,10 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("details"),
 															Value: &resolve.Object{
 																Path: []string{"details"},
+																PossibleTypes: map[string]struct{}{
+																	"Details": {},
+																},
+																TypeName: "Details",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("hasOwner"),
@@ -6878,7 +7231,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																},
 																{
 																	Name: []byte("id"),
-																	Value: &resolve.String{
+																	Value: &resolve.Scalar{
 																		Path: []string{"id"},
 																	},
 																	OnTypeNames: [][]byte{[]byte("User")},
@@ -6901,6 +7254,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Path:     []string{"user"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("username"),
@@ -6915,6 +7272,11 @@ func TestGraphQLDataSource(t *testing.T) {
 												Nullable: false,
 												Item: &resolve.Object{
 													Nullable: false,
+													PossibleTypes: map[string]struct{}{
+														"Cat": {},
+														"Dog": {},
+													},
+													TypeName: "Pet",
 													Fields: []*resolve.Field{
 														{
 															Name: []byte("catField"),
@@ -6927,6 +7289,10 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("details"),
 															Value: &resolve.Object{
 																Path: []string{"details"},
+																PossibleTypes: map[string]struct{}{
+																	"Details": {},
+																},
+																TypeName: "Details",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("age"),
@@ -6956,6 +7322,10 @@ func TestGraphQLDataSource(t *testing.T) {
 															Name: []byte("details"),
 															Value: &resolve.Object{
 																Path: []string{"details"},
+																PossibleTypes: map[string]struct{}{
+																	"Details": {},
+																},
+																TypeName: "Details",
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("hasOwner"),
@@ -6992,7 +7362,7 @@ func TestGraphQLDataSource(t *testing.T) {
 	       user: User
 	   }
 	   type User {
-			id: ID!
+	       id: ID!
 	       username: String!
 	       pets: [CatOrDog!]!
 	   }
@@ -7063,7 +7433,7 @@ func TestGraphQLDataSource(t *testing.T) {
 															},
 															{
 																Name: []byte("id"),
-																Value: &resolve.String{
+																Value: &resolve.Scalar{
 																	Path: []string{"id"},
 																},
 																OnTypeNames: [][]byte{[]byte("User")},
@@ -7082,6 +7452,10 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								Path:     []string{"user"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("username"),
@@ -7096,6 +7470,11 @@ func TestGraphQLDataSource(t *testing.T) {
 											Nullable: false,
 											Item: &resolve.Object{
 												Nullable: false,
+												PossibleTypes: map[string]struct{}{
+													"Cat": {},
+													"Dog": {},
+												},
+												TypeName: "CatOrDog",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -7312,6 +7691,10 @@ func TestGraphQLDataSource(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"user"},
 								Nullable: true,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("username"),
@@ -7347,7 +7730,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			},
 																			{
 																				Name: []byte("id"),
-																				Value: &resolve.String{
+																				Value: &resolve.Scalar{
 																					Path: []string{"id"},
 																				},
 																				OnTypeNames: [][]byte{[]byte("Cat")},
@@ -7361,7 +7744,7 @@ func TestGraphQLDataSource(t *testing.T) {
 																			},
 																			{
 																				Name: []byte("id"),
-																				Value: &resolve.String{
+																				Value: &resolve.Scalar{
 																					Path: []string{"id"},
 																				},
 																				OnTypeNames: [][]byte{[]byte("Dog")},
@@ -7379,6 +7762,11 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 												},
 												Nullable: false,
+												PossibleTypes: map[string]struct{}{
+													"Cat": {},
+													"Dog": {},
+												},
+												TypeName: "CatOrDog",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -7615,6 +8003,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"droid"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Droid": {},
+							},
+							TypeName: "Droid",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("name"),
@@ -7635,6 +8027,11 @@ func TestGraphQLDataSource(t *testing.T) {
 										Path:     []string{"friends"},
 										Item: &resolve.Object{
 											Nullable: true,
+											PossibleTypes: map[string]struct{}{
+												"Droid": {},
+												"Human": {},
+											},
+											TypeName: "Character",
 											Fields: []*resolve.Field{
 												{
 													Name: []byte("name"),
@@ -7660,6 +8057,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"review"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"Review": {},
+							},
+							TypeName: "Review",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("stars"),
@@ -7778,10 +8179,14 @@ func TestGraphQLDataSource(t *testing.T) {
 						Value: &resolve.Object{
 							Path:     []string{"custom_user"},
 							Nullable: true,
+							PossibleTypes: map[string]struct{}{
+								"custom_User": {},
+							},
+							TypeName: "custom_User",
 							Fields: []*resolve.Field{
 								{
 									Name: []byte("id"),
-									Value: &resolve.String{
+									Value: &resolve.Scalar{
 										Path: []string{"id"},
 									},
 								},
@@ -7809,6 +8214,10 @@ func TestGraphQLDataSource(t *testing.T) {
 									Name: []byte("meta"),
 									Value: &resolve.Object{
 										Path: []string{"meta"},
+										PossibleTypes: map[string]struct{}{
+											"custom_Meta": {},
+										},
+										TypeName: "custom_Meta",
 										Fields: []*resolve.Field{
 											{
 												Name: []byte("foo"),

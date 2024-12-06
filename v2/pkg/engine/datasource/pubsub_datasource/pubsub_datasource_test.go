@@ -281,6 +281,10 @@ func TestPubSub(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"helloQuery"},
 								Nullable: false,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("id"),
@@ -339,6 +343,10 @@ func TestPubSub(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"helloMutation"},
 								Nullable: false,
+								PossibleTypes: map[string]struct{}{
+									"edfs__PublishResult": {},
+								},
+								TypeName: "edfs__PublishResult",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("success"),
@@ -417,6 +425,10 @@ func TestPubSub(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"helloSubscription"},
 									Nullable: false,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -476,6 +488,10 @@ func TestPubSub(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"subscriptionWithMultipleSubjects"},
 									Nullable: false,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -517,6 +533,10 @@ func TestPubSub(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"subscriptionWithStaticValues"},
 									Nullable: false,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
@@ -564,6 +584,10 @@ func TestPubSub(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"subscriptionWithArgTemplateAndStaticValue"},
 									Nullable: false,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("id"),
