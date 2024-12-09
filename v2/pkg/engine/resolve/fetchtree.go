@@ -146,6 +146,7 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 type FetchTreeQueryPlanNode struct {
 	Version  string                    `json:"version,omitempty"`
 	Kind     FetchTreeNodeKind         `json:"kind"`
+	Trigger  *FetchTreeQueryPlan       `json:"trigger,omitempty"`
 	Children []*FetchTreeQueryPlanNode `json:"children,omitempty"`
 	Fetch    *FetchTreeQueryPlan       `json:"fetch,omitempty"`
 }
@@ -161,12 +162,28 @@ type FetchTreeQueryPlan struct {
 	Query             string           `json:"query,omitempty"`
 }
 
-func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
+func (n *FetchTreeNode) QueryPlan(ctx *Context, rootData *Object) *FetchTreeQueryPlanNode {
 	if n == nil {
 		return nil
 	}
 	plan := n.queryPlan()
 	plan.Version = "1"
+
+	// In case of subscription, set the trigger using info available from rootData
+	if rootData != nil && len(rootData.Fields) > 0 {
+		info := rootData.Fields[0].Info
+		if info != nil && info.ExactParentTypeName == "Subscription" {
+			plan.Trigger = &FetchTreeQueryPlan{
+				Kind:         "Trigger",
+				Path:         info.Name,
+				SubgraphName: info.Source.Names[0],
+				SubgraphID:   info.Source.IDs[0],
+				FetchID:      info.FetchID,
+				Query:        ctx.Query,
+			}
+		}
+	}
+
 	return plan
 }
 

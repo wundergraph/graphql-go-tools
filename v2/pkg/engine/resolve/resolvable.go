@@ -173,7 +173,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	return nil
 }
 
-func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
+func (r *Resolvable) Resolve(ctx *Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
@@ -190,7 +190,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 		r.printBytes(null)
 		if r.hasExtensions() {
 			r.printBytes(comma)
-			r.printErr = r.printExtensions(ctx, fetchTree)
+			r.printErr = r.printExtensions(ctx, rootData, fetchTree)
 		}
 		r.printBytes(rBrace)
 		return r.printErr
@@ -218,7 +218,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 	if r.hasExtensions() {
 		r.printBytes(comma)
-		r.printErr = r.printExtensions(ctx, fetchTree)
+		r.printErr = r.printExtensions(ctx, rootData, fetchTree)
 	}
 	r.printBytes(rBrace)
 	return r.printErr
@@ -258,7 +258,7 @@ func (r *Resolvable) printData(root *Object) {
 	r.wroteData = true
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNode) error {
+func (r *Resolvable) printExtensions(ctx *Context, rootData *Object, fetchTree *FetchTreeNode) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
@@ -293,7 +293,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printQueryPlanExtension(fetchTree)
+		err := r.printQueryPlanExtension(ctx, rootData, fetchTree)
 		if err != nil {
 			return err
 		}
@@ -304,7 +304,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 			r.printBytes(comma)
 		}
 		writeComma = true
-		err := r.printTraceExtension(ctx, fetchTree)
+		err := r.printTraceExtension(ctx.ctx, fetchTree)
 		if err != nil {
 			return err
 		}
@@ -355,8 +355,8 @@ func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTr
 	return nil
 }
 
-func (r *Resolvable) printQueryPlanExtension(fetchTree *FetchTreeNode) error {
-	queryPlan := fetchTree.QueryPlan()
+func (r *Resolvable) printQueryPlanExtension(ctx *Context, rootData *Object, fetchTree *FetchTreeNode) error {
+	queryPlan := fetchTree.QueryPlan(ctx, rootData)
 	content, err := json.Marshal(queryPlan)
 	if err != nil {
 		return err

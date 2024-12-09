@@ -264,7 +264,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}
 
 	buf := &bytes.Buffer{}
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	err = t.resolvable.Resolve(ctx, response.Data, response.Fetches, buf)
 	if err != nil {
 		return nil, err
 	}
@@ -335,7 +335,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		sub.mux.Unlock()
 	}()
 
-	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
+	if err := t.resolvable.Resolve(ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
@@ -834,6 +834,32 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		msg := []byte(`{"errors":[{"message":"invalid input"}]}`)
 		return writeFlushComplete(writer, msg)
 	}
+
+	if ctx.ExecutionOptions.SkipLoader {
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+
+		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
+		if err != nil {
+			return err
+		}
+
+		buf := &bytes.Buffer{}
+		err = t.resolvable.Resolve(ctx, subscription.Response.Data, subscription.Response.Fetches, buf)
+		if err != nil {
+			return err
+		}
+
+		if _, err = writer.Write(buf.Bytes()); err != nil {
+			return err
+		}
+		if err = writer.Flush(); err != nil {
+			return err
+		}
+		writer.Complete()
+
+		return nil
+	}
+
 	xxh := pool.Hash64.Get()
 	defer pool.Hash64.Put(xxh)
 	err = subscription.Trigger.Source.UniqueRequestID(ctx, input, xxh)
@@ -921,6 +947,32 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		msg := []byte(`{"errors":[{"message":"invalid input"}]}`)
 		return writeFlushComplete(writer, msg)
 	}
+
+	if ctx.ExecutionOptions.SkipLoader {
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+
+		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
+		if err != nil {
+			return err
+		}
+
+		buf := &bytes.Buffer{}
+		err = t.resolvable.Resolve(ctx, subscription.Response.Data, subscription.Response.Fetches, buf)
+		if err != nil {
+			return err
+		}
+
+		if _, err = writer.Write(buf.Bytes()); err != nil {
+			return err
+		}
+		if err = writer.Flush(); err != nil {
+			return err
+		}
+		writer.Complete()
+
+		return nil
+	}
+
 	xxh := pool.Hash64.Get()
 	defer pool.Hash64.Put(xxh)
 	err = subscription.Trigger.Source.UniqueRequestID(ctx, input, xxh)

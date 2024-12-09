@@ -4871,9 +4871,19 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 							Value: &Integer{
 								Path: []string{"counter"},
 							},
+							Info: &FieldInfo{
+								Name:                "counter",
+								ExactParentTypeName: "Subscription",
+								Source: TypeFieldSource{
+									IDs:   []string{"0"},
+									Names: []string{"counter"},
+								},
+								FetchID: 0,
+							},
 						},
 					},
 				},
+				Fetches: Sequence(),
 			},
 		}
 
@@ -5061,6 +5071,35 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+
+	t.Run("renders query plan with trigger", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SkipLoader:                 true,
+				IncludeQueryPlanInResponse: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 1, len(recorder.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0}}}}`,
+		}, recorder.Messages())
 	})
 }
 
