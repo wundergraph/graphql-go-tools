@@ -668,7 +668,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		}
 
 		// If the error propagation mode is pass-through, we append the errors to the root array
-		astjson.MergeValues(l.resolvable.errors, value)
+		l.resolvable.errors.AppendArrayItems(value)
 		return nil
 	}
 
