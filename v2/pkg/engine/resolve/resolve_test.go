@@ -4943,7 +4943,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				ResponsePath: "countryUpdated",
 			},
 		}
-		fetches.ChildNodes = []*FetchTreeNode{&FetchTreeNode{
+		fetches.ChildNodes = []*FetchTreeNode{{
 			Kind: FetchTreeNodeKindSingle,
 			Item: &FetchItem{
 				Fetch: &SingleFetch{
