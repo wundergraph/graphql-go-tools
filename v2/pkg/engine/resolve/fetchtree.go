@@ -6,9 +6,11 @@ import (
 )
 
 type FetchTreeNode struct {
-	Kind       FetchTreeNodeKind `json:"kind"`
-	Item       *FetchItem        `json:"item"`
-	ChildNodes []*FetchTreeNode  `json:"child_nodes"`
+	Kind FetchTreeNodeKind `json:"kind"`
+	// Only set for subscription
+	Trigger    *FetchTreeNode   `json:"trigger"`
+	Item       *FetchItem       `json:"item"`
+	ChildNodes []*FetchTreeNode `json:"child_nodes"`
 }
 
 type FetchTreeNodeKind string
@@ -17,6 +19,7 @@ const (
 	FetchTreeNodeKindSingle   FetchTreeNodeKind = "Single"
 	FetchTreeNodeKindSequence FetchTreeNodeKind = "Sequence"
 	FetchTreeNodeKindParallel FetchTreeNodeKind = "Parallel"
+	FetchTreeNodeKindTrigger  FetchTreeNodeKind = "Trigger"
 )
 
 func Sequence(children ...*FetchTreeNode) *FetchTreeNode {
@@ -162,25 +165,23 @@ type FetchTreeQueryPlan struct {
 	Query             string           `json:"query,omitempty"`
 }
 
-func (n *FetchTreeNode) QueryPlan(ctx *Context, rootData *Object) *FetchTreeQueryPlanNode {
+func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
 	if n == nil {
 		return nil
 	}
+
 	plan := n.queryPlan()
 	plan.Version = "1"
 
-	// In case of subscription, set the trigger using info available from rootData
-	if rootData != nil && len(rootData.Fields) > 0 {
-		info := rootData.Fields[0].Info
-		if info != nil && info.ExactParentTypeName == "Subscription" {
-			plan.Trigger = &FetchTreeQueryPlan{
-				Kind:         "Trigger",
-				Path:         info.Name,
-				SubgraphName: info.Source.Names[0],
-				SubgraphID:   info.Source.IDs[0],
-				FetchID:      info.FetchID,
-				Query:        ctx.Query,
-			}
+	if n.Trigger != nil {
+		f := n.Trigger.Item.Fetch.(*SingleFetch)
+		plan.Trigger = &FetchTreeQueryPlan{
+			Kind:         "Trigger",
+			Path:         n.Trigger.Item.ResponsePath,
+			SubgraphName: f.Info.DataSourceName,
+			SubgraphID:   f.Info.DataSourceID,
+			FetchID:      f.FetchDependencies.FetchID,
+			Query:        f.Info.QueryPlan.Query,
 		}
 	}
 

@@ -14,7 +14,6 @@ import (
 
 type Context struct {
 	ctx              context.Context
-	Query            string
 	Variables        *astjson.Value
 	Files            []httpclient.File
 	Request          Request

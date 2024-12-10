@@ -14,7 +14,6 @@ func TestResolvable_Resolve(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
-		ctx:       context.Background(),
 		Variables: nil,
 	}
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -78,7 +77,7 @@ func TestResolvable_Resolve(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx, object, nil, out)
+	err = res.Resolve(context.Background(), object, nil, out)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
@@ -87,7 +86,6 @@ func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":true}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
-		ctx:       context.Background(),
 		Variables: nil,
 	}
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -152,7 +150,7 @@ func TestResolvable_ResolveWithTypeMismatch(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx, object, nil, out)
+	err = res.Resolve(context.Background(), object, nil, out)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"errors":[{"message":"String cannot represent non-string value: \"true\"","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
@@ -161,7 +159,6 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
-		ctx:       context.Background(),
 		Variables: nil,
 	}
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -226,7 +223,7 @@ func TestResolvable_ResolveWithErrorBubbleUp(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx, object, nil, out)
+	err = res.Resolve(context.Background(), object, nil, out)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`, out.String())
 }
@@ -238,7 +235,6 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx:       context.Background(),
 			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -256,7 +252,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Query.topProducts.","path":["topProducts"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -266,7 +262,6 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx:       context.Background(),
 			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -332,7 +327,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field User.name.","path":["topProducts",0,"reviews",0,"author","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -342,7 +337,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx: context.Background(),
+			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -369,7 +364,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"topProduct":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Product.name.","path":["topProduct","name"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -379,7 +374,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx: context.Background(),
+			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -438,7 +433,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field Review.body.","path":["topProducts",0,"reviews",0,"body"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -448,7 +443,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx: context.Background(),
+			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -468,7 +463,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable array element of type Product at index 0.","path":["topProducts",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -478,7 +473,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx: context.Background(),
+			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -499,7 +494,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"topProducts":null},"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable array element of type Product at index 0.","path":["topProducts",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -509,7 +504,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		})
 		ctx := &Context{
-			ctx: context.Background(),
+			Variables: nil,
 		}
 		err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
 		assert.NoError(t, err)
@@ -546,7 +541,7 @@ func TestResolvable_ApolloCompatibilityMode_NonNullability(t *testing.T) {
 		}
 
 		out := &bytes.Buffer{}
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Cannot return null for non-nullable field User.author.","path":["topProducts",1,"author"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -556,7 +551,6 @@ func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
-		ctx:       context.Background(),
 		Variables: nil,
 	}
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -620,7 +614,7 @@ func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	}
 
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx, object, nil, out)
+	err = res.Resolve(context.Background(), object, nil, out)
 	assert.NoError(t, err)
 	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",1,"author","name"]}],"data":null}`, out.String())
 }
@@ -629,7 +623,6 @@ func BenchmarkResolvable_Resolve(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
-		ctx:       context.Background(),
 		Variables: nil,
 	}
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -699,7 +692,7 @@ func BenchmarkResolvable_Resolve(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out.Reset()
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -713,7 +706,6 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
 	ctx := &Context{
-		ctx:       context.Background(),
 		Variables: nil,
 	}
 	err := res.Init(ctx, []byte(topProducts), ast.OperationTypeQuery)
@@ -778,7 +770,7 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	}
 
 	out := &bytes.Buffer{}
-	err = res.Resolve(ctx, object, nil, out)
+	err = res.Resolve(context.Background(), object, nil, out)
 	assert.NoError(b, err)
 	expected := []byte(`{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",0,"author","name"]}],"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":null},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
 	b.SetBytes(int64(len(expected)))
@@ -786,7 +778,7 @@ func BenchmarkResolvable_ResolveWithErrorBubbleUp(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		out.Reset()
-		err = res.Resolve(ctx, object, nil, out)
+		err = res.Resolve(context.Background(), object, nil, out)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -816,7 +808,7 @@ func TestResolvable_WithTracingNotStarted(t *testing.T) {
 	}
 	out := &bytes.Buffer{}
 	fetchTree := Sequence()
-	err = res.Resolve(ctx, object, fetchTree, out)
+	err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 	assert.NoError(t, err)
 	assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"trace":{"version":"1","info":null,"fetches":{"kind":"Sequence"}}}}`, out.String())
@@ -840,7 +832,7 @@ func TestResolveFloat(t *testing.T) {
 		}
 		out := &bytes.Buffer{}
 		fetchTree := Sequence()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"f":1.0}}`, out.String())
@@ -862,7 +854,7 @@ func TestResolveFloat(t *testing.T) {
 		}
 		out := &bytes.Buffer{}
 		fetchTree := Sequence()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 		assert.NoError(t, err)
 		assert.Equal(t, `{"errors":[{"message":"Float cannot represent non-float value: \"false\"","path":["f"]}],"data":null}`, out.String())
@@ -886,7 +878,7 @@ func TestResolveFloat(t *testing.T) {
 		}
 		out := &bytes.Buffer{}
 		fetchTree := Sequence()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"f":1}}`, out.String())
@@ -910,7 +902,7 @@ func TestResolveFloat(t *testing.T) {
 		}
 		out := &bytes.Buffer{}
 		fetchTree := Sequence()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"f":1.1}}`, out.String())
@@ -949,7 +941,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 		}
 		out := &bytes.Buffer{}
 		fetchTree := Sequence()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"object":null},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.object.","path":["object"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
@@ -958,7 +950,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 		err = res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"Hello"}}`), ast.OperationTypeQuery)
 		assert.NoError(t, err)
 		out.Reset()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"object":{"hello":"world"}}}`, out.String())
 
@@ -966,7 +958,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 		err = res.Init(ctx, []byte(`{"object":{"hello":"world","__typename":"NotEvenATinyBitHello"}}`), ast.OperationTypeQuery)
 		assert.NoError(t, err)
 		out.Reset()
-		err = res.Resolve(ctx, object, fetchTree, out)
+		err = res.Resolve(ctx.ctx, object, fetchTree, out)
 		assert.NoError(t, err)
 		assert.Equal(t, `{"data":{"object":null},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.object.","path":["object"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
 	})
@@ -1108,7 +1100,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 			}
 			out := &bytes.Buffer{}
 			fetchTree := Sequence()
-			err = res.Resolve(ctx, object, fetchTree, out)
+			err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 			assert.NoError(t, err)
 			assert.Equal(t, `{"data":{"entity":null,"entities":[null,null],"entitiesUnion":[null,null],"entitiesInterface":[null,null]},"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.entity.","path":["entity"],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Entity at index 0.","path":["entities",0],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Entity at index 1.","path":["entities",1],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Union at index 0.","path":["entities",0],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Union at index 1.","path":["entities",1],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Interface at index 0.","path":["entitiesInterface",0],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Interface at index 1.","path":["entitiesInterface",1],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
@@ -1206,7 +1198,7 @@ func TestResolvable_ValueCompletion(t *testing.T) {
 			}
 			out := &bytes.Buffer{}
 			fetchTree := Sequence()
-			err = res.Resolve(ctx, object, fetchTree, out)
+			err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 			assert.NoError(t, err)
 			assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid __typename found for object at field Query.entity.","path":["entity"],"extensions":{"code":"INVALID_GRAPHQL"}},{"message":"Invalid __typename found for object at array element of type Entity at index 0.","path":["entities",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
@@ -1289,7 +1281,7 @@ func TestResolvable_WithTracing(t *testing.T) {
 
 	out := &bytes.Buffer{}
 	fetchTree := Sequence()
-	err = res.Resolve(ctx, object, fetchTree, out)
+	err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 	assert.NoError(t, err)
 	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"trace":{"version":"1","info":{"trace_start_time":"","trace_start_unix":0,"parse_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":5,"duration_since_start_pretty":"5ns"},"normalize_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":10,"duration_since_start_pretty":"10ns"},"validate_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":15,"duration_since_start_pretty":"15ns"},"planner_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":20,"duration_since_start_pretty":"20ns"}},"fetches":{"kind":"Sequence"}}}}`, out.String())
