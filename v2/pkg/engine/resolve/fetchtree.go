@@ -173,15 +173,16 @@ func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
 	plan := n.queryPlan()
 	plan.Version = "1"
 
-	if n.Trigger != nil {
-		f := n.Trigger.Item.Fetch.(*SingleFetch)
-		plan.Trigger = &FetchTreeQueryPlan{
-			Kind:         "Trigger",
-			Path:         n.Trigger.Item.ResponsePath,
-			SubgraphName: f.Info.DataSourceName,
-			SubgraphID:   f.Info.DataSourceID,
-			FetchID:      f.FetchDependencies.FetchID,
-			Query:        f.Info.QueryPlan.Query,
+	if n.Trigger != nil && n.Trigger.Item != nil && n.Trigger.Item.Fetch != nil {
+		if f, ok := n.Trigger.Item.Fetch.(*SingleFetch); ok {
+			plan.Trigger = &FetchTreeQueryPlan{
+				Kind:         "Trigger",
+				Path:         n.Trigger.Item.ResponsePath,
+				SubgraphName: f.Info.DataSourceName,
+				SubgraphID:   f.Info.DataSourceID,
+				FetchID:      f.FetchDependencies.FetchID,
+				Query:        f.Info.QueryPlan.Query,
+			}
 		}
 	}
 
