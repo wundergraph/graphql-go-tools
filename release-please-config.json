@@ -29,10 +29,6 @@
     ".golangci.yml",
     "commitlint.config.js",
     "doc.go",
-    "go.mod",
-    "go.sum",
-    "go.work",
-    "go.work.sum",
     "LICENSE",
     "Makefile",
     "README.md"
