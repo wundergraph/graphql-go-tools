@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.1.0...execution/v1.1.1) (2024-12-11)
+
+
+### Bug Fixes
+
+* fix regression on removing null variables which was undefined ([#988](https://github.com/wundergraph/graphql-go-tools/issues/988)) ([06d9407](https://github.com/wundergraph/graphql-go-tools/commit/06d9407beee3cd1c210948c4ddbf2b8c0214fe75))
+
 ## [1.1.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.0.9...execution/v1.1.0) (2024-11-14)
 
 
