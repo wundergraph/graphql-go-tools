@@ -13,8 +13,16 @@ import (
 
 // FindProductByUpc is the resolver for the findProductByUpc field.
 func (r *entityResolver) FindProductByUpc(ctx context.Context, upc string) (*model.Product, error) {
+	var productReviews []*model.Review
+	for _, review := range reviews {
+		if review.Product.Upc == upc {
+			productReviews = append(productReviews, review)
+		}
+	}
+
 	return &model.Product{
-		Upc: upc,
+		Upc:     upc,
+		Reviews: productReviews,
 	}, nil
 }
 
