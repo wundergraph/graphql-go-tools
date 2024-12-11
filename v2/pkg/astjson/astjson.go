@@ -42,6 +42,7 @@ func (p *pool) Put(j *JSON) {
 	p.p.Put(j)
 }
 
+// Deprecated: JSON is deprecated, use the github.com/wundergraph/astjson package instead
 type JSON struct {
 	storage      []byte
 	Nodes        []Node
