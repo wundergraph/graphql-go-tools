@@ -38,13 +38,17 @@ func NewPlanner(config Configuration) (*Planner, error) {
 		config.Logger = abstractlogger.Noop{}
 	}
 
+	entityInterfaceNames := make([]string, 0, 1)
 	dsIDs := make(map[string]struct{}, len(config.DataSources))
 	for _, ds := range config.DataSources {
 		if _, ok := dsIDs[ds.Id()]; ok {
 			return nil, fmt.Errorf("duplicate datasource id: %s", ds.Id())
 		}
 		dsIDs[ds.Id()] = struct{}{}
+
+		entityInterfaceNames = append(entityInterfaceNames, ds.EntityInterfaceNames()...)
 	}
+	config.EntityInterfaceNames = entityInterfaceNames
 
 	// prepare operation walker handles internal normalization for planner
 	prepareOperationWalker := astvisitor.NewWalker(48)

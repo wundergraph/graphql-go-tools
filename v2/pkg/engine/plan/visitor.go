@@ -721,6 +721,11 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				for _, implementingTypeName := range objectTypesImplementingInterface {
 					object.PossibleTypes[implementingTypeName] = struct{}{}
 				}
+
+				if slices.Contains(v.Config.EntityInterfaceNames, typeName) {
+					object.PossibleTypes[typeName] = struct{}{}
+				}
+
 			case ast.NodeKindUnionTypeDefinition:
 				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
 					for _, unionMember := range unionMembers {

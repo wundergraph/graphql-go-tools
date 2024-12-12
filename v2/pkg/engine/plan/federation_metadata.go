@@ -20,6 +20,7 @@ type FederationInfo interface {
 	HasEntity(typeName string) bool
 	HasInterfaceObject(typeName string) bool
 	HasEntityInterface(typeName string) bool
+	EntityInterfaceNames() []string
 }
 
 func (d *FederationMetaData) HasKeyRequirement(typeName, requiresFields string) bool {
@@ -48,6 +49,18 @@ func (d *FederationMetaData) HasEntityInterface(typeName string) bool {
 	return slices.ContainsFunc(d.EntityInterfaces, func(interfaceObjCfg EntityInterfaceConfiguration) bool {
 		return slices.Contains(interfaceObjCfg.ConcreteTypeNames, typeName) || interfaceObjCfg.InterfaceTypeName == typeName
 	})
+}
+
+func (d *FederationMetaData) EntityInterfaceNames() (out []string) {
+	if len(d.EntityInterfaces) == 0 {
+		return nil
+	}
+
+	for i := range d.EntityInterfaces {
+		out = append(out, d.EntityInterfaces[i].InterfaceTypeName)
+	}
+
+	return out
 }
 
 type EntityInterfaceConfiguration struct {
