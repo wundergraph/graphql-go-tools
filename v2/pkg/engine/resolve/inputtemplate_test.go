@@ -512,6 +512,13 @@ func TestInputTemplate_Render(t *testing.T) {
 										},
 									},
 								},
+								{
+									Name: []byte("static"),
+									Value: &StaticString{
+										Path:  []string{"static"},
+										Value: "static_string",
+									},
+								},
 							},
 						}),
 					},
@@ -531,7 +538,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				{
 					name:     "data is present",
 					input:    `{"name":"home","address":{"zip":"00000","items":[{"name":"home","active":true}]}}`,
-					expected: `{"address":{"zip":"00000","items":[{"active":true}]}}`,
+					expected: `{"address":{"zip":"00000","items":[{"active":true}]},"static":"static_string"}`,
 				},
 				{
 					name:      "data is missing",
@@ -540,7 +547,7 @@ func TestInputTemplate_Render(t *testing.T) {
 				},
 				{
 					name:      "partial data",
-					input:     `{"name":"home","address":{}}`,
+					input:     `{"name":"home","address":{},"static":"static_string"}`,
 					expectErr: true,
 				},
 			}
