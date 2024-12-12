@@ -31,6 +31,7 @@ func TestRequest_Normalize(t *testing.T) {
 	t.Run("should successfully normalize request with fragments", func(t *testing.T) {
 		schema := StarwarsSchema(t)
 		request := StarwarsRequestForQuery(t, starwars.FileFragmentsQuery)
+		request.OperationName = "Fragments"
 		documentBeforeNormalization := request.document
 
 		result, err := request.Normalize(schema)
@@ -47,7 +48,7 @@ func TestRequest_Normalize(t *testing.T) {
         name
     }
 }`
-		op, _ := astprinter.PrintStringIndent(&request.document, nil, "  ")
+		op, _ := astprinter.PrintStringIndent(&request.document, "  ")
 		assert.Equal(t, normalizedOperation, op)
 	})
 
@@ -63,7 +64,7 @@ func TestRequest_Normalize(t *testing.T) {
 		assert.True(t, result.Successful)
 		assert.True(t, request.isNormalized)
 
-		op, _ := astprinter.PrintStringIndent(&request.document, nil, "  ")
+		op, _ := astprinter.PrintStringIndent(&request.document, "  ")
 		assert.Equal(t, expectedNormalizedOperation, op)
 	}
 
@@ -125,26 +126,10 @@ func TestRequest_Normalize(t *testing.T) {
 		request := StarwarsRequestForQuery(t, starwars.FileMultiQueriesWithArguments)
 		request.OperationName = "GetDroid"
 
-		runNormalization(t, &request, `{"a":"1"}`, `query GetDroid($a: ID!){
+		runNormalization(t, &request, `{"a":"1"}`,
+			`query GetDroid($a: ID!){
     droid(id: $a){
         name
-    }
-}
-
-query Search {
-    search(name: "C3PO"){
-        ... on Droid {
-            name
-            primaryFunction
-        }
-        ... on Human {
-            name
-            height
-        }
-        ... on Starship {
-            name
-            length
-        }
     }
 }`)
 	})
@@ -154,9 +139,9 @@ query Search {
 		request := Request{
 			OperationName: "charactersByIds",
 			Variables:     stringify(map[string]interface{}{"a": 1}),
-			Query:         `query ($a: [Int]) { charactersByIds(ids: $a) { name }}`,
+			Query:         `query charactersByIds($a: [Int]) { charactersByIds(ids: $a) { name }}`,
 		}
-		runNormalizationWithSchema(t, schema, &request, `{"a":[1]}`, `query($a: [Int]){
+		runNormalizationWithSchema(t, schema, &request, `{"a":[1]}`, `query charactersByIds($a: [Int]){
     charactersByIds(ids: $a){
         name
     }
@@ -184,9 +169,9 @@ query Search {
 			Variables: stringify(map[string]interface{}{
 				"ids": 1,
 			}),
-			Query: `query($ids: [Int]) {charactersByIds(ids: $ids) { name }}`,
+			Query: `query charactersByIds($ids: [Int]) {charactersByIds(ids: $ids) { name }}`,
 		}
-		runNormalizationWithSchema(t, schema, &request, `{"ids":[1]}`, `query($ids: [Int]){
+		runNormalizationWithSchema(t, schema, &request, `{"ids":[1]}`, `query charactersByIds($ids: [Int]){
     charactersByIds(ids: $ids){
         name
     }

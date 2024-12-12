@@ -19,7 +19,11 @@ type DataSourceDebugger interface {
 	astvisitor.VisitorIdentifier
 	DebugPrint(args ...interface{})
 	EnableDebug()
-	EnableQueryPlanLogging()
+	EnableDebugQueryPlanLogging()
+}
+
+type QueryPlanProvider interface {
+	IncludeQueryPlanInFetchConfiguration()
 }
 
 type Visitor struct {
@@ -39,6 +43,14 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	disableResolveFieldPositions bool
+	includeQueryPlans            bool
+	indirectInterfaceFields      map[int]indirectInterfaceField
+	pathCache                    map[astvisitor.VisitorKind]map[int]string
+}
+
+type indirectInterfaceField struct {
+	interfaceName string
+	node          ast.Node
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -104,14 +116,25 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		// main planner visitor should always be allowed
 		return true
 	}
-	path := v.Walker.Path.DotDelimitedString()
-	isFragmentPath := false
+	var (
+		path           string
+		isFragmentPath bool
+	)
 
-	switch kind {
-	case astvisitor.EnterField, astvisitor.LeaveField:
-		fieldAliasOrName := v.Operation.FieldAliasOrNameString(ref)
-		path = path + "." + fieldAliasOrName
-	case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
+	if entry, ok := v.pathCache[kind]; ok {
+		path = entry[ref]
+	} else {
+		v.pathCache[kind] = make(map[int]string)
+	}
+	if path == "" {
+		path = v.Walker.Path.DotDelimitedString()
+		if kind == astvisitor.EnterField || kind == astvisitor.LeaveField {
+			path = path + "." + v.Operation.FieldAliasOrNameString(ref)
+		}
+		v.pathCache[kind][ref] = path
+	}
+
+	if kind == astvisitor.EnterInlineFragment || kind == astvisitor.LeaveInlineFragment {
 		isFragmentPath = true
 	}
 
@@ -125,51 +148,72 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		return true
 	}
 
-	for _, config := range v.planners {
-		if config.Planner() == visitor && config.HasPath(path) {
-			switch kind {
-			case astvisitor.EnterField, astvisitor.LeaveField:
-				fieldName := v.Operation.FieldNameString(ref)
-				enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
+	idVisitor, ok := visitor.(Identifyable)
+	if !ok {
+		return false
+	}
+	visitorID := idVisitor.ID()
+	config := v.planners[visitorID]
+	if !config.HasPath(path) {
+		return false
+	}
+	switch kind {
+	case astvisitor.EnterField, astvisitor.LeaveField:
+		fieldName := v.Operation.FieldNameString(ref)
+		enclosingTypeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 
-				shouldWalkFieldsOnPath :=
-					// check if the field path has type condition and matches the enclosing type
-					config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
-						// check if the planner has path without type condition
-						// this could happen in case of union type
-						// or if there was added missing parent path
-						config.ShouldWalkFieldsOnPath(path, "")
+		allow := config.HasPathWithFieldRef(ref) || config.HasParent(path)
 
+		if !allow {
+			if v.Config.Debug.PlanningVisitor {
 				if pp, ok := config.Debugger(); ok {
-					pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
+					pp.DebugPrint("allow:", false, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
 				}
+			}
+			return false
+		}
 
-				return shouldWalkFieldsOnPath
-			case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
-				// we allow visiting inline fragments only if particular planner has path for the fragment
+		shouldWalkFieldsOnPath :=
+			// check if the field path has type condition and matches the enclosing type
+			config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
+				// check if the planner has path without type condition
+				// this could happen in case of union type
+				// or if there was added missing parent path
+				config.ShouldWalkFieldsOnPath(path, "")
 
-				hasFragmentPath := config.HasFragmentPath(ref)
-
-				if pp, ok := config.Debugger(); ok {
-					typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
-					pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
-				}
-
-				return hasFragmentPath
-			case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
-				allowedByParent := skipFor.Allow(config.Planner())
-
-				if pp, ok := config.Debugger(); ok {
-					pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
-				}
-
-				return allowedByParent
-			default:
-				return skipFor.Allow(config.Planner())
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				pp.DebugPrint("allow:", shouldWalkFieldsOnPath, " AllowVisitor: Field", " ref:", ref, " enclosingTypeName:", enclosingTypeName, " field:", fieldName, " path:", path)
 			}
 		}
+
+		return shouldWalkFieldsOnPath
+	case astvisitor.EnterInlineFragment, astvisitor.LeaveInlineFragment:
+		// we allow visiting inline fragments only if particular planner has path for the fragment
+
+		hasFragmentPath := config.HasFragmentPath(ref)
+
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				typeCondition := v.Operation.InlineFragmentTypeConditionNameString(ref)
+				pp.DebugPrint("allow:", hasFragmentPath, " AllowVisitor: InlineFragment", " ref:", ref, " typeCondition:", typeCondition)
+			}
+		}
+
+		return hasFragmentPath
+	case astvisitor.EnterSelectionSet, astvisitor.LeaveSelectionSet:
+		allowedByParent := skipFor.Allow(config.Planner())
+
+		if v.Config.Debug.PlanningVisitor {
+			if pp, ok := config.Debugger(); ok {
+				pp.DebugPrint("allow:", allowedByParent, " AllowVisitor: SelectionSet", " ref:", ref, " parent allowance check")
+			}
+		}
+
+		return allowedByParent
+	default:
+		return skipFor.Allow(config.Planner())
 	}
-	return false
 }
 
 func (v *Visitor) currentFullPath(skipFragments bool) string {
@@ -219,6 +263,14 @@ func (v *Visitor) EnterDirective(ref int) {
 func (v *Visitor) EnterInlineFragment(ref int) {
 	v.debugOnEnterNode(ast.NodeKindInlineFragment, ref)
 
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+		field := indirectInterfaceField{
+			interfaceName: v.Walker.EnclosingTypeDefinition.NameString(v.Definition),
+			node:          v.Walker.EnclosingTypeDefinition,
+		}
+		v.indirectInterfaceFields[v.Operation.InlineFragments[ref].SelectionSet] = field
+	}
+
 	directives := v.Operation.InlineFragments[ref].Directives.Refs
 	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directives)
 	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directives)
@@ -263,33 +315,33 @@ func (v *Visitor) EnterField(ref int) {
 	fieldName := v.Operation.FieldNameBytes(ref)
 	fieldAliasOrName := v.Operation.FieldAliasOrNameBytes(ref)
 
+	if bytes.Equal(fieldAliasOrName, []byte("__internal__typename_placeholder")) {
+		// we should skip such typename as it was added as a placeholder to keep query valid
+		return
+	}
+
 	fieldDefinition, ok := v.Walker.FieldDefinition(ref)
 	if !ok {
 		return
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	skipIncludeInfo := v.resolveSkipIncludeForField(ref)
-
 	onTypeNames := v.resolveOnTypeNames(ref)
 
 	v.currentField = &resolve.Field{
-		Name:                    fieldAliasOrName,
-		OnTypeNames:             onTypeNames,
-		Position:                v.resolveFieldPosition(ref),
-		SkipDirectiveDefined:    skipIncludeInfo.skip,
-		SkipVariableName:        skipIncludeInfo.skipVariableName,
-		IncludeDirectiveDefined: skipIncludeInfo.include,
-		IncludeVariableName:     skipIncludeInfo.includeVariableName,
-		Info:                    v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+		Name:        fieldAliasOrName,
+		OnTypeNames: onTypeNames,
+		Position:    v.resolveFieldPosition(ref),
+		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
-		v.currentField.Value = &resolve.String{
+		str := &resolve.String{
 			Nullable:   false,
 			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
 			IsTypeName: true,
 		}
+		v.currentField.Value = str
 	} else {
 		path := v.resolveFieldPath(ref)
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
@@ -312,7 +364,7 @@ func (v *Visitor) mapFieldConfig(ref int) {
 }
 
 func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *resolve.FieldInfo {
-	if !v.Config.IncludeInfo {
+	if v.Config.DisableIncludeInfo {
 		return nil
 	}
 
@@ -337,23 +389,45 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 		parentTypeNames = append(parentTypeNames, onTypeName)
 	}
 
+	if v.Walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+		// get all the type names that implement this interface
+		implementingTypeNames, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(v.Walker.EnclosingTypeDefinition.Ref)
+		if ok {
+			parentTypeNames = append(parentTypeNames, implementingTypeNames...)
+		}
+	}
+	slices.Sort(parentTypeNames)
+	parentTypeNames = slices.Compact(parentTypeNames)
+
+	sourceNames := make([]string, 0, 1)
 	sourceIDs := make([]string, 0, 1)
 
 	for i := range v.planners {
 		if v.planners[i].HasPathWithFieldRef(ref) {
 			sourceIDs = append(sourceIDs, v.planners[i].DataSourceConfiguration().Id())
+			sourceNames = append(sourceNames, v.planners[i].DataSourceConfiguration().Name())
 		}
 	}
-	return &resolve.FieldInfo{
+	fieldInfo := &resolve.FieldInfo{
 		Name:            fieldName,
 		NamedType:       typeName,
 		ParentTypeNames: parentTypeNames,
 		Source: resolve.TypeFieldSource{
-			IDs: sourceIDs,
+			IDs:   sourceIDs,
+			Names: sourceNames,
 		},
 		ExactParentTypeName:  enclosingTypeName,
 		HasAuthorizationRule: fieldHasAuthorizationRule,
 	}
+
+	if value, ok := v.indirectInterfaceFields[v.Walker.Ancestors[len(v.Walker.Ancestors)-1].Ref]; ok {
+		_, defined := v.Definition.NodeFieldDefinitionByName(value.node, v.Operation.FieldNameBytes(ref))
+		if defined && value.node.Kind == ast.NodeKindInterfaceTypeDefinition {
+			fieldInfo.IndirectInterfaceNames = append(fieldInfo.IndirectInterfaceNames, value.interfaceName)
+		}
+	}
+
+	return fieldInfo
 }
 
 func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
@@ -405,27 +479,6 @@ func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
 	}
 
 	return skipIncludeInfo{}, false
-}
-
-func (v *Visitor) resolveSkipIncludeForField(fieldRef int) skipIncludeInfo {
-	if info, ok := v.resolveSkipIncludeOnParent(); ok {
-		return info
-	}
-
-	directiveRefs := v.Operation.Fields[fieldRef].Directives.Refs
-	skipVariableName, skip := v.Operation.ResolveSkipDirectiveVariable(directiveRefs)
-	includeVariableName, include := v.Operation.ResolveIncludeDirectiveVariable(directiveRefs)
-
-	if skip || include {
-		return skipIncludeInfo{
-			skip:                skip,
-			skipVariableName:    skipVariableName,
-			include:             include,
-			includeVariableName: includeVariableName,
-		}
-	}
-
-	return skipIncludeInfo{}
 }
 
 func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
@@ -634,17 +687,57 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 				}
 			}
 		case ast.NodeKindEnumTypeDefinition:
-			return &resolve.String{
-				Path:                 path,
-				Nullable:             nullable,
-				UnescapeResponseJson: unescapeResponseJson,
+			values := make([]string, 0, len(v.Definition.EnumTypeDefinitions[typeDefinitionNode.Ref].EnumValuesDefinition.Refs))
+			inaccessibleValues := make([]string, 0)
+			for _, valueRef := range v.Definition.EnumTypeDefinitions[typeDefinitionNode.Ref].EnumValuesDefinition.Refs {
+				valueName := v.Definition.EnumValueDefinitionNameString(valueRef)
+				values = append(values, valueName)
+
+				if _, isInaccessible := v.Definition.EnumValueDefinitionDirectiveByName(valueRef, []byte("inaccessible")); isInaccessible {
+					inaccessibleValues = append(inaccessibleValues, valueName)
+				}
+			}
+			return &resolve.Enum{
+				Path:               path,
+				Nullable:           nullable,
+				TypeName:           typeName,
+				Values:             values,
+				InaccessibleValues: inaccessibleValues,
 			}
 		case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
 			object := &resolve.Object{
-				Nullable: nullable,
-				Path:     path,
-				Fields:   []*resolve.Field{},
+				Nullable:      nullable,
+				Path:          path,
+				Fields:        []*resolve.Field{},
+				TypeName:      typeName,
+				PossibleTypes: map[string]struct{}{},
 			}
+
+			switch typeDefinitionNode.Kind {
+			case ast.NodeKindObjectTypeDefinition:
+				object.PossibleTypes[typeName] = struct{}{}
+			case ast.NodeKindInterfaceTypeDefinition:
+				objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeDefinitionNode.Ref)
+				for _, implementingTypeName := range objectTypesImplementingInterface {
+					object.PossibleTypes[implementingTypeName] = struct{}{}
+				}
+			case ast.NodeKindUnionTypeDefinition:
+				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
+					for _, unionMember := range unionMembers {
+						object.PossibleTypes[unionMember] = struct{}{}
+					}
+				}
+			default:
+			}
+
+			if v.currentField.Info != nil {
+				if len(v.currentField.Info.Source.Names) > 0 {
+					object.SourceName = v.currentField.Info.Source.Names[0]
+				} else if len(v.currentField.Info.Source.IDs) > 0 {
+					object.SourceName = v.currentField.Info.Source.IDs[0]
+				}
+			}
+
 			v.objects = append(v.objects, object)
 			v.Walker.DefferOnEnterField(func() {
 				v.currentFields = append(v.currentFields, objectFields{
@@ -766,7 +859,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		Data: rootObject,
 	}
 
-	if v.Config.IncludeInfo {
+	if !v.Config.DisableIncludeInfo {
 		graphQLResponse.Info = &resolve.GraphQLResponseInfo{
 			OperationType: operationKind,
 		}
@@ -790,7 +883,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(ref)
-	plannerConfig := v.currentOrParentPlannerConfiguration()
+	plannerConfig := v.currentOrParentPlannerConfiguration(ref)
 
 	aliasOverride := false
 	if plannerConfig != nil && plannerConfig.Planner() != nil {
@@ -830,6 +923,8 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
+	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 }
 
 func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
@@ -847,7 +942,7 @@ var (
 	selectorRegex = regexp.MustCompile(`{{\s*\.(.*?)\s*}}`)
 )
 
-func (v *Visitor) currentOrParentPlannerConfiguration() PlannerConfiguration {
+func (v *Visitor) currentOrParentPlannerConfiguration(fieldRef int) PlannerConfiguration {
 	// TODO: this method should be dropped it is unnecessary expensive
 
 	const none = -1
@@ -1058,24 +1153,13 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 		return
 	}
 	fetchConfig := config.planner.ConfigureFetch()
+	if v.includeQueryPlans && fetchConfig.QueryPlan == nil {
+		fetchConfig.QueryPlan = &resolve.QueryPlan{}
+	}
 	fetch := v.configureFetch(config, fetchConfig)
 	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
-	if config.object.Fetch == nil {
-		config.object.Fetch = fetch
-		return
-	}
-
-	switch existing := config.object.Fetch.(type) {
-	case *resolve.SingleFetch:
-		copyOfExisting := *existing
-		multi := &resolve.MultiFetch{
-			Fetches: []*resolve.SingleFetch{&copyOfExisting, fetch},
-		}
-		config.object.Fetch = multi
-	case *resolve.MultiFetch:
-		existing.Fetches = append(existing.Fetches, fetch)
-	}
+	config.object.Fetches = append(config.object.Fetches, fetch)
 }
 
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
@@ -1091,11 +1175,13 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
-	if v.Config.IncludeInfo {
+	if !v.Config.DisableIncludeInfo {
 		singleFetch.Info = &resolve.FetchInfo{
-			DataSourceID:  internal.sourceID,
-			RootFields:    internal.rootFields,
-			OperationType: internal.operationType,
+			DataSourceID:   internal.sourceID,
+			DataSourceName: internal.sourceName,
+			RootFields:     internal.rootFields,
+			OperationType:  internal.operationType,
+			QueryPlan:      external.QueryPlan,
 		}
 	}
 

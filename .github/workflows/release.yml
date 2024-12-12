@@ -1,0 +1,21 @@
+on:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+name: release-please
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GH_TOKEN_RELEASES }}
+          config-file: release-please-config.json
+          manifest-file: release-please-manifest.json

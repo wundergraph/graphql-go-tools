@@ -15,11 +15,11 @@ import (
 	"os"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -70,6 +70,8 @@ type responseContextKey struct{}
 
 type ResponseContext struct {
 	StatusCode int
+	Request    *http.Request
+	Response   *http.Response
 }
 
 func InjectResponseContext(ctx context.Context) (context.Context, *ResponseContext) {
@@ -77,9 +79,11 @@ func InjectResponseContext(ctx context.Context) (context.Context, *ResponseConte
 	return context.WithValue(ctx, responseContextKey{}, value), value
 }
 
-func setResponseStatusCode(ctx context.Context, statusCode int) {
+func setResponseStatus(ctx context.Context, request *http.Request, response *http.Response) {
 	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
-		value.StatusCode = statusCode
+		value.StatusCode = response.StatusCode
+		value.Request = request
+		value.Response = response
 	}
 }
 
@@ -115,24 +119,18 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
-var (
-	requestBufferPool = &sync.Pool{
-		New: func() any {
-			return &bytes.Buffer{}
-		},
+type bodyHashContextKey struct{}
+
+func BodyHashFromContext(ctx context.Context) (uint64, bool) {
+	value := ctx.Value(bodyHashContextKey{})
+	if value == nil {
+		return 0, false
 	}
-)
-
-func getBuffer() *bytes.Buffer {
-	return requestBufferPool.Get().(*bytes.Buffer)
-}
-
-func releaseBuffer(buf *bytes.Buffer) {
-	buf.Reset()
-	requestBufferPool.Put(buf)
+	return value.(uint64), true
 }
 
 func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
+
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
 		return err
@@ -197,7 +195,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	}
 	defer response.Body.Close()
 
-	setResponseStatusCode(ctx, response.StatusCode)
+	setResponseStatus(ctx, request, response)
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
@@ -205,14 +203,16 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	}
 
 	if !enableTrace {
+		if response.ContentLength > 0 {
+			out.Grow(int(response.ContentLength))
+		} else {
+			out.Grow(1024 * 4)
+		}
 		_, err = out.ReadFrom(respReader)
 		return
 	}
 
-	buf := getBuffer()
-	defer releaseBuffer(buf)
-
-	_, err = buf.ReadFrom(respReader)
+	data, err := io.ReadAll(respReader)
 	if err != nil {
 		return err
 	}
@@ -226,14 +226,14 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 			StatusCode: response.StatusCode,
 			Status:     response.Status,
 			Headers:    redactHeaders(response.Header),
-			BodySize:   buf.Len(),
+			BodySize:   len(data),
 		},
 	}
 	trace, err := json.Marshal(responseTrace)
 	if err != nil {
 		return err
 	}
-	responseWithTraceExtension, err := jsonparser.Set(buf.Bytes(), trace, "extensions", "trace")
+	responseWithTraceExtension, err := jsonparser.Set(data, trace, "extensions", "trace")
 	if err != nil {
 		return err
 	}
@@ -243,7 +243,11 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte, out *bytes.Buffer) (err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-
+	h := pool.Hash64.Get()
+	_, _ = h.Write(body)
+	bodyHash := h.Sum64()
+	pool.Hash64.Put(h)
+	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
 	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
 }
 
@@ -255,6 +259,10 @@ func DoMultipartForm(
 	}
 
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
+
+	h := pool.Hash64.Get()
+	defer pool.Hash64.Put(h)
+	_, _ = h.Write(body)
 
 	formValues := map[string]io.Reader{
 		"operations": bytes.NewReader(body),
@@ -273,6 +281,7 @@ func DoMultipartForm(
 			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
 		}
 		key := fmt.Sprintf("%d", i)
+		_, _ = h.WriteString(file.Path())
 		temporaryFile, err := os.Open(file.Path())
 		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
@@ -298,6 +307,9 @@ func DoMultipartForm(
 			}
 		}
 	}()
+
+	bodyHash := h.Sum64()
+	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
 
 	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
 }

@@ -6,12 +6,18 @@ on:
     paths:
       - 'v2/**'
       - '.github/workflows/v2.yml'
+      - '.github/workflows/pr-title.yml'
+      - '.github/workflows/release.yml'
+      - 'commitlint.config.js'
   push:
     branches:
       - master
     paths:
       - 'v2/**'
       - '.github/workflows/v2.yml'
+      - '.github/workflows/pr-title.yml'
+      - '.github/workflows/release.yml'
+      - 'commitlint.config.js'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})

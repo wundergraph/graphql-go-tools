@@ -23,9 +23,10 @@ type GraphQLSubscriptionTrigger struct {
 
 type GraphQLResponse struct {
 	Data            *Object
-	FetchTree       *Object
 	RenameTypeNames []RenameTypeName
 	Info            *GraphQLResponseInfo
+	Fetches         *FetchTreeNode
+	DataSources     []DataSourceInfo
 }
 
 type GraphQLResponseInfo struct {

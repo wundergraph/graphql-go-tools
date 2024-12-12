@@ -68,7 +68,7 @@ func ExampleParsePrintDocument() {
 	}
 
 	out := &bytes.Buffer{}
-	err := printer.Print(document, nil, out)
+	err := printer.Print(document, out)
 	if err != nil {
 		panic(err)
 	}
@@ -105,7 +105,7 @@ func ExampleParseComplexDocument() {
 	}
 
 	out := &bytes.Buffer{}
-	err := printer.Print(document, nil, out)
+	err := printer.Print(document, out)
 	if err != nil {
 		panic(err)
 	}
@@ -139,7 +139,7 @@ func ExamplePrintWithIndentation() {
 		panic(report.Error())
 	}
 
-	out, err := astprinter.PrintStringIndent(document, nil, "  ")
+	out, err := astprinter.PrintStringIndent(document, "  ")
 	if err != nil {
 		panic(err)
 	}
@@ -300,7 +300,7 @@ func ExampleNormalizeDocument() {
 		panic(report.Error())
 	}
 
-	out, err := astprinter.PrintStringIndent(document, nil, "  ")
+	out, err := astprinter.PrintStringIndent(document, "  ")
 	if err != nil {
 		panic(err)
 	}
@@ -359,7 +359,7 @@ func ExampleGenerateCacheKey() {
 	normalizer.NormalizeNamedOperation(operationDocument, schemaDocument, []byte("MyQuery"), report)
 	printer := &astprinter.Printer{}
 	keyGen := xxhash.New()
-	err := printer.Print(operationDocument, schemaDocument, keyGen)
+	err := printer.Print(operationDocument, keyGen)
 	if err != nil {
 		panic(err)
 	}
@@ -426,7 +426,7 @@ func ExampleGenerateCacheKeyWithStaticOperationName() {
 
 	printer := &astprinter.Printer{}
 	keyGen := xxhash.New()
-	err := printer.Print(operationDocument, schemaDocument, keyGen)
+	err := printer.Print(operationDocument, keyGen)
 	if err != nil {
 		panic(err)
 	}
@@ -495,7 +495,6 @@ func ExamplePlanOperation() {
 				Path:                  []string{"hello"}, // returns the value of the field "hello" from the JSON data
 			},
 		},
-		IncludeInfo: true,
 	}
 
 	operationDocument := ast.NewSmallDocument() // containing the following query: query O { hello }
@@ -530,7 +529,7 @@ func ExampleExecuteOperation() {
 	switch p := preparedPlan.(type) {
 	case *plan.SynchronousResponsePlan:
 		out := &bytes.Buffer{}
-		err := resolver.ResolveGraphQLResponse(ctx, p.Response, nil, out)
+		_, err := resolver.ResolveGraphQLResponse(ctx, p.Response, nil, out)
 		if err != nil {
 			panic(err)
 		}

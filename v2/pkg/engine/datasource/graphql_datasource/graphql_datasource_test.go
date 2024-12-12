@@ -65,54 +65,62 @@ func mustDataSourceConfigurationWithHttpClient(t *testing.T, id string, metadata
 	return dsCfg
 }
 
-func TestGraphQLDataSourceTypenames(t *testing.T) {
-	t.Run("__typename on union", func(t *testing.T) {
-		def := `
-			schema {
-				query: Query
+func TestGraphQLDataSource(t *testing.T) {
+	t.Run("query with double nested fragments with fragment on union", func(t *testing.T) {
+		definition := `
+			type Query {
+				a: A
 			}
 	
 			type A {
 				a: String
 			}
 	
-			union U = A
+			type B {
+				b: String
+			}
 	
-			type Query {
-				u: U
-			}`
+			union U = A | B
+		`
 
-		t.Run("run", RunTest(
-			def, `
-			query TypenameOnUnion {
-				u {
-					__typename
+		t.Run("run", RunTest(definition, ` 
+			query MyQuery{
+				a {
+					... on U {
+						... on A {
+							a
+						}
+					}
 				}
 			}`,
-			"TypenameOnUnion", &plan.SynchronousResponsePlan{
+			"MyQuery",
+			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{a {__typename ... on U {__typename ... on A {a}}}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
-								Name: []byte("u"),
+								Name: []byte("a"),
 								Value: &resolve.Object{
-									Path:     []string{"u"},
+									Path:     []string{"a"},
 									Nullable: true,
 									Fields: []*resolve.Field{
 										{
-											Name: []byte("__typename"),
+											Name: []byte("a"),
 											Value: &resolve.String{
-												Path:       []string{"__typename"},
-												IsTypeName: true,
+												Path:     []string{"a"},
+												Nullable: true,
 											},
+											OnTypeNames: [][]byte{[]byte("A")},
 										},
 									},
 								},
@@ -129,7 +137,17 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 							RootNodes: []plan.TypeField{
 								{
 									TypeName:   "Query",
-									FieldNames: []string{"u"},
+									FieldNames: []string{"a"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "A",
+									FieldNames: []string{"a"},
+								},
+								{
+									TypeName:   "B",
+									FieldNames: []string{"b"},
 								},
 							},
 						},
@@ -137,97 +155,13 @@ func TestGraphQLDataSourceTypenames(t *testing.T) {
 							Fetch: &FetchConfiguration{
 								URL: "https://example.com/graphql",
 							},
-							SchemaConfiguration: mustSchema(t, nil, def),
-						}),
-					),
-				},
-				DisableResolveFieldPositions: true,
-			}))
-	})
-}
-
-func TestGraphQLDataSource(t *testing.T) {
-	t.Run("@removeNullVariables directive", func(t *testing.T) {
-		// XXX: Directive needs to be explicitly declared
-		definition := `
-		directive @removeNullVariables on QUERY | MUTATION
-
-		schema {
-			query: Query
-		}
-		
-		type Query {
-			hero(a: String): String
-		}`
-
-		t.Run("@removeNullVariables directive", RunTest(definition, `
-			query MyQuery($a: String) @removeNullVariables {
-				hero(a: $a)
-			}
-			`, "MyQuery",
-			&plan.SynchronousResponsePlan{
-				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource: &Source{},
-								Input:      `{"method":"POST","url":"https://swapi.com/graphql","unnull_variables":true,"body":{"query":"query($a: String){hero(a: $a)}","variables":{"a":$$0$$}}}`,
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"a"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-								),
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						},
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("hero"),
-								Value: &resolve.String{
-									Path:     []string{"hero"},
-									Nullable: true,
-								},
-							},
-						},
-					},
-				},
-			}, plan.Configuration{
-				DataSources: []plan.DataSource{
-					mustDataSourceConfiguration(
-						t,
-						"ds-id",
-						&plan.DataSourceMetadata{
-							RootNodes: []plan.TypeField{
-								{
-									TypeName:   "Query",
-									FieldNames: []string{"hero"},
-								},
-							},
-						},
-						mustCustomConfiguration(t, ConfigurationInput{
-							Fetch: &FetchConfiguration{
-								URL: "https://swapi.com/graphql",
-							},
 							SchemaConfiguration: mustSchema(t, nil, definition),
 						}),
 					),
 				},
-				Fields: []plan.FieldConfiguration{
-					{
-						TypeName:  "Query",
-						FieldName: "hero",
-						Arguments: []plan.ArgumentConfiguration{
-							{
-								Name:       "a",
-								SourceType: plan.FieldArgumentSource,
-							},
-						},
-					},
-				},
 				DisableResolveFieldPositions: true,
-			}))
+			},
+		))
 	})
 
 	t.Run("simple named Query", RunTest(starWarsSchema, `
@@ -249,22 +183,24 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.HeaderVariable{
-								Path: []string{"Authorization"},
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"id"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.HeaderVariable{
+									Path: []string{"Authorization"},
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -435,41 +371,44 @@ func TestGraphQLDataSource(t *testing.T) {
 				OperationType: ast.OperationTypeQuery,
 			},
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.HeaderVariable{
-								Path: []string{"Authorization"},
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
-					},
-					Info: &resolve.FetchInfo{
-						OperationType: ast.OperationTypeQuery,
-						DataSourceID:  "https://swapi.com",
-						RootFields: []resolve.GraphCoordinate{
-							{
-								TypeName:  "Query",
-								FieldName: "droid",
-							},
-							{
-								TypeName:  "Query",
-								FieldName: "hero",
-							},
-							{
-								TypeName:  "Query",
-								FieldName: "stringList",
-							},
-							{
-								TypeName:  "Query",
-								FieldName: "nestedStringList",
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$1$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} stringList nestedStringList}","variables":{"id":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"id"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.HeaderVariable{
+									Path: []string{"Authorization"},
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						Info: &resolve.FetchInfo{
+							OperationType:  ast.OperationTypeQuery,
+							DataSourceID:   "https://swapi.com",
+							DataSourceName: "https://swapi.com",
+							RootFields: []resolve.GraphCoordinate{
+								{
+									TypeName:  "Query",
+									FieldName: "droid",
+								},
+								{
+									TypeName:  "Query",
+									FieldName: "hero",
+								},
+								{
+									TypeName:  "Query",
+									FieldName: "stringList",
+								},
+								{
+									TypeName:  "Query",
+									FieldName: "nestedStringList",
+								},
 							},
 						},
 					},
@@ -483,7 +422,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "Droid",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 						Value: &resolve.Object{
@@ -501,7 +441,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -516,7 +457,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -528,7 +470,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "Character",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 									Value: &resolve.Array{
@@ -544,11 +487,12 @@ func TestGraphQLDataSource(t *testing.T) {
 													},
 													Info: &resolve.FieldInfo{
 														Name:                "name",
-														ParentTypeNames:     []string{"Character"},
+														ParentTypeNames:     []string{"Character", "Droid", "Human"},
 														ExactParentTypeName: "Character",
 														NamedType:           "String",
 														Source: resolve.TypeFieldSource{
-															IDs: []string{"https://swapi.com"},
+															IDs:   []string{"https://swapi.com"},
+															Names: []string{"https://swapi.com"},
 														},
 													},
 												},
@@ -567,7 +511,8 @@ func TestGraphQLDataSource(t *testing.T) {
 										ExactParentTypeName: "Droid",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -587,11 +532,12 @@ func TestGraphQLDataSource(t *testing.T) {
 									},
 									Info: &resolve.FieldInfo{
 										Name:                "name",
-										ParentTypeNames:     []string{"Character"},
+										ParentTypeNames:     []string{"Character", "Droid", "Human"},
 										ExactParentTypeName: "Character",
 										NamedType:           "String",
 										Source: resolve.TypeFieldSource{
-											IDs: []string{"https://swapi.com"},
+											IDs:   []string{"https://swapi.com"},
+											Names: []string{"https://swapi.com"},
 										},
 									},
 								},
@@ -603,7 +549,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "Character",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 					},
@@ -621,7 +568,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "String",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 					},
@@ -640,7 +588,8 @@ func TestGraphQLDataSource(t *testing.T) {
 							ExactParentTypeName: "Query",
 							NamedType:           "String",
 							Source: resolve.TypeFieldSource{
-								IDs: []string{"https://swapi.com"},
+								IDs:   []string{"https://swapi.com"},
+								Names: []string{"https://swapi.com"},
 							},
 						},
 					},
@@ -648,7 +597,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 	}, plan.Configuration{
-		IncludeInfo: true,
 		DataSources: []plan.DataSource{
 			mustDataSourceConfiguration(
 				t,
@@ -710,7 +658,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}))
+	}, WithFieldInfo()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
@@ -722,13 +670,15 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -828,13 +778,15 @@ func TestGraphQLDataSource(t *testing.T) {
 			"", &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{thing {id abstractThing {__typename ... on ConcreteOne {name}}}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
@@ -917,378 +869,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			}))
 	})
 
-	t.Run("skip directive with variable", RunTest(interfaceSelectionSchema, `
-		query MyQuery ($skip: Boolean!) {
-			user {
-				id
-				displayName @skip(if: $skip)
-			}
-		}
-	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName @skip(if: $skip)}}","variables":{"skip":$$0$$}}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"skip"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-					},
-				},
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("user"),
-						Value: &resolve.Object{
-							Path:     []string{"user"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("id"),
-									Value: &resolve.String{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("displayName"),
-									Value: &resolve.String{
-										Path: []string{"displayName"},
-									},
-									SkipDirectiveDefined: true,
-									SkipVariableName:     "skip",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSource{
-			mustDataSourceConfiguration(
-				t,
-				"ds-id",
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-						{
-							TypeName:   "RegisteredUser",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-					},
-				},
-				mustCustomConfiguration(t, ConfigurationInput{
-					Fetch: &FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-					},
-					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				}),
-			),
-		},
-		Fields:                       []plan.FieldConfiguration{},
-		DisableResolveFieldPositions: true,
-	}))
-
-	t.Run("skip directive on __typename", RunTest(interfaceSelectionSchema, `
-		query MyQuery ($skip: Boolean!) {
-			user {
-				id
-				displayName
-				__typename @skip(if: $skip)
-				tn2: __typename @include(if: $skip)
-			}
-		}
-	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {id displayName __typename @skip(if: $skip) tn2: __typename @include(if: $skip)}}","variables":{"skip":$$0$$}}}`,
-						Variables: resolve.NewVariables(&resolve.ContextVariable{
-							Path:     []string{"skip"},
-							Renderer: resolve.NewJSONVariableRenderer(),
-						}),
-						PostProcessing: DefaultPostProcessingConfiguration,
-					},
-				},
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("user"),
-						Value: &resolve.Object{
-							Path:     []string{"user"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("id"),
-									Value: &resolve.String{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("displayName"),
-									Value: &resolve.String{
-										Path: []string{"displayName"},
-									},
-								},
-								{
-									Name: []byte("__typename"),
-									Value: &resolve.String{
-										Path:       []string{"__typename"},
-										IsTypeName: true,
-									},
-									SkipDirectiveDefined: true,
-									SkipVariableName:     "skip",
-								},
-								{
-									Name: []byte("tn2"),
-									Value: &resolve.String{
-										Path:       []string{"tn2"},
-										IsTypeName: true,
-									},
-									IncludeDirectiveDefined: true,
-									IncludeVariableName:     "skip",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSource{
-			mustDataSourceConfiguration(
-				t,
-				"ds-id",
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-						{
-							TypeName:   "RegisteredUser",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-					},
-				},
-				mustCustomConfiguration(t, ConfigurationInput{
-					Fetch: &FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-					},
-					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				}),
-			),
-		},
-		Fields:                       []plan.FieldConfiguration{},
-		DisableResolveFieldPositions: true,
-	}))
-
-	t.Run("skip directive on an inline fragment", RunTest(interfaceSelectionSchema, `
-		query MyQuery ($skip: Boolean!) {
-			user {
-				... @skip(if: $skip) {
-					id
-					displayName
-				}
-			}
-		}
-	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($skip: Boolean!){user {... @skip(if: $skip){id displayName}}}","variables":{"skip":$$0$$}}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"skip"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-					},
-				},
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("user"),
-						Value: &resolve.Object{
-							Path:     []string{"user"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("id"),
-									Value: &resolve.String{
-										Path: []string{"id"},
-									},
-									OnTypeNames:          [][]byte{[]byte("RegisteredUser")},
-									SkipDirectiveDefined: true,
-									SkipVariableName:     "skip",
-								},
-								{
-									Name: []byte("displayName"),
-									Value: &resolve.String{
-										Path: []string{"displayName"},
-									},
-									OnTypeNames:          [][]byte{[]byte("RegisteredUser")},
-									SkipDirectiveDefined: true,
-									SkipVariableName:     "skip",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSource{
-			mustDataSourceConfiguration(
-				t,
-				"ds-id",
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-						{
-							TypeName:   "RegisteredUser",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-					},
-				},
-				mustCustomConfiguration(t, ConfigurationInput{
-					Fetch: &FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-					},
-					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				}),
-			),
-		},
-		Fields:                       []plan.FieldConfiguration{},
-		DisableResolveFieldPositions: true,
-	}))
-
-	t.Run("include directive on an inline fragment", RunTest(interfaceSelectionSchema, `
-		query MyQuery ($include: Boolean!) {
-			user {
-				... @include(if: $include) {
-					id
-					displayName
-				}
-			}
-		}
-	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {... @include(if: $include){id displayName}}}","variables":{"include":$$0$$}}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"include"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-					},
-				},
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("user"),
-						Value: &resolve.Object{
-							Path:     []string{"user"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("id"),
-									Value: &resolve.String{
-										Path: []string{"id"},
-									},
-									OnTypeNames:             [][]byte{[]byte("RegisteredUser")},
-									IncludeDirectiveDefined: true,
-									IncludeVariableName:     "include",
-								},
-								{
-									Name: []byte("displayName"),
-									Value: &resolve.String{
-										Path: []string{"displayName"},
-									},
-									OnTypeNames:             [][]byte{[]byte("RegisteredUser")},
-									IncludeDirectiveDefined: true,
-									IncludeVariableName:     "include",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSource{
-			mustDataSourceConfiguration(
-				t,
-				"ds-id",
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-						{
-							TypeName:   "RegisteredUser",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-					},
-				},
-				mustCustomConfiguration(t, ConfigurationInput{
-					Fetch: &FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-					},
-					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				}),
-			),
-		},
-		Fields:                       []plan.FieldConfiguration{},
-		DisableResolveFieldPositions: true,
-	}))
-
 	t.Run("skip directive with inline value true", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
 			user {
@@ -1299,12 +879,14 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -1371,12 +953,14 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -1397,92 +981,6 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: &resolve.String{
 										Path: []string{"displayName"},
 									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}, plan.Configuration{
-		DataSources: []plan.DataSource{
-			mustDataSourceConfiguration(
-				t,
-				"ds-id",
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"user"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-						{
-							TypeName:   "RegisteredUser",
-							FieldNames: []string{"id", "displayName", "isLoggedIn"},
-						},
-					},
-				},
-				mustCustomConfiguration(t, ConfigurationInput{
-					Fetch: &FetchConfiguration{
-						URL: "https://swapi.com/graphql",
-					},
-					SchemaConfiguration: mustSchema(t, nil, interfaceSelectionSchema),
-				}),
-			),
-		},
-		Fields:                       []plan.FieldConfiguration{},
-		DisableResolveFieldPositions: true,
-	}))
-
-	t.Run("include directive with variable", RunTest(interfaceSelectionSchema, `
-		query MyQuery ($include: Boolean!) {
-			user {
-				id
-				displayName @include(if: $include)
-			}
-		}
-	`, "MyQuery", &plan.SynchronousResponsePlan{
-		Response: &resolve.GraphQLResponse{
-			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($include: Boolean!){user {id displayName @include(if: $include)}}","variables":{"include":$$0$$}}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"include"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-					},
-				},
-				Fields: []*resolve.Field{
-					{
-						Name: []byte("user"),
-						Value: &resolve.Object{
-							Path:     []string{"user"},
-							Nullable: true,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("id"),
-									Value: &resolve.String{
-										Path: []string{"id"},
-									},
-								},
-								{
-									Name: []byte("displayName"),
-									Value: &resolve.String{
-										Path: []string{"displayName"},
-									},
-									IncludeDirectiveDefined: true,
-									IncludeVariableName:     "include",
 								},
 							},
 						},
@@ -1535,12 +1033,14 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -1612,12 +1112,14 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -1687,12 +1189,14 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource:     &Source{},
-						Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource:     &Source{},
+							Input:          `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"{user {id displayName __typename ... on RegisteredUser {hasVerifiedEmail}}}"}}`,
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
 					},
 				},
 				Fields: []*resolve.Field{
@@ -1762,28 +1266,34 @@ func TestGraphQLDataSource(t *testing.T) {
 		DisableResolveFieldPositions: true,
 	}))
 
-	t.Run("variable at top level and recursively", RunTest(variableSchema, `
+	t.Run("variable at top level and recursively", RunTestWithVariables(variableSchema, `
 		query MyQuery($name: String!){
             user(name: $name){
                 normalized(data: {name: $name})
             }
         }
-    `, "MyQuery", &plan.SynchronousResponsePlan{
+    `, "MyQuery", `{"name":"Obi-Wan Kenobi"}`, &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!){user(name: $name){normalized(data: {name: $name})}}","variables":{"name":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"name"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($name: String!, $a: NormalizedDataInput!){user(name: $name){normalized(data: $a)}}","variables":{"a":$$1$$,"name":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"name"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -1869,19 +1379,21 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &Source{},
-							Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"heroId"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &Source{},
+								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($heroId: ID!){droid(id: $heroId){name} hero {id}}","variables":{"heroId":$$0$$}}}`,
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"heroId"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -1992,26 +1504,28 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"heroName"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.HeaderVariable{
-								Path: []string{"Authorization"},
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $heroName: String!){droid(id: $id){name aliased: name friends {name} primaryFunction} hero {name} search(name: $heroName){__typename ... on Droid {primaryFunction}} stringList nestedStringList}","variables":{"heroName":$$1$$,"id":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"id"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"heroName"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.HeaderVariable{
+									Path: []string{"Authorization"},
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2230,34 +1744,36 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"a"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"input"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"options"},
-								Renderer: resolve.NewJSONVariableRendererWithValidation(`{}`),
-							},
-							&resolve.HeaderVariable{
-								Path: []string{"Authorization"},
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$4$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($id: ID!, $a: String! @onVariable, $input: SearchInput!, $options: JSON)@onOperation {api_droid: droid(id: $id){name @format aliased: name friends {name} primaryFunction} api_hero: hero {name __typename ... on Human {height}} api_stringList: stringList renamed: nestedStringList api_search: search(name: $a){__typename ... on Droid {primaryFunction}} api_searchWithInput: searchWithInput(input: $input){__typename ... on Droid {primaryFunction}} withOptions: searchWithInput(input: {options: $options}){__typename ... on Droid {primaryFunction}}}","variables":{"options":$$3$$,"input":$$2$$,"a":$$1$$,"id":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"id"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"input"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"options"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.HeaderVariable{
+									Path: []string{"Authorization"},
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2549,19 +2065,21 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"representations"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://subgraph-reviews/query","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {reviews {body author {username id}}}}}","variables":{"representations":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"representations"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -2713,19 +2231,21 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"droidIDs"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-								),
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidIDs: [ID!]!){droids(ids: $droidIDs){name primaryFunction}}","variables":{"droidIDs":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"droidIDs"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
@@ -2772,19 +2292,21 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"droidID"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-								),
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($droidID: ID!){droid(id: $droidID){name primaryFunction}}","variables":{"droidID":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"droidID"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
@@ -2826,19 +2348,21 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"birthdate"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-								),
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"https://swapi.com/graphql","body":{"query":"query($birthdate: Date!){heroByBirthdate(birthdate: $birthdate){name}}","variables":{"birthdate":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"birthdate"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
@@ -2877,19 +2401,21 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://service.one","body":{"query":"mutation($name: String!){addFriend(name: $name){id name}}","variables":{"name":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"name"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -2986,23 +2512,25 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://foo.service","body":{"query":"query($a: String, $b: String){foo(bar: $a){bar(bal: $b)}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"b"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3101,23 +2629,25 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} alias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"b"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3227,23 +2757,25 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"b"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://countries.service","body":{"query":"query($a: ID!, $b: ID!){country(code: $a){name} countryAlias: country(code: $b){name}}","variables":{"b":$$1$$,"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"b"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3388,71 +2920,87 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "NestedQuery",
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetch: &resolve.ParallelFetch{
-							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 0,
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
-										DataSource: &Source{},
-										Variables: resolve.NewVariables(
-											&resolve.ContextVariable{
-												Path:     []string{"firstArg"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-											&resolve.ContextVariable{
-												Path:     []string{"thirdArg"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-										),
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								},
-								&resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID: 2,
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
-										DataSource: &Source{},
-										Variables: resolve.NewVariables(
-											&resolve.ContextVariable{
-												Path:     []string{"secondArg"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-											&resolve.ContextVariable{
-												Path:     []string{"fourthArg"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-										),
-										PostProcessing: DefaultPostProcessingConfiguration,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								},
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID: 0,
 							},
-						},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":$$1$$,"firstArg":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"firstArg"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"thirdArg"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+						resolve.Single(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID: 2,
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo serviceOneField}}","variables":{"fourthArg":$$1$$,"secondArg":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"secondArg"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"fourthArg"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+						resolve.SingleWithPath(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0, 2},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "serviceOne", resolve.ObjectPath("serviceOne")),
+						resolve.SingleWithPath(&resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           3,
+								DependsOnFetchIDs: []int{0, 2},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &Source{},
+								Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
+								Variables: resolve.NewVariables(
+									&resolve.ObjectVariable{
+										Path:     []string{"serviceOneField"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}, "serviceTwo", resolve.ObjectPath("serviceTwo")),
+					),
+					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("serviceOne"),
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"serviceOne"},
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 1,
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											DataSource:     &Source{},
-											Input:          `{"method":"POST","url":"https://country.service","body":{"query":"{countries {name}}"}}`,
-											PostProcessing: DefaultPostProcessingConfiguration,
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									},
-
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldOne"),
@@ -3484,23 +3032,6 @@ func TestGraphQLDataSource(t *testing.T) {
 								Value: &resolve.Object{
 									Nullable: true,
 									Path:     []string{"serviceTwo"},
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 3,
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											DataSource: &Source{},
-											Input:      `{"method":"POST","url":"https://service.one","body":{"query":"query($a: String){serviceOneResponse: serviceOne(serviceOneArg: $a){fieldOne}}","variables":{"a":$$0$$}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"serviceOneField"},
-													Renderer: resolve.NewJSONVariableRenderer(),
-												},
-											),
-											PostProcessing: DefaultPostProcessingConfiguration,
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
-									},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("fieldTwo"),
@@ -3729,11 +3260,11 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 				DisableResolveFieldPositions: true,
 			},
-			WithMultiFetchPostProcessor(),
+			WithDefaultPostProcessor(),
 		))
 	})
 
-	t.Run("mutation with variables in array object argument", RunTest(
+	t.Run("mutation with variables in array object argument", RunTestWithVariables(
 		todoSchema,
 		`mutation AddTask($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
 					  addTask(input: [{titleSets: [[$title]], completed: $completed, user: {name: $name}}]){
@@ -3744,31 +3275,25 @@ func TestGraphQLDataSource(t *testing.T) {
 						}
 					  }
 					}`,
-		"AddTask",
+		"AddTask", `{"title":"task","completed":true,"name":"user"}`,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($title: String!, $completed: Boolean!, $name: String!){addTask(input: [{titleSets: [[$title]],completed: $completed,user: {name: $name}}]){task {id title completed}}}","variables":{"name":$$2$$,"completed":$$1$$,"title":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"title"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"completed"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"https://graphql.service","body":{"query":"mutation($a: [AddTaskInput!]!){addTask(input: $a){task {id title completed}}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -3887,7 +3412,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			directive @fromClaim(name: String) on VARIABLE_DEFINITION
 			`
 
-		t.Run("inline object value with arguments", RunTest(definition, `
+		t.Run("inline object value with arguments", RunTestWithVariables(definition, `
 			mutation Register($name: String $id: String @fromClaim(name: "sub")) {
 			  createUser(input: {user: {id: $id username: $name}}){
 				user {
@@ -3897,27 +3422,25 @@ func TestGraphQLDataSource(t *testing.T) {
 				}
 			  }
 			}`,
-			"Register",
+			"Register", `{"name":"user","id":"123"}`,
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($id: String, $name: String){createUser(input: {user: {id: $id,username: $name}}){user {id username createdDate}}}","variables":{"name":$$1$$,"id":$$0$$}}}`,
-								DataSource: &Source{},
-								Variables: resolve.NewVariables(
-									&resolve.ContextVariable{
-										Path:     []string{"id"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-									&resolve.ContextVariable{
-										Path:     []string{"name"},
-										Renderer: resolve.NewJSONVariableRenderer(),
-									},
-								),
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:      `{"method":"POST","url":"https://user.service","body":{"query":"mutation($a: CreateUserInput!){createUser(input: $a){user {id username createdDate}}}","variables":{"a":$$0$$}}}`,
+									DataSource: &Source{},
+									Variables: resolve.NewVariables(
+										&resolve.ContextVariable{
+											Path:     []string{"a"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+									),
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
@@ -4011,7 +3534,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		))
 	})
 
-	t.Run("mutation with union response", RunTest(wgSchema, `
+	t.Run("mutation with union response", RunTestWithVariables(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
 			__typename
 			namespaceCreate(input: {name: $name, personal: $personal}){
@@ -4027,27 +3550,25 @@ func TestGraphQLDataSource(t *testing.T) {
 					message
 				}
 			}
-		}`, "CreateNamespace",
+		}`, "CreateNamespace", `{"name":"namespace","personal":true}`,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){__typename namespaceCreate(input: {name: $name,personal: $personal}){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"personal"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){__typename namespaceCreate(input: $a){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -4097,8 +3618,24 @@ func TestGraphQLDataSource(t *testing.T) {
 									{
 										OnTypeNames: [][]byte{[]byte("Error")},
 										Name:        []byte("code"),
-										Value: &resolve.String{
-											Path: []string{"code"},
+										Value: &resolve.Enum{
+											TypeName: "ErrorCode",
+											Path:     []string{"code"},
+											Values: []string{
+												"Internal",
+												"AuthenticationRequired",
+												"Unauthorized",
+												"NotFound",
+												"Conflict",
+												"UserAlreadyHasPersonalNamespace",
+												"TeamPlanInPersonalNamespace",
+												"InvalidName",
+												"UnableToDeployEnvironment",
+												"InvalidWunderGraphConfig",
+												"ApiEnvironmentNamespaceMismatch",
+												"UnableToUpdateEdgesOnPersonalEnvironment",
+											},
+											InaccessibleValues: []string{},
 										},
 									},
 									{
@@ -4176,32 +3713,30 @@ func TestGraphQLDataSource(t *testing.T) {
 		},
 	))
 
-	t.Run("mutation with single __typename field on union", RunTest(wgSchema, `
+	t.Run("mutation with single __typename field on union", RunTestWithVariables(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
 			namespaceCreate(input: {name: $name, personal: $personal}){
 				__typename
 			}
-		}`, "CreateNamespace",
+		}`, "CreateNamespace", `{"name":"namespace","personal":true}`,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($name: String!, $personal: Boolean!){namespaceCreate(input: {name: $name,personal: $personal}){__typename}}","variables":{"personal":$$1$$,"name":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"name"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-								&resolve.ContextVariable{
-									Path:     []string{"personal"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){namespaceCreate(input: $a){__typename}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -4422,54 +3957,58 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username __typename}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id username __typename}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("me"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} __typename upc}}}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.String{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-													},
-												}),
-											},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
 										},
-										DataSource:                            &Source{},
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										RequiresEntityFetch:                   true,
-										SetTemplateOutputToNullOnVariableNull: true,
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body author {id username} product {reviews {body author {id username}} __typename upc}}}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.String{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
+												},
+											},
+											DataSource:                            &Source{},
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											RequiresEntityFetch:                   true,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"me"},
 								Nullable: true,
@@ -4524,42 +4063,44 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("product"),
 														Value: &resolve.Object{
 															Path: []string{"product"},
-															Fetch: &resolve.SingleFetch{
-																FetchDependencies: resolve.FetchDependencies{
-																	FetchID:           2,
-																	DependsOnFetchIDs: []int{1},
-																},
-																FetchConfiguration: resolve.FetchConfiguration{
-																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[$$0$$]}}}`,
-																	DataSource: &Source{},
-																	Variables: []resolve.Variable{
-																		&resolve.ResolvableObjectVariable{
-																			Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																				Nullable: true,
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &resolve.String{
-																							Path: []string{"__typename"},
-																						},
-																						OnTypeNames: [][]byte{[]byte("Product")},
-																					},
-																					{
-																						Name: []byte("upc"),
-																						Value: &resolve.String{
-																							Path: []string{"upc"},
-																						},
-																						OnTypeNames: [][]byte{[]byte("Product")},
-																					},
-																				},
-																			}),
-																		},
+															Fetches: []resolve.Fetch{
+																&resolve.SingleFetch{
+																	FetchDependencies: resolve.FetchDependencies{
+																		FetchID:           2,
+																		DependsOnFetchIDs: []int{1},
 																	},
-																	RequiresEntityBatchFetch:              true,
-																	PostProcessing:                        EntitiesPostProcessingConfiguration,
-																	SetTemplateOutputToNullOnVariableNull: true,
+																	FetchConfiguration: resolve.FetchConfiguration{
+																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name price}}}","variables":{"representations":[$$0$$]}}}`,
+																		DataSource: &Source{},
+																		Variables: []resolve.Variable{
+																			&resolve.ResolvableObjectVariable{
+																				Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																					Nullable: true,
+																					Fields: []*resolve.Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &resolve.String{
+																								Path: []string{"__typename"},
+																							},
+																							OnTypeNames: [][]byte{[]byte("Product")},
+																						},
+																						{
+																							Name: []byte("upc"),
+																							Value: &resolve.String{
+																								Path: []string{"upc"},
+																							},
+																							OnTypeNames: [][]byte{[]byte("Product")},
+																						},
+																					},
+																				}),
+																			},
+																		},
+																		RequiresEntityBatchFetch:              true,
+																		PostProcessing:                        EntitiesPostProcessingConfiguration,
+																		SetTemplateOutputToNullOnVariableNull: true,
+																	},
+																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															},
 															Fields: []*resolve.Field{
 																{
@@ -4804,45 +4345,43 @@ func TestGraphQLDataSource(t *testing.T) {
 		"Parallel",
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.ParallelFetch{
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 0,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
-									DataSource: &Source{},
-									Variables: resolve.NewVariables(
-										&resolve.ContextVariable{
-											Path:     []string{"a"},
-											Renderer: resolve.NewJSONVariableRenderer(),
-										},
-									),
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							},
-							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID: 1,
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
-									DataSource: &Source{},
-									Variables: resolve.NewVariables(
-										&resolve.ContextVariable{
-											Path:     []string{"b"},
-											Renderer: resolve.NewJSONVariableRenderer(),
-										},
-									),
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							},
+				Fetches: resolve.Sequence(
+					resolve.Single(&resolve.SingleFetch{
+						FetchDependencies: resolve.FetchDependencies{
+							FetchID: 0,
 						},
-					},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){username}}","variables":{"a":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"a"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+					resolve.Single(&resolve.SingleFetch{
+						FetchDependencies: resolve.FetchDependencies{
+							FetchID: 1,
+						},
+						FetchConfiguration: resolve.FetchConfiguration{
+							Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($b: String!){vehicle(id: $b){description}}","variables":{"b":$$0$$}}}`,
+							DataSource: &Source{},
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"b"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					}),
+				),
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
@@ -4967,7 +4506,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			DisableResolveFieldPositions: true,
 		},
-		WithMultiFetchPostProcessor(),
+		WithDefaultPostProcessor(),
 	))
 
 	t.Run("complex nested federation", RunTest(complexFederationSchema,
@@ -5006,60 +4545,64 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn __typename}}","variables":{"a":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ObjectVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn __typename}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ObjectVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										RequiresEntityFetch: true,
-										Input:               `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.String{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-													},
-												}),
-											},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
 										},
-										DataSource:                            &Source{},
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+										FetchConfiguration: resolve.FetchConfiguration{
+											RequiresEntityFetch: true,
+											Input:               `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.String{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
+												},
+											},
+											DataSource:                            &Source{},
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"user"},
 								Nullable: true,
@@ -5368,60 +4911,64 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn __typename}}","variables":{"a":$$0$$}}}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ObjectVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewJSONVariableRenderer(),
-								},
-							),
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"http://user.service","body":{"query":"query($a: ID!){user(id: $a){id name {first last} username birthDate account {__typename ... on PasswordAccount {email} ... on SMSAccount {number}} metadata {name address description} ssn __typename}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ObjectVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: []resolve.Variable{
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.String{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-													},
-												}),
-											},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
 										},
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename vehicle {id description price __typename}}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: []resolve.Variable{
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+															{
+																Name: []byte("id"),
+																Value: &resolve.String{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
+															},
+														},
+													}),
+												},
+											},
+											DataSource:                            &Source{},
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"user"},
 								Nullable: true,
@@ -5687,419 +5234,6 @@ func TestGraphQLDataSource(t *testing.T) {
 			DisableResolveFieldPositions: true,
 		}))
 
-	t.Run("federation with variables", RunTest(federationTestSchema,
-		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
-						me {
-							reviews {
-								body
-								notes @skip(if: $someSkipCondition)
-								likes(filterToPublicOnly: $publicOnly)
-							}
-						}
-					}`,
-		"MyReviews",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
-						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("me"),
-							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: Boolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ContextVariable{
-												Path:     []string{"someSkipCondition"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-											&resolve.ContextVariable{
-												Path:     []string{"publicOnly"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.String{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								},
-								Path:     []string{"me"},
-								Nullable: true,
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("reviews"),
-										Value: &resolve.Array{
-											Path:     []string{"reviews"},
-											Nullable: true,
-											Item: &resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("body"),
-														Value: &resolve.String{
-															Path: []string{"body"},
-														},
-													},
-													{
-														Name: []byte("notes"),
-														Value: &resolve.String{
-															Path:     []string{"notes"},
-															Nullable: true,
-														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "someSkipCondition",
-													},
-													{
-														Name: []byte("likes"),
-														Value: &resolve.String{
-															Path: []string{"likes"},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSource{
-				mustDataSourceConfiguration(
-					t,
-					"ds-id-1",
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"me"},
-							},
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id"},
-							},
-						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-							},
-						},
-					},
-					mustCustomConfiguration(t, ConfigurationInput{
-						Fetch: &FetchConfiguration{
-							URL: "http://user.service",
-						},
-						SchemaConfiguration: mustSchema(t,
-							&FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
-							},
-							"type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
-						),
-					}),
-				),
-				mustDataSourceConfiguration(
-					t,
-					"ds-id-2",
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "User",
-								FieldNames: []string{"reviews", "id"},
-							},
-						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "Review",
-								FieldNames: []string{"body", "notes", "likes"},
-							},
-						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-							},
-						},
-					},
-					mustCustomConfiguration(t, ConfigurationInput{
-						Fetch: &FetchConfiguration{
-							URL: "http://review.service",
-						},
-						SchemaConfiguration: mustSchema(t,
-							&FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: "type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
-							},
-							"type Review { body: String! notes: String likes(filterToPublicOnly: Boolean): Int! } type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
-						),
-					}),
-				),
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:  "Review",
-					FieldName: "likes",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:       "filterToPublicOnly",
-							SourceType: plan.FieldArgumentSource,
-						},
-					},
-				},
-			},
-			DisableResolveFieldPositions: true,
-		}))
-
-	t.Run("federation with variables and renamed types", RunTest(federationTestSchema,
-		`	query MyReviews($publicOnly: Boolean!, $someSkipCondition: Boolean!) {
-						me {
-							reviews {
-								body
-								notes @skip(if: $someSkipCondition)
-								likes(filterToPublicOnly: $publicOnly)
-							}
-						}
-					}`,
-		"MyReviews",
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {__typename id}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
-						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("me"),
-							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!, $someSkipCondition: Boolean!, $publicOnly: XBoolean!){_entities(representations: $representations){__typename ... on User {reviews {body notes @skip(if: $someSkipCondition) likes(filterToPublicOnly: $publicOnly)}}}}","variables":{"representations":[$$2$$],"publicOnly":$$1$$,"someSkipCondition":$$0$$}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ContextVariable{
-												Path:     []string{"someSkipCondition"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-											&resolve.ContextVariable{
-												Path:     []string{"publicOnly"},
-												Renderer: resolve.NewJSONVariableRenderer(),
-											},
-											resolve.NewResolvableObjectVariable(
-												&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.Scalar{
-																Path: []string{"id"},
-															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-													},
-												},
-											),
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								},
-								Path:     []string{"me"},
-								Nullable: true,
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("reviews"),
-										Value: &resolve.Array{
-											Path:     []string{"reviews"},
-											Nullable: true,
-											Item: &resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("body"),
-														Value: &resolve.String{
-															Path: []string{"body"},
-														},
-													},
-													{
-														Name: []byte("notes"),
-														Value: &resolve.String{
-															Path:     []string{"notes"},
-															Nullable: true,
-														},
-														SkipDirectiveDefined: true,
-														SkipVariableName:     "someSkipCondition",
-													},
-													{
-														Name: []byte("likes"),
-														Value: &resolve.String{
-															Path: []string{"likes"},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		plan.Configuration{
-			DataSources: []plan.DataSource{
-				mustDataSourceConfiguration(
-					t,
-					"ds-id-1",
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"me"},
-							},
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id"},
-							},
-						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-							},
-						},
-					},
-					mustCustomConfiguration(t, ConfigurationInput{
-						Fetch: &FetchConfiguration{
-							URL: "http://user.service",
-						},
-						SchemaConfiguration: mustSchema(t,
-							&FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: "extend type Query {me: User} type User @key(fields: \"id\"){ id: ID! }",
-							},
-							federationTestSchemaWithRename,
-						),
-					}),
-				),
-				mustDataSourceConfiguration(
-					t,
-					"ds-id-2",
-					&plan.DataSourceMetadata{
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id", "reviews"},
-							},
-						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "Review",
-								FieldNames: []string{"body", "notes", "likes"},
-							},
-						},
-						FederationMetaData: plan.FederationMetaData{
-							Keys: []plan.FederationFieldConfiguration{
-								{
-									TypeName:     "User",
-									SelectionSet: "id",
-								},
-							},
-						},
-					},
-					mustCustomConfiguration(t, ConfigurationInput{
-						Fetch: &FetchConfiguration{
-							URL: "http://review.service",
-						},
-						SchemaConfiguration: mustSchema(t,
-							&FederationConfiguration{
-								Enabled:    true,
-								ServiceSDL: "scalar XBoolean type Review { body: String! notes: String likes(filterToPublicOnly: XBoolean!): Int! } extend type User @key(fields: \"id\") { id: ID! @external reviews: [Review] }",
-							},
-							federationTestSchemaWithRename,
-						),
-					}),
-				),
-			},
-			Fields: []plan.FieldConfiguration{
-				{
-					TypeName:  "Review",
-					FieldName: "likes",
-					Arguments: []plan.ArgumentConfiguration{
-						{
-							Name:         "filterToPublicOnly",
-							SourceType:   plan.FieldArgumentSource,
-							RenameTypeTo: "XBoolean",
-						},
-					},
-				},
-			},
-			DisableResolveFieldPositions: true,
-		}))
-
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
 		`	query QueryWithRequiredFields {
 						serviceOne {
@@ -6111,68 +5245,72 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							// Should fetch the federation key as well as all the required fields.
-							Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {serviceOneFieldOne serviceOneFieldTwo __typename id}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								// Should fetch the federation key as well as all the required fields.
+								Input:          `{"method":"POST","url":"http://one.service","body":{"query":"{serviceOne {serviceOneFieldOne serviceOneFieldTwo __typename id}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("serviceOne"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
+										FetchConfiguration: resolve.FetchConfiguration{
+											// The required fields are present in the representations.
+											Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on ServiceOneType {__typename serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: resolve.NewVariables(
+												resolve.NewResolvableObjectVariable(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+														},
+														{
+															Name: []byte("serviceOneFieldOne"),
+															Value: &resolve.String{
+																Path: []string{"serviceOneFieldOne"},
+															},
+															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+														},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+														},
+														{
+															Name: []byte("serviceOneFieldTwo"),
+															Value: &resolve.String{
+																Path: []string{"serviceOneFieldTwo"},
+															},
+															OnTypeNames: [][]byte{[]byte("ServiceOneType")},
+														},
+													},
+												}),
+											),
+											DataSource:                            &Source{},
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										// The required fields are present in the representations.
-										Input: `{"method":"POST","url":"http://two.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on ServiceOneType {serviceTwoFieldOne serviceTwoFieldTwo}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											resolve.NewResolvableObjectVariable(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
-														},
-														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
-													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
-														},
-														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
-													},
-													{
-														Name: []byte("serviceOneFieldOne"),
-														Value: &resolve.String{
-															Path: []string{"serviceOneFieldOne"},
-														},
-														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
-													},
-													{
-														Name: []byte("serviceOneFieldTwo"),
-														Value: &resolve.String{
-															Path: []string{"serviceOneFieldTwo"},
-														},
-														OnTypeNames: [][]byte{[]byte("ServiceOneType")},
-													},
-												},
-											}),
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"serviceOne"},
 								Nullable: true,
@@ -6292,7 +5430,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								author {
 									id
 									username
-								}	
+								}
 								product {
 									name
 									price
@@ -6311,52 +5449,56 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{api_me: me {id username}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("api_me"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											resolve.NewResolvableObjectVariable(&resolve.Object{
-												Nullable: true,
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("__typename"),
-														Value: &resolve.String{
-															Path: []string{"__typename"},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body author {id username} product {reviews {body author {id username}} upc}}}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: resolve.NewVariables(
+												resolve.NewResolvableObjectVariable(&resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("__typename"),
+															Value: &resolve.String{
+																Path: []string{"__typename"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														OnTypeNames: [][]byte{[]byte("User")},
-													},
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path: []string{"id"},
+														{
+															Name: []byte("id"),
+															Value: &resolve.Scalar{
+																Path: []string{"id"},
+															},
+															OnTypeNames: [][]byte{[]byte("User")},
 														},
-														OnTypeNames: [][]byte{[]byte("User")},
 													},
-												},
-											}),
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+												}),
+											),
+											DataSource:                            &Source{},
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"api_me"},
 								Nullable: true,
@@ -6411,38 +5553,40 @@ func TestGraphQLDataSource(t *testing.T) {
 														Name: []byte("product"),
 														Value: &resolve.Object{
 															Path: []string{"product"},
-															Fetch: &resolve.SingleFetch{
-																FetchConfiguration: resolve.FetchConfiguration{
-																	Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Product {name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
-																	DataSource: &Source{},
-																	Variables: resolve.NewVariables(
-																		resolve.NewResolvableObjectVariable(
-																			&resolve.Object{
-																				Nullable: true,
-																				Fields: []*resolve.Field{
-																					{
-																						Name: []byte("__typename"),
-																						Value: &resolve.String{
-																							Path: []string{"__typename"},
+															Fetches: []resolve.Fetch{
+																&resolve.SingleFetch{
+																	FetchConfiguration: resolve.FetchConfiguration{
+																		Input:      `{"method":"POST","url":"http://product.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {__typename name price}}}","variables":{"representations":[{"upc":$$0$$,"__typename":"Product"}]}}}`,
+																		DataSource: &Source{},
+																		Variables: resolve.NewVariables(
+																			resolve.NewResolvableObjectVariable(
+																				&resolve.Object{
+																					Nullable: true,
+																					Fields: []*resolve.Field{
+																						{
+																							Name: []byte("__typename"),
+																							Value: &resolve.String{
+																								Path: []string{"__typename"},
+																							},
+																							OnTypeNames: [][]byte{[]byte("Product")},
 																						},
-																						OnTypeNames: [][]byte{[]byte("Product")},
-																					},
-																					{
-																						Name: []byte("upc"),
-																						Value: &resolve.String{
-																							Path: []string{"upc"},
+																						{
+																							Name: []byte("upc"),
+																							Value: &resolve.String{
+																								Path: []string{"upc"},
+																							},
+																							OnTypeNames: [][]byte{[]byte("Product")},
 																						},
-																						OnTypeNames: [][]byte{[]byte("Product")},
 																					},
 																				},
-																			},
+																			),
 																		),
-																	),
-																	RequiresEntityBatchFetch:              true,
-																	PostProcessing:                        EntitiesPostProcessingConfiguration,
-																	SetTemplateOutputToNullOnVariableNull: true,
+																		RequiresEntityBatchFetch:              true,
+																		PostProcessing:                        EntitiesPostProcessingConfiguration,
+																		SetTemplateOutputToNullOnVariableNull: true,
+																	},
+																	DataSourceIdentifier: []byte("graphql_datasource.Source"),
 																},
-																DataSourceIdentifier: []byte("graphql_datasource.Source"),
 															},
 															Fields: []*resolve.Field{
 																{
@@ -6827,54 +5971,58 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id __typename uid: id username}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{me {id __typename uid: id username}}"}}`,
+									DataSource:     &Source{},
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("me"),
 								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: resolve.NewVariables(
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.String{
-																	Path: []string{"id"},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
+														}),
+													},
+												),
+												DataSource:                            &Source{},
+												RequiresEntityFetch:                   true,
+												PostProcessing:                        SingleEntityPostProcessingConfiguration,
+												SetTemplateOutputToNullOnVariableNull: true,
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"me"},
 									Nullable: true,
@@ -6952,54 +6100,58 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username __typename id}}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{self {id __typename ... on User {uid: id username __typename id}}}"}}`,
+									DataSource:     &Source{},
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("self"),
 								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body}}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: resolve.NewVariables(
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.String{
-																	Path: []string{"id"},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
+														}),
+													},
+												),
+												DataSource:                            &Source{},
+												RequiresEntityFetch:                   true,
+												PostProcessing:                        SingleEntityPostProcessingConfiguration,
+												SetTemplateOutputToNullOnVariableNull: true,
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"self"},
 									Nullable: true,
@@ -7084,54 +6236,58 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {__typename id}}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{self {__typename ... on User {__typename id}}}"}}`,
+									DataSource:     &Source{},
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("self"),
 								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {reviews {body attachment {__typename ... on Image {extension} ... on Video {length}}}}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input: `{"method":"POST","url":"http://review.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {body attachment {__typename ... on Image {extension} ... on Video {length}}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: resolve.NewVariables(
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.String{
-																	Path: []string{"id"},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
+														}),
+													},
+												),
+												DataSource:                            &Source{},
+												RequiresEntityFetch:                   true,
+												PostProcessing:                        SingleEntityPostProcessingConfiguration,
+												SetTemplateOutputToNullOnVariableNull: true,
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"self"},
 									Nullable: true,
@@ -7350,54 +6506,58 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
+									DataSource:     &Source{},
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("user"),
 								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {name __typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: resolve.NewVariables(
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.String{
-																	Path: []string{"id"},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
+														}),
+													},
+												),
+												DataSource:                            &Source{},
+												RequiresEntityFetch:                   true,
+												PostProcessing:                        SingleEntityPostProcessingConfiguration,
+												SetTemplateOutputToNullOnVariableNull: true,
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
 									Nullable: true,
@@ -7514,54 +6674,58 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
+									DataSource:     &Source{},
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("user"),
 								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
+											FetchConfiguration: resolve.FetchConfiguration{
+												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {__typename ... on Cat {catField details {age}} name ... on Dog {dogField species} details {hasOwner}}}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: resolve.NewVariables(
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.String{
-																	Path: []string{"id"},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											RequiresEntityFetch:                   true,
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
+														}),
+													},
+												),
+												DataSource:                            &Source{},
+												RequiresEntityFetch:                   true,
+												PostProcessing:                        SingleEntityPostProcessingConfiguration,
+												SetTemplateOutputToNullOnVariableNull: true,
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
 									Nullable: true,
@@ -7678,58 +6842,62 @@ func TestGraphQLDataSource(t *testing.T) {
 			&plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
-						Fetch: &resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
-								DataSource:     &Source{},
-								PostProcessing: DefaultPostProcessingConfiguration,
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
+									DataSource:     &Source{},
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("user"),
 								Value: &resolve.Object{
-									Fetch: &resolve.SingleFetch{
-										FetchConfiguration: resolve.FetchConfiguration{
-											// Note: __typename is included in the Cat and Dog inline fragments
-											// because the field were originally themselves in inline fragments
-											// that were inlined. The additional __typename selections are
-											// harmless.
-											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner} name}}}}","variables":{"representations":[$$0$$]}}}`,
-											Variables: resolve.NewVariables(
-												&resolve.ResolvableObjectVariable{
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name: []byte("__typename"),
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{
+											FetchConfiguration: resolve.FetchConfiguration{
+												// Note: __typename is included in the Cat and Dog inline fragments
+												// because the field were originally themselves in inline fragments
+												// that were inlined. The additional __typename selections are
+												// harmless.
+												Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {__typename ... on Cat {catField details {age}} ... on Dog {dogField species} details {hasOwner} name}}}}","variables":{"representations":[$$0$$]}}}`,
+												Variables: resolve.NewVariables(
+													&resolve.ResolvableObjectVariable{
+														Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("__typename"),
+																	Value: &resolve.String{
+																		Path: []string{"__typename"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
-															},
-															{
-																Name: []byte("id"),
-																Value: &resolve.String{
-																	Path: []string{"id"},
+																{
+																	Name: []byte("id"),
+																	Value: &resolve.String{
+																		Path: []string{"id"},
+																	},
+																	OnTypeNames: [][]byte{[]byte("User")},
 																},
-																OnTypeNames: [][]byte{[]byte("User")},
 															},
-														},
-													}),
-												},
-											),
-											DataSource:                            &Source{},
-											PostProcessing:                        SingleEntityPostProcessingConfiguration,
-											SetTemplateOutputToNullOnVariableNull: true,
-											RequiresEntityFetch:                   true,
+														}),
+													},
+												),
+												DataSource:                            &Source{},
+												PostProcessing:                        SingleEntityPostProcessingConfiguration,
+												SetTemplateOutputToNullOnVariableNull: true,
+												RequiresEntityFetch:                   true,
+											},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID:           1,
+												DependsOnFetchIDs: []int{0},
+											},
+											DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										},
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID:           1,
-											DependsOnFetchIDs: []int{0},
-										},
-										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
 									Path:     []string{"user"},
 									Nullable: true,
@@ -7859,54 +7027,58 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username __typename id}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("user"),
 							Value: &resolve.Object{
-								Fetch: &resolve.SingleFetch{
-									FetchDependencies: resolve.FetchDependencies{
-										FetchID:           1,
-										DependsOnFetchIDs: []int{0},
-									},
-									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on User {pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[$$0$$]}}}`,
-										Variables: resolve.NewVariables(
-											&resolve.ResolvableObjectVariable{
-												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-													Nullable: true,
-													Fields: []*resolve.Field{
-														{
-															Name: []byte("__typename"),
-															Value: &resolve.String{
-																Path: []string{"__typename"},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID:           1,
+											DependsOnFetchIDs: []int{0},
+										},
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename pets {__typename ... on Cat {name catField} ... on Dog {name dogField}}}}}","variables":{"representations":[$$0$$]}}}`,
+											Variables: resolve.NewVariables(
+												&resolve.ResolvableObjectVariable{
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name: []byte("__typename"),
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
-														},
-														{
-															Name: []byte("id"),
-															Value: &resolve.String{
-																Path: []string{"id"},
+															{
+																Name: []byte("id"),
+																Value: &resolve.String{
+																	Path: []string{"id"},
+																},
+																OnTypeNames: [][]byte{[]byte("User")},
 															},
-															OnTypeNames: [][]byte{[]byte("User")},
 														},
-													},
-												}),
-											},
-										),
-										DataSource:                            &Source{},
-										RequiresEntityFetch:                   true,
-										PostProcessing:                        SingleEntityPostProcessingConfiguration,
-										SetTemplateOutputToNullOnVariableNull: true,
+													}),
+												},
+											),
+											DataSource:                            &Source{},
+											RequiresEntityFetch:                   true,
+											PostProcessing:                        SingleEntityPostProcessingConfiguration,
+											SetTemplateOutputToNullOnVariableNull: true,
+										},
+										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									},
-									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								},
 								Path:     []string{"user"},
 								Nullable: true,
@@ -8124,13 +7296,15 @@ func TestGraphQLDataSource(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {__typename id} ... on Dog {__typename id}}}}"}}`,
-							DataSource:     &Source{},
-							PostProcessing: DefaultPostProcessingConfiguration,
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {username pets {__typename ... on Cat {__typename id} ... on Dog {__typename id}}}}"}}`,
+								DataSource:     &Source{},
+								PostProcessing: DefaultPostProcessingConfiguration,
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
 					Fields: []*resolve.Field{
 						{
@@ -8151,56 +7325,58 @@ func TestGraphQLDataSource(t *testing.T) {
 											Path:     []string{"pets"},
 											Nullable: false,
 											Item: &resolve.Object{
-												Fetch: &resolve.SingleFetch{
-													FetchDependencies: resolve.FetchDependencies{
-														FetchID:           1,
-														DependsOnFetchIDs: []int{0},
-													},
-													FetchConfiguration: resolve.FetchConfiguration{
-														Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){__typename ... on Cat {name catField} ... on Dog {name dogField}}}","variables":{"representations":[$$0$$]}}}`,
-														Variables: []resolve.Variable{
-															&resolve.ResolvableObjectVariable{
-																Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																	Nullable: true,
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("__typename"),
-																			Value: &resolve.String{
-																				Path: []string{"__typename"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("Cat")},
-																		},
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.String{
-																				Path: []string{"id"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("Cat")},
-																		},
-																		{
-																			Name: []byte("__typename"),
-																			Value: &resolve.String{
-																				Path: []string{"__typename"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("Dog")},
-																		},
-																		{
-																			Name: []byte("id"),
-																			Value: &resolve.String{
-																				Path: []string{"id"},
-																			},
-																			OnTypeNames: [][]byte{[]byte("Dog")},
-																		},
-																	},
-																}),
-															},
+												Fetches: []resolve.Fetch{
+													&resolve.SingleFetch{
+														FetchDependencies: resolve.FetchDependencies{
+															FetchID:           1,
+															DependsOnFetchIDs: []int{0},
 														},
-														DataSource:                            &Source{},
-														RequiresEntityBatchFetch:              true,
-														PostProcessing:                        EntitiesPostProcessingConfiguration,
-														SetTemplateOutputToNullOnVariableNull: true,
+														FetchConfiguration: resolve.FetchConfiguration{
+															Input: `{"method":"POST","url":"http://pet.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Cat {__typename name catField} ... on Dog {__typename name dogField}}}","variables":{"representations":[$$0$$]}}}`,
+															Variables: []resolve.Variable{
+																&resolve.ResolvableObjectVariable{
+																	Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+																		Nullable: true,
+																		Fields: []*resolve.Field{
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("Cat")},
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("Cat")},
+																			},
+																			{
+																				Name: []byte("__typename"),
+																				Value: &resolve.String{
+																					Path: []string{"__typename"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("Dog")},
+																			},
+																			{
+																				Name: []byte("id"),
+																				Value: &resolve.String{
+																					Path: []string{"id"},
+																				},
+																				OnTypeNames: [][]byte{[]byte("Dog")},
+																			},
+																		},
+																	}),
+																},
+															},
+															DataSource:                            &Source{},
+															RequiresEntityBatchFetch:              true,
+															PostProcessing:                        EntitiesPostProcessingConfiguration,
+															SetTemplateOutputToNullOnVariableNull: true,
+														},
+														DataSourceIdentifier: []byte("graphql_datasource.Source"),
 													},
-													DataSourceIdentifier: []byte("graphql_datasource.Source"),
 												},
 												Nullable: false,
 												Fields: []*resolve.Field{
@@ -8410,26 +7586,28 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "MyQuery", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"droidId"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.ContextVariable{
-								Path:     []string{"reviewId"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-							&resolve.HeaderVariable{
-								Path: []string{"Authorization"},
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"https://swapi.com/graphql","header":{"Authorization":["$$2$$"],"Invalid-Template":["{{ request.headers.Authorization }}"]},"body":{"query":"query($droidId: ID!, $reviewId: ReviewID!){droid(id: $droidId){name aliased: name friends {name} primaryFunction} review(id: $reviewId){stars}}","variables":{"reviewId":$$1$$,"droidId":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"droidId"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.ContextVariable{
+									Path:     []string{"reviewId"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+								&resolve.HeaderVariable{
+									Path: []string{"Authorization"},
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -8578,19 +7756,21 @@ func TestGraphQLDataSource(t *testing.T) {
 	`, "Custom", &plan.SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
 			Data: &resolve.Object{
-				Fetch: &resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &Source{},
-						Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
-						Variables: resolve.NewVariables(
-							&resolve.ContextVariable{
-								Path:     []string{"id"},
-								Renderer: resolve.NewJSONVariableRenderer(),
-							},
-						),
-						PostProcessing: DefaultPostProcessingConfiguration,
+				Fetches: []resolve.Fetch{
+					&resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &Source{},
+							Input:      `{"method":"POST","url":"http://localhost:8084/query","body":{"query":"query($id: ID!){custom_user: user(id: $id){id name tier meta}}","variables":{"id":$$0$$}}}`,
+							Variables: resolve.NewVariables(
+								&resolve.ContextVariable{
+									Path:     []string{"id"},
+									Renderer: resolve.NewJSONVariableRenderer(),
+								},
+							),
+							PostProcessing: DefaultPostProcessingConfiguration,
+						},
+						DataSourceIdentifier: []byte("graphql_datasource.Source"),
 					},
-					DataSourceIdentifier: []byte("graphql_datasource.Source"),
 				},
 				Fields: []*resolve.Field{
 					{
@@ -8613,9 +7793,16 @@ func TestGraphQLDataSource(t *testing.T) {
 								},
 								{
 									Name: []byte("tier"),
-									Value: &resolve.String{
+									Value: &resolve.Enum{
 										Nullable: true,
+										TypeName: "custom_Tier",
 										Path:     []string{"tier"},
+										Values: []string{
+											"A",
+											"B",
+											"C",
+										},
+										InaccessibleValues: []string{},
 									},
 								},
 								{
@@ -8696,6 +7883,14 @@ var errSubscriptionClientFail = errors.New("subscription client fail error")
 
 type FailingSubscriptionClient struct{}
 
+func (f *FailingSubscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
+	return errSubscriptionClientFail
+}
+
+func (f *FailingSubscriptionClient) Unsubscribe(id uint64) {
+
+}
+
 func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	return errSubscriptionClientFail
 }
@@ -8746,6 +7941,12 @@ func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration
 			t.mux.Unlock()
 		}
 	}
+}
+
+func (t *testSubscriptionUpdater) Heartbeat() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.updates = append(t.updates, "{}")
 }
 
 func (t *testSubscriptionUpdater) Update(data []byte) {
@@ -9108,25 +8309,14 @@ func TestSource_Load(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	t.Run("unnull_variables", func(t *testing.T) {
+	t.Run("null variables", func(t *testing.T) {
 		var (
 			src       = &Source{httpClient: &http.Client{}}
 			serverUrl = ts.URL
-			variables = []byte(`{"a": null, "b": "b", "c": {}}`)
+			variables = []byte(`{"a":null,"b":"b","c":{}}`)
 		)
 
-		t.Run("should remove null variables and empty objects when flag is set", func(t *testing.T) {
-			var input []byte
-			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
-			input = httpclient.SetInputURL(input, []byte(serverUrl))
-			input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
-			buf := bytes.NewBuffer(nil)
-
-			require.NoError(t, src.Load(context.Background(), input, buf))
-			assert.Equal(t, `{"variables":{"b":"b"}}`, buf.String())
-		})
-
-		t.Run("should only compact variables when no flag set", func(t *testing.T) {
+		t.Run("should not touch null variables", func(t *testing.T) {
 			var input []byte
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
@@ -9310,92 +8500,41 @@ func TestLoadFiles(t *testing.T) {
 	})
 }
 
-func TestUnNullVariables(t *testing.T) {
-	t.Run("should not unnull variables if not enabled", func(t *testing.T) {
-		t.Run("two variables, one null", func(t *testing.T) {
-			s := &Source{}
-			out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}}}`))
-			expected := `{"body":{"variables":{"a":null,"b":true}}}`
-			assert.Equal(t, expected, string(out))
+func TestSanitizeKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "should replace leading and trailing whitespace with underscores",
+			input:    "  key  ",
+			expected: "_key_",
+		},
+		{
+			name:     "should replace special characters with underscores and deduplicate them",
+			input:    "#$%^&*()key!@#$%^&*()_+{}|:\"<>?`~[]\\;',./",
+			expected: "_key_",
+		},
+		{
+			name:     "should ignore empty string",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "should deduplicate underscores within the string",
+			input:    "a____b___c___$%d____e__g___6$%_7",
+			expected: "a_b_c_d_e_g_6_7",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, test.expected, sanitizeKey(test.input))
 		})
-	})
-
-	t.Run("variables with whitespace and empty objects", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"email":null,"firstName": "FirstTest",		"lastName":"LastTest","phone":123456,"preferences":{ "notifications":{}},"password":"password"}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{"firstName":"FirstTest","lastName":"LastTest","phone":123456,"password":"password"}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("empty variables", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("null inside an array", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{"list":["a",null,"b"]}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("complex null inside nested objects and arrays", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null, "b": {"key":null, "nested": {"nestedkey": null}}, "arr": ["1", null, "3"], "d": {"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{"b":{"key":null,"nested":{"nestedkey":null}},"arr":["1",null,"3"],"d":{"nested_arr":["4",null,"6"]}}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("two variables, one null", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":null,"b":true}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{"b":true}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("two variables, one null reverse", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"a":true,"b":null}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{"a":true}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("null variables", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":null},"unnull_variables":true}`))
-		expected := `{"body":{"variables":null},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("ignore null inside non variables", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"foo":null},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{},"body":"query {foo(bar: null){baz}}"},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("ignore null in variable name", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`))
-		expected := `{"body":{"variables":{"not_null":1,"null":2,"not_null2":3}},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("variables missing", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}"},"unnull_variables":true}`))
-		expected := `{"body":{"query":"{foo}"},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
-
-	t.Run("variables null", func(t *testing.T) {
-		s := &Source{}
-		out := s.compactAndUnNullVariables([]byte(`{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`))
-		expected := `{"body":{"query":"{foo}","variables":null},"unnull_variables":true}`
-		assert.Equal(t, expected, string(out))
-	})
+	}
 }
 
 const interfaceSelectionSchema = `

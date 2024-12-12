@@ -291,6 +291,57 @@ func TestMergeRepresentationVariableNodes(t *testing.T) {
 		require.Equal(t, expected, merged)
 	})
 
+	t.Run("array of scalars", func(t *testing.T) {
+		userKeyRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("items"),
+					Value: &resolve.Array{
+						Path: []string{"items"},
+						Item: &resolve.String{
+							Path: []string{"id"},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		userRequiresRepresentation := &resolve.Object{
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("items"),
+					Value: &resolve.Array{
+						Path: []string{"items"},
+						Item: &resolve.String{
+							Path: []string{"id"},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		expected := &resolve.Object{
+			Nullable: true,
+			Fields: []*resolve.Field{
+				{
+					Name: []byte("items"),
+					Value: &resolve.Array{
+						Path: []string{"items"},
+						Item: &resolve.String{
+							Path: []string{"id"},
+						},
+					},
+					OnTypeNames: [][]byte{[]byte("User")},
+				},
+			},
+		}
+
+		merged := mergeRepresentationVariableNodes([]*resolve.Object{userKeyRepresentation, userRequiresRepresentation})
+		require.Equal(t, expected, merged)
+	})
+
 	t.Run("same entity nested fields - merge on depth 1 and 2", func(t *testing.T) {
 		userKeyRepresentation := &resolve.Object{
 			Fields: []*resolve.Field{

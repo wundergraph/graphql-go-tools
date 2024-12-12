@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -53,9 +54,8 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 	case ast.ValueKindBoolean:
 		skip = d.operation.BooleanValue(value.Ref)
 	case ast.ValueKindVariable:
-		name := d.operation.VariableValueNameString(value.Ref)
-		val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
-		if err != nil {
+		val, valid := d.getVariableValue(d.operation.VariableValueNameString(value.Ref))
+		if !valid {
 			return
 		}
 		skip = ast.BooleanValue(val)
@@ -83,9 +83,8 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	case ast.ValueKindBoolean:
 		include = d.operation.BooleanValue(value.Ref)
 	case ast.ValueKindVariable:
-		name := d.operation.VariableValueNameString(value.Ref)
-		val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
-		if err != nil {
+		val, valid := d.getVariableValue(d.operation.VariableValueNameString(value.Ref))
+		if !valid {
 			return
 		}
 		include = ast.BooleanValue(val)
@@ -97,6 +96,22 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	} else {
 		d.handleRemoveNode()
 	}
+}
+
+func (d *directiveIncludeSkipVisitor) getVariableValue(name string) (value, valid bool) {
+	val, err := jsonparser.GetBoolean(d.operation.Input.Variables, name)
+	if err == nil {
+		return val, true
+	}
+	for i := range d.operation.VariableDefinitions {
+		definitionName := d.operation.VariableDefinitionNameString(i)
+		if definitionName == name {
+			if d.operation.VariableDefinitions[i].DefaultValue.IsDefined {
+				return bool(d.operation.BooleanValue(d.operation.VariableDefinitions[i].DefaultValue.Value.Ref)), true
+			}
+		}
+	}
+	return false, false
 }
 
 func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
@@ -113,7 +128,10 @@ func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
 		return
 	}
 
-	// if the node is the last one, we add a __typename to keep query valid
+	// when we removed a skipped node it could happen that it was the only remaining node in the selection set
+	// removing all nodes from the selection set will make query an invalid
+	// So we have to add a __typename selection to the selection set,
+	// but as this selection was not added by user it should not be added to resolved data
 
 	selectionSetRef := d.Ancestors[len(d.Ancestors)-2].Ref
 
@@ -126,6 +144,12 @@ func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
 func (d *directiveIncludeSkipVisitor) typeNameSelection() (selectionRef int, fieldRef int) {
 	field := d.operation.AddField(ast.Field{
 		Name: d.operation.Input.AppendInputString("__typename"),
+		// We are adding an alias to the __typename field to mark it as internally added
+		// So planner could ignore this field during creation of the response shape
+		Alias: ast.Alias{
+			IsDefined: true,
+			Name:      d.operation.Input.AppendInputString("__internal__typename_placeholder"),
+		},
 	})
 	return d.operation.AddSelectionToDocument(ast.Selection{
 		Ref:  field.Ref,

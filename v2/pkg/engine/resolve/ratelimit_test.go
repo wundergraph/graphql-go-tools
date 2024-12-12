@@ -90,7 +90,7 @@ func TestRateLimiter(t *testing.T) {
 		res := generateTestFederationGraphQLResponse(t, ctrl)
 
 		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true}},
-			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
+			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), limiter.rateLimitPreFetchCalls.Load())
 			}

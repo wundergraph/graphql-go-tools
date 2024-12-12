@@ -3,18 +3,21 @@
     "name": "NEWHOPE",
     "description": "",
     "isDeprecated": false,
-    "deprecationReason": null
+    "deprecationReason": null,
+    "__typename": "__EnumValue"
   },
   {
     "name": "EMPIRE",
     "description": "",
     "isDeprecated": false,
-    "deprecationReason": null
+    "deprecationReason": null,
+    "__typename": "__EnumValue"
   },
   {
     "name": "JEDI",
     "description": "",
     "isDeprecated": true,
-    "deprecationReason": "No longer supported"
+    "deprecationReason": "No longer supported",
+    "__typename": "__EnumValue"
   }
 ]

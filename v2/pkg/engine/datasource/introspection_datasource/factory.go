@@ -5,6 +5,7 @@ import (
 
 	"github.com/jensneuse/abstractlogger"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
@@ -23,4 +24,8 @@ func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanne
 
 func (f *Factory[T]) Context() context.Context {
 	return context.TODO()
+}
+
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
 }

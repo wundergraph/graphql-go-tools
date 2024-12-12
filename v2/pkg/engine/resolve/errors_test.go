@@ -8,9 +8,12 @@ import (
 
 func TestSubgraphError(t *testing.T) {
 	t.Run("Simple", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "")
 		require.Equal(t, e.ResponseCode, 500)
@@ -20,75 +23,18 @@ func TestSubgraphError(t *testing.T) {
 	})
 
 	t.Run("With a reason", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
+		e := NewSubgraphError(DataSourceInfo{
+			Name: "subgraphName",
+			ID:   "subgraphID",
+		}, "path", "reason", 500)
 
-		require.Equal(t, e.SubgraphName, "subgraphName")
+		require.Equal(t, e.DataSourceInfo.Name, "subgraphName")
 		require.Equal(t, e.Path, "path")
 		require.Equal(t, e.Reason, "reason")
 		require.Equal(t, e.ResponseCode, 500)
 
 		require.Equal(t, len(e.DownstreamErrors), 0)
 		require.EqualError(t, e, "Failed to fetch from Subgraph 'subgraphName' at Path: 'path', Reason: reason.")
-	})
-
-	t.Run("With downstream errors", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
-
-		require.Equal(t, e.SubgraphName, "subgraphName")
-		require.Equal(t, e.Path, "path")
-		require.Equal(t, e.Reason, "reason")
-		require.Equal(t, e.ResponseCode, 500)
-
-		e.AppendDownstreamError(&GraphQLError{
-			Message: "errorMessage",
-			Path:    []any{"path"},
-			Extensions: map[string]interface{}{
-				"code": "code",
-			},
-		})
-
-		require.Equal(t, len(e.DownstreamErrors), 1)
-		require.EqualError(t, e, "Failed to fetch from Subgraph 'subgraphName' at Path: 'path', Reason: reason.\nDownstream errors:\n1. Subgraph error at Path 'path', Message: errorMessage, Extension Code: code.\n")
-	})
-
-	t.Run("With multi segment downstream errors", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
-
-		require.Equal(t, e.SubgraphName, "subgraphName")
-		require.Equal(t, e.Path, "path")
-		require.Equal(t, e.Reason, "reason")
-		require.Equal(t, e.ResponseCode, 500)
-
-		e.AppendDownstreamError(&GraphQLError{
-			Message: "errorMessage",
-			Path:    []any{"path", "to", "success"},
-			Extensions: map[string]interface{}{
-				"code": "code",
-			},
-		})
-
-		require.Equal(t, len(e.DownstreamErrors), 1)
-		require.EqualError(t, e, "Failed to fetch from Subgraph 'subgraphName' at Path: 'path', Reason: reason.\nDownstream errors:\n1. Subgraph error at Path 'path.to.success', Message: errorMessage, Extension Code: code.\n")
-	})
-
-	t.Run("With mixed multi segment downstream errors", func(t *testing.T) {
-		e := NewSubgraphError("subgraphName", "path", "reason", 500)
-
-		require.Equal(t, e.SubgraphName, "subgraphName")
-		require.Equal(t, e.Path, "path")
-		require.Equal(t, e.Reason, "reason")
-		require.Equal(t, e.ResponseCode, 500)
-
-		e.AppendDownstreamError(&GraphQLError{
-			Message: "errorMessage",
-			Path:    []any{"path", 1, "to", "success"},
-			Extensions: map[string]interface{}{
-				"code": "code",
-			},
-		})
-
-		require.Equal(t, len(e.DownstreamErrors), 1)
-		require.EqualError(t, e, "Failed to fetch from Subgraph 'subgraphName' at Path: 'path', Reason: reason.\nDownstream errors:\n1. Subgraph error at Path 'path.1.to.success', Message: errorMessage, Extension Code: code.\n")
 	})
 }
 

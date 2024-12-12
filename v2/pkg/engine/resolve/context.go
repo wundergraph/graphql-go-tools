@@ -8,27 +8,33 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
-	"go.uber.org/atomic"
 )
 
 type Context struct {
 	ctx              context.Context
-	Variables        []byte
+	Variables        *astjson.Value
 	Files            []httpclient.File
 	Request          Request
 	RenameTypeNames  []RenameTypeName
 	TracingOptions   TraceOptions
 	RateLimitOptions RateLimitOptions
+	ExecutionOptions ExecutionOptions
 	InitialPayload   []byte
 	Extensions       []byte
-	Stats            Stats
 	LoaderHooks      LoaderHooks
 
 	authorizer  Authorizer
 	rateLimiter RateLimiter
 
 	subgraphErrors error
+}
+
+type ExecutionOptions struct {
+	SkipLoader                 bool
+	IncludeQueryPlanInResponse bool
+	SendHeartbeat              bool
 }
 
 type AuthorizationDeny struct {
@@ -96,22 +102,6 @@ func (c *Context) appendSubgraphError(err error) {
 	c.subgraphErrors = errors.Join(c.subgraphErrors, err)
 }
 
-type Stats struct {
-	NumberOfFetches      atomic.Int32
-	CombinedResponseSize atomic.Int64
-	ResolvedNodes        int
-	ResolvedObjects      int
-	ResolvedLeafs        int
-}
-
-func (s *Stats) Reset() {
-	s.NumberOfFetches.Store(0)
-	s.CombinedResponseSize.Store(0)
-	s.ResolvedNodes = 0
-	s.ResolvedObjects = 0
-	s.ResolvedLeafs = 0
-}
-
 type Request struct {
 	ID     string
 	Header http.Header
@@ -142,7 +132,10 @@ func (c *Context) WithContext(ctx context.Context) *Context {
 func (c *Context) clone(ctx context.Context) *Context {
 	cpy := *c
 	cpy.ctx = ctx
-	cpy.Variables = append([]byte(nil), c.Variables...)
+	if c.Variables != nil {
+		variablesData := c.Variables.MarshalTo(nil)
+		cpy.Variables = astjson.MustParseBytes(variablesData)
+	}
 	cpy.Files = append([]httpclient.File(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
@@ -157,7 +150,6 @@ func (c *Context) Free() {
 	c.RenameTypeNames = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
-	c.Stats.Reset()
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil

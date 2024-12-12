@@ -83,15 +83,53 @@ func TestDocument_ValueToJSON(t *testing.T) {
 			Ref:  1,
 		}
 	}, `true`))
-	t.Run("ValueKindString", run(func(doc *Document) Value {
+	t.Run("ValueKindString - non-block", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
-			Content: doc.Input.AppendInputString("foo"),
+			Content: doc.Input.AppendInputString(`foo\nbar\tbaz\"qux`),
 		})
 		return Value{
 			Kind: ValueKindString,
 			Ref:  0,
 		}
-	}, `"foo"`))
+	}, `"foo\nbar\tbaz\"qux"`))
+	t.Run("ValueKindString - block", run(func(doc *Document) Value {
+		doc.Input.AppendInputString(`"""`)
+		doc.StringValues = append(doc.StringValues, StringValue{
+			BlockString: true,
+			Content:     doc.Input.AppendInputString("foo\nbar\tbaz\"qux"),
+		})
+		doc.Input.AppendInputString(`"""`)
+		return Value{
+			Kind: ValueKindString,
+			Ref:  0,
+		}
+	}, `"foo\nbar\tbaz\"qux"`))
+	t.Run("ValueKindString - block with indent", run(func(doc *Document) Value {
+		doc.Input.AppendInputString(`"""`)
+		doc.Input.AppendInputString("\n")
+		doc.StringValues = append(doc.StringValues, StringValue{
+			BlockString: true,
+			Content:     doc.Input.AppendInputString("  foo\n  bar"),
+		})
+		doc.Input.AppendInputString("\n")
+		doc.Input.AppendInputString(`"""`)
+		return Value{
+			Kind: ValueKindString,
+			Ref:  0,
+		}
+	}, `"foo\nbar"`))
+	t.Run("ValueKindString - block with mixed indent", run(func(doc *Document) Value {
+		doc.Input.AppendInputString(`"""`)
+		doc.StringValues = append(doc.StringValues, StringValue{
+			BlockString: true,
+			Content:     doc.Input.AppendInputString("foo\n\t bar\n\t  baz"),
+		})
+		doc.Input.AppendInputString(`"""`)
+		return Value{
+			Kind: ValueKindString,
+			Ref:  0,
+		}
+	}, `"foo\nbar\n baz"`))
 	t.Run("ValueKindList", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
 			Content: doc.Input.AppendInputString("foo"),
@@ -187,21 +225,21 @@ func TestDocument_PrintValue(t *testing.T) {
 	}
 	t.Run("ValueKindString - non-block", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
-			Content: doc.Input.AppendInputString("foo"),
+			Content: doc.Input.AppendInputString(`foo\nbar\tbaz\"qux`),
 		})
 		return Value{
 			Kind: ValueKindString,
 			Ref:  0,
 		}
-	}, `"foo"`))
+	}, `"foo\nbar\tbaz\"qux"`))
 	t.Run("ValueKindString - block", run(func(doc *Document) Value {
 		doc.StringValues = append(doc.StringValues, StringValue{
 			BlockString: true,
-			Content:     doc.Input.AppendInputString("foo"),
+			Content:     doc.Input.AppendInputString("foo\nbar\tbaz\"qux"),
 		})
 		return Value{
 			Kind: ValueKindString,
 			Ref:  0,
 		}
-	}, `"""foo"""`))
+	}, "\"\"\"foo\nbar\tbaz\"qux\"\"\""))
 }

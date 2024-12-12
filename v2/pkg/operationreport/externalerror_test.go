@@ -9,7 +9,7 @@ import (
 )
 
 func TestPath_MarshalJSON(t *testing.T) {
-	p1 := ast.PathItem{
+	p1 := &ast.PathItem{
 		Kind:       ast.ArrayIndex,
 		ArrayIndex: 1,
 	}
@@ -49,7 +49,7 @@ func TestPath_MarshalJSON(t *testing.T) {
 		t.Fatalf("want field, got: %s", p3.FieldName)
 	}
 
-	p4 := ast.PathItem{
+	p4 := &ast.PathItem{
 		Kind:      ast.FieldName,
 		FieldName: []byte("field"),
 	}

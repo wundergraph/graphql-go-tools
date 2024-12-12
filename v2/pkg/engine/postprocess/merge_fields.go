@@ -6,18 +6,25 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type MergeFields struct {
+type mergeFields struct {
+	disable bool
 }
 
-func (m *MergeFields) Process(node resolve.Node) {
+func (m *mergeFields) Process(node resolve.Node) {
+	if m.disable {
+		return
+	}
 	m.traverseNode(node)
 }
 
-func (m *MergeFields) ProcessSubscription(node resolve.Node, trigger *resolve.GraphQLSubscriptionTrigger) {
+func (m *mergeFields) ProcessSubscription(node resolve.Node) {
+	if m.disable {
+		return
+	}
 	m.traverseNode(node)
 }
 
-func (m *MergeFields) traverseNode(node resolve.Node) {
+func (m *mergeFields) traverseNode(node resolve.Node) {
 	switch n := node.(type) {
 	case *resolve.Object:
 		if len(n.Fields) == 1 {
@@ -117,7 +124,7 @@ func (m *MergeFields) traverseNode(node resolve.Node) {
 	}
 }
 
-func (m *MergeFields) canMergeScalars(left, right *resolve.Field) bool {
+func (m *mergeFields) canMergeScalars(left, right *resolve.Field) bool {
 	if left.OnTypeNames != nil && right.OnTypeNames != nil {
 		if !m.sameOnTypeNames(left.OnTypeNames, right.OnTypeNames) {
 			return false
@@ -126,7 +133,7 @@ func (m *MergeFields) canMergeScalars(left, right *resolve.Field) bool {
 	return true
 }
 
-func (m *MergeFields) mergeScalars(left, right *resolve.Field) {
+func (m *mergeFields) mergeScalars(left, right *resolve.Field) {
 	// when left has no type conditions, it will overwrite right
 	if left.OnTypeNames == nil && left.ParentOnTypeNames == nil {
 		return
@@ -162,7 +169,7 @@ WithNext:
 	}
 }
 
-func (m *MergeFields) fieldsCanMerge(left *resolve.Field, right *resolve.Field) bool {
+func (m *mergeFields) fieldsCanMerge(left *resolve.Field, right *resolve.Field) bool {
 	if !bytes.Equal(left.Name, right.Name) {
 		return false
 	}
@@ -180,7 +187,7 @@ func (m *MergeFields) fieldsCanMerge(left *resolve.Field, right *resolve.Field) 
 	return true
 }
 
-func (m *MergeFields) deduplicateOnTypeNames(onTypeNames [][]byte) [][]byte {
+func (m *mergeFields) deduplicateOnTypeNames(onTypeNames [][]byte) [][]byte {
 	uniqueTypeNames := make(map[string]struct{}, len(onTypeNames))
 	for _, typeName := range onTypeNames {
 		uniqueTypeNames[string(typeName)] = struct{}{}
@@ -195,7 +202,7 @@ func (m *MergeFields) deduplicateOnTypeNames(onTypeNames [][]byte) [][]byte {
 	return result
 }
 
-func (m *MergeFields) sameOnTypeNames(left, right [][]byte) bool {
+func (m *mergeFields) sameOnTypeNames(left, right [][]byte) bool {
 	if len(left) != len(right) {
 		return false
 	}
@@ -211,7 +218,7 @@ WithNext:
 	return true
 }
 
-func (m *MergeFields) sameParentOnTypeNames(left, right *resolve.Field) bool {
+func (m *mergeFields) sameParentOnTypeNames(left, right *resolve.Field) bool {
 	if len(left.ParentOnTypeNames) != len(right.ParentOnTypeNames) {
 		return false
 	}
@@ -230,11 +237,12 @@ func (m *MergeFields) sameParentOnTypeNames(left, right *resolve.Field) bool {
 	return true
 }
 
-func (m *MergeFields) mergeValues(left, right *resolve.Field) {
+func (m *mergeFields) mergeValues(left, right *resolve.Field) {
 	switch l := left.Value.(type) {
 	case *resolve.Object:
 		r := right.Value.(*resolve.Object)
 		l.Fields = append(l.Fields, r.Fields...)
+		l.Fetches = append(l.Fetches, r.Fetches...)
 	case *resolve.Array:
 		r := right.Value.(*resolve.Array)
 		if l.Item.NodeKind() == resolve.NodeKindObject {
@@ -245,7 +253,7 @@ func (m *MergeFields) mergeValues(left, right *resolve.Field) {
 	}
 }
 
-func (m *MergeFields) nodeIsScalar(node resolve.Node) bool {
+func (m *mergeFields) nodeIsScalar(node resolve.Node) bool {
 	switch node.(type) {
 	case *resolve.Object, *resolve.Array:
 		return false
@@ -253,7 +261,7 @@ func (m *MergeFields) nodeIsScalar(node resolve.Node) bool {
 	return true
 }
 
-func (m *MergeFields) propagateParentTypeNames(field *resolve.Field) {
+func (m *mergeFields) propagateParentTypeNames(field *resolve.Field) {
 	if field.OnTypeNames == nil {
 		return
 	}
@@ -262,7 +270,7 @@ func (m *MergeFields) propagateParentTypeNames(field *resolve.Field) {
 
 // setParentTypeNames recursively sets the parent type names for all children of a field
 // increasing the depth by 1 for each level
-func (m *MergeFields) setParentTypeNames(field *resolve.Field, typeNames [][]byte, depth int) {
+func (m *mergeFields) setParentTypeNames(field *resolve.Field, typeNames [][]byte, depth int) {
 	switch field.Value.NodeKind() {
 	case resolve.NodeKindObject:
 		object := field.Value.(*resolve.Object)

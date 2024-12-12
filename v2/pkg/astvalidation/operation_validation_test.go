@@ -2,6 +2,8 @@ package astvalidation
 
 import (
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,7 +99,7 @@ func TestExecutionValidation(t *testing.T) {
 
 		result := validator.Validate(&operation, &definition, &report)
 
-		printedOperation := mustString(astprinter.PrintString(&operation, &definition))
+		printedOperation := mustString(astprinter.PrintString(&operation))
 
 		if options.expectValidationErrors {
 			for _, msg := range options.expectedValidationErrorMsgs {
@@ -318,7 +320,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment aliasedLyingFieldTargetNotDefined on Dog {
 								barkVolume: kawVolume
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("104 variant", func(t *testing.T) {
 				run(t, `
@@ -327,7 +329,7 @@ func TestExecutionValidation(t *testing.T) {
 									barkVolume: kawVolume
 								}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("103", func(t *testing.T) {
 				run(t, `	{
@@ -338,7 +340,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment interfaceFieldSelection on Pet {
 								name
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("104", func(t *testing.T) {
 				run(t, `
@@ -350,7 +352,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment definedOnImplementorsButNotInterface on Pet {
 								nickname
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("105", func(t *testing.T) {
 				run(t, `	fragment inDirectFieldSelectionOnUnion on CatOrDog {
@@ -362,7 +364,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							name
 	  							}
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
 				run(t, `
@@ -375,7 +377,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							name
 	  							}
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
 				run(t, `
@@ -388,7 +390,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							x
 	  							}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106", func(t *testing.T) {
 				run(t, `
@@ -396,7 +398,7 @@ func TestExecutionValidation(t *testing.T) {
 								name
 								barkVolume
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106 variant", func(t *testing.T) {
 				run(t, `
@@ -405,7 +407,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
@@ -2021,7 +2023,7 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `	fragment scalarSelection on Dog {
 								barkVolume
 							}`,
-					FieldSelections(), Valid)
+					FieldSelections(OperationValidatorOptions{}), Valid)
 			})
 			t.Run("114", func(t *testing.T) {
 				run(t, `
@@ -2030,32 +2032,32 @@ func TestExecutionValidation(t *testing.T) {
 									sinceWhen
 								}
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 			t.Run("116", func(t *testing.T) {
 				run(t, `	
 							query directQueryOnObjectWithoutSubFields {
 								human
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(OperationValidatorOptions{}), Invalid)
 				run(t, `	query directQueryOnInterfaceWithoutSubFields {
 								pet
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(OperationValidatorOptions{}), Invalid)
 				run(t, `	query directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(OperationValidatorOptions{}), Invalid)
 				run(t, `
 							mutation directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				run(t, `
 							subscription directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid, withExpectNormalizationError())
+					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 			})
 		})
 	})
@@ -3406,7 +3408,7 @@ func TestExecutionValidation(t *testing.T) {
 		})
 		t.Run("5.7.3 Directives Are Unique Per Location", func(t *testing.T) {
 			t.Run("151", func(t *testing.T) {
-				run(t, `query MyQuery($foo: Boolean = true, $bar: Boolean = false) {
+				run(t, `query MyQuery($foo: Boolean, $bar: Boolean) {
 									field @skip(if: $foo) @skip(if: $bar)
 								}`,
 					DirectivesAreUniquePerLocation(), Invalid)
@@ -4487,6 +4489,61 @@ func BenchmarkValidation(b *testing.B) {
 							}
 						}
 					}`, Valid)
+	})
+}
+
+func TestWithApolloCompatibilityFlags(t *testing.T) {
+	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
+	op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
+
+	t.Run("With propagated true flag", func(t *testing.T) {
+		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
+			apollocompatibility.Flags{
+				ReplaceInvalidVarError:       false,
+				ReplaceUndefinedOpFieldError: true,
+			},
+		))
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		expectedError := operationreport.ExternalError{
+			ExtensionCode: errorcodes.GraphQLValidationFailed,
+			Message:       `Cannot query "age" on type "Query".`,
+		}
+		assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+	})
+	t.Run("With propagated false flag", func(t *testing.T) {
+		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
+			apollocompatibility.Flags{
+				ReplaceInvalidVarError:       false,
+				ReplaceUndefinedOpFieldError: false,
+			},
+		))
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		expectedError := operationreport.ExternalError{
+			Message: `field: age not defined on type: Query`,
+		}
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+	})
+	t.Run("Without propagated false flag", func(t *testing.T) {
+		operationValidator := DefaultOperationValidator()
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+		expectedError := operationreport.ExternalError{
+			Message: `field: age not defined on type: Query`,
+		}
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
 	})
 }
 

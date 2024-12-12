@@ -37,6 +37,100 @@ func (d *Document) StringValueIsBlockString(ref int) bool {
 	return d.StringValues[ref].BlockString
 }
 
+func (d *Document) BlockStringValueContentRawBytes(ref int) []byte {
+
+	// Gets the full block string content, just inside the """ quotes.
+	// This is needed because the lexer ignores whitespace and we need to preserve it
+	// to account for the indentation of the block string.
+
+	blockStart := 0
+	for i := int(d.StringValues[ref].Content.Start) - 1; i >= 0; i-- {
+		if d.Input.RawBytes[i] == '"' {
+			blockStart = i + 1
+			break
+		}
+	}
+
+	blockEnd := d.Input.Length
+	for i := int(d.StringValues[ref].Content.End); i < d.Input.Length; i++ {
+		if d.Input.RawBytes[i] == '"' {
+			blockEnd = i
+			break
+		}
+	}
+
+	return d.Input.RawBytes[blockStart:blockEnd]
+}
+
+func (d *Document) BlockStringValueContentRawString(ref int) string {
+	return unsafebytes.BytesToString(d.BlockStringValueContentRawBytes(ref))
+}
+
+func (d *Document) BlockStringValueContentBytes(ref int) []byte {
+
+	// Implements https://spec.graphql.org/October2021/#BlockStringValue()
+
+	// NOTE: This implementation exactly follows the spec.
+	// It likely could be optimized for performance.
+
+	// split the raw value into lines
+	rawValue := d.BlockStringValueContentRawBytes(ref)
+	lines := splitBytesIntoLines(rawValue)
+
+	// find the common indent size (-1 means no common indent)
+	commonIndent := -1
+	for i, line := range lines {
+		if i == 0 {
+			continue
+		}
+		indent := leadingWhitespaceCount(line)
+		if indent < len(line) {
+			if commonIndent == -1 || indent < commonIndent {
+				commonIndent = indent
+			}
+		}
+	}
+
+	// remove the common indent from each line
+	if commonIndent != -1 {
+		for i := 1; i < len(lines); i++ {
+			var indent int
+			if len(lines[i]) > commonIndent {
+				indent = commonIndent
+			} else {
+				indent = len(lines[i])
+			}
+
+			lines[i] = lines[i][indent:]
+		}
+	}
+
+	// find first non-whitespace-only line
+	firstLine := 0
+	for i, line := range lines {
+		if leadingWhitespaceCount(line) != len(line) {
+			firstLine = i
+			break
+		}
+	}
+
+	// find last non-whitespace-only line
+	lastLine := len(lines) - 1
+	for i := len(lines) - 1; i >= 0; i-- {
+		if leadingWhitespaceCount(lines[i]) != len(lines[i]) {
+			lastLine = i
+			break
+		}
+	}
+
+	// join the lines to keep and return the result
+	return bytes.Join(lines[firstLine:lastLine+1], []byte{'\n'})
+}
+
+func (d *Document) BlockStringValueContentString(ref int) string {
+	return unsafebytes.BytesToString(d.BlockStringValueContentBytes(ref))
+}
+
 func (d *Document) StringValuesAreEquals(left, right int) bool {
 	return d.StringValueIsBlockString(left) == d.StringValueIsBlockString(right) &&
 		bytes.Equal(d.StringValueContentBytes(left), d.StringValueContentBytes(right))

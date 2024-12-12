@@ -5,10 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/stretchr/testify/require"
 	"io"
 	"sync/atomic"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -87,19 +89,19 @@ func TestAuthorization(t *testing.T) {
 			return nil, nil
 		}, func(ctx *Context, dataSourceID string, object json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 			if dataSourceID == "reviews" && coordinate.TypeName == "User" && coordinate.FieldName == "reviews" {
-				assert.Equal(t, `{"id":"1234","username":"Me","__typename":"User"}`, string(object))
+				assert.Equal(t, `{"id":"1234","username":"Me","__typename":"User","reviews":[{"body":"A highly effective form of birth control.","product":{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}},{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","product":{"upc":"top-2","__typename":"Product","data":{"name":"Fedora"}}}]}`, string(object))
 				assertions.Add(1)
 			}
 			if dataSourceID == "reviews" && coordinate.TypeName == "Review" && coordinate.FieldName == "body" {
-				assert.Equal(t, `{"body":"A highly effective form of birth control."}`, string(object))
+				assert.Equal(t, `{"body":"A highly effective form of birth control.","product":{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}}`, string(object))
 				assertions.Add(1)
 			}
 			if dataSourceID == "reviews" && coordinate.TypeName == "Review" && coordinate.FieldName == "product" {
-				assert.Equal(t, `{"body":"A highly effective form of birth control."}`, string(object))
+				assert.Equal(t, `{"body":"A highly effective form of birth control.","product":{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}}`, string(object))
 				assertions.Add(1)
 			}
 			if dataSourceID == "products" && coordinate.TypeName == "Product" && coordinate.FieldName == "name" {
-				assert.Equal(t, `{"upc":"top-1","__typename":"Product"}`, string(object))
+				assert.Equal(t, `{"upc":"top-1","__typename":"Product","data":{"name":"Trilby"}}`, string(object))
 				assertions.Add(1)
 			}
 			return nil, nil
@@ -205,14 +207,14 @@ func TestAuthorization(t *testing.T) {
 		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
 
 		return res, resolveCtx,
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: Not allowed to fetch from users Subgraph."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query', Reason: Not allowed to fetch from users Subgraph."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.SubgraphName)
+				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from users Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -236,14 +238,14 @@ func TestAuthorization(t *testing.T) {
 		resolveCtx := &Context{ctx: context.Background(), Variables: nil, authorizer: authorizer}
 
 		return res, resolveCtx,
-			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query'."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"could not render fetch input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
+			`{"errors":[{"message":"Unauthorized request to Subgraph 'users' at Path 'query'."},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
 			func(t *testing.T) {
 				assert.Equal(t, int64(1), authorizer.(*testAuthorizer).preFetchCalls.Load())
 				assert.Equal(t, int64(0), authorizer.(*testAuthorizer).objectFieldCalls.Load())
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "users", subgraphError.SubgraphName)
+				require.Equal(t, "users", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -279,7 +281,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -310,7 +312,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -343,7 +345,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch from products Subgraph", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -387,7 +389,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.SubgraphName)
+				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch body on Review", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -416,7 +418,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "reviews", subgraphError.SubgraphName)
+				require.Equal(t, "reviews", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.body", subgraphError.Path)
 				require.Equal(t, "", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -447,7 +449,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "query.me.reviews.@.product", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -478,7 +480,7 @@ func TestAuthorization(t *testing.T) {
 
 				var subgraphError *SubgraphError
 				require.ErrorAs(t, resolveCtx.subgraphErrors, &subgraphError)
-				require.Equal(t, "products", subgraphError.SubgraphName)
+				require.Equal(t, "products", subgraphError.DataSourceInfo.Name)
 				require.Equal(t, "Query.me.reviews.product.data.name", subgraphError.Path)
 				require.Equal(t, "Not allowed to fetch name on Product", subgraphError.Reason)
 				require.Equal(t, 0, subgraphError.ResponseCode)
@@ -543,8 +545,11 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 		}).AnyTimes()
 
 	return &GraphQLResponse{
-		Data: &Object{
-			Fetch: &SingleFetch{
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
+		Fetches: Sequence(
+			SingleWithPath(&SingleFetch{
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
@@ -561,7 +566,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "users",
+					DataSourceID:   "users",
+					DataSourceName: "users",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:             "Query",
@@ -570,61 +576,126 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 						},
 					},
 				},
-			},
+			}, "query"),
+			SingleWithPath(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:  VariableSegmentType,
+							VariableKind: ResolvableObjectVariableKind,
+							Renderer: NewGraphQLVariableResolveRenderer(&Object{
+								Fields: []*Field{
+									{
+										Name: []byte("__typename"),
+										Value: &String{
+											Path: []string{"__typename"},
+										},
+									},
+									{
+										Name: []byte("id"),
+										Value: &String{
+											Path: []string{"id"},
+										},
+									},
+								},
+							}),
+						},
+						{
+							Data:        []byte(`]}}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "reviews",
+					DataSourceName: "reviews",
+					RootFields: []GraphCoordinate{
+						{
+							TypeName:  "User",
+							FieldName: "reviews",
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: reviewsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+						SelectResponseDataPath:   []string{"data", "_entities", "0"},
+					},
+				},
+			}, "query.me", ObjectPath("me")),
+			SingleWithPath(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:  VariableSegmentType,
+							VariableKind: ResolvableObjectVariableKind,
+							Renderer: NewGraphQLVariableResolveRenderer(&Array{
+								Item: &Object{
+									Fields: []*Field{
+										{
+											Name: []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+										},
+										{
+											Name: []byte("upc"),
+											Value: &String{
+												Path: []string{"upc"},
+											},
+										},
+									},
+								},
+							}),
+						},
+						{
+							Data:        []byte(`}}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "products",
+					DataSourceName: "products",
+					RootFields: []GraphCoordinate{
+						{
+							TypeName:             "Product",
+							FieldName:            "name",
+							HasAuthorizationRule: true,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+						SelectResponseDataPath:   []string{"data", "_entities"},
+						MergePath:                []string{"data"},
+					},
+				},
+			}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
+		),
+		Data: &Object{
 			Fields: []*Field{
 				{
 					Name: []byte("me"),
-					Value: &Object{
-						Fetch: &SingleFetch{
-							InputTemplate: InputTemplate{
-								Segments: []TemplateSegment{
-									{
-										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
-										SegmentType: StaticSegmentType,
-									},
-									{
-										SegmentType:  VariableSegmentType,
-										VariableKind: ResolvableObjectVariableKind,
-										Renderer: NewGraphQLVariableResolveRenderer(&Object{
-											Fields: []*Field{
-												{
-													Name: []byte("__typename"),
-													Value: &String{
-														Path: []string{"__typename"},
-													},
-												},
-												{
-													Name: []byte("id"),
-													Value: &String{
-														Path: []string{"id"},
-													},
-												},
-											},
-										}),
-									},
-									{
-										Data:        []byte(`]}}}`),
-										SegmentType: StaticSegmentType,
-									},
-								},
-							},
-							Info: &FetchInfo{
-								DataSourceID: "reviews",
-								RootFields: []GraphCoordinate{
-									{
-										TypeName:  "User",
-										FieldName: "reviews",
-									},
-								},
-							},
-							FetchConfiguration: FetchConfiguration{
-								DataSource: reviewsService,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseErrorsPath: []string{"errors"},
-									SelectResponseDataPath:   []string{"data", "_entities", "[0]"},
-								},
-							},
+					Info: &FieldInfo{
+						Name: "me",
+						Source: TypeFieldSource{
+							IDs:   []string{"users"},
+							Names: []string{"users"},
 						},
+					},
+					Value: &Object{
 						Path:     []string{"me"},
 						Nullable: true,
 						Fields: []*Field{
@@ -637,7 +708,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 									Name:                "id",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -650,7 +722,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 									Name:                "username",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -660,7 +733,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 									Name:                "reviews",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"reviews"},
+										IDs:   []string{"reviews"},
+										Names: []string{"reviews"},
 									},
 									HasAuthorizationRule: true,
 								},
@@ -680,7 +754,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 													Name:                "body",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 													HasAuthorizationRule: true,
 												},
@@ -691,66 +766,13 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 													Name:                "product",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 													HasAuthorizationRule: true,
 												},
 												Value: &Object{
 													Path: []string{"product"},
-													Fetch: &SingleFetch{
-														InputTemplate: InputTemplate{
-															Segments: []TemplateSegment{
-																{
-																	Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":`),
-																	SegmentType: StaticSegmentType,
-																},
-																{
-																	SegmentType:  VariableSegmentType,
-																	VariableKind: ResolvableObjectVariableKind,
-																	Renderer: NewGraphQLVariableResolveRenderer(&Array{
-																		Item: &Object{
-																			Fields: []*Field{
-																				{
-																					Name: []byte("__typename"),
-																					Value: &String{
-																						Path: []string{"__typename"},
-																					},
-																				},
-																				{
-																					Name: []byte("upc"),
-																					Value: &String{
-																						Path: []string{"upc"},
-																					},
-																				},
-																			},
-																		},
-																	}),
-																},
-																{
-																	Data:        []byte(`}}}`),
-																	SegmentType: StaticSegmentType,
-																},
-															},
-														},
-														Info: &FetchInfo{
-															DataSourceID: "products",
-															RootFields: []GraphCoordinate{
-																{
-																	TypeName:             "Product",
-																	FieldName:            "name",
-																	HasAuthorizationRule: true,
-																},
-															},
-														},
-														FetchConfiguration: FetchConfiguration{
-															DataSource: productService,
-															PostProcessing: PostProcessingConfiguration{
-																SelectResponseErrorsPath: []string{"errors"},
-																SelectResponseDataPath:   []string{"data", "_entities"},
-																MergePath:                []string{"data"},
-															},
-														},
-													},
 													Fields: []*Field{
 														{
 															Name: []byte("upc"),
@@ -761,7 +783,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 																Name:                "upc",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 															},
 														},
@@ -774,7 +797,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 																Name:                "name",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 																HasAuthorizationRule: true,
 															},
@@ -832,8 +856,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 		}).AnyTimes()
 
 	return &GraphQLResponse{
-		Data: &Object{
-			Fetch: &SingleFetch{
+		Fetches: Sequence(
+			Single(&SingleFetch{
 				InputTemplate: InputTemplate{
 					Segments: []TemplateSegment{
 						{
@@ -849,7 +873,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 					},
 				},
 				Info: &FetchInfo{
-					DataSourceID: "users",
+					DataSourceID:   "users",
+					DataSourceName: "users",
 					RootFields: []GraphCoordinate{
 						{
 							TypeName:  "Query",
@@ -857,60 +882,126 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 						},
 					},
 				},
-			},
+			}),
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:  VariableSegmentType,
+							VariableKind: ResolvableObjectVariableKind,
+							Renderer: NewGraphQLVariableResolveRenderer(&Object{
+								Fields: []*Field{
+									{
+										Name: []byte("__typename"),
+										Value: &String{
+											Path: []string{"__typename"},
+										},
+									},
+									{
+										Name: []byte("id"),
+										Value: &String{
+											Path: []string{"id"},
+										},
+									},
+								},
+							}),
+						},
+						{
+							Data:        []byte(`]}}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "reviews",
+					DataSourceName: "reviews",
+					RootFields: []GraphCoordinate{
+						{
+							TypeName:  "User",
+							FieldName: "reviews",
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: reviewsService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities", "0"},
+					},
+				},
+			}, ObjectPath("me")),
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":`),
+							SegmentType: StaticSegmentType,
+						},
+						{
+							SegmentType:  VariableSegmentType,
+							VariableKind: ResolvableObjectVariableKind,
+							Renderer: NewGraphQLVariableResolveRenderer(&Array{
+								Item: &Object{
+									Fields: []*Field{
+										{
+											Name: []byte("__typename"),
+											Value: &String{
+												Path: []string{"__typename"},
+											},
+										},
+										{
+											Name: []byte("upc"),
+											Value: &String{
+												Path: []string{"upc"},
+											},
+										},
+									},
+								},
+							}),
+						},
+						{
+							Data:        []byte(`}}}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "products",
+					DataSourceName: "products",
+					RootFields: []GraphCoordinate{
+						{
+							TypeName:  "Product",
+							FieldName: "name",
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: productService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+						MergePath:              []string{"data"},
+					},
+				},
+			}, ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
+		),
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
+		Data: &Object{
 			Fields: []*Field{
 				{
 					Name: []byte("me"),
-					Value: &Object{
-						Fetch: &SingleFetch{
-							InputTemplate: InputTemplate{
-								Segments: []TemplateSegment{
-									{
-										Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
-										SegmentType: StaticSegmentType,
-									},
-									{
-										SegmentType:  VariableSegmentType,
-										VariableKind: ResolvableObjectVariableKind,
-										Renderer: NewGraphQLVariableResolveRenderer(&Object{
-											Fields: []*Field{
-												{
-													Name: []byte("__typename"),
-													Value: &String{
-														Path: []string{"__typename"},
-													},
-												},
-												{
-													Name: []byte("id"),
-													Value: &String{
-														Path: []string{"id"},
-													},
-												},
-											},
-										}),
-									},
-									{
-										Data:        []byte(`]}}}`),
-										SegmentType: StaticSegmentType,
-									},
-								},
-							},
-							Info: &FetchInfo{
-								DataSourceID: "reviews",
-								RootFields: []GraphCoordinate{
-									{
-										TypeName:  "User",
-										FieldName: "reviews",
-									},
-								},
-							},
-							FetchConfiguration: FetchConfiguration{
-								DataSource: reviewsService,
-								PostProcessing: PostProcessingConfiguration{
-									SelectResponseDataPath: []string{"data", "_entities", "[0]"},
-								},
-							},
+					Info: &FieldInfo{
+						Name: "me",
+						Source: TypeFieldSource{
+							IDs:   []string{"users"},
+							Names: []string{"users"},
 						},
+					},
+					Value: &Object{
 						Path:     []string{"me"},
 						Nullable: true,
 						Fields: []*Field{
@@ -923,7 +1014,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 									Name:                "id",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -936,7 +1028,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 									Name:                "username",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"users"},
+										IDs:   []string{"users"},
+										Names: []string{"users"},
 									},
 								},
 							},
@@ -946,7 +1039,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 									Name:                "reviews",
 									ExactParentTypeName: "User",
 									Source: TypeFieldSource{
-										IDs: []string{"reviews"},
+										IDs:   []string{"reviews"},
+										Names: []string{"reviews"},
 									},
 								},
 								Value: &Array{
@@ -965,7 +1059,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 													Name:                "body",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 												},
 											},
@@ -975,7 +1070,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 													Name:                "product",
 													ExactParentTypeName: "Review",
 													Source: TypeFieldSource{
-														IDs: []string{"reviews"},
+														IDs:   []string{"reviews"},
+														Names: []string{"reviews"},
 													},
 												},
 												Value: &Object{
@@ -1016,7 +1112,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 															},
 														},
 														Info: &FetchInfo{
-															DataSourceID: "products",
+															DataSourceID:   "products",
+															DataSourceName: "products",
 															RootFields: []GraphCoordinate{
 																{
 																	TypeName:  "Product",
@@ -1042,7 +1139,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 																Name:                "upc",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 															},
 														},
@@ -1055,7 +1153,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 																Name:                "name",
 																ExactParentTypeName: "Product",
 																Source: TypeFieldSource{
-																	IDs: []string{"products"},
+																	IDs:   []string{"products"},
+																	Names: []string{"products"},
 																},
 															},
 														},
