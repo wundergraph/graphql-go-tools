@@ -106,6 +106,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 									},
@@ -158,6 +159,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -506,6 +508,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -667,6 +670,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -1402,6 +1406,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -2205,6 +2210,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -2399,6 +2405,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -2686,6 +2693,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -2942,6 +2950,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -3281,6 +3290,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -3527,6 +3537,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -3731,6 +3742,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
@@ -3834,6 +3846,7 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 											"Admin":     {},
 											"Moderator": {},
 											"User":      {},
+											"Account":   {},
 										},
 										TypeName: "Account",
 										Fields: []*resolve.Field{
