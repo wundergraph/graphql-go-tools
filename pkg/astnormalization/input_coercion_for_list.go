@@ -40,7 +40,7 @@ func (i *inputCoercionForListVisitor) EnterOperationDefinition(ref int) {
 
 func (i *inputCoercionForListVisitor) EnterVariableDefinition(ref int) {
 	variableNameString := i.operation.VariableDefinitionNameString(ref)
-	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, i.operation.VariableValueNameBytes(ref))
+	variableDefinition, exists := i.operation.VariableDefinitionByNameAndOperation(i.operationDefinitionRef, i.operation.VariableDefinitionNameBytes(ref))
 	if !exists {
 		return
 	}

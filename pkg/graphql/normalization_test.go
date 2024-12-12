@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -260,6 +261,159 @@ func Test_normalizationResultFromReport(t *testing.T) {
 		assert.Equal(t, result.Errors.Count(), 1)
 		assert.Equal(t, "graphql error", result.Errors.(RequestErrors)[0].Message)
 	})
+}
+
+const schemaStringForTT13608 = `
+scalar UUID
+scalar DateTime
+
+enum SortEnumType {
+  ASC
+  DESC
+}
+
+input DefinitionSortInput {
+  definitionKey: SortEnumType
+  createdBy: SortEnumType
+  createdOn: SortEnumType
+  modifiedBy: SortEnumType
+  modifiedOn: SortEnumType
+  publishedBy: SortEnumType
+  publishedOn: SortEnumType
+  actionKey: SortEnumType
+}
+
+input StringOperationFilterInput {
+  and: [StringOperationFilterInput!]
+  or: [StringOperationFilterInput!]
+  eq: String
+  neq: String
+  contains: String
+  ncontains: String
+  in: [String]
+  nin: [String]
+  startsWith: String
+  nstartsWith: String
+  endsWith: String
+  nendsWith: String
+}
+
+input DateTimeOperationFilterInput {
+  eq: DateTime
+  neq: DateTime
+  in: [DateTime]
+  nin: [DateTime]
+  gt: DateTime
+  ngt: DateTime
+  gte: DateTime
+  ngte: DateTime
+  lt: DateTime
+  nlt: DateTime
+  lte: DateTime
+  nlte: DateTime
+}
+
+input UuidOperationFilterInput {
+  eq: UUID
+  neq: UUID
+  in: [UUID]
+  nin: [UUID]
+  gt: UUID
+  ngt: UUID
+  gte: UUID
+  ngte: UUID
+  lt: UUID
+  nlt: UUID
+  lte: UUID
+  nlte: UUID
+}
+
+input DefinitionFilterInput {
+  and: [DefinitionFilterInput!]
+  or: [DefinitionFilterInput!]
+  createdBy: StringOperationFilterInput
+  createdOn: DateTimeOperationFilterInput
+  publishedBy: StringOperationFilterInput
+  actionKey: UuidOperationFilterInput
+}
+
+type DefinitionsCollectionSegment {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: CollectionSegmentInfo!
+  """
+  A flattened list of the items.
+  """
+  items: [Definition!]
+  totalCount: Int!
+}
+
+type Definition {
+  definitionKey: UUID!
+  createdBy: String!
+  createdOn: DateTime!
+  modifiedBy: String
+  modifiedOn: DateTime
+  publishedBy: String
+  publishedOn: DateTime
+  actionKey: UUID!
+}
+
+type Query {
+  definitions(
+    skip: Int
+    take: Int
+    where: DefinitionFilterInput
+    order: [DefinitionSortInput!]
+  ): DefinitionsCollectionSegment
+}
+`
+
+func TestRequest_Normalize_TT13608(t *testing.T) {
+	// See TT-13608 for details.
+	// Error message before the fix: mismatched input value
+	// Input coercion visitor should make `order` a list, instead it was leaving it as-is.
+	r := Request{
+		OperationName: "getDefinition",
+		Variables:     json.RawMessage(`{"actionKey": "46d69656-99be-4faa-af82-fcf778bca8ed"}`),
+		Query: `query getDefinition($actionKey: UUID) {
+	definitions(
+		take: 10
+		skip: 0
+        where: {
+            publishedBy: {
+                eq: null
+            },
+            actionKey: {
+                eq: $actionKey
+            },
+            createdBy: {
+                startsWith: "v"
+            }
+        }
+		order: { createdOn: DESC, createdBy: ASC }
+	) {
+		items {
+            publishedOn
+            createdBy
+            createdOn
+            definitionKey
+            modifiedBy
+            modifiedOn
+		}
+		totalCount
+	}
+}`,
+	}
+
+	schema, err := NewSchemaFromString(schemaStringForTT13608)
+	require.NoError(t, err)
+
+	result, err := r.Normalize(schema)
+	assert.NoError(t, err)
+	assert.True(t, result.Successful)
+	assert.True(t, r.isNormalized)
 }
 
 func inputCoercionForListSchema(t *testing.T) *Schema {
