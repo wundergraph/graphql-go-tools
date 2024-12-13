@@ -60,6 +60,8 @@ type fieldSelectionRewriter struct {
 
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
+
+	skipFieldRefs []int
 }
 
 func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
@@ -220,7 +222,8 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 
 	if len(newSelectionRefs) == 0 {
 		// we have to add __typename selection in case there is no other selections
-		typeNameSelectionRef, _ := r.typeNameSelection()
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
 	}
 
@@ -280,6 +283,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	if err != nil {
 		return false, err
 	}
+	selectionSetInfo.isInterfaceObject = isInterfaceObject
 
 	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames)
 	if !needRewrite {
@@ -316,6 +320,14 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		// check that all inline fragments types are implementing the interface in the current datasource
 		if !r.allFragmentTypesImplementsInterfaceTypes(selectionSetInfo.inlineFragmentsOnObjects, interfaceTypeNames) {
 			return true
+		}
+
+		// in case it is an interface object, and we have fragments on concrete types - we have to add shared __typename selection
+		// it will mean that we will rewrite a query to separate concrete type fragments, but due to nature of the interface object
+		// they eventually will be flattened by datasource into a single fragment or just a flatten query.
+		// So it should be safe to rewrite a field.
+		if selectionSetInfo.isInterfaceObject {
+			return !selectionSetInfo.hasTypeNameSelection
 		}
 	}
 
@@ -367,6 +379,15 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
+
+	// When interface is an interface object
+	// When we have fragments on concrete types,
+	// And we do not have __typename selection - we are adding it
+	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
+		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
+	}
 
 	r.flattenFragmentOnInterface(
 		fieldInfo,

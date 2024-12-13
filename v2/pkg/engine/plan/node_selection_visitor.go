@@ -672,7 +672,6 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	rewriter.SetDatasourceConfiguration(ds)
 
 	rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
-
 	if err != nil {
 		c.walker.StopWithInternalErr(err)
 		return
@@ -681,6 +680,8 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	if !rewritten {
 		return
 	}
+
+	c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipFieldRefs...)
 
 	c.hasNewFields = true
 	c.walker.Stop()
