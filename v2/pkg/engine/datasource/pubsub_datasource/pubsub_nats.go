@@ -13,8 +13,9 @@ import (
 )
 
 type NatsStreamConfiguration struct {
-	Consumer   string `json:"consumer"`
-	StreamName string `json:"streamName"`
+	Consumer                  string `json:"consumer"`
+	ConsumerInactiveThreshold int32  `json:"consumerInactiveThreshold"`
+	StreamName                string `json:"streamName"`
 }
 
 type NatsEventConfiguration struct {
