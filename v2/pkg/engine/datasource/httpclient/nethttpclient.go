@@ -202,7 +202,6 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	setRequest(ctx, request)
 
 	response, err := client.Do(request)
-
 	if err != nil {
 		return err
 	}
@@ -211,7 +210,6 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	setResponseStatus(ctx, request, response)
 
 	respReader, err := respBodyReader(response)
-
 	if err != nil {
 		return err
 	}
