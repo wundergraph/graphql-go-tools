@@ -198,12 +198,14 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	setRequest(ctx, request)
 
 	response, err := client.Do(request)
+
+	// Set response, even before error check, to ensure that it's in the context
+	setResponseStatus(ctx, request, response)
+
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
-
-	setResponseStatus(ctx, request, response)
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
