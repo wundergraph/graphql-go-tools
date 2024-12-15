@@ -87,7 +87,11 @@ func setRequest(ctx context.Context, request *http.Request) {
 
 func setResponseStatus(ctx context.Context, request *http.Request, response *http.Response) {
 	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
-		value.StatusCode = response.StatusCode
+		if response != nil {
+			value.StatusCode = response.StatusCode
+		} else {
+			value.StatusCode = 0
+		}
 		value.Request = request
 		value.Response = response
 	}
