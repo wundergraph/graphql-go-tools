@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.136](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.135...v2.0.0-rc.136) (2024-12-16)
+
+
+### Bug Fixes
+
+* set request in hook context before send request, in case of error ([#1016](https://github.com/wundergraph/graphql-go-tools/issues/1016)) ([e41bdef](https://github.com/wundergraph/graphql-go-tools/commit/e41bdef9779aae6bba3ac52b39f7dd545241e4ce))
+
 ## [2.0.0-rc.135](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.134...v2.0.0-rc.135) (2024-12-13)
 
 
