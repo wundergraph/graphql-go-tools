@@ -62,9 +62,16 @@ func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
 		// cause a memory leak.
 		if res.httpResponseContext.Response != nil {
-			responseInfo.Request = res.httpResponseContext.Response.Request
-			responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header.Clone()
-		} else {
+			if res.httpResponseContext.Response.Request != nil {
+				responseInfo.Request = res.httpResponseContext.Response.Request
+			}
+
+			if res.httpResponseContext.Response.Header != nil {
+				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header.Clone()
+			}
+		}
+
+		if responseInfo.Request == nil {
 			// In cases where the request errors, the response will be nil, and so we need to get the original request
 			responseInfo.Request = res.httpResponseContext.Request
 		}
