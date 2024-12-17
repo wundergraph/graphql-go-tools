@@ -462,6 +462,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					name: String!
 					isModerator: Boolean!
 				}
+
+				type Query {
+					iface: Node!
+				}
 			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -805,6 +809,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}
 
 				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]!
+				}
 			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -862,6 +870,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}
 
 				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]!
+				}
 			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -2668,6 +2680,72 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					returnsUser {
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "field is a concrete type from an interface members which do not implement interface in the given subgraph ",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				type Query {
+					iface: Account!
+				}`,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Admin {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					iface: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
 						... on User {
 							name
 						}
