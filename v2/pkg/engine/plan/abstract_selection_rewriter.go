@@ -85,17 +85,19 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 		return false, nil
 	}
 
+	enclosingTypeName := r.definition.NodeNameBytes(enclosingNode)
+
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
 		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref)
 	case ast.NodeKindUnionTypeDefinition:
-		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref)
+		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
 	default:
 		return false, nil
 	}
 }
 
-func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
 	/*
 		1) extract inline fragments selections with interface types
 		2) extract inline fragments selections with members of the union
@@ -104,21 +106,10 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		5) append existing inline fragments with fields from the interfaces
 	*/
 
-	unionTypeName := r.definition.UnionTypeDefinitionNameBytes(unionDefRef)
-	node, hasNode := r.upstreamDefinition.NodeByName(unionTypeName)
-	if !hasNode {
-		return false, errors.New("unexpected error: union type definition not found in the upstream schema")
+	unionTypeNames, err := r.getAllowedUnionMemberTypeNames(fieldRef, unionDefRef, enclosingTypeName)
+	if err != nil {
+		return false, err
 	}
-	if node.Kind != ast.NodeKindUnionTypeDefinition {
-		return false, errors.New("unexpected error: node kind is not union type definition in the upstream schema")
-	}
-
-	unionTypeNames, ok := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(node.Ref)
-	if !ok {
-		return false, nil
-	}
-
-	sort.Strings(unionTypeNames)
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
