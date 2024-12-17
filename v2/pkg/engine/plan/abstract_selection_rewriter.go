@@ -3,7 +3,6 @@ package plan
 import (
 	"errors"
 	"slices"
-	"sort"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -89,7 +88,7 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref)
+		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
 	case ast.NodeKindUnionTypeDefinition:
 		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
 	default:
@@ -226,7 +225,7 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	return nil
 }
 
-func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
 	/*
 		1) extract selections which is not inline-fragments - e.g. shared selections
 		2) extract selections for each inline fragment
@@ -234,40 +233,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
 	*/
 
-	interfaceTypeName := r.definition.InterfaceTypeDefinitionNameBytes(interfaceDefRef)
-	node, hasNode := r.upstreamDefinition.NodeByName(interfaceTypeName)
-	if !hasNode {
-		return false, errors.New("unexpected error: interface type definition not found in the upstream schema")
-	}
-
-	var isInterfaceObject bool
-	var interfaceTypeNames []string
-
-	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
-		interfaceTypeNameStr := string(interfaceTypeName)
-		for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
-			if k.InterfaceTypeName == interfaceTypeNameStr {
-				isInterfaceObject = true
-				interfaceTypeNames = k.ConcreteTypeNames
-				break
-			}
-		}
-
-		if !isInterfaceObject {
-			return false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
-		}
-	}
-
-	if !isInterfaceObject {
-		var ok bool
-		interfaceTypeNames, ok = r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-		if !ok {
-			return false, nil
-		}
-	}
-
-	sort.Strings(interfaceTypeNames)
-
+	interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
 	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
