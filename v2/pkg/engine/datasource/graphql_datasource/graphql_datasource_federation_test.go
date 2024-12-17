@@ -1672,6 +1672,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									{
 										Name: []byte("user"),
 										Value: &resolve.Object{
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
@@ -1740,6 +1744,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									{
 										Name: []byte("otherUser"),
 										Value: &resolve.Object{
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
@@ -1855,6 +1863,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									{
 										Name: []byte("user"),
 										Value: &resolve.Object{
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
@@ -1923,6 +1935,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									{
 										Name: []byte("otherUser"),
 										Value: &resolve.Object{
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
@@ -2443,6 +2459,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									{
 										Name: []byte("user"),
 										Value: &resolve.Object{
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
@@ -2511,6 +2531,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									{
 										Name: []byte("otherUser"),
 										Value: &resolve.Object{
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
 											Fetches: []resolve.Fetch{
 												&resolve.SingleFetch{
 													FetchDependencies: resolve.FetchDependencies{
@@ -11007,7 +11031,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														{
 															Name: []byte("id"),
-															Value: &resolve.String{
+															Value: &resolve.Scalar{
 																Path: []string{"id"},
 															},
 															OnTypeNames: [][]byte{[]byte("User")},
@@ -11021,7 +11045,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														{
 															Name: []byte("adminID"),
-															Value: &resolve.String{
+															Value: &resolve.Scalar{
 																Path: []string{"adminID"},
 															},
 															OnTypeNames: [][]byte{[]byte("Admin")},
@@ -11058,7 +11082,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														{
 															Name: []byte("moderatorID"),
-															Value: &resolve.String{
+															Value: &resolve.Scalar{
 																Path: []string{"moderatorID"},
 															},
 															OnTypeNames: [][]byte{[]byte("Moderator")},
@@ -11095,7 +11119,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														},
 														{
 															Name: []byte("id"),
-															Value: &resolve.String{
+															Value: &resolve.Scalar{
 																Path: []string{"id"},
 															},
 															OnTypeNames: [][]byte{[]byte("Address")},
@@ -11117,6 +11141,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											Nullable: true,
 											Item: &resolve.Object{
 												Nullable: false,
+												PossibleTypes: map[string]struct{}{
+													"Admin":     {},
+													"Moderator": {},
+													"User":      {},
+												},
+												TypeName: "Account",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
@@ -11143,6 +11173,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														Name: []byte("address"),
 														Value: &resolve.Object{
 															Path: []string{"address"},
+															PossibleTypes: map[string]struct{}{
+																"Address": {},
+															},
+															TypeName: "Address",
 															Fields: []*resolve.Field{
 																{
 																	Name: []byte("zip"),
