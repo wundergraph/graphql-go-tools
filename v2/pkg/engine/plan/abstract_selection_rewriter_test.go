@@ -2615,6 +2615,66 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: false,
 		},
+		{
+			name:      "field is a concrete type from a union in the given subgraph ",
+			fieldName: "returnsUser",
+			definition: `
+				type User {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin {
+					id: ID!
+					name: String!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+					returnsUser: Account!
+				}`,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					returnsUser: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "returnsUser").
+				RootNode("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					returnsUser {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					returnsUser {
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
 	}
 
 	for _, testCase := range testCases {

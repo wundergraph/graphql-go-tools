@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"errors"
 	"slices"
 	"sort"
 
@@ -387,4 +388,61 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
 	}), field.Ref
+}
+
+func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
+	fieldName := r.operation.FieldNameBytes(fieldRef)
+
+	node, hasNode := r.upstreamDefinition.NodeByName(enclosingTypeName)
+	if !hasNode {
+		return "", false
+	}
+
+	fieldTypeNode, ok := r.upstreamDefinition.FieldTypeNode(fieldName, node)
+	if !ok {
+		return "", false
+	}
+
+	return r.upstreamDefinition.NodeNameString(fieldTypeNode), true
+}
+
+func (r *fieldSelectionRewriter) getAllowedUnionMemberTypeNames(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) ([]string, error) {
+	unionTypeName := r.definition.UnionTypeDefinitionNameString(unionDefRef)
+	unionTypeNamesFromDefinition, _ := r.definition.UnionTypeDefinitionMemberTypeNames(unionDefRef)
+
+	// CurrentObject.field typename from the upstream schema
+	fieldTypeName, ok := r.fieldTypeNameFromUpstreamSchema(fieldRef, enclosingTypeName)
+	if !ok {
+		return nil, errors.New("unexpected error: field type name is not found in the upstream schema")
+	}
+
+	// if typename of a field is not equal to the typename of the union type
+	// then it should be a member of the union type
+	if unionTypeName != fieldTypeName {
+		if slices.Contains(unionTypeNamesFromDefinition, fieldTypeName) {
+			return []string{fieldTypeName}, nil
+		}
+
+		// if it is not a member of the union type the config is corrupted
+		return nil, errors.New("unexpected error: field type is not a member of the union type in the federated graph schema")
+	}
+
+	// when typename of a field is equal to the typename of the union type
+	// we need to get allowed types from the upstream schema
+	unionNode, ok := r.upstreamDefinition.NodeByNameStr(unionTypeName)
+	if !ok {
+		return nil, errors.New("unexpected error: union type is not found in the upstream schema")
+	}
+
+	if unionNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return nil, errors.New("unexpected error: node kind is not union type definition in the upstream schema")
+	}
+
+	unionTypeNames, ok := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(unionNode.Ref)
+	if !ok {
+		return nil, errors.New("unexpected error: union type definition in the upstream schema do not have any members")
+	}
+	sort.Strings(unionTypeNames)
+
+	return unionTypeNames, nil
 }
