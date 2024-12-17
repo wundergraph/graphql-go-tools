@@ -186,6 +186,15 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 		return true
 	}
 
+	// We need to check if interface type in the given datasource is implemented by parent selection valid types
+	// because it could happen that in the given ds we have all types from union but not all of them implements interface
+	// so we need to rewrite, because otherwise we won't get responses for all possible types, but only for implementing interface
+	for _, typeName := range parentSelectionValidTypes {
+		if !slices.Contains(inlineFragment.typeNamesImplementingInterfaceInCurrentDS, typeName) {
+			return true
+		}
+	}
+
 	// if interface fragment has inline fragments on objects
 	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
 	// check each fragment for the presence of other interface fragments

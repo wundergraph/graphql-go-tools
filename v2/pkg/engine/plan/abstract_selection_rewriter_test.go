@@ -2349,6 +2349,83 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name:      "don't have all type implementing interface in the datasource",
+			fieldName: "returnsUnion",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			upstreamDefinition: `
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+
+				type Admin {
+					id: ID!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "returnsUnion").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				ChildNode("HasName", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					returnsUnion {
+						... on HasName {
+							name	
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					returnsUnion {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name: "everything is local, nested interface selections with typename, first interface is matching field return type",
 			definition: `
 				interface HasName {
