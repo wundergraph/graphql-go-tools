@@ -6,9 +6,11 @@ import (
 )
 
 type FetchTreeNode struct {
-	Kind       FetchTreeNodeKind `json:"kind"`
-	Item       *FetchItem        `json:"item"`
-	ChildNodes []*FetchTreeNode  `json:"child_nodes"`
+	Kind FetchTreeNodeKind `json:"kind"`
+	// Only set for subscription
+	Trigger    *FetchTreeNode   `json:"trigger"`
+	Item       *FetchItem       `json:"item"`
+	ChildNodes []*FetchTreeNode `json:"child_nodes"`
 }
 
 type FetchTreeNodeKind string
@@ -17,6 +19,7 @@ const (
 	FetchTreeNodeKindSingle   FetchTreeNodeKind = "Single"
 	FetchTreeNodeKindSequence FetchTreeNodeKind = "Sequence"
 	FetchTreeNodeKindParallel FetchTreeNodeKind = "Parallel"
+	FetchTreeNodeKindTrigger  FetchTreeNodeKind = "Trigger"
 )
 
 func Sequence(children ...*FetchTreeNode) *FetchTreeNode {
@@ -146,6 +149,7 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 type FetchTreeQueryPlanNode struct {
 	Version  string                    `json:"version,omitempty"`
 	Kind     FetchTreeNodeKind         `json:"kind"`
+	Trigger  *FetchTreeQueryPlan       `json:"trigger,omitempty"`
 	Children []*FetchTreeQueryPlanNode `json:"children,omitempty"`
 	Fetch    *FetchTreeQueryPlan       `json:"fetch,omitempty"`
 }
@@ -165,8 +169,23 @@ func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
 	if n == nil {
 		return nil
 	}
+
 	plan := n.queryPlan()
 	plan.Version = "1"
+
+	if n.Trigger != nil && n.Trigger.Item != nil && n.Trigger.Item.Fetch != nil {
+		if f, ok := n.Trigger.Item.Fetch.(*SingleFetch); ok {
+			plan.Trigger = &FetchTreeQueryPlan{
+				Kind:         "Trigger",
+				Path:         n.Trigger.Item.ResponsePath,
+				SubgraphName: f.Info.DataSourceName,
+				SubgraphID:   f.Info.DataSourceID,
+				FetchID:      f.FetchDependencies.FetchID,
+				Query:        f.Info.QueryPlan.Query,
+			}
+		}
+	}
+
 	return plan
 }
 

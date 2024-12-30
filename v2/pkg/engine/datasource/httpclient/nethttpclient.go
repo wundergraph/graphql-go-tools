@@ -79,9 +79,19 @@ func InjectResponseContext(ctx context.Context) (context.Context, *ResponseConte
 	return context.WithValue(ctx, responseContextKey{}, value), value
 }
 
+func setRequest(ctx context.Context, request *http.Request) {
+	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
+		value.Request = request
+	}
+}
+
 func setResponseStatus(ctx context.Context, request *http.Request, response *http.Response) {
 	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
-		value.StatusCode = response.StatusCode
+		if response != nil {
+			value.StatusCode = response.StatusCode
+		} else {
+			value.StatusCode = 0
+		}
 		value.Request = request
 		value.Response = response
 	}
@@ -188,6 +198,8 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	request.Header.Add(ContentTypeHeader, contentType)
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
+
+	setRequest(ctx, request)
 
 	response, err := client.Do(request)
 	if err != nil {

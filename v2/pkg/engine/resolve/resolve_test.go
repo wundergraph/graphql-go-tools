@@ -4847,6 +4847,27 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 	}
 
 	setup := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *SubscriptionRecorder, SubscriptionIdentifier) {
+
+		fetches := Sequence()
+		fetches.Trigger = &FetchTreeNode{
+			Kind: FetchTreeNodeKindTrigger,
+			Item: &FetchItem{
+				Fetch: &SingleFetch{
+					FetchDependencies: FetchDependencies{
+						FetchID: 0,
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "0",
+						DataSourceName: "counter",
+						QueryPlan: &QueryPlan{
+							Query: "subscription { counter }",
+						},
+					},
+				},
+				ResponsePath: "counter",
+			},
+		}
+
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
 				Source: stream,
@@ -4871,9 +4892,134 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 							Value: &Integer{
 								Path: []string{"counter"},
 							},
+							Info: &FieldInfo{
+								Name:                "counter",
+								ExactParentTypeName: "Subscription",
+								Source: TypeFieldSource{
+									IDs:   []string{"0"},
+									Names: []string{"counter"},
+								},
+								FetchID: 0,
+							},
 						},
 					},
 				},
+				Fetches: fetches,
+			},
+		}
+
+		out := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		out.complete.Store(false)
+
+		id := SubscriptionIdentifier{
+			ConnectionID:   1,
+			SubscriptionID: 1,
+		}
+
+		return newResolver(ctx), plan, out, id
+	}
+
+	setupWithAdditionalDataLoad := func(ctx context.Context, stream SubscriptionDataSource) (*Resolver, *GraphQLSubscription, *SubscriptionRecorder, SubscriptionIdentifier) {
+		fetches := Sequence()
+		fetches.Trigger = &FetchTreeNode{
+			Kind: FetchTreeNodeKindTrigger,
+			Item: &FetchItem{
+				Fetch: &SingleFetch{
+					FetchDependencies: FetchDependencies{
+						FetchID: 0,
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "0",
+						DataSourceName: "country",
+						QueryPlan: &QueryPlan{
+							Query: "subscription { countryUpdated { name time { local } } }",
+						},
+					},
+				},
+				ResponsePath: "countryUpdated",
+			},
+		}
+		fetches.ChildNodes = []*FetchTreeNode{{
+			Kind: FetchTreeNodeKindSingle,
+			Item: &FetchItem{
+				Fetch: &SingleFetch{
+					FetchDependencies: FetchDependencies{
+						FetchID:           1,
+						DependsOnFetchIDs: []int{0},
+					},
+					Info: &FetchInfo{
+						DataSourceID:   "1",
+						DataSourceName: "time",
+						OperationType:  ast.OperationTypeQuery,
+						QueryPlan: &QueryPlan{
+							Query: "query($representations: [_Any!]!){\n    _entities(representations: $representations){\n        ... on Time {\n            __typename\n            local\n        }\n    }\n}",
+						},
+					},
+				},
+				ResponsePath: "countryUpdated.time",
+			},
+		}}
+
+		plan := &GraphQLSubscription{
+			Trigger: GraphQLSubscriptionTrigger{
+				Source: stream,
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							SegmentType: StaticSegmentType,
+							Data:        []byte(`{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { countryUpdated { name time { local } } }"}}`),
+						},
+					},
+				},
+				PostProcessing: PostProcessingConfiguration{
+					SelectResponseDataPath:   []string{"data"},
+					SelectResponseErrorsPath: []string{"errors"},
+				},
+			},
+			Response: &GraphQLResponse{
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("countryUpdated"),
+							Value: &Object{
+								Path: []string{"countryUpdated"},
+								Fields: []*Field{{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								}, {
+									Name: []byte("time"),
+									Value: &Object{
+										Path: []string{"time"},
+										Fields: []*Field{{
+											Name: []byte("local"),
+											Value: &String{
+												Path: []string{"local"},
+											},
+										}},
+									},
+								}},
+								SourceName: "country",
+								TypeName:   "Country",
+							},
+							Info: &FieldInfo{
+								Name:                "countryUpdated",
+								ExactParentTypeName: "Subscription",
+								Source: TypeFieldSource{
+									IDs:   []string{"0"},
+									Names: []string{"country"},
+								},
+								FetchID: 0,
+							},
+						},
+					},
+				},
+				Fetches: fetches,
 			},
 		}
 
@@ -5061,6 +5207,64 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitComplete(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+
+	t.Run("renders query plan with trigger", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SkipLoader:                 true,
+				IncludeQueryPlanInResponse: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 1, len(recorder.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription { counter }"}}}}`,
+		}, recorder.Messages())
+	})
+
+	t.Run("renders query plan with trigger and additional data", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 0, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { countryUpdated { name time { local } } }"}}`, string(input))
+		})
+
+		resolver, plan, recorder, id := setupWithAdditionalDataLoad(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SkipLoader:                 true,
+				IncludeQueryPlanInResponse: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 1, len(recorder.Messages()))
+		assert.ElementsMatch(t, []string{
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"countryUpdated","subgraphName":"country","subgraphId":"0","fetchId":0,"query":"subscription { countryUpdated { name time { local } } }"},"children":[{"kind":"Single","fetch":{"kind":"Single","path":"countryUpdated.time","subgraphName":"time","subgraphId":"1","fetchId":1,"dependsOnFetchIds":[0],"query":"query($representations: [_Any!]!){\n    _entities(representations: $representations){\n        ... on Time {\n            __typename\n            local\n        }\n    }\n}"}}]}}}`,
+		}, recorder.Messages())
 	})
 }
 
