@@ -51,7 +51,7 @@ jobs:
       - name: Set up Go 1.23
         uses: actions/setup-go@v4
         with:
-          go-version: 1.23
+          go-version: v1.62.2
       - name: Run linters
         uses: golangci/golangci-lint-action@v3
         with:
