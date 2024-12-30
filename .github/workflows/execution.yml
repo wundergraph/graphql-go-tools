@@ -51,12 +51,12 @@ jobs:
       - name: Set up Go 1.23
         uses: actions/setup-go@v4
         with:
-          go-version: v1.62.2
+          go-version: 1.23
       - name: Run linters
         uses: golangci/golangci-lint-action@v3
         with:
           working-directory: execution
-          version: v1.55.2
+          version: v1.62.2
           args: --timeout=3m
   ci:
     name: CI Success
