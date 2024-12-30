@@ -70,6 +70,8 @@ type responseContextKey struct{}
 
 type ResponseContext struct {
 	StatusCode int
+	Request    *http.Request
+	Response   *http.Response
 }
 
 func InjectResponseContext(ctx context.Context) (context.Context, *ResponseContext) {
@@ -77,9 +79,21 @@ func InjectResponseContext(ctx context.Context) (context.Context, *ResponseConte
 	return context.WithValue(ctx, responseContextKey{}, value), value
 }
 
-func setResponseStatusCode(ctx context.Context, statusCode int) {
+func setRequest(ctx context.Context, request *http.Request) {
 	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
-		value.StatusCode = statusCode
+		value.Request = request
+	}
+}
+
+func setResponseStatus(ctx context.Context, request *http.Request, response *http.Response) {
+	if value, ok := ctx.Value(responseContextKey{}).(*ResponseContext); ok {
+		if response != nil {
+			value.StatusCode = response.StatusCode
+		} else {
+			value.StatusCode = 0
+		}
+		value.Request = request
+		value.Response = response
 	}
 }
 
@@ -185,13 +199,15 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
 
+	setRequest(ctx, request)
+
 	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}
 	defer response.Body.Close()
 
-	setResponseStatusCode(ctx, response.StatusCode)
+	setResponseStatus(ctx, request, response)
 
 	respReader, err := respBodyReader(response)
 	if err != nil {

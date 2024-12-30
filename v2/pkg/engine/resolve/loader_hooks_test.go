@@ -35,13 +35,13 @@ func (f *TestLoaderHooks) OnLoad(ctx context.Context, ds DataSourceInfo) context
 	return ctx
 }
 
-func (f *TestLoaderHooks) OnFinished(ctx context.Context, statusCode int, ds DataSourceInfo, err error) {
+func (f *TestLoaderHooks) OnFinished(ctx context.Context, ds DataSourceInfo, responseInfo *ResponseInfo) {
 	f.postFetchCalls.Add(1)
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.errors = append(f.errors, err)
+	f.errors = append(f.errors, responseInfo.Err)
 }
 
 func TestLoaderHooks_FetchPipeline(t *testing.T) {

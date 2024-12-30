@@ -1,6 +1,8 @@
 package postprocess
 
 import (
+	"encoding/json"
+	"fmt"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -142,6 +144,7 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 			p.processResponseTree[i].ProcessSubscription(t.Response.Response.Data)
 		}
 		p.createFetchTree(t.Response.Response)
+		p.appendTriggerToFetchTree(t.Response)
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
@@ -182,5 +185,48 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	res.Fetches = &resolve.FetchTreeNode{
 		Kind:       resolve.FetchTreeNodeKindSequence,
 		ChildNodes: children,
+	}
+}
+
+func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
+	var input struct {
+		Body struct {
+			Query string `json:"query"`
+		} `json:"body"`
+	}
+
+	err := json.Unmarshal(res.Trigger.Input, &input)
+	if err != nil {
+		fmt.Println("error decoding subscription input", err)
+		return
+	}
+
+	rootData := res.Response.Data
+	if rootData == nil || len(rootData.Fields) == 0 {
+		return
+	}
+
+	info := rootData.Fields[0].Info
+	if info == nil {
+		return
+	}
+
+	res.Response.Fetches.Trigger = &resolve.FetchTreeNode{
+		Kind: resolve.FetchTreeNodeKindTrigger,
+		Item: &resolve.FetchItem{
+			Fetch: &resolve.SingleFetch{
+				FetchDependencies: resolve.FetchDependencies{
+					FetchID: info.FetchID,
+				},
+				Info: &resolve.FetchInfo{
+					DataSourceID:   info.Source.IDs[0],
+					DataSourceName: info.Source.Names[0],
+					QueryPlan: &resolve.QueryPlan{
+						Query: input.Body.Query,
+					},
+				},
+			},
+			ResponsePath: info.Name,
+		},
 	}
 }

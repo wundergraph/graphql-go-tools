@@ -232,6 +232,8 @@ github.com/twmb/franz-go/pkg/kmsg v1.7.0 h1:a457IbvezYfA5UkiBvyV3zj0Is3y1i8EJgqj
 github.com/twmb/franz-go/pkg/kmsg v1.7.0/go.mod h1:se9Mjdt0Nwzc9lnjJ0HyDtLyBnaBDAd7pCje47OhSyw=
 github.com/urfave/cli/v2 v2.27.1/go.mod h1:8qnjx1vcq5s2/wpsqoZFndg2CE5tNFyrTvS6SinrnYQ=
 github.com/wundergraph/astjson v0.0.0-20240822164222-c1cca919e2c8/go.mod h1:eOTL6acwctsN4F3b7YE+eE2t8zcJ/doLm9sZzsxxxrE=
+github.com/wundergraph/astjson v0.0.0-20241210134830-8afac530adfe h1:ce4SObDyb/WJZSXNv1ISeoTtqn9u30feksK7GCURDvo=
+github.com/wundergraph/astjson v0.0.0-20241210134830-8afac530adfe/go.mod h1:eOTL6acwctsN4F3b7YE+eE2t8zcJ/doLm9sZzsxxxrE=
 github.com/wundergraph/cosmo/composition-go v0.0.0-20240404083832-79d2290084c6/go.mod h1:Ib+rknmwn4oZFN9SQ4VMP3uF/C/tEINEug5iPQxfrPc=
 github.com/wundergraph/cosmo/router v0.0.0-20240404083832-79d2290084c6/go.mod h1:LS+5qlr4fQVEW7JMXXI1sz7CH5cdnqx3BNc10p+UbW4=
 github.com/xdg/scram v1.0.3 h1:nTadYh2Fs4BK2xdldEa2g5bbaZp0/+1nJMMPtPxS/to=
