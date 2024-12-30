@@ -39,7 +39,7 @@ func (r *fieldSelectionRewriter) entitiesImplementingInterface(typesImplementing
 
 	for _, typeName := range typesImplementingInterface {
 		if slices.Contains(entityNames, typeName) {
-			out = append(out, typeName)
+			out = append(out, typeName) //nolint:staticcheck
 		}
 	}
 
