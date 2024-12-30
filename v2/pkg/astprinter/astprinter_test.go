@@ -654,6 +654,10 @@ fragment NameFragment on Dog {
 				`scalar Date schema {query: Query} type Query {me: User! user(id: ID!): User allUsers: [User] search(term: String!): [SearchResult!]! myChats: [Chat!]!} enum Role {USER ADMIN} interface Node {id: ID!} union SearchResult = User | Chat | ChatMessage type User implements Node {id: ID! username: String! email: String! role: Role!} type Chat implements Node {id: ID! users: [User!]! messages: [ChatMessage!]!} type ChatMessage implements Node {id: ID! content: String! time: Date! user: User!}`)
 		})
 	})
+	t.Run("transitive interfaces", func(t *testing.T) {
+		run(t, "interface I1 {id: ID!} interface I2 implements I1 {id: ID!} interface I3 implements I1 & I2 {id: ID!}",
+			"interface I1 {id: ID!} interface I2 implements I1 {id: ID!} interface I3 implements I1 & I2 {id: ID!}")
+	})
 }
 
 func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {
