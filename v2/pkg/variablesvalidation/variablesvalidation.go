@@ -3,6 +3,7 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
@@ -23,11 +24,35 @@ func (e *InvalidVariableError) Error() string {
 	return e.Message
 }
 
-func newInvalidVariableError(message string, isApolloCompatibilityMode bool) *InvalidVariableError {
+func (v *variablesVisitor) invalidValueIfAllowed(variableContent string) string {
+	if v.opts.DisableExposingVariablesContent {
+		return ""
+	}
+
+	return fmt.Sprintf(": %s", variableContent)
+}
+
+func (v *variablesVisitor) invalidEnumValueIfAllowed(variableContent string) string {
+	if v.opts.DisableExposingVariablesContent {
+		return ""
+	}
+
+	return fmt.Sprintf("\"%s\" ", variableContent)
+}
+
+func (v *variablesVisitor) invalidValueMessage(variableName, variableContent string) string {
+	if v.opts.DisableExposingVariablesContent {
+		return fmt.Sprintf(`Variable "$%s" got invalid value`, variableName)
+	}
+
+	return fmt.Sprintf(`Variable "$%s" got invalid value %s`, variableName, variableContent)
+}
+
+func (v *variablesVisitor) newInvalidVariableError(message string) *InvalidVariableError {
 	err := &InvalidVariableError{
 		Message: message,
 	}
-	if isApolloCompatibilityMode {
+	if v.opts.ApolloCompatibilityFlags.ReplaceInvalidVarError {
 		err.ExtensionCode = errorcodes.BadUserInput
 	}
 	return err
@@ -39,15 +64,16 @@ type VariablesValidator struct {
 }
 
 type VariablesValidatorOptions struct {
-	ApolloCompatibilityFlags apollocompatibility.Flags
+	ApolloCompatibilityFlags        apollocompatibility.Flags
+	DisableExposingVariablesContent bool
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
 	walker := astvisitor.NewWalker(8)
 	visitor := &variablesVisitor{
-		variables:                &astjson.JSON{},
-		walker:                   &walker,
-		apolloCompatibilityFlags: options.ApolloCompatibilityFlags,
+		variables: &astjson.JSON{},
+		walker:    &walker,
+		opts:      options,
 	}
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	return &VariablesValidator{
@@ -81,7 +107,7 @@ type variablesVisitor struct {
 	currentVariableName        []byte
 	currentVariableJsonNodeRef int
 	path                       []pathItem
-	apolloCompatibilityFlags   apollocompatibility.Flags
+	opts                       VariablesValidatorOptions
 }
 
 func (v *variablesVisitor) renderPath() string {
@@ -189,10 +215,7 @@ func (v *variablesVisitor) renderVariableRequiredError(variableName []byte, type
 		v.err = err
 		return
 	}
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" of required type "%s" was not provided.`, string(variableName), out.String()),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`Variable "$%s" of required type "%s" was not provided.`, string(variableName), out.String()))
 }
 
 func (v *variablesVisitor) renderVariableInvalidObjectTypeError(typeName []byte, variablesNode astjson.Node) {
@@ -203,10 +226,7 @@ func (v *variablesVisitor) renderVariableInvalidObjectTypeError(typeName []byte,
 		return
 	}
 	variableContent := out.String()
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be an object.`, string(v.currentVariableName), variableContent, string(typeName)),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s; Expected type "%s" to be an object.`, v.invalidValueMessage(string(v.currentVariableName), variableContent), string(typeName)))
 }
 
 func (v *variablesVisitor) renderVariableRequiredNotProvidedError(fieldName []byte, typeRef int) {
@@ -223,10 +243,7 @@ func (v *variablesVisitor) renderVariableRequiredNotProvidedError(fieldName []by
 		v.err = err
 		return
 	}
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s; Field "%s" of required type "%s" was not provided.`, string(v.currentVariableName), variableContent, string(fieldName), out.String()),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s; Field "%s" of required type "%s" was not provided.`, v.invalidValueMessage(string(v.currentVariableName), variableContent), string(fieldName), out.String()))
 }
 
 func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRef int, expectedType ast.NodeKind, expectedTypeName []byte, expectedList bool) {
@@ -247,53 +264,26 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 	case ast.NodeKindScalarTypeDefinition:
 		switch typeName {
 		case "String":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; String cannot represent a non string value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; String cannot represent a non string value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "Int":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Int cannot represent non-integer value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Int cannot represent non-integer value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "Float":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Float cannot represent non numeric value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Float cannot represent non numeric value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "Boolean":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Boolean cannot represent a non boolean value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Boolean cannot represent a non boolean value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "ID":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; ID cannot represent value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; ID cannot represent a non-string and non-integer value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		default:
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be a scalar.`, variableName, invalidValue, path, typeName),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Expected type "%s" to be a scalar.`, v.invalidValueMessage(variableName, invalidValue), path, typeName))
 		}
 	case ast.NodeKindInputObjectTypeDefinition:
 		if expectedList {
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Got input type "%s", want: "[%s]"`, variableName, invalidValue, path, typeName, typeName),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Got input type "%s", want: "[%s]"`, v.invalidValueMessage(variableName, invalidValue), path, typeName, typeName))
 		} else {
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an input object.`, variableName, invalidValue, path, typeName),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Expected type "%s" to be an input object.`, v.invalidValueMessage(variableName, invalidValue), path, typeName))
 		}
 	case ast.NodeKindEnumTypeDefinition:
-		v.err = newInvalidVariableError(
-			fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Enum "%s" cannot represent non-string value: %s.`, variableName, invalidValue, path, typeName, invalidValue),
-			v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-		)
+		v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Enum "%s" cannot represent non-string value%s.`, v.invalidValueMessage(variableName, invalidValue), path, typeName, v.invalidValueIfAllowed(invalidValue)))
 	}
 }
 
@@ -307,10 +297,7 @@ func (v *variablesVisitor) renderVariableFieldNotDefinedError(fieldName []byte, 
 	}
 	invalidValue := buf.String()
 	path := v.renderPath()
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s at "%s"; Field "%s" is not defined by type "%s".`, variableName, invalidValue, path, string(fieldName), string(typeName)),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s at "%s"; Field "%s" is not defined by type "%s".`, v.invalidValueMessage(variableName, invalidValue), path, string(fieldName), string(typeName)))
 }
 
 func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []byte, enumValue []byte) {
@@ -326,10 +313,7 @@ func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []b
 	if len(v.path) > 1 {
 		path = fmt.Sprintf(` at "%s"`, v.renderPath())
 	}
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Value "%s" does not exist in "%s" enum.`, variableName, invalidValue, path, string(enumValue), string(typeName)),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Value %sdoes not exist in "%s" enum.`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidEnumValueIfAllowed(string(enumValue)), string(typeName)))
 }
 
 func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, typeRef int) {
@@ -340,10 +324,7 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 		return
 	}
 	typeName := buf.String()
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName))
 }
 
 func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, typeRef int, fieldVariablesJsonNodeRef int, inputFieldRef int) {
