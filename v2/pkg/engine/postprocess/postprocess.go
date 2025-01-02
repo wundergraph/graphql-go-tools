@@ -30,6 +30,7 @@ type Processor struct {
 type processorOptions struct {
 	disableDeduplicateSingleFetches       bool
 	disableCreateConcreteSingleFetchTypes bool
+	disableOrderSequenceByDependencies    bool
 	disableMergeFields                    bool
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
@@ -49,6 +50,12 @@ func DisableDeduplicateSingleFetches() ProcessorOption {
 func DisableCreateConcreteSingleFetchTypes() ProcessorOption {
 	return func(o *processorOptions) {
 		o.disableCreateConcreteSingleFetchTypes = true
+	}
+}
+
+func DisableOrderSequenceByDependencies() ProcessorOption {
+	return func(o *processorOptions) {
+		o.disableOrderSequenceByDependencies = true
 	}
 }
 
@@ -113,7 +120,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableCreateConcreteSingleFetchTypes,
 			},
 			&orderSequenceByDependencies{
-				disable: opts.disableCreateConcreteSingleFetchTypes,
+				disable: opts.disableOrderSequenceByDependencies,
 			},
 			&createParallelNodes{
 				disable: opts.disableCreateParallelNodes,
