@@ -240,6 +240,20 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	}
 
 	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+
+	if !exists {
+		for _, io := range dsConfig.FederationConfiguration().InterfaceObjects {
+			if slices.Contains(io.ConcreteTypeNames, typeName) {
+				// we should check if we have a @requires configuration for the interface object
+				requiresConfiguration, exists = dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldName)
+				if exists {
+					requiresConfiguration.TypeName = typeName
+					break
+				}
+			}
+		}
+	}
+
 	if !exists {
 		// we do not have a @requires configuration for the field
 		return
@@ -260,7 +274,8 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	}
 	c.visitedFieldsKeyChecks[fieldKey] = struct{}{}
 
-	_, hasRequiresCondition := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+	// if field has requires config it already will be in the fieldRequirementsConfigs map
+	_, hasRequiresCondition := c.fieldRequirementsConfigs[fieldKey]
 
 	treeNodeID := TreeNodeID(fieldRef)
 	treeNode, ok := c.nodeSuggestions.responseTree.Find(treeNodeID)

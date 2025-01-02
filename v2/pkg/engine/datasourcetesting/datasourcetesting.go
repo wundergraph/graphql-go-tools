@@ -31,6 +31,7 @@ type testOptions struct {
 	postProcessors []*postprocess.Processor
 	skipReason     string
 	withFieldInfo  bool
+	withPrintPlan  bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -55,6 +56,13 @@ func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func
 
 func WithFieldInfo() func(*testOptions) {
 	return func(o *testOptions) {
+		o.withFieldInfo = true
+	}
+}
+
+func WithPrintPlan() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withPrintPlan = true
 		o.withFieldInfo = true
 	}
 }
@@ -152,7 +160,13 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		p, err := plan.NewPlanner(config)
 		require.NoError(t, err)
-		actualPlan := p.Plan(&op, &def, operationName, &report)
+
+		var planOpts []plan.Opts
+		if opts.withPrintPlan {
+			planOpts = append(planOpts, plan.IncludeQueryPlanInResponse())
+		}
+
+		actualPlan := p.Plan(&op, &def, operationName, &report, planOpts...)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, "  ")
 			if err != nil {
@@ -169,6 +183,10 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			for _, processor := range opts.postProcessors {
 				processor.Process(actualPlan)
 			}
+		}
+
+		if opts.withPrintPlan {
+			t.Log("\n", actualPlan.(*plan.SynchronousResponsePlan).Response.Fetches.QueryPlan().PrettyPrint())
 		}
 
 		formatterConfig := map[reflect.Type]interface{}{
