@@ -12,6 +12,8 @@ const EntityInterfacesDefinition = `
 		interface Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
 		}
@@ -23,6 +25,8 @@ const EntityInterfacesDefinition = `
 		type Admin implements Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
 		}
@@ -30,6 +34,8 @@ const EntityInterfacesDefinition = `
 		type Moderator implements Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
 		}
@@ -37,6 +43,8 @@ const EntityInterfacesDefinition = `
 		type User implements Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
 		}
@@ -160,6 +168,8 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		type Account @key(fields: "id") @interfaceObject {
 			id: ID!
 			locations: [Location!]
+			title: String! @external
+			uniqueTitle: String! @requires(fields: "title")
 		}
 		
 		type Location {
@@ -193,20 +203,24 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "Account",
+					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "User",
+					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
-					TypeName:   "Moderator",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "Moderator",
+					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
-					TypeName:   "Admin",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "Admin",
+					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:   "Query",
@@ -242,6 +256,13 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					{
 						TypeName:     "User",
 						SelectionSet: "id",
+					},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "title",
+						FieldName:    "uniqueTitle",
 					},
 				},
 			},
@@ -300,6 +321,8 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		type Account @key(fields: "id") @interfaceObject {
 			id: ID!
 			age: Int!
+			title: String! @external
+			fullTitle: String! @requires(fields: "title")
 		}`
 
 	fourthDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
@@ -325,20 +348,21 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "age"},
+					TypeName:           "Account",
+					FieldNames:         []string{"id", "age", "fullTitle"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:   "User",
-					FieldNames: []string{"id", "age"},
+					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 				{
 					TypeName:   "Moderator",
-					FieldNames: []string{"id", "age"},
+					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 				{
 					TypeName:   "Admin",
-					FieldNames: []string{"id", "age"},
+					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 			},
 			FederationMetaData: plan.FederationMetaData{
@@ -364,6 +388,13 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					{
 						TypeName:     "User",
 						SelectionSet: "id",
+					},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "title",
+						FieldName:    "fullTitle",
 					},
 				},
 			},
