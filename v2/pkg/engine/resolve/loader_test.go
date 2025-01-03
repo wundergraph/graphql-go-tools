@@ -297,6 +297,182 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 	assert.Equal(t, expected, out)
 }
 
+func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	names := mockedDS(t, ctrl,
+		`{}`,
+		`{"data":{"users":[{"name":"user-1"},{"name":"user-2"}]}}`)
+
+	secondNames := mockedDS(t, ctrl,
+		`{}`,
+		`{"data":{"users":[{"name":"user-3"},{"name":123}]}}`)
+
+	response := &GraphQLResponse{
+		Fetches: Sequence(
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: names,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceName: "names",
+				},
+			}),
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: secondNames,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceName: "secondNames",
+				},
+			}),
+		),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("users"),
+					Value: &Array{
+						Path: []string{"users"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ctx := &Context{
+		ctx: context.Background(),
+	}
+	resolvable := NewResolvable(ResolvableOptions{})
+	loader := &Loader{}
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	assert.Error(t, err)
+	assert.Equal(t, "unable to merge results from subgraph secondNames: differing types", err.Error())
+}
+
+func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	names := mockedDS(t, ctrl,
+		`{}`,
+		`{"data":{"users":[{"name":"user-1"},{"name":"user-2"}]}}`)
+
+	ages := mockedDS(t, ctrl,
+		`{}`,
+		`{"data":{"users":[{"age":30},{"age":40},{"age":50}]}}`)
+
+	response := &GraphQLResponse{
+		Fetches: Sequence(
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: names,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceName: "names",
+				},
+			}),
+			Single(&SingleFetch{
+				InputTemplate: InputTemplate{
+					Segments: []TemplateSegment{
+						{
+							Data:        []byte(`{}`),
+							SegmentType: StaticSegmentType,
+						},
+					},
+				},
+				FetchConfiguration: FetchConfiguration{
+					DataSource: ages,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceName: "ages",
+				},
+			}),
+		),
+		Data: &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("users"),
+					Value: &Array{
+						Path: []string{"users"},
+						Item: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("name"),
+									Value: &String{
+										Path: []string{"name"},
+									},
+								},
+								{
+									Name: []byte("age"),
+									Value: &Integer{
+										Path: []string{"age"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ctx := &Context{
+		ctx: context.Background(),
+	}
+	resolvable := NewResolvable(ResolvableOptions{})
+	loader := &Loader{}
+	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
+	assert.NoError(t, err)
+	err = loader.LoadGraphQLResponseData(ctx, response, resolvable)
+	assert.Error(t, err)
+	assert.Equal(t, "unable to merge results from subgraph ages: differing array lengths", err.Error())
+}
+
 func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	productsService := mockedDS(t, ctrl,
