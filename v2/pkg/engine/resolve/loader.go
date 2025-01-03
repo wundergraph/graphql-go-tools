@@ -487,6 +487,28 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 	return nil
 }
 
+type ErrMergeResult struct {
+	Subgraph string
+	Reason   error
+	Path     string
+}
+
+func (e ErrMergeResult) Error() string {
+	if errors.Is(e.Reason, astjson.ErrMergeDifferingArrayLengths) {
+		if e.Path == "" {
+			return fmt.Sprintf("unable to merge results from subgraph %s: differing array lengths", e.Subgraph)
+		}
+		return fmt.Sprintf("unable to merge results from subgraph '%s' at path '%s': differing array lengths", e.Subgraph, e.Path)
+	}
+	if errors.Is(e.Reason, astjson.ErrMergeDifferentTypes) {
+		if e.Path == "" {
+			return fmt.Sprintf("unable to merge results from subgraph %s: differing types", e.Subgraph)
+		}
+		return fmt.Sprintf("unable to merge results from subgraph '%s' at path '%s': differing types", e.Subgraph, e.Path)
+	}
+	return fmt.Sprintf("unable to merge results from subgraph %s", e.Subgraph)
+}
+
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
@@ -580,7 +602,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		astjson.MergeValuesWithPath(items[0], value, res.postProcessing.MergePath...)
+		items[0], _, err = astjson.MergeValuesWithPath(items[0], value, res.postProcessing.MergePath...)
+		if err != nil {
+			return errors.WithStack(ErrMergeResult{
+				Subgraph: res.ds.Name,
+				Reason:   err,
+				Path:     fetchItem.ResponsePath,
+			})
+		}
 		return nil
 	}
 	batch := value.GetArray()
@@ -593,12 +622,26 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				if item == -1 {
 					continue
 				}
-				astjson.MergeValuesWithPath(items[i], batch[item], res.postProcessing.MergePath...)
+				items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[item], res.postProcessing.MergePath...)
+				if err != nil {
+					return errors.WithStack(ErrMergeResult{
+						Subgraph: res.ds.Name,
+						Reason:   err,
+						Path:     fetchItem.ResponsePath,
+					})
+				}
 			}
 		}
 	} else {
 		for i, item := range items {
-			astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
+			_, _, err = astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
+			if err != nil {
+				return errors.WithStack(ErrMergeResult{
+					Subgraph: res.ds.Name,
+					Reason:   err,
+					Path:     fetchItem.ResponsePath,
+				})
+			}
 		}
 	}
 	return nil

@@ -115,7 +115,10 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 		if err != nil {
 			return err
 		}
-		r.data, _ = astjson.MergeValues(r.data, initialValue)
+		r.data, _, err = astjson.MergeValues(r.data, initialValue)
+		if err != nil {
+			return err
+		}
 	}
 	return
 }
@@ -130,11 +133,17 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 			return err
 		}
 		if postProcessing.SelectResponseDataPath == nil {
-			r.data, _ = astjson.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+			r.data, _, err = astjson.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+			if err != nil {
+				return err
+			}
 		} else {
 			selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
 			if selectedInitialValue != nil {
-				r.data, _ = astjson.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+				r.data, _, err = astjson.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		if postProcessing.SelectResponseErrorsPath != nil {

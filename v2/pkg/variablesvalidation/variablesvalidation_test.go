@@ -1196,6 +1196,118 @@ func TestVariablesValidation(t *testing.T) {
 			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
 		}, err)
 	})
+	t.Run("optional Int input object field provided with 1", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Int } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":1}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional Float input object field provided with 1.1", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Float } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":1.1}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional Float input object field provided with true", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Float } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":true}}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value at "input.bar"; Float cannot represent non numeric value`, err.Error())
+	})
+	t.Run("optional Boolean input object field provided with true", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Boolean } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":true}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional Boolean input object field provided with false", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Boolean } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":false}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional Boolean input object field provided with 1", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Boolean } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":1}}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value at "input.bar"; Boolean cannot represent a non boolean value`, err.Error())
+	})
+	t.Run("optional ID input object field provided with 1", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: ID } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":1}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional ID input object field provided with string 123", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: ID } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":"123"}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional ID input object field provided with string hello", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: ID } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":"hello"}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("optional ID input object field provided with true", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: ID } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":true}}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value at "input.bar"; ID cannot represent a non-string and non-integer value`, err.Error())
+	})
+	t.Run("optional ID input object field provided with null", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: ID } type Query { hello(arg: Foo): String }`,
+			operation: `query Foo($input: Foo) { hello(arg: $input) }`,
+			variables: `{"input":{"bar":null}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+	t.Run("nested input object on nested input object provided with incorrect value 1", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: String! } input Bar { foo: Foo! } type Query { hello(arg: Bar!): String }`,
+			operation: `query Foo($input: Bar!) { hello(arg: $input) }`,
+			variables: `{"input":{"foo":{"bar":1}}}`,
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$input" got invalid value at "input.foo.bar"; String cannot represent a non string value`, err.Error())
+	})
 }
 
 type testCase struct {
