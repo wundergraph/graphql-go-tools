@@ -26,7 +26,7 @@ require (
 	github.com/tidwall/gjson v1.17.0
 	github.com/tidwall/sjson v1.2.5
 	github.com/vektah/gqlparser/v2 v2.5.14
-	github.com/wundergraph/astjson v0.0.0-20250102160438-534f686313e6
+	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.26.0

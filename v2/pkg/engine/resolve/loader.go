@@ -228,6 +228,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return nil
 	}
 	items := l.selectItemsForPath(item.FetchPath)
+
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
 		res := &result{
@@ -1132,6 +1133,7 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	buf := &bytes.Buffer{}
+
 	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1139,6 +1141,19 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 			fetch.Trace.RawInputData, _ = l.compactJSON(inputData.MarshalTo(nil))
 		}
 	}
+
+	// When we don't have parent data it makes no sense to proceed with next fetches in a sequence
+	// Right now, it is the case only for the introspection - because introspection uses
+	// only single fetches.
+	// Having null means that the previous fetch returned null as data
+	if len(items) == 1 && items[0].Type() == astjson.TypeNull {
+		res.fetchSkipped = true
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	}
+
 	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
 	if err != nil {
 		return l.renderErrorsInvalidInput(fetchItem, res.out)
