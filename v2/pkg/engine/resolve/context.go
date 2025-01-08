@@ -79,6 +79,13 @@ type RateLimitOptions struct {
 	Period                  time.Duration
 	RateLimitKey            string
 	RejectExceedingRequests bool
+
+	ErrorExtensionCode RateLimitErrorExtensionCode
+}
+
+type RateLimitErrorExtensionCode struct {
+	Enabled bool
+	Code    string
 }
 
 type RateLimitDeny struct {

@@ -1034,35 +1034,46 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
 	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
+	var (
+		err         error
+		errorObject *astjson.Value
+	)
 	if res.ds.Name == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	}
+	if l.ctx.RateLimitOptions.ErrorExtensionCode.Enabled {
+		extension, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"code":"%s"}`, l.ctx.RateLimitOptions.ErrorExtensionCode.Code))
+		if err != nil {
+			return err
+		}
+		errorObject, _, err = astjson.MergeValuesWithPath(errorObject, extension, "extensions")
+		if err != nil {
+			return err
+		}
+	}
+	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
