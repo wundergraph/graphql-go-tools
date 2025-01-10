@@ -41,7 +41,7 @@ type configurationVisitor struct {
 	selectionSetRefs              []int               // selectionSetRefs is a stack of selection set refs - used to add a required fields
 	skipFieldsRefs                []int               // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 	missingPathTracker            map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
-	potentiallyMissingPathTracker map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
+	potentiallyMissingPathTracker map[string]struct{} // potentiallyMissingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker              []pathConfiguration // addedPathTracker is a list of paths which were added
 	addedPathTrackerIndex         map[string][]int    // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
@@ -430,6 +430,17 @@ func (c *configurationVisitor) EnterField(fieldRef int) {
 }
 
 func (c *configurationVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, isSubscription bool, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
+	plannedOnPlannerIds := c.fieldsPlannedOn[fieldRef]
+
+	if slices.ContainsFunc(plannedOnPlannerIds, func(plannerIdx int) bool {
+		return c.planners[plannerIdx].DataSourceConfiguration().Hash() == ds.Hash()
+	}) {
+		// when we have already planned the field on the same datasource as was suggested
+		// we do not need to try to plan it again
+		// if there will be multiple suggestions for the same field, they will be on a different datasources
+		return
+	}
+
 	plannerIdx, planned := c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
 	if !planned {
 		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isSubscription, ds)
