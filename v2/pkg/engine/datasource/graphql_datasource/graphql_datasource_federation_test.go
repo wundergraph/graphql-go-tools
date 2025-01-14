@@ -2694,7 +2694,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename line3(test: "BOOM") zip}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:               `{"method":"POST","url":"http://address.service","body":{"query":"query($representations: [_Any!]!, $a: String!){_entities(representations: $representations){... on Address {__typename line3(test: $a) zip}}}","variables":{"a":"BOOM","representations":[$$0$$]}}}`,
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
