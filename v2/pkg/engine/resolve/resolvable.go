@@ -64,6 +64,7 @@ type ResolvableOptions struct {
 	ApolloCompatibilitySuppressFetchErrors          bool
 	ApolloCompatibilityReplaceUndefinedOpFieldError bool
 	ApolloCompatibilityReplaceInvalidVarError       bool
+	ApolloCompatibilitySkipEnumValueValidation      bool
 }
 
 func NewResolvable(options ResolvableOptions) *Resolvable {
@@ -1066,7 +1067,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		return r.err()
 	}
 	valueString := string(value.GetStringBytes())
-	if !e.isValidValue(valueString) {
+	if !r.options.ApolloCompatibilitySkipEnumValueValidation && !e.isValidValue(valueString) {
 		/* When an invalid value is returned, the data is set to null.
 		 * If the value is nullable, the null data should not propagate up, so r.walkNull() is returned.
 		 * To avoid appending an error twice, the appending only happens on the first walk
