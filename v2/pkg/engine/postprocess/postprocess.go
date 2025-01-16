@@ -166,10 +166,10 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.disableExtractFetches {
 		return
 	}
-	ex := &extractor{
-		info: res.Info,
-	}
-	fetches := ex.extractFetches(res)
+
+	fetches := res.RawFetches
+	res.RawFetches = nil
+
 	children := make([]*resolve.FetchTreeNode, len(fetches))
 
 	if p.collectDataSourceInfo {

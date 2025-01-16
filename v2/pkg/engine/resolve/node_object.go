@@ -26,7 +26,6 @@ func (o *Object) Copy() Node {
 		Nullable: o.Nullable,
 		Path:     o.Path,
 		Fields:   fields,
-		Fetches:  o.Fetches,
 	}
 }
 
