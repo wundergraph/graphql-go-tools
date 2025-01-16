@@ -32,6 +32,8 @@ type Visitor struct {
 	Importer                     astimport.Importer
 	Config                       Configuration
 	plan                         Plan
+	response                     *resolve.GraphQLResponse
+	subscription                 *resolve.GraphQLSubscription
 	OperationName                string
 	operationDefinition          int
 	objects                      []*resolve.Object
@@ -174,7 +176,7 @@ func (v *Visitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor any
 		}
 
 		shouldWalkFieldsOnPath :=
-			// check if the field path has type condition and matches the enclosing type
+		// check if the field path has type condition and matches the enclosing type
 			config.ShouldWalkFieldsOnPath(path, enclosingTypeName) ||
 				// check if the planner has path without type condition
 				// this could happen in case of union type
@@ -304,8 +306,6 @@ func (v *Visitor) LeaveSelectionSet(ref int) {
 func (v *Visitor) EnterField(ref int) {
 	v.debugOnEnterNode(ast.NodeKindField, ref)
 
-	v.linkFetchConfiguration(ref)
-
 	// check if we have to skip the field in the response
 	// it means it was requested by the planner not the user
 	if v.skipField(ref) {
@@ -433,24 +433,6 @@ func (v *Visitor) resolveFieldInfo(ref, typeRef int, onTypeNames [][]byte) *reso
 func (v *Visitor) fieldHasAuthorizationRule(typeName, fieldName string) bool {
 	fieldConfig := v.Config.Fields.ForTypeField(typeName, fieldName)
 	return fieldConfig != nil && fieldConfig.HasAuthorizationRule
-}
-
-func (v *Visitor) linkFetchConfiguration(fieldRef int) {
-	for i := range v.planners {
-		if fieldRef == v.planners[i].ObjectFetchConfiguration().fieldRef {
-			if v.planners[i].ObjectFetchConfiguration().isSubscription {
-				plan, ok := v.plan.(*SubscriptionResponsePlan)
-				if ok {
-					fetchConfig := v.planners[i].ObjectFetchConfiguration()
-					fetchConfig.trigger = &plan.Response.Trigger
-					// The filter is built by the configuration planner, so we link it back here
-					plan.Response.Filter = fetchConfig.filter
-				}
-			} else {
-				v.planners[i].ObjectFetchConfiguration().object = v.objects[len(v.objects)-1]
-			}
-		}
-	}
 }
 
 func (v *Visitor) resolveFieldPosition(ref int) resolve.Position {
@@ -860,28 +842,29 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		return
 	}
 
-	graphQLResponse := &resolve.GraphQLResponse{
-		Data: rootObject,
+	v.response = &resolve.GraphQLResponse{
+		Data:       rootObject,
+		RawFetches: make([]*resolve.FetchItem, 0, len(v.planners)),
 	}
-
 	if !v.Config.DisableIncludeInfo {
-		graphQLResponse.Info = &resolve.GraphQLResponseInfo{
+		v.response.Info = &resolve.GraphQLResponseInfo{
 			OperationType: operationKind,
 		}
 	}
 
 	if operationKind == ast.OperationTypeSubscription {
+		v.subscription = &resolve.GraphQLSubscription{
+			Response: v.response,
+		}
 		v.plan = &SubscriptionResponsePlan{
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
-			Response: &resolve.GraphQLSubscription{
-				Response: graphQLResponse,
-			},
+			Response:      v.subscription,
 		}
 		return
 	}
 
 	v.plan = &SynchronousResponsePlan{
-		Response: graphQLResponse,
+		Response: v.response,
 	}
 }
 
@@ -1145,18 +1128,15 @@ func (v *Visitor) renderJSONValueTemplate(value ast.Value, variables *resolve.Va
 
 func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	subscription := config.planner.ConfigureSubscription()
-	config.trigger.Variables = subscription.Variables
-	config.trigger.Source = subscription.DataSource
-	config.trigger.PostProcessing = subscription.PostProcessing
-	v.resolveInputTemplates(config, &subscription.Input, &config.trigger.Variables)
-	config.trigger.Input = []byte(subscription.Input)
+	v.subscription.Trigger.Variables = subscription.Variables
+	v.subscription.Trigger.Source = subscription.DataSource
+	v.subscription.Trigger.PostProcessing = subscription.PostProcessing
+	v.resolveInputTemplates(config, &subscription.Input, &v.subscription.Trigger.Variables)
+	v.subscription.Trigger.Input = []byte(subscription.Input)
+	v.subscription.Filter = config.filter
 }
 
 func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
-	if config.object == nil {
-		v.Walker.StopWithInternalErr(fmt.Errorf("object fetch configuration has empty object"))
-		return
-	}
 	fetchConfig := config.planner.ConfigureFetch()
 	if v.includeQueryPlans && fetchConfig.QueryPlan == nil {
 		fetchConfig.QueryPlan = &resolve.QueryPlan{}
@@ -1164,7 +1144,10 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 	fetch := v.configureFetch(config, fetchConfig)
 	v.resolveInputTemplates(config, &fetch.Input, &fetch.Variables)
 
-	config.object.Fetches = append(config.object.Fetches, fetch)
+	fetchItem := config.fetchItem
+	fetchItem.Fetch = fetch
+
+	v.response.RawFetches = append(v.response.RawFetches, fetchItem)
 }
 
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
