@@ -417,7 +417,7 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 		s.mux.Lock()
 		skipHeartbeat := now.Sub(s.lastWrite) < r.multipartSubHeartbeatInterval
 		s.mux.Unlock()
-		if skipHeartbeat {
+		if skipHeartbeat || (c.Context().Err() != nil && errors.Is(c.Context().Err(), context.Canceled)) {
 			continue
 		}
 
@@ -428,6 +428,12 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 
 			s.mux.Lock()
 			if _, err := s.writer.Write(data); err != nil {
+				if errors.Is(err, context.Canceled) {
+					// client disconnected
+					s.mux.Unlock()
+					_ = r.AsyncUnsubscribeSubscription(s.id)
+					return
+				}
 				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
 			}
 			err := s.writer.Flush()
@@ -482,8 +488,12 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 		if wg != nil {
 			wg.Wait()
 		}
-		for _, s := range trig.subscriptions {
+		for c, s := range trig.subscriptions {
 			s.writer.Complete()
+			s.mux.Lock()
+			delete(r.heartbeatSubscriptions, c)
+			delete(trig.subscriptions, c)
+			s.mux.Unlock()
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountDec(subscriptionCount)
@@ -672,6 +682,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 					s.writer.Complete()
 				}
 
+				delete(r.heartbeatSubscriptions, c)
 				delete(r.triggers[u].subscriptions, c)
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", u, s.id.SubscriptionID)
