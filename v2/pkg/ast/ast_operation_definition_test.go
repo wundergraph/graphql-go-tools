@@ -104,8 +104,7 @@ func TestDocument_OperationNameExists(t *testing.T) {
 	})
 
 	t.Run("test that schema string is generated correctly #3", func(t *testing.T) {
-		x := schemaString(18280)
-		assert.True(t, strings.HasSuffix(x, "fieldzzy(arg: $zzy)\n\tfieldzzz(arg: $zzz)\n\tfieldaaaa(arg: $aaaa)\n\tfieldaaab(arg: $aaab)\n}"))
+		assert.True(t, strings.HasSuffix(schemaString(18280), "fieldzzy(arg: $zzy)\n\tfieldzzz(arg: $zzz)\n\tfieldaaaa(arg: $aaaa)\n\tfieldaaab(arg: $aaab)\n}"))
 	})
 
 	t.Run("next variable #1", func(t *testing.T) {
