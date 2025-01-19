@@ -121,7 +121,15 @@ func (i *InputTemplate) renderResolvableObjectVariable(ctx context.Context, obje
 }
 
 func (i *InputTemplate) renderContextVariable(ctx *Context, segment TemplateSegment, preparedInput *bytes.Buffer) (variableWasUndefined bool, err error) {
-	value := ctx.Variables.Get(segment.VariableSourcePath...)
+	variableSourcePath := segment.VariableSourcePath
+	if len(variableSourcePath) == 1 && ctx.RemapVariables != nil {
+		nameToUse, hasMapping := ctx.RemapVariables[variableSourcePath[0]]
+		if hasMapping && nameToUse != variableSourcePath[0] {
+			variableSourcePath = []string{nameToUse}
+		}
+	}
+
+	value := ctx.Variables.Get(variableSourcePath...)
 	if value == nil {
 		_, _ = preparedInput.Write(literal.NULL)
 		return true, nil

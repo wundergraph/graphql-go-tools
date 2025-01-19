@@ -19,6 +19,43 @@ func remapVariables(walker *astvisitor.Walker) *variablesMappingVisitor {
 	return visitor
 }
 
+// VariablesMapper is a visitor which remaps variables in the operation to have more cache hits for the queries of the same shape
+// but with different variables/inline values combinations
+// e.g.
+//
+//	query MyQuery($a: String!, $b: String!) {
+//		field(a: $a, b: $b)
+//	}
+//
+//	query MyQuery($e: String!, $d: String!) {
+//		field(a: $e, b: $d)
+//	}
+//
+//	query MyQuery($b: String!, $a: String!) {
+//		field(a: $a, b: $b)
+//	}
+//
+//	query MyQuery {
+//		field(a: "a", b: "b")
+//	}
+//
+//	query MyQuery($b: String!) {
+//		field(a: "a", b: $b)
+//	}
+//
+//	query MyQuery($a: String!) {
+//		field(a: $a, b: "b")
+//	}
+//
+// All of the example queries above will be normalized to the same query:
+//
+//	query MyQuery($a: String!, $b: String!) {
+//		field(a: $a, b: $b)
+//	}
+//
+// The important consideration - the main requirement is to have same amount of variables/inline values used in a query in the same places
+// otherwise the queries will be considered different
+// e.g. field(a: "a", b: "a") will be the same as field(a: $a, b: $a) but different from field(a: $a, b: $b) or field(a: $a, b: $a)
 type variablesMappingVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
@@ -49,6 +86,21 @@ func (v *variablesMappingVisitor) LeaveDocument(operation, definition *ast.Docum
 		v.operation.VariableValues[v.operation.VariableDefinitions[variableItem.variableDefinitionRef].VariableValue.Ref].Name = newVariableName
 	}
 
+	// After remapping the variables we will get the sequential variable names, which could be stable sorted
+	// And it will be important to sort the variable definitions of operation by name to ensure that the order is deterministic
+	// which allows to produce the same query string for the queries with different order of variables used in the same places
+	// e.g.
+	// query MyQuery($e: String!, $d: String!) {
+	// 	field(a: $e, b: $d)
+	// }
+	//
+	// query MyQuery($b: String!, $a: String!) {
+	// 	field(a: $a, b: $b)
+	// }
+	// both of this queries will be normalized to the same query:
+	// query MyQuery($a: String!, $b: String!) {
+	// 	field(a: $a, b: $b)
+	// }
 	slices.SortFunc(v.operation.OperationDefinitions[v.operationRef].VariableDefinitions.Refs, func(i, j int) int {
 		return cmp.Compare(
 			v.operation.VariableValueNameString(v.operation.VariableDefinitions[i].VariableValue.Ref),
@@ -67,14 +119,18 @@ func (v *variablesMappingVisitor) EnterArgument(ref int) {
 
 	varValueRef := v.operation.Arguments[ref].Value.Ref
 	varNameBytes := v.operation.VariableValueNameBytes(varValueRef)
-	// explicitly convert to string to convert unsafe
-	varName := string(varNameBytes)
 
 	variableDefinitionRef, exists := v.operation.VariableDefinitionByNameAndOperation(v.operationRef, varNameBytes)
 	if !exists {
 		return
 	}
 
+	// explicitly convert to string to convert unsafe
+	varName := string(varNameBytes)
+
+	// here we collect occurrences of the variables in the operation in depth-first order
+	// if the variable is the same we save the ref to the variable value
+	// if we haven't seen the variable - we save the ref to the variable definition and its name
 	idx := slices.IndexFunc(v.variables, func(i *variableItem) bool {
 		return i.variableName == varName
 	})
@@ -102,6 +158,11 @@ func (v *variablesMappingVisitor) EnterOperationDefinition(ref int) {
 
 const alphabet = `abcdefghijklmnopqrstuvwxyz`
 
+// generateUnusedVariableMappingName generates a new name for the variable mapping
+// right now it will generate the next variable names
+// 0-25: a, b, c, ..., z
+// 26-51: aa, bb, cc, ..., zz
+// 52-77: aaa, bbb, ccc, ..., zzz
 func (v *variablesMappingVisitor) generateUnusedVariableMappingName() []byte {
 	var i, k int64
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.140](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.139...v2.0.0-rc.140) (2025-01-19)
+
+
+### Features
+
+* implement variables mapper ([#1034](https://github.com/wundergraph/graphql-go-tools/issues/1034)) ([b020295](https://github.com/wundergraph/graphql-go-tools/commit/b02029576746bf5459fa1f00d04146308852ad73))
+
 ## [2.0.0-rc.139](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.138...v2.0.0-rc.139) (2025-01-08)
 
 
