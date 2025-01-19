@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.141](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.140...v2.0.0-rc.141) (2025-01-19)
+
+
+### Bug Fixes
+
+* fix files upload remap ([#1038](https://github.com/wundergraph/graphql-go-tools/issues/1038)) ([09a2235](https://github.com/wundergraph/graphql-go-tools/commit/09a223574869ded8123a2464bd99af15523eb68a))
+
 ## [2.0.0-rc.140](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.139...v2.0.0-rc.140) (2025-01-19)
 
 
