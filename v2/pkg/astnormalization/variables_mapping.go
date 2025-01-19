@@ -128,6 +128,9 @@ func (v *variablesMappingVisitor) EnterArgument(ref int) {
 	if v.operation.OperationDefinitions[v.operationRef].OperationType == ast.OperationTypeMutation &&
 		v.operation.ResolveTypeNameString(v.operation.VariableDefinitions[variableDefinitionRef].Type) == "Upload" {
 		// do not remap files variable
+		// We should not change file upload variables, because uploads won't work
+		// Having file or files names for the variable is a requirement for the file upload spec
+		// https://github.com/jaydenseric/graphql-multipart-request-spec
 		return
 	}
 
