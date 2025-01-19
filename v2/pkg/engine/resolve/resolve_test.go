@@ -4697,10 +4697,11 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 		name, variable string
 		remap          map[string]string
 		variables      *astjson.Value
+		expectedOutput string
 	}{
-		{"a to foo", "a", map[string]string{"a": "foo"}, astjson.MustParseBytes([]byte(`{"foo":"bazz"}`))},
-		{"a to a", "a", map[string]string{"a": "a"}, astjson.MustParseBytes([]byte(`{"a":"bazz"}`))},
-		{"no mapping", "foo", map[string]string{}, astjson.MustParseBytes([]byte(`{"foo":"bazz"}`))},
+		{"a to foo", "a", map[string]string{"a": "foo"}, astjson.MustParseBytes([]byte(`{"foo":"Wunderbar"}`)), `Wunderbar`},
+		{"a to a", "a", map[string]string{"a": "a"}, astjson.MustParseBytes([]byte(`{"a":"WunderWunderbar"}`)), `WunderWunderbar`},
+		{"no mapping", "foo", map[string]string{}, astjson.MustParseBytes([]byte(`{"foo":"BarDeWunder"}`)), `BarDeWunder`},
 	}
 
 	for _, tc := range cases {
@@ -4721,7 +4722,7 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
 				Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
 					actual := string(input)
-					assert.Equal(t, "bazz", actual)
+					assert.Equal(t, tc.expectedOutput, actual)
 					_, err = w.Write([]byte(`{"bar":"baz"}`))
 					return
 				}).
