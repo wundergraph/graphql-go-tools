@@ -165,7 +165,7 @@ func (l LetterIndices) maxIndex() int {
 func (l *LetterIndices) Increment() {
 	for i := l.maxIndex(); i > -1; i-- {
 		if l.indices[i] > 24 {
-			l.reset(i)
+			l.resetAt(i)
 		} else {
 			l.incrementAt(i)
 			return
@@ -180,9 +180,9 @@ func (l *LetterIndices) incrementAt(index int) {
 	l.bytes[index] = alphabet[l.indices[index]]
 }
 
-func (l *LetterIndices) reset(i int) {
-	l.indices[i] = 0
-	l.bytes[i] = alphabet[0]
+func (l *LetterIndices) resetAt(index int) {
+	l.indices[index] = 0
+	l.bytes[index] = alphabet[0]
 }
 
 func (l LetterIndices) Render() string {
@@ -193,8 +193,8 @@ func (l LetterIndices) Bytes() []byte {
 	return l.bytes
 }
 
-func NewLetterIndices(indices []int, renderable []byte) LetterIndices {
-	return LetterIndices{indices: indices, bytes: renderable}
+func NewLetterIndices(indices []int, bytes []byte) LetterIndices {
+	return LetterIndices{indices: indices, bytes: bytes}
 }
 
 func NewDefaultLetterIndices() LetterIndices {
