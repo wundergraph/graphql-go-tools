@@ -157,6 +157,11 @@ func (v *variablesMappingVisitor) EnterOperationDefinition(ref int) {
 
 const alphabet = `abcdefghijklmnopqrstuvwxyz`
 
+// generateUnusedVariableMappingName generates a new name for the variable mapping
+// right now it will generate the next variable names
+// 0-25: a, b, c, ..., z
+// 26-51: aa, bb, cc, ..., zz
+// 52-77: aaa, bbb, ccc, ..., zzz
 func (v *variablesMappingVisitor) generateUnusedVariableMappingName() []byte {
 	var i, k int64
 

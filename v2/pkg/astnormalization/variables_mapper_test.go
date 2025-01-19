@@ -364,6 +364,30 @@ func TestVariablesMapper(t *testing.T) {
 			},
 		},
 		{
+			name: "10 Colliding external variable with multiple inline variables",
+			input: `
+			  query MyQuery($a: ID!) {
+			    object(id: $a) {
+			      name
+				  copy(input: { id: "abc123", name: "MyObject" })
+				  echo(value: "Hello World")
+			    }
+			  }`,
+			output: `
+				query MyQuery($a: ID! $b: InputObject! $c: String! ) {
+					object(id: $a) {
+						name
+						copy(input: $b)
+						echo(value: $c)
+					}
+				}`,
+			variablesMapping: map[string]string{
+				"a": "a",
+				"b": "b",
+				"c": "c",
+			},
+		},
+		{
 			name: "11 Reused external variable",
 			input: `
 				query MyQuery($varOne: String!) {
