@@ -86,7 +86,8 @@ func (v *variablesMappingVisitor) LeaveDocument(operation, definition *ast.Docum
 		v.operation.VariableValues[v.operation.VariableDefinitions[variableItem.variableDefinitionRef].VariableValue.Ref].Name = newVariableName
 	}
 
-	// it is important to sort the variable definitions of operation by name to ensure that the order is deterministic
+	// After remapping the variables we will get the sequential variable names, which could be stable sorted
+	// And it will be important to sort the variable definitions of operation by name to ensure that the order is deterministic
 	// which allows to produce the same query string for the queries with different order of variables used in the same places
 	// e.g.
 	// query MyQuery($e: String!, $d: String!) {
