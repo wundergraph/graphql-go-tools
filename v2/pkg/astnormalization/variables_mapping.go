@@ -1,7 +1,6 @@
 package astnormalization
 
 import (
-	"bytes"
 	"cmp"
 	"math"
 	"slices"
@@ -127,7 +126,7 @@ func (v *variablesMappingVisitor) EnterArgument(ref int) {
 	}
 
 	if v.operation.OperationDefinitions[v.operationRef].OperationType == ast.OperationTypeMutation &&
-		bytes.Equal(varNameBytes, []byte("files")) {
+		v.operation.ResolveTypeNameString(v.operation.VariableDefinitions[variableDefinitionRef].Type) == "Upload" {
 		// do not remap files variable
 		return
 	}
