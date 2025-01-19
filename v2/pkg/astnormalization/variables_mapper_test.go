@@ -447,6 +447,24 @@ func TestVariablesMapper(t *testing.T) {
 				"a": "varOne",
 			},
 		},
+		{
+			name: "13 Mutation with file uploads - reverse order",
+			input: `
+				mutation MyMutation($files: [Upload!] $varOne: String!) {
+					updateObject(name: $varOne, files: $files) {
+						name
+					}
+				}`,
+			output: `
+				mutation MyMutation($a: String!, $files: [Upload!]) {
+					updateObject(name: $a, files: $files) {
+						name
+					}
+				}`,
+			variablesMapping: map[string]string{
+				"a": "varOne",
+			},
+		},
 	}
 
 	for _, tc := range testCases {
