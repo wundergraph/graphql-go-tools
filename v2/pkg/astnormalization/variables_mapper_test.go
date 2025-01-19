@@ -32,7 +32,7 @@ func TestVariablesMapper(t *testing.T) {
 	  }
 	
 	  type Mutation {
-		updateObject(name: String!): Object!
+		updateObject(name: String!, files: [Upload!]): Object!
 	  }
 	
 	  type Subscription {
@@ -427,6 +427,24 @@ func TestVariablesMapper(t *testing.T) {
 			variablesMapping: map[string]string{
 				"a": "a",
 				"b": "b",
+			},
+		},
+		{
+			name: "13 Mutation with file uploads",
+			input: `
+				mutation MyMutation($varOne: String! $files: [Upload!]) {
+					updateObject(name: $varOne, files: $files) {
+						name
+					}
+				}`,
+			output: `
+				mutation MyMutation($a: String!, $files: [Upload!]) {
+					updateObject(name: $a, files: $files) {
+						name
+					}
+				}`,
+			variablesMapping: map[string]string{
+				"a": "varOne",
 			},
 		},
 	}

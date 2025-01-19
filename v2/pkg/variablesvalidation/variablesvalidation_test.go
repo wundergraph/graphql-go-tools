@@ -29,6 +29,18 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$bar" of required type "String!" was not provided.`, err.Error())
 	})
 
+	t.Run("required field argument not provided - with mapping", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(arg: String!): String }`,
+			operation: `query Foo($bar: String!) { hello }`,
+			variables: `{}`,
+			mapping:   map[string]string{"bar": "bazz"},
+		}
+		err := runTest(t, tc)
+		require.Error(t, err)
+		assert.Equal(t, `Variable "$bazz" of required type "String!" was not provided.`, err.Error())
+	})
+
 	t.Run("a missing required input produces an error", func(t *testing.T) {
 		tc := testCase{
 			schema:    inputSchema,
@@ -146,6 +158,18 @@ func TestVariablesValidation(t *testing.T) {
 		assert.Equal(t, `Variable "$input" got invalid value at "input.bar"; Got input type "String", want: "[String]"`, err.Error())
 	})
 
+	t.Run("nested argument is value instead of list - with mapping", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(input: Input): String } input Input { bar: [String]! }`,
+			operation: `query Foo($input: Input) { hello(input: $input) }`,
+			variables: `{"honeypot":{"bar":"world"}}`,
+			mapping:   map[string]string{"input": "honeypot"},
+		}
+		err := runTest(t, tc)
+		require.NotNil(t, err)
+		assert.Equal(t, `Variable "$honeypot" got invalid value at "honeypot.bar"; Got input type "String", want: "[String]"`, err.Error())
+	})
+
 	t.Run("nested enum argument is value instead of list - with variable content", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(input: Input): String } input Input { bar: [MyNum]! } enum MyNum { ONE TWO }`,
@@ -210,6 +234,18 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		assert.NotNil(t, err)
 		assert.Equal(t, `Variable "$bar" got invalid value; Field "bar" of required type "Baz!" was not provided.`, err.Error())
+	})
+
+	t.Run("required nested field field argument of custom scalar not provided - with mapping", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(arg: Foo!): String } input Foo { bar: Baz! } scalar Baz`,
+			operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+			variables: `{"abc":{}}`,
+			mapping:   map[string]string{"bar": "abc"},
+		}
+		err := runTest(t, tc)
+		assert.NotNil(t, err)
+		assert.Equal(t, `Variable "$abc" got invalid value; Field "bar" of required type "Baz!" was not provided.`, err.Error())
 	})
 
 	t.Run("required nested field field argument of custom scalar was null - with variable content", func(t *testing.T) {
@@ -1313,6 +1349,7 @@ func TestVariablesValidation(t *testing.T) {
 type testCase struct {
 	schema, operation, variables string
 	withNormalization            bool
+	mapping                      map[string]string
 }
 
 func runTest(t *testing.T, tc testCase) error {
@@ -1341,7 +1378,8 @@ func runTestWithOptions(t *testing.T, tc testCase, options VariablesValidatorOpt
 		}
 	}
 	validator := NewVariablesValidator(options)
-	return validator.Validate(&op, &def, op.Input.Variables)
+
+	return validator.ValidateWithRemap(&op, &def, op.Input.Variables, tc.mapping)
 }
 
 var inputSchema = `

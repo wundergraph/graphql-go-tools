@@ -164,23 +164,29 @@ func (v *variablesVisitor) popPath() {
 
 func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 	varTypeRef := v.operation.VariableDefinitions[ref].Type
-	varName := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableNameBytes := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableName := unsafebytes.BytesToString(operationVariableNameBytes)
 
-	variableNameStr := unsafebytes.BytesToString(varName)
+	var (
+		mappedVariableName string
+		isMapped           bool
+	)
 	if v.variablesMap != nil {
-		if mappedName, ok := v.variablesMap[variableNameStr]; ok {
-			variableNameStr = mappedName
-		}
+		mappedVariableName, isMapped = v.variablesMap[operationVariableName]
 	}
 
-	value := v.variables.Get(variableNameStr)
+	if isMapped {
+		v.currentVariableName = []byte(mappedVariableName)
+		v.currentVariableValue = v.variables.Get(mappedVariableName)
+	} else {
+		v.currentVariableName = operationVariableNameBytes
+		v.currentVariableValue = v.variables.Get(operationVariableName)
+	}
 
 	v.path = v.path[:0]
-	v.pushObjectPath(varName)
-	v.currentVariableName = varName
-	v.currentVariableValue = value
+	v.pushObjectPath(v.currentVariableName)
 
-	v.traverseOperationType(value, varTypeRef)
+	v.traverseOperationType(v.currentVariableValue, varTypeRef)
 }
 
 func (v *variablesVisitor) traverseOperationType(jsonValue *astjson.Value, operationTypeRef int) {
