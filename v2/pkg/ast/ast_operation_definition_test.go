@@ -138,6 +138,6 @@ func schemaString(varNumber int) string {
 		vars[i] = fmt.Sprintf("$%s: Int!", varName)
 		l.Increment()
 	}
-	prefix := "query (" + fmt.Sprintf(strings.Join(vars, " ")) + ") {\n"
+	prefix := "query (" + strings.Join(vars, " ") + ") {\n"
 	return prefix + strings.Join(out, "\n") + "\n}"
 }
