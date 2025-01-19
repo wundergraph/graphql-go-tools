@@ -4692,6 +4692,79 @@ func TestResolver_WithHeader(t *testing.T) {
 	}
 }
 
+func TestResolver_WithVariableRemapping(t *testing.T) {
+	cases := []struct {
+		name, variable string
+		remap          map[string]string
+		variables      *astjson.Value
+	}{
+		{"a to foo", "a", map[string]string{"a": "foo"}, astjson.MustParseBytes([]byte(`{"foo":"bazz"}`))},
+		{"a to a", "a", map[string]string{"a": "a"}, astjson.MustParseBytes([]byte(`{"a":"bazz"}`))},
+		{"no mapping", "foo", map[string]string{}, astjson.MustParseBytes([]byte(`{"foo":"bazz"}`))},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rCtx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			resolver := newResolver(rCtx)
+
+			ctx := &Context{
+				ctx:            context.Background(),
+				Variables:      tc.variables,
+				RemapVariables: tc.remap,
+			}
+
+			ctrl := gomock.NewController(t)
+			fakeService := NewMockDataSource(ctrl)
+			fakeService.EXPECT().
+				Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+				Do(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+					actual := string(input)
+					assert.Equal(t, "bazz", actual)
+					_, err = w.Write([]byte(`{"bar":"baz"}`))
+					return
+				}).
+				Return(nil)
+
+			out := &bytes.Buffer{}
+			res := &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Fetches: SingleWithPath(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{
+						DataSource: fakeService,
+					},
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								SegmentType:        VariableSegmentType,
+								VariableKind:       ContextVariableKind,
+								VariableSourcePath: []string{tc.variable},
+								Renderer:           NewPlainVariableRenderer(),
+							},
+						},
+					},
+				}, "query"),
+				Data: &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("bar"),
+							Value: &String{
+								Path: []string{"bar"},
+							},
+						},
+					},
+				},
+			}
+			_, err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
+			assert.NoError(t, err)
+			assert.Equal(t, `{"data":{"bar":"baz"}}`, out.String())
+		})
+	}
+}
+
 type SubscriptionRecorder struct {
 	buf      *bytes.Buffer
 	messages []string
