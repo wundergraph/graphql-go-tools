@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
@@ -81,6 +82,11 @@ func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidato
 	}
 }
 
+func (v *VariablesValidator) ValidateWithRemap(operation, definition *ast.Document, variables []byte, variablesMap map[string]string) error {
+	v.visitor.variablesMap = variablesMap
+	return v.Validate(operation, definition, variables)
+}
+
 func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte) error {
 	v.visitor.definition = definition
 	v.visitor.operation = operation
@@ -106,6 +112,7 @@ type variablesVisitor struct {
 	currentVariableValue *astjson.Value
 	path                 []pathItem
 	opts                 VariablesValidatorOptions
+	variablesMap         map[string]string
 }
 
 func (v *variablesVisitor) renderPath() string {
@@ -157,16 +164,29 @@ func (v *variablesVisitor) popPath() {
 
 func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 	varTypeRef := v.operation.VariableDefinitions[ref].Type
-	varName := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableNameBytes := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableName := unsafebytes.BytesToString(operationVariableNameBytes)
 
-	value := v.variables.Get(unsafebytes.BytesToString(varName))
+	var (
+		mappedVariableName string
+		isMapped           bool
+	)
+	if v.variablesMap != nil {
+		mappedVariableName, isMapped = v.variablesMap[operationVariableName]
+	}
+
+	if isMapped {
+		v.currentVariableName = []byte(mappedVariableName)
+		v.currentVariableValue = v.variables.Get(mappedVariableName)
+	} else {
+		v.currentVariableName = operationVariableNameBytes
+		v.currentVariableValue = v.variables.Get(operationVariableName)
+	}
 
 	v.path = v.path[:0]
-	v.pushObjectPath(varName)
-	v.currentVariableName = varName
-	v.currentVariableValue = value
+	v.pushObjectPath(v.currentVariableName)
 
-	v.traverseOperationType(value, varTypeRef)
+	v.traverseOperationType(v.currentVariableValue, varTypeRef)
 }
 
 func (v *variablesVisitor) traverseOperationType(jsonValue *astjson.Value, operationTypeRef int) {

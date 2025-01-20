@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -18,6 +19,7 @@ type Context struct {
 	Files            []httpclient.File
 	Request          Request
 	RenameTypeNames  []RenameTypeName
+	RemapVariables   map[string]string
 	TracingOptions   TraceOptions
 	RateLimitOptions RateLimitOptions
 	ExecutionOptions ExecutionOptions
@@ -146,6 +148,14 @@ func (c *Context) clone(ctx context.Context) *Context {
 	cpy.Files = append([]httpclient.File(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
+
+	if c.RemapVariables != nil {
+		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
+		for k, v := range c.RemapVariables {
+			cpy.RemapVariables[k] = v
+		}
+	}
+
 	return &cpy
 }
 
@@ -155,6 +165,7 @@ func (c *Context) Free() {
 	c.Files = nil
 	c.Request.Header = nil
 	c.RenameTypeNames = nil
+	c.RemapVariables = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
 	c.subgraphErrors = nil

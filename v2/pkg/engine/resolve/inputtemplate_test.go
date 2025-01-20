@@ -11,6 +11,51 @@ import (
 	"github.com/wundergraph/astjson"
 )
 
+func TestInputTemplate_VariablesRemapping(t *testing.T) {
+	runTest := func(t *testing.T, variables string, sourcePath []string, remap map[string]string, expectErr bool, expected string) {
+		t.Helper()
+
+		template := InputTemplate{
+			Segments: []TemplateSegment{
+				{
+					SegmentType:        VariableSegmentType,
+					VariableKind:       ContextVariableKind,
+					VariableSourcePath: sourcePath,
+					Renderer:           NewJSONVariableRenderer(),
+				},
+			},
+		}
+		ctx := &Context{
+			Variables:      astjson.MustParseBytes([]byte(variables)),
+			RemapVariables: remap,
+		}
+		buf := &bytes.Buffer{}
+		err := template.Render(ctx, nil, buf)
+		if expectErr {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+		}
+		out := buf.String()
+		assert.Equal(t, expected, out)
+	}
+
+	t.Run("maping", func(t *testing.T) {
+		t.Run("a to foo", func(t *testing.T) {
+			runTest(t, `{"foo":"bar"}`, []string{"a"}, map[string]string{"a": "foo"}, false, `"bar"`)
+		})
+		t.Run("a to a", func(t *testing.T) {
+			runTest(t, `{"a":true}`, []string{"a"}, map[string]string{"a": "a"}, false, "true")
+		})
+		t.Run("no mapping", func(t *testing.T) {
+			runTest(t, `{"a":true}`, []string{"a"}, map[string]string{}, false, "true")
+		})
+		t.Run("no variable value", func(t *testing.T) {
+			runTest(t, `{}`, []string{"a"}, map[string]string{"a": "x"}, false, `{"undefined":["a"]}`)
+		})
+	})
+}
+
 func TestInputTemplate_Render(t *testing.T) {
 	runTest := func(t *testing.T, initRenderer initTestVariableRenderer, variables string, sourcePath []string, expectErr bool, expected string) {
 		t.Helper()
