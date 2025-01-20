@@ -104,6 +104,11 @@ func NewWalker(ancestorSize int) Walker {
 	}
 }
 
+// NewDefaultWalker returns a fully initialized Walker with the default ancestor size of 8
+func NewDefaultWalker() Walker {
+	return NewWalker(8)
+}
+
 var (
 	walkerPool = sync.Pool{}
 )
