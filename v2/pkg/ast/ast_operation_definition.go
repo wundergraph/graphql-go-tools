@@ -144,13 +144,13 @@ func (d *Document) GenerateUnusedVariableDefinitionName(operationDefinition int)
 
 func (d *Document) GenerateUnusedVariableDefinitionNameV2(operationDefinition int) []byte {
 	l := NewDefaultLetterIndices()
-	for maxIndex := 0; maxIndex < math.MaxInt64; maxIndex++ {
-		if _, exists := d.VariableDefinitionByNameAndOperation(operationDefinition, l.Bytes()); !exists {
-			return l.Bytes()
+	for {
+		bytes := l.Bytes()
+		if _, exists := d.VariableDefinitionByNameAndOperation(operationDefinition, bytes); !exists {
+			return bytes
 		}
 		l.Increment()
 	}
-	return nil
 }
 
 type LetterIndices struct {
@@ -158,7 +158,7 @@ type LetterIndices struct {
 	bytes   []byte
 }
 
-func (l LetterIndices) maxIndex() int {
+func (l *LetterIndices) maxIndex() int {
 	return len(l.indices) - 1
 }
 
@@ -185,18 +185,18 @@ func (l *LetterIndices) resetAt(index int) {
 	l.bytes[index] = alphabet[0]
 }
 
-func (l LetterIndices) Render() string {
+func (l *LetterIndices) Render() string {
 	return string(l.bytes)
 }
 
-func (l LetterIndices) Bytes() []byte {
+func (l *LetterIndices) Bytes() []byte {
 	return l.bytes
 }
 
-func NewLetterIndices(indices []int, bytes []byte) LetterIndices {
-	return LetterIndices{indices: indices, bytes: bytes}
+func NewLetterIndices(indices []int, bytes []byte) *LetterIndices {
+	return &LetterIndices{indices: indices, bytes: bytes}
 }
 
-func NewDefaultLetterIndices() LetterIndices {
-	return LetterIndices{indices: []int{0}, bytes: []byte{alphabet[0]}}
+func NewDefaultLetterIndices() *LetterIndices {
+	return &LetterIndices{indices: []int{0}, bytes: []byte{alphabet[0]}}
 }
