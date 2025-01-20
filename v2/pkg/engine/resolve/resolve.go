@@ -51,6 +51,7 @@ type Resolver struct {
 	maxConcurrency chan struct{}
 
 	triggers               map[uint64]*trigger
+	heartbeatSubLock       *sync.RWMutex
 	heartbeatSubscriptions map[*Context]*sub
 	events                 chan subscriptionEvent
 	triggerEventsSem       *semaphore.Weighted
@@ -189,6 +190,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		propagateSubgraphStatusCodes:  options.PropagateSubgraphStatusCodes,
 		events:                        make(chan subscriptionEvent),
 		triggers:                      make(map[uint64]*trigger),
+		heartbeatSubLock:              &sync.RWMutex{},
 		heartbeatSubscriptions:        make(map[*Context]*sub),
 		reporter:                      options.Reporter,
 		asyncErrorWriter:              options.AsyncErrorWriter,
@@ -407,6 +409,9 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 }
 
 func (r *Resolver) handleHeartbeat(data []byte) {
+	r.heartbeatSubLock.Lock()
+	defer r.heartbeatSubLock.Unlock()
+
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat:%d\n", len(r.heartbeatSubscriptions))
 	}
@@ -491,7 +496,9 @@ func (r *Resolver) handleTriggerDone(triggerID uint64) {
 		for c, s := range trig.subscriptions {
 			s.writer.Complete()
 			s.mux.Lock()
+			r.heartbeatSubLock.Lock()
 			delete(r.heartbeatSubscriptions, c)
+			r.heartbeatSubLock.Unlock()
 			delete(trig.subscriptions, c)
 			s.mux.Unlock()
 		}
@@ -520,7 +527,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		executor:  add.executor,
 	}
 	if add.ctx.ExecutionOptions.SendHeartbeat {
+		r.heartbeatSubLock.Lock()
 		r.heartbeatSubscriptions[add.ctx] = s
+		r.heartbeatSubLock.Unlock()
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
@@ -652,7 +661,9 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 				if ctx.Context().Err() == nil {
 					s.writer.Complete()
 				}
+				r.heartbeatSubLock.Lock()
 				delete(r.heartbeatSubscriptions, ctx)
+				r.heartbeatSubLock.Unlock()
 				delete(trig.subscriptions, ctx)
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:removed:%d:%d\n", trig.id, id.SubscriptionID)
@@ -681,8 +692,9 @@ func (r *Resolver) handleRemoveClient(id int64) {
 				if c.Context().Err() == nil {
 					s.writer.Complete()
 				}
-
+				r.heartbeatSubLock.Lock()
 				delete(r.heartbeatSubscriptions, c)
+				r.heartbeatSubLock.Unlock()
 				delete(r.triggers[u].subscriptions, c)
 				if r.options.Debug {
 					fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", u, s.id.SubscriptionID)
@@ -757,7 +769,9 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 		if s.completed != nil {
 			close(s.completed)
 		}
+		r.heartbeatSubLock.Lock()
 		delete(r.heartbeatSubscriptions, c)
+		r.heartbeatSubLock.Unlock()
 		delete(trig.subscriptions, c)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
