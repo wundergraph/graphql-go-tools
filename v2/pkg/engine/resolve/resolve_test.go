@@ -86,13 +86,16 @@ func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 	}
 }
 
+var multipartSubHeartbeatInterval = 15 * time.Millisecond
+
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
-		MaxConcurrency:               1024,
-		Debug:                        false,
-		PropagateSubgraphErrors:      true,
-		PropagateSubgraphStatusCodes: true,
-		AsyncErrorWriter:             &TestErrorWriter{},
+		MaxConcurrency:                1024,
+		Debug:                         false,
+		PropagateSubgraphErrors:       true,
+		PropagateSubgraphStatusCodes:  true,
+		AsyncErrorWriter:              &TestErrorWriter{},
+		MultipartSubHeartbeatInterval: multipartSubHeartbeatInterval,
 	})
 }
 
@@ -5090,12 +5093,17 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		ctx := &Context{
 			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
 		}
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
+
 		recorder.AwaitComplete(t, defaultTimeout)
-		assert.Equal(t, 3, len(recorder.Messages()))
+		time.Sleep(2 * resolver.multipartSubHeartbeatInterval)
+		// Validate that despite the time, we don't see any heartbeats sent
 		assert.ElementsMatch(t, []string{
 			`{"data":{"counter":0}}`,
 			`{"data":{"counter":1}}`,
