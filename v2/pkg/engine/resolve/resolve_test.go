@@ -5102,6 +5102,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 
 		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 3, len(recorder.Messages()))
 		time.Sleep(2 * resolver.multipartSubHeartbeatInterval)
 		// Validate that despite the time, we don't see any heartbeats sent
 		assert.ElementsMatch(t, []string{
