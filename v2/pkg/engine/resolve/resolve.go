@@ -626,8 +626,8 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 	removed := 0
 	for u := range r.triggers {
 		trig := r.triggers[u]
-		removed += r.shutdownTriggerSubscriptions(u, func(a SubscriptionIdentifier) bool {
-			return a == id
+		removed += r.shutdownTriggerSubscriptions(u, func(sID SubscriptionIdentifier) bool {
+			return sID == id
 		})
 		if len(trig.subscriptions) == 0 {
 			r.shutdownTrigger(trig.id)
