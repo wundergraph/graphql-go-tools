@@ -5186,6 +5186,48 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}, recorder.Messages())
 	})
 
+	t.Run("should successfully delete multiple finished subscriptions", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 1
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		for i := 1; i <= 10; i++ {
+			id.ConnectionID = int64(i)
+			id.SubscriptionID = int64(i)
+			recorder.complete.Store(false)
+			err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+			assert.NoError(t, err)
+			recorder.AwaitComplete(t, defaultTimeout)
+		}
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		time.Sleep(2 * resolver.multipartSubHeartbeatInterval)
+
+		assert.Equal(t, 20, len(recorder.Messages()))
+		// Validate that despite the time, we don't see any heartbeats sent
+		assert.ElementsMatch(t, []string{
+			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
+			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
+			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
+			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
+			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
+		}, recorder.Messages())
+	})
+
 	t.Run("should propagate extensions to stream", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
