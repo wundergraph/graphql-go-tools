@@ -805,11 +805,6 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
