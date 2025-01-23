@@ -50,13 +50,14 @@ type Resolver struct {
 	options        ResolverOptions
 	maxConcurrency chan struct{}
 
-	triggers               map[uint64]*trigger
-	heartbeatSubLock       *sync.Mutex
-	heartbeatSubscriptions map[*Context]*sub
-	events                 chan subscriptionEvent
-	triggerEventsSem       *semaphore.Weighted
-	triggerUpdatesSem      *semaphore.Weighted
-	triggerUpdateBuf       *bytes.Buffer
+	triggers                map[uint64]*trigger
+	heartbeatSubLock        *sync.Mutex
+	heartbeatSubscriptions  map[*Context]*sub
+	events                  chan subscriptionEvent
+	triggerEventsSem        *semaphore.Weighted
+	triggerEventsSemTimeout time.Duration
+	triggerUpdatesSem       *semaphore.Weighted
+	triggerUpdateBuf        *bytes.Buffer
 
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
@@ -106,6 +107,9 @@ type ResolverOptions struct {
 	// MaxSubscriptionWorkers limits the concurrency on how many subscription can be added / removed concurrently.
 	// This does not include subscription updates, for that we have a separate semaphore MaxSubscriptionUpdates.
 	MaxSubscriptionWorkers int
+	// MaxSubscriptionWorkersTimeout limits the time a subscription worker can be blocked before giving an error to the
+	// client. This is useful to prevent a client from being blocked indefinitely if the server is under heavy load.
+	MaxSubscriptionWorkersTimeout time.Duration
 
 	// MaxSubscriptionUpdates limits the number of concurrent subscription updates that can be sent to the event loop.
 	MaxSubscriptionUpdates int
@@ -206,11 +210,15 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
+	if options.MaxSubscriptionWorkersTimeout == 0 {
+		options.MaxSubscriptionWorkersTimeout = time.Second
+	}
 	if options.MaxSubscriptionUpdates == 0 {
 		options.MaxSubscriptionUpdates = 1024
 	}
 
 	resolver.triggerEventsSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
+	resolver.triggerEventsSemTimeout = options.MaxSubscriptionWorkersTimeout
 	resolver.triggerUpdatesSem = semaphore.NewWeighted(int64(options.MaxSubscriptionUpdates))
 
 	go resolver.handleEvents()
@@ -805,7 +813,9 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+	ctxWithTimeout, ctxCancel := context.WithTimeout(r.ctx, r.triggerEventsSemTimeout)
+	defer ctxCancel()
+	if err := r.triggerEventsSem.Acquire(ctxWithTimeout, 1); err != nil {
 		return err
 	}
 	defer r.triggerEventsSem.Release(1)
@@ -920,7 +930,9 @@ Loop: // execute fn on the main thread of the incoming request until ctx is done
 }
 
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
+	ctxWithTimeout, ctxCancel := context.WithTimeout(r.ctx, r.triggerEventsSemTimeout)
+	defer ctxCancel()
+	if err := r.triggerEventsSem.Acquire(ctxWithTimeout, 1); err != nil {
 		return err
 	}
 	defer r.triggerEventsSem.Release(1)
