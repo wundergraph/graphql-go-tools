@@ -813,13 +813,6 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
-	ctxWithTimeout, ctxCancel := context.WithTimeout(r.ctx, r.triggerEventsSemTimeout)
-	defer ctxCancel()
-	if err := r.triggerEventsSem.Acquire(ctxWithTimeout, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
