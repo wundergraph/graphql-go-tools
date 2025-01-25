@@ -8,9 +8,10 @@ import (
 type FetchTreeNode struct {
 	Kind FetchTreeNodeKind `json:"kind"`
 	// Only set for subscription
-	Trigger    *FetchTreeNode   `json:"trigger"`
-	Item       *FetchItem       `json:"item"`
-	ChildNodes []*FetchTreeNode `json:"child_nodes"`
+	Trigger         *FetchTreeNode   `json:"trigger"`
+	Item            *FetchItem       `json:"item"`
+	ChildNodes      []*FetchTreeNode `json:"child_nodes"`
+	NormalizedQuery string           `json:"normalized_query"`
 }
 
 type FetchTreeNodeKind string
@@ -147,11 +148,12 @@ func (n *FetchTreeNode) Trace() *FetchTreeTraceNode {
 }
 
 type FetchTreeQueryPlanNode struct {
-	Version  string                    `json:"version,omitempty"`
-	Kind     FetchTreeNodeKind         `json:"kind"`
-	Trigger  *FetchTreeQueryPlan       `json:"trigger,omitempty"`
-	Children []*FetchTreeQueryPlanNode `json:"children,omitempty"`
-	Fetch    *FetchTreeQueryPlan       `json:"fetch,omitempty"`
+	Version         string                    `json:"version,omitempty"`
+	Kind            FetchTreeNodeKind         `json:"kind"`
+	Trigger         *FetchTreeQueryPlan       `json:"trigger,omitempty"`
+	Children        []*FetchTreeQueryPlanNode `json:"children,omitempty"`
+	Fetch           *FetchTreeQueryPlan       `json:"fetch,omitempty"`
+	NormalizedQuery string                    `json:"normalizedQuery,omitempty"`
 }
 
 type FetchTreeQueryPlan struct {
@@ -194,7 +196,8 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 		return nil
 	}
 	queryPlan := &FetchTreeQueryPlanNode{
-		Kind: n.Kind,
+		Kind:            n.Kind,
+		NormalizedQuery: n.NormalizedQuery,
 	}
 	switch n.Kind {
 	case FetchTreeNodeKindSingle:
