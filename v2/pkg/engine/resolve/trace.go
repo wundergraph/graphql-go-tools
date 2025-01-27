@@ -61,11 +61,17 @@ func (r *TraceOptions) DisableAll() {
 	r.IncludeTraceOutputInResponseExtensions = false
 }
 
+type BodyData struct {
+	Query         string          `json:"query,omitempty"`
+	OperationName string          `json:"operationName,omitempty"`
+	Variables     json.RawMessage `json:"variables,omitempty"`
+}
+
 type RequestData struct {
-	Method  string          `json:"method"`
-	URL     string          `json:"url"`
-	Headers http.Header     `json:"headers"`
-	Body    json.RawMessage `json:"body,omitempty"`
+	Method  string      `json:"method"`
+	URL     string      `json:"url"`
+	Headers http.Header `json:"headers"`
+	Body    *BodyData   `json:"body,omitempty"`
 }
 
 type TraceData struct {
