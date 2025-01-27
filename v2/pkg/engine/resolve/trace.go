@@ -71,7 +71,7 @@ type RequestData struct {
 	Method  string      `json:"method"`
 	URL     string      `json:"url"`
 	Headers http.Header `json:"headers"`
-	Body    *BodyData   `json:"body,omitempty"`
+	Body    BodyData    `json:"body,omitempty"`
 }
 
 type TraceData struct {
