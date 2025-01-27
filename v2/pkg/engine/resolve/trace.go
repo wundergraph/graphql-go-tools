@@ -69,10 +69,10 @@ type RequestData struct {
 }
 
 type TraceData struct {
-	Version     string              `json:"version"`
-	Info        *TraceInfo          `json:"info"`
-	Fetches     *FetchTreeTraceNode `json:"fetches"`
-	RequestData *RequestData        `json:"request"`
+	Version string              `json:"version"`
+	Info    *TraceInfo          `json:"info"`
+	Fetches *FetchTreeTraceNode `json:"fetches"`
+	Request *RequestData        `json:"request,omitempty"`
 }
 
 func GetTrace(ctx context.Context, fetchTree *FetchTreeNode) TraceData {
@@ -83,7 +83,7 @@ func GetTrace(ctx context.Context, fetchTree *FetchTreeNode) TraceData {
 	}
 
 	if req := GetRequest(ctx); req != nil {
-		trace.RequestData = req
+		trace.Request = req
 	}
 
 	return trace
