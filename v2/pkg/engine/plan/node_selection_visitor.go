@@ -568,9 +568,9 @@ func (c *nodeSelectionVisitor) matchDataSourcesByKeyConfiguration(selectionSetRe
 				}
 
 				for _, condition := range keyCfg.Conditions {
-					if len(c.fieldPathCoordinates) < len(condition.Coordinates) {
-						return false
-					}
+					// if len(c.fieldPathCoordinates) < len(condition.Coordinates) {
+					// 	return false
+					// }
 					if len(condition.Coordinates) < 2 {
 						return false
 					}

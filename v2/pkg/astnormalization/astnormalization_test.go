@@ -54,6 +54,61 @@ func TestNormalizeOperation(t *testing.T) {
 		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
 	}
 
+	t.Run("simple", func(t *testing.T) {
+		run(t, `
+			type Summary implements Tasks & Lessons & Math {
+				sum(a: Int!, b: Int!): Int!
+			}
+
+			interface Tasks implements Lessons & Math {
+				sum(a: Int!, b: Int!): Int!
+			}
+
+			interface Lessons implements Math {
+				sum(a: Int!, b: Int!): Int!
+			}
+
+			interface Math {
+				sum(a: Int!, b: Int!): Int!
+			}
+
+			type Query {
+				someQueries: Summary
+			}
+		`, `
+			query($a: Int!, $b: Int!) {
+				... on Query {
+					someQueries {
+						... on Summary {
+							... MyMath
+						}
+					}
+				}
+				... on Query {
+					alias: someQueries {
+						... on Summary {
+							... MyMath
+						}
+					}
+				}
+			}
+
+			fragment HomeTask on Tasks {
+				... on Summary {
+					sum(a: $a, b: $b)
+				}
+			}
+
+			fragment MyLesson on Lessons {
+				... HomeTask
+			}
+
+			fragment MyMath on Math {
+				... MyLesson
+			}
+		`, ``, "", "")
+	})
+
 	t.Run("complex", func(t *testing.T) {
 		run(t, testDefinition, `	
 				subscription sub {
