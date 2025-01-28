@@ -31,7 +31,8 @@ type configurationVisitor struct {
 	dataSources         []DataSource        // data sources configurations, which used by the current operation
 	fieldConfigurations FieldConfigurations // field configuration from plan configuration
 
-	planners []PlannerConfiguration // configurationVisitor is building this list of planners
+	planners                  []PlannerConfiguration // configurationVisitor is building this list of planners
+	mutationRootFieldPlanners []int                  // mutationRootFieldPlanners is a list of root mutation planner ids
 
 	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // nodeSuggestionHints holds information about suggested data sources for key fields
@@ -286,16 +287,30 @@ func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document
 		c.currentResponsePath = c.currentResponsePath[:0]
 	}
 
+	// values of all the fields below should be preserved between walks
+	// so we initialize them only once on a first walk
 	if c.secondaryRun {
 		return
 	}
 
 	c.operation, c.definition = operation, definition
-	c.parentTypeNodes = c.parentTypeNodes[:0]
+
+	if c.parentTypeNodes == nil {
+		c.parentTypeNodes = make([]ast.Node, 0, 8)
+	} else {
+		c.parentTypeNodes = c.parentTypeNodes[:0]
+	}
+
 	if c.planners == nil {
 		c.planners = make([]PlannerConfiguration, 0, 8)
 	} else {
 		c.planners = c.planners[:0]
+	}
+
+	if c.mutationRootFieldPlanners == nil {
+		c.mutationRootFieldPlanners = make([]int, 0, 2)
+	} else {
+		c.mutationRootFieldPlanners = c.mutationRootFieldPlanners[:0]
 	}
 
 	if c.skipFieldsRefs == nil {
@@ -387,8 +402,7 @@ func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (c *configurationVisitor) EnterField(fieldRef int) {
-	root := c.walker.Ancestors[0]
-	if root.Kind != ast.NodeKindOperationDefinition {
+	if c.isNotOperationDefinitionRoot() {
 		return
 	}
 
@@ -423,8 +437,6 @@ func (c *configurationVisitor) EnterField(fieldRef int) {
 
 	c.addArrayField(fieldRef, currentPath)
 
-	isSubscription := c.isSubscription(root.Ref, currentPath)
-
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 	shareable := len(suggestions) > 1
 	for _, suggestion := range suggestions {
@@ -448,7 +460,7 @@ func (c *configurationVisitor) EnterField(fieldRef int) {
 			return
 		}
 
-		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, isSubscription, suggestion, ds, shareable)
+		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion, ds, shareable)
 	}
 
 	// we update response path only after we processed the field
@@ -457,7 +469,7 @@ func (c *configurationVisitor) EnterField(fieldRef int) {
 	c.pushResponsePath(fieldRef, fieldName)
 }
 
-func (c *configurationVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, isSubscription bool, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
+func (c *configurationVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
 	plannedOnPlannerIds := c.fieldsPlannedOn[fieldRef]
 
 	if slices.ContainsFunc(plannedOnPlannerIds, func(plannerIdx int) bool {
@@ -469,9 +481,20 @@ func (c *configurationVisitor) handlePlanningField(fieldRef int, typeName, field
 		return
 	}
 
-	plannerIdx, planned := c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
-	if !planned {
-		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isSubscription, ds)
+	isMutationRoot := c.isMutationRoot(currentPath)
+
+	var (
+		plannerIdx int
+		planned    bool
+	)
+
+	if isMutationRoot {
+		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+	} else {
+		plannerIdx, planned = c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
+		if !planned {
+			plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+		}
 	}
 
 	if planned {
@@ -750,7 +773,7 @@ func (c *configurationVisitor) allowNewPlannerForTypenameField(fieldName string,
 	return c.isParentPathIsRootOperationPath(parentPath)
 }
 
-func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath string, isSubscription bool, dsConfig DataSource) (plannerIdx int, planned bool) {
+func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath string, isMutationRoot bool, dsConfig DataSource) (plannerIdx int, planned bool) {
 	if !dsConfig.HasRootNode(typeName, fieldName) {
 		if fieldName != typeNameField {
 			return -1, false
@@ -854,6 +877,8 @@ func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, 
 	// the filter needs access to fieldRef to retrieve the field argument variable
 	c.fieldRef = fieldRef
 
+	isSubscription := c.isSubscriptionRoot(currentPath)
+
 	fetchConfiguration := &objectFetchConfiguration{
 		isSubscription:     isSubscription,
 		fieldRef:           fieldRef,
@@ -864,6 +889,16 @@ func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, 
 		sourceName:         dsConfig.Name(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
 		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
+	}
+
+	if isMutationRoot {
+		nextPlannerId := len(c.planners)
+
+		if len(c.mutationRootFieldPlanners) > 0 {
+			// each next mutation root field planner depends on all previous mutation root field planners
+			fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, c.mutationRootFieldPlanners...)
+		}
+		c.mutationRootFieldPlanners = append(c.mutationRootFieldPlanners, nextPlannerId)
 	}
 
 	plannerPathConfig := newPlannerPathsConfiguration(
@@ -1151,8 +1186,7 @@ func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, 
 }
 
 func (c *configurationVisitor) LeaveField(ref int) {
-	root := c.walker.Ancestors[0]
-	if root.Kind != ast.NodeKindOperationDefinition {
+	if c.isNotOperationDefinitionRoot() {
 		return
 	}
 
@@ -1205,10 +1239,31 @@ func (c *configurationVisitor) isParentTypeNodeAbstractType() bool {
 	return parentTypeNode.Kind.IsAbstractType()
 }
 
-func (c *configurationVisitor) isSubscription(root int, path string) bool {
-	rootOperationType := c.operation.OperationDefinitions[root].OperationType
+func (c *configurationVisitor) isSubscriptionRoot(path string) bool {
+	root := c.walker.Ancestors[0]
+
+	rootOperationType := c.operation.OperationDefinitions[root.Ref].OperationType
 	if rootOperationType != ast.OperationTypeSubscription {
 		return false
 	}
 	return strings.Count(path, ".") == 1
+}
+
+func (c *configurationVisitor) isMutationRoot(path string) bool {
+	root := c.walker.Ancestors[0]
+
+	rootOperationType := c.operation.OperationDefinitions[root.Ref].OperationType
+	if rootOperationType != ast.OperationTypeMutation {
+		return false
+	}
+	return strings.Count(path, ".") == 1
+}
+
+func (c *configurationVisitor) isNotOperationDefinitionRoot() bool {
+	// potentially this check is not needed, because we should not have root fragments definitions
+	// at this stage of planning
+	// leaving it here for now
+
+	root := c.walker.Ancestors[0]
+	return root.Kind != ast.NodeKindOperationDefinition
 }
