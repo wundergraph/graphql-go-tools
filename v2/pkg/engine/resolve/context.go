@@ -193,6 +193,8 @@ type PhaseStats struct {
 	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 }
 
+type requestContextKey struct{}
+
 func SetTraceStart(ctx context.Context, predictableDebugTimings bool) context.Context {
 	info := &TraceInfo{}
 	if predictableDebugTimings {
@@ -266,4 +268,17 @@ func SetPlannerStats(ctx context.Context, stats PhaseStats) {
 		return
 	}
 	info.PlannerStats = SetDebugStats(info, stats, 4)
+}
+
+func GetRequest(ctx context.Context) *RequestData {
+	// The context might not have trace info, in that case we return nil
+	req, ok := ctx.Value(requestContextKey{}).(*RequestData)
+	if !ok {
+		return nil
+	}
+	return req
+}
+
+func SetRequest(ctx context.Context, r *RequestData) context.Context {
+	return context.WithValue(ctx, requestContextKey{}, r)
 }

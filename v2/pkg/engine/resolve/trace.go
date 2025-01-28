@@ -2,6 +2,8 @@ package resolve
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 )
 
 type TraceOptions struct {
@@ -59,16 +61,36 @@ func (r *TraceOptions) DisableAll() {
 	r.IncludeTraceOutputInResponseExtensions = false
 }
 
+type BodyData struct {
+	Query         string          `json:"query,omitempty"`
+	OperationName string          `json:"operationName,omitempty"`
+	Variables     json.RawMessage `json:"variables,omitempty"`
+}
+
+type RequestData struct {
+	Method  string      `json:"method"`
+	URL     string      `json:"url"`
+	Headers http.Header `json:"headers"`
+	Body    BodyData    `json:"body,omitempty"`
+}
+
 type TraceData struct {
 	Version string              `json:"version"`
 	Info    *TraceInfo          `json:"info"`
 	Fetches *FetchTreeTraceNode `json:"fetches"`
+	Request *RequestData        `json:"request,omitempty"`
 }
 
 func GetTrace(ctx context.Context, fetchTree *FetchTreeNode) TraceData {
-	return TraceData{
+	trace := TraceData{
 		Version: "1",
 		Info:    GetTraceInfo(ctx),
 		Fetches: fetchTree.Trace(),
 	}
+
+	if req := GetRequest(ctx); req != nil {
+		trace.Request = req
+	}
+
+	return trace
 }
