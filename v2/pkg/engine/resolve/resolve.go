@@ -426,35 +426,33 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 			continue
 		}
 
-		go func() {
-			if r.options.Debug {
-				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
-			}
+		if r.options.Debug {
+			fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
+		}
 
-			s.mux.Lock()
-			if _, err := s.writer.Write(data); err != nil {
-				if errors.Is(err, context.Canceled) {
-					// client disconnected
-					s.mux.Unlock()
-					_ = r.AsyncUnsubscribeSubscription(s.id)
-					return
-				}
-				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
-			}
-			err := s.writer.Flush()
-			s.mux.Unlock()
-			if err != nil {
+		s.mux.Lock()
+		if _, err := s.writer.Write(data); err != nil {
+			if errors.Is(err, context.Canceled) {
 				// client disconnected
+				s.mux.Unlock()
 				_ = r.AsyncUnsubscribeSubscription(s.id)
 				return
 			}
-			if r.options.Debug {
-				fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
-			}
-			if r.reporter != nil {
-				r.reporter.SubscriptionUpdateSent()
-			}
-		}()
+			r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
+		}
+		err := s.writer.Flush()
+		s.mux.Unlock()
+		if err != nil {
+			// client disconnected
+			_ = r.AsyncUnsubscribeSubscription(s.id)
+			return
+		}
+		if r.options.Debug {
+			fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
 	}
 }
 
