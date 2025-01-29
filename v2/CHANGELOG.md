@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.146](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.145...v2.0.0-rc.146) (2025-01-29)
+
+
+### Bug Fixes
+
+* heartbeat go routine gone rogue ([#1030](https://github.com/wundergraph/graphql-go-tools/issues/1030)) ([b7e96dd](https://github.com/wundergraph/graphql-go-tools/commit/b7e96ddf45ee87aae91b3d88ffa6910dc7460718))
+
 ## [2.0.0-rc.145](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.144...v2.0.0-rc.145) (2025-01-27)
 
 
