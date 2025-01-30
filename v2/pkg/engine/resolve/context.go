@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
@@ -18,6 +19,7 @@ type Context struct {
 	Files            []httpclient.File
 	Request          Request
 	RenameTypeNames  []RenameTypeName
+	RemapVariables   map[string]string
 	TracingOptions   TraceOptions
 	RateLimitOptions RateLimitOptions
 	ExecutionOptions ExecutionOptions
@@ -79,6 +81,13 @@ type RateLimitOptions struct {
 	Period                  time.Duration
 	RateLimitKey            string
 	RejectExceedingRequests bool
+
+	ErrorExtensionCode RateLimitErrorExtensionCode
+}
+
+type RateLimitErrorExtensionCode struct {
+	Enabled bool
+	Code    string
 }
 
 type RateLimitDeny struct {
@@ -139,6 +148,14 @@ func (c *Context) clone(ctx context.Context) *Context {
 	cpy.Files = append([]httpclient.File(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
+
+	if c.RemapVariables != nil {
+		cpy.RemapVariables = make(map[string]string, len(c.RemapVariables))
+		for k, v := range c.RemapVariables {
+			cpy.RemapVariables[k] = v
+		}
+	}
+
 	return &cpy
 }
 
@@ -148,6 +165,7 @@ func (c *Context) Free() {
 	c.Files = nil
 	c.Request.Header = nil
 	c.RenameTypeNames = nil
+	c.RemapVariables = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
 	c.subgraphErrors = nil
@@ -174,6 +192,8 @@ type PhaseStats struct {
 	DurationSinceStartNano   int64  `json:"duration_since_start_nanoseconds"`
 	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 }
+
+type requestContextKey struct{}
 
 func SetTraceStart(ctx context.Context, predictableDebugTimings bool) context.Context {
 	info := &TraceInfo{}
@@ -248,4 +268,17 @@ func SetPlannerStats(ctx context.Context, stats PhaseStats) {
 		return
 	}
 	info.PlannerStats = SetDebugStats(info, stats, 4)
+}
+
+func GetRequest(ctx context.Context) *RequestData {
+	// The context might not have trace info, in that case we return nil
+	req, ok := ctx.Value(requestContextKey{}).(*RequestData)
+	if !ok {
+		return nil
+	}
+	return req
+}
+
+func SetRequest(ctx context.Context, r *RequestData) context.Context {
+	return context.WithValue(ctx, requestContextKey{}, r)
 }

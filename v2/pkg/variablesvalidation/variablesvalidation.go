@@ -3,12 +3,14 @@ package variablesvalidation
 import (
 	"bytes"
 	"fmt"
+
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -23,11 +25,35 @@ func (e *InvalidVariableError) Error() string {
 	return e.Message
 }
 
-func newInvalidVariableError(message string, isApolloCompatibilityMode bool) *InvalidVariableError {
+func (v *variablesVisitor) invalidValueIfAllowed(variableContent string) string {
+	if v.opts.DisableExposingVariablesContent {
+		return ""
+	}
+
+	return fmt.Sprintf(": %s", variableContent)
+}
+
+func (v *variablesVisitor) invalidEnumValueIfAllowed(variableContent string) string {
+	if v.opts.DisableExposingVariablesContent {
+		return ""
+	}
+
+	return fmt.Sprintf("\"%s\" ", variableContent)
+}
+
+func (v *variablesVisitor) invalidValueMessage(variableName, variableContent string) string {
+	if v.opts.DisableExposingVariablesContent {
+		return fmt.Sprintf(`Variable "$%s" got invalid value`, variableName)
+	}
+
+	return fmt.Sprintf(`Variable "$%s" got invalid value %s`, variableName, variableContent)
+}
+
+func (v *variablesVisitor) newInvalidVariableError(message string) *InvalidVariableError {
 	err := &InvalidVariableError{
 		Message: message,
 	}
-	if isApolloCompatibilityMode {
+	if v.opts.ApolloCompatibilityFlags.ReplaceInvalidVarError {
 		err.ExtensionCode = errorcodes.BadUserInput
 	}
 	return err
@@ -39,15 +65,15 @@ type VariablesValidator struct {
 }
 
 type VariablesValidatorOptions struct {
-	ApolloCompatibilityFlags apollocompatibility.Flags
+	ApolloCompatibilityFlags        apollocompatibility.Flags
+	DisableExposingVariablesContent bool
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
 	walker := astvisitor.NewWalker(8)
 	visitor := &variablesVisitor{
-		variables:                &astjson.JSON{},
-		walker:                   &walker,
-		apolloCompatibilityFlags: options.ApolloCompatibilityFlags,
+		walker: &walker,
+		opts:   options,
 	}
 	walker.RegisterEnterVariableDefinitionVisitor(visitor)
 	return &VariablesValidator{
@@ -56,13 +82,17 @@ func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidato
 	}
 }
 
+func (v *VariablesValidator) ValidateWithRemap(operation, definition *ast.Document, variables []byte, variablesMap map[string]string) error {
+	v.visitor.variablesMap = variablesMap
+	return v.Validate(operation, definition, variables)
+}
+
 func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte) error {
-	v.visitor.err = nil
 	v.visitor.definition = definition
 	v.visitor.operation = operation
-	err := v.visitor.variables.ParseObject(variables)
-	if err != nil {
-		return err
+	v.visitor.variables, v.visitor.err = astjson.ParseBytesWithoutCache(variables)
+	if v.visitor.err != nil {
+		return v.visitor.err
 	}
 	report := &operationreport.Report{}
 	v.walker.Walk(operation, definition, report)
@@ -73,15 +103,16 @@ func (v *VariablesValidator) Validate(operation, definition *ast.Document, varia
 }
 
 type variablesVisitor struct {
-	walker                     *astvisitor.Walker
-	operation                  *ast.Document
-	definition                 *ast.Document
-	variables                  *astjson.JSON
-	err                        error
-	currentVariableName        []byte
-	currentVariableJsonNodeRef int
-	path                       []pathItem
-	apolloCompatibilityFlags   apollocompatibility.Flags
+	walker               *astvisitor.Walker
+	operation            *ast.Document
+	definition           *ast.Document
+	variables            *astjson.Value
+	err                  error
+	currentVariableName  []byte
+	currentVariableValue *astjson.Value
+	path                 []pathItem
+	opts                 VariablesValidatorOptions
+	variablesMap         map[string]string
 }
 
 func (v *variablesVisitor) renderPath() string {
@@ -133,44 +164,59 @@ func (v *variablesVisitor) popPath() {
 
 func (v *variablesVisitor) EnterVariableDefinition(ref int) {
 	varTypeRef := v.operation.VariableDefinitions[ref].Type
-	varName := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
-	jsonFieldRef := v.variables.GetObjectFieldBytes(v.variables.RootNode, varName)
+	operationVariableNameBytes := v.operation.VariableValueNameBytes(v.operation.VariableDefinitions[ref].VariableValue.Ref)
+	operationVariableName := unsafebytes.BytesToString(operationVariableNameBytes)
+
+	var (
+		mappedVariableName string
+		isMapped           bool
+	)
+	if v.variablesMap != nil {
+		mappedVariableName, isMapped = v.variablesMap[operationVariableName]
+	}
+
+	if isMapped {
+		v.currentVariableName = []byte(mappedVariableName)
+		v.currentVariableValue = v.variables.Get(mappedVariableName)
+	} else {
+		v.currentVariableName = operationVariableNameBytes
+		v.currentVariableValue = v.variables.Get(operationVariableName)
+	}
 
 	v.path = v.path[:0]
-	v.pushObjectPath(varName)
-	v.currentVariableName = varName
-	v.currentVariableJsonNodeRef = jsonFieldRef
+	v.pushObjectPath(v.currentVariableName)
 
-	v.traverseOperationType(jsonFieldRef, varTypeRef)
+	v.traverseOperationType(v.currentVariableValue, varTypeRef)
 }
 
-func (v *variablesVisitor) traverseOperationType(jsonFieldRef int, operationTypeRef int) {
+func (v *variablesVisitor) traverseOperationType(jsonValue *astjson.Value, operationTypeRef int) {
 	varTypeName := v.operation.ResolveTypeNameBytes(operationTypeRef)
 	if v.operation.TypeIsNonNull(operationTypeRef) {
-		if jsonFieldRef == -1 {
+		if jsonValue == nil {
 			v.renderVariableRequiredError(v.currentVariableName, operationTypeRef)
 			return
 		}
 
-		if v.variables.Nodes[jsonFieldRef].Kind == astjson.NodeKindNull && varTypeName.String() != "Upload" {
+		if jsonValue.Type() == astjson.TypeNull && varTypeName.String() != "Upload" {
 			v.renderVariableInvalidNullError(v.currentVariableName, operationTypeRef)
 			return
 		}
 
-		v.traverseOperationType(jsonFieldRef, v.operation.Types[operationTypeRef].OfType)
+		v.traverseOperationType(jsonValue, v.operation.Types[operationTypeRef].OfType)
 		return
 	}
 
-	if !v.variables.NodeIsDefined(jsonFieldRef) {
+	if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
 		return
 	}
 
 	if v.operation.TypeIsList(operationTypeRef) {
-		if v.variables.Nodes[jsonFieldRef].Kind != astjson.NodeKindArray {
-			v.renderVariableInvalidObjectTypeError(varTypeName, v.variables.Nodes[jsonFieldRef])
+		if jsonValue.Type() != astjson.TypeArray {
+			v.renderVariableInvalidObjectTypeError(varTypeName, jsonValue)
 			return
 		}
-		for i, arrayValue := range v.variables.Nodes[jsonFieldRef].ArrayValues {
+		values := jsonValue.GetArray()
+		for i, arrayValue := range values {
 			v.pushArrayPath(i)
 			v.traverseOperationType(arrayValue, v.operation.Types[operationTypeRef].OfType)
 			v.popPath()
@@ -179,7 +225,7 @@ func (v *variablesVisitor) traverseOperationType(jsonFieldRef int, operationType
 		return
 	}
 
-	v.traverseNamedTypeNode(jsonFieldRef, varTypeName)
+	v.traverseNamedTypeNode(jsonValue, varTypeName)
 }
 
 func (v *variablesVisitor) renderVariableRequiredError(variableName []byte, typeRef int) {
@@ -189,56 +235,29 @@ func (v *variablesVisitor) renderVariableRequiredError(variableName []byte, type
 		v.err = err
 		return
 	}
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" of required type "%s" was not provided.`, string(variableName), out.String()),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`Variable "$%s" of required type "%s" was not provided.`, string(variableName), out.String()))
 }
 
-func (v *variablesVisitor) renderVariableInvalidObjectTypeError(typeName []byte, variablesNode astjson.Node) {
-	out := &bytes.Buffer{}
-	err := v.variables.PrintNode(variablesNode, out)
-	if err != nil {
-		v.err = err
-		return
-	}
-	variableContent := out.String()
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s; Expected type "%s" to be an object.`, string(v.currentVariableName), variableContent, string(typeName)),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+func (v *variablesVisitor) renderVariableInvalidObjectTypeError(typeName []byte, variablesNode *astjson.Value) {
+	variableContent := string(variablesNode.MarshalTo(nil))
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s; Expected type "%s" to be an object.`, v.invalidValueMessage(string(v.currentVariableName), variableContent), string(typeName)))
 }
 
 func (v *variablesVisitor) renderVariableRequiredNotProvidedError(fieldName []byte, typeRef int) {
+	variableContent := string(v.currentVariableValue.MarshalTo(nil))
 	out := &bytes.Buffer{}
-	err := v.variables.PrintNode(v.variables.Nodes[v.currentVariableJsonNodeRef], out)
+	err := v.definition.PrintType(typeRef, out)
 	if err != nil {
 		v.err = err
 		return
 	}
-	variableContent := out.String()
-	out.Reset()
-	err = v.definition.PrintType(typeRef, out)
-	if err != nil {
-		v.err = err
-		return
-	}
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s; Field "%s" of required type "%s" was not provided.`, string(v.currentVariableName), variableContent, string(fieldName), out.String()),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s; Field "%s" of required type "%s" was not provided.`, v.invalidValueMessage(string(v.currentVariableName), variableContent), string(fieldName), out.String()))
 }
 
-func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRef int, expectedType ast.NodeKind, expectedTypeName []byte, expectedList bool) {
-	buf := &bytes.Buffer{}
+func (v *variablesVisitor) renderVariableInvalidNestedTypeError(jsonValue *astjson.Value, expectedType ast.NodeKind, expectedTypeName []byte, expectedList bool) {
 	variableName := string(v.currentVariableName)
 	typeName := string(expectedTypeName)
-	err := v.variables.PrintNode(v.variables.Nodes[actualJsonNodeRef], buf)
-	if err != nil {
-		v.err = err
-		return
-	}
-	invalidValue := buf.String()
+	invalidValue := string(jsonValue.MarshalTo(nil))
 	var path string
 	if len(v.path) > 1 {
 		path = fmt.Sprintf(` at "%s"`, v.renderPath())
@@ -247,89 +266,44 @@ func (v *variablesVisitor) renderVariableInvalidNestedTypeError(actualJsonNodeRe
 	case ast.NodeKindScalarTypeDefinition:
 		switch typeName {
 		case "String":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; String cannot represent a non string value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; String cannot represent a non string value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "Int":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Int cannot represent non-integer value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Int cannot represent non-integer value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "Float":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Float cannot represent non numeric value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Float cannot represent non numeric value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "Boolean":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Boolean cannot represent a non boolean value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Boolean cannot represent a non boolean value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		case "ID":
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; ID cannot represent value: %s`, variableName, invalidValue, path, invalidValue),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; ID cannot represent a non-string and non-integer value%s`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidValueIfAllowed(invalidValue)))
 		default:
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be a scalar.`, variableName, invalidValue, path, typeName),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Expected type "%s" to be a scalar.`, v.invalidValueMessage(variableName, invalidValue), path, typeName))
 		}
 	case ast.NodeKindInputObjectTypeDefinition:
 		if expectedList {
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Got input type "%s", want: "[%s]"`, variableName, invalidValue, path, typeName, typeName),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Got input type "%s", want: "[%s]"`, v.invalidValueMessage(variableName, invalidValue), path, typeName, typeName))
 		} else {
-			v.err = newInvalidVariableError(
-				fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Expected type "%s" to be an input object.`, variableName, invalidValue, path, typeName),
-				v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-			)
+			v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Expected type "%s" to be an input object.`, v.invalidValueMessage(variableName, invalidValue), path, typeName))
 		}
 	case ast.NodeKindEnumTypeDefinition:
-		v.err = newInvalidVariableError(
-			fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Enum "%s" cannot represent non-string value: %s.`, variableName, invalidValue, path, typeName, invalidValue),
-			v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-		)
+		v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Enum "%s" cannot represent non-string value%s.`, v.invalidValueMessage(variableName, invalidValue), path, typeName, v.invalidValueIfAllowed(invalidValue)))
 	}
 }
 
 func (v *variablesVisitor) renderVariableFieldNotDefinedError(fieldName []byte, typeName []byte) {
-	buf := &bytes.Buffer{}
 	variableName := string(v.currentVariableName)
-	err := v.variables.PrintNode(v.variables.Nodes[v.currentVariableJsonNodeRef], buf)
-	if err != nil {
-		v.err = err
-		return
-	}
-	invalidValue := buf.String()
+	invalidValue := string(v.currentVariableValue.MarshalTo(nil))
 	path := v.renderPath()
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s at "%s"; Field "%s" is not defined by type "%s".`, variableName, invalidValue, path, string(fieldName), string(typeName)),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s at "%s"; Field "%s" is not defined by type "%s".`, v.invalidValueMessage(variableName, invalidValue), path, string(fieldName), string(typeName)))
 }
 
 func (v *variablesVisitor) renderVariableEnumValueDoesNotExistError(typeName []byte, enumValue []byte) {
-	buf := &bytes.Buffer{}
 	variableName := string(v.currentVariableName)
-	err := v.variables.PrintNode(v.variables.Nodes[v.currentVariableJsonNodeRef], buf)
-	if err != nil {
-		v.err = err
-		return
-	}
-	invalidValue := buf.String()
+	invalidValue := string(v.currentVariableValue.MarshalTo(nil))
 	var path string
 	if len(v.path) > 1 {
 		path = fmt.Sprintf(` at "%s"`, v.renderPath())
 	}
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value %s%s; Value "%s" does not exist in "%s" enum.`, variableName, invalidValue, path, string(enumValue), string(typeName)),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`%s%s; Value %sdoes not exist in "%s" enum.`, v.invalidValueMessage(variableName, invalidValue), path, v.invalidEnumValueIfAllowed(string(enumValue)), string(typeName)))
 }
 
 func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, typeRef int) {
@@ -340,15 +314,12 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 		return
 	}
 	typeName := buf.String()
-	v.err = newInvalidVariableError(
-		fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName),
-		v.apolloCompatibilityFlags.ReplaceInvalidVarError,
-	)
+	v.err = v.newInvalidVariableError(fmt.Sprintf(`Variable "$%s" got invalid value null; Expected non-nullable type "%s" not to be null.`, string(variableName), typeName))
 }
 
-func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, typeRef int, fieldVariablesJsonNodeRef int, inputFieldRef int) {
+func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, jsonValue *astjson.Value, typeRef, inputFieldRef int) {
 	if v.definition.TypeIsNonNull(typeRef) {
-		if !v.variables.NodeIsDefined(fieldVariablesJsonNodeRef) {
+		if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
 			// An undefined required input field is valid if it has a default value
 			if v.definition.InputValueDefinitionHasDefaultValue(inputFieldRef) {
 				return
@@ -356,39 +327,39 @@ func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKi
 			v.renderVariableRequiredNotProvidedError(fieldName, typeRef)
 		}
 
-		v.traverseFieldDefinitionType(fieldTypeDefinitionNodeKind, fieldName, v.definition.Types[typeRef].OfType, fieldVariablesJsonNodeRef, inputFieldRef)
+		v.traverseFieldDefinitionType(fieldTypeDefinitionNodeKind, fieldName, jsonValue, v.definition.Types[typeRef].OfType, inputFieldRef)
 
 		return
 	}
 
-	if !v.variables.NodeIsDefined(fieldVariablesJsonNodeRef) {
+	if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
 		return
 	}
 
 	typeName := v.definition.ResolveTypeNameBytes(typeRef)
 
 	if v.definition.TypeIsList(typeRef) {
-		if v.variables.Nodes[fieldVariablesJsonNodeRef].Kind != astjson.NodeKindArray {
-			v.renderVariableInvalidNestedTypeError(fieldVariablesJsonNodeRef, fieldTypeDefinitionNodeKind, typeName, true)
+		if jsonValue.Type() != astjson.TypeArray {
+			v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNodeKind, typeName, true)
 			return
 		}
-		if len(v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues) == 0 {
+		if len(jsonValue.GetArray()) == 0 {
 			return
 		}
 
-		for i, arrayValue := range v.variables.Nodes[fieldVariablesJsonNodeRef].ArrayValues {
+		for i, arrayValue := range jsonValue.GetArray() {
 			v.pushArrayPath(i)
-			v.traverseFieldDefinitionType(fieldTypeDefinitionNodeKind, fieldName, v.definition.Types[typeRef].OfType, arrayValue, inputFieldRef)
+			v.traverseFieldDefinitionType(fieldTypeDefinitionNodeKind, fieldName, arrayValue, v.definition.Types[typeRef].OfType, inputFieldRef)
 			v.popPath()
 			continue
 		}
 		return
 	}
 
-	v.traverseNamedTypeNode(fieldVariablesJsonNodeRef, v.definition.ResolveTypeNameBytes(typeRef))
+	v.traverseNamedTypeNode(jsonValue, v.definition.ResolveTypeNameBytes(typeRef))
 }
 
-func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byte) {
+func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeName []byte) {
 	if v.err != nil {
 		return
 	}
@@ -398,8 +369,8 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 	}
 	switch fieldTypeDefinitionNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition:
-		if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindObject {
-			v.renderVariableInvalidObjectTypeError(typeName, v.variables.Nodes[jsonNodeRef])
+		if jsonValue.Type() != astjson.TypeObject {
+			v.renderVariableInvalidObjectTypeError(typeName, jsonValue)
 			return
 		}
 		inputFieldRefs := v.definition.NodeInputFieldDefinitions(fieldTypeDefinitionNode)
@@ -409,15 +380,22 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 			}
 			fieldName := v.definition.InputValueDefinitionNameBytes(inputFieldRef)
 			fieldTypeRef := v.definition.InputValueDefinitionType(inputFieldRef)
-			fieldVariablesJsonNodeRef := v.variables.GetObjectFieldBytes(jsonNodeRef, fieldName)
+			objectFieldValue := jsonValue.Get(unsafebytes.BytesToString(fieldName))
 
 			v.pushObjectPath(fieldName)
-			v.traverseFieldDefinitionType(fieldTypeDefinitionNode.Kind, fieldName, fieldTypeRef, fieldVariablesJsonNodeRef, inputFieldRef)
+			v.traverseFieldDefinitionType(fieldTypeDefinitionNode.Kind, fieldName, objectFieldValue, fieldTypeRef, inputFieldRef)
 			v.popPath()
 		}
 		// validate that all input fields present in object are defined in the input object definition
-		for _, field := range v.variables.Nodes[jsonNodeRef].ObjectFields {
-			inputFieldName := v.variables.ObjectFieldKey(field)
+		obj := jsonValue.GetObject()
+		keys := make([][]byte, obj.Len())
+		i := 0
+		obj.Visit(func(key []byte, v *astjson.Value) {
+			keys[i] = key
+			i++
+		})
+		for i := range keys {
+			inputFieldName := keys[i]
 			inputValueDefinitionRef := v.definition.InputObjectTypeDefinitionInputValueDefinitionByName(fieldTypeDefinitionNode.Ref, inputFieldName)
 			if inputValueDefinitionRef == -1 {
 				v.renderVariableFieldNotDefinedError(inputFieldName, typeName)
@@ -427,37 +405,37 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonNodeRef int, typeName []byt
 	case ast.NodeKindScalarTypeDefinition:
 		switch unsafebytes.BytesToString(typeName) {
 		case "String":
-			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindString {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
+			if jsonValue.Type() != astjson.TypeString {
+				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "Int":
-			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindNumber {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
+			if jsonValue.Type() != astjson.TypeNumber {
+				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "Float":
-			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindNumber {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
+			if jsonValue.Type() != astjson.TypeNumber {
+				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "Boolean":
-			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindBoolean {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
+			if jsonValue.Type() != astjson.TypeTrue && jsonValue.Type() != astjson.TypeFalse {
+				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		case "ID":
-			if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindString && v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindNumber {
-				v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
+			if jsonValue.Type() != astjson.TypeString && jsonValue.Type() != astjson.TypeNumber {
+				v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 				return
 			}
 		}
 	case ast.NodeKindEnumTypeDefinition:
-		if v.variables.Nodes[jsonNodeRef].Kind != astjson.NodeKindString {
-			v.renderVariableInvalidNestedTypeError(jsonNodeRef, fieldTypeDefinitionNode.Kind, typeName, false)
+		if jsonValue.Type() != astjson.TypeString {
+			v.renderVariableInvalidNestedTypeError(jsonValue, fieldTypeDefinitionNode.Kind, typeName, false)
 			return
 		}
-		value := v.variables.Nodes[jsonNodeRef].ValueBytes(v.variables)
+		value := jsonValue.GetStringBytes()
 		hasValue, isInaccessible := v.definition.EnumTypeDefinitionContainsEnumValueWithDirective(fieldTypeDefinitionNode.Ref, value, federation.InaccessibleDirectiveNameBytes)
 		if !hasValue || isInaccessible {
 			v.renderVariableEnumValueDoesNotExistError(typeName, value)

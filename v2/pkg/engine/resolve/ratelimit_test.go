@@ -95,6 +95,22 @@ func TestRateLimiter(t *testing.T) {
 				assert.Equal(t, int64(1), limiter.rateLimitPreFetchCalls.Load())
 			}
 	}))
+	t.Run("deny with code", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
+
+		limiter := &testRateLimiter{
+			allowFn: func(ctx *Context, info *FetchInfo, input json.RawMessage) (*RateLimitDeny, error) {
+				return &RateLimitDeny{Reason: "rate limit exceeded"}, nil
+			},
+		}
+
+		res := generateTestFederationGraphQLResponse(t, ctrl)
+
+		return res, &Context{ctx: context.Background(), Variables: nil, rateLimiter: limiter, RateLimitOptions: RateLimitOptions{Enable: true, ErrorExtensionCode: RateLimitErrorExtensionCode{Enabled: true, Code: "RATE_LIMIT_EXCEEDED"}}},
+			`{"errors":[{"message":"Rate limit exceeded for Subgraph 'users' at Path 'query', Reason: rate limit exceeded.","extensions":{"code":"RATE_LIMIT_EXCEEDED"}},{"message":"Failed to fetch from Subgraph 'reviews' at Path 'query.me'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me"]}]}},{"message":"Failed to fetch from Subgraph 'products' at Path 'query.me.reviews.@.product'.","extensions":{"errors":[{"message":"Failed to render Fetch Input","path":["me","reviews","@","product"]}]}}],"data":{"me":null}}`,
+			func(t *testing.T) {
+				assert.Equal(t, int64(1), limiter.rateLimitPreFetchCalls.Load())
+			}
+	}))
 	t.Run("err all", testFnWithError(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 
 		limiter := &testRateLimiter{

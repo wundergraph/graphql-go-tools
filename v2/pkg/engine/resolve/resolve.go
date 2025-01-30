@@ -51,6 +51,7 @@ type Resolver struct {
 	maxConcurrency chan struct{}
 
 	triggers               map[uint64]*trigger
+	heartbeatSubLock       *sync.Mutex
 	heartbeatSubscriptions map[*Context]*sub
 	events                 chan subscriptionEvent
 	triggerEventsSem       *semaphore.Weighted
@@ -189,6 +190,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		propagateSubgraphStatusCodes:  options.PropagateSubgraphStatusCodes,
 		events:                        make(chan subscriptionEvent),
 		triggers:                      make(map[uint64]*trigger),
+		heartbeatSubLock:              &sync.Mutex{},
 		heartbeatSubscriptions:        make(map[*Context]*sub),
 		reporter:                      options.Reporter,
 		asyncErrorWriter:              options.AsyncErrorWriter,
@@ -407,6 +409,9 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 }
 
 func (r *Resolver) handleHeartbeat(data []byte) {
+	r.heartbeatSubLock.Lock()
+	defer r.heartbeatSubLock.Unlock()
+
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat:%d\n", len(r.heartbeatSubscriptions))
 	}
@@ -417,33 +422,37 @@ func (r *Resolver) handleHeartbeat(data []byte) {
 		s.mux.Lock()
 		skipHeartbeat := now.Sub(s.lastWrite) < r.multipartSubHeartbeatInterval
 		s.mux.Unlock()
-		if skipHeartbeat {
+		if skipHeartbeat || (c.Context().Err() != nil && errors.Is(c.Context().Err(), context.Canceled)) {
 			continue
 		}
 
-		go func() {
-			if r.options.Debug {
-				fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
-			}
+		if r.options.Debug {
+			fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
+		}
 
-			s.mux.Lock()
-			if _, err := s.writer.Write(data); err != nil {
-				r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
-			}
-			err := s.writer.Flush()
-			s.mux.Unlock()
-			if err != nil {
+		s.mux.Lock()
+		if _, err := s.writer.Write(data); err != nil {
+			if errors.Is(err, context.Canceled) {
 				// client disconnected
+				s.mux.Unlock()
 				_ = r.AsyncUnsubscribeSubscription(s.id)
 				return
 			}
-			if r.options.Debug {
-				fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
-			}
-			if r.reporter != nil {
-				r.reporter.SubscriptionUpdateSent()
-			}
-		}()
+			r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
+		}
+		err := s.writer.Flush()
+		s.mux.Unlock()
+		if err != nil {
+			// client disconnected
+			_ = r.AsyncUnsubscribeSubscription(s.id)
+			return
+		}
+		if r.options.Debug {
+			fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
+		}
+		if r.reporter != nil {
+			r.reporter.SubscriptionUpdateSent()
+		}
 	}
 }
 
@@ -468,30 +477,7 @@ func (r *Resolver) handleTriggerInitialized(triggerID uint64) {
 }
 
 func (r *Resolver) handleTriggerDone(triggerID uint64) {
-	trig, ok := r.triggers[triggerID]
-	if !ok {
-		return
-	}
-	isInitialized := trig.initialized
-	wg := trig.inFlight
-	subscriptionCount := len(trig.subscriptions)
-
-	delete(r.triggers, triggerID)
-
-	go func() {
-		if wg != nil {
-			wg.Wait()
-		}
-		for _, s := range trig.subscriptions {
-			s.writer.Complete()
-		}
-		if r.reporter != nil {
-			r.reporter.SubscriptionCountDec(subscriptionCount)
-			if isInitialized {
-				r.reporter.TriggerCountDec(1)
-			}
-		}
-	}()
+	r.shutdownTrigger(triggerID)
 }
 
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
@@ -510,7 +496,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		executor:  add.executor,
 	}
 	if add.ctx.ExecutionOptions.SendHeartbeat {
+		r.heartbeatSubLock.Lock()
 		r.heartbeatSubscriptions[add.ctx] = s
+		r.heartbeatSubLock.Unlock()
 	}
 	trig, ok := r.triggers[triggerID]
 	if ok {
@@ -636,20 +624,9 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 	removed := 0
 	for u := range r.triggers {
 		trig := r.triggers[u]
-		for ctx, s := range trig.subscriptions {
-			if s.id == id {
-
-				if ctx.Context().Err() == nil {
-					s.writer.Complete()
-				}
-				delete(r.heartbeatSubscriptions, ctx)
-				delete(trig.subscriptions, ctx)
-				if r.options.Debug {
-					fmt.Printf("resolver:trigger:subscription:removed:%d:%d\n", trig.id, id.SubscriptionID)
-				}
-				removed++
-			}
-		}
+		removed += r.shutdownTriggerSubscriptions(u, func(sID SubscriptionIdentifier) bool {
+			return sID == id
+		})
 		if len(trig.subscriptions) == 0 {
 			r.shutdownTrigger(trig.id)
 		}
@@ -665,20 +642,9 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 	removed := 0
 	for u := range r.triggers {
-		for c, s := range r.triggers[u].subscriptions {
-			if s.id.ConnectionID == id && !s.id.internal {
-
-				if c.Context().Err() == nil {
-					s.writer.Complete()
-				}
-
-				delete(r.triggers[u].subscriptions, c)
-				if r.options.Debug {
-					fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", u, s.id.SubscriptionID)
-				}
-				removed++
-			}
-		}
+		removed += r.shutdownTriggerSubscriptions(u, func(sID SubscriptionIdentifier) bool {
+			return sID.ConnectionID == id && !sID.internal
+		})
 		if len(r.triggers[u].subscriptions) == 0 {
 			r.shutdownTrigger(r.triggers[u].id)
 		}
@@ -739,19 +705,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 		return
 	}
 	count := len(trig.subscriptions)
-	for c, s := range trig.subscriptions {
-		if c.Context().Err() == nil {
-			s.writer.Complete()
-		}
-		if s.completed != nil {
-			close(s.completed)
-		}
-		delete(r.heartbeatSubscriptions, c)
-		delete(trig.subscriptions, c)
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
-		}
-	}
+	r.shutdownTriggerSubscriptions(id, nil)
 	trig.cancel()
 	delete(r.triggers, id)
 	if r.options.Debug {
@@ -763,6 +717,34 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 			r.reporter.TriggerCountDec(1)
 		}
 	}
+}
+
+func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(a SubscriptionIdentifier) bool) int {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return 0
+	}
+	removed := 0
+	for c, s := range trig.subscriptions {
+		if shutdownMatcher != nil && !shutdownMatcher(s.id) {
+			continue
+		}
+		if c.Context().Err() == nil {
+			s.writer.Complete()
+		}
+		if s.completed != nil {
+			close(s.completed)
+		}
+		r.heartbeatSubLock.Lock()
+		delete(r.heartbeatSubscriptions, c)
+		r.heartbeatSubLock.Unlock()
+		delete(trig.subscriptions, c)
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
+		}
+		removed++
+	}
+	return removed
 }
 
 func (r *Resolver) handleShutdown() {
@@ -821,11 +803,6 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}

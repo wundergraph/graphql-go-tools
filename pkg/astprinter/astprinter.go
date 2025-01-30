@@ -538,6 +538,20 @@ func (p *printVisitor) EnterInterfaceTypeDefinition(ref int) {
 	p.write(p.document.InterfaceTypeDefinitionNameBytes(ref))
 	p.write(literal.SPACE)
 
+	if len(p.document.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs) != 0 {
+		p.write(literal.IMPLEMENTS)
+		p.write(literal.SPACE)
+		for i, j := range p.document.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs {
+			if i != 0 {
+				p.write(literal.SPACE)
+				p.write(literal.AND)
+				p.write(literal.SPACE)
+			}
+			p.must(p.document.PrintType(j, p.out))
+		}
+		p.write(literal.SPACE)
+	}
+
 	p.inputValueDefinitionOpener = literal.LPAREN
 	p.inputValueDefinitionCloser = literal.RPAREN
 }

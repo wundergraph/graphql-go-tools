@@ -62,9 +62,16 @@ func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
 		// cause a memory leak.
 		if res.httpResponseContext.Response != nil {
-			responseInfo.Request = res.httpResponseContext.Response.Request
-			responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header.Clone()
-		} else {
+			if res.httpResponseContext.Response.Request != nil {
+				responseInfo.Request = res.httpResponseContext.Response.Request
+			}
+
+			if res.httpResponseContext.Response.Header != nil {
+				responseInfo.ResponseHeaders = res.httpResponseContext.Response.Header.Clone()
+			}
+		}
+
+		if responseInfo.Request == nil {
 			// In cases where the request errors, the response will be nil, and so we need to get the original request
 			responseInfo.Request = res.httpResponseContext.Request
 		}
@@ -221,6 +228,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		return nil
 	}
 	items := l.selectItemsForPath(item.FetchPath)
+
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
 		res := &result{
@@ -480,6 +488,28 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 	return nil
 }
 
+type ErrMergeResult struct {
+	Subgraph string
+	Reason   error
+	Path     string
+}
+
+func (e ErrMergeResult) Error() string {
+	if errors.Is(e.Reason, astjson.ErrMergeDifferingArrayLengths) {
+		if e.Path == "" {
+			return fmt.Sprintf("unable to merge results from subgraph %s: differing array lengths", e.Subgraph)
+		}
+		return fmt.Sprintf("unable to merge results from subgraph '%s' at path '%s': differing array lengths", e.Subgraph, e.Path)
+	}
+	if errors.Is(e.Reason, astjson.ErrMergeDifferentTypes) {
+		if e.Path == "" {
+			return fmt.Sprintf("unable to merge results from subgraph %s: differing types", e.Subgraph)
+		}
+		return fmt.Sprintf("unable to merge results from subgraph '%s' at path '%s': differing types", e.Subgraph, e.Path)
+	}
+	return fmt.Sprintf("unable to merge results from subgraph %s", e.Subgraph)
+}
+
 func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson.Value) error {
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
@@ -573,7 +603,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		astjson.MergeValuesWithPath(items[0], value, res.postProcessing.MergePath...)
+		items[0], _, err = astjson.MergeValuesWithPath(items[0], value, res.postProcessing.MergePath...)
+		if err != nil {
+			return errors.WithStack(ErrMergeResult{
+				Subgraph: res.ds.Name,
+				Reason:   err,
+				Path:     fetchItem.ResponsePath,
+			})
+		}
 		return nil
 	}
 	batch := value.GetArray()
@@ -586,12 +623,26 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				if item == -1 {
 					continue
 				}
-				astjson.MergeValuesWithPath(items[i], batch[item], res.postProcessing.MergePath...)
+				items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[item], res.postProcessing.MergePath...)
+				if err != nil {
+					return errors.WithStack(ErrMergeResult{
+						Subgraph: res.ds.Name,
+						Reason:   err,
+						Path:     fetchItem.ResponsePath,
+					})
+				}
 			}
 		}
 	} else {
 		for i, item := range items {
-			astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
+			_, _, err = astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
+			if err != nil {
+				return errors.WithStack(ErrMergeResult{
+					Subgraph: res.ds.Name,
+					Reason:   err,
+					Path:     fetchItem.ResponsePath,
+				})
+			}
 		}
 	}
 	return nil
@@ -983,35 +1034,46 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
 	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
+	var (
+		err         error
+		errorObject *astjson.Value
+	)
 	if res.ds.Name == "" {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s."}`, pathPart))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph request%s, Reason: %s."}`, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	} else {
 		if res.rateLimitRejectedReason == "" {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		} else {
-			errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
+			errorObject, err = astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Rate limit exceeded for Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, res.rateLimitRejectedReason))
 			if err != nil {
 				return err
 			}
-			astjson.AppendToArray(l.resolvable.errors, errorObject)
 		}
 	}
+	if l.ctx.RateLimitOptions.ErrorExtensionCode.Enabled {
+		extension, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"code":"%s"}`, l.ctx.RateLimitOptions.ErrorExtensionCode.Code))
+		if err != nil {
+			return err
+		}
+		errorObject, _, err = astjson.MergeValuesWithPath(errorObject, extension, "extensions")
+		if err != nil {
+			return err
+		}
+	}
+	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
@@ -1082,6 +1144,7 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
 	buf := &bytes.Buffer{}
+
 	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1089,6 +1152,19 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 			fetch.Trace.RawInputData, _ = l.compactJSON(inputData.MarshalTo(nil))
 		}
 	}
+
+	// When we don't have parent data it makes no sense to proceed with next fetches in a sequence
+	// Right now, it is the case only for the introspection - because introspection uses
+	// only single fetches.
+	// Having null means that the previous fetch returned null as data
+	if len(items) == 1 && items[0].Type() == astjson.TypeNull {
+		res.fetchSkipped = true
+		if l.ctx.TracingOptions.Enable {
+			fetch.Trace.LoadSkipped = true
+		}
+		return nil
+	}
+
 	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
 	if err != nil {
 		return l.renderErrorsInvalidInput(fetchItem, res.out)
