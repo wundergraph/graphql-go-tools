@@ -2,6 +2,8 @@ package astprinter
 
 import (
 	"bytes"
+	"github.com/wundergraph/graphql-go-tools/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/pkg/astparser"
 	"os"
 	"testing"
 
@@ -551,6 +553,34 @@ func TestPrintOperationDefinition(t *testing.T) {
 		}
 
 		diffview.NewGoland().DiffViewBytes("introspectionquery", fixture, out)
+	}
+}
+
+func TestPrintIndentDebug(t *testing.T) {
+	const graph = `
+	{ foo bar(id: "123") }
+`
+	parser := astparser.NewParser()
+	doc := ast.NewDocument()
+	doc.Input.ResetInputBytes([]byte(graph))
+
+	report := operationreport.Report{}
+	parser.Parse(doc, &report)
+
+	if report.HasErrors() {
+		t.Fatalf("Parser error: %s", report.Error())
+	}
+
+	var output bytes.Buffer
+	if err := PrintIndent(doc, doc, []byte("\t"), &output); err != nil {
+		t.Fatalf("PrintIndent error: %v", err)
+	}
+
+	expectedOutput := "{\n\tfoo\n\tbar(id: \"123\")\n}"
+	actualOutput := output.String()
+
+	if expectedOutput != actualOutput {
+		t.Errorf("Expected bytes: %q\nActual bytes: %q\n", expectedOutput, actualOutput)
 	}
 }
 
