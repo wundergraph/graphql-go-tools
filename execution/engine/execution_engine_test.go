@@ -5,6 +5,7 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/jensneuse/abstractlogger"
+	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -191,12 +193,28 @@ type ExecutionEngineTestCase struct {
 	fields           plan.FieldConfigurations
 	engineOptions    []ExecutionOptions
 	expectedResponse string
+	expectedFixture  string
 	customResolveMap map[string]resolve.CustomResolve
 	skipReason       string
+	indentJSON       bool
+}
+
+type _executionTestOptions struct {
+	resolvableOptions resolve.ResolvableOptions
+}
+
+type executionTestOptions func(*_executionTestOptions)
+
+func withValueCompletion() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.resolvableOptions = resolve.ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		}
+	}
 }
 
 func TestExecutionEngine_Execute(t *testing.T) {
-	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string) func(t *testing.T) {
+	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
 
 		return func(t *testing.T) {
@@ -222,8 +240,13 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
+			var opts _executionTestOptions
+			for _, option := range options {
+				option(&opts)
+			}
 			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-				MaxConcurrency: 1024,
+				MaxConcurrency:    1024,
+				ResolvableOptions: opts.resolvableOptions,
 			})
 			require.NoError(t, err)
 
@@ -233,25 +256,37 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			defer execCtxCancel()
 			err = engine.Execute(execCtx, &operation, &resultWriter, testCase.engineOptions...)
 			actualResponse := resultWriter.String()
-			assert.Equal(t, testCase.expectedResponse, actualResponse)
 
+			if testCase.indentJSON {
+				dst := new(bytes.Buffer)
+				require.NoError(t, json.Indent(dst, []byte(actualResponse), "", "  "))
+				actualResponse = dst.String()
+			}
+
+			if testCase.expectedFixture != "" {
+				g := goldie.New(t, goldie.WithFixtureDir("testdata"), goldie.WithNameSuffix(".json"))
+				g.Assert(t, testCase.expectedFixture, []byte(actualResponse))
+				return
+			}
+
+			assert.Equal(t, testCase.expectedResponse, actualResponse)
 			if withError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				if expectedErrorMessage != "" {
 					assert.Contains(t, err.Error(), expectedErrorMessage)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		}
 	}
 
-	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string) func(t *testing.T) {
-		return run(testCase, true, expectedErrorMessage)
+	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+		return run(testCase, true, expectedErrorMessage, options...)
 	}
 
-	runWithoutError := func(testCase ExecutionEngineTestCase) func(t *testing.T) {
-		return run(testCase, false, "")
+	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
+		return run(testCase, false, "", options...)
 	}
 
 	t.Run("introspection", func(t *testing.T) {
@@ -283,6 +318,37 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}
 				},
 				expectedResponse: `{"data":{"q":{"name":"Query","kind":"OBJECT","fields":[{"name":"droid"},{"name":"search"},{"name":"searchResults"}]},"h":{"name":"Human","fields":[{"name":"name"},{"name":"friends"}]}}}`,
+			},
+		))
+
+		t.Run("execute type introspection query with typenames", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "myIntrospection",
+						Query: `
+							query myIntrospection(){
+								q: __type(name: "Query") {
+									__typename
+									name
+									kind
+									fields {
+										__typename
+										name
+									}
+								}
+								h: __type(name: "Human") {
+									name
+									fields {
+										name
+									}
+								}
+							}
+						`,
+					}
+				},
+				expectedResponse: `{"data":{"q":{"__typename":"__Type","name":"Query","kind":"OBJECT","fields":[{"__typename":"__Field","name":"droid"},{"__typename":"__Field","name":"search"},{"__typename":"__Field","name":"searchResults"}]},"h":{"name":"Human","fields":[{"name":"name"},{"name":"friends"}]}}}`,
 			},
 		))
 
@@ -336,7 +402,19 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQuery)
 				},
-				expectedResponse: `{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":{"name":"Mutation"},"subscriptionType":{"name":"Subscription"},"types":[{"kind":"UNION","name":"SearchResult","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null},{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Query","description":"","fields":[{"name":"hero","description":"","args":[],"type":{"kind":"INTERFACE","name":"Character","ofType":null},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"droid","description":"","args":[{"name":"id","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Droid","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"search","description":"","args":[{"name":"name","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"defaultValue":null}],"type":{"kind":"UNION","name":"SearchResult","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"searchResults","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"UNION","name":"SearchResult","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Mutation","description":"","fields":[{"name":"createReview","description":"","args":[{"name":"episode","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"ENUM","name":"Episode","ofType":null}},"defaultValue":null},{"name":"review","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"INPUT_OBJECT","name":"ReviewInput","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Review","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Subscription","description":"","fields":[{"name":"remainingJedis","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"INPUT_OBJECT","name":"ReviewInput","description":"","fields":null,"inputFields":[{"name":"stars","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"defaultValue":null},{"name":"commentary","description":"","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":null}],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Review","description":"","fields":[{"name":"id","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"stars","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"commentary","description":"","args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"ENUM","name":"Episode","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":[{"name":"NEWHOPE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"EMPIRE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"JEDI","description":"","isDeprecated":true,"deprecationReason":"No longer supported"}],"possibleTypes":[]},{"kind":"INTERFACE","name":"Character","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null}]},{"kind":"OBJECT","name":"Human","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"height","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Droid","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"primaryFunction","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"INTERFACE","name":"Vehicle","description":"","fields":[{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Starship","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Vehicle","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Int","description":"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Float","description":"The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"String","description":"The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Boolean","description":"The 'Boolean' scalar type represents 'true' or 'false' .","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"ID","description":"The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]}],"directives":[{"name":"include","description":"Directs the executor to include this field or fragment only when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Included when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"skip","description":"Directs the executor to skip this field or fragment when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Skipped when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"deprecated","description":"Marks an element of a GraphQL schema as no longer supported.","locations":["FIELD_DEFINITION","ENUM_VALUE"],"args":[{"name":"reason","description":"Explains why this element was deprecated, usually also including a suggestion\n    for how to access supported similar data. Formatted in\n    [Markdown](https://daringfireball.net/projects/markdown/).","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":"\"No longer supported\""}]}]}}}`,
+				expectedFixture: "full_introspection",
+				indentJSON:      true,
+			},
+		))
+
+		t.Run("execute full introspection query with typenames", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQueryWithTypenames)
+				},
+				expectedFixture: "full_introspection_with_typenames",
+				indentJSON:      true,
 			},
 		))
 	})
@@ -354,6 +432,54 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedPath:     "/",
 							expectedBody:     "",
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+	))
+
+	t.Run("execute simple hero operation with graphql data source and empty errors list", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}, "errors": []}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -694,7 +820,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		expectedResponse: `{"data":{"heroes":[]}}`,
 	}))
 
-	t.Run("execute operation with null variable on required type", runWithoutError(ExecutionEngineTestCase{
+	t.Run("execute operation with null variable on required type", runWithAndCompareError(ExecutionEngineTestCase{
 		schema: func(t *testing.T) *graphql.Schema {
 			t.Helper()
 			schema := `
@@ -749,7 +875,74 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				},
 			},
 		},
-		expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph at Path 'query', Reason: no data or errors in response."},{"message":"Cannot return null for non-nullable field 'Query.hero'.","path":["hero"]}],"data":null}`,
+	},
+		`Variable "$heroName" got invalid value null; Expected non-nullable type "String!" not to be null.`,
+	))
+
+	t.Run("execute operation with all fields skipped", runWithoutError(ExecutionEngineTestCase{
+		schema: func(t *testing.T) *graphql.Schema {
+			t.Helper()
+			schema := `
+			type Query {
+				hero(name: String!): String!
+			}`
+			parseSchema, err := graphql.NewSchemaFromString(schema)
+			require.NoError(t, err)
+			return parseSchema
+		}(t),
+		operation: func(t *testing.T) graphql.Request {
+			return graphql.Request{
+				OperationName: "MyHero",
+				Variables:     []byte(`{"heroName": null}`),
+				Query: `query MyHero($heroName: String!){
+						hero(name: $heroName) @skip(if: true)
+					}`,
+			}
+		},
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "example.com",
+						expectedPath:     "/",
+						expectedBody:     "",
+						sendResponseBody: `{"data":{"__internal__typename_placeholder":"Query"}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{TypeName: "Query", FieldNames: []string{"hero"}},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://example.com/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						`type Query { hero(name: String!): String! }`,
+					),
+				}),
+			),
+		},
+		fields: []plan.FieldConfiguration{
+			{
+				TypeName:  "Query",
+				FieldName: "hero",
+				Path:      []string{"hero"},
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "name",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+		},
+		expectedResponse: `{"data":{}}`,
 	}))
 
 	t.Run("execute operation and apply input coercion for lists without variables", runWithoutError(ExecutionEngineTestCase{
@@ -1417,6 +1610,2135 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			expectedResponse: `{"data":{"searchResults":[{},{}]}}`,
 		},
 	))
+
+	t.Run("invalid and inaccessible enum values", func(t *testing.T) {
+		schema, err := graphql.NewSchemaFromString(enumSDL)
+		require.NoError(t, err)
+
+		t.Run("invalid non-nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							enum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"INVALID"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"A"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("nested invalid non-nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nestedEnums {
+								enum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"INVALID"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enum":"A"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("invalid nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum) {
+							nullableEnum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"INVALID"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"INVALID"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("nested invalid nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum) {
+							nestedEnums {
+								nullableEnum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"INVALID"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnum":"A"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INVALID"; Value "INVALID" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("invalid non-string enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum {
+							nullableEnum
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnum":1}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: 1","path":["nullableEnum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`,
+			},
+		))
+
+		t.Run("nested invalid non-string enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum) {
+							nestedEnums {
+								nullableEnum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnum":1}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: 1","path":["nestedEnums","nullableEnum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`,
+			},
+		))
+
+		t.Run("invalid non-nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							enum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"INVALID"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["enum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`,
+			},
+		))
+
+		t.Run("nested invalid non-nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nestedEnums {
+								enum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enum":"INVALID"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["nestedEnums","enum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`,
+			},
+		))
+
+		t.Run("invalid nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nullableEnum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnum":"INVALID"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["nullableEnum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":{"nullableEnum":null}}`,
+			},
+		))
+
+		t.Run("nested invalid nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum) {
+							nestedEnums {
+								nullableEnum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnum":"INVALID"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["nestedEnums","nullableEnum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":{"nestedEnums":{"nullableEnum":null}}}`,
+			},
+		))
+
+		t.Run("invalid non-nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							enums
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enums":["A","B","INVALID"]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["enums",2],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`,
+			},
+		))
+
+		t.Run("nested invalid non-nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nestedEnums {
+								enums
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enums":["A","B","INVALID"]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["nestedEnums","enums",2],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`,
+			},
+		))
+
+		t.Run("invalid nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nullableEnums
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnums":["A","INVALID","B"]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["nullableEnums",1],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":{"nullableEnums":["A",null,"B"]}}`,
+			},
+		))
+
+		t.Run("nested invalid nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nestedEnums {
+								nullableEnums
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnums":["A","INVALID","B"]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"INVALID\"","path":["nestedEnums","nullableEnums",1],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":{"nestedEnums":{"nullableEnums":["A",null,"B"]}}}`,
+			},
+		))
+
+		t.Run("inaccessible non-nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							enum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"INACCESSIBLE"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"A"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("nested inaccessible non-nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nestedEnums {
+								enum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"INACCESSIBLE"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enum":"A"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("inaccessible nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum) {
+							nullableEnum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"INACCESSIBLE"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"INVALID"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("nested inaccessible nullable enum input", run(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum) {
+							nestedEnums {
+								nullableEnum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"INACCESSIBLE"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnum":"A"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: ``,
+			}, true, `Variable "$enum" got invalid value "INACCESSIBLE"; Value "INACCESSIBLE" does not exist in "Enum" enum.`,
+		))
+
+		t.Run("inaccessible non-nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							enum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"INACCESSIBLE"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`,
+			},
+		))
+
+		t.Run("inaccessible non-nullable enum value apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							enum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enum":"INACCESSIBLE"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("nested inaccessible non-nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nestedEnums {
+								enum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enum":"INACCESSIBLE"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for field Object.enum.","path":["nestedEnums","enum"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`,
+			},
+		))
+
+		t.Run("nested inaccessible non-nullable enum value apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nestedEnums {
+								enum(enum: $enum)
+							}
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enum":"INACCESSIBLE"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Object",
+						FieldName: "enum",
+						Path:      []string{"enum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for field Object.enum.","path":["nestedEnums","enum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("inaccessible nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nullableEnum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnum":"INACCESSIBLE"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for field Query.nullableEnum.","path":["nullableEnum"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableEnum":null}}`,
+			},
+		))
+
+		t.Run("inaccessible nullable enum value apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum($enum: Enum!) {
+							nullableEnum(enum: $enum)
+						}`,
+						Variables: []byte(`{"enum":"A"}`),
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnum":"INACCESSIBLE"}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields: []plan.FieldConfiguration{
+					{
+						TypeName:  "Query",
+						FieldName: "nullableEnum",
+						Path:      []string{"nullableEnum"},
+						Arguments: []plan.ArgumentConfiguration{
+							{
+								Name:         "enum",
+								SourceType:   plan.FieldArgumentSource,
+								RenderConfig: plan.RenderArgumentAsGraphQLValue,
+							},
+						},
+					},
+				},
+				expectedResponse: `{"data":{"nullableEnum":null},"extensions":{"valueCompletion":[{"message":"Invalid value found for field Query.nullableEnum.","path":["nullableEnum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("nested inaccessible nullable enum value", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum {
+							nestedEnums {
+								nullableEnum
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnum":"INACCESSIBLE"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for field Object.nullableEnum.","path":["nestedEnums","nullableEnum"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nestedEnums":{"nullableEnum":null}}}`,
+			},
+		))
+
+		t.Run("nested inaccessible nullable enum value apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enum",
+						Query: `query Enum {
+							nestedEnums {
+								nullableEnum
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnum":"INACCESSIBLE"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnum"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"nestedEnums":{"nullableEnum":null}},"extensions":{"valueCompletion":[{"message":"Invalid value found for field Object.nullableEnum.","path":["nestedEnums","nullableEnum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("inaccessible non-nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							enums
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enums":["INACCESSIBLE","A","B"]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for array element of type Enum at index 0.","path":["enums",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`,
+			},
+		))
+
+		t.Run("inaccessible non-nullable enum value returned by list apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							enums
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"enums":["INACCESSIBLE","A","B"]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"enums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for array element of type Enum at index 0.","path":["enums",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("nested inaccessible non-nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nestedEnums {
+								enums
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enums":["A","INACCESSIBLE","B"]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for array element of type Enum at index 1.","path":["nestedEnums","enums",1],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`,
+			},
+		))
+
+		t.Run("nested inaccessible non-nullable enum value returned by list apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nestedEnums {
+								enums
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"enums":["A","B","INACCESSIBLE"]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"enums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for array element of type Enum at index 2.","path":["nestedEnums","enums",2],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("inaccessible nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nullableEnums
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnums":["INACCESSIBLE","A","B"]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for array element of type Enum at index 0.","path":["nullableEnums",0],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nullableEnums":[null,"A","B"]}}`,
+			},
+		))
+
+		t.Run("inaccessible nullable enum value returned by list apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nullableEnums
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nullableEnums":["INACCESSIBLE","A","B"]}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nullableEnums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"nullableEnums":[null,"A","B"]},"extensions":{"valueCompletion":[{"message":"Invalid value found for array element of type Enum at index 0.","path":["nullableEnums",0],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+
+		t.Run("nested inaccessible nullable enum value returned by list", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nestedEnums {
+								nullableEnums
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnums":["A","INACCESSIBLE","B"]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"errors":[{"message":"Invalid value found for array element of type Enum at index 1.","path":["nestedEnums","nullableEnums",1],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":{"nestedEnums":{"nullableEnums":["A",null,"B"]}}}`,
+			},
+		))
+
+		t.Run("nested inaccessible nullable enum value returned by list apollo compatibility mode", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Enums",
+						Query: `query Enums {
+							nestedEnums {
+								nullableEnums
+							}
+						}`,
+					}
+				},
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"nestedEnums":{"nullableEnums":["A","B","INACCESSIBLE"]}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"nestedEnums"},
+								},
+							},
+							ChildNodes: []plan.TypeField{
+								{
+									TypeName:   "Object",
+									FieldNames: []string{"nullableEnums"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								&graphql_datasource.FederationConfiguration{
+									Enabled:    true,
+									ServiceSDL: enumSDL,
+								},
+								enumSDL,
+							),
+						}),
+					),
+				},
+				fields:           []plan.FieldConfiguration{},
+				expectedResponse: `{"data":{"nestedEnums":{"nullableEnums":["A","B",null]}},"extensions":{"valueCompletion":[{"message":"Invalid value found for array element of type Enum at index 2.","path":["nestedEnums","nullableEnums",2],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`,
+			},
+			withValueCompletion(),
+		))
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
@@ -2165,4 +4487,27 @@ const testSubscriptionLiveUserCountOperation = `
 subscription LiveUserCount {
 	liveUserCount
 }
+`
+
+const enumSDL = `
+	type Query {
+		enum(enum: Enum!): Enum!
+		enums: [Enum!]!
+		nullableEnum(enum: Enum): Enum
+		nullableEnums: [Enum]!
+		nestedEnums: Object!
+	}
+	
+	enum Enum {
+		A
+		B 
+		INACCESSIBLE @inaccessible
+	}
+
+	type Object {
+		enum(enum: Enum!): Enum!
+		nullableEnum(enum: Enum): Enum
+		enums: [Enum!]!
+		nullableEnums: [Enum]!
+	}
 `

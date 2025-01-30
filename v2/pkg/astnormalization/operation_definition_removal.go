@@ -32,6 +32,9 @@ func (r *removeOperationDefinitionsVisitor) EnterOperationDefinition(ref int) {
 	if !bytes.Equal(r.operation.OperationDefinitionNameBytes(ref), r.operationName) {
 		r.operationsToRemove[ref] = struct{}{}
 	}
+
+	// we do not want to visit the children of the operation definition
+	r.Walker.SkipNode()
 }
 
 func (r *removeOperationDefinitionsVisitor) LeaveDocument(operation, definition *ast.Document) {

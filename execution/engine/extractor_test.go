@@ -25,9 +25,8 @@ func TestExtractor_ExtractFieldsFromRequest(t *testing.T) {
 	graphql.NewExtractor().ExtractFieldsFromRequest(&request, schema, &report, fields)
 
 	expectedFields := graphql.RequestTypes{
-		"Foo":   {"fooField": {}},
 		"Post":  {"description": {}, "id": {}, "user": {}},
-		"Query": {"foo": {}, "posts": {}},
+		"Query": {"posts": {}},
 		"User":  {"id": {}, "name": {}},
 	}
 

@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -25,19 +26,32 @@ func RequiredFieldsFragment(typeName, requiredFields string, includeTypename boo
 	return &key, &report
 }
 
+func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string) (*ast.Document, *operationreport.Report) {
+	var fragment string
+	if fieldName == "" {
+		fragment = fmt.Sprintf("fragment Key on %s { __typename %s }", typeName, requiredFields)
+	} else {
+		fragment = fmt.Sprintf("fragment Requires_for_%s on %s { %s }", fieldName, typeName, requiredFields)
+	}
+	key, report := astparser.ParseGraphqlDocumentString(fragment)
+	return &key, &report
+}
+
 type addRequiredFieldsInput struct {
-	key, operation, definition *ast.Document
-	report                     *operationreport.Report
-	operationSelectionSet      int
+	key, operation, definition   *ast.Document
+	report                       *operationreport.Report
+	operationSelectionSet        int
+	isTypeNameForEntityInterface bool
 }
 
 func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.WalkerFromPool()
+	defer walker.Release()
 
 	importer := &astimport.Importer{}
 
 	visitor := &requiredFieldsVisitor{
-		Walker:            &walker,
+		Walker:            walker,
 		input:             input,
 		importer:          importer,
 		skipFieldRefs:     make([]int, 0, 2),
@@ -123,7 +137,12 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 
 	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 	if operationHasField {
-		v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+		// we are skipping adding __typename field to the required fields,
+		// because we want to depend only on the regular key fields, not the __typename field
+		// for entity interface we need real typename, so we use this dependency
+		if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
+			v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+		}
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
@@ -175,7 +194,12 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	v.input.operation.AddSelection(selectionSet, selection)
 
 	v.skipFieldRefs = append(v.skipFieldRefs, addedField.Ref)
-	v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+
+	// we are skipping adding __typename field to the required fields,
+	// because we want to depend only on the regular key fields, not the __typename field
+	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
+		v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+	}
 
 	return addedField
 }

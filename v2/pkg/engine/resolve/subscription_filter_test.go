@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wundergraph/astjson"
 )
 
 func TestSubscriptionFilter(t *testing.T) {
@@ -27,7 +28,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":true}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":true}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
@@ -54,7 +55,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"false"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"false"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
@@ -81,7 +82,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"true"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"true"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
@@ -90,7 +91,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.Equal(t, true, skip)
 
 		c = &Context{
-			Variables: []byte(`{"var":true}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":true}`)),
 		}
 		buf = &bytes.Buffer{}
 		data = []byte(`{"event":"true"}`)
@@ -117,7 +118,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":1.13}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":1.13}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":1.13}`)
@@ -144,7 +145,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"1.13"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"1.13"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":1.13}`)
@@ -153,7 +154,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.Equal(t, true, skip)
 
 		c = &Context{
-			Variables: []byte(`{"var":1.13}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":1.13}`)),
 		}
 		buf = &bytes.Buffer{}
 		data = []byte(`{"event":"1.13"}`)
@@ -180,7 +181,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":49}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":49}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":49}`)
@@ -207,7 +208,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"49"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"49"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":49}`)
@@ -216,7 +217,7 @@ func TestSubscriptionFilter(t *testing.T) {
 		assert.Equal(t, true, skip)
 
 		c = &Context{
-			Variables: []byte(`{"var":49}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":49}`)),
 		}
 		buf = &bytes.Buffer{}
 		data = []byte(`{"event":"49"}`)
@@ -243,7 +244,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"9.77"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"9.77"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":8.01}`)
@@ -270,7 +271,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":123}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":123}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":321}`)
@@ -297,7 +298,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":true}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":true}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":true}`)
@@ -324,7 +325,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":["a","b"]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":["a","b"]}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"c"}`)
@@ -351,7 +352,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":[1,"2"]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":[1,"2"]}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":2}`)
@@ -378,7 +379,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":["a","b","c"]}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":["a","b","c"]}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"c"}`)
@@ -407,7 +408,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"b"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"b"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"b"}`)
@@ -436,7 +437,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"var":"b"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"var":"b"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"event":"c"}`)
@@ -484,7 +485,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"b","second":"c"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"first":"b","second":"c"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
@@ -582,7 +583,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"id":1}`),
+			Variables: astjson.MustParseBytes([]byte(`{"id":1}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":1,"eventY":"c"}`)
@@ -657,7 +658,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"d","second":"c"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"first":"d","second":"c"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
@@ -705,7 +706,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"b","unused":"c"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"first":"b","unused":"c"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
@@ -753,7 +754,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"b","second":"c"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"first":"b","second":"c"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
@@ -801,7 +802,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"first":"b","unused":"c"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"first":"b","unused":"c"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
@@ -849,7 +850,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"third":"b","second":"c","fourth":1}`),
+			Variables: astjson.MustParseBytes([]byte(`{"third":"b","second":"c","fourth":1}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c","fourth":1}`)
@@ -897,7 +898,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"third":"b","second":"c"}`),
+			Variables: astjson.MustParseBytes([]byte(`{"third":"b","second":"c"}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c"}`)
@@ -952,7 +953,7 @@ func TestSubscriptionFilter(t *testing.T) {
 			},
 		}
 		c := &Context{
-			Variables: []byte(`{"third":"b","second":"c","fourth":1}`),
+			Variables: astjson.MustParseBytes([]byte(`{"third":"b","second":"c","fourth":1}`)),
 		}
 		buf := &bytes.Buffer{}
 		data := []byte(`{"eventX":"b","eventY":"c1","fourth":1}`)

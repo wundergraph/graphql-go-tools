@@ -7,26 +7,37 @@ import (
 	goerrors "errors"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
+const invalidPath = "invalid path"
+
 type Resolvable struct {
-	storage            *astjson.JSON
-	dataRoot           int
-	errorsRoot         int
-	variablesRoot      int
+	options ResolvableOptions
+
+	data                 *astjson.Value
+	errors               *astjson.Value
+	valueCompletion      *astjson.Value
+	skipAddingNullErrors bool
+
+	astjsonArena *astjson.Arena
+	parsers      []*astjson.Parser
+
 	print              bool
 	out                io.Writer
 	printErr           error
-	path               []astjson.PathElement
+	path               []fastjsonext.PathElement
 	depth              int
 	operationType      ast.OperationType
 	renameTypeNames    []RenameTypeName
@@ -36,32 +47,45 @@ type Resolvable struct {
 	authorizationAllow map[uint64]struct{}
 	authorizationDeny  map[uint64]string
 
-	authorizationBuf          *bytes.Buffer
-	authorizationBufObjectRef int
-
-	wroteErrors bool
-	wroteData   bool
+	wroteErrors         bool
+	wroteData           bool
+	skipValueCompletion bool
 
 	typeNames [][]byte
+
+	marshalBuf []byte
+
+	enclosingTypeNames []string
 }
 
-func NewResolvable() *Resolvable {
+type ResolvableOptions struct {
+	ApolloCompatibilityValueCompletionInExtensions  bool
+	ApolloCompatibilityTruncateFloatValues          bool
+	ApolloCompatibilitySuppressFetchErrors          bool
+	ApolloCompatibilityReplaceUndefinedOpFieldError bool
+	ApolloCompatibilityReplaceInvalidVarError       bool
+}
+
+func NewResolvable(options ResolvableOptions) *Resolvable {
 	return &Resolvable{
-		storage:            &astjson.JSON{},
+		options:            options,
 		xxh:                xxhash.New(),
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
+		astjsonArena:       &astjson.Arena{},
 	}
 }
 
 func (r *Resolvable) Reset() {
-	r.storage.Reset()
+	r.parsers = r.parsers[:0]
 	r.typeNames = r.typeNames[:0]
+	r.enclosingTypeNames = r.enclosingTypeNames[:0]
 	r.wroteErrors = false
 	r.wroteData = false
-	r.dataRoot = -1
-	r.errorsRoot = -1
-	r.variablesRoot = -1
+	r.skipValueCompletion = false
+	r.data = nil
+	r.errors = nil
+	r.valueCompletion = nil
 	r.depth = 0
 	r.print = false
 	r.out = nil
@@ -70,8 +94,8 @@ func (r *Resolvable) Reset() {
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
+	r.astjsonArena.Reset()
 	r.xxh.Reset()
-	r.authorizationBufObjectRef = -1
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
 	}
@@ -84,12 +108,14 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(initialData)
-	if err != nil {
-		return
-	}
-	if len(ctx.Variables) != 0 {
-		r.variablesRoot, err = r.storage.AppendAnyJSONBytes(ctx.Variables)
+	r.data = r.astjsonArena.NewObject()
+	r.errors = r.astjsonArena.NewArray()
+	if initialData != nil {
+		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
+		if err != nil {
+			return err
+		}
+		r.data, _ = astjson.MergeValues(r.data, initialValue)
 	}
 	return
 }
@@ -98,42 +124,81 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
-	if len(ctx.Variables) != 0 {
-		r.variablesRoot, err = r.storage.AppendObject(ctx.Variables)
+	if initialData != nil {
+		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
 		if err != nil {
-			return
+			return err
+		}
+		if postProcessing.SelectResponseDataPath == nil {
+			r.data, _ = astjson.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+		} else {
+			selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
+			if selectedInitialValue != nil {
+				r.data, _ = astjson.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+			}
+		}
+		if postProcessing.SelectResponseErrorsPath != nil {
+			selectedInitialErrors := initialValue.Get(postProcessing.SelectResponseErrorsPath...)
+			if selectedInitialErrors != nil {
+				r.errors = selectedInitialErrors
+			}
 		}
 	}
-	r.dataRoot, r.errorsRoot, err = r.storage.InitResolvable(nil)
-	if err != nil {
-		return
+	if r.data == nil {
+		r.data = r.astjsonArena.NewObject()
 	}
-	raw, err := r.storage.AppendObject(initialData)
-	if err != nil {
-		return err
-	}
-	data := r.storage.Get(raw, postProcessing.SelectResponseDataPath)
-	if r.storage.NodeIsDefined(data) {
-		r.storage.MergeNodesWithPath(r.dataRoot, data, postProcessing.MergePath)
-	}
-	errs := r.storage.Get(raw, postProcessing.SelectResponseErrorsPath)
-	if r.storage.NodeIsDefined(errs) {
-		r.storage.MergeArrays(r.errorsRoot, errs)
+	if r.errors == nil {
+		r.errors = r.astjsonArena.NewArray()
 	}
 	return
 }
 
-func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *Object, out io.Writer) error {
+func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) error {
+	r.out = out
+	r.print = false
+	r.printErr = nil
+	r.authorizationError = nil
+	r.errors = r.astjsonArena.NewArray()
+
+	hasErrors := r.walkNode(node, data)
+	if hasErrors {
+		return fmt.Errorf("error resolving node")
+	}
+
+	r.print = true
+	hasErrors = r.walkNode(node, data)
+	if hasErrors {
+		return fmt.Errorf("error resolving node: %w", r.printErr)
+	}
+	return nil
+}
+
+func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *FetchTreeNode, out io.Writer) error {
 	r.out = out
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
 
-	/* @TODO: In the event of an error or failed fetch, propagate only the highest level errors.
-	 * For example, if a fetch fails, only propagate that the fetch has failed; do not propagate nested non-null errors.
-	 */
+	if r.ctx.ExecutionOptions.SkipLoader {
+		// we didn't resolve any data, so there's no point in generating errors
+		// the goal is to only render extensions, e.g. to expose the query plan
+		r.printBytes(lBrace)
+		r.printBytes(quote)
+		r.printBytes(literalData)
+		r.printBytes(quote)
+		r.printBytes(colon)
+		r.printBytes(null)
+		if r.hasExtensions() {
+			r.printBytes(comma)
+			r.printErr = r.printExtensions(ctx, fetchTree)
+		}
+		r.printBytes(rBrace)
+		return r.printErr
+	}
 
-	err := r.walkObject(rootData, r.dataRoot)
+	r.skipAddingNullErrors = r.hasErrors() && !r.hasData()
+
+	hasErrors := r.walkObject(rootData, r.data)
 	if r.authorizationError != nil {
 		return r.authorizationError
 	}
@@ -142,7 +207,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *O
 		r.printErrors()
 	}
 
-	if err {
+	if hasErrors {
 		r.printBytes(quote)
 		r.printBytes(literalData)
 		r.printBytes(quote)
@@ -156,8 +221,14 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *O
 		r.printErr = r.printExtensions(ctx, fetchTree)
 	}
 	r.printBytes(rBrace)
-
 	return r.printErr
+}
+
+func (r *Resolvable) enclosingTypeName() string {
+	if len(r.enclosingTypeNames) > 0 {
+		return r.enclosingTypeNames[len(r.enclosingTypeNames)-1]
+	}
+	return ""
 }
 
 func (r *Resolvable) err() bool {
@@ -169,7 +240,7 @@ func (r *Resolvable) printErrors() {
 	r.printBytes(literalErrors)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printNode(r.errorsRoot)
+	r.printNode(r.errors)
 	r.printBytes(comma)
 	r.wroteErrors = true
 }
@@ -181,13 +252,13 @@ func (r *Resolvable) printData(root *Object) {
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 	r.print = true
-	_ = r.walkObject(root, r.dataRoot)
+	_ = r.walkObject(root, r.data)
 	r.print = false
 	r.printBytes(rBrace)
 	r.wroteData = true
 }
 
-func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *Object) error {
+func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNode) error {
 	r.printBytes(quote)
 	r.printBytes(literalExtensions)
 	r.printBytes(quote)
@@ -217,11 +288,34 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *Object) err
 		}
 	}
 
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true
+		err := r.printQueryPlanExtension(fetchTree)
+		if err != nil {
+			return err
+		}
+	}
+
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
 		}
+		writeComma = true
 		err := r.printTraceExtension(ctx, fetchTree)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !r.skipValueCompletion && r.valueCompletion != nil {
+		if writeComma {
+			r.printBytes(comma)
+		}
+		writeComma = true //nolint:all // should we add another print func, we should not forget to write a comma
+		err := r.printValueCompletionExtension()
 		if err != nil {
 			return err
 		}
@@ -247,14 +341,9 @@ func (r *Resolvable) printRateLimitingExtension() error {
 	return r.ctx.rateLimiter.RenderResponseExtension(r.ctx, r.out)
 }
 
-func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *Object) error {
-	var trace *TraceNode
-	if r.ctx.TracingOptions.Debug {
-		trace = GetTrace(ctx, fetchTree, GetTraceDebug())
-	} else {
-		trace = GetTrace(ctx, fetchTree)
-	}
-	traceData, err := json.Marshal(trace)
+func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *FetchTreeNode) error {
+	trace := GetTrace(ctx, fetchTree)
+	content, err := json.Marshal(trace)
 	if err != nil {
 		return err
 	}
@@ -262,7 +351,30 @@ func (r *Resolvable) printTraceExtension(ctx context.Context, fetchTree *Object)
 	r.printBytes(literalTrace)
 	r.printBytes(quote)
 	r.printBytes(colon)
-	r.printBytes(traceData)
+	r.printBytes(content)
+	return nil
+}
+
+func (r *Resolvable) printQueryPlanExtension(fetchTree *FetchTreeNode) error {
+	queryPlan := fetchTree.QueryPlan()
+	content, err := json.Marshal(queryPlan)
+	if err != nil {
+		return err
+	}
+	r.printBytes(quote)
+	r.printBytes(literalQueryPlan)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printBytes(content)
+	return nil
+}
+
+func (r *Resolvable) printValueCompletionExtension() error {
+	r.printBytes(quote)
+	r.printBytes(literalValueCompletion)
+	r.printBytes(quote)
+	r.printBytes(colon)
+	r.printNode(r.valueCompletion)
 	return nil
 }
 
@@ -276,6 +388,12 @@ func (r *Resolvable) hasExtensions() bool {
 	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		return true
 	}
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+		return true
+	}
+	if !r.skipValueCompletion && r.valueCompletion != nil {
+		return true
+	}
 	return false
 }
 
@@ -284,18 +402,25 @@ func (r *Resolvable) WroteErrorsWithoutData() bool {
 }
 
 func (r *Resolvable) hasErrors() bool {
-	return r.storage.NodeIsDefined(r.errorsRoot) &&
-		len(r.storage.Nodes[r.errorsRoot].ArrayValues) > 0
+	if r.errors == nil {
+		return false
+	}
+	values, err := r.errors.Array()
+	if err != nil {
+		return false
+	}
+	return len(values) > 0
 }
 
 func (r *Resolvable) hasData() bool {
-	if !r.storage.NodeIsDefined(r.dataRoot) {
+	if r.data == nil {
 		return false
 	}
-	if r.storage.Nodes[r.dataRoot].Kind != astjson.NodeKindObject {
+	obj, err := r.data.Object()
+	if err != nil {
 		return false
 	}
-	return len(r.storage.Nodes[r.dataRoot].ObjectFields) > 0
+	return obj.Len() > 0
 }
 
 func (r *Resolvable) printBytes(b []byte) {
@@ -305,16 +430,17 @@ func (r *Resolvable) printBytes(b []byte) {
 	_, r.printErr = r.out.Write(b)
 }
 
-func (r *Resolvable) printNode(ref int) {
+func (r *Resolvable) printNode(value *astjson.Value) {
 	if r.printErr != nil {
 		return
 	}
-	r.printErr = r.storage.PrintNode(r.storage.Nodes[ref], r.out)
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	_, r.printErr = r.out.Write(r.marshalBuf)
 }
 
 func (r *Resolvable) pushArrayPathElement(index int) {
-	r.path = append(r.path, astjson.PathElement{
-		ArrayIndex: index,
+	r.path = append(r.path, fastjsonext.PathElement{
+		Idx: index,
 	})
 }
 
@@ -325,7 +451,7 @@ func (r *Resolvable) popArrayPathElement() {
 func (r *Resolvable) pushNodePathElement(path []string) {
 	r.depth++
 	for i := range path {
-		r.path = append(r.path, astjson.PathElement{
+		r.path = append(r.path, fastjsonext.PathElement{
 			Name: path[i],
 		})
 	}
@@ -336,84 +462,103 @@ func (r *Resolvable) popNodePathElement(path []string) {
 	r.depth--
 }
 
-func (r *Resolvable) walkNode(node Node, ref int) bool {
+func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 	if r.authorizationError != nil {
 		return true
 	}
-	if r.print {
-		r.ctx.Stats.ResolvedNodes++
-	}
 	switch n := node.(type) {
 	case *Object:
-		return r.walkObject(n, ref)
+		return r.walkObject(n, value)
 	case *Array:
-		return r.walkArray(n, ref)
+		return r.walkArray(n, value)
 	case *Null:
 		return r.walkNull()
 	case *String:
-		return r.walkString(n, ref)
+		return r.walkString(n, value)
 	case *Boolean:
-		return r.walkBoolean(n, ref)
+		return r.walkBoolean(n, value)
 	case *Integer:
-		return r.walkInteger(n, ref)
+		return r.walkInteger(n, value)
 	case *Float:
-		return r.walkFloat(n, ref)
+		return r.walkFloat(n, value)
 	case *BigInt:
-		return r.walkBigInt(n, ref)
+		return r.walkBigInt(n, value)
 	case *Scalar:
-		return r.walkScalar(n, ref)
+		return r.walkScalar(n, value)
 	case *EmptyObject:
 		return r.walkEmptyObject(n)
 	case *EmptyArray:
 		return r.walkEmptyArray(n)
 	case *CustomNode:
-		return r.walkCustom(n, ref)
+		return r.walkCustom(n, value)
+	case *Enum:
+		return r.walkEnum(n, value)
 	default:
 		return false
 	}
 }
 
-func (r *Resolvable) walkObject(obj *Object, ref int) bool {
-	ref = r.storage.Get(ref, obj.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
+	r.enclosingTypeNames = append(r.enclosingTypeNames, obj.TypeName)
+	defer func() {
+		r.enclosingTypeNames = r.enclosingTypeNames[:len(r.enclosingTypeNames)-1]
+	}()
+	value := parent.Get(obj.Path...)
+	if value == nil || value.Type() == astjson.TypeNull {
 		if obj.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, obj.Path)
+		r.addNonNullableFieldError(obj.Path, parent)
 		return r.err()
 	}
 	r.pushNodePathElement(obj.Path)
 	isRoot := r.depth < 2
 	defer r.popNodePathElement(obj.Path)
-
-	if r.storage.Nodes[ref].Kind == astjson.NodeKindNull {
-		return r.walkNull()
-	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindObject {
+	if value.Type() != astjson.TypeObject {
 		r.addError("Object cannot represent non-object value.", obj.Path)
 		return r.err()
 	}
+
+	typeName := value.GetStringBytes("__typename")
+	if typeName != nil && len(obj.PossibleTypes) > 0 {
+		// when we have a typename field present in a json object, we need to check if the type is valid
+
+		if _, ok := obj.PossibleTypes[string(typeName)]; !ok {
+			if !r.print {
+				// during pre-walk we need to add an error when the typename do not match a possible type
+				if r.options.ApolloCompatibilityValueCompletionInExtensions {
+					r.addValueCompletion(fmt.Sprintf("Invalid __typename found for object at %s.", r.pathLastElementDescription(obj.TypeName)), errorcodes.InvalidGraphql)
+				} else {
+					r.addErrorWithCode(fmt.Sprintf("Subgraph '%s' returned invalid value '%s' for __typename field.", obj.SourceName, string(typeName)), errorcodes.InvalidGraphql)
+				}
+
+				// if object is not nullable at pre-walk we need to return an error
+				// to immediately stop the resolving of the current object and bubble up null
+				if !obj.Nullable {
+					return r.err()
+				}
+
+				// if object is nullable we can just set it to null
+				// so return no error here
+				return false
+			} else {
+				// at print walk we will render the object to null if it was nullable
+				// in case it is not nullable - we already reported an error and won't walk this object again
+				return r.walkNull()
+			}
+		}
+	}
+
 	if r.print && !isRoot {
 		r.printBytes(lBrace)
-		r.ctx.Stats.ResolvedObjects++
 	}
 	addComma := false
-	typeName := r.getObjectTypeName(ref)
+
 	r.typeNames = append(r.typeNames, typeName)
 	defer func() {
 		r.typeNames = r.typeNames[:len(r.typeNames)-1]
 	}()
 	for i := range obj.Fields {
-		if obj.Fields[i].SkipDirectiveDefined {
-			if r.skipField(obj.Fields[i].SkipVariableName) {
-				continue
-			}
-		}
-		if obj.Fields[i].IncludeDirectiveDefined {
-			if r.excludeField(obj.Fields[i].IncludeVariableName) {
-				continue
-			}
-		}
 		if obj.Fields[i].ParentOnTypeNames != nil {
 			if r.skipFieldOnParentTypeNames(obj.Fields[i]) {
 				continue
@@ -425,19 +570,21 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 			}
 		}
 		if !r.print {
-			skip := r.authorizeField(ref, obj.Fields[i])
+			skip := r.authorizeField(value, obj.Fields[i])
 			if skip {
 				if obj.Fields[i].Value.NodeNullable() {
 					// if the field value is nullable, we can just set it to null
 					// we already set an error in authorizeField
-					field := r.storage.Get(ref, obj.Fields[i].Value.NodePath())
-					if r.storage.NodeIsDefined(field) {
-						r.storage.Nodes[field].Kind = astjson.NodeKindNull
+					path := obj.Fields[i].Value.NodePath()
+					field := value.Get(path...)
+					if field != nil {
+						astjson.SetNull(value, path...)
 					}
-				} else if obj.Nullable {
+				} else if obj.Nullable && len(obj.Path) > 0 {
 					// if the field value is not nullable, but the object is nullable
 					// we can just set the whole object to null
-					r.storage.Nodes[ref].Kind = astjson.NodeKindNull
+					astjson.SetNull(parent, obj.Path...)
+					return false
 				} else {
 					// if the field value is not nullable and the object is not nullable
 					// we return true to indicate an error
@@ -455,11 +602,13 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
-		err := r.walkNode(obj.Fields[i].Value, ref)
+		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
 			if obj.Nullable {
-				r.storage.Nodes[ref].Kind = astjson.NodeKindNull
-				return false
+				if len(obj.Path) > 0 {
+					astjson.SetNull(parent, obj.Path...)
+					return false
+				}
 			}
 			return err
 		}
@@ -471,7 +620,7 @@ func (r *Resolvable) walkObject(obj *Object, ref int) bool {
 	return false
 }
 
-func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
+func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipField bool) {
 	if field.Info == nil {
 		return false
 	}
@@ -485,25 +634,29 @@ func (r *Resolvable) authorizeField(ref int, field *Field) (skipField bool) {
 		return false
 	}
 	dataSourceID := field.Info.Source.IDs[0]
-	typeName := r.objectFieldTypeName(ref, field)
+	dataSourceName := field.Info.Source.Names[0]
+	typeName := r.objectFieldTypeName(value, field)
 	fieldName := unsafebytes.BytesToString(field.Name)
 	gc := GraphCoordinate{
 		TypeName:  typeName,
 		FieldName: fieldName,
 	}
-	result, authErr := r.authorize(ref, dataSourceID, gc)
+	result, authErr := r.authorize(value, dataSourceID, gc)
 	if authErr != nil {
 		r.authorizationError = authErr
 		return true
 	}
 	if result != nil {
-		r.addRejectFieldError(result.Reason, dataSourceID, field)
+		r.addRejectFieldError(result.Reason, DataSourceInfo{
+			ID:   dataSourceID,
+			Name: dataSourceName,
+		}, field)
 		return true
 	}
 	return false
 }
 
-func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
+func (r *Resolvable) authorize(value *astjson.Value, dataSourceID string, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 	r.xxh.Reset()
 	_, _ = r.xxh.WriteString(dataSourceID)
 	_, _ = r.xxh.WriteString(coordinate.TypeName)
@@ -515,18 +668,8 @@ func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate Gr
 	if reason, ok := r.authorizationDeny[decisionID]; ok {
 		return &AuthorizationDeny{Reason: reason}, nil
 	}
-	if r.authorizationBufObjectRef != objectRef {
-		if r.authorizationBuf == nil {
-			r.authorizationBuf = bytes.NewBuffer(nil)
-		}
-		r.authorizationBuf.Reset()
-		err = r.storage.PrintObjectFlat(objectRef, r.authorizationBuf)
-		if err != nil {
-			return nil, err
-		}
-		r.authorizationBufObjectRef = objectRef
-	}
-	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.authorizationBuf.Bytes(), coordinate)
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	result, err = r.ctx.authorizer.AuthorizeObjectField(r.ctx, dataSourceID, r.marshalBuf, coordinate)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +681,7 @@ func (r *Resolvable) authorize(objectRef int, dataSourceID string, coordinate Gr
 	return result, nil
 }
 
-func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Field) {
+func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field *Field) {
 	nodePath := field.Value.NodePath()
 	r.pushNodePathElement(nodePath)
 	fieldPath := r.renderFieldPath()
@@ -549,28 +692,18 @@ func (r *Resolvable) addRejectFieldError(reason, dataSourceID string, field *Fie
 	} else {
 		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
-	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage), NewSubgraphError(dataSourceID, fieldPath, reason, 0)))
-
-	ref := r.storage.AppendErrorWithMessage(errorMessage, r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
+		NewSubgraphError(ds, fieldPath, reason, 0)))
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	r.popNodePathElement(nodePath)
 }
 
-func (r *Resolvable) objectFieldTypeName(ref int, field *Field) string {
-	typeName := r.storage.GetObjectField(ref, "__typename")
-	if r.storage.NodeIsDefined(typeName) && r.storage.Nodes[typeName].Kind == astjson.NodeKindString {
-		name := r.storage.Nodes[typeName].ValueBytes(r.storage)
-		return unsafebytes.BytesToString(name)
+func (r *Resolvable) objectFieldTypeName(v *astjson.Value, field *Field) string {
+	typeName := v.GetStringBytes("__typename")
+	if typeName != nil {
+		return unsafebytes.BytesToString(typeName)
 	}
 	return field.Info.ExactParentTypeName
-}
-
-func (r *Resolvable) getObjectTypeName(ref int) []byte {
-	typeName := r.storage.GetObjectField(ref, "__typename")
-	if r.storage.NodeIsDefined(typeName) && r.storage.Nodes[typeName].Kind == astjson.NodeKindString {
-		return r.storage.Nodes[typeName].ValueBytes(r.storage)
-	}
-	return nil
 }
 
 func (r *Resolvable) skipFieldOnParentTypeNames(field *Field) bool {
@@ -611,58 +744,40 @@ func (r *Resolvable) skipFieldOnTypeNames(field *Field) bool {
 	return true
 }
 
-func (r *Resolvable) skipField(skipVariableName string) bool {
-	field := r.storage.GetObjectField(r.variablesRoot, skipVariableName)
-	if !r.storage.NodeIsDefined(field) {
-		return false
-	}
-	if r.storage.Nodes[field].Kind != astjson.NodeKindBoolean {
-		return false
-	}
-	value := r.storage.Nodes[field].ValueBytes(r.storage)
-	return bytes.Equal(value, literalTrue)
-}
-
-func (r *Resolvable) excludeField(includeVariableName string) bool {
-	field := r.storage.GetObjectField(r.variablesRoot, includeVariableName)
-	if !r.storage.NodeIsDefined(field) {
-		return true
-	}
-	if r.storage.Nodes[field].Kind != astjson.NodeKindBoolean {
-		return true
-	}
-	value := r.storage.Nodes[field].ValueBytes(r.storage)
-	return bytes.Equal(value, literalFalse)
-}
-
-func (r *Resolvable) walkArray(arr *Array, ref int) bool {
-	ref = r.storage.Get(ref, arr.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(arr.Path...)
+	if astjson.ValueIsNull(value) {
 		if arr.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, arr.Path)
+		r.addNonNullableFieldError(arr.Path, parent)
 		return r.err()
 	}
 	r.pushNodePathElement(arr.Path)
 	defer r.popNodePathElement(arr.Path)
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindArray {
+	if value.Type() != astjson.TypeArray {
 		r.addError("Array cannot represent non-array value.", arr.Path)
 		return r.err()
 	}
 	if r.print {
 		r.printBytes(lBrack)
 	}
-	for i, value := range r.storage.Nodes[ref].ArrayValues {
+	values := value.GetArray()
+	for i, arrayValue := range values {
 		if r.print && i != 0 {
 			r.printBytes(comma)
 		}
 		r.pushArrayPathElement(i)
-		err := r.walkNode(arr.Item, value)
+		err := r.walkNode(arr.Item, arrayValue)
 		r.popArrayPathElement()
 		if err {
+			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
+				value.SetArrayItem(i, astjson.NullValue)
+				continue
+			}
 			if arr.Nullable {
-				r.storage.Nodes[ref].Kind = astjson.NodeKindNull
+				astjson.SetNull(parent, arr.Path...)
 				return false
 			}
 			return err
@@ -677,160 +792,156 @@ func (r *Resolvable) walkArray(arr *Array, ref int) bool {
 func (r *Resolvable) walkNull() bool {
 	if r.print {
 		r.printBytes(null)
-		r.ctx.Stats.ResolvedLeafs++
 	}
 	return false
 }
 
-func (r *Resolvable) walkString(s *String, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, s.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(s.Path...)
+	if astjson.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, s.Path)
+		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindString {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("String cannot represent non-string value: \\\"%s\\\"", value), s.Path)
+	if value.Type() != astjson.TypeString {
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("String cannot represent non-string value: \"%s\"", string(r.marshalBuf)), s.Path)
 		return r.err()
 	}
 	if r.print {
 		if s.IsTypeName {
-			value := r.storage.Nodes[ref].ValueBytes(r.storage)
+			content := value.GetStringBytes()
 			for i := range r.renameTypeNames {
-				if bytes.Equal(value, r.renameTypeNames[i].From) {
+				if bytes.Equal(content, r.renameTypeNames[i].From) {
 					r.printBytes(quote)
 					r.printBytes(r.renameTypeNames[i].To)
 					r.printBytes(quote)
 					return false
 				}
 			}
-			r.printNode(ref)
+			r.printNode(value)
 			return false
 		}
 		if s.UnescapeResponseJson {
-			value := r.storage.Nodes[ref].ValueBytes(r.storage)
-			value = bytes.ReplaceAll(value, []byte(`\"`), []byte(`"`))
-			if !gjson.ValidBytes(value) {
+			content := value.GetStringBytes()
+			content = bytes.ReplaceAll(content, []byte(`\"`), []byte(`"`))
+			if !gjson.ValidBytes(content) {
 				r.printBytes(quote)
-				r.printBytes(value)
+				r.printBytes(content)
 				r.printBytes(quote)
 			} else {
-				r.printBytes(value)
+				r.printBytes(content)
 			}
 		} else {
-			r.printNode(ref)
+			r.printNode(value)
 		}
 	}
 	return false
 }
 
-func (r *Resolvable) walkBoolean(b *Boolean, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, b.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(b.Path...)
+	if astjson.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, b.Path)
+		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindBoolean {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \\\"%s\\\"", value), b.Path)
+	if value.Type() != astjson.TypeTrue && value.Type() != astjson.TypeFalse {
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("Bool cannot represent non-boolean value: \"%s\"", string(r.marshalBuf)), b.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkInteger(i *Integer, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, i.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(i.Path...)
+	if astjson.ValueIsNull(value) {
 		if i.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, i.Path)
+		r.addNonNullableFieldError(i.Path, parent)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \\\"%s\\\"", value), i.Path)
+	if value.Type() != astjson.TypeNumber {
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addError(fmt.Sprintf("Int cannot represent non-integer value: \"%s\"", string(r.marshalBuf)), i.Path)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkFloat(f *Float, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, f.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(f.Path...)
+	if astjson.ValueIsNull(value) {
 		if f.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, f.Path)
+		r.addNonNullableFieldError(f.Path, parent)
 		return r.err()
 	}
-	if r.storage.Nodes[ref].Kind != astjson.NodeKindNumber {
-		value := string(r.storage.Nodes[ref].ValueBytes(r.storage))
-		r.addError(fmt.Sprintf("Float cannot represent non-float value: \\\"%s\\\"", value), f.Path)
-		return r.err()
+	if !r.print {
+		if value.Type() != astjson.TypeNumber {
+			r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+			r.addError(fmt.Sprintf("Float cannot represent non-float value: \"%s\"", string(r.marshalBuf)), f.Path)
+			return r.err()
+		}
 	}
 	if r.print {
-		r.printNode(ref)
+		if r.options.ApolloCompatibilityTruncateFloatValues {
+			floatValue := value.GetFloat64()
+			if floatValue == float64(int64(floatValue)) {
+				_, _ = fmt.Fprintf(r.out, "%d", int64(floatValue))
+				return false
+			}
+		}
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkBigInt(b *BigInt, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, b.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(b.Path...)
+	if astjson.ValueIsNull(value) {
 		if b.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, b.Path)
+		r.addNonNullableFieldError(b.Path, parent)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
 
-func (r *Resolvable) walkScalar(s *Scalar, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, s.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(s.Path...)
+	if astjson.ValueIsNull(value) {
 		if s.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, s.Path)
+		r.addNonNullableFieldError(s.Path, parent)
 		return r.err()
 	}
 	if r.print {
-		r.printNode(ref)
+		r.printNode(value)
 	}
 	return false
 }
@@ -851,20 +962,18 @@ func (r *Resolvable) walkEmptyArray(_ *EmptyArray) bool {
 	return false
 }
 
-func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
-	if r.print {
-		r.ctx.Stats.ResolvedLeafs++
-	}
-	ref = r.storage.Get(ref, c.Path)
-	if !r.storage.NodeIsDefined(ref) {
+func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(c.Path...)
+	if astjson.ValueIsNull(value) {
 		if c.Nullable {
 			return r.walkNull()
 		}
-		r.addNonNullableFieldError(ref, c.Path)
+		r.addNonNullableFieldError(c.Path, parent)
 		return r.err()
 	}
-	value := r.storage.Nodes[ref].ValueBytes(r.storage)
-	resolved, err := c.Resolve(r.ctx, value)
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	resolved, err := c.Resolve(r.ctx, r.marshalBuf)
 	if err != nil {
 		r.addError(err.Error(), c.Path)
 		return r.err()
@@ -875,13 +984,132 @@ func (r *Resolvable) walkCustom(c *CustomNode, ref int) bool {
 	return false
 }
 
-func (r *Resolvable) addNonNullableFieldError(fieldRef int, fieldPath []string) {
-	if fieldRef != -1 && r.storage.Nodes[fieldRef].Kind == astjson.NodeKindNullSkipError {
+func (r *Resolvable) writeArrayElementToBuffer(buf *bytes.Buffer, typeName string) {
+	_, _ = buf.WriteString("array element of type ")
+	_, _ = buf.WriteString(typeName)
+	_, _ = buf.WriteString(" at index ")
+	_, _ = buf.WriteString(strconv.Itoa(r.path[len(r.path)-1].Idx))
+	_, _ = buf.WriteString(".")
+}
+
+func (r *Resolvable) renderInaccessibleEnumValueError(e *Enum) {
+	buf := pool.BytesBuffer.Get()
+	defer pool.BytesBuffer.Put(buf)
+	_, _ = buf.WriteString("Invalid value found for ")
+	pathLength := len(r.path)
+	// The enum is an array element
+	if pathLength > 1 && r.path[pathLength-1].Name == "" {
+		r.writeArrayElementToBuffer(buf, e.TypeName)
+		if r.options.ApolloCompatibilityValueCompletionInExtensions {
+			r.addValueCompletion(buf.String(), errorcodes.InvalidGraphql)
+		} else {
+			r.addErrorWithCode(buf.String(), errorcodes.InvalidGraphql)
+		}
 		return
 	}
+	// The enum is a leaf field
+	_, _ = buf.WriteString("field ")
+	if e.Path == nil {
+		if pathLength < 1 {
+			_, _ = buf.WriteString(invalidPath)
+		} else {
+			_, _ = buf.WriteString(r.renderRootFieldCoordinates(r.path[pathLength-1].Name))
+		}
+		_, _ = buf.WriteString(".")
+		return
+	}
+	leafPathLength := len(e.Path)
+	if leafPathLength < 1 {
+		_, _ = buf.WriteString(invalidPath)
+		_, _ = buf.WriteString(".")
+		return
+	}
+	switch pathLength {
+	case 0:
+		_, _ = buf.WriteString(r.renderRootFieldCoordinates(e.Path[leafPathLength-1]))
+		_, _ = buf.WriteString(".")
+	default:
+		_, _ = buf.WriteString(r.enclosingTypeName())
+		_, _ = buf.WriteString(".")
+		_, _ = buf.WriteString(e.Path[leafPathLength-1])
+		_, _ = buf.WriteString(".")
+	}
+	if r.options.ApolloCompatibilityValueCompletionInExtensions {
+		r.addValueCompletionWithPath(buf.String(), errorcodes.InvalidGraphql, e.Path)
+	} else {
+		r.addErrorWithCodeAndPath(buf.String(), errorcodes.InvalidGraphql, e.Path)
+	}
+}
+
+func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
+	parent := value
+	value = value.Get(e.Path...)
+	if astjson.ValueIsNull(value) {
+		if e.Nullable {
+			return r.walkNull()
+		}
+		r.addNonNullableFieldError(e.Path, parent)
+		return r.err()
+	}
+	if value.Type() != astjson.TypeString {
+		r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+		r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: %s`, e.TypeName, string(r.marshalBuf)), errorcodes.InternalServerError, e.Path)
+		return r.err()
+	}
+	valueString := string(value.GetStringBytes())
+	if !e.isValidValue(valueString) {
+		/* When an invalid value is returned, the data is set to null.
+		 * If the value is nullable, the null data should not propagate up, so r.walkNull() is returned.
+		 * To avoid appending an error twice, the appending only happens on the first walk
+		 * and not the second walk (which prints the data).
+		 */
+		if !r.print {
+			r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: "%s"`, e.TypeName, valueString), errorcodes.InternalServerError, e.Path)
+		}
+		if e.Nullable {
+			return r.walkNull()
+		}
+		return r.err()
+	}
+	if !e.isAccessibleValue(valueString) {
+		/* When an inaccessible value is returned, the data is set to null.
+		 * If the value is nullable, the null data should not propagate up, so r.walkNull() is returned.
+		 * To avoid appending an error/value completion twice, the appending only happens on the first walk
+		 * and not the second walk (which prints the data).
+		 */
+		if !r.print {
+			r.renderInaccessibleEnumValueError(e)
+		}
+		// Inaccessible enum values are always converted to null
+		if e.Nullable {
+			return r.walkNull()
+		}
+		return r.err()
+	}
+	if r.print {
+		r.printNode(value)
+	}
+	return false
+}
+
+func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjson.Value) {
+	if r.skipAddingNullErrors {
+		return
+	}
+	if fieldPath != nil {
+		if ancestor := parent.Get(fieldPath[:len(fieldPath)-1]...); ancestor != nil {
+			if ancestor.Exists("__skipErrors") {
+				return
+			}
+		}
+	}
 	r.pushNodePathElement(fieldPath)
-	ref := r.storage.AppendNonNullableFieldIsNullErr(r.renderFieldPath(), r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	if r.options.ApolloCompatibilityValueCompletionInExtensions {
+		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
+	} else {
+		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
+	}
 	r.popNodePathElement(fieldPath)
 }
 
@@ -895,6 +1123,8 @@ func (r *Resolvable) renderFieldPath() string {
 		_, _ = buf.WriteString("Mutation")
 	case ast.OperationTypeSubscription:
 		_, _ = buf.WriteString("Subscription")
+	default:
+		return invalidPath
 	}
 	for i := range r.path {
 		if r.path[i].Name != "" {
@@ -905,9 +1135,99 @@ func (r *Resolvable) renderFieldPath() string {
 	return buf.String()
 }
 
+func (r *Resolvable) renderApolloCompatibleNonNullableErrorMessage() string {
+	pathLength := len(r.path)
+	if pathLength < 1 {
+		return invalidPath
+	}
+	lastPathItem := r.path[pathLength-1]
+	if lastPathItem.Name != "" {
+		return fmt.Sprintf("Cannot return null for non-nullable field %s.", r.renderFieldCoordinates())
+	}
+	// If the item has no name, it's a GraphQL list element. A list must be returned by a field.
+	if pathLength < 2 {
+		return invalidPath
+	}
+	return fmt.Sprintf("Cannot return null for non-nullable array element of type %s at index %d.", r.enclosingTypeName(), lastPathItem.Idx)
+}
+
+func (r *Resolvable) renderRootFieldCoordinates(fieldName string) string {
+	switch r.operationType {
+	case ast.OperationTypeQuery:
+		return fmt.Sprintf("Query.%s", fieldName)
+	case ast.OperationTypeMutation:
+		return fmt.Sprintf("Mutation.%s", fieldName)
+	case ast.OperationTypeSubscription:
+		return fmt.Sprintf("Subscription.%s", fieldName)
+	default:
+		return invalidPath
+	}
+}
+
+func (r *Resolvable) renderFieldCoordinates() string {
+	pathLength := len(r.path)
+	switch pathLength {
+	case 0:
+		return invalidPath
+	case 1:
+		return r.renderRootFieldCoordinates(r.path[0].Name)
+	default:
+		return fmt.Sprintf("%s.%s", r.enclosingTypeName(), r.path[pathLength-1].Name)
+	}
+}
+
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
-	ref := r.storage.AppendErrorWithMessage(message, r.path)
-	r.storage.Nodes[r.errorsRoot].ArrayValues = append(r.storage.Nodes[r.errorsRoot].ArrayValues, ref)
+	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, message, r.path)
 	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) addErrorWithCode(message, code string) {
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
+}
+
+func (r *Resolvable) addErrorWithCodeAndPath(message, code string, fieldPath []string) {
+	r.pushNodePathElement(fieldPath)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
+	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) addValueCompletion(message, code string) {
+	if r.valueCompletion == nil {
+		r.valueCompletion = r.astjsonArena.NewArray()
+	}
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
+}
+
+func (r *Resolvable) addValueCompletionWithPath(message, code string, fieldPath []string) {
+	if r.valueCompletion == nil {
+		r.valueCompletion = r.astjsonArena.NewArray()
+	}
+	r.pushNodePathElement(fieldPath)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
+	r.popNodePathElement(fieldPath)
+}
+
+func (r *Resolvable) pathLastElementDescription(typeName string) string {
+	if len(r.path) <= 1 {
+		switch r.operationType {
+		case ast.OperationTypeQuery:
+			typeName = "Query"
+		case ast.OperationTypeMutation:
+			typeName = "Mutation"
+		case ast.OperationTypeSubscription:
+			typeName = "Subscription"
+		default:
+			typeName = invalidPath
+		}
+
+		if len(r.path) == 0 {
+			return typeName
+		}
+	}
+	elem := r.path[len(r.path)-1]
+	if elem.Name != "" {
+		return fmt.Sprintf("field %s.%s", typeName, elem.Name)
+	}
+	return fmt.Sprintf("array element of type %s at index %d", typeName, elem.Idx)
 }

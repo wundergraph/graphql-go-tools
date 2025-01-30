@@ -15,7 +15,11 @@ type plannerConfiguration[T any] struct {
 	objectFetchConfiguration *objectFetchConfiguration
 
 	requiredFields FederationFieldConfigurations
-	providedFields *NodeSuggestions
+	options        plannerConfigurationOptions
+}
+
+type plannerConfigurationOptions struct {
+	EnableOperationNamePropagation bool
 }
 
 type PlannerConfiguration interface {
@@ -26,28 +30,23 @@ type PlannerConfiguration interface {
 	DataSourceConfiguration() DataSource
 
 	RequiredFields() *FederationFieldConfigurations
-	ProvidedFields() *NodeSuggestions
 
 	Debugger() (d DataSourceDebugger, ok bool)
 	Planner() any
 	Register(visitor *Visitor) error
-	UpstreamSchema() (doc *ast.Document, ok bool)
 }
 
 func (p *plannerConfiguration[T]) Register(visitor *Visitor) error {
 	dataSourcePlannerConfig := DataSourcePlannerConfiguration{
 		RequiredFields: p.requiredFields,
-		ProvidedFields: p.providedFields,
 		ParentPath:     p.parentPath,
 		PathType:       p.parentPathType,
 		IsNested:       p.IsNestedPlanner(),
+		FetchID:        p.objectFetchConfiguration.fetchID,
+		Options:        p.options,
 	}
 
 	return p.planner.Register(visitor, p.dataSourceConfiguration, dataSourcePlannerConfig)
-}
-
-func (p *plannerConfiguration[T]) UpstreamSchema() (doc *ast.Document, ok bool) {
-	return p.planner.UpstreamSchema(p.dataSourceConfiguration)
 }
 
 func (p *plannerConfiguration[T]) Planner() any {
@@ -69,10 +68,6 @@ func (p *plannerConfiguration[T]) DataSourcePlanningBehavior() DataSourcePlannin
 
 func (p *plannerConfiguration[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
 	return p.planner.DownstreamResponseFieldAlias(downstreamFieldRef)
-}
-
-func (p *plannerConfiguration[T]) ProvidedFields() *NodeSuggestions {
-	return p.providedFields
 }
 
 func (p *plannerConfiguration[T]) RequiredFields() *FederationFieldConfigurations {
@@ -251,7 +246,7 @@ type pathConfiguration struct {
 type PathType int
 
 const (
-	PathTypeField PathType = iota
+	PathTypeField PathType = iota + 1
 	PathTypeFragment
 	PathTypeParent
 )

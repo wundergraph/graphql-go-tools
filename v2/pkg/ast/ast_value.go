@@ -2,8 +2,11 @@ package ast
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
@@ -144,7 +147,20 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 			buf.Write(literal.TRUE)
 		}
 	case ValueKindString:
-		buf.Write(quotes.WrapBytes(d.StringValueContentBytes(value.Ref)))
+		if d.StringValueIsBlockString(value.Ref) {
+			content := d.BlockStringValueContentString(value.Ref)
+
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			if err := enc.Encode(content); err != nil {
+				return err
+			}
+
+			// Remove the extra newline that Encode adds
+			buf.Truncate(buf.Len() - 1)
+		} else {
+			buf.Write(quotes.WrapBytes(d.StringValueContentBytes(value.Ref)))
+		}
 	case ValueKindList:
 		buf.WriteByte(literal.LBRACK_BYTE)
 		for ii, ref := range d.ListValues[value.Ref].Refs {
@@ -170,6 +186,20 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 			}
 		}
 		buf.WriteByte(literal.RBRACE_BYTE)
+	case ValueKindVariable:
+		variableName := d.Input.ByteSliceString(d.VariableValues[value.Ref].Name)
+		variableValue, dataType, _, err := jsonparser.Get(d.Input.Variables, variableName)
+		if err != nil {
+			buf.Write(literal.NULL)
+			return nil
+		}
+		if dataType == jsonparser.String {
+			buf.WriteByte('"')
+		}
+		buf.Write(variableValue)
+		if dataType == jsonparser.String {
+			buf.WriteByte('"')
+		}
 	default:
 		return fmt.Errorf("ValueToJSON: not implemented for kind: %s", value.Kind.String())
 	}

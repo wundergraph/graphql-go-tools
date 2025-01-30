@@ -144,7 +144,7 @@ type (
 		EnterFragmentSpreadVisitor
 		LeaveFragmentSpreadVisitor
 	}
-	// EnterFragmentSpreadVisitor is the callback when the walker enters an inline framgnet
+	// EnterInlineFragmentVisitor is the callback when the walker enters an inline fragment
 	EnterInlineFragmentVisitor interface {
 		// EnterInlineFragment gets called when the walker enters an inline fragment
 		// ref is the reference to the selection set on the AST

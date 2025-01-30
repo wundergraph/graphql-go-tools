@@ -27,12 +27,6 @@ const (
     }
   }
 }`
-	SubscriptionUpdatedPrice = `subscription UpdatedPrice {
-  updatedPrice {
-    name
-    price
-  }
-}`
 )
 
 type Upstream string

@@ -1,12 +1,17 @@
 package plan
 
 import (
+	"slices"
+
+	"github.com/kingledion/go-tools/tree"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 const typeNameField = "__typename"
+
+var typeNameFieldBytes = []byte(typeNameField)
 
 type DataSourceFilter struct {
 	operation  *ast.Document
@@ -16,6 +21,10 @@ type DataSourceFilter struct {
 	nodes *NodeSuggestions
 
 	enableSelectionReasons bool
+	secondaryRun           bool
+
+	fieldDependsOn map[int][]int
+	dataSources    []DataSource
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -30,10 +39,13 @@ func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (used []DataSource, suggestions *NodeSuggestions) {
+func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash, fieldDependsOn map[int][]int) (used []DataSource, suggestions *NodeSuggestions) {
 	var dsInUse map[DSHash]struct{}
 
-	suggestions, dsInUse = f.findBestDataSourceSet(dataSources, existingNodes, hints...)
+	f.fieldDependsOn = fieldDependsOn
+	f.dataSources = dataSources
+
+	suggestions, dsInUse = f.findBestDataSourceSet(existingNodes, landedTo)
 	if f.report.HasErrors() {
 		return
 	}
@@ -46,19 +58,18 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 		}
 	}
 
+	f.secondaryRun = true
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (*NodeSuggestions, map[DSHash]struct{}) {
-	f.nodes = f.collectNodes(dataSources, existingNodes)
+func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
+	f.nodes = f.collectNodes(f.dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
 	}
 
 	// f.nodes.printNodes("initial nodes")
-
-	f.applySuggestionHints(hints)
-	// f.nodes.printNodes("nodes after applying hints")
+	f.applyLandedTo(landedTo)
 
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("unique nodes")
@@ -68,45 +79,52 @@ func (f *DataSourceFilter) findBestDataSourceSet(dataSources []DataSource, exist
 	// f.nodes.printNodes("duplicate nodes after second run")
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
-
-	f.isResolvable(f.nodes)
-	if f.report.HasErrors() {
-		return nil, nil
-	}
-
 	return f.nodes, uniqueDataSourceHashes
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions, hints ...NodeSuggestionHint) (nodes *NodeSuggestions) {
-	secondaryRun := existingNodes != nil
-
-	walker := astvisitor.NewWalker(32)
-	visitor := &collectNodesVisitor{
-		operation:           f.operation,
-		definition:          f.definition,
-		walker:              &walker,
-		dataSources:         dataSources,
-		secondaryRun:        secondaryRun,
-		nodes:               existingNodes,
-		hints:               hints,
-		saveSelectionReason: f.enableSelectionReasons,
+func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
+	if landedTo == nil {
+		return
 	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
-	walker.Walk(f.operation, f.definition, f.report)
-	return visitor.nodes
+
+	for fieldRef, dsHash := range landedTo {
+		treeNodeID := TreeNodeID(fieldRef)
+
+		node, ok := f.nodes.responseTree.Find(treeNodeID)
+		if !ok {
+			panic("node not found")
+		}
+
+		nodeData := node.GetData()
+		for _, itemID := range nodeData {
+			if f.nodes.items[itemID].DataSourceHash == dsHash {
+				f.nodes.items[itemID].unselect()
+				// we need to select this node
+				f.nodes.items[itemID].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
+				f.nodes.items[itemID].IsRequiredKeyField = true
+			} else if f.nodes.items[itemID].Selected {
+				// we need to unselect this node
+				f.nodes.items[itemID].unselect()
+			}
+		}
+	}
+
 }
 
-func (f *DataSourceFilter) isResolvable(nodes *NodeSuggestions) {
-	walker := astvisitor.NewWalker(32)
-	visitor := &nodesResolvableVisitor{
-		operation:  f.operation,
-		definition: f.definition,
-		walker:     &walker,
-		nodes:      nodes,
+func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) (nodes *NodeSuggestions) {
+	if existingNodes == nil {
+		existingNodes = NewNodeSuggestions()
 	}
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(f.operation, f.definition, f.report)
+
+	nodesCollector := &nodesCollector{
+		operation:   f.operation,
+		definition:  f.definition,
+		dataSources: dataSources,
+		nodes:       existingNodes,
+		report:      f.report,
+	}
+
+	return nodesCollector.CollectNodes()
 }
 
 const (
@@ -119,39 +137,16 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
-	ReasonStage3SelectAvailableNode                            = "stage3: select first available node"
-	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
+	ReasonStage3SelectAvailableLeafNode                               = "stage3: select first available leaf node"
+	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource        = "stage3: select non leaf node which have possible child selections on the same source"
+	ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
+	ReasonStage3SelectParentRootNodeWithEnabledEntityResolver         = "stage3: first available parent node with enabled entity resolver"
+	ReasonStage3SelectNodeUnderFirstParentRootNode                    = "stage3: node under first available parent node with enabled entity resolver"
+	ReasonStage3SelectParentNodeWhichCouldGiveKeys                    = "stage3: select parent node which could provide keys for the child node"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
+	ReasonProvidesProvidedByPlanner       = "@provides"
 )
-
-func (f *DataSourceFilter) applySuggestionHints(hints []NodeSuggestionHint) {
-	if len(hints) == 0 {
-		return
-	}
-
-	for _, hint := range hints {
-		treeNodeID := TreeNodeID(hint.fieldRef)
-		treeNode, ok := f.nodes.responseTree.Find(treeNodeID)
-		if !ok {
-			continue
-		}
-
-		itemIndexes := treeNode.GetData()
-		for _, itemIdx := range itemIndexes {
-			if f.nodes.items[itemIdx].DataSourceHash != hint.dsHash {
-				if f.nodes.items[itemIdx].Selected {
-					// if the node was already selected by another datasource
-					// we unselect it
-					f.nodes.items[itemIdx].Selected = false
-					f.nodes.items[itemIdx].SelectionReasons = nil
-				}
-			} else {
-				f.nodes.items[itemIdx].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
-			}
-		}
-	}
-}
 
 // selectUniqueNodes - selects nodes (e.g. fields) which are unique to a single datasource
 // In addition we select:
@@ -230,78 +225,338 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 //
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not chosen by previous stages, so we just pick first available datasource
-func (f *DataSourceFilter) selectDuplicateNodes(secondRun bool) {
-	for i := range f.nodes.items {
-		if f.nodes.items[i].Selected {
+func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
+
+	treeNodes := f.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
+
+	for treeNode := range treeNodes {
+		if treeNode.GetID() == treeRootID {
 			continue
 		}
 
-		if f.nodes.isSelectedOnOtherSource(i) {
+		itemIDs := treeNode.GetData()
+		if len(itemIDs) == 1 {
+			// such node already selected as unique
 			continue
 		}
 
-		nodeDuplicates := f.nodes.duplicatesOf(i)
-
-		// check for selected parent of a current node or its duplicates
-		if f.checkNodeParent(i) {
-			continue
-		}
-		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeParent) {
+		if len(itemIDs) == 0 {
+			// no available nodes to select
 			continue
 		}
 
-		// check for selected childs of a current node or its duplicates
-		if f.checkNodeChilds(i) {
-			continue
-		}
-		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeChilds) {
+		if !secondPass && f.nodes.items[itemIDs[0]].isTypeName {
+			// we want to select typename only after some fields were selected
 			continue
 		}
 
-		// check for selected siblings of a current node or its duplicates
-		if f.checkNodeSiblings(i) {
-			continue
-		}
-		if f.checkNodeDuplicates(nodeDuplicates, f.checkNodeSiblings) {
-			continue
-		}
-
-		if !secondRun {
-			continue
-		}
-		// if after all checks node was not selected, select it
-		// this could happen in case choises are fully equal
-
-		// in case current node suggestion is an entity root node, and it contains key with disabled resolver
-		// it makes such node less preferable for selection
-		if f.nodes.items[i].LessPreferable {
+		// if any item on the given node is already selected, we could skip it
+		if slices.ContainsFunc(itemIDs, func(i int) bool {
+			return f.nodes.items[i].Selected
+		}) {
 			continue
 		}
 
-		// we could select first available node only in case it is a leaf node
-		if f.nodes.isLeaf(i) {
-			f.nodes.items[i].selectWithReason(ReasonStage3SelectAvailableNode, f.enableSelectionReasons)
+		// Select node based on a check for selected parent of a current node or its duplicates
+		if f.checkNodes(itemIDs, f.checkNodeParent, nil) {
 			continue
 		}
 
-		currentIdx := i
-		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(i))
+		// we are checking if we have selected any child fields on the same datasource
+		// it means that child was unique, so we could select parent of such child
+		if f.checkNodes(itemIDs, f.checkNodeChilds, func(i int) bool {
+			// do not evaluate childs for the leaf nodes
+			return f.nodes.items[i].IsLeaf
+		}) {
+			continue
+		}
 
-		for _, duplicateIdx := range nodeDuplicates {
+		// we are checking if we have selected any sibling fields on the same datasource
+		// if sibling is selected on the same datasource, we could select current node
+		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) bool {
+			// we should not select a __typename field based on a siblings, unless it is on a root query type
+			return f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
+		}) {
+			continue
+		}
+
+		// if after all checks node was not selected
+		// we need a couple more checks
+
+		// 1. Lookup in duplicates for root nodes with enabled reference resolver
+		// in case current node suggestion is an entity root node, and it contains a key with disabled resolver
+		// we could not select such node, because we could not jump to the subgraph which do not have reference resolver,
+		// so we need to find a possible duplicate which has enabled entity resolver
+		// The tricky part here is to check that the parent node could provide keys for the current node
+
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				return f.selectWithExternalCheck(i, ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver)
+			},
+			func(i int) (skip bool) {
+				if !f.nodes.items[i].IsRootNode {
+					return true
+				}
+
+				if f.nodes.items[i].DisabledEntityResolver {
+					return true
+				}
+
+				// we need to check if the node with enabled resolver could actually get a key from the parent node
+				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+					return true
+				}
+
+				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
+				// it may be the case that all fields belongs to different datasource, but this node could serve as the connection point
+				// to the other datasources, so we check if parent could provide a key
+				// and that we could provide a key to the next childs
+				if f.nodes.items[i].IsLeaf {
+					return false
+				}
+
+				if f.couldProvideChildFields(i) {
+					return false
+				}
+
+				if f.nodeCouldProvideKeysToChildNodes(i) {
+					return false
+				}
+
+				return true
+			}) {
+			continue
+		}
+
+		// 2. Lookup for the first parent root node with enabled entity resolver
+		// when we haven't found a possible duplicate
+		// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
+		// it is a parent entity jump case
+
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return false
+				}
+
+				parents := f.findPossibleParents(i)
+				if len(parents) > 0 {
+					if f.selectWithExternalCheck(i, ReasonStage3SelectNodeUnderFirstParentRootNode) {
+						for _, parent := range parents {
+							f.nodes.items[parent].selectWithReason(ReasonStage3SelectParentRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
+						}
+
+						return true
+					}
+				}
+				return false
+			},
+			nil) {
+			continue
+		}
+
+		// 3 and 4 - are stages when choices are equal, and we should select first available node
+
+		// 3. we choose first available leaf node
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
+			},
+			func(i int) bool {
+				if !f.nodes.isLeaf(i) {
+					return true
+				}
+
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return true
+				}
+
+				return false
+			}) {
+			continue
+		}
+
+		// 4. if node is not a leaf we select a node which could provide more selections on the same source
+		currentItemIDx := itemIDs[0]
+		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(currentItemIDx))
+
+		for k, duplicateIdx := range itemIDs {
+			if k == 0 {
+				continue
+			}
+
 			duplicateChildNodeCount := len(f.nodes.childNodesOnSameSource(duplicateIdx))
 			if duplicateChildNodeCount > currentChildNodeCount {
-				currentIdx = duplicateIdx
+				currentItemIDx = duplicateIdx
 				currentChildNodeCount = duplicateChildNodeCount
 			}
 		}
 
-		f.nodes.items[currentIdx].selectWithReason(ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource, f.enableSelectionReasons)
+		if currentChildNodeCount > 0 {
+			// we can't select node if it doesn't have any child nodes to select
+			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+		}
+
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				if f.nodeCouldProvideKeysToChildNodes(i) {
+					f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
+
+					return true
+				}
+
+				return false
+			},
+			func(i int) (skip bool) {
+				// do not evaluate childs for the leaf nodes
+				return f.nodes.items[i].IsLeaf
+			}) {
+			continue
+		}
 	}
 }
 
-func (f *DataSourceFilter) checkNodeDuplicates(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool)) (nodeIsSelected bool) {
-	for _, duplicate := range duplicates {
-		if callback(duplicate) {
+func (f *DataSourceFilter) findPossibleParents(i int) (parentIds []int) {
+	nodesIdsToSelect := make([]int, 0, 2)
+
+	parentIdx, _ := f.nodes.parentNodeOnSameSource(i)
+	for parentIdx != -1 {
+		nodesIdsToSelect = append(nodesIdsToSelect, parentIdx)
+
+		// for the parent node we are checking if it is a root node and has enabled entity resolver.
+		// the last check is to ensure that the parent node could provide keys for the current node with parentIdx
+		// if all conditions are met, we return full chain of the nodes to this parentIdx
+		if f.nodes.items[parentIdx].IsRootNode &&
+			!f.nodes.items[parentIdx].DisabledEntityResolver &&
+			f.isSelectedParentCouldProvideKeysForCurrentNode(parentIdx) {
+
+			return nodesIdsToSelect
+		}
+
+		parentIdx, _ = f.nodes.parentNodeOnSameSource(parentIdx)
+	}
+
+	return nil
+}
+
+func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx int) bool {
+	treeNode := f.nodes.treeNode(idx)
+	parentNodeIndexes := treeNode.GetParent().GetData()
+
+	for _, parentIdx := range parentNodeIndexes {
+		if !f.nodes.items[parentIdx].Selected {
+			continue
+		}
+
+		if f.parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
+	childIds := f.nodes.childNodesIds(idx, false)
+
+	for _, childId := range childIds {
+		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int) bool {
+	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
+		for _, typeName := range f.nodes.items[idx].possibleTypeNames {
+			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	typeName := f.nodes.items[idx].TypeName
+	return f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName)
+}
+
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string) bool {
+	currentDsHash := f.nodes.items[idx].DataSourceHash
+	currenDsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
+		return ds.Hash() == currentDsHash
+	})
+	if currenDsIdx == -1 {
+		return false
+	}
+	currentDs := f.dataSources[currenDsIdx]
+	currentDsKeys := currentDs.FederationConfiguration().Keys
+	possibleKeys := currentDsKeys.FilterByTypeAndResolvability(typeName, true)
+
+	dsHash := f.nodes.items[parentIdx].DataSourceHash
+	dsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
+		return ds.Hash() == dsHash
+	})
+	if dsIdx == -1 {
+		return false
+	}
+
+	ds := f.dataSources[dsIdx]
+	keys := ds.FederationConfiguration().Keys
+
+	keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
+
+	for _, possibleKey := range possibleKeys {
+		if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
+			return keyCfg.SelectionSet == possibleKey.SelectionSet
+		}) {
+			return true
+		}
+	}
+
+	// second check is for the keys which do not have entity resolver
+	// e.g. resolvable: false or implicit keys
+	keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
+
+	// NOTE: logic here is limited currently to only resolvable keys
+	// there also could be potential matches with implicit conditional keys
+	// if there will be a need to support such cases, we need to extend this logic
+
+	var (
+		implicitKeys []FederationFieldConfiguration
+	)
+
+	for _, keyCfg := range keyConfigurations {
+		if len(keyCfg.Conditions) == 0 {
+			implicitKeys = append(implicitKeys, keyCfg)
+			continue
+		}
+	}
+
+	for _, possibleKey := range possibleKeys {
+		if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
+			return keyCfg.SelectionSet == possibleKey.SelectionSet
+		}) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
+	for _, i := range duplicates {
+		if skip != nil && skip(i) {
+			continue
+		}
+
+		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+			continue
+		}
+
+		if callback(i) {
 			nodeIsSelected = true
 			break
 		}
@@ -313,32 +568,103 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 	childs := f.nodes.childNodesOnSameSource(i)
 	for _, child := range childs {
 		if f.nodes.items[child].Selected {
-			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedChild, f.enableSelectionReasons)
-			nodeIsSelected = true
-			break
+			if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedChild) {
+				return true
+			}
 		}
 	}
-	return
+	return false
 }
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
+	parentIdx, hasParentOnSameSource := f.nodes.parentNodeOnSameSource(i)
+	if hasParentOnSameSource && f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
+		return false
+	}
+
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
+
+		// we should not select a field on the datasource of sibling which depends on the current field
+		dependsOnFieldRefs := f.fieldDependsOn[f.nodes.items[sibling].FieldRef]
+		if slices.Contains(dependsOnFieldRefs, f.nodes.items[i].FieldRef) {
+			continue
+		}
+
 		if f.nodes.items[sibling].Selected {
-			f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedSibling, f.enableSelectionReasons)
-			nodeIsSelected = true
-			break
+			if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedSibling) {
+				return true
+			}
 		}
 	}
-	return
+
+	return false
 }
 
 func (f *DataSourceFilter) checkNodeParent(i int) (nodeIsSelected bool) {
 	parentIdx, ok := f.nodes.parentNodeOnSameSource(i)
-	if ok && f.nodes.items[parentIdx].Selected {
-		f.nodes.items[i].selectWithReason(ReasonStage2SameSourceNodeOfSelectedParent, f.enableSelectionReasons)
-		nodeIsSelected = true
+	if !ok {
+		return false
 	}
 
-	return
+	if !f.nodes.items[parentIdx].Selected {
+		return false
+	}
+
+	// if selected parent is external and selected
+	// but current node is not provided, we can't select it as it is external
+	// it means that there was provided some sibling, but not the current field
+	parentIsExternal := f.nodes.items[parentIdx].IsExternal
+	if parentIsExternal && !f.nodes.items[i].IsProvided {
+		return false
+	}
+
+	if f.selectWithExternalCheck(i, ReasonStage2SameSourceNodeOfSelectedParent) {
+		if f.nodes.items[i].IsProvided && !f.nodes.items[i].IsLeaf {
+			f.selectProvidedChildNodes(i)
+		}
+
+		return true
+	}
+
+	return false
+}
+
+func (f *DataSourceFilter) selectProvidedChildNodes(i int) {
+	children := f.nodes.childNodesOnSameSource(i)
+	for _, childId := range children {
+		if f.nodes.items[childId].IsProvided {
+			f.nodes.items[childId].selectWithReason(ReasonProvidesProvidedByPlanner, f.enableSelectionReasons)
+			if !f.nodes.items[childId].IsLeaf {
+				f.selectProvidedChildNodes(childId)
+			}
+		}
+	}
+}
+
+func (f *DataSourceFilter) selectWithExternalCheck(i int, reason string) (nodeIsSelected bool) {
+	if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+		return false
+	}
+
+	f.nodes.items[i].selectWithReason(reason, f.enableSelectionReasons)
+	return true
+}
+
+// couldProvideChildFields - checks if the node could provide any selectable child fields on the same datasource
+func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
+	nodesIds := f.nodes.childNodesOnSameSource(i)
+
+	hasFields := false
+	for _, i := range nodesIds {
+		if f.nodes.items[i].FieldName == typeNameField {
+			// we have to omit __typename field
+			// to not be in a situation when all fields are external but __typename is selectable
+			continue
+		}
+
+		hasFields = true
+	}
+
+	return hasFields
 }

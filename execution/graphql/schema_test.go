@@ -292,7 +292,7 @@ func TestSchema_Document(t *testing.T) {
 	require.NoError(t, err)
 
 	expectedSchemaBytesBuffer := &bytes.Buffer{}
-	err = astprinter.PrintIndent(&document, nil, []byte("  "), expectedSchemaBytesBuffer)
+	err = astprinter.PrintIndent(&document, []byte("  "), expectedSchemaBytesBuffer)
 	require.NoError(t, err)
 
 	assert.Equal(t, expectedSchemaBytesBuffer.Bytes(), schema.RawSchema())
@@ -1303,7 +1303,7 @@ type Root {
   allVehicles(after: String, first: Int, before: String, last: Int): VehiclesConnection
   vehicle(id: ID, vehicleID: ID): Vehicle
 
-  """Fetches an object given its ID"""
+  """Traces an object given its ID"""
   node(
     """The ID of an object"""
     id: ID!

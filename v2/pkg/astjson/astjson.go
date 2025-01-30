@@ -42,6 +42,8 @@ func (p *pool) Put(j *JSON) {
 	p.p.Put(j)
 }
 
+// lint:ignore
+// Deprecated: JSON is deprecated, use the github.com/wundergraph/astjson package instead
 type JSON struct {
 	storage      []byte
 	Nodes        []Node
@@ -269,7 +271,7 @@ func (j *JSON) ParseArray(input []byte) (err error) {
 
 func (j *JSON) AppendAnyJSONBytes(input []byte) (ref int, err error) {
 	if j.storage == nil {
-		j.storage = make([]byte, 0, 4*1024)
+		j.storage = make([]byte, 0, len(input))
 	}
 	start := len(j.storage)
 	j.storage = append(j.storage, input...)

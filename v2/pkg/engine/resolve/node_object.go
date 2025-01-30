@@ -9,7 +9,12 @@ type Object struct {
 	Nullable bool
 	Path     []string
 	Fields   []*Field
+	Fetches  []Fetch
 	Fetch    Fetch
+
+	PossibleTypes map[string]struct{} `json:"-"`
+	SourceName    string              `json:"-"`
+	TypeName      string              `json:"-"`
 }
 
 func (o *Object) Copy() Node {
@@ -21,7 +26,7 @@ func (o *Object) Copy() Node {
 		Nullable: o.Nullable,
 		Path:     o.Path,
 		Fields:   fields,
-		Fetch:    o.Fetch,
+		Fetches:  o.Fetches,
 	}
 }
 
@@ -85,18 +90,14 @@ func (_ *EmptyObject) Copy() Node {
 }
 
 type Field struct {
-	Name                    []byte
-	Value                   Node
-	Position                Position
-	Defer                   *DeferField
-	Stream                  *StreamField
-	OnTypeNames             [][]byte
-	ParentOnTypeNames       []ParentOnTypeNames
-	SkipDirectiveDefined    bool
-	SkipVariableName        string
-	IncludeDirectiveDefined bool
-	IncludeVariableName     string
-	Info                    *FieldInfo
+	Name              []byte
+	Value             Node
+	Position          Position
+	Defer             *DeferField
+	Stream            *StreamField
+	OnTypeNames       [][]byte
+	ParentOnTypeNames []ParentOnTypeNames
+	Info              *FieldInfo
 }
 
 type ParentOnTypeNames struct {
@@ -106,17 +107,13 @@ type ParentOnTypeNames struct {
 
 func (f *Field) Copy() *Field {
 	return &Field{
-		Name:                    f.Name,
-		Value:                   f.Value.Copy(),
-		Position:                f.Position,
-		Defer:                   f.Defer,
-		Stream:                  f.Stream,
-		OnTypeNames:             f.OnTypeNames,
-		SkipDirectiveDefined:    f.SkipDirectiveDefined,
-		SkipVariableName:        f.SkipVariableName,
-		IncludeDirectiveDefined: f.IncludeDirectiveDefined,
-		IncludeVariableName:     f.IncludeVariableName,
-		Info:                    f.Info,
+		Name:        f.Name,
+		Value:       f.Value.Copy(),
+		Position:    f.Position,
+		Defer:       f.Defer,
+		Stream:      f.Stream,
+		OnTypeNames: f.OnTypeNames,
+		Info:        f.Info,
 	}
 }
 
@@ -152,6 +149,9 @@ type FieldInfo struct {
 	FetchID   int
 	// HasAuthorizationRule needs to be set to true if the Authorizer should be called for this field
 	HasAuthorizationRule bool
+	// IndirectInterfaceNames is set to the interfaces name if the field is on a concrete type that implements an interface which wraps it
+	// It's plural because interfaces and be overlapping with types that implement multiple interfaces
+	IndirectInterfaceNames []string
 }
 
 func (i *FieldInfo) Merge(other *FieldInfo) {
@@ -169,7 +169,8 @@ func (i *FieldInfo) Merge(other *FieldInfo) {
 }
 
 type TypeFieldSource struct {
-	IDs []string
+	IDs   []string
+	Names []string
 }
 
 type Position struct {

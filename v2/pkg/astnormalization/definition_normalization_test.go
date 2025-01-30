@@ -25,8 +25,8 @@ func TestNormalizeDefinition(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		got := mustString(astprinter.PrintString(&definitionDocument, nil))
-		want := mustString(astprinter.PrintString(&expectedOutputDocument, nil))
+		got := mustString(astprinter.PrintString(&definitionDocument))
+		want := mustString(astprinter.PrintString(&expectedOutputDocument))
 
 		assert.Equal(t, want, got)
 	}
@@ -154,8 +154,8 @@ func TestNormalizeSubgraphDefinition(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		got := mustString(astprinter.PrintString(&definitionDocument, nil))
-		want := mustString(astprinter.PrintString(&expectedOutputDocument, nil))
+		got := mustString(astprinter.PrintString(&definitionDocument))
+		want := mustString(astprinter.PrintString(&expectedOutputDocument))
 
 		assert.Equal(t, want, got)
 	}

@@ -2,6 +2,10 @@ package astnormalization
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
 const inputCoercionForListDefinition = `
@@ -232,14 +236,11 @@ func TestInputCoercionForList(t *testing.T) {
 					])
 				}`, `Mutate`,
 				`
-				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList) {
-					mutateWithList(input: [
-						$a,
-						$b
-					]) 
+				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList, $c: [InputWithNestedScalarList]){
+					mutateWithList(input: $c)
 				}`,
 				`{"a":{"stringList":"str"},"b":{"intList":1}}`,
-				`{"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
+				`{"c":[{"stringList":["str"]},{"intList":[1]}],"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
 		})
 
 		t.Run("mutation list items as variables with additional variables", func(t *testing.T) {
@@ -253,16 +254,11 @@ func TestInputCoercionForList(t *testing.T) {
 					])
 				}`, `Mutate`,
 				`
-				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList, $c: [String!], $d: [Int!]) {
-					mutateWithList(input: [
-						$a,
-						$b,
-						{stringList: $c},
-						{intList: $d}
-					]) 
+				mutation Mutate($a: InputWithNestedScalarList, $b: InputWithNestedScalarList, $c: [InputWithNestedScalarList]){
+					mutateWithList(input: $c)
 				}`,
 				`{"a":{"stringList":"str"},"b":{"intList":1}}`,
-				`{"d":[1],"c":["str2"],"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
+				`{"c":[{"stringList":["str"]},{"intList":[1]},{"stringList":["str2"]},{"intList":[1]}],"a":{"stringList":["str"]},"b":{"intList":[1]}}`, inputCoercionForList)
 		})
 
 		t.Run("mutation nested", func(t *testing.T) {
@@ -776,5 +772,41 @@ func TestInputCoercionForList(t *testing.T) {
 				`{}`,
 				`{"a":{"list":[{"foo":"bar","list":[{"foo":"bar2","list":[{"nested":{"foo":"bar3","list":[{"foo":"bar4"}]}}]}]}]}}`, inputCoercionForList)
 		})
+	})
+}
+
+func TestExternalListInputCoercion(t *testing.T) {
+	t.Run("string list arg", func(t *testing.T) {
+		coercion := NewListInputCoercion()
+		definitionDocument := unsafeparser.ParseGraphqlDocumentString(`type Query { foo(args: [String!]!): String }`)
+		err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+		if err != nil {
+			panic(err)
+		}
+
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(`query($foo: [String!]!) { foo(args: $foo) }`)
+
+		out, err := coercion.CoerceInput(&operationDocument, &definitionDocument, []byte(`{"foo":"bar"}`))
+		require.NoError(t, err)
+		require.Equal(t, `{"foo":["bar"]}`, string(out))
+	})
+	t.Run("nested enum list arg", func(t *testing.T) {
+		coercion := NewListInputCoercion()
+		definitionDocument := unsafeparser.ParseGraphqlDocumentString(`type Query { foo(input: Input!): String } input Input { bar: [MyNum!]! } enum MyNum { A B C }`)
+		err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
+		if err != nil {
+			panic(err)
+		}
+
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(`query($foo: Input!) { foo(input: $foo) }`)
+
+		out, err := coercion.CoerceInput(&operationDocument, &definitionDocument, []byte(`{"foo":{"bar":"A"}}`))
+		require.NoError(t, err)
+		require.Equal(t, `{"foo":{"bar":["A"]}}`, string(out))
+
+		// reusable with different enum value
+		out, err = coercion.CoerceInput(&operationDocument, &definitionDocument, []byte(`{"foo":{"bar":"B"}}`))
+		require.NoError(t, err)
+		require.Equal(t, `{"foo":{"bar":["B"]}}`, string(out))
 	})
 }

@@ -119,27 +119,32 @@ type FederationEngineConfigFactory struct {
 	subgraphsConfigs          []SubgraphConfiguration
 }
 
-func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configuration, err error) {
-
-	intermediateConfig, err := f.compose()
+func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuration, error) {
+	rc, err := f.Compose()
 	if err != nil {
 		return Configuration{}, err
 	}
+	return f.buildEngineConfiguration(rc)
+}
 
-	plannerConfiguration, err := f.createPlannerConfiguration(intermediateConfig)
+func (f *FederationEngineConfigFactory) BuildEngineConfigurationWithRouterConfig(c *nodev1.RouterConfig) (Configuration, error) {
+	return f.buildEngineConfiguration(c)
+}
+
+func (f *FederationEngineConfigFactory) buildEngineConfiguration(routerConfig *nodev1.RouterConfig) (Configuration, error) {
+	plannerConfiguration, err := f.createPlannerConfiguration(routerConfig)
 	if err != nil {
 		return Configuration{}, err
 	}
 	plannerConfiguration.DefaultFlushIntervalMillis = DefaultFlushIntervalInMilliseconds
-
-	schemaSDL := intermediateConfig.EngineConfig.GraphqlSchema
+	schemaSDL := routerConfig.EngineConfig.GraphqlSchema
 
 	schema, err := graphql.NewSchemaFromString(schemaSDL)
 	if err != nil {
 		return Configuration{}, err
 	}
 
-	conf = Configuration{
+	conf := Configuration{
 		plannerConfig: *plannerConfiguration,
 		schema:        schema,
 	}
@@ -151,7 +156,8 @@ func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (conf Configu
 	return conf, nil
 }
 
-func (f *FederationEngineConfigFactory) compose() (*nodev1.RouterConfig, error) {
+// Compose produces a federated router configuration.
+func (f *FederationEngineConfigFactory) Compose() (*nodev1.RouterConfig, error) {
 	subgraphs := make([]*composition.Subgraph, len(f.subgraphsConfigs))
 
 	for i, subgraphConfig := range f.subgraphsConfigs {

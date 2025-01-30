@@ -8,12 +8,18 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
+	"strconv"
+	"strings"
 	"sync"
+	"time"
+	"unicode"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
+	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -28,8 +34,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-const removeNullVariablesDirectiveName = "removeNullVariables"
-
 var (
 	DefaultPostProcessingConfiguration = resolve.PostProcessingConfiguration{
 		SelectResponseDataPath:   []string{"data"},
@@ -40,15 +44,17 @@ var (
 		SelectResponseErrorsPath: []string{"errors"},
 	}
 	SingleEntityPostProcessingConfiguration = resolve.PostProcessingConfiguration{
-		SelectResponseDataPath:   []string{"data", "_entities", "[0]"},
+		SelectResponseDataPath:   []string{"data", "_entities", "0"},
 		SelectResponseErrorsPath: []string{"errors"},
 	}
 )
 
 type Planner[T Configuration] struct {
-	id              int
-	debug           bool
-	printQueryPlans bool
+	id                                   int
+	debug                                bool
+	enableDebugPrintQueryPlan            bool
+	includeQueryPlanInFetchConfiguration bool
+	queryPlan                            *resolve.QueryPlan
 
 	visitor                            *plan.Visitor
 	dataSourceConfig                   plan.DataSourceConfiguration[T]
@@ -69,16 +75,12 @@ type Planner[T Configuration] struct {
 	addDirectivesToVariableDefinitions map[int][]int
 	insideCustomScalarField            bool
 	customScalarFieldRef               int
-	unnulVariables                     bool
 	parentTypeNodes                    []ast.Node
 
 	// federation
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
 	hasFederationRoot    bool
-
-	// tmp
-	upstreamSchema *ast.Document
 
 	minifier *astminify.Minifier
 }
@@ -90,17 +92,6 @@ func (p *Planner[T]) EnableSubgraphRequestMinifier() {
 type onTypeInlineFragment struct {
 	TypeCondition string
 	SelectionSet  int
-}
-
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	cfg := Configuration(dataSourceConfig.CustomConfiguration())
-
-	schema, err := cfg.UpstreamSchema()
-	if err != nil {
-		return nil, false
-	}
-
-	return schema, true
 }
 
 func (p *Planner[T]) SetID(id int) {
@@ -115,8 +106,12 @@ func (p *Planner[T]) EnableDebug() {
 	p.debug = true
 }
 
-func (p *Planner[T]) EnableQueryPlanLogging() {
-	p.printQueryPlans = true
+func (p *Planner[T]) EnableDebugQueryPlanLogging() {
+	p.enableDebugPrintQueryPlan = true
+}
+
+func (p *Planner[T]) IncludeQueryPlanInFetchConfiguration() {
+	p.includeQueryPlanInFetchConfiguration = true
 }
 
 func (p *Planner[T]) parentNodeIsAbstract() bool {
@@ -157,7 +152,7 @@ func (p *Planner[T]) addDirectiveToNode(directiveRef int, node ast.Node) {
 
 	upstreamSchema, err := p.config.UpstreamSchema()
 	if err != nil {
-		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("failed to get upstream schema: %w", err)))
 	}
 
 	if !upstreamSchema.DirectiveIsAllowedOnNodeKind(upstreamDirectiveName, node.Kind, operationType) {
@@ -293,18 +288,19 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	if p.config.fetch == nil {
-		p.stopWithError("fetch configuration is empty")
+		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch configuration is empty")))
+		return resolve.FetchConfiguration{}
 	}
 
 	var input []byte
 	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
 
-	if p.unnulVariables {
-		input = httpclient.SetInputFlag(input, httpclient.UNNULL_VARIABLES)
-	}
-
 	header, err := json.Marshal(p.config.fetch.Header)
+	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
+		return resolve.FetchConfiguration{}
+	}
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
@@ -333,6 +329,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		RequiresEntityBatchFetch:              requiresEntityBatchFetch,
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
+		QueryPlan:                             p.queryPlan,
 	}
 }
 
@@ -342,16 +339,17 @@ func (p *Planner[T]) shouldSelectSingleEntity() bool {
 }
 
 func (p *Planner[T]) requiresEntityFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
+	return p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType == plan.PlannerPathObject
 }
 
 func (p *Planner[T]) requiresEntityBatchFetch() bool {
-	return p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
+	return p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() && p.dataSourcePlannerConfig.PathType != plan.PlannerPathObject
 }
 
 func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if p.config.subscription == nil {
-		p.stopWithError("subscription configuration is empty")
+		p.stopWithError(errors.WithStack(errors.New("ConfigureSubscription: subscription configuration is empty")))
+		return plan.SubscriptionConfiguration{}
 	}
 
 	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
@@ -366,6 +364,10 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	input = httpclient.SetInputWSSubprotocol(input, []byte(p.config.subscription.WsSubProtocol))
 
 	header, err := json.Marshal(p.config.subscription.Header)
+	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal header: %w", err)))
+		return plan.SubscriptionConfiguration{}
+	}
 	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
@@ -373,9 +375,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if len(p.config.subscription.ForwardedClientHeaderNames) > 0 {
 		headers, err := json.Marshal(p.config.subscription.ForwardedClientHeaderNames)
 		if err != nil {
-			// XXX: Since this is a very unlikely error, to avoid breaking
-			// the API we panic here
-			panic(err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal forwarded client header names: %w", err)))
+			return plan.SubscriptionConfiguration{}
 		}
 		input = httpclient.SetForwardedClientHeaderNames(input, headers)
 	}
@@ -383,9 +384,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	if len(p.config.subscription.ForwardedClientHeaderRegularExpressions) > 0 {
 		headers, err := json.Marshal(p.config.subscription.ForwardedClientHeaderRegularExpressions)
 		if err != nil {
-			// XXX: Since this is a very unlikely error, to avoid breaking
-			// the API we panic here
-			panic(err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal forwarded client header regular expressions: %w", err)))
+			return plan.SubscriptionConfiguration{}
 		}
 		input = httpclient.SetForwardedClientHeaderRegularExpressions(input, headers)
 	}
@@ -397,23 +397,83 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,
+		QueryPlan:      p.queryPlan,
 	}
 }
 
-func (p *Planner[T]) EnterOperationDefinition(ref int) {
-	if p.visitor.Operation.OperationDefinitions[ref].HasDirectives &&
-		p.visitor.Operation.OperationDefinitions[ref].Directives.HasDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName) {
-		p.unnulVariables = true
-		p.visitor.Operation.OperationDefinitions[ref].Directives.RemoveDirectiveByName(p.visitor.Operation, removeNullVariablesDirectiveName)
+func sanitize(element string) string {
+	// replace all invalid characters with underscore
+	return strings.Map(func(r rune) rune {
+		if !unicode.IsDigit(r) && !unicode.IsLetter(r) && r != '_' {
+			return '_'
+		}
+		return r
+	}, element)
+}
+
+func sanitizeKey(element string) string {
+	if element == "" {
+		return ""
 	}
 
+	sanitized := sanitize(element)
+
+	// remove consecutive underscores and leave only one
+	builder := strings.Builder{}
+	var prev rune
+
+	for _, r := range sanitized {
+		if r == '_' && prev == '_' {
+			continue
+		}
+
+		builder.WriteRune(r)
+		prev = r
+	}
+
+	return builder.String()
+}
+
+// buildUpstreamOperationName builds the name of the upstream operation.
+// An operation name can only contain characters, digits and underscores. All other characters are replaced with underscores.
+// As the subgraph name can contain special characters we need to make sure to sanitize it.
+func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
+	operationName := p.visitor.Operation.OperationDefinitionNameBytes(ref).String()
+	if operationName == "" {
+		return ""
+	}
+
+	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
+
+	builder := strings.Builder{}
+	operationName = strings.Trim(operationName, "_")
+
+	subgraphName := sanitizeKey(p.dataSourceConfig.Name())
+	subgraphName = strings.Trim(subgraphName, "_")
+
+	builder.Grow(len(operationName) + len(subgraphName) + len(fetchID) + 4) // 4 is for delimiters "__"
+	builder.WriteString(operationName + "__" + subgraphName + "__" + fetchID)
+
+	return builder.String()
+}
+
+func (p *Planner[T]) EnterOperationDefinition(ref int) {
 	operationType := p.visitor.Operation.OperationDefinitions[ref].OperationType
 	if p.dataSourcePlannerConfig.IsNested {
 		operationType = ast.OperationTypeQuery
 	}
+
 	definition := p.upstreamOperation.AddOperationDefinitionToRootNodes(ast.OperationDefinition{
 		OperationType: operationType,
 	})
+
+	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
+		operation := p.buildUpstreamOperationName(ref)
+		if operation != "" {
+			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)
+		}
+	}
+
 	p.nodes = append(p.nodes, definition)
 }
 
@@ -460,6 +520,8 @@ func (p *Planner[T]) EnterSelectionSet(ref int) {
 	}
 
 	// handle adding typename for the InterfaceObject
+	// In case we are inside selection set which returns an interface object
+	// we need to add __typename field to the selection set to get an initial typename value
 	typeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
 	for _, interfaceObjectCfg := range p.dataSourceConfig.FederationConfiguration().InterfaceObjects {
 		if interfaceObjectCfg.InterfaceTypeName == typeName {
@@ -654,7 +716,6 @@ func (p *Planner[T]) LeaveField(ref int) {
 // This is 3rd step of checks in addition to: planning path and skipFor functionality
 // if field is __typename, it is always allowed
 func (p *Planner[T]) allowField(ref int) bool {
-	fieldName := p.visitor.Operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := p.visitor.Operation.FieldAliasOrNameString(ref)
 
 	// In addition, we skip field if its path are equal to planner parent path
@@ -666,20 +727,7 @@ func (p *Planner[T]) allowField(ref int) bool {
 		return false
 	}
 
-	if fieldName == "__typename" {
-		p.DebugPrint("allowField: true path:", currentPath, `"__typename" is always allowed`)
-		return true
-	}
-
-	_, hasProvidedNode := p.dataSourcePlannerConfig.ProvidedFields.HasSuggestionForPath(p.lastFieldEnclosingTypeName, fieldName, currentPath)
-	enclosingTypeName := p.visitor.Walker.EnclosingTypeDefinition.NameString(p.visitor.Definition)
-	allow := hasProvidedNode ||
-		p.dataSourceConfig.HasRootNode(enclosingTypeName, fieldName) ||
-		p.dataSourceConfig.HasChildNode(enclosingTypeName, fieldName)
-
-	p.DebugPrint("allowField:", allow, "path:", currentPath, "has root/child/provided check")
-
-	return allow
+	return true
 }
 
 func (p *Planner[T]) EnterArgument(_ int) {
@@ -699,6 +747,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.upstreamVariables = nil
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
+	p.queryPlan = nil
 
 	// reset information about root type
 	p.rootTypeName = ""
@@ -717,6 +766,10 @@ func (p *Planner[T]) LeaveDocument(_, _ *ast.Document) {
 }
 
 func (p *Planner[T]) addRepresentationsVariable() {
+	if !p.hasFederationRoot {
+		return
+	}
+
 	if !p.dataSourcePlannerConfig.HasRequiredFields() {
 		return
 	}
@@ -731,7 +784,7 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
 		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("buildRepresentationsVariable: failed to build representation variable node: %w", err)))
 			return nil
 		}
 
@@ -860,9 +913,12 @@ func (p *Planner[T]) addOnTypeInlineFragment() {
 		onTypeName = []byte(newName)
 	}
 
-	// we should not request a typename of interface object
+	// we should not request a typename when we jump to an interface object
 	if !shouldRenameInterfaceObjectType {
-		p.addTypenameToSelectionSet(p.nodes[len(p.nodes)-1].Ref)
+		// NOTE: we are adding __typename field to the selection set of the inline fragment,
+		// not the parent selection set, as it turns out that some subgraph implementations
+		// could not handle __typename field in the _entities selection set
+		p.addTypenameToSelectionSet(selectionSet.Ref)
 	}
 
 	typeRef := p.upstreamOperation.AddNamedType(onTypeName)
@@ -1162,11 +1218,8 @@ func (p *Planner[T]) configureObjectFieldSource(upstreamFieldRef, downstreamFiel
 }
 
 const (
-	normalizationFailedErrMsg        = "upstream operation: normalization failed: %s"
-	printOperationFailedErrMsg       = "upstream operation: failed to print: %s"
-	validationFailedErrMsg           = "upstream operation: validation failed: %s"
-	parseDocumentFailedErrMsg        = "upstream operation: parse %s failed"
-	failedToReadUpstreamSchemaErrMsg = "failed to read upstream schema: %s"
+	normalizationFailedErrMsg  = "upstream operation: normalization failed: %s"
+	printOperationFailedErrMsg = "upstream operation: failed to print: %s"
 )
 
 func (p *Planner[T]) debugPrintOperationOnEnter(kind ast.NodeKind, ref int) {
@@ -1210,7 +1263,7 @@ func (p *Planner[T]) debugPrintOperation() {
 		return
 	}
 
-	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, nil, "  ")
+	op, _ := astprinter.PrintStringIndentDebug(p.upstreamOperation, "  ")
 	p.DebugPrint("printed operation:\n", op)
 }
 
@@ -1223,18 +1276,19 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 }
 
 func (p *Planner[T]) debugPrintln(args ...interface{}) {
-	allArgs := []interface{}{fmt.Sprintf("[id: %d] [ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Hash(), p.config.fetch.URL)}
+	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
 }
 
-func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
-	if !p.printQueryPlans {
+func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
+	if !p.enableDebugPrintQueryPlan {
 		return
 	}
 
-	printedOperation, err := astprinter.PrintStringIndent(operation, nil, "  ")
+	printedOperation, err := astprinter.PrintStringIndent(operation, "  ")
 	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("debugPrintQueryPlan: failed to print operation: %w", err)))
 		return
 	}
 
@@ -1252,16 +1306,17 @@ func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
 			"\n")
 	}
 
-	if p.dataSourcePlannerConfig.HasRequiredFields() {
+	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, true)
+			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
 			if report.HasErrors() {
 				continue
 			}
-			printedKey, err := astprinter.PrintStringIndent(key, nil, "  ")
+			printedKey, err := astprinter.PrintStringIndent(key, "  ")
 			if err != nil {
-				continue
+				p.stopWithError(errors.WithStack(fmt.Errorf("debugPrintQueryPlan: failed to print fragment for required fields: %w", err)))
+				return
 			}
 			args = append(args, printedKey, "\n")
 		}
@@ -1274,6 +1329,50 @@ func (p *Planner[T]) printQueryPlan(operation *ast.Document) {
 	p.debugPrintln(args...)
 }
 
+func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Document) {
+	if !p.includeQueryPlanInFetchConfiguration {
+		return
+	}
+	query, err := astprinter.PrintStringIndent(operation, "  ")
+	if err != nil {
+		p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
+		return
+	}
+	var (
+		representations []resolve.Representation
+	)
+	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
+		representations = make([]resolve.Representation, len(p.dataSourcePlannerConfig.RequiredFields))
+		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
+			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
+			if report.HasErrors() {
+				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to build fragment for required fields: %w", report)))
+				return
+			}
+			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, "  ")
+			if err != nil {
+				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print fragment for required fields: %w", err)))
+				return
+			}
+			dependency := resolve.Representation{
+				TypeName:  cfg.TypeName,
+				FieldName: cfg.FieldName,
+				Fragment:  printedFragment,
+			}
+			if cfg.FieldName == "" {
+				dependency.Kind = resolve.RepresentationKindKey
+			} else {
+				dependency.Kind = resolve.RepresentationKindRequires
+			}
+			representations[i] = dependency
+		}
+	}
+	p.queryPlan = &resolve.QueryPlan{
+		DependsOnFields: representations,
+		Query:           query,
+	}
+}
+
 // printOperation - prints normalized upstream operation
 func (p *Planner[T]) printOperation() []byte {
 
@@ -1283,7 +1382,7 @@ func (p *Planner[T]) printOperation() []byte {
 	// create empty operation and definition documents
 	definition, err := p.config.UpstreamSchema()
 	if err != nil {
-		p.stopWithError(failedToReadUpstreamSchemaErrMsg, err.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to read upstream schema: %w", err)))
 		return nil
 	}
 
@@ -1294,22 +1393,23 @@ func (p *Planner[T]) printOperation() []byte {
 	// normalize upstream operation
 	kit.normalizer.NormalizeOperation(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
-		p.stopWithError(normalizationFailedErrMsg, kit.report.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: normalization failed: %w", kit.report)))
 		return nil
 	}
 
 	kit.validator.Validate(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
-		p.stopWithError(validationFailedErrMsg, kit.report.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: validation failed: %w", kit.report)))
 		return nil
 	}
 
-	p.printQueryPlan(p.upstreamOperation)
+	p.generateQueryPlansForFetchConfiguration(p.upstreamOperation)
+	p.debugPrintQueryPlan(p.upstreamOperation)
 
 	// print upstream operation
-	err = kit.printer.Print(p.upstreamOperation, p.visitor.Definition, kit.buf)
+	err = kit.printer.Print(p.upstreamOperation, kit.buf)
 	if err != nil {
-		p.stopWithError(printOperationFailedErrMsg, kit.report.Error())
+		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to print: %w", err)))
 		return nil
 	}
 
@@ -1323,7 +1423,7 @@ func (p *Planner[T]) printOperation() []byte {
 			Pretty:  false,
 		}, kit.buf)
 		if err != nil {
-			p.stopWithError(printOperationFailedErrMsg, err)
+			p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to minify: %w", err)))
 			return nil
 		}
 		if madeReplacements && kit.buf.Len() < len(rawOperationBytes) {
@@ -1335,8 +1435,8 @@ func (p *Planner[T]) printOperation() []byte {
 	return rawOperationBytes
 }
 
-func (p *Planner[T]) stopWithError(msg string, args ...interface{}) {
-	p.visitor.Walker.StopWithInternalErr(fmt.Errorf(msg, args...))
+func (p *Planner[T]) stopWithError(err error) {
+	p.visitor.Walker.StopWithInternalErr(err)
 }
 
 /*
@@ -1583,6 +1683,17 @@ func (f *Factory[T]) Context() context.Context {
 	return f.executionContext
 }
 
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	cfg := Configuration(dataSourceConfig.CustomConfiguration())
+
+	schema, err := cfg.UpstreamSchema()
+	if err != nil {
+		return nil, false
+	}
+
+	return schema, true
+}
+
 type Source struct {
 	httpClient *http.Client
 }
@@ -1593,50 +1704,44 @@ func (s *Source) compactAndUnNullVariables(input []byte) []byte {
 	if err != nil {
 		return input
 	}
+
+	// if variables are null or empty object, do nothing
 	if bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("{}")) {
 		return input
 	}
-	if bytes.ContainsAny(variables, " \t\n\r") {
+
+	// remove null variables which actually was undefined in the original user request
+	variables = s.cleanupVariables(variables, undefinedVariables)
+
+	// compact
+	if !bytes.ContainsAny(variables, " \t\n\r") {
 		buf := bytes.NewBuffer(make([]byte, 0, len(variables)))
 		if err := json.Compact(buf, variables); err != nil {
-			panic(fmt.Errorf("compacting variables: %w", err))
+			return variables
 		}
 		variables = buf.Bytes()
 	}
-
-	removeNullVariables := httpclient.IsInputFlagSet(input, httpclient.UNNULL_VARIABLES)
-	variables = s.cleanupVariables(variables, removeNullVariables, undefinedVariables)
 
 	input, _ = jsonparser.Set(input, variables, "body", "variables")
 	return input
 }
 
-// cleanupVariables removes null variables and empty objects from the input if removeNullVariables is true
-// otherwise returns the input as is
-func (s *Source) cleanupVariables(variables []byte, removeNullVariables bool, undefinedVariables []string) []byte {
-	cp := make([]byte, len(variables))
-	copy(cp, variables)
-
+// cleanupVariables removes null variables which listed in the list of undefinedVariables
+func (s *Source) cleanupVariables(variables []byte, undefinedVariables []string) []byte {
 	// remove null variables from JSON: {"a":null,"b":1} -> {"b":1}
-	err := jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
+	if len(undefinedVariables) == 0 {
+		return variables
+	}
+	_ = jsonparser.ObjectEach(variables, func(key []byte, value []byte, dataType jsonparser.ValueType, offset int) error {
 		if dataType == jsonparser.Null {
 			stringKey := unsafebytes.BytesToString(key)
-			if removeNullVariables || slices.Contains(undefinedVariables, stringKey) {
-				cp = jsonparser.Delete(cp, stringKey)
+			if slices.Contains(undefinedVariables, stringKey) {
+				variables = jsonparser.Delete(variables, stringKey)
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return variables
-	}
-
-	// remove empty objects
-	if removeNullVariables {
-		cp = s.removeEmptyObjects(cp)
-	}
-
-	return cp
+	return variables
 }
 
 // removeEmptyObjects removes empty objects from JSON: {"b": "b", "c": {}} -> {"b": "b"}
@@ -1680,9 +1785,11 @@ func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err
 }
 
 type GraphQLSubscriptionClient interface {
-	// Subscribes to the origin source. The implementation must not block the calling goroutine.
+	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
+	SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
+	Unsubscribe(id uint64)
 }
 
 type GraphQLSubscriptionOptions struct {
@@ -1695,6 +1802,7 @@ type GraphQLSubscriptionOptions struct {
 	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 	WsSubProtocol                           string           `json:"ws_sub_protocol"`
+	readTimeout                             time.Duration    `json:"-"`
 }
 
 type GraphQLBody struct {
@@ -1706,6 +1814,24 @@ type GraphQLBody struct {
 
 type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
+}
+
+func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
+	var options GraphQLSubscriptionOptions
+	err := json.Unmarshal(input, &options)
+	if err != nil {
+		return err
+	}
+	if options.Body.Query == "" {
+		return resolve.ErrUnableToResolve
+	}
+	return s.client.SubscribeAsync(ctx, id, options, updater)
+}
+
+// AsyncStop stops the subscription with the given id. AsyncStop is only effective when netPoll is enabled
+// because without netPoll we manage the lifecycle of the connection in the subscription client.
+func (s *SubscriptionSource) AsyncStop(id uint64) {
+	s.client.Unsubscribe(id)
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.

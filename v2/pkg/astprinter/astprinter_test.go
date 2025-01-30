@@ -55,7 +55,6 @@ func TestPrintIndentDebug(t *testing.T) {
 func runWithIndent(t *testing.T, raw string, expected string, indent bool) {
 	t.Helper()
 
-	definition := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	doc := unsafeparser.ParseGraphqlDocumentString(raw)
 
 	buff := &bytes.Buffer{}
@@ -65,7 +64,7 @@ func runWithIndent(t *testing.T, raw string, expected string, indent bool) {
 		printer.indent = []byte("  ")
 	}
 
-	must(t, printer.Print(&doc, &definition, buff))
+	must(t, printer.Print(&doc, buff))
 
 	actual := buff.String()
 	assert.Equal(t, expected, actual)
@@ -696,7 +695,7 @@ func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {
 	doc.Arguments[1].PrintAfterValue = []byte("\"")
 
 	buff := bytes.Buffer{}
-	err := Print(&doc, nil, &buff)
+	err := Print(&doc, &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -710,7 +709,7 @@ func TestPrintSchemaDefinition(t *testing.T) {
 	doc := unsafeparser.ParseGraphqlDocumentFile("./testdata/starwars.schema.graphql")
 
 	buff := bytes.Buffer{}
-	err := PrintIndent(&doc, nil, []byte("  "), &buff)
+	err := PrintIndent(&doc, []byte("  "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -730,11 +729,10 @@ func TestPrintSchemaDefinition(t *testing.T) {
 
 func TestPrintOperationDefinition(t *testing.T) {
 
-	schema := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	operation := unsafeparser.ParseGraphqlDocumentFile("./testdata/introspectionquery.graphql")
 
 	buff := bytes.Buffer{}
-	err := PrintIndent(&operation, &schema, []byte("  "), &buff)
+	err := PrintIndent(&operation, []byte("  "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -760,7 +758,6 @@ func BenchmarkPrint(b *testing.B) {
 		}
 	}
 
-	def := unsafeparser.ParseGraphqlDocumentString(benchmarkTestDefinition)
 	doc := unsafeparser.ParseGraphqlDocumentString(benchmarkTestOperation)
 
 	buff := &bytes.Buffer{}
@@ -772,7 +769,7 @@ func BenchmarkPrint(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		buff.Reset()
-		must(printer.Print(&doc, &def, buff))
+		must(printer.Print(&doc, buff))
 	}
 }
 

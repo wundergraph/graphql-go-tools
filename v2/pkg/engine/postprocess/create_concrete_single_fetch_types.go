@@ -4,54 +4,48 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-// CreateConcreteSingleFetchTypes is a postprocessor that transforms fetches into more concrete fetch types
-type CreateConcreteSingleFetchTypes struct{}
-
-func (d *CreateConcreteSingleFetchTypes) Process(node resolve.Node) {
-	d.traverseNode(node)
+// createConcreteSingleFetchTypes is a postprocessor that transforms fetches into more concrete fetch types
+type createConcreteSingleFetchTypes struct {
+	disable bool
 }
 
-func (d *CreateConcreteSingleFetchTypes) ProcessSubscription(node resolve.Node, trigger *resolve.GraphQLSubscriptionTrigger) {
-	d.traverseNode(node)
+func (d *createConcreteSingleFetchTypes) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	if d.disable {
+		return
+	}
+	d.traverseNode(root)
 }
 
-func (d *CreateConcreteSingleFetchTypes) traverseNode(node resolve.Node) {
-	switch n := node.(type) {
-	case *resolve.Object:
-		n.Fetch = d.traverseFetch(n.Fetch)
-		for i := range n.Fields {
-			d.traverseNode(n.Fields[i].Value)
+func (d *createConcreteSingleFetchTypes) traverseNode(node *resolve.FetchTreeNode) {
+	if node == nil {
+		return
+	}
+	switch node.Kind {
+	case resolve.FetchTreeNodeKindSingle:
+		node.Item.Fetch = d.traverseFetch(node.Item.Fetch)
+	case resolve.FetchTreeNodeKindParallel:
+		for i := range node.ChildNodes {
+			d.traverseNode(node.ChildNodes[i])
 		}
-	case *resolve.Array:
-		d.traverseNode(n.Item)
+	case resolve.FetchTreeNodeKindSequence:
+		for i := range node.ChildNodes {
+			d.traverseNode(node.ChildNodes[i])
+		}
 	}
 }
 
-func (d *CreateConcreteSingleFetchTypes) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
+func (d *createConcreteSingleFetchTypes) traverseFetch(fetch resolve.Fetch) resolve.Fetch {
 	if fetch == nil {
 		return nil
 	}
 	switch f := fetch.(type) {
 	case *resolve.SingleFetch:
 		return d.traverseSingleFetch(f)
-	case *resolve.ParallelFetch:
-		fetches := make([]resolve.Fetch, 0, len(f.Fetches))
-		for i := range f.Fetches {
-			fetches = append(fetches, d.traverseFetch(f.Fetches[i]))
-		}
-		f.Fetches = fetches
-	case *resolve.SerialFetch:
-		fetches := make([]resolve.Fetch, 0, len(f.Fetches))
-		for i := range f.Fetches {
-			fetches = append(fetches, d.traverseFetch(f.Fetches[i]))
-		}
-		f.Fetches = fetches
 	}
-
 	return fetch
 }
 
-func (d *CreateConcreteSingleFetchTypes) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *createConcreteSingleFetchTypes) traverseSingleFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	switch {
 	case fetch.RequiresEntityBatchFetch:
 		return d.createEntityBatchFetch(fetch)
@@ -64,13 +58,13 @@ func (d *CreateConcreteSingleFetchTypes) traverseSingleFetch(fetch *resolve.Sing
 	}
 }
 
-func (d *CreateConcreteSingleFetchTypes) createParallelListItemFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *createConcreteSingleFetchTypes) createParallelListItemFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	return &resolve.ParallelListItemFetch{
 		Fetch: fetch,
 	}
 }
 
-func (d *CreateConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *createConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	representationsVariableIndex := -1
 	for i, segment := range fetch.InputTemplate.Segments {
 		if segment.SegmentType == resolve.VariableSegmentType &&
@@ -115,7 +109,7 @@ func (d *CreateConcreteSingleFetchTypes) createEntityBatchFetch(fetch *resolve.S
 	}
 }
 
-func (d *CreateConcreteSingleFetchTypes) createEntityFetch(fetch *resolve.SingleFetch) resolve.Fetch {
+func (d *createConcreteSingleFetchTypes) createEntityFetch(fetch *resolve.SingleFetch) resolve.Fetch {
 	representationsVariableIndex := -1
 	for i, segment := range fetch.InputTemplate.Segments {
 		if segment.SegmentType == resolve.VariableSegmentType &&

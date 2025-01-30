@@ -26,12 +26,21 @@ func (f *Factory[T]) Context() context.Context {
 	return context.TODO()
 }
 
+func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+	return nil, false
+}
+
 type Planner[T Configuration] struct {
+	id     int
 	config Configuration
 }
 
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return nil, false
+func (p *Planner[T]) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner[T]) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {

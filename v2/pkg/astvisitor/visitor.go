@@ -3,6 +3,7 @@ package astvisitor
 import (
 	"bytes"
 	"fmt"
+	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -101,6 +102,27 @@ func NewWalker(ancestorSize int) Walker {
 		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
 		deferred:        make([]func(), 0, 8),
 	}
+}
+
+var (
+	walkerPool = sync.Pool{}
+)
+
+func WalkerFromPool() *Walker {
+	walker := walkerPool.Get()
+	if walker == nil {
+		w := NewWalker(8)
+		return &w
+	}
+	return walker.(*Walker)
+}
+
+func (w *Walker) Release() {
+	w.ResetVisitors()
+	w.Report = nil
+	w.document = nil
+	w.definition = nil
+	walkerPool.Put(w)
 }
 
 type (
@@ -1440,8 +1462,8 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 			}
 		}
 		if typeName == nil {
-			typeName := w.definition.NodeNameBytes(w.TypeDefinitions[len(w.TypeDefinitions)-1])
-			w.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
+			w.EnclosingTypeDefinition = ast.InvalidNode
+			w.TypeDefinitions = append(w.TypeDefinitions, w.EnclosingTypeDefinition)
 			return
 		}
 	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInterfaceTypeDefinition, ast.NodeKindUnionTypeDefinition:
@@ -1465,7 +1487,6 @@ func (w *Walker) appendAncestor(ref int, kind ast.NodeKind) {
 }
 
 func (w *Walker) removeLastAncestor() {
-
 	ancestor := w.Ancestors[len(w.Ancestors)-1]
 	w.Ancestors = w.Ancestors[:len(w.Ancestors)-1]
 

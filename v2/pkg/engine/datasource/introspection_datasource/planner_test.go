@@ -116,7 +116,7 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 				Fields:      cfgFactory.BuildFieldConfigurations(),
 			}
 
-			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration, datasourcetesting.WithMultiFetchPostProcessor())(t)
+			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration)(t)
 		}
 	}
 
@@ -126,19 +126,21 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						DataSourceIdentifier: dataSourceIdentifier,
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"request_type":2,"type_name":"$$0$$"}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							DataSourceIdentifier: dataSourceIdentifier,
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
+								),
+								PostProcessing: resolve.PostProcessingConfiguration{
+									MergePath: []string{"__type"},
 								},
-							),
-							PostProcessing: resolve.PostProcessingConfiguration{
-								MergePath: []string{"__type"},
 							},
 						},
 					},
@@ -166,8 +168,20 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 									},
 									{
 										Name: []byte("kind"),
-										Value: &resolve.String{
-											Path: []string{"kind"},
+										Value: &resolve.Enum{
+											TypeName: "__TypeKind",
+											Path:     []string{"kind"},
+											Values: []string{
+												"SCALAR",
+												"OBJECT",
+												"INTERFACE",
+												"UNION",
+												"ENUM",
+												"INPUT_OBJECT",
+												"LIST",
+												"NON_NULL",
+											},
+											InaccessibleValues: []string{},
 										},
 										Position: resolve.Position{
 											Line:   5,
@@ -187,13 +201,15 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						DataSourceIdentifier: dataSourceIdentifier,
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"request_type":1}`,
-							DataSource: &Source{},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								MergePath: []string{"__schema"},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							DataSourceIdentifier: dataSourceIdentifier,
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"request_type":1}`,
+								DataSource: &Source{},
+								PostProcessing: resolve.PostProcessingConfiguration{
+									MergePath: []string{"__schema"},
+								},
 							},
 						},
 					},
@@ -243,13 +259,15 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						DataSourceIdentifier: dataSourceIdentifier,
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"request_type":1}`,
-							DataSource: &Source{},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								MergePath: []string{"__schema"},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							DataSourceIdentifier: dataSourceIdentifier,
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"request_type":1}`,
+								DataSource: &Source{},
+								PostProcessing: resolve.PostProcessingConfiguration{
+									MergePath: []string{"__schema"},
+								},
 							},
 						},
 					},
@@ -347,19 +365,21 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
 				Data: &resolve.Object{
-					Fetch: &resolve.SingleFetch{
-						DataSourceIdentifier: dataSourceIdentifier,
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input:      `{"request_type":2,"type_name":"$$0$$"}`,
-							DataSource: &Source{},
-							Variables: resolve.NewVariables(
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							DataSourceIdentifier: dataSourceIdentifier,
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
+								),
+								PostProcessing: resolve.PostProcessingConfiguration{
+									MergePath: []string{"__type"},
 								},
-							),
-							PostProcessing: resolve.PostProcessingConfiguration{
-								MergePath: []string{"__type"},
 							},
 						},
 					},
@@ -373,52 +393,50 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							Value: &resolve.Object{
 								Path:     []string{"__type"},
 								Nullable: true,
-								Fetch: &resolve.ParallelFetch{
-									Fetches: []resolve.Fetch{
-										&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 1,
-											},
-											DataSourceIdentifier: dataSourceIdentifier,
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-												DataSource: &Source{},
-												Variables: resolve.NewVariables(
-													&resolve.ObjectVariable{
-														Path:     []string{"name"},
-														Renderer: resolve.NewPlainVariableRenderer(),
-													},
-													&resolve.ContextVariable{
-														Path:     []string{"b"},
-														Renderer: resolve.NewPlainVariableRenderer(),
-													},
-												),
-												PostProcessing: resolve.PostProcessingConfiguration{
-													MergePath: []string{"fields"},
+								Fetches: []resolve.Fetch{
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 1,
+										},
+										DataSourceIdentifier: dataSourceIdentifier,
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+											DataSource: &Source{},
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"name"},
+													Renderer: resolve.NewPlainVariableRenderer(),
 												},
+												&resolve.ContextVariable{
+													Path:     []string{"b"},
+													Renderer: resolve.NewPlainVariableRenderer(),
+												},
+											),
+											PostProcessing: resolve.PostProcessingConfiguration{
+												MergePath: []string{"fields"},
 											},
 										},
-										&resolve.SingleFetch{
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 2,
-											},
-											DataSourceIdentifier: dataSourceIdentifier,
-											FetchConfiguration: resolve.FetchConfiguration{
-												Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-												DataSource: &Source{},
-												Variables: resolve.NewVariables(
-													&resolve.ObjectVariable{
-														Path:     []string{"name"},
-														Renderer: resolve.NewPlainVariableRenderer(),
-													},
-													&resolve.ContextVariable{
-														Path:     []string{"b"},
-														Renderer: resolve.NewPlainVariableRenderer(),
-													},
-												),
-												PostProcessing: resolve.PostProcessingConfiguration{
-													MergePath: []string{"enumValues"},
+									},
+									&resolve.SingleFetch{
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 2,
+										},
+										DataSourceIdentifier: dataSourceIdentifier,
+										FetchConfiguration: resolve.FetchConfiguration{
+											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
+											DataSource: &Source{},
+											Variables: resolve.NewVariables(
+												&resolve.ObjectVariable{
+													Path:     []string{"name"},
+													Renderer: resolve.NewPlainVariableRenderer(),
 												},
+												&resolve.ContextVariable{
+													Path:     []string{"b"},
+													Renderer: resolve.NewPlainVariableRenderer(),
+												},
+											),
+											PostProcessing: resolve.PostProcessingConfiguration{
+												MergePath: []string{"enumValues"},
 											},
 										},
 									},

@@ -26,7 +26,7 @@ func NewGenerator() *Generator {
 		Walker: &walker,
 	}
 
-	walker.RegisterEnterDocumentVisitor(&visitor)
+	walker.RegisterDocumentVisitor(&visitor)
 	walker.RegisterEnterDirectiveLocationVisitor(&visitor)
 	walker.RegisterEnterInputValueDefinitionVisitor(&visitor)
 	walker.RegisterEnterRootOperationTypeDefinitionVisitor(&visitor)
@@ -59,13 +59,31 @@ type introspectionVisitor struct {
 	*astvisitor.Walker
 	definition       *ast.Document
 	data             *Data
-	currentType      FullType
+	currentType      *FullType
 	currentField     Field
 	currentDirective Directive
+
+	queryTypeName        string
+	mutationTypeName     string
+	subscriptionTypeName string
 }
 
 func (i *introspectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	i.data.Schema = NewSchema()
+}
+
+func (i *introspectionVisitor) LeaveDocument(operation, definition *ast.Document) {
+	if i.queryTypeName != "" {
+		i.data.Schema.QueryType = *i.data.Schema.TypeByName(i.queryTypeName)
+	}
+
+	if i.mutationTypeName != "" {
+		i.data.Schema.MutationType = i.data.Schema.TypeByName(i.mutationTypeName)
+	}
+
+	if i.subscriptionTypeName != "" {
+		i.data.Schema.SubscriptionType = i.data.Schema.TypeByName(i.subscriptionTypeName)
+	}
 }
 
 func (i *introspectionVisitor) EnterObjectTypeDefinition(ref int) {
@@ -76,8 +94,9 @@ func (i *introspectionVisitor) EnterObjectTypeDefinition(ref int) {
 	for _, typeRef := range i.definition.ObjectTypeDefinitions[ref].ImplementsInterfaces.Refs {
 		name := i.definition.TypeNameString(typeRef)
 		i.currentType.Interfaces = append(i.currentType.Interfaces, TypeRef{
-			Kind: INTERFACE,
-			Name: &name,
+			Kind:     INTERFACE,
+			Name:     &name,
+			TypeName: "__Type",
 		})
 	}
 }
@@ -86,7 +105,7 @@ func (i *introspectionVisitor) LeaveObjectTypeDefinition(ref int) {
 	if strings.HasPrefix(i.currentType.Name, "__") {
 		return
 	}
-	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
+	i.data.Schema.AddType(i.currentType)
 }
 
 func (i *introspectionVisitor) EnterFieldDefinition(ref int) {
@@ -129,6 +148,7 @@ func (i *introspectionVisitor) EnterInputValueDefinition(ref int) {
 		Description:  i.definition.InputValueDefinitionDescriptionString(ref),
 		Type:         i.TypeRef(i.definition.InputValueDefinitionType(ref)),
 		DefaultValue: defaultValue,
+		TypeName:     "__InputValue",
 	}
 
 	switch i.Ancestors[len(i.Ancestors)-1].Kind {
@@ -152,8 +172,9 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 		if i.definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefRef, interfaceNameBytes) {
 			objectName := i.definition.ObjectTypeDefinitionNameString(objectTypeDefRef)
 			i.currentType.PossibleTypes = append(i.currentType.PossibleTypes, TypeRef{
-				Kind: OBJECT,
-				Name: &objectName,
+				Kind:     OBJECT,
+				Name:     &objectName,
+				TypeName: "__Type",
 			})
 		}
 	}
@@ -164,8 +185,9 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 			if i.currentType.Name == interfaceTypeExtensionName {
 				implementedInterfaceName := i.definition.TypeNameString(implementedInterfaceRef)
 				i.currentType.Interfaces = append(i.currentType.Interfaces, TypeRef{
-					Kind: INTERFACE,
-					Name: &implementedInterfaceName,
+					Kind:     INTERFACE,
+					Name:     &implementedInterfaceName,
+					TypeName: "__Type",
 				})
 			}
 		}
@@ -174,8 +196,9 @@ func (i *introspectionVisitor) EnterInterfaceTypeDefinition(ref int) {
 	for _, implementedInterfaceRef := range i.definition.InterfaceTypeDefinitions[ref].ImplementsInterfaces.Refs {
 		implementedInterfaceName := i.definition.TypeNameString(implementedInterfaceRef)
 		i.currentType.Interfaces = append(i.currentType.Interfaces, TypeRef{
-			Kind: INTERFACE,
-			Name: &implementedInterfaceName,
+			Kind:     INTERFACE,
+			Name:     &implementedInterfaceName,
+			TypeName: "__Type",
 		})
 	}
 }
@@ -184,7 +207,7 @@ func (i *introspectionVisitor) LeaveInterfaceTypeDefinition(ref int) {
 	if strings.HasPrefix(i.currentType.Name, "__") {
 		return
 	}
-	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
+	i.data.Schema.AddType(i.currentType)
 }
 
 func (i *introspectionVisitor) EnterScalarTypeDefinition(ref int) {
@@ -192,7 +215,7 @@ func (i *introspectionVisitor) EnterScalarTypeDefinition(ref int) {
 	typeDefinition.Kind = SCALAR
 	typeDefinition.Name = i.definition.ScalarTypeDefinitionNameString(ref)
 	typeDefinition.Description = i.definition.ScalarTypeDefinitionDescriptionString(ref)
-	i.data.Schema.Types = append(i.data.Schema.Types, typeDefinition)
+	i.data.Schema.AddType(typeDefinition)
 }
 
 func (i *introspectionVisitor) EnterUnionTypeDefinition(ref int) {
@@ -206,14 +229,15 @@ func (i *introspectionVisitor) LeaveUnionTypeDefinition(ref int) {
 	if strings.HasPrefix(i.currentType.Name, "__") {
 		return
 	}
-	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
+	i.data.Schema.AddType(i.currentType)
 }
 
 func (i *introspectionVisitor) EnterUnionMemberType(ref int) {
 	name := i.definition.TypeNameString(ref)
 	i.currentType.PossibleTypes = append(i.currentType.PossibleTypes, TypeRef{
-		Kind: OBJECT,
-		Name: &name,
+		Kind:     OBJECT,
+		Name:     &name,
+		TypeName: "__Type",
 	})
 }
 
@@ -228,13 +252,14 @@ func (i *introspectionVisitor) LeaveEnumTypeDefinition(ref int) {
 	if strings.HasPrefix(i.currentType.Name, "__") {
 		return
 	}
-	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
+	i.data.Schema.AddType(i.currentType)
 }
 
 func (i *introspectionVisitor) LeaveEnumValueDefinition(ref int) {
 	enumValue := EnumValue{
 		Name:        i.definition.EnumValueDefinitionNameString(ref),
 		Description: i.definition.EnumValueDefinitionDescriptionString(ref),
+		TypeName:    "__EnumValue",
 	}
 
 	if i.definition.EnumValueDefinitionHasDirectives(ref) {
@@ -256,7 +281,7 @@ func (i *introspectionVisitor) EnterInputObjectTypeDefinition(ref int) {
 }
 
 func (i *introspectionVisitor) LeaveInputObjectTypeDefinition(ref int) {
-	i.data.Schema.Types = append(i.data.Schema.Types, i.currentType)
+	i.data.Schema.AddType(i.currentType)
 }
 
 func (i *introspectionVisitor) EnterDirectiveDefinition(ref int) {
@@ -277,17 +302,12 @@ func (i *introspectionVisitor) EnterDirectiveLocation(location ast.DirectiveLoca
 func (i *introspectionVisitor) EnterRootOperationTypeDefinition(ref int) {
 	switch i.definition.RootOperationTypeDefinitions[ref].OperationType {
 	case ast.OperationTypeQuery:
-		i.data.Schema.QueryType = &TypeName{
-			Name: i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name),
-		}
+		i.queryTypeName = i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name)
 	case ast.OperationTypeMutation:
-		i.data.Schema.MutationType = &TypeName{
-			Name: i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name),
-		}
+		i.mutationTypeName = i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name)
 	case ast.OperationTypeSubscription:
-		i.data.Schema.SubscriptionType = &TypeName{
-			Name: i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name),
-		}
+		i.subscriptionTypeName = i.definition.Input.ByteSliceString(i.definition.RootOperationTypeDefinitions[ref].NamedType.Name)
+	default:
 	}
 }
 
@@ -297,7 +317,7 @@ func (i *introspectionVisitor) TypeRef(typeRef int) TypeRef {
 		name := i.definition.TypeNameBytes(typeRef)
 		node, exists := i.definition.Index.FirstNodeByNameBytes(name)
 		if !exists {
-			return TypeRef{}
+			return TypeRef{TypeName: "__Type"}
 		}
 		var typeKind __TypeKind
 		switch node.Kind {
@@ -316,23 +336,26 @@ func (i *introspectionVisitor) TypeRef(typeRef int) TypeRef {
 		}
 		nameStr := unsafebytes.BytesToString(name)
 		return TypeRef{
-			Kind: typeKind,
-			Name: &nameStr,
+			Kind:     typeKind,
+			Name:     &nameStr,
+			TypeName: "__Type",
 		}
 	case ast.TypeKindNonNull:
 		ofType := i.TypeRef(i.definition.Types[typeRef].OfType)
 		return TypeRef{
-			Kind:   NONNULL,
-			OfType: &ofType,
+			Kind:     NONNULL,
+			OfType:   &ofType,
+			TypeName: "__Type",
 		}
 	case ast.TypeKindList:
 		ofType := i.TypeRef(i.definition.Types[typeRef].OfType)
 		return TypeRef{
-			Kind:   LIST,
-			OfType: &ofType,
+			Kind:     LIST,
+			OfType:   &ofType,
+			TypeName: "__Type",
 		}
 	default:
-		return TypeRef{}
+		return TypeRef{TypeName: "__Type"}
 	}
 }
 

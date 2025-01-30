@@ -14,6 +14,7 @@ type Configuration struct {
 }
 
 type Planner[T Configuration] struct {
+	id                           int
 	introspectionData            *introspection.Data
 	v                            *plan.Visitor
 	rootField                    int
@@ -23,8 +24,12 @@ type Planner[T Configuration] struct {
 	isArrayItem                  bool
 }
 
-func (p *Planner[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
-	return nil, false
+func (p *Planner[T]) SetID(id int) {
+	p.id = id
+}
+
+func (p *Planner[T]) ID() (id int) {
+	return p.id
 }
 
 func (p *Planner[T]) Register(visitor *plan.Visitor, dataSourceConfiguration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
@@ -44,6 +49,7 @@ func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavio
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
 	}
 }
 
@@ -53,7 +59,6 @@ func (p *Planner[T]) EnterField(ref int) {
 	switch fieldName {
 	case fieldsFieldName, enumValuesFieldName:
 		p.hasIncludeDeprecatedArgument = p.v.Operation.FieldHasArguments(ref)
-
 		fallthrough
 	case typeFieldName, schemaFieldName:
 		p.rootField = ref

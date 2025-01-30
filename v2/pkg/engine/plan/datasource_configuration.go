@@ -8,6 +8,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -23,6 +24,7 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
+	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
 }
 
 type DataSourceMetadata struct {
@@ -40,6 +42,9 @@ type DataSourceMetadata struct {
 	// Note: Unions are not present in the child or root nodes
 	ChildNodes TypeFields
 	Directives *DirectiveConfigurations
+
+	rootNodesIndex  map[string]fieldsIndex
+	childNodesIndex map[string]fieldsIndex
 }
 
 type DirectivesConfigurations interface {
@@ -53,9 +58,55 @@ type NodesAccess interface {
 
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
+	HasExternalRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
+	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
+}
+
+type fieldsIndex struct {
+	fields         map[string]struct{}
+	externalFields map[string]struct{}
+}
+
+func (d *DataSourceMetadata) InitNodesIndex() {
+	if d == nil {
+		return
+	}
+
+	d.rootNodesIndex = make(map[string]fieldsIndex, len(d.RootNodes))
+	d.childNodesIndex = make(map[string]fieldsIndex, len(d.ChildNodes))
+
+	for i := range d.RootNodes {
+		if _, ok := d.rootNodesIndex[d.RootNodes[i].TypeName]; !ok {
+			d.rootNodesIndex[d.RootNodes[i].TypeName] = fieldsIndex{
+				make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
+				make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+			}
+		}
+		for j := range d.RootNodes[i].FieldNames {
+			d.rootNodesIndex[d.RootNodes[i].TypeName].fields[d.RootNodes[i].FieldNames[j]] = struct{}{}
+		}
+		for j := range d.RootNodes[i].ExternalFieldNames {
+			d.rootNodesIndex[d.RootNodes[i].TypeName].externalFields[d.RootNodes[i].ExternalFieldNames[j]] = struct{}{}
+		}
+	}
+
+	for i := range d.ChildNodes {
+		if _, ok := d.childNodesIndex[d.ChildNodes[i].TypeName]; !ok {
+			d.childNodesIndex[d.ChildNodes[i].TypeName] = fieldsIndex{
+				make(map[string]struct{}),
+				make(map[string]struct{}),
+			}
+		}
+		for j := range d.ChildNodes[i].FieldNames {
+			d.childNodesIndex[d.ChildNodes[i].TypeName].fields[d.ChildNodes[i].FieldNames[j]] = struct{}{}
+		}
+		for j := range d.ChildNodes[i].ExternalFieldNames {
+			d.childNodesIndex[d.ChildNodes[i].TypeName].externalFields[d.ChildNodes[i].ExternalFieldNames[j]] = struct{}{}
+		}
+	}
 }
 
 func (d *DataSourceMetadata) DirectiveConfigurations() *DirectiveConfigurations {
@@ -63,19 +114,70 @@ func (d *DataSourceMetadata) DirectiveConfigurations() *DirectiveConfigurations 
 }
 
 func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
-	return d.RootNodes.HasNode(typeName, fieldName)
+	if d.rootNodesIndex == nil {
+		return false
+	}
+
+	index, ok := d.rootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+
+	_, ok = index.fields[fieldName]
+	return ok
+}
+
+func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
+	if d.rootNodesIndex == nil {
+		return false
+	}
+	index, ok := d.rootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.externalFields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
-	return d.RootNodes.HasNodeWithTypename(typeName)
+	if d.rootNodesIndex == nil {
+		return false
+	}
+	_, ok := d.rootNodesIndex[typeName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
-	return d.ChildNodes.HasNode(typeName, fieldName)
+	if d.childNodesIndex == nil {
+		return false
+	}
+	index, ok := d.childNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+
+	_, ok = index.fields[fieldName]
+	return ok
+}
+
+func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
+	if d.childNodesIndex == nil {
+		return false
+	}
+	index, ok := d.childNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.externalFields[fieldName]
+	return ok
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
-	return d.ChildNodes.HasNodeWithTypename(typeName)
+	if d.childNodesIndex == nil {
+		return false
+	}
+	_, ok := d.childNodesIndex[typeName]
+	return ok
 }
 
 func (d *DataSourceMetadata) ListRootNodes() TypeFields {
@@ -90,23 +192,31 @@ func (d *DataSourceMetadata) ListChildNodes() TypeFields {
 // dataSourceConfiguration is the configuration for a DataSource
 type dataSourceConfiguration[T any] struct {
 	*DataSourceMetadata                   // DataSourceMetadata is the information about root and child nodes and federation metadata if applicable
-	ID                  string            // ID is a unique identifier for the DataSource
-	Factory             PlannerFactory[T] // Factory is the factory for the creation of the concrete DataSourcePlanner
-	Custom              T                 // Custom is the datasource specific configuration
+	id                  string            // id is a unique identifier for the DataSource
+	name                string            // name is a human-readable name for the DataSource
+	factory             PlannerFactory[T] // factory is the factory for the creation of the concrete DataSourcePlanner
+	custom              T                 // custom is the datasource specific configuration
 
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }
 
 func NewDataSourceConfiguration[T any](id string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) (DataSourceConfiguration[T], error) {
+	return NewDataSourceConfigurationWithName(id, id, factory, metadata, customConfig)
+}
+
+func NewDataSourceConfigurationWithName[T any](id string, name string, factory PlannerFactory[T], metadata *DataSourceMetadata, customConfig T) (DataSourceConfiguration[T], error) {
 	if id == "" {
 		return nil, errors.New("data source id could not be empty")
 	}
 
+	metadata.InitNodesIndex()
+
 	return &dataSourceConfiguration[T]{
-		ID:                 id,
-		Factory:            factory,
 		DataSourceMetadata: metadata,
-		Custom:             customConfig,
+		id:                 id,
+		name:               name,
+		factory:            factory,
+		custom:             customConfig,
 		hash:               DSHash(xxhash.Sum64([]byte(id))),
 	}, nil
 }
@@ -116,22 +226,28 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
+type DataSourceUpstreamSchema interface {
+	UpstreamSchema() (*ast.Document, bool)
+}
+
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
+	DataSourceUpstreamSchema
 	Id() string
+	Name() string
 	Hash() DSHash
 	FederationConfiguration() FederationMetaData
-	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration
+	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration Configuration) PlannerConfiguration
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
-	return d.Custom
+	return d.custom
 }
 
-func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration) PlannerConfiguration {
-	planner := d.Factory.Planner(logger)
+func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration Configuration) PlannerConfiguration {
+	planner := d.factory.Planner(logger)
 
 	fetchConfig.planner = planner
 
@@ -140,14 +256,24 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 		objectFetchConfiguration:  fetchConfig,
 		plannerPathsConfiguration: pathConfig,
 		planner:                   planner,
-		providedFields:            NewNodeSuggestionsWithSize(4),
+		options: plannerConfigurationOptions{
+			EnableOperationNamePropagation: configuration.EnableOperationNamePropagation,
+		},
 	}
 
 	return plannerConfig
 }
 
+func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
+	return d.factory.UpstreamSchema(d)
+}
+
 func (d *dataSourceConfiguration[T]) Id() string {
-	return d.ID
+	return d.id
+}
+
+func (d *dataSourceConfiguration[T]) Name() string {
+	return d.name
 }
 
 func (d *dataSourceConfiguration[T]) FederationConfiguration() FederationMetaData {
@@ -160,10 +286,11 @@ func (d *dataSourceConfiguration[T]) Hash() DSHash {
 
 type DataSourcePlannerConfiguration struct {
 	RequiredFields FederationFieldConfigurations
-	ProvidedFields *NodeSuggestions
 	ParentPath     string
 	PathType       PlannerPathType
 	IsNested       bool
+	Options        plannerConfigurationOptions
+	FetchID        int
 }
 
 type PlannerPathType int
@@ -237,8 +364,7 @@ type DataSourcePlanningBehavior struct {
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
-	// IncludeTypeNameFields should be set to true if the planner wants to get EnterField & LeaveField events
-	// for __typename fields
+	// IncludeTypeNameFields should be set to true if the planner allows to plan __typename fields
 	IncludeTypeNameFields bool
 }
 
@@ -273,11 +399,15 @@ type DataSourceBehavior interface {
 	DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool)
 }
 
+type Identifyable interface {
+	astvisitor.VisitorIdentifier
+}
+
 type DataSourcePlanner[T any] interface {
 	DataSourceFetchPlanner
 	DataSourceBehavior
+	Identifyable
 	Register(visitor *Visitor, configuration DataSourceConfiguration[T], dataSourcePlannerConfiguration DataSourcePlannerConfiguration) error
-	UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (doc *ast.Document, ok bool)
 }
 
 type SubscriptionConfiguration struct {
@@ -285,4 +415,5 @@ type SubscriptionConfiguration struct {
 	Variables      resolve.Variables
 	DataSource     resolve.SubscriptionDataSource
 	PostProcessing resolve.PostProcessingConfiguration
+	QueryPlan      *resolve.QueryPlan
 }

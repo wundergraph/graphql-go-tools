@@ -2,14 +2,30 @@
 package astvalidation
 
 import (
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// DefaultOperationValidator returns a fully initialized OperationValidator with all default rules registered
-func DefaultOperationValidator() *OperationValidator {
+type OperationValidatorOptions struct {
+	ApolloCompatibilityFlags apollocompatibility.Flags
+}
 
+func WithApolloCompatibilityFlags(flags apollocompatibility.Flags) Option {
+	return func(options *OperationValidatorOptions) {
+		options.ApolloCompatibilityFlags = flags
+	}
+}
+
+type Option func(options *OperationValidatorOptions)
+
+// DefaultOperationValidator returns a fully initialized OperationValidator with all default rules registered
+func DefaultOperationValidator(options ...Option) *OperationValidator {
+	var opts OperationValidatorOptions
+	for _, opt := range options {
+		opt(&opts)
+	}
 	validator := OperationValidator{
 		walker: astvisitor.NewWalker(48),
 	}
@@ -20,7 +36,7 @@ func DefaultOperationValidator() *OperationValidator {
 	validator.RegisterRule(OperationNameUniqueness())
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
-	validator.RegisterRule(FieldSelections())
+	validator.RegisterRule(FieldSelections(opts))
 	validator.RegisterRule(FieldSelectionMerging())
 	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(ValidArguments())

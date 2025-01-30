@@ -22,7 +22,8 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 		return nil, report
 	}
 
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.WalkerFromPool()
+	defer walker.Release()
 
 	var interfaceObjectTypeName *string
 	for _, interfaceObjCfg := range federationCfg.InterfaceObjects {
@@ -45,7 +46,7 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 		entityInterfaceTypeName: entityInterfaceTypeName,
 		addOnType:               true,
 		addTypeName:             true,
-		Walker:                  &walker,
+		Walker:                  walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
@@ -74,7 +75,9 @@ func mergeArrays(left, right resolve.Node) resolve.Node {
 	leftArray, _ := left.(*resolve.Array)
 	rightArray, _ := right.(*resolve.Array)
 
-	leftArray.Item = mergeObjects(leftArray.Item, rightArray.Item)
+	if leftArray.Item.NodeKind() == resolve.NodeKindObject {
+		leftArray.Item = mergeObjects(leftArray.Item, rightArray.Item)
+	}
 	return leftArray
 }
 

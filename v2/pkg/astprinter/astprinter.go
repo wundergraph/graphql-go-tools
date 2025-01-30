@@ -13,47 +13,47 @@ import (
 
 // Print takes a document as well as a definition (optional) and prints it to the io.Writer.
 // The definition is only necessary in case a GraphQL Operation should be printed.
-func Print(document, definition *ast.Document, out io.Writer) error {
+func Print(document *ast.Document, out io.Writer) error {
 	printer := Printer{}
-	return printer.Print(document, definition, out)
+	return printer.Print(document, out)
 }
 
 // PrintIndent is the same as Print but accepts an additional indent parameter to set indentation.
-func PrintIndent(document, definition *ast.Document, indent []byte, out io.Writer) error {
+func PrintIndent(document *ast.Document, indent []byte, out io.Writer) error {
 	printer := Printer{
 		indent: indent,
 	}
-	return printer.Print(document, definition, out)
+	return printer.Print(document, out)
 }
 
-func PrintIndentDebug(document, definition *ast.Document, indent []byte, out io.Writer) error {
+func PrintIndentDebug(document *ast.Document, indent []byte, out io.Writer) error {
 	printer := Printer{
 		indent: indent,
 		debug:  true,
 	}
-	return printer.Print(document, definition, out)
+	return printer.Print(document, out)
 }
 
 // PrintString is the same as Print but returns a string instead of writing to an io.Writer
-func PrintString(document, definition *ast.Document) (string, error) {
+func PrintString(document *ast.Document) (string, error) {
 	buff := &bytes.Buffer{}
-	err := Print(document, definition, buff)
+	err := Print(document, buff)
 	out := buff.String()
 	return out, err
 }
 
 // PrintStringIndent is the same as PrintIndent but returns a string instead of writing to an io.Writer
-func PrintStringIndent(document, definition *ast.Document, indent string) (string, error) {
+func PrintStringIndent(document *ast.Document, indent string) (string, error) {
 	buff := &bytes.Buffer{}
-	err := PrintIndent(document, definition, []byte(indent), buff)
+	err := PrintIndent(document, []byte(indent), buff)
 	out := buff.String()
 	return out, err
 }
 
 // PrintStringIndentDebug is the same as PrintStringIndent but prints debug information
-func PrintStringIndentDebug(document, definition *ast.Document, indent string) (string, error) {
+func PrintStringIndentDebug(document *ast.Document, indent string) (string, error) {
 	buff := &bytes.Buffer{}
-	err := PrintIndentDebug(document, definition, []byte(indent), buff)
+	err := PrintIndentDebug(document, []byte(indent), buff)
 	out := buff.String()
 	return out, err
 }
@@ -75,7 +75,7 @@ type Printer struct {
 
 // Print starts the actual AST printing
 // Keep a printer and re-use it in case you'd like to print ASTs in the hot path.
-func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error {
+func (p *Printer) Print(document *ast.Document, out io.Writer) error {
 	p.visitor.indent = p.indent
 	p.visitor.debug = p.debug
 	p.visitor.err = nil
@@ -85,7 +85,7 @@ func (p *Printer) Print(document, definition *ast.Document, out io.Writer) error
 	if !p.registered {
 		p.walker.SetVisitor(&p.visitor)
 	}
-	return p.walker.Walk(p.visitor.document, definition)
+	return p.walker.Walk(p.visitor.document, nil)
 }
 
 type printVisitor struct {

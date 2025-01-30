@@ -293,31 +293,33 @@ func TestPubSub(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "providerId":"default"}`,
-							Variables: resolve.Variables{
-								&resolve.ContextVariable{
-									Path:     []string{"a", "tenantId"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "providerId":"default"}`,
+								Variables: resolve.Variables{
+									&resolve.ContextVariable{
+										Path:     []string{"a", "tenantId"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"a", "id"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
 								},
-								&resolve.ContextVariable{
-									Path:     []string{"a", "id"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+								DataSource: &NatsRequestDataSource{
+									pubSub: &testPubsub{},
 								},
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+								PostProcessing: resolve.PostProcessingConfiguration{
+									MergePath: []string{"helloQuery"},
 								},
 							},
-							DataSource: &NatsRequestDataSource{
-								pubSub: &testPubsub{},
-							},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								MergePath: []string{"helloQuery"},
-							},
+							DataSourceIdentifier: []byte("pubsub_datasource.NatsRequestDataSource"),
 						},
-						DataSourceIdentifier: []byte("pubsub_datasource.NatsRequestDataSource"),
 					},
 				},
 			},
@@ -349,31 +351,33 @@ func TestPubSub(t *testing.T) {
 							},
 						},
 					},
-					Fetch: &resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "providerId":"default"}`,
-							Variables: resolve.Variables{
-								&resolve.ContextVariable{
-									Path:     []string{"a", "tenantId"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "providerId":"default"}`,
+								Variables: resolve.Variables{
+									&resolve.ContextVariable{
+										Path:     []string{"a", "tenantId"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"a", "id"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewPlainVariableRenderer(),
+									},
 								},
-								&resolve.ContextVariable{
-									Path:     []string{"a", "id"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+								DataSource: &NatsPublishDataSource{
+									pubSub: &testPubsub{},
 								},
-								&resolve.ContextVariable{
-									Path:     []string{"a"},
-									Renderer: resolve.NewPlainVariableRenderer(),
+								PostProcessing: resolve.PostProcessingConfiguration{
+									MergePath: []string{"helloMutation"},
 								},
 							},
-							DataSource: &NatsPublishDataSource{
-								pubSub: &testPubsub{},
-							},
-							PostProcessing: resolve.PostProcessingConfiguration{
-								MergePath: []string{"helloMutation"},
-							},
+							DataSourceIdentifier: []byte("pubsub_datasource.NatsPublishDataSource"),
 						},
-						DataSourceIdentifier: []byte("pubsub_datasource.NatsPublishDataSource"),
 					},
 				},
 			},
