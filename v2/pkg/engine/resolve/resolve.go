@@ -528,6 +528,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		id:            triggerID,
 		subscriptions: make(map[*Context]*sub),
 		cancel:        cancel,
+		inFlight:      &sync.WaitGroup{},
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
@@ -662,8 +663,6 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
-	wg := &sync.WaitGroup{}
-	trig.inFlight = wg
 	for c, s := range trig.subscriptions {
 		c, s := c, s
 		if err := c.ctx.Err(); err != nil {
@@ -677,12 +676,12 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if skip {
 			continue
 		}
-		wg.Add(1)
+		trig.inFlight.Add(1)
 		fn := func() {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
 		go func(fn func()) {
-			defer wg.Done()
+			defer trig.inFlight.Done()
 			if s.executor != nil {
 				select {
 				case <-r.ctx.Done():
@@ -704,6 +703,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if !ok {
 		return
 	}
+	trig.inFlight.Wait()
 	count := len(trig.subscriptions)
 	r.shutdownTriggerSubscriptions(id, nil)
 	trig.cancel()
