@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.147](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.146...v2.0.0-rc.147) (2025-02-03)
+
+
+### Bug Fixes
+
+* wait for updates in flight to be delivered before shutting down the trigger ([#1048](https://github.com/wundergraph/graphql-go-tools/issues/1048)) ([2b44f78](https://github.com/wundergraph/graphql-go-tools/commit/2b44f7868029062a8e92fcde90febcfcd285520b))
+
 ## [2.0.0-rc.146](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.145...v2.0.0-rc.146) (2025-01-29)
 
 
