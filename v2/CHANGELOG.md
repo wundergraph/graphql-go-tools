@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.148](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.147...v2.0.0-rc.148) (2025-02-07)
+
+
+### Bug Fixes
+
+* populating nodes selection for the external path used in a key ([#1053](https://github.com/wundergraph/graphql-go-tools/issues/1053)) ([1cfc6f5](https://github.com/wundergraph/graphql-go-tools/commit/1cfc6f58b6fbe352cd8cecfa8ebc2fd48b7caccd))
+
 ## [2.0.0-rc.147](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.146...v2.0.0-rc.147) (2025-02-03)
 
 
