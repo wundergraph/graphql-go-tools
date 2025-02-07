@@ -856,7 +856,7 @@ func TestVariablesNormalizer(t *testing.T) {
 
 	out := unsafeprinter.Print(&operationDocument)
 	assert.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
-	require.Equal(t, `{"a":{"foo":"bar","bar":null}}`, string(operationDocument.Input.Variables))
+	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
 }
 
 func BenchmarkAstNormalization(b *testing.B) {
