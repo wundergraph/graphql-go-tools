@@ -36,11 +36,8 @@ type isKeyFieldVisitor struct {
 }
 
 func (v *isKeyFieldVisitor) EnterField(ref int) {
-	if v.input.key.FieldHasSelections(ref) {
-		return
-	}
-
 	fieldName := v.input.key.FieldNameUnsafeString(ref)
+
 	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.input.typeName)
 	currentPath := parentPath + "." + fieldName
 
