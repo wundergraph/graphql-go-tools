@@ -8792,11 +8792,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"me"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
 											Value: &resolve.Object{
 												Path: []string{"details"},
+												PossibleTypes: map[string]struct{}{
+													"Details": {},
+												},
+												TypeName: "Details",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("__typename"),
@@ -8858,11 +8866,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"me"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
 											Value: &resolve.Object{
 												Path: []string{"details"},
+												PossibleTypes: map[string]struct{}{
+													"Details": {},
+												},
+												TypeName: "Details",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("forename"),
@@ -8928,11 +8944,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"me"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
 											Value: &resolve.Object{
 												Path: []string{"details"},
+												PossibleTypes: map[string]struct{}{
+													"Details": {},
+												},
+												TypeName: "Details",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("middlename"),
@@ -8995,11 +9019,19 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								Value: &resolve.Object{
 									Path:     []string{"me"},
 									Nullable: true,
+									PossibleTypes: map[string]struct{}{
+										"User": {},
+									},
+									TypeName: "User",
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("details"),
 											Value: &resolve.Object{
 												Path: []string{"details"},
+												PossibleTypes: map[string]struct{}{
+													"Details": {},
+												},
+												TypeName: "Details",
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("__typename"),
