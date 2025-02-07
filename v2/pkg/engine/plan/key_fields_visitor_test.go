@@ -49,6 +49,7 @@ func TestKeyFieldPaths(t *testing.T) {
 			parentPath: "query.me.admin",
 			expectedPaths: []string{
 				"query.me.admin.name",
+				"query.me.admin.info",
 				"query.me.admin.info.age",
 			},
 		},
