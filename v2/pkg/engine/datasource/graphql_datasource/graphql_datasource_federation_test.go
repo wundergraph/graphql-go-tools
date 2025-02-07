@@ -8230,6 +8230,442 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 		})
 	})
 
+	t.Run("external composite keys", func(t *testing.T) {
+		definition := `
+				type User {
+					details: Details!
+				}
+	
+				type Details {
+					forename: String!
+					surname: String!
+					middlename: String!
+				}
+	
+				type Query {
+					me: User
+				}
+			`
+
+		firstSubgraphSDL := `
+				type User @key(fields: "details {forename surname}") {
+					details: Details! @external
+				}
+	
+				type Details @key(fields: "forename surname"){
+					forename: String! @external
+					surname: String! @external
+					middlename: String! @shareable
+				}
+	
+				type Query {
+					me: User
+				}
+			`
+
+		firstDatasourceConfiguration := mustDataSourceConfiguration(
+			t,
+			"first.service",
+
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"me"},
+					},
+					{
+						TypeName:           "User",
+						FieldNames:         []string{"details"},
+						ExternalFieldNames: []string{"details"},
+					},
+					{
+						TypeName:           "Details",
+						FieldNames:         []string{"forename", "middlename", "surname"},
+						ExternalFieldNames: []string{"forename", "surname"},
+					},
+				},
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "details {forename surname}",
+						},
+						{
+							TypeName:     "Details",
+							SelectionSet: "forename surname",
+						},
+					},
+				},
+			},
+			mustCustomConfiguration(t,
+				ConfigurationInput{
+					Fetch: &FetchConfiguration{
+						URL: "http://first.service",
+					},
+					SchemaConfiguration: mustSchema(t,
+						&FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: firstSubgraphSDL,
+						},
+						firstSubgraphSDL,
+					),
+				},
+			),
+		)
+
+		secondSubgraphSDL := `
+				type User @key(fields: "details {forename surname}") {
+					details: Details!
+				}
+	
+				type Details @key(fields: "forename surname"){
+					forename: String!
+					surname: String!
+					middlename: String! @shareable
+				}
+			`
+
+		secondDatasourceConfiguration := mustDataSourceConfiguration(
+			t,
+			"second-service",
+
+			&plan.DataSourceMetadata{
+				RootNodes: []plan.TypeField{
+					{
+						TypeName:   "User",
+						FieldNames: []string{"details"},
+					},
+					{
+						TypeName:   "Details",
+						FieldNames: []string{"forename", "middlename", "surname"},
+					},
+				},
+
+				FederationMetaData: plan.FederationMetaData{
+					Keys: plan.FederationFieldConfigurations{
+						{
+							TypeName:     "User",
+							SelectionSet: "details {forename surname}",
+						},
+						{
+							TypeName:     "Details",
+							SelectionSet: "forename surname",
+						},
+					},
+				},
+			},
+			mustCustomConfiguration(t,
+				ConfigurationInput{
+					Fetch: &FetchConfiguration{
+						URL: "http://second.service",
+					},
+					SchemaConfiguration: mustSchema(t,
+						&FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: secondSubgraphSDL,
+						},
+						secondSubgraphSDL,
+					),
+				},
+			),
+		)
+
+		planConfiguration := plan.Configuration{
+			DataSources: []plan.DataSource{
+				firstDatasourceConfiguration,
+				secondDatasourceConfiguration,
+			},
+			DisableResolveFieldPositions: true,
+			Debug:                        plan.DebugConfiguration{},
+		}
+
+		t.Run("query __typename", func(t *testing.T) {
+			query := `
+					query Me {
+						me {
+							details {
+								__typename
+							}
+						}
+					}
+				`
+
+			expectedPlan := &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {__typename}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:     []string{"me"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("details"),
+											Value: &resolve.Object{
+												Path: []string{"details"},
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path:       []string{"__typename"},
+															IsTypeName: true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			RunWithPermutations(
+				t,
+				definition,
+				query,
+				"Me",
+				expectedPlan,
+				planConfiguration,
+				WithDefaultPostProcessor(),
+			)
+		})
+
+		t.Run("query key fields", func(t *testing.T) {
+			query := `
+					query Me {
+						me {
+							details {
+								forename
+								surname
+							}
+						}
+					}
+				`
+
+			expectedPlan := &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {forename surname}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:     []string{"me"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("details"),
+											Value: &resolve.Object{
+												Path: []string{"details"},
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("forename"),
+														Value: &resolve.String{
+															Path: []string{"forename"},
+														},
+													},
+													{
+														Name: []byte("surname"),
+														Value: &resolve.String{
+															Path: []string{"surname"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			RunWithPermutations(
+				t,
+				definition,
+				query,
+				"Me",
+				expectedPlan,
+				planConfiguration,
+				WithDefaultPostProcessor(),
+			)
+		})
+
+		t.Run("query not external field on external path", func(t *testing.T) {
+			query := `
+					query Me {
+						me {
+							details {
+								middlename
+							}
+						}
+					}
+				`
+
+			expectedPlan := &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {middlename}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:     []string{"me"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("details"),
+											Value: &resolve.Object{
+												Path: []string{"details"},
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("middlename"),
+														Value: &resolve.String{
+															Path: []string{"middlename"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			RunWithPermutations(
+				t,
+				definition,
+				query,
+				"Me",
+				expectedPlan,
+				planConfiguration,
+				WithDefaultPostProcessor(),
+			)
+		})
+
+		t.Run("query all fields", func(t *testing.T) {
+			query := `
+					query Me {
+						me {
+							details {
+								__typename
+								forename
+								surname
+								middlename
+							}
+						}
+					}
+				`
+
+			expectedPlan := &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Fetches: resolve.Sequence(
+						resolve.Single(&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{me {details {__typename forename surname middlename}}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
+								DataSource:     &Source{},
+							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
+						}),
+					),
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("me"),
+								Value: &resolve.Object{
+									Path:     []string{"me"},
+									Nullable: true,
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("details"),
+											Value: &resolve.Object{
+												Path: []string{"details"},
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path:       []string{"__typename"},
+															IsTypeName: true,
+														},
+													},
+													{
+														Name: []byte("forename"),
+														Value: &resolve.String{
+															Path: []string{"forename"},
+														},
+													},
+													{
+														Name: []byte("surname"),
+														Value: &resolve.String{
+															Path: []string{"surname"},
+														},
+													},
+													{
+														Name: []byte("middlename"),
+														Value: &resolve.String{
+															Path: []string{"middlename"},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			RunWithPermutations(
+				t,
+				definition,
+				query,
+				"Me",
+				expectedPlan,
+				planConfiguration,
+				WithDefaultPostProcessor(),
+			)
+		})
+	})
+
 	t.Run("shareable", func(t *testing.T) {
 		t.Run("on entity", func(t *testing.T) {
 			definition := `
