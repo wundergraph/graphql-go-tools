@@ -17,11 +17,11 @@ type RedisEventConfiguration struct {
 }
 
 type RedisConnector interface {
-	New(ctx context.Context) Redis
+	New(ctx context.Context) RedisPubSub
 }
 
-// Redis describe the interface that implements the primitive operations for pubsub
-type Redis interface {
+// RedisPubSub describe the interface that implements the primitive operations for pubsub
+type RedisPubSub interface {
 	// Subscribe starts listening on the given channels and sends the received messages to the given next channel
 	Subscribe(ctx context.Context, event RedisSubscriptionEventConfiguration, updater resolve.SubscriptionUpdater) error
 	// Publish sends the given data to the given channel
@@ -29,12 +29,12 @@ type Redis interface {
 }
 
 type RedisSubscriptionSource struct {
-	pubSub Redis
+	pubSub RedisPubSub
 }
 
 func (s *RedisSubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) error {
 
-	val, _, _, err := jsonparser.Get(input, "subjects")
+	val, _, _, err := jsonparser.Get(input, "channels")
 	if err != nil {
 		return err
 	}
@@ -64,7 +64,7 @@ func (s *RedisSubscriptionSource) Start(ctx *resolve.Context, input []byte, upda
 }
 
 type RedisPublishDataSource struct {
-	pubSub Redis
+	pubSub RedisPubSub
 }
 
 func (s *RedisPublishDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {

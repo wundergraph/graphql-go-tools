@@ -56,6 +56,7 @@ type Planner[T Configuration] struct {
 	config                  Configuration
 	natsPubSubByProviderID  map[string]NatsPubSub
 	kafkaPubSubByProviderID map[string]KafkaPubSub
+	redisPubSubByProviderID map[string]RedisPubSub
 	eventManager            any
 	rootFieldRef            int
 	variables               resolve.Variables
@@ -125,6 +126,23 @@ func (p *Planner[T]) EnterField(ref int) {
 			em.handleSubscriptionEvent(ref)
 		default:
 			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\" for Kafka", eventConfig.Metadata.Type))
+		}
+	case *RedisEventConfiguration:
+		em := &RedisEventManager{
+			visitor:            p.visitor,
+			variables:          &p.variables,
+			eventMetadata:      *eventConfig.Metadata,
+			eventConfiguration: v,
+		}
+		p.eventManager = em
+
+		switch eventConfig.Metadata.Type {
+		case EventTypePublish:
+			em.handlePublishEvent(ref)
+		case EventTypeSubscribe:
+			em.handleSubscriptionEvent(ref)
+		default:
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid EventType \"%s\" for Redis", eventConfig.Metadata.Type))
 		}
 	default:
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("invalid event configuration type: %T", v))
@@ -212,6 +230,35 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			},
 		}
 
+	case *RedisEventManager:
+		pubsub, ok := p.redisPubSubByProviderID[v.eventMetadata.ProviderID]
+		if !ok {
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with provider id \"%s\"", v.eventMetadata.ProviderID))
+			return resolve.FetchConfiguration{}
+		}
+
+		switch v.eventMetadata.Type {
+		case EventTypePublish:
+			dataSource = &RedisPublishDataSource{
+				pubSub: pubsub,
+			}
+		case EventTypeRequest:
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("event type \"%s\" is not supported for Redis", v.eventMetadata.Type))
+			return resolve.FetchConfiguration{}
+		default:
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\" for Redis", v.eventMetadata.Type))
+			return resolve.FetchConfiguration{}
+		}
+
+		return resolve.FetchConfiguration{
+			Input:      v.publishEventConfiguration.MarshalJSONTemplate(),
+			Variables:  p.variables,
+			DataSource: dataSource,
+			PostProcessing: resolve.PostProcessingConfiguration{
+				MergePath: []string{v.eventMetadata.FieldName},
+			},
+		}
+
 	default:
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event manager type: %T", p.eventManager))
 	}
@@ -268,6 +315,27 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 				MergePath: []string{v.eventMetadata.FieldName},
 			},
 		}
+	case *RedisEventManager:
+		pubsub, ok := p.redisPubSubByProviderID[v.eventMetadata.ProviderID]
+		if !ok {
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("no pubsub connection exists with provider id \"%s\"", v.eventMetadata.ProviderID))
+			return plan.SubscriptionConfiguration{}
+		}
+		object, err := json.Marshal(v.subscriptionEventConfiguration)
+		if err != nil {
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to marshal event subscription streamConfiguration"))
+			return plan.SubscriptionConfiguration{}
+		}
+		return plan.SubscriptionConfiguration{
+			Input:     string(object),
+			Variables: p.variables,
+			DataSource: &RedisSubscriptionSource{
+				pubSub: pubsub,
+			},
+			PostProcessing: resolve.PostProcessingConfiguration{
+				MergePath: []string{v.eventMetadata.FieldName},
+			},
+		}
 	default:
 		p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure subscription: invalid event manager type: %T", p.eventManager))
 	}
@@ -287,11 +355,12 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(_ int) (alias string, exists b
 	return "", false
 }
 
-func NewFactory[T Configuration](executionContext context.Context, natsPubSubByProviderID map[string]NatsPubSub, kafkaPubSubByProviderID map[string]KafkaPubSub) *Factory[T] {
+func NewFactory[T Configuration](executionContext context.Context, natsPubSubByProviderID map[string]NatsPubSub, kafkaPubSubByProviderID map[string]KafkaPubSub, redisPubSubByProviderID map[string]RedisPubSub) *Factory[T] {
 	return &Factory[T]{
 		executionContext:        executionContext,
 		natsPubSubByProviderID:  natsPubSubByProviderID,
 		kafkaPubSubByProviderID: kafkaPubSubByProviderID,
+		redisPubSubByProviderID: redisPubSubByProviderID,
 	}
 }
 
@@ -299,12 +368,14 @@ type Factory[T Configuration] struct {
 	executionContext        context.Context
 	natsPubSubByProviderID  map[string]NatsPubSub
 	kafkaPubSubByProviderID map[string]KafkaPubSub
+	redisPubSubByProviderID map[string]RedisPubSub
 }
 
 func (f *Factory[T]) Planner(_ abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
 		natsPubSubByProviderID:  f.natsPubSubByProviderID,
 		kafkaPubSubByProviderID: f.kafkaPubSubByProviderID,
+		redisPubSubByProviderID: f.redisPubSubByProviderID,
 	}
 }
 

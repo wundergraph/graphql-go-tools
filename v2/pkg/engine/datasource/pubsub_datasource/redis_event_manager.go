@@ -70,7 +70,7 @@ func (p *RedisEventManager) extractEventChannel(fieldRef int, channel string) (s
 		if isValidRedisChannel(channel) {
 			return channel, nil
 		}
-		return "", fmt.Errorf(`channel "%s" is not a valid Redis PubSub channel`, channel)
+		return "", fmt.Errorf(`channel "%s" is not a valid RedisPubSub PubSub channel`, channel)
 	}
 	fieldNameBytes := p.visitor.Operation.FieldNameBytes(fieldRef)
 	// TODO: handling for interfaces and unions
@@ -101,11 +101,11 @@ func (p *RedisEventManager) extractEventChannel(fieldRef int, channel string) (s
 		// Replace the template literal with the variable placeholder (and reuse the variable if it already exists)
 		channelWithVariableTemplateReplacements = strings.ReplaceAll(channelWithVariableTemplateReplacements, groups[0], variablePlaceholder)
 	}
-	// Substitute the variable templates for dummy values to check naïvely that the string is a valid Redis PubSub channel
+	// Substitute the variable templates for dummy values to check naïvely that the string is a valid RedisPubSub PubSub channel
 	if isValidRedisChannel(variableTemplateRegex.ReplaceAllLiteralString(channelWithVariableTemplateReplacements, "a")) {
 		return channelWithVariableTemplateReplacements, nil
 	}
-	return "", fmt.Errorf(`channel "%s" is not a valid Redis PubSub channel`, channel)
+	return "", fmt.Errorf(`channel "%s" is not a valid RedisPubSub PubSub channel`, channel)
 }
 
 func (p *RedisEventManager) eventDataBytes(ref int) ([]byte, error) {
