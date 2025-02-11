@@ -668,10 +668,16 @@ func (p *Planner[T]) EnterField(ref int) {
 	}
 
 	fieldName := p.visitor.Operation.FieldNameString(ref)
-	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
+
+	typeName := p.lastFieldEnclosingTypeName
+	if shouldRenameInterfaceObjectType, newTypeName := p.interfaceObjectTypeShouldBeRenamed(typeName); shouldRenameInterfaceObjectType {
+		typeName = newTypeName
+	}
+
+	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
 
 	for i := range p.config.customScalarTypeFields {
-		if p.config.customScalarTypeFields[i].TypeName == p.lastFieldEnclosingTypeName && p.config.customScalarTypeFields[i].FieldName == fieldName {
+		if p.config.customScalarTypeFields[i].TypeName == typeName && p.config.customScalarTypeFields[i].FieldName == fieldName {
 			p.insideCustomScalarField = true
 			p.customScalarFieldRef = ref
 			p.addFieldArguments(p.addCustomField(ref), ref, fieldConfiguration)

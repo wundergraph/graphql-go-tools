@@ -16,6 +16,7 @@ const EntityInterfacesDefinition = `
           uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		type Location {
@@ -29,6 +30,7 @@ const EntityInterfacesDefinition = `
           uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		type Moderator implements Account {
@@ -38,6 +40,7 @@ const EntityInterfacesDefinition = `
           uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		type User implements Account {
@@ -47,6 +50,7 @@ const EntityInterfacesDefinition = `
           uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		union Accounts = Admin | Moderator | User
@@ -170,6 +174,7 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 			locations: [Location!]
 			title: String! @external
 			uniqueTitle: String! @requires(fields: "title")
+			fieldWithArg(arg: String!): String!
 		}
 		
 		type Location {
@@ -204,22 +209,22 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 			RootNodes: []plan.TypeField{
 				{
 					TypeName:           "Account",
-					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
 					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:           "User",
-					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
 					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:           "Moderator",
-					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
 					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:           "Admin",
-					FieldNames:         []string{"id", "locations", "uniqueTitle"},
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
 					ExternalFieldNames: []string{"title"},
 				},
 				{
@@ -434,10 +439,20 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					},
 				},
 			},
+			{
+				TypeName:  "Account",
+				FieldName: "fieldWithArg",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "arg",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
 		},
 		Debug: plan.DebugConfiguration{
 			PrintOperationTransformations: false,
-			PrintQueryPlans:               false,
+			PrintQueryPlans:               true,
 			PrintPlanningPaths:            false,
 			PrintNodeSuggestions:          false,
 
@@ -796,6 +811,16 @@ func EntityInterfacesPlanConfigurationBench(t *testing.B, factory plan.PlannerFa
 				Arguments: []plan.ArgumentConfiguration{
 					{
 						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Account",
+				FieldName: "fieldWithArg",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "arg",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
