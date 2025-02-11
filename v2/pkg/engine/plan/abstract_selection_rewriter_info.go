@@ -15,6 +15,7 @@ type selectionSetInfo struct {
 	hasInlineFragmentsOnObjects    bool
 	inlineFragmentsOnInterfaces    []inlineFragmentSelectionOnInterface
 	hasInlineFragmentsOnInterfaces bool
+	isInterfaceObject              bool
 }
 
 type fieldSelection struct {

@@ -96,7 +96,7 @@
                 "raw_input_data": {},
                 "input": {
                   "body": {
-                    "query": "{me {id username history {__typename ... on Store {location} ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"
+                    "query": "{me {id username history {__typename ... on Sale {location product {upc __typename}} ... on Purchase {wallet {currency}}} __typename}}"
                   },
                   "header": {},
                   "method": "POST",
@@ -409,7 +409,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Comment {upc __typename ... on Rating {body}} ... on Question {body} ... on Video {upc size}}}}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Question {upc body} ... on Rating {upc body} ... on Video {upc size}}}}}}",
                         "variables": {
                           "representations": [
                             {
@@ -433,8 +433,8 @@
                                 "__typename": "Review",
                                 "attachments": [
                                   {
-                                    "upc": "top-1",
                                     "__typename": "Question",
+                                    "upc": "top-1",
                                     "body": "How do I turn it on?"
                                   }
                                 ]
@@ -443,8 +443,8 @@
                                 "__typename": "Review",
                                 "attachments": [
                                   {
-                                    "upc": "top-2",
                                     "__typename": "Rating",
+                                    "upc": "top-2",
                                     "body": "The best hat I have ever bought in my life."
                                   },
                                   {
@@ -481,13 +481,13 @@
                             "status": "200 OK",
                             "headers": {
                               "Content-Length": [
-                                "395"
+                                "349"
                               ],
                               "Content-Type": [
                                 "application/json"
                               ]
                             },
-                            "body_size": 395
+                            "body_size": 349
                           }
                         }
                       }

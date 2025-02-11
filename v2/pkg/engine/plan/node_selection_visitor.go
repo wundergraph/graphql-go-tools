@@ -240,6 +240,20 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	}
 
 	requiresConfiguration, exists := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+
+	if !exists {
+		for _, io := range dsConfig.FederationConfiguration().InterfaceObjects {
+			if slices.Contains(io.ConcreteTypeNames, typeName) {
+				// we should check if we have a @requires configuration for the interface object
+				requiresConfiguration, exists = dsConfig.RequiredFieldsByRequires(io.InterfaceTypeName, fieldName)
+				if exists {
+					requiresConfiguration.TypeName = typeName
+					break
+				}
+			}
+		}
+	}
+
 	if !exists {
 		// we do not have a @requires configuration for the field
 		return
@@ -249,7 +263,6 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	// they will be added in the on LeaveSelectionSet callback for the current selection set
 	// and current field ref will be added to fieldDependsOn map
 	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
-	c.hasNewFields = true
 }
 
 func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
@@ -260,7 +273,8 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	}
 	c.visitedFieldsKeyChecks[fieldKey] = struct{}{}
 
-	_, hasRequiresCondition := dsConfig.RequiredFieldsByRequires(typeName, fieldName)
+	// if field has requires config it already will be in the fieldRequirementsConfigs map
+	_, hasRequiresCondition := c.fieldRequirementsConfigs[fieldKey]
 
 	treeNodeID := TreeNodeID(fieldRef)
 	treeNode, ok := c.nodeSuggestions.responseTree.Find(treeNodeID)
@@ -334,7 +348,6 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 	if sameAsParentDS {
 		// the most simple case we just need to use the first available key configuration
 		c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), []FederationFieldConfiguration{keyConfigurations[0]}, false, parentPath, selectedParentsDSHashes)
-		c.hasNewFields = true
 		return
 	}
 
@@ -353,8 +366,6 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 			true,
 		)
 	}
-
-	c.hasNewFields = true
 }
 
 func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string, isTypenameForEntityInterface bool) {
@@ -477,6 +488,8 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
 		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
 	}
+
+	c.hasNewFields = true
 }
 
 func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int) {
@@ -654,6 +667,8 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	for _, requiredFieldRef := range requiredFieldRefs {
 		c.fieldLandedTo[requiredFieldRef] = landedTo.Hash()
 	}
+
+	c.hasNewFields = true
 }
 
 func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, ds DataSource) {
@@ -672,7 +687,6 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	rewriter.SetDatasourceConfiguration(ds)
 
 	rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
-
 	if err != nil {
 		c.walker.StopWithInternalErr(err)
 		return
@@ -682,6 +696,11 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 		return
 	}
 
+	c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipFieldRefs...)
+
 	c.hasNewFields = true
-	c.walker.Stop()
+
+	// skip walking into a rewritten field instead of stoping the whole visitor
+	// should allow to do fewer walks over the operation
+	c.walker.SkipNode()
 }
