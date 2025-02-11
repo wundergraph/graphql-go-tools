@@ -267,7 +267,28 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 }
 
 func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldInfo) bool {
-	return info.isTypeName && f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
+	if !info.isTypeName {
+		return false
+	}
+
+	if f.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+		return false
+	}
+
+	// check if datasource has an upstream schema
+	// currently only graphql datasource has an upstream schema
+	dsDef, ok := f.dataSource.UpstreamSchema()
+	if !ok {
+		return false
+	}
+
+	// check if datasource has a union type with such name
+	node, ok := dsDef.NodeByNameStr(info.typeName)
+	if !ok {
+		return false
+	}
+
+	return node.Kind == ast.NodeKindUnionTypeDefinition
 }
 
 func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath string) bool {
