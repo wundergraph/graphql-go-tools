@@ -234,6 +234,9 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 	*/
 
 	interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
+	if err != nil {
+		return false, err
+	}
 	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
