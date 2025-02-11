@@ -70,7 +70,7 @@ func (p *RedisEventManager) extractEventChannel(fieldRef int, channel string) (s
 		if isValidRedisChannel(channel) {
 			return channel, nil
 		}
-		return "", fmt.Errorf(`channel "%s" is not a valid RedisPubSub PubSub channel`, channel)
+		return "", fmt.Errorf(`channel "%s" is not a valid Redis Pub/Sub channel`, channel)
 	}
 	fieldNameBytes := p.visitor.Operation.FieldNameBytes(fieldRef)
 	// TODO: handling for interfaces and unions
@@ -105,7 +105,7 @@ func (p *RedisEventManager) extractEventChannel(fieldRef int, channel string) (s
 	if isValidRedisChannel(variableTemplateRegex.ReplaceAllLiteralString(channelWithVariableTemplateReplacements, "a")) {
 		return channelWithVariableTemplateReplacements, nil
 	}
-	return "", fmt.Errorf(`channel "%s" is not a valid RedisPubSub PubSub channel`, channel)
+	return "", fmt.Errorf(`channel "%s" is not a valid Redis Pub/Sub channel`, channel)
 }
 
 func (p *RedisEventManager) eventDataBytes(ref int) ([]byte, error) {
@@ -146,7 +146,7 @@ func (p *RedisEventManager) handleSubscriptionEvent(ref int) {
 	for _, rawChannel := range p.eventConfiguration.Channels {
 		extractedChannel, err := p.extractEventChannel(ref, rawChannel)
 		if err != nil {
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("could not extract subscription event subjects: %w", err))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("could not extract subscription event channels: %w", err))
 			return
 		}
 		extractedChannels = append(extractedChannels, extractedChannel)

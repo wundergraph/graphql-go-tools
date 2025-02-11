@@ -243,10 +243,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 				pubSub: pubsub,
 			}
 		case EventTypeRequest:
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("event type \"%s\" is not supported for Redis", v.eventMetadata.Type))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("event type \"%s\" is not supported for Redis Pub/Sub", v.eventMetadata.Type))
 			return resolve.FetchConfiguration{}
 		default:
-			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\" for Redis", v.eventMetadata.Type))
+			p.visitor.Walker.StopWithInternalErr(fmt.Errorf("failed to configure fetch: invalid event type \"%s\" for Redis Pub/Sub", v.eventMetadata.Type))
 			return resolve.FetchConfiguration{}
 		}
 
