@@ -119,16 +119,26 @@ func (p *printVisitor) indentationDepth() (depth int) {
 	case ast.NodeKindOperationDefinition,
 		ast.NodeKindFragmentDefinition:
 	default:
-		return 2
+		return countIndentDepth(p.indent)
 	}
 
 	for i := range p.Ancestors {
 		if p.Ancestors[i].Kind == ast.NodeKindSelectionSet {
-			depth += 2
+			depth += countIndentDepth(p.indent)
 		}
 	}
 
 	return depth
+}
+
+func countIndentDepth(indent []byte) int {
+	count := 0
+	for _, b := range indent {
+		if b == '\t' {
+			count++
+		}
+	}
+	return count
 }
 
 func (p *printVisitor) writeIndented(data []byte) {
