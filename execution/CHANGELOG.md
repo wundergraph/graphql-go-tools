@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.2.0...execution/v1.2.1) (2025-02-11)
+
+
+### Bug Fixes
+
+* interface objects ([#1055](https://github.com/wundergraph/graphql-go-tools/issues/1055)) ([858d929](https://github.com/wundergraph/graphql-go-tools/commit/858d92992680bd8652dde2d3bdd036dbc40608c5))
+
 ## [1.2.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.1.0...execution/v1.2.0) (2024-12-30)
 
 
