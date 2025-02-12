@@ -2753,6 +2753,76 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: true,
 		},
+		{
+			name: "field is a concrete type from an interface members which do not implement interface in the given subgraph - query type renamed",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				type Query {
+					iface: Account!
+				}`,
+			upstreamDefinition: `
+				schema {
+					query: QueryType
+				}
+
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Admin {
+					id: ID!
+					name: String!
+				}
+
+				type QueryType {
+					iface: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
 	}
 
 	for _, testCase := range testCases {
