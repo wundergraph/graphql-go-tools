@@ -5132,6 +5132,189 @@ func TestGraphQLDataSourceFederationEntityInterfaces(t *testing.T) {
 			// WithPrintPlan(),
 		))
 	})
+
+	t.Run("query 19 Interface object with field having argument", func(t *testing.T) {
+		t.Run("on interface object", func(t *testing.T) {
+			t.Run("run", RunTest(
+				definition,
+				`
+				query _18_InterfaceObjectWithRequiredFieldAndItsRequirements {
+					accountLocations {
+						id
+						fieldWithArg(arg: "value")
+					}
+				}`,
+				"_18_InterfaceObjectWithRequiredFieldAndItsRequirements",
+				&plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Fetches: resolve.Sequence(
+							resolve.Single(&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($a: String!){accountLocations {__typename id fieldWithArg(arg: $a)}}","variables":{"a":$$0$$}}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+									DataSource:     &Source{},
+									Variables: []resolve.Variable{
+										&resolve.ContextVariable{
+											Path:     []string{"a"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+									},
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+						),
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("accountLocations"),
+									Value: &resolve.Array{
+										Path:     []string{"accountLocations"},
+										Nullable: false,
+										Item: &resolve.Object{
+											Nullable: false,
+											PossibleTypes: map[string]struct{}{
+												"Admin":     {},
+												"Moderator": {},
+												"User":      {},
+												"Account":   {},
+											},
+											TypeName: "Account",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path: []string{"id"},
+													},
+												},
+												{
+													Name: []byte("fieldWithArg"),
+													Value: &resolve.String{
+														Path: []string{"fieldWithArg"},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				planConfiguration,
+				WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+				// WithPrintPlan(),
+			))
+		})
+
+		t.Run("on concrete type", func(t *testing.T) {
+			t.Run("run", RunTest(
+				definition,
+				`
+				query _18_InterfaceObjectWithRequiredFieldAndItsRequirements {
+					user(id: "1") {
+						id
+						fieldWithArg(arg: "value")
+					}
+				}`,
+				"_18_InterfaceObjectWithRequiredFieldAndItsRequirements",
+				&plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Fetches: resolve.Sequence(
+							resolve.Single(&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://localhost:4001/graphql","body":{"query":"query($a: ID!){user(id: $a){id __typename}}","variables":{"a":$$0$$}}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+									DataSource:     &Source{},
+									Variables: []resolve.Variable{
+										&resolve.ContextVariable{
+											Path:     []string{"a"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+									},
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+							resolve.SingleWithPath(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input: `{"method":"POST","url":"http://localhost:4002/graphql","body":{"query":"query($representations: [_Any!]!, $b: String!){_entities(representations: $representations){... on Account {fieldWithArg(arg: $b)}}}","variables":{"representations":[$$1$$],"b":$$0$$}}}`,
+									Variables: []resolve.Variable{
+										&resolve.ContextVariable{
+											Path:     []string{"b"},
+											Renderer: resolve.NewJSONVariableRenderer(),
+										},
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.StaticString{
+															Path:  []string{"__typename"},
+															Value: "Account",
+														},
+														OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("User"), []byte("Account")},
+													},
+												},
+											}),
+										},
+									},
+									RequiresEntityFetch:                   true,
+									PostProcessing:                        SingleEntityPostProcessingConfiguration,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}, "user", resolve.ObjectPath("user")),
+						),
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("user"),
+									Value: &resolve.Object{
+										Path:     []string{"user"},
+										Nullable: true,
+										PossibleTypes: map[string]struct{}{
+											"User": {},
+										},
+										TypeName: "User",
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("id"),
+												Value: &resolve.Scalar{
+													Path: []string{"id"},
+												},
+											},
+											{
+												Name: []byte("fieldWithArg"),
+												Value: &resolve.String{
+													Path: []string{"fieldWithArg"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				planConfiguration,
+				WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates()),
+				// WithPrintPlan(),
+			))
+		})
+
+	})
 }
 
 func BenchmarkPlanner(b *testing.B) {
