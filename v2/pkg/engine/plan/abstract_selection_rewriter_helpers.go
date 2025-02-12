@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"errors"
 	"slices"
 	"sort"
@@ -393,6 +394,10 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
 	fieldName := r.operation.FieldNameBytes(fieldRef)
 
+	// if enclosing type was one of the root query types
+	// we need to check if they were renamed in the upstream schema
+	enclosingTypeName = r.typeNameWithRename(enclosingTypeName)
+
 	node, hasNode := r.upstreamDefinition.NodeByName(enclosingTypeName)
 	if !hasNode {
 		return "", false
@@ -489,4 +494,23 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 	}
 
 	return nil, false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
+}
+
+func (r *fieldSelectionRewriter) typeNameWithRename(typeName ast.ByteSlice) ast.ByteSlice {
+	switch {
+	case bytes.Equal(typeName, ast.DefaultQueryTypeName):
+		if r.upstreamDefinition.Index.QueryTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.QueryTypeName, typeName) {
+			return r.upstreamDefinition.Index.QueryTypeName
+		}
+	case bytes.Equal(typeName, ast.DefaultMutationTypeName):
+		if r.upstreamDefinition.Index.MutationTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.MutationTypeName, typeName) {
+			return r.upstreamDefinition.Index.MutationTypeName
+		}
+	case bytes.Equal(typeName, ast.DefaultSubscriptionTypeName):
+		if r.upstreamDefinition.Index.SubscriptionTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.SubscriptionTypeName, typeName) {
+			return r.upstreamDefinition.Index.SubscriptionTypeName
+		}
+	}
+
+	return typeName
 }

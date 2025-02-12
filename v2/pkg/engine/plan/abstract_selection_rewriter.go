@@ -2,6 +2,7 @@ package plan
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -79,7 +80,8 @@ func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration Data
 }
 
 func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (rewritten bool, err error) {
-	fieldTypeNode, ok := r.definition.FieldTypeNode(r.operation.FieldNameBytes(fieldRef), enclosingNode)
+	fieldName := r.operation.FieldNameBytes(fieldRef)
+	fieldTypeNode, ok := r.definition.FieldTypeNode(fieldName, enclosingNode)
 	if !ok {
 		return false, nil
 	}
@@ -88,12 +90,20 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		rewritten, err = r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		if err != nil {
+			return false, fmt.Errorf("failed to rewrite field %s.%s with the interface return type: %w", enclosingTypeName, fieldName, err)
+		}
 	case ast.NodeKindUnionTypeDefinition:
-		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		rewritten, err = r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		if err != nil {
+			return false, fmt.Errorf("failed to rewrite field %s.%s with the union return type: %w", enclosingTypeName, fieldName, err)
+		}
 	default:
 		return false, nil
 	}
+
+	return rewritten, nil
 }
 
 func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
