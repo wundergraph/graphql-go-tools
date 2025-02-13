@@ -1244,7 +1244,7 @@ func TestVariablesValidation(t *testing.T) {
 			},
 		})
 		assert.Equal(t, &InvalidVariableError{
-			ExtensionCode: errorcodes.BadUserInput,
+			ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
 			Message:       `invalid type for variable: 'input'`,
 		}, err)
 	})
