@@ -174,6 +174,8 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 		buf.WriteByte(literal.RBRACK_BYTE)
 	case ValueKindObject:
 		buf.WriteByte(literal.LBRACE_BYTE)
+
+		hasRenderedFields := false
 		for ii, ref := range d.ObjectValues[value.Ref].Refs {
 			objFieldValue := d.ObjectFieldValue(ref)
 			if objFieldValue.Kind == ValueKindVariable {
@@ -184,9 +186,11 @@ func (d *Document) writeJSONValue(buf *bytes.Buffer, value Value) error {
 				}
 			}
 
-			if ii > 0 {
+			if ii > 0 && hasRenderedFields {
 				buf.WriteByte(literal.COMMA_BYTE)
 			}
+			hasRenderedFields = true
+
 			fieldNameBytes := d.ObjectFieldNameBytes(ref)
 			buf.Write(quotes.WrapBytes(fieldNameBytes))
 			buf.WriteByte(literal.COLON_BYTE)
