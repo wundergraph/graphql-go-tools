@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.152](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.151...v2.0.0-rc.152) (2025-02-13)
+
+
+### Bug Fixes
+
+* fix printing object value with optional fields ([#1065](https://github.com/wundergraph/graphql-go-tools/issues/1065)) ([5730d72](https://github.com/wundergraph/graphql-go-tools/commit/5730d728f78dc64a10c00eb1de1cd00292ce7dd2))
+
 ## [2.0.0-rc.151](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.150...v2.0.0-rc.151) (2025-02-12)
 
 
