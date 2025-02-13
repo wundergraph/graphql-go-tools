@@ -17,7 +17,6 @@ import (
 )
 
 func TestVariablesValidation(t *testing.T) {
-
 	t.Run("required field argument not provided", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(arg: String!): String }`,
@@ -1232,6 +1231,24 @@ func TestVariablesValidation(t *testing.T) {
 			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
 		}, err)
 	})
+
+	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloRouterCompatabilityFlags: apollocompatibility.RouterFlags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.BadUserInput,
+			Message:       `invalid type for variable: 'input'`,
+		}, err)
+	})
+
 	t.Run("optional Int input object field provided with 1", func(t *testing.T) {
 		tc := testCase{
 			schema:    `input Foo { bar: Int } type Query { hello(arg: Foo): String }`,
