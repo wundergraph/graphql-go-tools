@@ -50,9 +50,17 @@ func (v *variablesVisitor) invalidValueMessage(variableName, variableContent str
 }
 
 func (v *variablesVisitor) newInvalidVariableError(message string) *InvalidVariableError {
+	if v.opts.ApolloRouterCompatabilityFlags.ReplaceInvalidVarError {
+		return &InvalidVariableError{
+			Message:       fmt.Sprintf("invalid type for variable: '%s'", v.currentVariableName),
+			ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+		}
+	}
+
 	err := &InvalidVariableError{
 		Message: message,
 	}
+
 	if v.opts.ApolloCompatibilityFlags.ReplaceInvalidVarError {
 		err.ExtensionCode = errorcodes.BadUserInput
 	}
@@ -66,6 +74,7 @@ type VariablesValidator struct {
 
 type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags        apollocompatibility.Flags
+	ApolloRouterCompatabilityFlags  apollocompatibility.RouterFlags
 	DisableExposingVariablesContent bool
 }
 

@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"net/http"
 	"time"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
@@ -62,11 +63,12 @@ func (e *internalExecutionContext) reset() {
 }
 
 type ExecutionEngine struct {
-	logger                   abstractlogger.Logger
-	config                   Configuration
-	resolver                 *resolve.Resolver
-	executionPlanCache       *lru.Cache
-	apolloCompatibilityFlags apollocompatibility.Flags
+	logger                         abstractlogger.Logger
+	config                         Configuration
+	resolver                       *resolve.Resolver
+	executionPlanCache             *lru.Cache
+	apolloCompatibilityFlags       apollocompatibility.Flags
+	apolloRouterCompatibilityFlags apollocompatibility.RouterFlags
 }
 
 type WebsocketBeforeStartHook interface {
@@ -143,11 +145,13 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
+		apolloRouterCompatibilityFlags: apollocompatibility.RouterFlags{
+			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloRouterCompatibilityReplaceInvalidVarError,
+		},
 	}, nil
 }
 
 func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptions) error {
-
 	normalize := !operation.IsNormalized()
 	if normalize {
 		// Normalize the operation, but extract variables later so ValidateForSchema can return correct error messages for bad arguments.
@@ -186,7 +190,8 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	// Validate user-supplied and extracted variables against the operation.
 	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
 		validator := variablesvalidation.NewVariablesValidator(variablesvalidation.VariablesValidatorOptions{
-			ApolloCompatibilityFlags: e.apolloCompatibilityFlags,
+			ApolloCompatibilityFlags:       e.apolloCompatibilityFlags,
+			ApolloRouterCompatabilityFlags: e.apolloRouterCompatibilityFlags,
 		})
 		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
 			return err
@@ -237,7 +242,6 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 }
 
 func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
-
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)
