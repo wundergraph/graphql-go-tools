@@ -16,8 +16,152 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 )
 
-func TestVariablesValidation(t *testing.T) {
+func TestVariablesValidationApolloCompatibility(t *testing.T) {
+	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloCompatibilityFlags: apollocompatibility.Flags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.BadUserInput,
+			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
+		}, err)
+	})
 
+	t.Run("apollo router compatibility overrides apollo gateway compatability", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloCompatibilityFlags: apollocompatibility.Flags{
+				ReplaceInvalidVarError: true,
+			},
+			ApolloRouterCompatabilityFlags: apollocompatibility.ApolloRouterFlags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+			Message:       `invalid type for variable: 'input'`,
+		}, err)
+	})
+
+	t.Run("extension code and reduced error is propagated with apollo router compatibility flag", func(t *testing.T) {
+		// With the apollo router compatibility flag set, a variety of invalid variable errors should be changed
+		// with a different extension and message
+
+		// Shadow runTest to use the apollo router compatibility flag
+		runTest := func(t *testing.T, tc testCase) error {
+			return runTestWithOptions(t, tc, VariablesValidatorOptions{
+				ApolloRouterCompatabilityFlags: apollocompatibility.ApolloRouterFlags{
+					ReplaceInvalidVarError: true,
+				},
+			})
+		}
+		t.Run("variableRequired", func(t *testing.T) {
+			tc := testCase{
+				schema:    `type Query { hello(arg: String!): String }`,
+				operation: `query Foo($bar: String!) { hello }`,
+				variables: `{}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableRequiredNotProvided", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":{}}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableInvalidObjectType", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":true}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableInvalidNestedType", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($input: Foo!) { hello(arg: $input) }`,
+				variables: `{"input":{"bar":123}}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'input'`,
+			}, err)
+		})
+
+		t.Run("variableFieldNotDefined", func(t *testing.T) {
+			tc := testCase{
+				schema:    `input Foo { bar: String! } input Bar { foo: Foo! } type Query { hello(arg: Bar!): String }`,
+				operation: `query Foo($input: Bar!) { hello(arg: $input) }`,
+				variables: `{"input":{"foo":{"bar":"hello","baz":"world"}}}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'input'`,
+			}, err)
+		})
+
+		// Apollo Router actually doesn't validate this case, but if they did, they would probably
+		// return this error
+		t.Run("variableEnumValueDoesNotExist", func(t *testing.T) {
+			tc := testCase{
+				schema:    `enum Foo { BAR } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":"BAZ"}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+
+		t.Run("variableInvalidNull", func(t *testing.T) {
+			tc := testCase{
+				schema:    `enum Foo { BAR } type Query { hello(arg: Foo!): String }`,
+				operation: `query Foo($bar: Foo!) { hello(arg: $bar) }`,
+				variables: `{"bar":null}`,
+			}
+			err := runTest(t, tc)
+			assert.Equal(t, &InvalidVariableError{
+				ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+				Message:       `invalid type for variable: 'bar'`,
+			}, err)
+		})
+	})
+}
+
+func TestVariablesValidation(t *testing.T) {
 	t.Run("required field argument not provided", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(arg: String!): String }`,
@@ -1216,22 +1360,7 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.NoError(t, err)
 	})
-	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
-		tc := testCase{
-			schema:    `type Query { hello(filter: String!): String }`,
-			operation: `query Foo($input: String!) { hello(filter: $input) }`,
-			variables: `{"input":null}`,
-		}
-		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
-			ApolloCompatibilityFlags: apollocompatibility.Flags{
-				ReplaceInvalidVarError: true,
-			},
-		})
-		assert.Equal(t, &InvalidVariableError{
-			ExtensionCode: errorcodes.BadUserInput,
-			Message:       `Variable "$input" got invalid value null; Expected non-nullable type "String!" not to be null.`,
-		}, err)
-	})
+
 	t.Run("optional Int input object field provided with 1", func(t *testing.T) {
 		tc := testCase{
 			schema:    `input Foo { bar: Int } type Query { hello(arg: Foo): String }`,

@@ -274,9 +274,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 
-	var (
-		writeComma bool
-	)
+	var writeComma bool
 
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		writeComma = true
