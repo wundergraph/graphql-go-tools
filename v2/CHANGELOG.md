@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.154](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.153...v2.0.0-rc.154) (2025-02-14)
+
+
+### Bug Fixes
+
+* use correct compatibility spelling ([#1070](https://github.com/wundergraph/graphql-go-tools/issues/1070)) ([9b3d93b](https://github.com/wundergraph/graphql-go-tools/commit/9b3d93b072169f84e41977d9091b1415c33b150d))
+
 ## [2.0.0-rc.153](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.152...v2.0.0-rc.153) (2025-02-14)
 
 
