@@ -34,7 +34,7 @@ func TestVariablesValidationApolloCompatibility(t *testing.T) {
 		}, err)
 	})
 
-	t.Run("apollo router compatibility overrides apollo gateway compatability", func(t *testing.T) {
+	t.Run("apollo router compatibility overrides apollo gateway compatibility", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(filter: String!): String }`,
 			operation: `query Foo($input: String!) { hello(filter: $input) }`,
@@ -44,7 +44,7 @@ func TestVariablesValidationApolloCompatibility(t *testing.T) {
 			ApolloCompatibilityFlags: apollocompatibility.Flags{
 				ReplaceInvalidVarError: true,
 			},
-			ApolloRouterCompatabilityFlags: apollocompatibility.ApolloRouterFlags{
+			ApolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
 				ReplaceInvalidVarError: true,
 			},
 		})
@@ -61,7 +61,7 @@ func TestVariablesValidationApolloCompatibility(t *testing.T) {
 		// Shadow runTest to use the apollo router compatibility flag
 		runTest := func(t *testing.T, tc testCase) error {
 			return runTestWithOptions(t, tc, VariablesValidatorOptions{
-				ApolloRouterCompatabilityFlags: apollocompatibility.ApolloRouterFlags{
+				ApolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
 					ReplaceInvalidVarError: true,
 				},
 			})
