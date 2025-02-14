@@ -145,9 +145,6 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
-		apolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
-			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloRouterCompatibilityReplaceInvalidVarError,
-		},
 	}, nil
 }
 
