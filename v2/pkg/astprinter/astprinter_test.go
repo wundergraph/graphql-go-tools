@@ -2,16 +2,16 @@ package astprinter
 
 import (
 	"bytes"
-	"os"
-	"testing"
-
 	"github.com/jensneuse/diffview"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/goldie"
+	"os"
+	"testing"
 )
 
 func must(t *testing.T, err error) {
@@ -22,6 +22,34 @@ func must(t *testing.T, err error) {
 		}
 	}
 	require.NoError(t, err)
+}
+
+func TestPrintIndentDebug(t *testing.T) {
+	const graph = `
+	{ foo bar(id: "123") }
+`
+	parser := astparser.NewParser()
+	doc := ast.NewDocument()
+	doc.Input.ResetInputBytes([]byte(graph))
+
+	report := operationreport.Report{}
+	parser.Parse(doc, &report)
+
+	if report.HasErrors() {
+		t.Fatalf("Parser error: %s", report.Error())
+	}
+
+	var output bytes.Buffer
+	if err := PrintIndent(doc, doc, []byte("\t"), &output); err != nil {
+		t.Fatalf("PrintIndent error: %v", err)
+	}
+
+	expectedOutput := "{\n\tfoo\n\tbar(id: \"123\")\n}"
+	actualOutput := output.String()
+
+	if expectedOutput != actualOutput {
+		t.Errorf("Expected bytes: %q\nActual bytes: %q\n", expectedOutput, actualOutput)
+	}
 }
 
 func runWithIndent(t *testing.T, raw string, expected string, indent bool) {
