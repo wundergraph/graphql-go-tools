@@ -34,6 +34,26 @@ func TestVariablesValidationApolloCompatibility(t *testing.T) {
 		}, err)
 	})
 
+	t.Run("apollo router compatibility overrides apollo gateway compatability", func(t *testing.T) {
+		tc := testCase{
+			schema:    `type Query { hello(filter: String!): String }`,
+			operation: `query Foo($input: String!) { hello(filter: $input) }`,
+			variables: `{"input":null}`,
+		}
+		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
+			ApolloCompatibilityFlags: apollocompatibility.Flags{
+				ReplaceInvalidVarError: true,
+			},
+			ApolloRouterCompatabilityFlags: apollocompatibility.ApolloRouterFlags{
+				ReplaceInvalidVarError: true,
+			},
+		})
+		assert.Equal(t, &InvalidVariableError{
+			ExtensionCode: errorcodes.ValidationInvalidTypeVariable,
+			Message:       `invalid type for variable: 'input'`,
+		}, err)
+	})
+
 	t.Run("extension code and reduced error is propagated with apollo router compatibility flag", func(t *testing.T) {
 		// With the apollo router compatibility flag set, a variety of invalid variable errors should be changed
 		// with a different extension and message
