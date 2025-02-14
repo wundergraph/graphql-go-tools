@@ -63,12 +63,11 @@ func (e *internalExecutionContext) reset() {
 }
 
 type ExecutionEngine struct {
-	logger                         abstractlogger.Logger
-	config                         Configuration
-	resolver                       *resolve.Resolver
-	executionPlanCache             *lru.Cache
-	apolloCompatibilityFlags       apollocompatibility.Flags
-	apolloRouterCompatibilityFlags apollocompatibility.ApolloRouterFlags
+	logger                   abstractlogger.Logger
+	config                   Configuration
+	resolver                 *resolve.Resolver
+	executionPlanCache       *lru.Cache
+	apolloCompatibilityFlags apollocompatibility.Flags
 }
 
 type WebsocketBeforeStartHook interface {
@@ -187,8 +186,7 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 	// Validate user-supplied and extracted variables against the operation.
 	if len(operation.Variables) > 0 && operation.Variables[0] == '{' {
 		validator := variablesvalidation.NewVariablesValidator(variablesvalidation.VariablesValidatorOptions{
-			ApolloCompatibilityFlags:       e.apolloCompatibilityFlags,
-			ApolloRouterCompatabilityFlags: e.apolloRouterCompatibilityFlags,
+			ApolloCompatibilityFlags: e.apolloCompatibilityFlags,
 		})
 		if err := validator.Validate(operation.Document(), e.config.schema.Document(), operation.Variables); err != nil {
 			return err
