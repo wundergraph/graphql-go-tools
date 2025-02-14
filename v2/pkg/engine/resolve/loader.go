@@ -133,6 +133,8 @@ type Loader struct {
 	allowedErrorExtensionFields       map[string]struct{}
 	defaultErrorExtensionCode         string
 	allowedSubgraphErrorFields        map[string]struct{}
+
+	apolloRouterCompatibilitySubrequestHTTPErrror bool
 }
 
 func (l *Loader) Free() {
@@ -971,6 +973,28 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	if err != nil {
 		return err
 	}
+
+	if l.apolloRouterCompatibilitySubrequestHTTPErrror && (res.statusCode < 200 || res.statusCode > 300) {
+		apolloRouterStatusErrorJson := fmt.Sprintf(`{
+			"message": "HTTP fetch failed from '%[1]s': %[2]s",
+			"path": [],
+			"extensions": {
+				"code": "SUBREQUEST_HTTP_ERROR",
+				"service": "%[1]s",
+				"reason": "%[2]s",
+				"http": {
+					"status": %[3]d
+				}
+			}
+		}`, res.ds.Name, http.StatusText(res.statusCode), res.statusCode)
+		apolloRouterStatusError, err := astjson.ParseWithoutCache(apolloRouterStatusErrorJson)
+		if err != nil {
+			return err
+		}
+
+		astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
+	}
+
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil

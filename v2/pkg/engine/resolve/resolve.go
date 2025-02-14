@@ -146,6 +146,8 @@ type ResolverOptions struct {
 	AllowedSubgraphErrorFields []string
 	// MultipartSubHeartbeatInterval defines the interval in which a heartbeat is sent to all multipart subscriptions
 	MultipartSubHeartbeatInterval time.Duration
+
+	ApolloRouterCompatibilitySubrequestHTTPErrror bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -232,6 +234,8 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
 			allowedSubgraphErrorFields:        allowedErrorFields,
+
+			apolloRouterCompatibilitySubrequestHTTPErrror: options.ApolloRouterCompatibilitySubrequestHTTPErrror,
 		},
 	}
 }
@@ -241,7 +245,6 @@ type GraphQLResolveInfo struct {
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
-
 	resp := &GraphQLResolveInfo{}
 
 	start := time.Now()
