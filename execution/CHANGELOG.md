@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.3.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.2.0...execution/v1.3.0) (2025-02-14)
+
+
+### Features
+
+* add apollo router compat flag for invalid variable rendering ([#1067](https://github.com/wundergraph/graphql-go-tools/issues/1067)) ([e87961f](https://github.com/wundergraph/graphql-go-tools/commit/e87961fcd13f4dde76432745c564950f56f5045d))
+
+
+### Bug Fixes
+
+* fix printing object value with optional fields ([#1065](https://github.com/wundergraph/graphql-go-tools/issues/1065)) ([5730d72](https://github.com/wundergraph/graphql-go-tools/commit/5730d728f78dc64a10c00eb1de1cd00292ce7dd2))
+* interface objects ([#1055](https://github.com/wundergraph/graphql-go-tools/issues/1055)) ([858d929](https://github.com/wundergraph/graphql-go-tools/commit/858d92992680bd8652dde2d3bdd036dbc40608c5))
+
 ## [1.2.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.1.0...execution/v1.2.0) (2024-12-30)
 
 
