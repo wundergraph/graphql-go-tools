@@ -46,18 +46,6 @@ func TestVariablesValidationApolloCompatibility(t *testing.T) {
 				},
 			})
 		}
-
-		/*
-			affects:
-			- variableRequired
-			- variableRequiredNotProvided
-			- variableInvalidObjectType
-			- variableInvalidNestedType
-			- variableFieldNotDefined
-			- variableEnumValueDoesNotExist
-			- variableInvalidNull
-		*/
-
 		t.Run("variableRequired", func(t *testing.T) {
 			tc := testCase{
 				schema:    `type Query { hello(arg: String!): String }`,
