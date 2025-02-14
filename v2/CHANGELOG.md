@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.153](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.152...v2.0.0-rc.153) (2025-02-14)
+
+
+### Features
+
+* add apollo router compat flag for invalid variable rendering ([#1067](https://github.com/wundergraph/graphql-go-tools/issues/1067)) ([e87961f](https://github.com/wundergraph/graphql-go-tools/commit/e87961fcd13f4dde76432745c564950f56f5045d))
+
 ## [2.0.0-rc.152](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.151...v2.0.0-rc.152) (2025-02-13)
 
 
