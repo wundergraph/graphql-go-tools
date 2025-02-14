@@ -68,7 +68,7 @@ type ExecutionEngine struct {
 	resolver                       *resolve.Resolver
 	executionPlanCache             *lru.Cache
 	apolloCompatibilityFlags       apollocompatibility.Flags
-	apolloRouterCompatibilityFlags apollocompatibility.RouterFlags
+	apolloRouterCompatibilityFlags apollocompatibility.ApolloRouterFlags
 }
 
 type WebsocketBeforeStartHook interface {
@@ -145,7 +145,7 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
 		},
-		apolloRouterCompatibilityFlags: apollocompatibility.RouterFlags{
+		apolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloRouterCompatibilityReplaceInvalidVarError,
 		},
 	}, nil

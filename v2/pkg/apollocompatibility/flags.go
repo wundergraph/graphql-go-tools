@@ -5,6 +5,6 @@ type Flags struct {
 	ReplaceUndefinedOpFieldError bool
 }
 
-type RouterFlags struct {
+type ApolloRouterFlags struct {
 	ReplaceInvalidVarError bool
 }

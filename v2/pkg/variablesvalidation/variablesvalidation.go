@@ -74,7 +74,7 @@ type VariablesValidator struct {
 
 type VariablesValidatorOptions struct {
 	ApolloCompatibilityFlags        apollocompatibility.Flags
-	ApolloRouterCompatabilityFlags  apollocompatibility.RouterFlags
+	ApolloRouterCompatabilityFlags  apollocompatibility.ApolloRouterFlags
 	DisableExposingVariablesContent bool
 }
 

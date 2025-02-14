@@ -1232,14 +1232,14 @@ func TestVariablesValidation(t *testing.T) {
 		}, err)
 	})
 
-	t.Run("extension code is propagated with apollo compatibility flag", func(t *testing.T) {
+	t.Run("extension code and reduced error is propagated with apollo router compatibility flag", func(t *testing.T) {
 		tc := testCase{
 			schema:    `type Query { hello(filter: String!): String }`,
 			operation: `query Foo($input: String!) { hello(filter: $input) }`,
 			variables: `{"input":null}`,
 		}
 		err := runTestWithOptions(t, tc, VariablesValidatorOptions{
-			ApolloRouterCompatabilityFlags: apollocompatibility.RouterFlags{
+			ApolloRouterCompatabilityFlags: apollocompatibility.ApolloRouterFlags{
 				ReplaceInvalidVarError: true,
 			},
 		})
