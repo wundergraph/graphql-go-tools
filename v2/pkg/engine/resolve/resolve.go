@@ -1007,7 +1007,6 @@ func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscrip
 }
 
 type subscriptionUpdater struct {
-	done      bool
 	debug     bool
 	triggerID uint64
 	ch        chan subscriptionEvent
@@ -1024,10 +1023,6 @@ func (s *subscriptionUpdater) Update(data []byte) {
 		return
 	}
 	defer s.updateSem.Release(1)
-
-	if s.done {
-		return
-	}
 
 	select {
 	case <-s.ctx.Done():
@@ -1049,10 +1044,6 @@ func (s *subscriptionUpdater) Done() {
 		return
 	}
 	defer s.updateSem.Release(1)
-
-	if s.done {
-		return
-	}
 
 	select {
 	case <-s.ctx.Done():
