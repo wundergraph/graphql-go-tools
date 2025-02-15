@@ -680,11 +680,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
 
-		// Needs to be executed in a separate goroutine to prevent blocking the event loop
-		// because executeSubscriptionUpdate is blocking, but also it issue another event to the
-		// event loop synchronously. The side effect is that we can't use a workgroup to wait for all
-		// updates to be completed because there might be update inflight while the shutdownTrigger
-		// blocks the event loop to wait for all updates to be completed
+		// Needs to be executed in a separate goroutine to prevent blocking the event loop.
 		go func() {
 
 			// Send the update to the executor channel to be executed on the main thread
