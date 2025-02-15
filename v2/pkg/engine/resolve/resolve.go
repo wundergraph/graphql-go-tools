@@ -55,6 +55,7 @@ type Resolver struct {
 	heartbeatSubscriptions map[*Context]*sub
 	events                 chan subscriptionEvent
 	triggerEventsSem       *semaphore.Weighted
+	triggerUpdatesSem      *semaphore.Weighted
 	triggerUpdateBuf       *bytes.Buffer
 
 	allowedErrorExtensionFields map[string]struct{}
@@ -105,6 +106,9 @@ type ResolverOptions struct {
 	// MaxSubscriptionWorkers limits the concurrency on how many subscription can be added / removed concurrently.
 	// This does not include subscription updates, for that we have a separate semaphore MaxSubscriptionUpdates.
 	MaxSubscriptionWorkers int
+
+	// MaxSubscriptionUpdates limits the number of concurrent subscription updates that can be sent to the event loop.
+	MaxSubscriptionUpdates int
 
 	Debug bool
 
@@ -202,8 +206,12 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
+	if options.MaxSubscriptionUpdates == 0 {
+		options.MaxSubscriptionUpdates = 1024
+	}
 
 	resolver.triggerEventsSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
+	resolver.triggerUpdatesSem = semaphore.NewWeighted(int64(options.MaxSubscriptionUpdates))
 
 	go resolver.handleEvents()
 
@@ -514,6 +522,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
+		updateSem: r.triggerUpdatesSem,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -672,7 +681,10 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		}
 
 		// Needs to be executed in a separate goroutine to prevent blocking the event loop
-		// because executeSubscriptionUpdate is blocking.
+		// because executeSubscriptionUpdate is blocking, but also it issue another event to the
+		// event loop synchronously. The side effect is that we can't use a workgroup to wait for all
+		// updates to be completed because there might be update inflight while the shutdownTrigger
+		// blocks the event loop to wait for all updates to be completed
 		go func() {
 
 			// Send the update to the executor channel to be executed on the main thread
@@ -1004,11 +1016,21 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
+	updateSem *semaphore.Weighted
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
+	}
+
+	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
+		return
+	}
+	defer s.updateSem.Release(1)
+
+	if s.done {
+		return
 	}
 
 	select {
@@ -1025,6 +1047,15 @@ func (s *subscriptionUpdater) Update(data []byte) {
 func (s *subscriptionUpdater) Done() {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
+	}
+
+	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
+		return
+	}
+	defer s.updateSem.Release(1)
+
+	if s.done {
+		return
 	}
 
 	select {
