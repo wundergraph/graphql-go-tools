@@ -2,6 +2,11 @@
 test:
 	go test ./...
 
+test-fresh: clean-testcache test
+
+test-stability:
+	@while $(MAKE) test-fresh; do :; done
+
 .PHONY: test-quick
 test-quick:
 	go test -count=1 ./...
@@ -9,6 +14,9 @@ test-quick:
 .PHONY: test-race
 test-race:
 	go test -race ./...
+
+clean-testcache:
+	go clean -testcache
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures

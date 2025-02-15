@@ -55,7 +55,6 @@ type Resolver struct {
 	heartbeatSubscriptions map[*Context]*sub
 	events                 chan subscriptionEvent
 	triggerEventsSem       *semaphore.Weighted
-	triggerUpdatesSem      *semaphore.Weighted
 	triggerUpdateBuf       *bytes.Buffer
 
 	allowedErrorExtensionFields map[string]struct{}
@@ -106,9 +105,6 @@ type ResolverOptions struct {
 	// MaxSubscriptionWorkers limits the concurrency on how many subscription can be added / removed concurrently.
 	// This does not include subscription updates, for that we have a separate semaphore MaxSubscriptionUpdates.
 	MaxSubscriptionWorkers int
-
-	// MaxSubscriptionUpdates limits the number of concurrent subscription updates that can be sent to the event loop.
-	MaxSubscriptionUpdates int
 
 	Debug bool
 
@@ -206,12 +202,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	if options.MaxSubscriptionWorkers == 0 {
 		options.MaxSubscriptionWorkers = 1024
 	}
-	if options.MaxSubscriptionUpdates == 0 {
-		options.MaxSubscriptionUpdates = 1024
-	}
 
 	resolver.triggerEventsSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
-	resolver.triggerUpdatesSem = semaphore.NewWeighted(int64(options.MaxSubscriptionUpdates))
 
 	go resolver.handleEvents()
 
@@ -279,8 +271,8 @@ type trigger struct {
 	id            uint64
 	cancel        context.CancelFunc
 	subscriptions map[*Context]*sub
-	inFlight      *sync.WaitGroup
-	initialized   bool
+	// initialized is set to true when the trigger is started and initialized
+	initialized bool
 }
 
 type sub struct {
@@ -366,6 +358,7 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 	}
 }
 
+// handleEvents maintains the single threaded event loop that processes all events
 func (r *Resolver) handleEvents() {
 	done := r.ctx.Done()
 	heartbeat := time.NewTicker(r.multipartSubHeartbeatInterval)
@@ -521,14 +514,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
-		updateSem: r.triggerUpdatesSem,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
 		id:            triggerID,
 		subscriptions: make(map[*Context]*sub),
 		cancel:        cancel,
-		inFlight:      &sync.WaitGroup{},
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
@@ -676,22 +667,26 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if skip {
 			continue
 		}
-		trig.inFlight.Add(1)
 		fn := func() {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
-		go func(fn func()) {
-			defer trig.inFlight.Done()
+
+		// Needs to be executed in a separate goroutine to prevent blocking the event loop
+		// because executeSubscriptionUpdate is blocking.
+		go func() {
+
+			// Send the update to the executor channel to be executed on the main thread
+			// Only relevant for SSE/Multipart subscriptions
 			if s.executor != nil {
 				select {
 				case <-r.ctx.Done():
 				case <-c.ctx.Done():
-				case s.executor <- fn:
+				case s.executor <- fn: // Run the update on the main thread and close subscription
 				}
 			} else {
 				fn()
 			}
-		}(fn)
+		}()
 	}
 }
 
@@ -703,7 +698,7 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 	if !ok {
 		return
 	}
-	trig.inFlight.Wait()
+
 	count := len(trig.subscriptions)
 	r.shutdownTriggerSubscriptions(id, nil)
 	trig.cancel()
@@ -1009,7 +1004,6 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
-	updateSem *semaphore.Weighted
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1017,14 +1011,6 @@ func (s *subscriptionUpdater) Update(data []byte) {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
 
-	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
-		return
-	}
-	defer s.updateSem.Release(1)
-
-	if s.done {
-		return
-	}
 	select {
 	case <-s.ctx.Done():
 		return
@@ -1041,14 +1027,6 @@ func (s *subscriptionUpdater) Done() {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
 
-	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
-		return
-	}
-	defer s.updateSem.Release(1)
-
-	if s.done {
-		return
-	}
 	select {
 	case <-s.ctx.Done():
 		return
@@ -1057,7 +1035,6 @@ func (s *subscriptionUpdater) Done() {
 		kind:      subscriptionEventKindTriggerDone,
 	}:
 	}
-	s.done = true
 }
 
 type subscriptionEvent struct {
