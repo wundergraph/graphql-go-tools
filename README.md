@@ -1,8 +1,9 @@
 [![GoDoc](https://pkg.go.dev/badge/github.com/wundergraph/graphql-go-tools/v2)](https://pkg.go.dev/github.com/wundergraph/graphql-go-tools/v2)
 [![v2-ci](https://github.com/wundergraph/graphql-go-tools/workflows/v2-ci/badge.svg)](https://github.com/wundergraph/graphql-go-tools/actions/workflows/v2.yml)
+
 # GraphQL Router / API Gateway Framework written in Golang
 
-[<p align="center"><img height="auto" src="./assets/logo.png"></p>](https://wundergraph.com/)
+[<p align="center"><img height="auto" src="./assets/logo.png" alt="Wundergraph logo"></p>](https://wundergraph.com/)
 
 ## We're hiring!
 
@@ -19,6 +20,7 @@ If you're looking for a complete ready-to-use Open Source Router for Federation,
 have a look at the [Cosmo Router](https://github.com/wundergraph/cosmo) which is based on this library.
 
 Cosmo Router wraps this library and provides a complete solution for Federated GraphQL including the following features:
+
 - [x] Federation Gateway
 - [x] OpenTelemetry Metrics & Distributed Tracing
 - [x] Prometheus Metrics
@@ -43,7 +45,6 @@ This repository contains multiple packages joined via [workspace](https://github
 | [execution](https://github.com/wundergraph/graphql-go-tools/blob/master/execution/go.mod)                     | Execution helpers for the request handling and engine configuration builder                                                                                                                                                        | depends on [graphql-go-tools v2](https://github.com/wundergraph/graphql-go-tools/blob/master/v2/go.mod) and [composition](https://github.com/wundergraph/cosmo/blob/main/composition-go/go.mod) | actual version                     |
 | [examples/federation](https://github.com/wundergraph/graphql-go-tools/blob/master/examples/federation/go.mod) | Example implementation of graphql federation gateway. This example is not production ready. For production ready solution please consider using [cosmo router](https://github.com/wundergraph/cosmo/tree/main)                     | depends on [execution](https://github.com/wundergraph/graphql-go-tools/blob/master/execution/go.mod) package                                                                                    | actual federation gateway example  |
 | [graphql-go-tools v1](https://github.com/wundergraph/graphql-go-tools/blob/master/go.mod)                     | Legacy GraphQL engine implementation. This version 1 package is in maintenance mode and accepts only pull requests with critical bug fixes. All new features will be implemented in the version 2 package only.                    | -                                                                                                                                                                                               | deprecated, maintenance mode       |
-
 
 ## Notes
 
@@ -298,7 +299,7 @@ func ExampleNormalizeDocument() {
 			hello: String
 			foo: Foo
 		}
-	
+
 		type Foo {
 			bar: String
 		}
@@ -534,7 +535,7 @@ func ExamplePlanOperation() {
 	if err != nil {
 		panic(err)
     }
-  
+
     config := plan.Configuration{
       DataSources: []plan.DataSource{
         staticDataSource,

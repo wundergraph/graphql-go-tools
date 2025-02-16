@@ -1,0 +1,16 @@
+# Allow for code examples.
+no-hard-tabs:
+  code_blocks: false
+
+# Long lines are OK.
+line-length: false
+
+# We get excited!
+no-trailing-punctuation:
+  punctuation: ".,;:"
+
+# Allow inline HTML.
+no-inline-html: false
+
+# We lead with badges, it looks right.
+first-line-h1: false
