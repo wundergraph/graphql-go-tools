@@ -713,6 +713,11 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 		l.optionallyOmitErrorFields(values)
 
+		// If enabled, add the extra http status error for Apollo Router compat
+		if err := l.addApolloRouterCompatibilityError(res); err != nil {
+			return err
+		}
+
 		if len(values) > 0 {
 			// Append the subgraph errors to the response payload
 			if err := l.appendSubgraphError(res, fetchItem, value, values); err != nil {
@@ -751,6 +756,11 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 
 	// Allow to delete extensions entirely
 	l.optionallyOmitErrorExtensions(v)
+
+	// If enabled, add the extra http status error for Apollo Router compat
+	if err := l.addApolloRouterCompatibilityError(res); err != nil {
+		return err
+	}
 
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 
@@ -967,27 +977,18 @@ func (l *Loader) renderAtPathErrorPart(path string) string {
 	return fmt.Sprintf(` at Path '%s'`, path)
 }
 
-func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
-	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
-	if err != nil {
-		return err
-	}
-
-	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-
+func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 	if !l.resolvable.options.ApolloRouterCompatibilitySubrequestHTTPError || (res.statusCode < 400) {
-		astjson.AppendToArray(l.resolvable.errors, errorObject)
 		return nil
 	}
 
 	apolloRouterStatusErrorJSON := fmt.Sprintf(`{
-			"message": "HTTP fetch failed from '%[1]s': %[2]s",
+			"message": "HTTP fetch failed from '%[1]s': %[3]d: %[2]s",
 			"path": [],
 			"extensions": {
 				"code": "SUBREQUEST_HTTP_ERROR",
 				"service": "%[1]s",
-				"reason": "%[2]s",
+				"reason": "%[3]d: %[2]s",
 				"http": {
 					"status": %[3]d
 				}
@@ -999,7 +1000,19 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	}
 
 	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
+
+	return nil
+}
+
+func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
+	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
+	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
+	if err != nil {
+		return err
+	}
+
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
 
 	return nil
 }

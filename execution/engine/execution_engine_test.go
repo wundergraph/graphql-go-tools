@@ -270,7 +270,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}
 
 			if testCase.expectedResponse == "" {
-				assert.Equal(t, testCase.expectedFixture, actualResponse)
+				assert.Equal(t, testCase.expectedResponse, actualResponse)
 			} else {
 				assert.JSONEq(t, testCase.expectedResponse, actualResponse)
 			}
@@ -306,7 +306,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data": null}`,
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
 							sendStatusCode:   403,
 						}),
 					),
@@ -338,26 +338,24 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				),
 			},
 			expectedResponse: `{
+				"data": { "hero": null },
 				"errors": [
 					{
-						"message": "HTTP fetch failed from 'id': Forbidden",
+						"message": "HTTP fetch failed from 'id': 403: Forbidden",
 						"path": [],
 						"extensions": {
 							"code": "SUBREQUEST_HTTP_ERROR",
 							"service": "id",
-							"reason": "Forbidden",
+							"reason": "403: Forbidden",
 							"http": {
 								"status": 403
 							}
 						}
 					},
 					{
-						"message": "Failed to fetch from Subgraph 'id', Reason: no data or errors in response."
+						"message": "Failed to fetch from Subgraph 'id'."
 					}
-				],
-				"data": {
-					"hero": null
-				}
+				]
 			}`,
 		},
 		func(eto *_executionTestOptions) {
@@ -377,7 +375,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data": null}`,
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
 							sendStatusCode:   403,
 						}),
 					),
@@ -411,7 +409,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			expectedResponse: `{
 				"errors": [
 					{
-						"message": "Failed to fetch from Subgraph 'id', Reason: no data or errors in response."
+						"message": "Failed to fetch from Subgraph 'id'."
 					}
 				],
 				"data": {
@@ -436,7 +434,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							expectedHost:     "example.com",
 							expectedPath:     "/",
 							expectedBody:     "",
-							sendResponseBody: `{"data": null}`,
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
 							sendStatusCode:   200,
 						}),
 					),
@@ -470,7 +468,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			expectedResponse: `{
 				"errors": [
 					{
-						"message": "Failed to fetch from Subgraph 'id', Reason: no data or errors in response."
+						"message": "Failed to fetch from Subgraph 'id'."
 					}
 				],
 				"data": {
