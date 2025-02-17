@@ -1010,10 +1010,8 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 	if err != nil {
 		return err
 	}
-
-	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-
+	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
 
