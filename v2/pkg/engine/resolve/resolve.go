@@ -727,6 +727,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		}
 
 		// Optimistically update the last write time to prevent race conditions
+		// on the executeSubscriptionUpdate and the heartbeat goroutine
 		s.lastWrite = time.Now()
 
 		// Needs to be executed in a separate goroutine to prevent blocking the event loop.
