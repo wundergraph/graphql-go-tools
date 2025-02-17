@@ -269,7 +269,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, testCase.expectedResponse, actualResponse)
+			if testCase.expectedResponse == "" {
+				assert.Equal(t, testCase.expectedFixture, actualResponse)
+			} else {
+				assert.JSONEq(t, testCase.expectedResponse, actualResponse)
+			}
+
 			if withError {
 				require.Error(t, err)
 				if expectedErrorMessage != "" {
@@ -288,6 +293,136 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
 		return run(testCase, false, "", options...)
 	}
+
+	t.Run("apollo router compatibility subrequest HTTP errror enabled", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data": null}`,
+							sendStatusCode:   403,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedResponse: `{
+				"errors": [
+					{
+						"message": "HTTP fetch failed from 'id': Forbidden",
+						"path": [],
+						"extensions": {
+							"code": "SUBREQUEST_HTTP_ERROR",
+							"service": "id",
+							"reason": "Forbidden",
+							"http": {
+								"status": 403
+							}
+						}
+					},
+					{
+						"message": "Failed to fetch from Subgraph 'id', Reason: no data or errors in response."
+					}
+				],
+				"data": {
+					"hero": null
+				}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPErrror = true
+		},
+	))
+
+	t.Run("apollo router compatibility subrequest HTTP errror disabled", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data": null}`,
+							sendStatusCode:   403,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedResponse: `{
+				"errors": [
+					{
+						"message": "Failed to fetch from Subgraph 'id', Reason: no data or errors in response."
+					}
+				],
+				"data": {
+					"hero": null
+				}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPErrror = false
+		},
+	))
 
 	t.Run("introspection", func(t *testing.T) {
 		schema := graphql.StarwarsSchema(t)

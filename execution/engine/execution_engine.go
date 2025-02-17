@@ -63,11 +63,12 @@ func (e *internalExecutionContext) reset() {
 }
 
 type ExecutionEngine struct {
-	logger                   abstractlogger.Logger
-	config                   Configuration
-	resolver                 *resolve.Resolver
-	executionPlanCache       *lru.Cache
-	apolloCompatibilityFlags apollocompatibility.Flags
+	logger                         abstractlogger.Logger
+	config                         Configuration
+	resolver                       *resolve.Resolver
+	executionPlanCache             *lru.Cache
+	apolloCompatibilityFlags       apollocompatibility.Flags
+	apolloRouterCompatibilityFlags apollocompatibility.ApolloRouterFlags
 }
 
 type WebsocketBeforeStartHook interface {
@@ -143,6 +144,9 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 		executionPlanCache: executionPlanCache,
 		apolloCompatibilityFlags: apollocompatibility.Flags{
 			ReplaceInvalidVarError: resolverOptions.ResolvableOptions.ApolloCompatibilityReplaceInvalidVarError,
+		},
+		apolloRouterCompatibilityFlags: apollocompatibility.ApolloRouterFlags{
+			SubrequestHTTPErrror: resolverOptions.ResolvableOptions.ApolloRouterCompatibilitySubrequestHTTPErrror,
 		},
 	}, nil
 }
