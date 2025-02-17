@@ -974,8 +974,14 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 		return err
 	}
 
-	if l.apolloRouterCompatibilitySubrequestHTTPError && (res.statusCode >= 400 || res.statusCode < 600) {
-		apolloRouterStatusErrorJSON := fmt.Sprintf(`{
+	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+
+	if !l.resolvable.options.ApolloRouterCompatibilitySubrequestHTTPErrror || (res.statusCode < 400) {
+		astjson.AppendToArray(l.resolvable.errors, errorObject)
+		return nil
+	}
+
+	apolloRouterStatusErrorJSON := fmt.Sprintf(`{
 			"message": "HTTP fetch failed from '%[1]s': %[2]s",
 			"path": [],
 			"extensions": {
@@ -987,16 +993,14 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 				}
 			}
 		}`, res.ds.Name, http.StatusText(res.statusCode), res.statusCode)
-		apolloRouterStatusError, err := astjson.ParseWithoutCache(apolloRouterStatusErrorJSON)
-		if err != nil {
-			return err
-		}
-
-		astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
+	apolloRouterStatusError, err := astjson.ParseWithoutCache(apolloRouterStatusErrorJSON)
+	if err != nil {
+		return err
 	}
 
-	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
+
 	return nil
 }
 
