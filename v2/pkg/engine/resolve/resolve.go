@@ -233,7 +233,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
 			allowedSubgraphErrorFields:        allowedErrorFields,
 
-			apolloRouterCompatibilitySubrequestHTTPError: options.ResolvableOptions.ApolloRouterCompatibilitySubrequestHTTPErrror,
+			apolloRouterCompatibilitySubrequestHTTPError: options.ResolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError,
 		},
 	}
 }

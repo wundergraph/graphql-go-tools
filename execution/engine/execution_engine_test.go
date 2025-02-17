@@ -361,7 +361,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPErrror = true
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = true
 		},
 	))
 
@@ -420,7 +420,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPErrror = false
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = false
 		},
 	))
 

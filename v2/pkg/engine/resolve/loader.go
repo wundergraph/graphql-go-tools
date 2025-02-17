@@ -976,7 +976,7 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
 
-	if !l.resolvable.options.ApolloRouterCompatibilitySubrequestHTTPErrror || (res.statusCode < 400) {
+	if !l.resolvable.options.ApolloRouterCompatibilitySubrequestHTTPError || (res.statusCode < 400) {
 		astjson.AppendToArray(l.resolvable.errors, errorObject)
 		return nil
 	}
