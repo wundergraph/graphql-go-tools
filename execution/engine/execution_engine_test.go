@@ -424,6 +424,65 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		},
 	))
 
+	t.Run("apollo router compatibility subrequest HTTP error enabled and non-error http status", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"data": null}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedResponse: `{
+				"errors": [
+					{
+						"message": "Failed to fetch from Subgraph 'id', Reason: no data or errors in response."
+					}
+				],
+				"data": {
+					"hero": null
+				}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = false
+		},
+	))
+
 	t.Run("introspection", func(t *testing.T) {
 		schema := graphql.StarwarsSchema(t)
 
