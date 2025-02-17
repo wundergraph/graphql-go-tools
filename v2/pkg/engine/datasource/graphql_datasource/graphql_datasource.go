@@ -29,6 +29,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/quotes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -286,22 +287,45 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 	return nil
 }
 
+func (p *Planner[T]) createInputForQuery() (input []byte) {
+	opBytes, opVarsBytes := p.printOperation()
+	upstreamVariables := p.upstreamVariables
+
+	if opVarsBytes != nil {
+		err := jsonparser.ObjectEach(opVarsBytes, func(key, value []byte, dataType jsonparser.ValueType, offset int) (err error) {
+			if dataType == jsonparser.String {
+				upstreamVariables, err = sjson.SetRawBytes(upstreamVariables, string(key), quotes.WrapBytes(value))
+			} else {
+				upstreamVariables, err = sjson.SetRawBytes(upstreamVariables, string(key), value)
+			}
+			return err
+		})
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("createInputForQuery: failed to copy additional variables: %w", err)))
+			return nil
+		}
+	}
+
+	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
+	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
+
+	return input
+}
+
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	if p.config.fetch == nil {
 		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch configuration is empty")))
 		return resolve.FetchConfiguration{}
 	}
 
-	var input []byte
-	input = httpclient.SetInputBodyWithPath(input, p.upstreamVariables, "variables")
-	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
+	input := p.createInputForQuery()
 
 	header, err := json.Marshal(p.config.fetch.Header)
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
 		return resolve.FetchConfiguration{}
 	}
-	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+	if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
@@ -352,8 +376,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		return plan.SubscriptionConfiguration{}
 	}
 
-	input := httpclient.SetInputBodyWithPath(nil, p.upstreamVariables, "variables")
-	input = httpclient.SetInputBodyWithPath(input, p.printOperation(), "query")
+	input := p.createInputForQuery()
+
 	input = httpclient.SetInputURL(input, []byte(p.config.subscription.URL))
 	if p.config.subscription.UseSSE {
 		input = httpclient.SetInputFlag(input, httpclient.USE_SSE)
@@ -644,10 +668,16 @@ func (p *Planner[T]) EnterField(ref int) {
 	}
 
 	fieldName := p.visitor.Operation.FieldNameString(ref)
-	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(p.lastFieldEnclosingTypeName, fieldName)
+
+	typeName := p.lastFieldEnclosingTypeName
+	if shouldRenameInterfaceObjectType, newTypeName := p.interfaceObjectTypeShouldBeRenamed(typeName); shouldRenameInterfaceObjectType {
+		typeName = newTypeName
+	}
+
+	fieldConfiguration := p.visitor.Config.Fields.ForTypeField(typeName, fieldName)
 
 	for i := range p.config.customScalarTypeFields {
-		if p.config.customScalarTypeFields[i].TypeName == p.lastFieldEnclosingTypeName && p.config.customScalarTypeFields[i].FieldName == fieldName {
+		if p.config.customScalarTypeFields[i].TypeName == typeName && p.config.customScalarTypeFields[i].FieldName == fieldName {
 			p.insideCustomScalarField = true
 			p.customScalarFieldRef = ref
 			p.addFieldArguments(p.addCustomField(ref), ref, fieldConfiguration)
@@ -1374,7 +1404,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 }
 
 // printOperation - prints normalized upstream operation
-func (p *Planner[T]) printOperation() []byte {
+func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []byte) {
 
 	kit := p.getKit()
 	defer p.releaseKit(kit)
@@ -1383,7 +1413,7 @@ func (p *Planner[T]) printOperation() []byte {
 	definition, err := p.config.UpstreamSchema()
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to read upstream schema: %w", err)))
-		return nil
+		return nil, nil
 	}
 
 	// When datasource is nested and definition query type do not contain operation field
@@ -1394,13 +1424,18 @@ func (p *Planner[T]) printOperation() []byte {
 	kit.normalizer.NormalizeOperation(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
 		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: normalization failed: %w", kit.report)))
-		return nil
+		return nil, nil
+	}
+
+	if len(p.upstreamOperation.Input.Variables) > 0 {
+		variablesBytes = make([]byte, len(p.upstreamOperation.Input.Variables))
+		copy(variablesBytes, p.upstreamOperation.Input.Variables)
 	}
 
 	kit.validator.Validate(p.upstreamOperation, definition, kit.report)
 	if kit.report.HasErrors() {
 		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: validation failed: %w", kit.report)))
-		return nil
+		return nil, nil
 	}
 
 	p.generateQueryPlansForFetchConfiguration(p.upstreamOperation)
@@ -1410,7 +1445,7 @@ func (p *Planner[T]) printOperation() []byte {
 	err = kit.printer.Print(p.upstreamOperation, kit.buf)
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to print: %w", err)))
-		return nil
+		return nil, nil
 	}
 
 	rawOperationBytes := make([]byte, kit.buf.Len())
@@ -1424,7 +1459,7 @@ func (p *Planner[T]) printOperation() []byte {
 		}, kit.buf)
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("printOperation: failed to minify: %w", err)))
-			return nil
+			return nil, nil
 		}
 		if madeReplacements && kit.buf.Len() < len(rawOperationBytes) {
 			rawOperationBytes = rawOperationBytes[:kit.buf.Len()]
@@ -1432,7 +1467,7 @@ func (p *Planner[T]) printOperation() []byte {
 		}
 	}
 
-	return rawOperationBytes
+	return rawOperationBytes, variablesBytes
 }
 
 func (p *Planner[T]) stopWithError(err error) {
@@ -1623,8 +1658,7 @@ var (
 				printer:   astprinter.NewPrinter(nil),
 				validator: astvalidation.DefaultOperationValidator(),
 				normalizer: astnormalization.NewWithOpts(
-					// we should not extract variables from the upstream operation as they will be lost
-					// cause when we are building an input we use our own variables
+					astnormalization.WithExtractVariables(),
 					astnormalization.WithRemoveFragmentDefinitions(),
 					astnormalization.WithRemoveUnusedVariables(),
 					astnormalization.WithInlineFragmentSpreads(),

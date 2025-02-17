@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"net/http"
 	"time"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
@@ -147,7 +148,6 @@ func NewExecutionEngine(ctx context.Context, logger abstractlogger.Logger, engin
 }
 
 func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Request, writer resolve.SubscriptionResponseWriter, options ...ExecutionOptions) error {
-
 	normalize := !operation.IsNormalized()
 	if normalize {
 		// Normalize the operation, but extract variables later so ValidateForSchema can return correct error messages for bad arguments.
@@ -237,7 +237,6 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 }
 
 func (e *ExecutionEngine) getCachedPlan(ctx *internalExecutionContext, operation, definition *ast.Document, operationName string, report *operationreport.Report) plan.Plan {
-
 	hash := pool.Hash64.Get()
 	hash.Reset()
 	defer pool.Hash64.Put(hash)

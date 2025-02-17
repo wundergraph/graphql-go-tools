@@ -2,8 +2,8 @@ package plan
 
 import (
 	"errors"
+	"fmt"
 	"slices"
-	"sort"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -60,6 +60,8 @@ type fieldSelectionRewriter struct {
 
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
+
+	skipFieldRefs []int
 }
 
 func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
@@ -78,22 +80,33 @@ func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration Data
 }
 
 func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (rewritten bool, err error) {
-	fieldTypeNode, ok := r.definition.FieldTypeNode(r.operation.FieldNameBytes(fieldRef), enclosingNode)
+	fieldName := r.operation.FieldNameBytes(fieldRef)
+	fieldTypeNode, ok := r.definition.FieldTypeNode(fieldName, enclosingNode)
 	if !ok {
 		return false, nil
 	}
 
+	enclosingTypeName := r.definition.NodeNameBytes(enclosingNode)
+
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		return r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref)
+		rewritten, err = r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		if err != nil {
+			return false, fmt.Errorf("failed to rewrite field %s.%s with the interface return type: %w", enclosingTypeName, fieldName, err)
+		}
 	case ast.NodeKindUnionTypeDefinition:
-		return r.processUnionSelection(fieldRef, fieldTypeNode.Ref)
+		rewritten, err = r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		if err != nil {
+			return false, fmt.Errorf("failed to rewrite field %s.%s with the union return type: %w", enclosingTypeName, fieldName, err)
+		}
 	default:
 		return false, nil
 	}
+
+	return rewritten, nil
 }
 
-func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
 	/*
 		1) extract inline fragments selections with interface types
 		2) extract inline fragments selections with members of the union
@@ -102,21 +115,10 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 		5) append existing inline fragments with fields from the interfaces
 	*/
 
-	unionTypeName := r.definition.UnionTypeDefinitionNameBytes(unionDefRef)
-	node, hasNode := r.upstreamDefinition.NodeByName(unionTypeName)
-	if !hasNode {
-		return false, errors.New("unexpected error: union type definition not found in the upstream schema")
+	unionTypeNames, err := r.getAllowedUnionMemberTypeNames(fieldRef, unionDefRef, enclosingTypeName)
+	if err != nil {
+		return false, err
 	}
-	if node.Kind != ast.NodeKindUnionTypeDefinition {
-		return false, errors.New("unexpected error: node kind is not union type definition in the upstream schema")
-	}
-
-	unionTypeNames, ok := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(node.Ref)
-	if !ok {
-		return false, nil
-	}
-
-	sort.Strings(unionTypeNames)
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
@@ -220,7 +222,8 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 
 	if len(newSelectionRefs) == 0 {
 		// we have to add __typename selection in case there is no other selections
-		typeNameSelectionRef, _ := r.typeNameSelection()
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
 	}
 
@@ -232,7 +235,7 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	return nil
 }
 
-func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
 	/*
 		1) extract selections which is not inline-fragments - e.g. shared selections
 		2) extract selections for each inline fragment
@@ -240,46 +243,17 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 		4) for types which have inline-fragment - add not selected shared fields to existing inline fragment
 	*/
 
-	interfaceTypeName := r.definition.InterfaceTypeDefinitionNameBytes(interfaceDefRef)
-	node, hasNode := r.upstreamDefinition.NodeByName(interfaceTypeName)
-	if !hasNode {
-		return false, errors.New("unexpected error: interface type definition not found in the upstream schema")
+	interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
+	if err != nil {
+		return false, err
 	}
-
-	var isInterfaceObject bool
-	var interfaceTypeNames []string
-
-	if node.Kind != ast.NodeKindInterfaceTypeDefinition {
-		interfaceTypeNameStr := string(interfaceTypeName)
-		for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
-			if k.InterfaceTypeName == interfaceTypeNameStr {
-				isInterfaceObject = true
-				interfaceTypeNames = k.ConcreteTypeNames
-				break
-			}
-		}
-
-		if !isInterfaceObject {
-			return false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
-		}
-	}
-
-	if !isInterfaceObject {
-		var ok bool
-		interfaceTypeNames, ok = r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
-		if !ok {
-			return false, nil
-		}
-	}
-
-	sort.Strings(interfaceTypeNames)
-
 	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
 		return false, err
 	}
+	selectionSetInfo.isInterfaceObject = isInterfaceObject
 
 	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames)
 	if !needRewrite {
@@ -316,6 +290,14 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		// check that all inline fragments types are implementing the interface in the current datasource
 		if !r.allFragmentTypesImplementsInterfaceTypes(selectionSetInfo.inlineFragmentsOnObjects, interfaceTypeNames) {
 			return true
+		}
+
+		// in case it is an interface object, and we have fragments on concrete types - we have to add shared __typename selection
+		// it will mean that we will rewrite a query to separate concrete type fragments, but due to nature of the interface object
+		// they eventually will be flattened by datasource into a single fragment or just a flatten query.
+		// So it should be safe to rewrite a field.
+		if selectionSetInfo.isInterfaceObject {
+			return !selectionSetInfo.hasTypeNameSelection
 		}
 	}
 
@@ -367,6 +349,15 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 
 func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldInfo selectionSetInfo, interfaceTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(interfaceTypeNames)+1) // 1 for __typename
+
+	// When interface is an interface object
+	// When we have fragments on concrete types,
+	// And we do not have __typename selection - we are adding it
+	if fieldInfo.isInterfaceObject && !fieldInfo.hasTypeNameSelection && fieldInfo.hasInlineFragmentsOnObjects {
+		typeNameSelectionRef, typeNameFieldRef := r.typeNameSelection()
+		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
+		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
+	}
 
 	r.flattenFragmentOnInterface(
 		fieldInfo,

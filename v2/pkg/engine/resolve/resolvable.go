@@ -274,9 +274,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 	r.printBytes(colon)
 	r.printBytes(lBrace)
 
-	var (
-		writeComma bool
-	)
+	var writeComma bool
 
 	if r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		writeComma = true
@@ -484,6 +482,8 @@ func (r *Resolvable) walkNode(node Node, value *astjson.Value) bool {
 		return r.walkNull()
 	case *String:
 		return r.walkString(n, value)
+	case *StaticString:
+		return r.walkStaticString(n)
 	case *Boolean:
 		return r.walkBoolean(n, value)
 	case *Integer:
@@ -801,6 +801,15 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 func (r *Resolvable) walkNull() bool {
 	if r.print {
 		r.printBytes(null)
+	}
+	return false
+}
+
+func (r *Resolvable) walkStaticString(str *StaticString) bool {
+	if r.print {
+		r.printBytes(quote)
+		r.printBytes([]byte(str.Value))
+		r.printBytes(quote)
 	}
 	return false
 }

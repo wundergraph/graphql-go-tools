@@ -462,6 +462,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					name: String!
 					isModerator: Boolean!
 				}
+
+				type Query {
+					iface: Node!
+				}
 			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -805,6 +809,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}
 
 				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]!
+				}
 			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -862,6 +870,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}
 
 				union Account = User | Admin
+
+				type Query {
+					accounts: [Account!]!
+				}
 			`,
 			dsConfiguration: dsb().
 				RootNode("Query", "iface").
@@ -2349,6 +2361,83 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name:      "don't have all type implementing interface in the datasource",
+			fieldName: "returnsUnion",
+			definition: `
+				interface HasName {
+					name: String!
+				}
+
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+		
+				type Admin implements HasName {
+					id: ID!
+					name: String!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			upstreamDefinition: `
+				type User implements HasName {
+					id: ID!
+					name: String!
+					isUser: Boolean!
+				}
+
+				type Admin {
+					id: ID!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "returnsUnion").
+				RootNode("User", "id", "name", "isUser").
+				RootNode("Admin", "id").
+				ChildNode("HasName", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					returnsUnion {
+						... on HasName {
+							name	
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					returnsUnion {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name: "everything is local, nested interface selections with typename, first interface is matching field return type",
 			definition: `
 				interface HasName {
@@ -2537,6 +2626,202 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					}
 				}`,
 			shouldRewrite: false,
+		},
+		{
+			name:      "field is a concrete type from a union in the given subgraph ",
+			fieldName: "returnsUser",
+			definition: `
+				type User {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin {
+					id: ID!
+					name: String!
+				}
+
+				union Account = User | Admin
+
+				type Query {
+					returnsUnion: Account!
+					returnsUser: Account!
+				}`,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					returnsUser: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "returnsUser").
+				RootNode("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					returnsUser {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					returnsUser {
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "field is a concrete type from an interface members which do not implement interface in the given subgraph ",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				type Query {
+					iface: Account!
+				}`,
+			upstreamDefinition: `
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Admin {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					iface: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "field is a concrete type from an interface members which do not implement interface in the given subgraph - query type renamed",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				type Query {
+					iface: Account!
+				}`,
+			upstreamDefinition: `
+				schema {
+					query: QueryType
+				}
+
+				type User {
+					id: ID!
+					name: String!
+				}
+
+				type Admin {
+					id: ID!
+					name: String!
+				}
+
+				type QueryType {
+					iface: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "iface").
+				RootNode("User", "id", "name").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			operation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+						... on Admin {
+							name
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					iface {
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
 		},
 	}
 

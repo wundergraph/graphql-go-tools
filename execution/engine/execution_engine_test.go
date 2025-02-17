@@ -3739,6 +3739,140 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			withValueCompletion(),
 		))
 	})
+
+	t.Run("variables", func(t *testing.T) {
+		t.Run("operation with optional input fields", func(t *testing.T) {
+			schemaString := `
+				type Query {
+					field(arg: Input): String
+				}
+				
+				input Input {
+					optional: String
+					required: String!
+				}`
+			schema, err := graphql.NewSchemaFromString(schemaString)
+			require.NoError(t, err)
+
+			t.Run("optional value provided", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							OperationName: "queryVariables",
+							Variables:     []byte(`{"optional":"optionalValue","required":"requiredValue"}`),
+							Query: `query queryVariables($optional: String, $required: String!) {
+										field(arg: {optional: $optional, required: $required})
+									}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t,
+							"id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     `{"query":"query($a: Input){field(arg: $a)}","variables":{"a":{"optional":"optionalValue","required":"requiredValue"}}}`,
+									sendResponseBody: `{"data":{"field":"response"}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{TypeName: "Query", FieldNames: []string{"field"}},
+								},
+							},
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+								SchemaConfiguration: mustSchemaConfig(
+									t,
+									nil,
+									schemaString,
+								),
+							}),
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName:  "Query",
+							FieldName: "field",
+							Path:      []string{"field"},
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:       "arg",
+									SourceType: plan.FieldArgumentSource,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"field":"response"}}`,
+				},
+			))
+
+			t.Run("optional value ommited", runWithoutError(
+				ExecutionEngineTestCase{
+					schema: schema,
+					operation: func(t *testing.T) graphql.Request {
+						return graphql.Request{
+							OperationName: "queryVariables",
+							Variables:     []byte(`{"required":"requiredValue"}`),
+							Query: `query queryVariables($optional: String, $required: String!) {
+										field(arg: {optional: $optional, required: $required})
+									}`,
+						}
+					},
+					dataSources: []plan.DataSource{
+						mustGraphqlDataSourceConfiguration(t,
+							"id",
+							mustFactory(t,
+								testNetHttpClient(t, roundTripperTestCase{
+									expectedHost:     "example.com",
+									expectedPath:     "/",
+									expectedBody:     `{"query":"query($a: Input){field(arg: $a)}","variables":{"a":{"required":"requiredValue"}}}`,
+									sendResponseBody: `{"data":{"field":"response"}}`,
+									sendStatusCode:   200,
+								}),
+							),
+							&plan.DataSourceMetadata{
+								RootNodes: []plan.TypeField{
+									{TypeName: "Query", FieldNames: []string{"field"}},
+								},
+							},
+							mustConfiguration(t, graphql_datasource.ConfigurationInput{
+								Fetch: &graphql_datasource.FetchConfiguration{
+									URL:    "https://example.com/",
+									Method: "GET",
+								},
+								SchemaConfiguration: mustSchemaConfig(
+									t,
+									nil,
+									schemaString,
+								),
+							}),
+						),
+					},
+					fields: []plan.FieldConfiguration{
+						{
+							TypeName:  "Query",
+							FieldName: "field",
+							Path:      []string{"field"},
+							Arguments: []plan.ArgumentConfiguration{
+								{
+									Name:       "arg",
+									SourceType: plan.FieldArgumentSource,
+								},
+							},
+						},
+					},
+					expectedResponse: `{"data":{"field":"response"}}`,
+				},
+			))
+		})
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {

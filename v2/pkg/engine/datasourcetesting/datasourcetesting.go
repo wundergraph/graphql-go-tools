@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"gonum.org/v1/gonum/stat/combin"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -28,6 +31,7 @@ type testOptions struct {
 	postProcessors []*postprocess.Processor
 	skipReason     string
 	withFieldInfo  bool
+	withPrintPlan  bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -52,6 +56,13 @@ func WithDefaultCustomPostProcessor(options ...postprocess.ProcessorOption) func
 
 func WithFieldInfo() func(*testOptions) {
 	return func(o *testOptions) {
+		o.withFieldInfo = true
+	}
+}
+
+func WithPrintPlan() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withPrintPlan = true
 		o.withFieldInfo = true
 	}
 }
@@ -149,7 +160,13 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		p, err := plan.NewPlanner(config)
 		require.NoError(t, err)
-		actualPlan := p.Plan(&op, &def, operationName, &report)
+
+		var planOpts []plan.Opts
+		if opts.withPrintPlan {
+			planOpts = append(planOpts, plan.IncludeQueryPlanInResponse())
+		}
+
+		actualPlan := p.Plan(&op, &def, operationName, &report, planOpts...)
 		if report.HasErrors() {
 			_, err := astprinter.PrintStringIndent(&def, "  ")
 			if err != nil {
@@ -168,22 +185,38 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			}
 		}
 
-		actualBytes, _ := json.MarshalIndent(actualPlan, "", "  ")
-		expectedBytes, _ := json.MarshalIndent(expectedPlan, "", "  ")
+		if opts.withPrintPlan {
+			t.Log("\n", actualPlan.(*plan.SynchronousResponsePlan).Response.Fetches.QueryPlan().PrettyPrint())
+		}
 
-		if !assert.Equal(t, string(expectedBytes), string(actualBytes)) {
-			formatterConfig := map[reflect.Type]interface{}{
-				reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
-			}
+		formatterConfig := map[reflect.Type]interface{}{
+			// normalize byte slices to strings
+			reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			// normalize map[string]struct{} to json array of keys
+			reflect.TypeOf(map[string]struct{}{}): func(m map[string]struct{}) string {
+				var keys []string
+				for k := range m {
+					keys = append(keys, k)
+				}
+				slices.Sort(keys)
 
-			prettyCfg := &pretty.Config{
-				Diffable:          true,
-				IncludeUnexported: false,
-				Formatter:         formatterConfig,
-			}
+				keysPrinted, _ := json.Marshal(keys)
+				return string(keysPrinted)
+			},
+		}
 
-			if diff := prettyCfg.Compare(expectedPlan, actualPlan); diff != "" {
-				t.Errorf("Plan does not match(-want +got)\n%s", diff)
+		prettyCfg := &pretty.Config{
+			Diffable:          true,
+			IncludeUnexported: false,
+			Formatter:         formatterConfig,
+		}
+
+		exp := prettyCfg.Sprint(expectedPlan)
+		act := prettyCfg.Sprint(actualPlan)
+
+		if !assert.Equal(t, exp, act) {
+			if diffResult := diff.Diff(exp, act); diffResult != "" {
+				t.Errorf("Plan does not match(-want +got)\n%s", diffResult)
 			}
 		}
 	}

@@ -1,5 +1,57 @@
 # Changelog
 
+## [2.0.0-rc.155](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.154...v2.0.0-rc.155) (2025-02-15)
+
+
+### Bug Fixes
+
+* deadlock when waiting on inflight events of a trigger ([#1073](https://github.com/wundergraph/graphql-go-tools/issues/1073)) ([8a2b33c](https://github.com/wundergraph/graphql-go-tools/commit/8a2b33c289a921f53518e795a205fba9d4bd7058))
+
+## [2.0.0-rc.154](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.153...v2.0.0-rc.154) (2025-02-14)
+
+
+### Bug Fixes
+
+* use correct compatibility spelling ([#1070](https://github.com/wundergraph/graphql-go-tools/issues/1070)) ([9b3d93b](https://github.com/wundergraph/graphql-go-tools/commit/9b3d93b072169f84e41977d9091b1415c33b150d))
+
+## [2.0.0-rc.153](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.152...v2.0.0-rc.153) (2025-02-14)
+
+
+### Features
+
+* add apollo router compat flag for invalid variable rendering ([#1067](https://github.com/wundergraph/graphql-go-tools/issues/1067)) ([e87961f](https://github.com/wundergraph/graphql-go-tools/commit/e87961fcd13f4dde76432745c564950f56f5045d))
+
+## [2.0.0-rc.152](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.151...v2.0.0-rc.152) (2025-02-13)
+
+
+### Bug Fixes
+
+* fix printing object value with optional fields ([#1065](https://github.com/wundergraph/graphql-go-tools/issues/1065)) ([5730d72](https://github.com/wundergraph/graphql-go-tools/commit/5730d728f78dc64a10c00eb1de1cd00292ce7dd2))
+
+## [2.0.0-rc.151](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.150...v2.0.0-rc.151) (2025-02-12)
+
+
+### Bug Fixes
+
+* get typename from upstream schema in abstract field rewriter ([#1062](https://github.com/wundergraph/graphql-go-tools/issues/1062)) ([59f0a51](https://github.com/wundergraph/graphql-go-tools/commit/59f0a5151b1a63d19c4655f016ca8316e6a5d36f))
+
+## [2.0.0-rc.150](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.149...v2.0.0-rc.150) (2025-02-11)
+
+
+### Bug Fixes
+
+* interface objects ([#1055](https://github.com/wundergraph/graphql-go-tools/issues/1055)) ([858d929](https://github.com/wundergraph/graphql-go-tools/commit/858d92992680bd8652dde2d3bdd036dbc40608c5))
+* re-walking operation on stopped walker after rewriting abstract selection set; prevent adding __typename field suggestion for the datasource which do not have a union defined ([cf50a60](https://github.com/wundergraph/graphql-go-tools/commit/cf50a60e520beeabb91b2bd99912dbe983634696))
+* use of arguments on interface object when jumping from type to interface object ([850bd6c](https://github.com/wundergraph/graphql-go-tools/commit/850bd6ceeef4d01a0780eb5ac309eba3604cc871))
+* use of arguments on jump to interface object from concrete type ([#1061](https://github.com/wundergraph/graphql-go-tools/issues/1061)) ([9f7180e](https://github.com/wundergraph/graphql-go-tools/commit/9f7180e9193b4be1f5f72a388f5e1f37f120fc39))
+
+## [2.0.0-rc.149](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.148...v2.0.0-rc.149) (2025-02-07)
+
+
+### Bug Fixes
+
+* extracting object input with optional variable values ([#1056](https://github.com/wundergraph/graphql-go-tools/issues/1056)) ([3325eac](https://github.com/wundergraph/graphql-go-tools/commit/3325eac3f1dc70069e8057972bf1da5f7324402a))
+
 ## [2.0.0-rc.148](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.147...v2.0.0-rc.148) (2025-02-07)
 
 

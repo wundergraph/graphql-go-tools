@@ -12,8 +12,11 @@ const EntityInterfacesDefinition = `
 		interface Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		type Location {
@@ -23,22 +26,31 @@ const EntityInterfacesDefinition = `
 		type Admin implements Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		type Moderator implements Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		type User implements Account {
 		  id: ID!
 		  title: String!
+          fullTitle: String!
+          uniqueTitle: String!
 		  locations: [Location!]
 		  age: Int!
+		  fieldWithArg(arg: String!): String!
 		}
 
 		union Accounts = Admin | Moderator | User
@@ -160,6 +172,9 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		type Account @key(fields: "id") @interfaceObject {
 			id: ID!
 			locations: [Location!]
+			title: String! @external
+			uniqueTitle: String! @requires(fields: "title")
+			fieldWithArg(arg: String!): String!
 		}
 		
 		type Location {
@@ -193,20 +208,24 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "Account",
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
-					TypeName:   "User",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "User",
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
-					TypeName:   "Moderator",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "Moderator",
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
-					TypeName:   "Admin",
-					FieldNames: []string{"id", "locations"},
+					TypeName:           "Admin",
+					FieldNames:         []string{"id", "locations", "uniqueTitle", "fieldWithArg"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:   "Query",
@@ -242,6 +261,13 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					{
 						TypeName:     "User",
 						SelectionSet: "id",
+					},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "title",
+						FieldName:    "uniqueTitle",
 					},
 				},
 			},
@@ -300,6 +326,8 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		type Account @key(fields: "id") @interfaceObject {
 			id: ID!
 			age: Int!
+			title: String! @external
+			fullTitle: String! @requires(fields: "title")
 		}`
 
 	fourthDatasourceSchemaConfiguration, err := NewSchemaConfiguration(
@@ -325,20 +353,21 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 		&plan.DataSourceMetadata{
 			RootNodes: []plan.TypeField{
 				{
-					TypeName:   "Account",
-					FieldNames: []string{"id", "age"},
+					TypeName:           "Account",
+					FieldNames:         []string{"id", "age", "fullTitle"},
+					ExternalFieldNames: []string{"title"},
 				},
 				{
 					TypeName:   "User",
-					FieldNames: []string{"id", "age"},
+					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 				{
 					TypeName:   "Moderator",
-					FieldNames: []string{"id", "age"},
+					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 				{
 					TypeName:   "Admin",
-					FieldNames: []string{"id", "age"},
+					FieldNames: []string{"id", "age", "fullTitle"},
 				},
 			},
 			FederationMetaData: plan.FederationMetaData{
@@ -364,6 +393,13 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					{
 						TypeName:     "User",
 						SelectionSet: "id",
+					},
+				},
+				Requires: plan.FederationFieldConfigurations{
+					{
+						TypeName:     "Account",
+						SelectionSet: "title",
+						FieldName:    "fullTitle",
 					},
 				},
 			},
@@ -403,10 +439,20 @@ func EntityInterfacesPlanConfiguration(t *testing.T, factory plan.PlannerFactory
 					},
 				},
 			},
+			{
+				TypeName:  "Account",
+				FieldName: "fieldWithArg",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "arg",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
 		},
 		Debug: plan.DebugConfiguration{
 			PrintOperationTransformations: false,
-			PrintQueryPlans:               false,
+			PrintQueryPlans:               true,
 			PrintPlanningPaths:            false,
 			PrintNodeSuggestions:          false,
 
@@ -765,6 +811,16 @@ func EntityInterfacesPlanConfigurationBench(t *testing.B, factory plan.PlannerFa
 				Arguments: []plan.ArgumentConfiguration{
 					{
 						Name:       "id",
+						SourceType: plan.FieldArgumentSource,
+					},
+				},
+			},
+			{
+				TypeName:  "Account",
+				FieldName: "fieldWithArg",
+				Arguments: []plan.ArgumentConfiguration{
+					{
+						Name:       "arg",
 						SourceType: plan.FieldArgumentSource,
 					},
 				},

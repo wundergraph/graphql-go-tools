@@ -1,6 +1,8 @@
 package plan
 
 import (
+	"bytes"
+	"errors"
 	"slices"
 	"sort"
 
@@ -184,6 +186,15 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 	// check that interface type exists on datasource
 	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
 		return true
+	}
+
+	// We need to check if interface type in the given datasource is implemented by parent selection valid types
+	// because it could happen that in the given ds we have all types from union but not all of them implements interface
+	// so we need to rewrite, because otherwise we won't get responses for all possible types, but only for implementing interface
+	for _, typeName := range parentSelectionValidTypes {
+		if !slices.Contains(inlineFragment.typeNamesImplementingInterfaceInCurrentDS, typeName) {
+			return true
+		}
 	}
 
 	// if interface fragment has inline fragments on objects
@@ -378,4 +389,128 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 		Ref:  field.Ref,
 		Kind: ast.SelectionKindField,
 	}), field.Ref
+}
+
+func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
+	fieldName := r.operation.FieldNameBytes(fieldRef)
+
+	// if enclosing type was one of the root query types
+	// we need to check if they were renamed in the upstream schema
+	enclosingTypeName = r.typeNameWithRename(enclosingTypeName)
+
+	node, hasNode := r.upstreamDefinition.NodeByName(enclosingTypeName)
+	if !hasNode {
+		return "", false
+	}
+
+	fieldTypeNode, ok := r.upstreamDefinition.FieldTypeNode(fieldName, node)
+	if !ok {
+		return "", false
+	}
+
+	return r.upstreamDefinition.NodeNameString(fieldTypeNode), true
+}
+
+func (r *fieldSelectionRewriter) getAllowedUnionMemberTypeNames(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) ([]string, error) {
+	unionTypeName := r.definition.UnionTypeDefinitionNameString(unionDefRef)
+	unionTypeNamesFromDefinition, _ := r.definition.UnionTypeDefinitionMemberTypeNames(unionDefRef)
+
+	// CurrentObject.field typename from the upstream schema
+	fieldTypeName, ok := r.fieldTypeNameFromUpstreamSchema(fieldRef, enclosingTypeName)
+	if !ok {
+		return nil, errors.New("unexpected error: field type name is not found in the upstream schema")
+	}
+
+	// if typename of a field is not equal to the typename of the union type
+	// then it should be a member of the union type
+	if unionTypeName != fieldTypeName {
+		if slices.Contains(unionTypeNamesFromDefinition, fieldTypeName) {
+			return []string{fieldTypeName}, nil
+		}
+
+		// if it is not a member of the union type the config is corrupted
+		return nil, errors.New("unexpected error: field type is not a member of the union type in the federated graph schema")
+	}
+
+	// when typename of a field is equal to the typename of the union type
+	// we need to get allowed types from the upstream schema
+	unionNode, ok := r.upstreamDefinition.NodeByNameStr(unionTypeName)
+	if !ok {
+		return nil, errors.New("unexpected error: union type is not found in the upstream schema")
+	}
+
+	if unionNode.Kind != ast.NodeKindUnionTypeDefinition {
+		return nil, errors.New("unexpected error: node kind is not union type definition in the upstream schema")
+	}
+
+	unionTypeNames, ok := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(unionNode.Ref)
+	if !ok {
+		return nil, errors.New("unexpected error: union type definition in the upstream schema do not have any members")
+	}
+	sort.Strings(unionTypeNames)
+
+	return unionTypeNames, nil
+}
+
+func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (typeNames []string, isInterfaceObject bool, err error) {
+	interfaceTypeName := r.definition.InterfaceTypeDefinitionNameString(interfaceDefRef)
+	interfaceTypeNamesFromDefinition, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef)
+
+	// CurrentObject.field typename from the upstream schema
+	fieldTypeName, ok := r.fieldTypeNameFromUpstreamSchema(fieldRef, enclosingTypeName)
+	if !ok {
+		return nil, false, errors.New("unexpected error: field type name is not found in the upstream schema")
+	}
+
+	// if typename of a field is not equal to the typename of the interface type
+	// then it should implement the interface type in the federated graph schema
+	if interfaceTypeName != fieldTypeName {
+		if slices.Contains(interfaceTypeNamesFromDefinition, fieldTypeName) {
+			return []string{fieldTypeName}, false, nil
+		}
+
+		// if it is not a member of the union type the config is corrupted
+		return nil, false, errors.New("unexpected error: field type do not implement the interface in the federated graph schema")
+	}
+
+	interfaceNode, hasNode := r.upstreamDefinition.NodeByNameStr(interfaceTypeName)
+	if !hasNode {
+		return nil, false, errors.New("unexpected error: interface type definition not found in the upstream schema")
+	}
+
+	// in case node kind is an interface type definition we just return the implementing types in this datasource
+	if interfaceNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+		interfaceTypeNames, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceNode.Ref)
+		sort.Strings(interfaceTypeNames)
+		return interfaceTypeNames, false, nil
+	}
+
+	// otherwise we should get node kind object type definition
+	// which means we are dealing with the interface object
+	for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
+		if k.InterfaceTypeName == interfaceTypeName {
+			return k.ConcreteTypeNames, true, nil
+		}
+	}
+
+	return nil, false, errors.New("unexpected error: node kind is not interface type definition in the upstream schema")
+}
+
+func (r *fieldSelectionRewriter) typeNameWithRename(typeName ast.ByteSlice) ast.ByteSlice {
+	switch {
+	case bytes.Equal(typeName, ast.DefaultQueryTypeName):
+		if r.upstreamDefinition.Index.QueryTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.QueryTypeName, typeName) {
+			return r.upstreamDefinition.Index.QueryTypeName
+		}
+	case bytes.Equal(typeName, ast.DefaultMutationTypeName):
+		if r.upstreamDefinition.Index.MutationTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.MutationTypeName, typeName) {
+			return r.upstreamDefinition.Index.MutationTypeName
+		}
+	case bytes.Equal(typeName, ast.DefaultSubscriptionTypeName):
+		if r.upstreamDefinition.Index.SubscriptionTypeName != nil && !bytes.Equal(r.upstreamDefinition.Index.SubscriptionTypeName, typeName) {
+			return r.upstreamDefinition.Index.SubscriptionTypeName
+		}
+	}
+
+	return typeName
 }
