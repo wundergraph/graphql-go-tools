@@ -381,8 +381,6 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 			return
 		}
 
-		// Update the last write time.
-		sub.lastWrite = time.Now()
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
 		}
@@ -727,6 +725,9 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fn := func() {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
+
+		// Optimistically update the last write time to prevent race conditions
+		s.lastWrite = time.Now()
 
 		// Needs to be executed in a separate goroutine to prevent blocking the event loop.
 		go func() {
