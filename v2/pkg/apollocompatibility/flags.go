@@ -7,5 +7,4 @@ type Flags struct {
 
 type ApolloRouterFlags struct {
 	ReplaceInvalidVarError bool
-	SubrequestHTTPErrror   bool
 }
