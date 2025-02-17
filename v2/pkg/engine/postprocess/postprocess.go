@@ -25,6 +25,7 @@ type Processor struct {
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
 	processFetchTree      []FetchTreeProcessor
+	extractDeferredFields *extractDeferredFields
 }
 
 type processorOptions struct {
@@ -131,6 +132,7 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableMergeFields,
 			},
 		},
+		extractDeferredFields: &extractDeferredFields{},
 	}
 }
 
@@ -157,6 +159,20 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Response.Fetches)
+		}
+	case *plan.IncrementalResponsePlan:
+		p.extractDeferredFields.processDeferred(t.Response)
+
+		for _, resp := range []*resolve.GraphQLResponse{t.Response.ImmediateResponse, t.Response.DeferredResponse} {
+			for i := range p.processResponseTree {
+				p.processResponseTree[i].Process(resp.Data)
+			}
+			p.createFetchTree(resp)
+			p.dedupe.ProcessFetchTree(resp.Fetches)
+			p.resolveInputTemplates.ProcessFetchTree(resp.Fetches)
+			for i := range p.processFetchTree {
+				p.processFetchTree[i].ProcessFetchTree(resp.Fetches)
+			}
 		}
 	}
 	return pre

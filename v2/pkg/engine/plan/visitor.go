@@ -13,6 +13,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type DataSourceDebugger interface {
@@ -42,6 +43,7 @@ type Visitor struct {
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
+	inDeferredFragment           bool
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
@@ -68,6 +70,9 @@ func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
 		v.debugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
 	case ast.NodeKindSelectionSet:
 		v.debugPrint("EnterSelectionSet", " ref: ", ref)
+	case ast.NodeKindFragmentSpread:
+		// TODO: fragment name (and type?)
+		v.debugPrint("EnterFragmentSpread", " ref: ", ref)
 	}
 }
 
@@ -86,6 +91,9 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 		v.debugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
 	case ast.NodeKindSelectionSet:
 		v.debugPrint("LeaveSelectionSet", " ref: ", ref)
+	case ast.NodeKindFragmentSpread:
+		// TODO: fragment name (and type?)
+		v.debugPrint("LeaveFragmentSpread", " ref: ", ref)
 	}
 }
 
@@ -254,8 +262,6 @@ func (v *Visitor) EnterDirective(ref int) {
 			v.currentField.Stream = &resolve.StreamField{
 				InitialBatchSize: initialBatchSize,
 			}
-		case "defer":
-			v.currentField.Defer = &resolve.DeferField{}
 		}
 	}
 }
@@ -287,10 +293,29 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 			includeVariableName: includeVariableName,
 		}
 	}
+
+	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		v.inDeferredFragment = true
+	}
 }
 
 func (v *Visitor) LeaveInlineFragment(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindInlineFragment, ref)
+	v.inDeferredFragment = false
+}
+
+func (v *Visitor) EnterFragmentSpread(ref int) {
+	v.debugOnEnterNode(ast.NodeKindFragmentSpread, ref)
+
+	directives := v.Operation.InlineFragments[ref].Directives.Refs
+	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		v.inDeferredFragment = true
+	}
+}
+
+func (v *Visitor) LeaveFragmentSpread(ref int) {
+	v.debugOnLeaveNode(ast.NodeKindFragmentSpread, ref)
+	v.inDeferredFragment = false
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
@@ -333,6 +358,10 @@ func (v *Visitor) EnterField(ref int) {
 		OnTypeNames: onTypeNames,
 		Position:    v.resolveFieldPosition(ref),
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	}
+
+	if v.inDeferredFragment {
+		v.currentField.Defer = &resolve.DeferField{}
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -854,10 +883,14 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		popOnField: -1,
 	})
 
-	operationKind, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
+	operationKind, streaming, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
 	if err != nil {
 		v.Walker.StopWithInternalErr(err)
 		return
+	}
+
+	if streaming && operationKind != ast.OperationTypeQuery {
+		v.Walker.StopWithExternalErr(operationreport.ErrDeferStreamNotAllowedOutsideQuery())
 	}
 
 	graphQLResponse := &resolve.GraphQLResponse{
@@ -870,7 +903,16 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		}
 	}
 
-	if operationKind == ast.OperationTypeSubscription {
+	switch {
+	case streaming:
+		// TODO: different for @stream?
+		v.plan = &IncrementalResponsePlan{
+			Response: &resolve.GraphQLIncrementalResponse{
+				ImmediateResponse: graphQLResponse,
+				DeferredResponse:  nil, // TODO: the deferred/streamed parts.
+			},
+		}
+	case operationKind == ast.OperationTypeSubscription:
 		v.plan = &SubscriptionResponsePlan{
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
 			Response: &resolve.GraphQLSubscription{
@@ -878,10 +920,10 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			},
 		}
 		return
-	}
-
-	v.plan = &SynchronousResponsePlan{
-		Response: graphQLResponse,
+	default:
+		v.plan = &SynchronousResponsePlan{
+			Response: graphQLResponse,
+		}
 	}
 }
 
@@ -928,6 +970,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.inDeferredFragment = false
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 }

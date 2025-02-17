@@ -296,6 +296,45 @@ type sub struct {
 	executor chan func()
 }
 
+func (r *Resolver) ResolveGraphQLIncrementalResponse(ctx *Context, response *GraphQLIncrementalResponse, writer io.Writer) error {
+	boundary := "graphql-go-tools"
+	// TODO: Set headers content-type: fmt.Sprintf("multipart/mixed;boundary="%s";deferSpec=20220824", boundary)
+
+	ch := make(chan []byte)
+	defer close(ch)
+	go func() {
+		buf := &bytes.Buffer{}
+		if _, err := r.ResolveGraphQLResponse(ctx, response.DeferredResponse, nil, buf); err != nil {
+			// TODO: how should these errors be handled?
+			r.asyncErrorWriter.WriteError(ctx, err, response.DeferredResponse, writer)
+		}
+		ch <- buf.Bytes()
+	}()
+
+	div := fmt.Sprintf("--%s\ncontent-type: application/json\n\n", boundary)
+
+	if _, err := writer.Write([]byte(div)); err != nil {
+		return fmt.Errorf("writing preable for immediates: %w", err)
+	}
+	if _, err := r.ResolveGraphQLResponse(ctx, response.ImmediateResponse, nil, writer); err != nil {
+		return fmt.Errorf("writing immediate response: %w", err)
+	}
+
+	b := <-ch
+
+	if _, err := writer.Write([]byte(div + `{"hasNext":false,"incremental":[`)); err != nil {
+		return fmt.Errorf("writing preable for deferred: %w", err)
+	}
+	if _, err := writer.Write(b); err != nil {
+		return fmt.Errorf("writing deferred response: %w", err)
+	}
+	if _, err := writer.Write([]byte(fmt.Sprintf("]}\n--%s--\n", boundary))); err != nil {
+		return fmt.Errorf("writing finale: %w", err)
+	}
+
+	return nil
+}
+
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)

@@ -664,3 +664,201 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 		})
 	}
 }
+
+func TestProcess_IncrementalConversion(t *testing.T) {
+	cases := []struct {
+		name     string
+		pre      plan.Plan
+		expected plan.Plan
+	}{
+		{
+			name: "sunny day",
+			pre: &plan.IncrementalResponsePlan{
+				Response: &resolve.GraphQLIncrementalResponse{
+					ImmediateResponse: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:          []string{"hero"},
+										Nullable:      true,
+										TypeName:      "Character",
+										PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+											{
+												Name: []byte("primaryFunction"),
+												Value: &resolve.String{
+													Path:     []string{"primaryFunction"},
+													Nullable: false,
+												},
+												OnTypeNames: [][]byte{[]byte("Droid")},
+												Defer:       &resolve.DeferField{},
+											},
+											{
+												Name: []byte("favoriteEpisode"),
+												Value: &resolve.Enum{
+													Path:     []string{"favoriteEpisode"},
+													Nullable: true,
+													TypeName: "Episode",
+													Values: []string{
+														"NEWHOPE",
+														"EMPIRE",
+														"JEDI",
+													},
+												},
+												OnTypeNames: [][]byte{[]byte("Droid")},
+												Defer:       &resolve.DeferField{},
+											},
+										},
+									},
+								},
+							},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+							},
+						},
+					},
+					DeferredResponse: nil,
+				},
+			},
+			expected: &plan.IncrementalResponsePlan{
+				Response: &resolve.GraphQLIncrementalResponse{
+					ImmediateResponse: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("hero"),
+									Value: &resolve.Object{
+										Path:          []string{"hero"},
+										Nullable:      true,
+										TypeName:      "Character",
+										PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("name"),
+												Value: &resolve.String{
+													Path:     []string{"name"},
+													Nullable: false,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Fetches: &resolve.FetchTreeNode{
+							Kind: resolve.FetchTreeNodeKindSequence,
+							ChildNodes: []*resolve.FetchTreeNode{
+								{
+									Kind: resolve.FetchTreeNodeKindSingle,
+									Item: &resolve.FetchItem{
+										Fetch: &resolve.SingleFetch{
+											FetchConfiguration: resolve.FetchConfiguration{},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID: 1,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					DeferredResponse: &resolve.GraphQLResponse{
+						Data: &resolve.Object{
+							Nullable: false,
+							Path:     []string{"hero"},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path:     []string{"primaryFunction"},
+										Nullable: false,
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									Defer:       &resolve.DeferField{},
+								},
+								{
+									Name: []byte("favoriteEpisode"),
+									Value: &resolve.Enum{
+										Path:     []string{"favoriteEpisode"},
+										Nullable: true,
+										TypeName: "Episode",
+										Values: []string{
+											"NEWHOPE",
+											"EMPIRE",
+											"JEDI",
+										},
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									Defer:       &resolve.DeferField{},
+								},
+							},
+						},
+						Fetches: &resolve.FetchTreeNode{
+							Kind: resolve.FetchTreeNodeKindSequence,
+							ChildNodes: []*resolve.FetchTreeNode{
+								{
+									Kind: resolve.FetchTreeNodeKindSingle,
+									Item: &resolve.FetchItem{
+										Fetch: &resolve.SingleFetch{
+											FetchConfiguration: resolve.FetchConfiguration{},
+											FetchDependencies: resolve.FetchDependencies{
+												FetchID: 1,
+											},
+										},
+										FetchPath: []resolve.FetchItemPathElement{
+											{
+												Kind: resolve.FetchItemPathElementKindObject,
+												Path: []string{"hero"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	processor := NewProcessor(
+		DisableDeduplicateSingleFetches(),
+		DisableCreateConcreteSingleFetchTypes(),
+		DisableMergeFields(),
+		DisableCreateParallelNodes(),
+		DisableAddMissingNestedDependencies(),
+	)
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			actual := processor.Process(c.pre)
+
+			if !assert.Equal(t, c.expected, actual) {
+				formatterConfig := map[reflect.Type]interface{}{
+					reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+				}
+
+				prettyCfg := &pretty.Config{
+					Diffable:          true,
+					IncludeUnexported: false,
+					Formatter:         formatterConfig,
+				}
+
+				if diff := prettyCfg.Compare(c.expected, actual); diff != "" {
+					t.Errorf("Plan does not match(-want +got)\n%s", diff)
+				}
+			}
+		})
+	}
+}

@@ -37,6 +37,11 @@ type RenameTypeName struct {
 	From, To []byte
 }
 
+type GraphQLIncrementalResponse struct {
+	ImmediateResponse *GraphQLResponse
+	DeferredResponse  *GraphQLResponse
+}
+
 type ResponseWriter interface {
 	io.Writer
 }
@@ -46,6 +51,8 @@ type SubscriptionResponseWriter interface {
 	Flush() error
 	Complete()
 }
+
+// TODO: probably IncrementalResponseWriter. Like SubscriptionResponseWriter, but Flush would be different.
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
 	hasErrors := buf.Errors.Len() != 0

@@ -4772,6 +4772,109 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 	}
 }
 
+func TestResolver_ResolveGraphQLIncrementalResponse(t *testing.T) {
+	cases := []struct {
+		name     string
+		response *GraphQLIncrementalResponse
+		expected string
+	}{
+		{
+			name: "sunny day",
+			response: &GraphQLIncrementalResponse{
+				ImmediateResponse: &GraphQLResponse{
+					Info: &GraphQLResponseInfo{
+						OperationType: ast.OperationTypeQuery,
+					},
+					Data: &Object{
+						Nullable: false,
+						Fields: []*Field{
+							{
+								Name: []byte("hero"),
+								Value: &Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*Field{
+										{
+											Name: []byte("name"),
+											Value: &String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetches: Single(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"name":"Luke"}}`)},
+					}),
+				},
+				DeferredResponse: &GraphQLResponse{
+					Info: &GraphQLResponseInfo{
+						OperationType: ast.OperationTypeQuery,
+					},
+					Data: &Object{
+						Nullable: false,
+						Path:     []string{"hero"},
+						Fields: []*Field{
+							{
+								Name: []byte("primaryFunction"),
+								Value: &String{
+									Path:     []string{"primaryFunction"},
+									Nullable: false,
+								},
+								OnTypeNames: [][]byte{[]byte("Droid")},
+								Defer:       &DeferField{},
+							},
+							{
+								Name: []byte("favoriteEpisode"),
+								Value: &Enum{
+									Path:     []string{"favoriteEpisode"},
+									Nullable: true,
+									TypeName: "Episode",
+									Values: []string{
+										"NEWHOPE",
+										"EMPIRE",
+										"JEDI",
+									},
+								},
+								OnTypeNames: [][]byte{[]byte("Droid")},
+								Defer:       &DeferField{},
+							},
+						},
+					},
+					Fetches: Single(&SingleFetch{
+						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}`)},
+					}),
+				},
+			},
+			expected: `--graphql-go-tools
+content-type: application/json
+
+{"data":{"hero":{"name":"Luke"}}}--graphql-go-tools
+content-type: application/json
+
+{"hasNext":false,"incremental":[{"data":{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}]}
+--graphql-go-tools--
+`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			r := newResolver(ctx)
+			var buf bytes.Buffer
+			err := r.ResolveGraphQLIncrementalResponse(&Context{ctx: ctx}, tc.response, &buf)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, buf.String())
+		})
+	}
+}
+
 type SubscriptionRecorder struct {
 	buf      *bytes.Buffer
 	messages []string

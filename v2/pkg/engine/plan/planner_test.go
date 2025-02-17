@@ -304,6 +304,164 @@ func TestPlanner_Plan(t *testing.T) {
 		}))
 	})
 
+	t.Run("defer planning", func(t *testing.T) {
+		t.Run("inline fragment", test(testDefinition, `
+			query WithInlineDefer {
+				hero {
+					name
+					... on Droid @defer {
+						primaryFunction
+						favoriteEpisode
+					}
+				}
+			}
+		`, "WithInlineDefer", &IncrementalResponsePlan{
+			Response: &resolve.GraphQLIncrementalResponse{
+				ImmediateResponse: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+										},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer:       &resolve.DeferField{},
+										},
+										{
+											Name: []byte("favoriteEpisode"),
+											Value: &resolve.Enum{
+												Path:     []string{"favoriteEpisode"},
+												Nullable: true,
+												TypeName: "Episode",
+												Values: []string{
+													"NEWHOPE",
+													"EMPIRE",
+													"JEDI",
+												},
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer:       &resolve.DeferField{},
+										},
+									},
+								},
+							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				},
+				DeferredResponse: nil,
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
+		}))
+
+		t.Run("fragment spread", test(testDefinition, `
+			query WithFragmentSpread {
+				hero {
+					name
+					...droid @defer
+				}
+			}
+
+			fragment droid on Droid {
+				primaryFunction
+				favoriteEpisode
+			}
+		`, "WithFragmentSpread", &IncrementalResponsePlan{
+			Response: &resolve.GraphQLIncrementalResponse{
+				ImmediateResponse: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+										},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer:       &resolve.DeferField{},
+										},
+										{
+											Name: []byte("favoriteEpisode"),
+											Value: &resolve.Enum{
+												Path:     []string{"favoriteEpisode"},
+												Nullable: true,
+												TypeName: "Episode",
+												Values: []string{
+													"NEWHOPE",
+													"EMPIRE",
+													"JEDI",
+												},
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer:       &resolve.DeferField{},
+										},
+									},
+								},
+							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource: &FakeDataSource{&StatefulSource{}},
+								},
+								DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							},
+						},
+					},
+				},
+				DeferredResponse: nil,
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
+		}))
+	})
+
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
 			DataSources:        []DataSource{testDefinitionDSConfiguration},
@@ -379,7 +537,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-		
+
 				query MyHero {
 					hero{
 						name
@@ -392,15 +550,15 @@ func TestPlanner_Plan(t *testing.T) {
 	t.Run("unescape response json", func(t *testing.T) {
 		schema := `
 			scalar JSON
-			
+
 			schema {
 				query: Query
 			}
-			
+
 			type Query {
 				hero: Character!
 			}
-			
+
 			type Character {
 				info: JSON!
 				infos: [JSON!]!
@@ -678,7 +836,9 @@ var testDefinitionDSConfiguration = dsb().
 
 const testDefinition = `
 
-directive @defer on FIELD
+directive @defer(label: String if: Boolean! = true) on FRAGMENT_SPREAD | INLINE_FRAGMENT
+
+directive @stream(label: String if: Boolean! = true initialCount: Int = 0) on FIELD
 
 directive @flushInterval(milliSeconds: Int!) on QUERY | SUBSCRIPTION
 
