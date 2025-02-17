@@ -294,7 +294,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		return run(testCase, false, "", options...)
 	}
 
-	t.Run("apollo router compatibility subrequest HTTP errror enabled", runWithoutError(
+	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
@@ -365,7 +365,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		},
 	))
 
-	t.Run("apollo router compatibility subrequest HTTP errror disabled", runWithoutError(
+	t.Run("apollo router compatibility subrequest HTTP error disabled", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
