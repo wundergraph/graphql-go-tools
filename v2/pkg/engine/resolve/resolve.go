@@ -442,10 +442,6 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 }
 
 func (r *Resolver) emitHeartbeat(data []byte) error {
-	if r.options.Debug {
-		fmt.Printf("resolver:handleHeartbeat:data:%s\n", data)
-	}
-
 	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
 		return err
 	}
@@ -465,7 +461,7 @@ func (r *Resolver) emitHeartbeat(data []byte) error {
 
 func (r *Resolver) handleHeartbeat(data []byte) {
 	if r.options.Debug {
-		fmt.Printf("resolver:heartbeat:%d\n", len(r.heartbeatSubscriptions))
+		fmt.Printf("resolver:heartbeat\n")
 	}
 	now := time.Now()
 	for c, s := range r.heartbeatSubscriptions {
@@ -732,17 +728,21 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
 
-		// Send the update to the executor channel to be executed on the main thread
-		// Only relevant for SSE/Multipart subscriptions
-		if s.executor != nil {
-			select {
-			case <-r.ctx.Done():
-			case <-c.ctx.Done():
-			case s.executor <- fn: // Run the update on the main thread and close subscription
+		// Needs to be executed in a separate goroutine to prevent blocking the event loop.
+		go func() {
+
+			// Send the update to the executor channel to be executed on the main thread
+			// Only relevant for SSE/Multipart subscriptions
+			if s.executor != nil {
+				select {
+				case <-r.ctx.Done():
+				case <-c.ctx.Done():
+				case s.executor <- fn: // Run the update on the main thread and close subscription
+				}
+			} else {
+				fn()
 			}
-		} else {
-			go fn()
-		}
+		}()
 	}
 }
 
