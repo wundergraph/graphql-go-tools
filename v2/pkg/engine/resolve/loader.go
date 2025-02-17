@@ -976,7 +976,7 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 
 	fmt.Printf("")
 
-	if l.apolloRouterCompatibilitySubrequestHTTPError && (res.statusCode < 200 || res.statusCode > 300) {
+	if l.apolloRouterCompatibilitySubrequestHTTPError && (res.statusCode >= 400 || res.statusCode < 600) {
 		apolloRouterStatusErrorJSON := fmt.Sprintf(`{
 			"message": "HTTP fetch failed from '%[1]s': %[2]s",
 			"path": [],
