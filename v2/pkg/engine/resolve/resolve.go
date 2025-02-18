@@ -439,6 +439,10 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 		fmt.Printf("resolver:heartbeat\n")
 	}
 
+	if r.ctx.Err() != nil {
+		return
+	}
+
 	if sub.ctx.Context().Err() != nil {
 		return
 	}
