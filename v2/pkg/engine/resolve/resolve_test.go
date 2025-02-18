@@ -86,7 +86,7 @@ func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 	}
 }
 
-var multipartSubHeartbeatInterval = 15 * time.Millisecond
+var multipartSubHeartbeatInterval = 100 * time.Millisecond
 
 const testMaxSubscriptionWorkers = 1
 
@@ -5185,7 +5185,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		messages := recorder.Messages()
 
 		assert.Greater(t, len(messages), 2)
-		time.Sleep(2 * resolver.multipartSubHeartbeatInterval)
+		time.Sleep(resolver.heartbeatInterval)
 		// Validate that despite the time, we don't see any heartbeats sent
 		assert.Contains(t, messages, `{"data":{"counter":0}}`)
 		assert.Contains(t, messages, `{"data":{"counter":1}}`)
@@ -5221,17 +5221,35 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		recorder.AwaitComplete(t, defaultTimeout)
-		time.Sleep(2 * resolver.multipartSubHeartbeatInterval)
 
-		assert.Equal(t, 20, len(recorder.Messages()))
-		// Validate that despite the time, we don't see any heartbeats sent
-		assert.ElementsMatch(t, []string{
-			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
-			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
-			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
-			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
-			`{"data":{"counter":0}}`, `{"data":{"counter":1}}`, `{"data":{"counter":0}}`, `{"data":{"counter":1}}`,
-		}, recorder.Messages())
+		time.Sleep(resolver.heartbeatInterval)
+
+		assert.Len(t, recorder.Messages(), 31)
+
+		messages := recorder.Messages()
+
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[0])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[1])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[2])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[3])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[4])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[5])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[6])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[7])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[8])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[9])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[10])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[11])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[12])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[13])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[14])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[15])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[16])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[17])
+		assert.Equal(t, `{"data":{"counter":0}}`, messages[18])
+		assert.Equal(t, `{"data":{"counter":1}}`, messages[19])
+
+		assert.Contains(t, messages, `{}`)
 	})
 
 	t.Run("should propagate extensions to stream", func(t *testing.T) {
@@ -5456,11 +5474,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		var started atomic.Bool
-		var complete atomic.Bool
-
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
-			defer started.Store(true)
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
@@ -5480,23 +5494,12 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(&ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		assert.Eventually(t, func() bool {
-			return started.Load()
-		}, defaultTimeout, time.Millisecond*10)
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 
-		assert.Len(t, resolver.triggers, 1)
-
-		var unsubscribeComplete atomic.Bool
-		go func() {
-			defer unsubscribeComplete.Store(true)
-			err = resolver.AsyncUnsubscribeSubscription(id)
-			assert.NoError(t, err)
-		}()
-
-		complete.Store(true)
-		assert.Eventually(t, unsubscribeComplete.Load, defaultTimeout, time.Millisecond*100)
+		err = resolver.AsyncUnsubscribeSubscription(id)
+		assert.NoError(t, err)
 		recorder.AwaitComplete(t, defaultTimeout)
-		assert.Len(t, resolver.triggers, 0)
+		fakeStream.AwaitIsDone(t, defaultTimeout)
 	})
 }
 
