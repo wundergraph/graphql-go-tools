@@ -289,22 +289,36 @@ type sub struct {
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
 // it also takes care of sending heartbeats to the client but only if the subscription supports it
 func (s *sub) startWorker() {
+	if s.heartbeat {
+		s.startWorkerWithHeartbeat()
+		return
+	}
+	s.startWorkerWithoutHeartbeat()
+}
+
+func (s *sub) startWorkerWithHeartbeat() {
 	heartbeatTicker := time.NewTicker(s.resolver.heartbeatInterval)
 	defer heartbeatTicker.Stop()
 
 	for {
 		select {
 		case <-heartbeatTicker.C:
-			if s.heartbeat {
-				s.resolver.handleHeartbeat(s, multipartHeartbeat)
-			} else {
-				// A subscription can't change from heartbeat to non-heartbeat, so we can stop the ticker
-				heartbeatTicker.Stop()
-			}
+			s.resolver.handleHeartbeat(s, multipartHeartbeat)
 		case fn := <-s.workChan:
 			fn()
 			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
 			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
+		case <-s.completed: // Shutdown the writer when the subscription is completed
+			return
+		}
+	}
+}
+
+func (s *sub) startWorkerWithoutHeartbeat() {
+	for {
+		select {
+		case fn := <-s.workChan:
+			fn()
 		case <-s.completed: // Shutdown the writer when the subscription is completed
 			return
 		}
@@ -380,9 +394,11 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 
 // processEvents maintains the single threaded event loop that processes all events
 func (r *Resolver) processEvents() {
+	done := r.ctx.Done()
+
 	for {
 		select {
-		case <-r.ctx.Done():
+		case <-done:
 			r.handleShutdown()
 			return
 		case event := <-r.events:
@@ -695,7 +711,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		select {
 		case <-r.ctx.Done():
 		case <-c.ctx.Done():
-		case s.workChan <- fn: // Channel is buffered, but it can still block in case of a slow writer
+		case s.workChan <- fn:
 		}
 	}
 }
