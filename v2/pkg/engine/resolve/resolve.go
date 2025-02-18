@@ -304,8 +304,9 @@ type sub struct {
 	workChan chan func()
 }
 
-// startWriter runs in its own goroutine to process write tasks sequentially.
-func (s *sub) startWriter() {
+// startWorker runs in its own goroutine to process fetches and write data to the client synchronously
+// it also takes care of sending heartbeats to the client but only if the subscription supports it
+func (s *sub) startWorker() {
 	heartbeatTicker := time.NewTicker(s.resolver.heartbeatInterval)
 	defer heartbeatTicker.Stop()
 
@@ -521,7 +522,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 
 	// Start the dedicated writer goroutine.
-	go s.startWriter()
+	go s.startWorker()
 
 	trig, ok := r.triggers[triggerID]
 	if ok {
