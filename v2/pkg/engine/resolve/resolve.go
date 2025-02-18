@@ -162,6 +162,10 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		"path":    {},
 	}
 
+	if options.MaxSubscriptionFetchTimeout == 0 {
+		options.MaxSubscriptionFetchTimeout = 30 * time.Second
+	}
+
 	if !options.OmitSubgraphErrorExtensions {
 		allowedErrorFields["extensions"] = struct{}{}
 	}
@@ -192,9 +196,6 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
 		resolver.maxConcurrency <- struct{}{}
-	}
-	if options.MaxSubscriptionFetchTimeout == 0 {
-		options.MaxSubscriptionFetchTimeout = 30 * time.Second
 	}
 
 	go resolver.processEvents()
