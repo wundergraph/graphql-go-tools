@@ -88,8 +88,6 @@ func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 
 var multipartSubHeartbeatInterval = 100 * time.Millisecond
 
-const testMaxSubscriptionWorkers = 1
-
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
 		MaxConcurrency:                1024,
@@ -98,7 +96,6 @@ func newResolver(ctx context.Context) *Resolver {
 		PropagateSubgraphStatusCodes:  true,
 		AsyncErrorWriter:              &TestErrorWriter{},
 		MultipartSubHeartbeatInterval: multipartSubHeartbeatInterval,
-		MaxSubscriptionWorkers:        testMaxSubscriptionWorkers,
 	})
 }
 
@@ -5435,7 +5432,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			},
 		}
 
-		const numSubscriptions = testMaxSubscriptionWorkers + 1
+		const numSubscriptions = 2
 		var resolverCompleted atomic.Uint32
 		var recorderCompleted atomic.Uint32
 		for i := 0; i < numSubscriptions; i++ {

@@ -9,8 +9,6 @@ import (
 	"io"
 	"time"
 
-	"golang.org/x/sync/semaphore"
-
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
@@ -49,11 +47,9 @@ type Resolver struct {
 	options        ResolverOptions
 	maxConcurrency chan struct{}
 
-	triggers          map[uint64]*trigger
-	events            chan subscriptionEvent
-	triggerEventsSem  *semaphore.Weighted
-	triggerUpdatesSem *semaphore.Weighted
-	triggerUpdateBuf  *bytes.Buffer
+	triggers         map[uint64]*trigger
+	events           chan subscriptionEvent
+	triggerUpdateBuf *bytes.Buffer
 
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
@@ -102,13 +98,6 @@ type ResolverOptions struct {
 	// In addition, there's a limit of how many concurrent requests can be efficiently resolved
 	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
 	MaxConcurrency int
-
-	// MaxSubscriptionWorkers limits the concurrency on how many subscription can be added / removed concurrently.
-	// This does not include subscription updates, for that we have a separate semaphore MaxSubscriptionUpdates.
-	MaxSubscriptionWorkers int
-
-	// MaxSubscriptionUpdates limits the number of concurrent subscription updates that can be sent to the event loop.
-	MaxSubscriptionUpdates int
 
 	Debug bool
 
@@ -204,18 +193,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	for i := 0; i < options.MaxConcurrency; i++ {
 		resolver.maxConcurrency <- struct{}{}
 	}
-	if options.MaxSubscriptionWorkers == 0 {
-		options.MaxSubscriptionWorkers = 1024
-	}
-	if options.MaxSubscriptionUpdates == 0 {
-		options.MaxSubscriptionUpdates = 1024
-	}
 	if options.MaxSubscriptionFetchTimeout == 0 {
 		options.MaxSubscriptionFetchTimeout = 30 * time.Second
 	}
-
-	resolver.triggerEventsSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
-	resolver.triggerUpdatesSem = semaphore.NewWeighted(int64(options.MaxSubscriptionUpdates))
 
 	go resolver.processEvents()
 
@@ -545,7 +525,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
-		updateSem: r.triggerUpdatesSem,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -602,11 +581,6 @@ func (r *Resolver) emitTriggerShutdown(triggerID uint64) error {
 		fmt.Printf("resolver:trigger:shutdown:%d\n", triggerID)
 	}
 
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -623,11 +597,6 @@ func (r *Resolver) emitTriggerInitialized(triggerID uint64) error {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:initialized:%d\n", triggerID)
 	}
-
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
 
 	select {
 	case <-r.ctx.Done():
@@ -802,11 +771,6 @@ type SubscriptionIdentifier struct {
 }
 
 func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -819,11 +783,6 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 }
 
 func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -948,11 +907,6 @@ Loop: // execute fn on the main thread of the incoming request until ctx is done
 }
 
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -1043,18 +997,12 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
-	updateSem *semaphore.Weighted
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-
-	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
-		return
-	}
-	defer s.updateSem.Release(1)
 
 	select {
 	case <-s.ctx.Done():
@@ -1072,11 +1020,6 @@ func (s *subscriptionUpdater) Done() {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
 
-	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
-		return
-	}
-	defer s.updateSem.Release(1)
-
 	select {
 	case <-s.ctx.Done():
 		return
@@ -1088,7 +1031,6 @@ func (s *subscriptionUpdater) Done() {
 }
 
 type subscriptionEvent struct {
-	ctx             *Context
 	triggerID       uint64
 	id              SubscriptionIdentifier
 	kind            subscriptionEventKind
