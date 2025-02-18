@@ -477,7 +477,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = false
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = true
 		},
 	))
 
