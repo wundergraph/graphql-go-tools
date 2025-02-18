@@ -269,7 +269,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				return
 			}
 
-			assert.Equal(t, testCase.expectedResponse, actualResponse)
+			if testCase.expectedResponse == "" {
+				assert.Equal(t, testCase.expectedResponse, actualResponse)
+			} else {
+				assert.JSONEq(t, testCase.expectedResponse, actualResponse)
+			}
+
 			if withError {
 				require.Error(t, err)
 				if expectedErrorMessage != "" {
@@ -288,6 +293,193 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
 		return run(testCase, false, "", options...)
 	}
+
+	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
+							sendStatusCode:   403,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedResponse: `{
+				"data": { "hero": null },
+				"errors": [
+					{
+						"message": "HTTP fetch failed from 'id': 403: Forbidden",
+						"path": [],
+						"extensions": {
+							"code": "SUBREQUEST_HTTP_ERROR",
+							"service": "id",
+							"reason": "403: Forbidden",
+							"http": {
+								"status": 403
+							}
+						}
+					},
+					{
+						"message": "Failed to fetch from Subgraph 'id'."
+					}
+				]
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = true
+		},
+	))
+
+	t.Run("apollo router compatibility subrequest HTTP error disabled", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
+							sendStatusCode:   403,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedResponse: `{
+				"errors": [
+					{
+						"message": "Failed to fetch from Subgraph 'id'."
+					}
+				],
+				"data": {
+					"hero": null
+				}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = false
+		},
+	))
+
+	t.Run("apollo router compatibility subrequest HTTP error enabled and non-error http status", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     "",
+							sendResponseBody: `{"errors":[{"message":"Unknown access token","extensions":{"code":"UNAUTHENTICATED"}}]}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "GET",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			expectedResponse: `{
+				"errors": [
+					{
+						"message": "Failed to fetch from Subgraph 'id'."
+					}
+				],
+				"data": {
+					"hero": null
+				}
+			}`,
+		},
+		func(eto *_executionTestOptions) {
+			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = false
+		},
+	))
 
 	t.Run("introspection", func(t *testing.T) {
 		schema := graphql.StarwarsSchema(t)

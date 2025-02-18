@@ -64,6 +64,8 @@ type ResolvableOptions struct {
 	ApolloCompatibilitySuppressFetchErrors          bool
 	ApolloCompatibilityReplaceUndefinedOpFieldError bool
 	ApolloCompatibilityReplaceInvalidVarError       bool
+
+	ApolloRouterCompatibilitySubrequestHTTPError bool
 }
 
 func NewResolvable(options ResolvableOptions) *Resolvable {
