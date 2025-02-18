@@ -216,6 +216,8 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
 			allowedSubgraphErrorFields:        allowedErrorFields,
+
+			apolloRouterCompatibilitySubrequestHTTPError: options.ResolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError,
 		},
 	}
 }
@@ -225,7 +227,6 @@ type GraphQLResolveInfo struct {
 }
 
 func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, data []byte, writer io.Writer) (*GraphQLResolveInfo, error) {
-
 	resp := &GraphQLResolveInfo{}
 
 	start := time.Now()
