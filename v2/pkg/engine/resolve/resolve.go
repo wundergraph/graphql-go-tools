@@ -289,22 +289,36 @@ type sub struct {
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
 // it also takes care of sending heartbeats to the client but only if the subscription supports it
 func (s *sub) startWorker() {
+	if s.heartbeat {
+		s.startWorkerWithHeartbeat()
+		return
+	}
+	s.startWorkerWithoutHeartbeat()
+}
+
+func (s *sub) startWorkerWithHeartbeat() {
 	heartbeatTicker := time.NewTicker(s.resolver.heartbeatInterval)
 	defer heartbeatTicker.Stop()
 
 	for {
 		select {
 		case <-heartbeatTicker.C:
-			if s.heartbeat {
-				s.resolver.handleHeartbeat(s, multipartHeartbeat)
-			} else {
-				// A subscription can't change from heartbeat to non-heartbeat, so we can stop the ticker
-				heartbeatTicker.Stop()
-			}
+			s.resolver.handleHeartbeat(s, multipartHeartbeat)
 		case fn := <-s.workChan:
 			fn()
 			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
 			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
+		case <-s.completed: // Shutdown the writer when the subscription is completed
+			return
+		}
+	}
+}
+
+func (s *sub) startWorkerWithoutHeartbeat() {
+	for {
+		select {
+		case fn := <-s.workChan:
+			fn()
 		case <-s.completed: // Shutdown the writer when the subscription is completed
 			return
 		}
@@ -380,9 +394,10 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 
 // processEvents maintains the single threaded event loop that processes all events
 func (r *Resolver) processEvents() {
+	done := r.ctx.Done()
 	for {
 		select {
-		case <-r.ctx.Done():
+		case <-done:
 			r.handleShutdown()
 			return
 		case event := <-r.events:
@@ -659,6 +674,11 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 
+	// collect all updates on the main thread
+	// then push them to the workChans or executors on a separate goroutine
+	// this ensures that we don't block the main thread when a client is slow to consume updates
+	updates := make([]func(), 0, len(trig.subscriptions))
+
 	for c, s := range trig.subscriptions {
 		c, s := c, s
 		if err := c.ctx.Err(); err != nil {
@@ -680,24 +700,32 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		// Send the update to the executor channel to be executed on the main thread
 		// Only relevant for SSE/Multipart subscriptions
 		if s.executor != nil {
-			// Send it on a separate goroutine to prevent blocking the event loop
-			// Order is already guaranteed by running it on the main thread
-			go func() {
+			updates = append(updates, func() {
 				select {
 				case <-r.ctx.Done():
 				case <-c.ctx.Done():
 				case s.executor <- fn: // Run the update on the main thread and close subscription
 				}
-			}()
+			})
 			continue
 		}
 
-		select {
-		case <-r.ctx.Done():
-		case <-c.ctx.Done():
-		case s.workChan <- fn: // Channel is buffered, but it can still block in case of a slow writer
-		}
+		// Regular updates are sent to the workChan to be processed by the writer goroutine
+		updates = append(updates, func() {
+			select {
+			case <-r.ctx.Done():
+			case <-c.ctx.Done():
+			case s.workChan <- fn: // Channel is buffered, but it can still block in case of a slow writer
+			}
+		})
 	}
+
+	go func() {
+		// push the updates non-blocking to the workChan or executor by executing the queued functions
+		for _, fn := range updates {
+			fn()
+		}
+	}()
 }
 
 func (r *Resolver) shutdownTrigger(id uint64) {
