@@ -503,7 +503,8 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		s.heartbeat = true
 	}
 
-	// Start the dedicated writer goroutine.
+	// Start the dedicated worker goroutine where the subscription updates are processed
+	// and writes are written to the client in a single threaded manner
 	go s.startWorker()
 
 	trig, ok := r.triggers[triggerID]
