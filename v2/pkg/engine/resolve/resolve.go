@@ -895,13 +895,12 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// We always remove the subscription after it has been completed
 	// even if context is canceled or the resolver is shutting down.
 
-	select {
-	case r.events <- subscriptionEvent{
+	r.events <- subscriptionEvent{
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindRemoveSubscription,
 		id:        id,
-	}:
 	}
+
 	return nil
 }
 
