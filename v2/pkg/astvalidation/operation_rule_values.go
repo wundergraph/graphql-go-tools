@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"bytes"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -222,12 +223,8 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 		}
 
 		expectedType := v.importer.ImportType(listItemType, v.definition, v.operation)
-		if v.operation.Types[actualType].TypeKind == ast.TypeKindNonNull {
-			actualType = v.operation.Types[actualType].OfType
-		}
-		if v.operation.Types[actualType].TypeKind == ast.TypeKindList {
-			actualType = v.operation.Types[actualType].OfType
-		}
+		actualType = v.operation.ResolveUnderlyingType(actualType)
+
 		if !v.operation.TypesAreEqualDeep(expectedType, actualType) {
 			v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
 			return false
