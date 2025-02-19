@@ -878,9 +878,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// This will immediately block until the subscription has shutdown, including all pending writes
 	// or when the client has disconnected and the request context is canceled.
 	select {
-	case <-ctx.ctx.Done(): // Client disconnected
-	case <-r.ctx.Done(): // Resolver shutdown
-	case <-completed: // Subscription completed
+	case <-ctx.ctx.Done():
+		// Client disconnected, request context canceled.
+		// We will remove the subscription and ignore the error.
+	case <-r.ctx.Done():
+		// Resolver shutdown, no way to gracefully shut down the subscription
+		return r.ctx.Err()
+	case <-completed:
+		// Subscription completed and drained. No need to do anything.
 	}
 
 	if r.options.Debug {
