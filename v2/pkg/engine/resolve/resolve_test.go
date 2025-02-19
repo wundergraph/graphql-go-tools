@@ -4852,7 +4852,7 @@ func TestResolver_ResolveGraphQLIncrementalResponse(t *testing.T) {
 				},
 			},
 			expected: `--graphql-go-tools
-content-type: application/json
+content-type: application/json; charset=utf-8
 
 {"data":{"hero":{"name":"Luke"}}}--graphql-go-tools
 content-type: application/json
@@ -4868,7 +4868,8 @@ content-type: application/json
 			ctx := context.Background()
 			r := newResolver(ctx)
 			var buf bytes.Buffer
-			err := r.ResolveGraphQLIncrementalResponse(&Context{ctx: ctx}, tc.response, &buf)
+			w := &MultipartIncrementalResponseWriter{Writer: &buf}
+			err := r.ResolveGraphQLIncrementalResponse(&Context{ctx: ctx}, tc.response, w)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, buf.String())
 		})

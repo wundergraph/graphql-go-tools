@@ -52,7 +52,11 @@ type SubscriptionResponseWriter interface {
 	Complete()
 }
 
-// TODO: probably IncrementalResponseWriter. Like SubscriptionResponseWriter, but Flush would be different.
+type IncrementalResponseWriter interface {
+	ResponseWriter
+	Flush() error
+	Complete() error
+}
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
 	hasErrors := buf.Errors.Len() != 0
