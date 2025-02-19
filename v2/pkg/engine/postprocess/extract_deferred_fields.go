@@ -5,13 +5,13 @@ import "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 type extractDeferredFields struct{}
 
 func (e *extractDeferredFields) processDeferred(resp *resolve.GraphQLIncrementalResponse) {
-	resp.DeferredResponse = &resolve.GraphQLResponse{
+	resp.DeferredResponses = &resolve.GraphQLResponse{
 		Data: &resolve.Object{},
 	}
-	resp.DeferredResponse.Data.Fetches = append(resp.DeferredResponse.Data.Fetches, resp.ImmediateResponse.Data.Fetches...)
+	resp.DeferredResponses.Data.Fetches = append(resp.DeferredResponses.Data.Fetches, resp.ImmediateResponse.Data.Fetches...)
 
 	visitor := &deferredFieldsVisitor{
-		destination: resp.DeferredResponse.Data,
+		destination: resp.DeferredResponses.Data,
 	}
 	walker := &PlanWalker{
 		objectVisitor: visitor,

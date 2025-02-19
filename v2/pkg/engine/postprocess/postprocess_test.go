@@ -727,7 +727,7 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 							},
 						},
 					},
-					DeferredResponse: nil,
+					DeferredResponses: nil,
 				},
 			},
 			expected: &plan.IncrementalResponsePlan{
@@ -773,7 +773,7 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 							},
 						},
 					},
-					DeferredResponse: &resolve.GraphQLResponse{
+					DeferredResponses: &resolve.GraphQLResponse{
 						Data: &resolve.Object{
 							Nullable: false,
 							Path:     []string{"hero"},

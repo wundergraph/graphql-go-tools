@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/buger/jsonparser"
@@ -297,19 +298,23 @@ type sub struct {
 }
 
 func (r *Resolver) ResolveGraphQLIncrementalResponse(ctx *Context, response *GraphQLIncrementalResponse, writer IncrementalResponseWriter) error {
-	// TODO: Set headers content-type: fmt.Sprintf("multipart/mixed;boundary="%s";deferSpec=20220824", boundary)
+	g, _ := errgroup.WithContext(ctx.ctx)
 
 	ch := make(chan []byte)
 	defer close(ch)
-	go func() {
-		buf := &bytes.Buffer{}
-		if _, err := r.ResolveGraphQLResponse(ctx, response.DeferredResponse, nil, buf); err != nil {
-			// TODO: how should these errors be handled?
-			r.asyncErrorWriter.WriteError(ctx, err, response.DeferredResponse, writer)
-		}
-		ch <- buf.Bytes()
-	}()
 
+	for _, deferred := range response.DeferredResponses {
+		g.Go(func() error {
+			buf := &bytes.Buffer{}
+			if _, err := r.ResolveGraphQLResponse(ctx, deferred.ImmediateResponse, nil, buf); err != nil {
+				return fmt.Errorf("resolving deferred response: %w", err)
+			}
+			// TODO: need to deal with nested deferred responses.
+			ch <- buf.Bytes()
+
+			return nil
+		})
+	}
 	if _, err := r.ResolveGraphQLResponse(ctx, response.ImmediateResponse, nil, writer); err != nil {
 		return fmt.Errorf("writing immediate response: %w", err)
 	}
@@ -317,15 +322,18 @@ func (r *Resolver) ResolveGraphQLIncrementalResponse(ctx *Context, response *Gra
 		return fmt.Errorf("flushing immediate response: %w", err)
 	}
 
-	b := <-ch
-
-	if _, err := writer.Write(b); err != nil {
-		return fmt.Errorf("writing deferred response: %w", err)
-	}
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("flushing deferred response: %w", err)
+	if err := g.Wait(); err != nil {
+		return err
 	}
 
+	for b := range ch {
+		if _, err := writer.Write(b); err != nil {
+			return fmt.Errorf("writing deferred response: %w", err)
+		}
+		if err := writer.Flush(); err != nil {
+			return fmt.Errorf("flushing deferred response: %w", err)
+		}
+	}
 	return nil
 }
 

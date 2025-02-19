@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -4812,46 +4813,50 @@ func TestResolver_ResolveGraphQLIncrementalResponse(t *testing.T) {
 						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"name":"Luke"}}`)},
 					}),
 				},
-				DeferredResponse: &GraphQLResponse{
-					Info: &GraphQLResponseInfo{
-						OperationType: ast.OperationTypeQuery,
-					},
-					Data: &Object{
-						Nullable: false,
-						Path:     []string{"hero"},
-						Fields: []*Field{
-							{
-								Name: []byte("primaryFunction"),
-								Value: &String{
-									Path:     []string{"primaryFunction"},
-									Nullable: false,
-								},
-								OnTypeNames: [][]byte{[]byte("Droid")},
-								Defer:       &DeferField{},
+				DeferredResponses: []*GraphQLIncrementalResponse{
+					{
+						ImmediateResponse: &GraphQLResponse{
+							Info: &GraphQLResponseInfo{
+								OperationType: ast.OperationTypeQuery,
 							},
-							{
-								Name: []byte("favoriteEpisode"),
-								Value: &Enum{
-									Path:     []string{"favoriteEpisode"},
-									Nullable: true,
-									TypeName: "Episode",
-									Values: []string{
-										"NEWHOPE",
-										"EMPIRE",
-										"JEDI",
+							Data: &Object{
+								Nullable: false,
+								Path:     []string{"hero"},
+								Fields: []*Field{
+									{
+										Name: []byte("primaryFunction"),
+										Value: &String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer:       &DeferField{},
+									},
+									{
+										Name: []byte("favoriteEpisode"),
+										Value: &Enum{
+											Path:     []string{"favoriteEpisode"},
+											Nullable: true,
+											TypeName: "Episode",
+											Values: []string{
+												"NEWHOPE",
+												"EMPIRE",
+												"JEDI",
+											},
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer:       &DeferField{},
 									},
 								},
-								OnTypeNames: [][]byte{[]byte("Droid")},
-								Defer:       &DeferField{},
 							},
+							Fetches: Single(&SingleFetch{
+								FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}`)},
+							}),
 						},
 					},
-					Fetches: Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}`)},
-					}),
 				},
 			},
-			expected: `--graphql-go-tools
+			expected: strings.ReplaceAll(`--graphql-go-tools
 content-type: application/json; charset=utf-8
 
 {"data":{"hero":{"name":"Luke"}}}--graphql-go-tools
@@ -4859,7 +4864,7 @@ content-type: application/json
 
 {"hasNext":false,"incremental":[{"data":{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}]}
 --graphql-go-tools--
-`,
+`, "\n", "\r\n"),
 		},
 	}
 

@@ -374,7 +374,7 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
-				DeferredResponse: nil,
+				DeferredResponses: nil,
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,
@@ -453,7 +453,7 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
-				DeferredResponse: nil,
+				DeferredResponses: nil,
 			},
 		}, Configuration{
 			DisableResolveFieldPositions: true,

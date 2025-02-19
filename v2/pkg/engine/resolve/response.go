@@ -39,7 +39,7 @@ type RenameTypeName struct {
 
 type GraphQLIncrementalResponse struct {
 	ImmediateResponse *GraphQLResponse
-	DeferredResponse  *GraphQLResponse
+	DeferredResponses []*GraphQLIncrementalResponse
 }
 
 type ResponseWriter interface {

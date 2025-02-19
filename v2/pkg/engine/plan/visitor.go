@@ -909,7 +909,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		v.plan = &IncrementalResponsePlan{
 			Response: &resolve.GraphQLIncrementalResponse{
 				ImmediateResponse: graphQLResponse,
-				DeferredResponse:  nil, // TODO: the deferred/streamed parts.
+				DeferredResponses: nil, // TODO: the deferred/streamed parts.
 			},
 		}
 	case operationKind == ast.OperationTypeSubscription:

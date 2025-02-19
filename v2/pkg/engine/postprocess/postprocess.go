@@ -163,7 +163,7 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 	case *plan.IncrementalResponsePlan:
 		p.extractDeferredFields.processDeferred(t.Response)
 
-		for _, resp := range []*resolve.GraphQLResponse{t.Response.ImmediateResponse, t.Response.DeferredResponse} {
+		for _, resp := range []*resolve.GraphQLResponse{t.Response.ImmediateResponse, t.Response.DeferredResponses} {
 			for i := range p.processResponseTree {
 				p.processResponseTree[i].Process(resp.Data)
 			}
