@@ -1,14 +1,14 @@
 .PHONY: test
 test:
-	go test ./...
+	go test -race ./...
 
 .PHONY: test-quick
 test-quick:
 	go test -count=1 ./...
 
-.PHONY: test-race
-test-race:
-	go test -race ./...
+.PHONY: test
+test-no-race:
+	go test ./...
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures

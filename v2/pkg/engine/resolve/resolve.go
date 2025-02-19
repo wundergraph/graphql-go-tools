@@ -36,7 +36,6 @@ type Reporter interface {
 	TriggerCountInc(count int)
 	// TriggerCountDec decreased when a trigger is removed e.g. when a trigger is shutdown
 	TriggerCountDec(count int)
-	EventLoopStopped()
 }
 
 type AsyncErrorWriter interface {
@@ -279,13 +278,8 @@ type sub struct {
 	heartbeat bool
 	lastWrite time.Time
 	completed chan struct{}
-	// executor is an optional argument that allows us to "schedule" the execution of an update on another thread
-	// e.g. if we're using SSE/Multipart Fetch, we can run the execution on the goroutine of the http request
-	// this ensures that ctx cancellation works properly when a client disconnects
-	executor chan func()
 	// workChan is used to send work to the writer goroutine. All work is processed sequentially.
-	workChan     chan func()
-	inflightChan chan struct{}
+	workChan chan func()
 }
 
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
@@ -507,15 +501,13 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		ctx:          add.ctx,
-		resolve:      add.resolve,
-		writer:       add.writer,
-		id:           add.id,
-		completed:    add.completed,
-		executor:     add.executor,
-		workChan:     make(chan func(), 32),
-		inflightChan: add.inflight,
-		resolver:     r,
+		ctx:       add.ctx,
+		resolve:   add.resolve,
+		writer:    add.writer,
+		id:        add.id,
+		completed: add.completed,
+		workChan:  make(chan func(), 32),
+		resolver:  r,
 	}
 
 	if add.ctx.ExecutionOptions.SendHeartbeat {
@@ -692,26 +684,8 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			continue
 		}
 
-		<-s.inflightChan
-
 		fn := func() {
 			r.executeSubscriptionUpdate(c, s, data)
-			s.inflightChan <- struct{}{}
-		}
-
-		// Send the update to the executor channel to be executed on the main thread
-		// Only relevant for SSE/Multipart subscriptions
-		if s.executor != nil {
-			// Send it on a separate goroutine to prevent blocking the event loop
-			// Order is already guaranteed by running it on the main thread
-			go func() {
-				select {
-				case <-r.ctx.Done():
-				case <-c.ctx.Done():
-				case s.executor <- fn: // Run the update on the main thread and close subscription
-				}
-			}()
-			continue
 		}
 
 		select {
@@ -757,12 +731,19 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 			continue
 		}
 
-		if s.executor == nil && c.Context().Err() == nil {
-			s.writer.Complete()
+		if c.Context().Err() == nil {
+			// We put the complete handshake to the work channel of the subscription
+			// to ensure that it is the last message that is sent to the client.
+			s.workChan <- func() {
+				s.writer.Complete()
+			}
 		}
-
 		if s.completed != nil {
-			close(s.completed)
+			// We close the completed channel on the work channel of the subscription
+			// to ensure that all jobs are processed before the channel is closed.
+			s.workChan <- func() {
+				close(s.completed)
+			}
 		}
 
 		delete(trig.subscriptions, c)
@@ -787,9 +768,6 @@ func (r *Resolver) handleShutdown() {
 		fmt.Printf("resolver:trigger:shutdown:done\n")
 	}
 	r.triggers = make(map[uint64]*trigger)
-	if r.reporter != nil {
-		r.reporter.EventLoopStopped()
-	}
 }
 
 type SubscriptionIdentifier struct {
@@ -877,9 +855,9 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
 	}
+
 	completed := make(chan struct{})
-	executor := make(chan func())
-	inflight := r.createInflightChan()
+
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -893,59 +871,26 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			writer:    writer,
 			id:        id,
 			completed: completed,
-			executor:  executor,
-			inflight:  inflight,
 		},
 	}:
 	}
-Loop: // execute fn on the main thread of the incoming request until ctx is done
-	for {
-		select {
-		case <-r.ctx.Done():
-			// the resolver ctx was canceled
-			// this will trigger the shutdown of the trigger (on another goroutine)
-			// as such, we need to wait for the trigger to be shutdown
-			// otherwise we might experience a data race between trigger shutdown write (Complete) and reading bytes written to the writer
-			// as the shutdown happens asynchronously, we want to wait here for at most 5 seconds or until the client ctx is done
-			select {
-			case <-completed:
-				return r.ctx.Err()
-			case <-time.After(time.Second * 5):
-				return r.ctx.Err()
-			case <-ctx.Context().Done():
-				return ctx.Context().Err()
-			}
-		case <-ctx.Context().Done():
-			break Loop
-		case <-completed:
-			// if the origin Subgraph completed the subscription
-			// we have to make sure that there are no more inflight requests
-			// As such, we keep draining the inflight channel until it's empty
-			// we keep executing fn's from the executor channel until all inglight requests are done
-			// or until the client or resolver cancels the context
-			for i := 0; i < 32; i++ {
-				select {
-				case <-inflight:
-				case <-ctx.Context().Done():
-					return ctx.Context().Err()
-				case <-r.ctx.Done():
-					return r.ctx.Err()
-				case fn := <-executor:
-					fn()
-				}
-			}
-			writer.Complete()
-			return nil
-		case fn := <-executor:
-			fn()
-		}
+
+	// This will immediately block until the subscription has shutdown, including all pending writes
+	// or when the client has disconnected and the request context is canceled.
+	select {
+	case <-ctx.ctx.Done(): // Client disconnected
+	case <-r.ctx.Done(): // Resolver shutdown
+	case <-completed: // Subscription completed
 	}
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:unsubscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
 	}
+
+	// We always remove the subscription after it has been completed
+	// even if context is canceled or the resolver is shutting down.
+
 	select {
-	case <-r.ctx.Done():
-		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindRemoveSubscription,
@@ -1005,12 +950,11 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
-			ctx:      ctx,
-			input:    input,
-			resolve:  subscription,
-			writer:   writer,
-			id:       id,
-			inflight: r.createInflightChan(),
+			ctx:     ctx,
+			input:   input,
+			resolve: subscription,
+			writer:  writer,
+			id:      id,
 		},
 	}
 
@@ -1020,14 +964,6 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	case r.events <- event:
 	}
 	return nil
-}
-
-func (r *Resolver) createInflightChan() chan struct{} {
-	inflight := make(chan struct{}, 32)
-	for i := 0; i < 32; i++ {
-		inflight <- struct{}{}
-	}
-	return inflight
 }
 
 func (r *Resolver) subscriptionInput(ctx *Context, subscription *GraphQLSubscription) (input []byte, err error) {
@@ -1105,8 +1041,6 @@ type addSubscription struct {
 	writer    SubscriptionResponseWriter
 	id        SubscriptionIdentifier
 	completed chan struct{}
-	executor  chan func()
-	inflight  chan struct{}
 }
 
 type subscriptionEventKind int

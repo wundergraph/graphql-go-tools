@@ -72,13 +72,8 @@ func (f *FakeSource) Start(ctx *Context, input []byte, updater SubscriptionUpdat
 }
 
 type TestReporter struct {
-	eventLoopStopped chan struct{}
-	triggers         atomic.Int64
-	subscriptions    atomic.Int64
-}
-
-func (t *TestReporter) EventLoopStopped() {
-	close(t.eventLoopStopped)
+	triggers      atomic.Int64
+	subscriptions atomic.Int64
 }
 
 func (t *TestReporter) SubscriptionUpdateSent() {
@@ -107,9 +102,7 @@ func TestEventLoop(t *testing.T) {
 	t.Cleanup(stopEventLoop)
 
 	ew := &FakeErrorWriter{}
-	testReporter := &TestReporter{
-		eventLoopStopped: make(chan struct{}),
-	}
+	testReporter := &TestReporter{}
 
 	resolver := New(resolverCtx, ResolverOptions{
 		MaxConcurrency:                1024,
@@ -174,13 +167,12 @@ func TestEventLoop(t *testing.T) {
 
 	stopEventLoop()
 
-	select {
-	case <-testReporter.eventLoopStopped:
-	case <-time.After(time.Second * 5):
-		t.Fatal("event loop did not stop")
-	}
-	triggerCount := testReporter.triggers.Load()
-	subscriptionCount := testReporter.subscriptions.Load()
-	require.Equal(t, int64(0), triggerCount)
-	require.Equal(t, int64(0), subscriptionCount)
+	require.Eventually(t, func() bool {
+		triggerCount := testReporter.triggers.Load()
+		subscriptionCount := testReporter.subscriptions.Load()
+		require.Equal(t, int64(0), triggerCount)
+		require.Equal(t, int64(0), subscriptionCount)
+		return true
+	}, time.Second, time.Millisecond*10)
+
 }
