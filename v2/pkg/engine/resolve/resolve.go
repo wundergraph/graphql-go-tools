@@ -757,7 +757,7 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 			continue
 		}
 
-		if c.Context().Err() == nil {
+		if s.executor == nil && c.Context().Err() == nil {
 			s.writer.Complete()
 		}
 
@@ -934,6 +934,7 @@ Loop: // execute fn on the main thread of the incoming request until ctx is done
 					fn()
 				}
 			}
+			writer.Complete()
 			return nil
 		case fn := <-executor:
 			fn()

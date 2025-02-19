@@ -19,10 +19,11 @@ func (f *FakeErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 }
 
 type FakeSubscriptionWriter struct {
-	mu              sync.Mutex
-	buf             []byte
-	writtenMessages []string
-	completed       bool
+	mu                     sync.Mutex
+	buf                    []byte
+	writtenMessages        []string
+	completed              bool
+	messageCountOnComplete int
 }
 
 func (f *FakeSubscriptionWriter) Write(p []byte) (n int, err error) {
@@ -44,6 +45,7 @@ func (f *FakeSubscriptionWriter) Complete() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.completed = true
+	f.messageCountOnComplete = len(f.writtenMessages)
 }
 
 type FakeSource struct {
@@ -165,6 +167,10 @@ func TestEventLoop(t *testing.T) {
 	defer writer.mu.Unlock()
 	require.Equal(t, true, writer.completed)
 	require.Equal(t, 3, len(writer.writtenMessages))
+	require.Equal(t, 3, writer.messageCountOnComplete)
+	require.Equal(t, `{"data":{"counter":1}}`, writer.writtenMessages[0])
+	require.Equal(t, `{"data":{"counter":2}}`, writer.writtenMessages[1])
+	require.Equal(t, `{"data":{"counter":3}}`, writer.writtenMessages[2])
 
 	stopEventLoop()
 
