@@ -7,10 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
-
-	"golang.org/x/sync/semaphore"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
@@ -50,13 +47,9 @@ type Resolver struct {
 	options        ResolverOptions
 	maxConcurrency chan struct{}
 
-	triggers               map[uint64]*trigger
-	heartbeatSubLock       *sync.Mutex
-	heartbeatSubscriptions map[*Context]*sub
-	events                 chan subscriptionEvent
-	triggerEventsSem       *semaphore.Weighted
-	triggerUpdatesSem      *semaphore.Weighted
-	triggerUpdateBuf       *bytes.Buffer
+	triggers         map[uint64]*trigger
+	events           chan subscriptionEvent
+	triggerUpdateBuf *bytes.Buffer
 
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
@@ -66,9 +59,12 @@ type Resolver struct {
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
 
-	propagateSubgraphErrors       bool
-	propagateSubgraphStatusCodes  bool
-	multipartSubHeartbeatInterval time.Duration
+	propagateSubgraphErrors      bool
+	propagateSubgraphStatusCodes bool
+	// Multipart heartbeat interval
+	heartbeatInterval time.Duration
+	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
+	maxSubscriptionFetchTimeout time.Duration
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -102,13 +98,6 @@ type ResolverOptions struct {
 	// In addition, there's a limit of how many concurrent requests can be efficiently resolved
 	// This depends on the number of CPU cores available, the complexity of the operations, and the origin services
 	MaxConcurrency int
-
-	// MaxSubscriptionWorkers limits the concurrency on how many subscription can be added / removed concurrently.
-	// This does not include subscription updates, for that we have a separate semaphore MaxSubscriptionUpdates.
-	MaxSubscriptionWorkers int
-
-	// MaxSubscriptionUpdates limits the number of concurrent subscription updates that can be sent to the event loop.
-	MaxSubscriptionUpdates int
 
 	Debug bool
 
@@ -146,6 +135,8 @@ type ResolverOptions struct {
 	AllowedSubgraphErrorFields []string
 	// MultipartSubHeartbeatInterval defines the interval in which a heartbeat is sent to all multipart subscriptions
 	MultipartSubHeartbeatInterval time.Duration
+	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
+	MaxSubscriptionFetchTimeout time.Duration
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -171,6 +162,10 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		"path":    {},
 	}
 
+	if options.MaxSubscriptionFetchTimeout == 0 {
+		options.MaxSubscriptionFetchTimeout = 30 * time.Second
+	}
+
 	if !options.OmitSubgraphErrorExtensions {
 		allowedErrorFields["extensions"] = struct{}{}
 	}
@@ -184,36 +179,26 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	}
 
 	resolver := &Resolver{
-		ctx:                           ctx,
-		options:                       options,
-		propagateSubgraphErrors:       options.PropagateSubgraphErrors,
-		propagateSubgraphStatusCodes:  options.PropagateSubgraphStatusCodes,
-		events:                        make(chan subscriptionEvent),
-		triggers:                      make(map[uint64]*trigger),
-		heartbeatSubLock:              &sync.Mutex{},
-		heartbeatSubscriptions:        make(map[*Context]*sub),
-		reporter:                      options.Reporter,
-		asyncErrorWriter:              options.AsyncErrorWriter,
-		triggerUpdateBuf:              bytes.NewBuffer(make([]byte, 0, 1024)),
-		allowedErrorExtensionFields:   allowedExtensionFields,
-		allowedErrorFields:            allowedErrorFields,
-		multipartSubHeartbeatInterval: options.MultipartSubHeartbeatInterval,
+		ctx:                          ctx,
+		options:                      options,
+		propagateSubgraphErrors:      options.PropagateSubgraphErrors,
+		propagateSubgraphStatusCodes: options.PropagateSubgraphStatusCodes,
+		events:                       make(chan subscriptionEvent),
+		triggers:                     make(map[uint64]*trigger),
+		reporter:                     options.Reporter,
+		asyncErrorWriter:             options.AsyncErrorWriter,
+		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
+		allowedErrorExtensionFields:  allowedExtensionFields,
+		allowedErrorFields:           allowedErrorFields,
+		heartbeatInterval:            options.MultipartSubHeartbeatInterval,
+		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
 		resolver.maxConcurrency <- struct{}{}
 	}
-	if options.MaxSubscriptionWorkers == 0 {
-		options.MaxSubscriptionWorkers = 1024
-	}
-	if options.MaxSubscriptionUpdates == 0 {
-		options.MaxSubscriptionUpdates = 1024
-	}
 
-	resolver.triggerEventsSem = semaphore.NewWeighted(int64(options.MaxSubscriptionWorkers))
-	resolver.triggerUpdatesSem = semaphore.NewWeighted(int64(options.MaxSubscriptionUpdates))
-
-	go resolver.handleEvents()
+	go resolver.processEvents()
 
 	return resolver
 }
@@ -285,31 +270,74 @@ type trigger struct {
 }
 
 type sub struct {
-	mux       sync.Mutex
 	resolve   *GraphQLSubscription
+	resolver  *Resolver
+	ctx       *Context
 	writer    SubscriptionResponseWriter
 	id        SubscriptionIdentifier
+	heartbeat bool
 	completed chan struct{}
-	lastWrite time.Time
-	// executor is an optional argument that allows us to "schedule" the execution of an update on another thread
-	// e.g. if we're using SSE/Multipart Fetch, we can run the execution on the goroutine of the http request
-	// this ensures that ctx cancellation works properly when a client disconnects
-	executor chan func()
+	// workChan is used to send work to the writer goroutine. All work is processed sequentially.
+	workChan chan func()
 }
 
-func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {
+// startWorker runs in its own goroutine to process fetches and write data to the client synchronously
+// it also takes care of sending heartbeats to the client but only if the subscription supports it
+func (s *sub) startWorker() {
+	if s.heartbeat {
+		s.startWorkerWithHeartbeat()
+		return
+	}
+	s.startWorkerWithoutHeartbeat()
+}
+
+func (s *sub) startWorkerWithHeartbeat() {
+	heartbeatTicker := time.NewTicker(s.resolver.heartbeatInterval)
+	defer heartbeatTicker.Stop()
+
+	for {
+		select {
+		case <-heartbeatTicker.C:
+			s.resolver.handleHeartbeat(s, multipartHeartbeat)
+		case fn := <-s.workChan:
+			fn()
+			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
+			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
+		case <-s.completed: // Shutdown the writer when the subscription is completed
+			return
+		}
+	}
+}
+
+func (s *sub) startWorkerWithoutHeartbeat() {
+	for {
+		select {
+		case fn := <-s.workChan:
+			fn()
+		case <-s.completed: // Shutdown the writer when the subscription is completed
+			return
+		}
+	}
+}
+
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, sharedInput []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
+	ctx, cancel := context.WithTimeout(resolveCtx.ctx, r.maxSubscriptionFetchTimeout)
+	defer cancel()
+
+	resolveCtx = resolveCtx.WithContext(ctx)
+
+	// Copy the input.
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 
-	if err := t.resolvable.InitSubscription(ctx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		sub.mux.Lock()
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
-		sub.mux.Unlock()
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+
+	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
+		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -319,10 +347,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		return
 	}
 
-	if err := t.loader.LoadGraphQLResponseData(ctx, sub.resolve.Response, t.resolvable); err != nil {
-		sub.mux.Lock()
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
-		sub.mux.Unlock()
+	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
+		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -332,14 +358,8 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		return
 	}
 
-	sub.mux.Lock()
-	defer func() {
-		sub.lastWrite = time.Now()
-		sub.mux.Unlock()
-	}()
-
-	if err := t.resolvable.Resolve(ctx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
+	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
+		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
 		}
@@ -348,30 +368,29 @@ func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput
 		}
 		return
 	}
-	err := sub.writer.Flush()
-	if err != nil {
-		// client disconnected
+
+	if err := sub.writer.Flush(); err != nil {
+		// If flush fails (e.g. client disconnected), remove the subscription.
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		return
 	}
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:flushed:%d\n", sub.id.SubscriptionID)
 	}
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
 	}
-	if t.resolvable.WroteErrorsWithoutData() {
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
-		}
+
+	if t.resolvable.WroteErrorsWithoutData() && r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
 	}
 }
 
-// handleEvents maintains the single threaded event loop that processes all events
-func (r *Resolver) handleEvents() {
+// processEvents maintains the single threaded event loop that processes all events
+func (r *Resolver) processEvents() {
 	done := r.ctx.Done()
-	heartbeat := time.NewTicker(r.multipartSubHeartbeatInterval)
-	defer heartbeat.Stop()
+
 	for {
 		select {
 		case <-done:
@@ -379,8 +398,6 @@ func (r *Resolver) handleEvents() {
 			return
 		case event := <-r.events:
 			r.handleEvent(event)
-		case <-heartbeat.C:
-			r.handleHeartbeat(multipartHeartbeat)
 		}
 	}
 }
@@ -410,51 +427,44 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 	}
 }
 
-func (r *Resolver) handleHeartbeat(data []byte) {
-	r.heartbeatSubLock.Lock()
-	defer r.heartbeatSubLock.Unlock()
+// handleHeartbeat sends a heartbeat to the client. It needs to be executed on the same goroutine as the writer.
+func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
+	if r.options.Debug {
+		fmt.Printf("resolver:heartbeat\n")
+	}
+
+	if r.ctx.Err() != nil {
+		return
+	}
+
+	if sub.ctx.Context().Err() != nil {
+		return
+	}
 
 	if r.options.Debug {
-		fmt.Printf("resolver:heartbeat:%d\n", len(r.heartbeatSubscriptions))
+		fmt.Printf("resolver:heartbeat:subscription:%d\n", sub.id.SubscriptionID)
 	}
-	now := time.Now()
-	for c, s := range r.heartbeatSubscriptions {
-		// check if the last write to the subscription was more than heartbeat interval ago
-		c, s := c, s
-		s.mux.Lock()
-		skipHeartbeat := now.Sub(s.lastWrite) < r.multipartSubHeartbeatInterval
-		s.mux.Unlock()
-		if skipHeartbeat || (c.Context().Err() != nil && errors.Is(c.Context().Err(), context.Canceled)) {
-			continue
-		}
 
-		if r.options.Debug {
-			fmt.Printf("resolver:heartbeat:subscription:%d\n", s.id.SubscriptionID)
-		}
-
-		s.mux.Lock()
-		if _, err := s.writer.Write(data); err != nil {
-			if errors.Is(err, context.Canceled) {
-				// client disconnected
-				s.mux.Unlock()
-				_ = r.AsyncUnsubscribeSubscription(s.id)
-				return
-			}
-			r.asyncErrorWriter.WriteError(c, err, nil, s.writer)
-		}
-		err := s.writer.Flush()
-		s.mux.Unlock()
-		if err != nil {
-			// client disconnected
-			_ = r.AsyncUnsubscribeSubscription(s.id)
+	if _, err := sub.writer.Write(data); err != nil {
+		if errors.Is(err, context.Canceled) {
+			// If Write fails (e.g. client disconnected), remove the subscription.
+			_ = r.AsyncUnsubscribeSubscription(sub.id)
 			return
 		}
-		if r.options.Debug {
-			fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", s.id.SubscriptionID)
-		}
-		if r.reporter != nil {
-			r.reporter.SubscriptionUpdateSent()
-		}
+		r.asyncErrorWriter.WriteError(sub.ctx, err, nil, sub.writer)
+	}
+	err := sub.writer.Flush()
+	if err != nil {
+		// If flush fails (e.g. client disconnected), remove the subscription.
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		return
+	}
+
+	if r.options.Debug {
+		fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", sub.id.SubscriptionID)
+	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionUpdateSent()
 	}
 }
 
@@ -490,18 +500,23 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
+		ctx:       add.ctx,
 		resolve:   add.resolve,
 		writer:    add.writer,
 		id:        add.id,
 		completed: add.completed,
-		lastWrite: time.Now(),
-		executor:  add.executor,
+		workChan:  make(chan func(), 32),
+		resolver:  r,
 	}
+
 	if add.ctx.ExecutionOptions.SendHeartbeat {
-		r.heartbeatSubLock.Lock()
-		r.heartbeatSubscriptions[add.ctx] = s
-		r.heartbeatSubLock.Unlock()
+		s.heartbeat = true
 	}
+
+	// Start the dedicated worker goroutine where the subscription updates are processed
+	// and writes are written to the client in a single threaded manner
+	go s.startWorker()
+
 	trig, ok := r.triggers[triggerID]
 	if ok {
 		trig.subscriptions[add.ctx] = s
@@ -523,7 +538,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
-		updateSem: r.triggerUpdatesSem,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -580,11 +594,6 @@ func (r *Resolver) emitTriggerShutdown(triggerID uint64) error {
 		fmt.Printf("resolver:trigger:shutdown:%d\n", triggerID)
 	}
 
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -601,11 +610,6 @@ func (r *Resolver) emitTriggerInitialized(triggerID uint64) error {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:initialized:%d\n", triggerID)
 	}
-
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
 
 	select {
 	case <-r.ctx.Done():
@@ -645,7 +649,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	removed := 0
 	for u := range r.triggers {
 		removed += r.shutdownTriggerSubscriptions(u, func(sID SubscriptionIdentifier) bool {
-			return sID.ConnectionID == id && !sID.internal
+			return sID.ConnectionID == id
 		})
 		if len(r.triggers[u].subscriptions) == 0 {
 			r.shutdownTrigger(r.triggers[u].id)
@@ -664,6 +668,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
+
 	for c, s := range trig.subscriptions {
 		c, s := c, s
 		if err := c.ctx.Err(); err != nil {
@@ -677,25 +682,16 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if skip {
 			continue
 		}
+
 		fn := func() {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
 
-		// Needs to be executed in a separate goroutine to prevent blocking the event loop.
-		go func() {
-
-			// Send the update to the executor channel to be executed on the main thread
-			// Only relevant for SSE/Multipart subscriptions
-			if s.executor != nil {
-				select {
-				case <-r.ctx.Done():
-				case <-c.ctx.Done():
-				case s.executor <- fn: // Run the update on the main thread and close subscription
-				}
-			} else {
-				fn()
-			}
-		}()
+		select {
+		case <-r.ctx.Done():
+		case <-c.ctx.Done():
+		case s.workChan <- fn:
+		}
 	}
 }
 
@@ -708,15 +704,19 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 		return
 	}
 
-	count := len(trig.subscriptions)
-	r.shutdownTriggerSubscriptions(id, nil)
+	removed := r.shutdownTriggerSubscriptions(id, nil)
+
+	// Cancels the async datasource and cleanup the connection
 	trig.cancel()
+
 	delete(r.triggers, id)
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:done:%d\n", trig.id)
 	}
+
 	if r.reporter != nil {
-		r.reporter.SubscriptionCountDec(count)
+		r.reporter.SubscriptionCountDec(removed)
 		if trig.initialized {
 			r.reporter.TriggerCountDec(1)
 		}
@@ -733,19 +733,24 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 		if shutdownMatcher != nil && !shutdownMatcher(s.id) {
 			continue
 		}
-		if c.Context().Err() == nil {
-			s.writer.Complete()
-		}
-		if s.completed != nil {
+
+		// We close the completed channel on the work channel of the subscription
+		// to ensure that all jobs are processed before the channel is closed.
+		s.workChan <- func() {
+			// We put the complete handshake to the work channel of the subscription
+			// to ensure that it is the last message that is sent to the client.
+			if c.Context().Err() == nil {
+				s.writer.Complete()
+			}
 			close(s.completed)
 		}
-		r.heartbeatSubLock.Lock()
-		delete(r.heartbeatSubscriptions, c)
-		r.heartbeatSubLock.Unlock()
+
 		delete(trig.subscriptions, c)
+
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:done:%d:%d\n", trig.id, s.id.SubscriptionID)
 		}
+
 		removed++
 	}
 	return removed
@@ -767,15 +772,9 @@ func (r *Resolver) handleShutdown() {
 type SubscriptionIdentifier struct {
 	ConnectionID   int64
 	SubscriptionID int64
-	internal       bool
 }
 
 func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -788,11 +787,6 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 }
 
 func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -854,13 +848,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	id := SubscriptionIdentifier{
 		ConnectionID:   r.connectionIDs.Inc(),
 		SubscriptionID: 0,
-		internal:       true,
 	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
 	}
+
 	completed := make(chan struct{})
-	executor := make(chan func())
+
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
@@ -874,54 +868,40 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			writer:    writer,
 			id:        id,
 			completed: completed,
-			executor:  executor,
 		},
 	}:
 	}
-Loop: // execute fn on the main thread of the incoming request until ctx is done
-	for {
-		select {
-		case <-r.ctx.Done():
-			// the resolver ctx was canceled
-			// this will trigger the shutdown of the trigger (on another goroutine)
-			// as such, we need to wait for the trigger to be shutdown
-			// otherwise we might experience a data race between trigger shutdown write (Complete) and reading bytes written to the writer
-			// as the shutdown happens asynchronously, we want to wait here for at most 5 seconds or until the client ctx is done
-			select {
-			case <-completed:
-				return r.ctx.Err()
-			case <-time.After(time.Second * 5):
-				return r.ctx.Err()
-			case <-ctx.Context().Done():
-				return ctx.Context().Err()
-			}
-		case <-ctx.Context().Done():
-			break Loop
-		case fn := <-executor:
-			fn()
-		}
+
+	// This will immediately block until one of the following conditions is met:
+	select {
+	case <-ctx.ctx.Done():
+		// Client disconnected, request context canceled.
+		// We will ignore the error and remove the subscription in the next step.
+	case <-r.ctx.Done():
+		// Resolver shutdown, no way to gracefully shut down the subscription
+		// because the event loop is not running anymore.
+		return r.ctx.Err()
+	case <-completed:
+		// Subscription completed and drained. No need to do anything.
+		return nil
 	}
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:unsubscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
 	}
-	select {
-	case <-r.ctx.Done():
-		return r.ctx.Err()
-	case r.events <- subscriptionEvent{
+
+	// Remove the subscription when the client disconnects.
+
+	r.events <- subscriptionEvent{
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindRemoveSubscription,
 		id:        id,
-	}:
 	}
+
 	return nil
 }
 
 func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter, id SubscriptionIdentifier) (err error) {
-	if err := r.triggerEventsSem.Acquire(r.ctx, 1); err != nil {
-		return err
-	}
-	defer r.triggerEventsSem.Release(1)
-
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
 	}
@@ -965,22 +945,24 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
 		return writeFlushComplete(writer, msg)
 	}
-	uniqueID := xxh.Sum64()
+
+	event := subscriptionEvent{
+		triggerID: xxh.Sum64(),
+		kind:      subscriptionEventKindAddSubscription,
+		addSubscription: &addSubscription{
+			ctx:       ctx,
+			input:     input,
+			resolve:   subscription,
+			writer:    writer,
+			id:        id,
+			completed: make(chan struct{}),
+		},
+	}
 
 	select {
 	case <-r.ctx.Done():
 		return r.ctx.Err()
-	case r.events <- subscriptionEvent{
-		triggerID: uniqueID,
-		kind:      subscriptionEventKindAddSubscription,
-		addSubscription: &addSubscription{
-			ctx:     ctx,
-			input:   input,
-			resolve: subscription,
-			writer:  writer,
-			id:      id,
-		},
-	}:
+	case r.events <- event:
 	}
 	return nil
 }
@@ -1012,18 +994,12 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
-	updateSem *semaphore.Weighted
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
 	}
-
-	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
-		return
-	}
-	defer s.updateSem.Release(1)
 
 	select {
 	case <-s.ctx.Done():
@@ -1040,11 +1016,6 @@ func (s *subscriptionUpdater) Done() {
 	if s.debug {
 		fmt.Printf("resolver:subscription_updater:done:%d\n", s.triggerID)
 	}
-
-	if err := s.updateSem.Acquire(s.ctx, 1); err != nil {
-		return
-	}
-	defer s.updateSem.Release(1)
 
 	select {
 	case <-s.ctx.Done():
@@ -1071,7 +1042,6 @@ type addSubscription struct {
 	writer    SubscriptionResponseWriter
 	id        SubscriptionIdentifier
 	completed chan struct{}
-	executor  chan func()
 }
 
 type subscriptionEventKind int
