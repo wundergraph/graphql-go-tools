@@ -276,7 +276,6 @@ type sub struct {
 	writer    SubscriptionResponseWriter
 	id        SubscriptionIdentifier
 	heartbeat bool
-	lastWrite time.Time
 	completed chan struct{}
 	// workChan is used to send work to the writer goroutine. All work is processed sequentially.
 	workChan chan func()
@@ -735,19 +734,15 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 			continue
 		}
 
-		if c.Context().Err() == nil {
+		// We close the completed channel on the work channel of the subscription
+		// to ensure that all jobs are processed before the channel is closed.
+		s.workChan <- func() {
 			// We put the complete handshake to the work channel of the subscription
 			// to ensure that it is the last message that is sent to the client.
-			s.workChan <- func() {
+			if c.Context().Err() == nil {
 				s.writer.Complete()
 			}
-		}
-		if s.completed != nil {
-			// We close the completed channel on the work channel of the subscription
-			// to ensure that all jobs are processed before the channel is closed.
-			s.workChan <- func() {
-				close(s.completed)
-			}
+			close(s.completed)
 		}
 
 		delete(trig.subscriptions, c)
@@ -950,17 +945,17 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
 		return writeFlushComplete(writer, msg)
 	}
-	uniqueID := xxh.Sum64()
 
 	event := subscriptionEvent{
-		triggerID: uniqueID,
+		triggerID: xxh.Sum64(),
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
-			ctx:     ctx,
-			input:   input,
-			resolve: subscription,
-			writer:  writer,
-			id:      id,
+			ctx:       ctx,
+			input:     input,
+			resolve:   subscription,
+			writer:    writer,
+			id:        id,
+			completed: make(chan struct{}),
 		},
 	}
 

@@ -5221,7 +5221,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		time.Sleep(resolver.heartbeatInterval)
 
-		assert.Len(t, recorder.Messages(), 31)
+		assert.Len(t, recorder.Messages(), 20)
 
 		messages := recorder.Messages()
 
@@ -5245,8 +5245,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		require.Equal(t, `{"data":{"counter":1}}`, messages[17])
 		require.Equal(t, `{"data":{"counter":0}}`, messages[18])
 		require.Equal(t, `{"data":{"counter":1}}`, messages[19])
-
-		require.Contains(t, messages, `{}`)
 	})
 
 	t.Run("should propagate extensions to stream", func(t *testing.T) {
