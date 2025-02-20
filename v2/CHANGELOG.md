@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.157](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.156...v2.0.0-rc.157) (2025-02-20)
+
+
+### Bug Fixes
+
+* fix values validation list compatibility check ([#1082](https://github.com/wundergraph/graphql-go-tools/issues/1082)) ([541be0d](https://github.com/wundergraph/graphql-go-tools/commit/541be0d07d200c79235c1af9b9c6cdf2f4870d65))
+
 ## [2.0.0-rc.156](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.155...v2.0.0-rc.156) (2025-02-18)
 
 
