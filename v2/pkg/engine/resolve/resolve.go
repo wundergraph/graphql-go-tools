@@ -650,7 +650,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	removed := 0
 	for u := range r.triggers {
 		removed += r.shutdownTriggerSubscriptions(u, func(sID SubscriptionIdentifier) bool {
-			return sID.ConnectionID == id && !sID.internal
+			return sID.ConnectionID == id
 		})
 		if len(r.triggers[u].subscriptions) == 0 {
 			r.shutdownTrigger(r.triggers[u].id)
@@ -705,15 +705,19 @@ func (r *Resolver) shutdownTrigger(id uint64) {
 		return
 	}
 
-	count := len(trig.subscriptions)
-	r.shutdownTriggerSubscriptions(id, nil)
+	removed := r.shutdownTriggerSubscriptions(id, nil)
+
+	// Cancels the async datasource and cleanup the connection
 	trig.cancel()
+
 	delete(r.triggers, id)
+
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:done:%d\n", trig.id)
 	}
+
 	if r.reporter != nil {
-		r.reporter.SubscriptionCountDec(count)
+		r.reporter.SubscriptionCountDec(removed)
 		if trig.initialized {
 			r.reporter.TriggerCountDec(1)
 		}
@@ -773,7 +777,6 @@ func (r *Resolver) handleShutdown() {
 type SubscriptionIdentifier struct {
 	ConnectionID   int64
 	SubscriptionID int64
-	internal       bool
 }
 
 func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error {
@@ -850,7 +853,6 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	id := SubscriptionIdentifier{
 		ConnectionID:   r.connectionIDs.Inc(),
 		SubscriptionID: 0,
-		internal:       true,
 	}
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
