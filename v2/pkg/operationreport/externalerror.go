@@ -2,10 +2,11 @@ package operationreport
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
-	"net/http"
 )
 
 const (
@@ -501,5 +502,10 @@ func ErrDuplicateFieldsMustBeIdentical(fieldName, parentName, typeOne, typeTwo s
 	err.Message = fmt.Sprintf("field '%s' on type '%s' is defined in multiple subgraphs "+
 		"but the fields cannot be merged because the types of the fields are non-identical:\n"+
 		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
+	return err
+}
+
+func ErrDeferStreamNotAllowedOutsideQuery() (err ExternalError) {
+	err.Message = "@defer and @stream are not allowed in subscription or mutation operations."
 	return err
 }

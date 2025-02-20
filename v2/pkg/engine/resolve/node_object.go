@@ -179,7 +179,12 @@ type Position struct {
 }
 
 type StreamField struct {
+	Label            string
+	If               bool
 	InitialBatchSize int
 }
 
-type DeferField struct{}
+type DeferField struct {
+	Label string
+	If    bool
+}
