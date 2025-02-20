@@ -1,6 +1,6 @@
 .PHONY: test
 test:
-	go test ./...
+	go test -race ./...
 
 test-fresh: clean-testcache test
 
@@ -11,8 +11,8 @@ test-stability:
 test-quick:
 	go test -count=1 ./...
 
-.PHONY: test-race
-test-race:
+.PHONY: test
+test-no-race:
 	go test -race ./...
 
 clean-testcache:
