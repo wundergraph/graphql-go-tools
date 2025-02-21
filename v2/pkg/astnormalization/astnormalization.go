@@ -149,9 +149,16 @@ type options struct {
 	removeUnusedVariables                 bool
 	removeNotMatchingOperationDefinitions bool
 	normalizeDefinition                   bool
+	sortSelectionSets                     bool
 }
 
 type Option func(options *options)
+
+func WithSortSelectionSets() Option {
+	return func(opts *options) {
+		opts.sortSelectionSets = true
+	}
+}
 
 func WithExtractVariables() Option {
 	return func(options *options) {
@@ -203,6 +210,16 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "removeNotMatchingOperationDefinitions",
 			walker: &removeNotMatchingOperationDefinitionsWalker,
+		})
+	}
+
+	if o.options.sortSelectionSets {
+		sortSelectionSetsWalker := astvisitor.NewWalker(8)
+		SortSelectionSets(&sortSelectionSetsWalker)
+
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "sortSelectionSets",
+			walker: &sortSelectionSetsWalker,
 		})
 	}
 
