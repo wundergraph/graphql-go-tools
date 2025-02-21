@@ -44,6 +44,7 @@ type Visitor struct {
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
 	inDeferredFragment           bool
+	deferredFragmentDepth        int
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
@@ -296,12 +297,16 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 
 	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
 		v.inDeferredFragment = true
+		v.deferredFragmentDepth++
 	}
 }
 
 func (v *Visitor) LeaveInlineFragment(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindInlineFragment, ref)
-	v.inDeferredFragment = false
+	if v.inDeferredFragment {
+		v.deferredFragmentDepth--
+		v.inDeferredFragment = false
+	}
 }
 
 func (v *Visitor) EnterFragmentSpread(ref int) {
@@ -310,12 +315,16 @@ func (v *Visitor) EnterFragmentSpread(ref int) {
 	directives := v.Operation.InlineFragments[ref].Directives.Refs
 	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
 		v.inDeferredFragment = true
+		v.deferredFragmentDepth++
 	}
 }
 
 func (v *Visitor) LeaveFragmentSpread(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindFragmentSpread, ref)
-	v.inDeferredFragment = false
+	if v.inDeferredFragment {
+		v.deferredFragmentDepth--
+		v.inDeferredFragment = false
+	}
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
@@ -361,7 +370,9 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	if v.inDeferredFragment {
-		v.currentField.Defer = &resolve.DeferField{}
+		v.currentField.Defer = &resolve.DeferField{
+			Path: v.Walker.Path.StringSlice(),
+		}
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -904,14 +915,14 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 	}
 
 	switch {
-	case streaming:
-		// TODO: different for @stream?
-		v.plan = &IncrementalResponsePlan{
-			Response: &resolve.GraphQLIncrementalResponse{
-				ImmediateResponse: graphQLResponse,
-				DeferredResponses: nil, // TODO: the deferred/streamed parts.
-			},
-		}
+	// case streaming:
+	// 	// TODO: different for @stream?
+	// 	v.plan = &IncrementalResponsePlan{
+	// 		Response: &resolve.GraphQLIncrementalResponse{
+	// 			ImmediateResponse: graphQLResponse,
+	// 			DeferredResponses: nil, // TODO: the deferred/streamed parts.
+	// 		},
+	// 	}
 	case operationKind == ast.OperationTypeSubscription:
 		v.plan = &SubscriptionResponsePlan{
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
@@ -971,6 +982,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
 	v.inDeferredFragment = false
+	v.deferredFragmentDepth = 0
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 }

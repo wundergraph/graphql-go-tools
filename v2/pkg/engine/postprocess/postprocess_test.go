@@ -672,100 +672,55 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 		expected plan.Plan
 	}{
 		{
-			name: "sunny day",
-			pre: &plan.IncrementalResponsePlan{
-				Response: &resolve.GraphQLIncrementalResponse{
-					ImmediateResponse: &resolve.GraphQLResponse{
-						Data: &resolve.Object{
-							Nullable: false,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("hero"),
-									Value: &resolve.Object{
-										Path:          []string{"hero"},
-										Nullable:      true,
-										TypeName:      "Character",
-										PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("name"),
-												Value: &resolve.String{
-													Path:     []string{"name"},
-													Nullable: false,
-												},
-											},
-											{
-												Name: []byte("primaryFunction"),
-												Value: &resolve.String{
-													Path:     []string{"primaryFunction"},
-													Nullable: false,
-												},
-												OnTypeNames: [][]byte{[]byte("Droid")},
-												Defer:       &resolve.DeferField{},
-											},
-											{
-												Name: []byte("favoriteEpisode"),
-												Value: &resolve.Enum{
-													Path:     []string{"favoriteEpisode"},
-													Nullable: true,
-													TypeName: "Episode",
-													Values: []string{
-														"NEWHOPE",
-														"EMPIRE",
-														"JEDI",
-													},
-												},
-												OnTypeNames: [][]byte{[]byte("Droid")},
-												Defer:       &resolve.DeferField{},
+			name: "trivial case",
+			pre: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
 											},
 										},
 									},
 								},
 							},
-							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
-							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
 						},
 					},
-					DeferredResponses: nil,
 				},
 			},
-			expected: &plan.IncrementalResponsePlan{
-				Response: &resolve.GraphQLIncrementalResponse{
-					ImmediateResponse: &resolve.GraphQLResponse{
-						Data: &resolve.Object{
-							Nullable: false,
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("hero"),
-									Value: &resolve.Object{
-										Path:          []string{"hero"},
-										Nullable:      true,
-										TypeName:      "Character",
-										PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
-										Fields: []*resolve.Field{
-											{
-												Name: []byte("name"),
-												Value: &resolve.String{
-													Path:     []string{"name"},
-													Nullable: false,
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-						Fetches: &resolve.FetchTreeNode{
-							Kind: resolve.FetchTreeNodeKindSequence,
-							ChildNodes: []*resolve.FetchTreeNode{
-								{
-									Kind: resolve.FetchTreeNodeKindSingle,
-									Item: &resolve.FetchItem{
-										Fetch: &resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{},
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 1,
+			expected: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
 											},
 										},
 									},
@@ -773,53 +728,175 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 							},
 						},
 					},
-					DeferredResponses: &resolve.GraphQLResponse{
-						Data: &resolve.Object{
-							Nullable: false,
-							Path:     []string{"hero"},
-							Fields: []*resolve.Field{
-								{
-									Name: []byte("primaryFunction"),
-									Value: &resolve.String{
-										Path:     []string{"primaryFunction"},
-										Nullable: false,
-									},
-									OnTypeNames: [][]byte{[]byte("Droid")},
-									Defer:       &resolve.DeferField{},
-								},
-								{
-									Name: []byte("favoriteEpisode"),
-									Value: &resolve.Enum{
-										Path:     []string{"favoriteEpisode"},
-										Nullable: true,
-										TypeName: "Episode",
-										Values: []string{
-											"NEWHOPE",
-											"EMPIRE",
-											"JEDI",
+					Fetches: &resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSequence,
+						ChildNodes: []*resolve.FetchTreeNode{
+							{
+								Kind: resolve.FetchTreeNodeKindSingle,
+								Item: &resolve.FetchItem{
+									Fetch: &resolve.SingleFetch{
+										FetchConfiguration: resolve.FetchConfiguration{},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 1,
 										},
 									},
-									OnTypeNames: [][]byte{[]byte("Droid")},
-									Defer:       &resolve.DeferField{},
 								},
 							},
 						},
-						Fetches: &resolve.FetchTreeNode{
-							Kind: resolve.FetchTreeNodeKindSequence,
-							ChildNodes: []*resolve.FetchTreeNode{
-								{
-									Kind: resolve.FetchTreeNodeKindSingle,
-									Item: &resolve.FetchItem{
-										Fetch: &resolve.SingleFetch{
-											FetchConfiguration: resolve.FetchConfiguration{},
-											FetchDependencies: resolve.FetchDependencies{
-												FetchID: 1,
+					},
+				},
+			},
+		},
+		{
+			name: "simple case",
+			pre: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
 											},
 										},
-										FetchPath: []resolve.FetchItemPathElement{
-											{
-												Kind: resolve.FetchItemPathElementKindObject,
-												Path: []string{"hero"},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer: &resolve.DeferField{
+												Path: []string{"query", "hero", "$0Droid"},
+											},
+										},
+										{
+											Name: []byte("favoriteEpisode"),
+											Value: &resolve.Enum{
+												Path:     []string{"favoriteEpisode"},
+												Nullable: true,
+												TypeName: "Episode",
+												Values: []string{
+													"NEWHOPE",
+													"EMPIRE",
+													"JEDI",
+												},
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer: &resolve.DeferField{
+												Path: []string{"query", "hero", "$0Droid"},
+											},
+										},
+									},
+								},
+							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						},
+					},
+				},
+			},
+			expected: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetches: &resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSequence,
+						ChildNodes: []*resolve.FetchTreeNode{
+							{
+								Kind: resolve.FetchTreeNodeKindSingle,
+								Item: &resolve.FetchItem{
+									Fetch: &resolve.SingleFetch{
+										FetchConfiguration: resolve.FetchConfiguration{},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 1,
+										},
+									},
+								},
+							},
+						},
+					},
+					DeferredResponses: []*resolve.GraphQLResponse{
+						{
+							Data: &resolve.Object{
+								Nullable: true,
+								Path:     []string{"hero"},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("primaryFunction"),
+										Value: &resolve.String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer:       &resolve.DeferField{},
+									},
+									{
+										Name: []byte("favoriteEpisode"),
+										Value: &resolve.Enum{
+											Path:     []string{"favoriteEpisode"},
+											Nullable: true,
+											TypeName: "Episode",
+											Values: []string{
+												"NEWHOPE",
+												"EMPIRE",
+												"JEDI",
+											},
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer:       &resolve.DeferField{},
+									},
+								},
+							},
+							Fetches: &resolve.FetchTreeNode{
+								Kind: resolve.FetchTreeNodeKindSequence,
+								ChildNodes: []*resolve.FetchTreeNode{
+									{
+										Kind: resolve.FetchTreeNodeKindSingle,
+										Item: &resolve.FetchItem{
+											Fetch: &resolve.SingleFetch{
+												FetchConfiguration: resolve.FetchConfiguration{},
+												FetchDependencies: resolve.FetchDependencies{
+													FetchID: 1,
+												},
+											},
+											FetchPath: []resolve.FetchItemPathElement{
+												{
+													Kind: resolve.FetchItemPathElementKindObject,
+													Path: []string{"hero"},
+												},
 											},
 										},
 									},

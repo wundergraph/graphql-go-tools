@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 
 	"github.com/buger/jsonparser"
@@ -295,46 +294,6 @@ type sub struct {
 	// e.g. if we're using SSE/Multipart Fetch, we can run the execution on the goroutine of the http request
 	// this ensures that ctx cancellation works properly when a client disconnects
 	executor chan func()
-}
-
-func (r *Resolver) ResolveGraphQLIncrementalResponse(ctx *Context, response *GraphQLIncrementalResponse, writer IncrementalResponseWriter) error {
-	g, _ := errgroup.WithContext(ctx.ctx)
-
-	ch := make(chan []byte)
-	defer close(ch)
-
-	for _, deferred := range response.DeferredResponses {
-		g.Go(func() error {
-			buf := &bytes.Buffer{}
-			if _, err := r.ResolveGraphQLResponse(ctx, deferred.ImmediateResponse, nil, buf); err != nil {
-				return fmt.Errorf("resolving deferred response: %w", err)
-			}
-			// TODO: need to deal with nested deferred responses.
-			ch <- buf.Bytes()
-
-			return nil
-		})
-	}
-	if _, err := r.ResolveGraphQLResponse(ctx, response.ImmediateResponse, nil, writer); err != nil {
-		return fmt.Errorf("writing immediate response: %w", err)
-	}
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("flushing immediate response: %w", err)
-	}
-
-	if err := g.Wait(); err != nil {
-		return err
-	}
-
-	for b := range ch {
-		if _, err := writer.Write(b); err != nil {
-			return fmt.Errorf("writing deferred response: %w", err)
-		}
-		if err := writer.Flush(); err != nil {
-			return fmt.Errorf("flushing deferred response: %w", err)
-		}
-	}
-	return nil
 }
 
 func (r *Resolver) executeSubscriptionUpdate(ctx *Context, sub *sub, sharedInput []byte) {

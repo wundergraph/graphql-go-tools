@@ -9,7 +9,6 @@ type Kind int
 const (
 	SynchronousResponseKind Kind = iota + 1
 	SubscriptionResponseKind
-	IncrementalResponseKind
 )
 
 type Plan interface {
@@ -28,19 +27,6 @@ func (s *SynchronousResponsePlan) SetFlushInterval(interval int64) {
 
 func (_ *SynchronousResponsePlan) PlanKind() Kind {
 	return SynchronousResponseKind
-}
-
-type IncrementalResponsePlan struct {
-	Response      *resolve.GraphQLIncrementalResponse
-	FlushInterval int64
-}
-
-func (s *IncrementalResponsePlan) SetFlushInterval(interval int64) {
-	s.FlushInterval = interval
-}
-
-func (_ *IncrementalResponsePlan) PlanKind() Kind {
-	return IncrementalResponseKind
 }
 
 type SubscriptionResponsePlan struct {

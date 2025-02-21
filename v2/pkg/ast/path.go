@@ -77,29 +77,30 @@ func (p Path) WithoutInlineFragmentNames() Path {
 	return out
 }
 
-func (p Path) String() string {
-	out := "["
+func (p Path) StringSlice() []string {
+	var ret []string
 	for i := range p {
-		if i != 0 {
-			out += ","
-		}
 		switch p[i].Kind {
 		case ArrayIndex:
-			out += strconv.Itoa(p[i].ArrayIndex)
+			ret = append(ret, strconv.Itoa(p[i].ArrayIndex))
 		case FieldName:
-			if len(p[i].FieldName) == 0 {
-				out += "query"
-			} else {
-				out += unsafebytes.BytesToString(p[i].FieldName)
+			out := "query"
+			if len(p[i].FieldName) != 0 {
+				out = unsafebytes.BytesToString(p[i].FieldName)
 			}
+			ret = append(ret, out)
 		case InlineFragmentName:
-			out += InlineFragmentPathPrefix
+			out := InlineFragmentPathPrefix
 			out += strconv.Itoa(p[i].FragmentRef)
 			out += unsafebytes.BytesToString(p[i].FieldName)
+			ret = append(ret, out)
 		}
 	}
-	out += "]"
-	return out
+	return ret
+}
+
+func (p Path) String() string {
+	return "[" + strings.Join(p.StringSlice(), ",") + "]"
 }
 
 func (p Path) DotDelimitedString() string {
