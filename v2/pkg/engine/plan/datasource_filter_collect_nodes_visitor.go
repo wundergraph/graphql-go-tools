@@ -198,6 +198,11 @@ func (f *collectNodesVisitor) isInterfaceObject(typeName string) bool {
 // has disabled entity resolver
 func (f *collectNodesVisitor) allKeysHasDisabledEntityResolver(typeName string) bool {
 	keys := f.dataSource.FederationConfiguration().Keys
+
+	if len(keys) == 0 {
+		return false
+	}
+
 	return !slices.ContainsFunc(keys.FilterByTypeAndResolvability(typeName, false), func(k FederationFieldConfiguration) bool {
 		return !k.DisableEntityResolver
 	})
