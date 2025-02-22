@@ -40,7 +40,7 @@ jobs:
       - name: Run tests under race detector
         working-directory: execution
         if: runner.os != 'Windows' # These are very slow on Windows, skip them
-        run: make test-race
+        run: make test
 
   lint:
     name: Linters

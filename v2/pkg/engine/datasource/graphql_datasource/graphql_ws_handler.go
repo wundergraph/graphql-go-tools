@@ -29,13 +29,14 @@ type gqlWSConnectionHandler struct {
 }
 
 func (h *gqlWSConnectionHandler) ServerClose() {
+	// Because the server closes the connection, we need to send a close frame to event loop.
 	h.updater.Done()
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
 
+// ClientClose is called when the client closes the connection. Is called when the trigger is shutdown with all subscriptions.
 func (h *gqlWSConnectionHandler) ClientClose() {
-	h.updater.Done()
 	_ = wsutil.WriteClientText(h.conn, []byte(`{"type":"stop","id":"1"}`))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()

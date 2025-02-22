@@ -3,19 +3,17 @@ package datasourcetesting
 import (
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"reflect"
 	"slices"
 	"testing"
-	"time"
 
 	"github.com/kylelemons/godebug/diff"
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gonum.org/v1/gonum/stat/combin"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/permutations"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -70,7 +68,7 @@ func WithPrintPlan() func(*testOptions) {
 func RunWithPermutations(t *testing.T, definition, operation, operationName string, expectedPlan plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
 	t.Helper()
 
-	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+	dataSourcePermutations := permutations.Generate(config.DataSources)
 
 	for i := range dataSourcePermutations {
 		permutation := dataSourcePermutations[i]
@@ -91,7 +89,7 @@ func RunWithPermutations(t *testing.T, definition, operation, operationName stri
 }
 
 func RunWithPermutationsVariants(t *testing.T, definition, operation, operationName string, expectedPlans []plan.Plan, config plan.Configuration, options ...func(*testOptions)) {
-	dataSourcePermutations := DataSourcePermutations(config.DataSources)
+	dataSourcePermutations := permutations.Generate(config.DataSources)
 
 	if len(dataSourcePermutations) != len(expectedPlans) {
 		t.Fatalf("expected %d plan variants, got %d", len(dataSourcePermutations), len(expectedPlans))
@@ -220,47 +218,4 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 			}
 		}
 	}
-}
-
-// ShuffleDS randomizes the order of the data sources
-// to ensure that the order doesn't matter
-func ShuffleDS(dataSources []plan.DataSource) []plan.DataSource {
-	rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-	rnd.Shuffle(len(dataSources), func(i, j int) {
-		dataSources[i], dataSources[j] = dataSources[j], dataSources[i]
-	})
-
-	return dataSources
-}
-
-func OrderDS(dataSources []plan.DataSource, order []int) (out []plan.DataSource) {
-	out = make([]plan.DataSource, 0, len(dataSources))
-
-	for _, i := range order {
-		out = append(out, dataSources[i])
-	}
-
-	return out
-}
-
-func DataSourcePermutations(dataSources []plan.DataSource) []*Permutation {
-	size := len(dataSources)
-	elementsCount := len(dataSources)
-	list := combin.Permutations(size, elementsCount)
-
-	permutations := make([]*Permutation, 0, len(list))
-
-	for _, v := range list {
-		permutations = append(permutations, &Permutation{
-			Order:       v,
-			DataSources: OrderDS(dataSources, v),
-		})
-	}
-
-	return permutations
-}
-
-type Permutation struct {
-	Order       []int
-	DataSources []plan.DataSource
 }
