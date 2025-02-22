@@ -13,7 +13,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 type DataSourceDebugger interface {
@@ -43,8 +42,7 @@ type Visitor struct {
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
-	inDeferredFragment           bool
-	deferredFragmentDepth        int
+	deferredFragmentStack        []deferInfo
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
@@ -54,6 +52,16 @@ type Visitor struct {
 type indirectInterfaceField struct {
 	interfaceName string
 	node          ast.Node
+}
+
+type deferInfo struct {
+	// TODO: Label and If
+	Path []string
+	Ref  int
+}
+
+func (d *deferInfo) Equal(other *deferInfo) bool {
+	return slices.Equal(d.Path, other.Path) && d.Ref == other.Ref
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -296,17 +304,13 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 	}
 
 	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
-		v.inDeferredFragment = true
-		v.deferredFragmentDepth++
+		v.enterDefer(ref)
 	}
 }
 
 func (v *Visitor) LeaveInlineFragment(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindInlineFragment, ref)
-	if v.inDeferredFragment {
-		v.deferredFragmentDepth--
-		v.inDeferredFragment = false
-	}
+	v.leaveDeferIf()
 }
 
 func (v *Visitor) EnterFragmentSpread(ref int) {
@@ -314,17 +318,13 @@ func (v *Visitor) EnterFragmentSpread(ref int) {
 
 	directives := v.Operation.InlineFragments[ref].Directives.Refs
 	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
-		v.inDeferredFragment = true
-		v.deferredFragmentDepth++
+		v.enterDefer(ref)
 	}
 }
 
 func (v *Visitor) LeaveFragmentSpread(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindFragmentSpread, ref)
-	if v.inDeferredFragment {
-		v.deferredFragmentDepth--
-		v.inDeferredFragment = false
-	}
+	v.leaveDeferIf()
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
@@ -369,9 +369,9 @@ func (v *Visitor) EnterField(ref int) {
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 	}
 
-	if v.inDeferredFragment {
+	if v.inDefer() {
 		v.currentField.Defer = &resolve.DeferField{
-			Path: v.Walker.Path.StringSlice(),
+			Path: v.currentDeferPath().Path,
 		}
 	}
 
@@ -894,14 +894,10 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		popOnField: -1,
 	})
 
-	operationKind, streaming, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
+	operationKind, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
 	if err != nil {
 		v.Walker.StopWithInternalErr(err)
 		return
-	}
-
-	if streaming && operationKind != ast.OperationTypeQuery {
-		v.Walker.StopWithExternalErr(operationreport.ErrDeferStreamNotAllowedOutsideQuery())
 	}
 
 	graphQLResponse := &resolve.GraphQLResponse{
@@ -914,16 +910,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		}
 	}
 
-	switch {
-	// case streaming:
-	// 	// TODO: different for @stream?
-	// 	v.plan = &IncrementalResponsePlan{
-	// 		Response: &resolve.GraphQLIncrementalResponse{
-	// 			ImmediateResponse: graphQLResponse,
-	// 			DeferredResponses: nil, // TODO: the deferred/streamed parts.
-	// 		},
-	// 	}
-	case operationKind == ast.OperationTypeSubscription:
+	if operationKind == ast.OperationTypeSubscription {
 		v.plan = &SubscriptionResponsePlan{
 			FlushInterval: v.Config.DefaultFlushIntervalMillis,
 			Response: &resolve.GraphQLSubscription{
@@ -931,10 +918,9 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 			},
 		}
 		return
-	default:
-		v.plan = &SynchronousResponsePlan{
-			Response: graphQLResponse,
-		}
+	}
+	v.plan = &SynchronousResponsePlan{
+		Response: graphQLResponse,
 	}
 }
 
@@ -981,8 +967,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
-	v.inDeferredFragment = false
-	v.deferredFragmentDepth = 0
+	v.deferredFragmentStack = nil
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 }
@@ -1246,4 +1231,31 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	}
 
 	return singleFetch
+}
+
+func (v *Visitor) enterDefer(ref int) {
+	path := v.Walker.Path.StringSlice()
+	fragName := v.Operation.InlineFragmentTypeConditionNameString(ref)
+
+	v.deferredFragmentStack = append(v.deferredFragmentStack, deferInfo{
+		Path: append(path[:], fmt.Sprintf("%s%d%s", ast.InlineFragmentPathPrefix, ref, fragName)),
+		Ref:  ref,
+	})
+}
+
+func (v *Visitor) inDefer() bool {
+	return len(v.deferredFragmentStack) > 0
+}
+
+func (v *Visitor) currentDeferPath() *deferInfo {
+	if !v.inDefer() {
+		return nil
+	}
+	return &v.deferredFragmentStack[len(v.deferredFragmentStack)-1]
+}
+
+func (v *Visitor) leaveDeferIf() {
+	if v.inDefer() {
+		v.deferredFragmentStack = v.deferredFragmentStack[:len(v.deferredFragmentStack)-1]
+	}
 }

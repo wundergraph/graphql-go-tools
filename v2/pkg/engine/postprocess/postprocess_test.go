@@ -851,8 +851,10 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 					DeferredResponses: []*resolve.GraphQLResponse{
 						{
 							Data: &resolve.Object{
-								Nullable: true,
-								Path:     []string{"hero"},
+								Nullable:      true,
+								Path:          []string{"hero"},
+								PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+								TypeName:      "Character",
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("primaryFunction"),
@@ -861,7 +863,9 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 											Nullable: false,
 										},
 										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer:       &resolve.DeferField{},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$0Droid"},
+										},
 									},
 									{
 										Name: []byte("favoriteEpisode"),
@@ -876,7 +880,232 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 											},
 										},
 										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer:       &resolve.DeferField{},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$0Droid"},
+										},
+									},
+								},
+							},
+							Fetches: &resolve.FetchTreeNode{
+								Kind: resolve.FetchTreeNodeKindSequence,
+								ChildNodes: []*resolve.FetchTreeNode{
+									{
+										Kind: resolve.FetchTreeNodeKindSingle,
+										Item: &resolve.FetchItem{
+											Fetch: &resolve.SingleFetch{
+												FetchConfiguration: resolve.FetchConfiguration{},
+												FetchDependencies: resolve.FetchDependencies{
+													FetchID: 1,
+												},
+											},
+											FetchPath: []resolve.FetchItemPathElement{
+												{
+													Kind: resolve.FetchItemPathElementKindObject,
+													Path: []string{"hero"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "mullti-level case",
+			pre: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+										},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer: &resolve.DeferField{
+												Path: []string{"query", "hero", "$4Droid"},
+											},
+										},
+										{
+											Name: []byte("favoriteEpisode"),
+											Value: &resolve.Enum{
+												Path:     []string{"favoriteEpisode"},
+												Nullable: true,
+												TypeName: "Episode",
+												Values: []string{
+													"NEWHOPE",
+													"EMPIRE",
+													"JEDI",
+												},
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer: &resolve.DeferField{
+												Path: []string{"query", "hero", "$1Droid"},
+											},
+										},
+										{
+											Name: []byte("friends"),
+											Value: &resolve.Array{
+												Path:     []string{"friends"},
+												Nullable: true,
+												Item: &resolve.Object{
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("name"),
+															Value: &resolve.String{
+																Path:     []string{"name"},
+																Nullable: false,
+															},
+															Defer: &resolve.DeferField{
+																Path: []string{"query", "hero", "$1Droid", "friends"},
+															},
+														},
+														{
+															Name: []byte("friends"),
+															Value: &resolve.Array{
+																Path:     []string{"friends"},
+																Nullable: true,
+																Item: &resolve.Object{
+																	Nullable: true,
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("name"),
+																			Value: &resolve.String{
+																				Path:     []string{"name"},
+																				Nullable: false},
+																			Defer: &resolve.DeferField{
+																				Path: []string{"query", "hero", "$1Droid", "friends", "$0Character", "friends"},
+																			},
+																		},
+																	},
+																	PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
+																	TypeName:      "Character",
+																},
+															},
+															Defer: &resolve.DeferField{
+																Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
+															},
+															OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
+														},
+													},
+													PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
+													TypeName:      "Character",
+												},
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											Defer: &resolve.DeferField{
+												Path: []string{"query", "hero", "$1Droid"},
+											},
+										},
+										{
+											Name: []byte("height"),
+											Value: &resolve.String{
+												Path:     []string{"height"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Human")},
+											Defer: &resolve.DeferField{
+												Path: []string{"query", "hero", "$2Human"},
+											},
+										},
+									},
+								},
+							},
+						},
+						Fetches: []resolve.Fetch{
+							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+						},
+					},
+				},
+			},
+			expected: &plan.SynchronousResponsePlan{
+				Response: &resolve.GraphQLResponse{
+					Data: &resolve.Object{
+						Nullable: false,
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("hero"),
+								Value: &resolve.Object{
+									Path:          []string{"hero"},
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetches: &resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSequence,
+						ChildNodes: []*resolve.FetchTreeNode{
+							{
+								Kind: resolve.FetchTreeNodeKindSingle,
+								Item: &resolve.FetchItem{
+									Fetch: &resolve.SingleFetch{
+										FetchConfiguration: resolve.FetchConfiguration{},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 1,
+										},
+									},
+								},
+							},
+						},
+					},
+					DeferredResponses: []*resolve.GraphQLResponse{
+						{
+							Data: &resolve.Object{
+								Nullable:      true,
+								Path:          []string{"hero"},
+								PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+								TypeName:      "Character",
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("primaryFunction"),
+										Value: &resolve.String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$4Droid"},
+										},
+									},
+									{
+										Name: []byte("friends"),
+										Value: &resolve.Object{
+											Nullable: true,
+											Path:     []string{},
+										},
+										OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
 									},
 								},
 							},

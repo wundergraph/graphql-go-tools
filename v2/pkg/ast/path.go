@@ -78,23 +78,9 @@ func (p Path) WithoutInlineFragmentNames() Path {
 }
 
 func (p Path) StringSlice() []string {
-	var ret []string
-	for i := range p {
-		switch p[i].Kind {
-		case ArrayIndex:
-			ret = append(ret, strconv.Itoa(p[i].ArrayIndex))
-		case FieldName:
-			out := "query"
-			if len(p[i].FieldName) != 0 {
-				out = unsafebytes.BytesToString(p[i].FieldName)
-			}
-			ret = append(ret, out)
-		case InlineFragmentName:
-			out := InlineFragmentPathPrefix
-			out += strconv.Itoa(p[i].FragmentRef)
-			out += unsafebytes.BytesToString(p[i].FieldName)
-			ret = append(ret, out)
-		}
+	ret := make([]string, len(p))
+	for i, item := range p {
+		ret[i] = item.String()
 	}
 	return ret
 }
@@ -141,6 +127,25 @@ func (p Path) DotDelimitedString() string {
 	}
 
 	return builder.String()
+}
+
+func (p PathItem) String() string {
+	switch p.Kind {
+	case ArrayIndex:
+		return strconv.Itoa(p.ArrayIndex)
+	case FieldName:
+		out := "query"
+		if len(p.FieldName) != 0 {
+			out = unsafebytes.BytesToString(p.FieldName)
+		}
+		return out
+	case InlineFragmentName:
+		out := InlineFragmentPathPrefix
+		out += strconv.Itoa(p.FragmentRef)
+		out += unsafebytes.BytesToString(p.FieldName)
+		return out
+	}
+	return ""
 }
 
 func (p *PathItem) UnmarshalJSON(data []byte) error {

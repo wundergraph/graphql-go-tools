@@ -41,6 +41,16 @@ type deferredFieldsVisitor struct {
 }
 
 func (v *deferredFieldsVisitor) EnterObject(obj *resolve.Object) {
+	v.enterObjectField(obj, true)
+}
+
+func (v *deferredFieldsVisitor) enterArrayField(obj *resolve.Array) {
+	if objItem, ok := obj.Item.(*resolve.Object); ok {
+		v.enterObjectField(objItem, false)
+	}
+}
+
+func (v *deferredFieldsVisitor) enterObjectField(obj *resolve.Object, replaceFieldInCurrentObject bool) {
 	newObj := &resolve.Object{
 		Nullable: obj.Nullable,
 		Path:     obj.Path,
@@ -52,7 +62,9 @@ func (v *deferredFieldsVisitor) EnterObject(obj *resolve.Object) {
 	}
 
 	// This is likely the object for the last field of the current object.
-	if v.currentObject != nil && len(v.currentObject.Fields) > 0 {
+	// Nope. Not for a field in an Array Item.
+	// TODO: refactor this.
+	if replaceFieldInCurrentObject && v.currentObject != nil && len(v.currentObject.Fields) > 0 {
 		v.currentObject.Fields[len(v.currentObject.Fields)-1].Value = newObj
 	}
 	v.currentObject = newObj
@@ -69,7 +81,7 @@ func (v *deferredFieldsVisitor) EnterObject(obj *resolve.Object) {
 
 func (v *deferredFieldsVisitor) LeaveObject(*resolve.Object) {
 	if depth := len(v.objectStack); depth > 1 {
-		v.currentObject = v.objectStack[depth-1]
+		v.currentObject = v.objectStack[depth-2]
 		v.objectStack = v.objectStack[:depth-1]
 	} else {
 		v.currentObject = nil
@@ -78,19 +90,30 @@ func (v *deferredFieldsVisitor) LeaveObject(*resolve.Object) {
 }
 
 func (v *deferredFieldsVisitor) EnterArray(obj *resolve.Array) {
-	// TODO
+	if v.currentObject != nil {
+		// TODO
+	}
 }
 
 func (v *deferredFieldsVisitor) LeaveArray(*resolve.Array) {
-	// TODO
+	if v.currentObject != nil {
+		// TODO
+	}
 }
 
 func (v *deferredFieldsVisitor) EnterField(field *resolve.Field) {
 	if field.Defer == nil {
-		dup := copyFieldWithoutObjectFields(field)
-		v.currentObject.Fields = append(v.currentObject.Fields, dup)
+		v.currentObject.Fields = append(v.currentObject.Fields, copyFieldWithoutObjectFields(field))
 		return
 	}
+
+	switch fv := field.Value.(type) {
+	case *resolve.Array:
+		v.currentObject.Fields = append(v.currentObject.Fields, copyFieldWithoutObjectFields(field))
+		v.enterArrayField(fv)
+		return
+	}
+
 	// A deferred field.
 	switch {
 	case v.currentDeferredPath == nil:
@@ -104,9 +127,9 @@ func (v *deferredFieldsVisitor) EnterField(field *resolve.Field) {
 			v.leaveDefer()
 			v.enterDefer(field)
 		}
-	case len(v.currentDeferredPath) > len(field.Defer.Path):
+	case len(field.Defer.Path) > len(v.currentDeferredPath):
 		v.enterDefer(field)
-	case len(v.currentDeferredPath) < len(field.Defer.Path):
+	case len(field.Defer.Path) < len(v.currentDeferredPath):
 		v.leaveDefer()
 	}
 }
@@ -122,7 +145,7 @@ func (v *deferredFieldsVisitor) enterDefer(field *resolve.Field) {
 		Nullable: parentObject.Nullable,
 		Fields:   []*resolve.Field{copyFieldWithoutObjectFields(field)},
 		Path:     parentObject.Path,
-		Fetches:  parentObject.Fetches,
+		Fetches:  v.fetchesFromPath(),
 
 		PossibleTypes: parentObject.PossibleTypes,
 		TypeName:      parentObject.TypeName,
@@ -133,9 +156,9 @@ func (v *deferredFieldsVisitor) enterDefer(field *resolve.Field) {
 	v.currentResponse = &resolve.GraphQLResponse{
 		Data: v.currentObject,
 	}
-	parentResponse.DeferredResponses = append(parentResponse.DeferredResponses, v.currentResponse)
-
 	v.responseStack = append(v.responseStack, v.currentResponse)
+
+	parentResponse.DeferredResponses = append(parentResponse.DeferredResponses, v.currentResponse)
 
 	v.currentDeferredPath = field.Defer.Path
 }
@@ -148,32 +171,67 @@ func (v *deferredFieldsVisitor) leaveDefer() {
 	v.currentDeferredPath = nil
 }
 
+func (v *deferredFieldsVisitor) fetchesFromPath() []resolve.Fetch {
+	for i := len(v.objectStack) - 1; i >= 0; i-- {
+		if v.objectStack[i].Fetches != nil {
+			return v.objectStack[i].Fetches
+		}
+	}
+	return nil
+}
+
 func copyFieldWithoutObjectFields(f *resolve.Field) *resolve.Field {
 	switch fv := f.Value.(type) {
 	case *resolve.Object:
 		ret := &resolve.Field{
-			Name:        f.Name,
-			Position:    f.Position,
-			Defer:       f.Defer,
-			Stream:      f.Stream,
-			OnTypeNames: f.OnTypeNames,
-			Info:        f.Info,
+			Name:              f.Name,
+			Position:          f.Position,
+			Defer:             f.Defer,
+			Stream:            f.Stream,
+			OnTypeNames:       f.OnTypeNames,
+			ParentOnTypeNames: f.ParentOnTypeNames,
+			Info:              f.Info,
 		}
-		if rv, ok := f.Value.(*resolve.Object); ok {
-			newValue := rv.Copy().(*resolve.Object)
-			newValue.Fields = nil
+		newValue := fv.Copy().(*resolve.Object)
+		newValue.Fields = nil
 
+		if len(fv.PossibleTypes) > 0 {
 			possibleTypes := make(map[string]struct{}, len(fv.PossibleTypes))
 			for k, v := range fv.PossibleTypes {
 				possibleTypes[k] = v
 			}
 			newValue.PossibleTypes = possibleTypes
-			newValue.SourceName = fv.SourceName
-			newValue.TypeName = fv.TypeName
+		}
+		newValue.SourceName = fv.SourceName
+		newValue.TypeName = fv.TypeName
+		newValue.Fetches = fv.Fetches
+
+		ret.Value = newValue
+		return ret
+	case *resolve.Array:
+		fvItem, ok := fv.Item.(*resolve.Object)
+		if !ok {
+			return f.Copy()
+		}
+		ret := &resolve.Field{
+			Name:              f.Name,
+			Position:          f.Position,
+			Defer:             f.Defer,
+			Stream:            f.Stream,
+			OnTypeNames:       f.OnTypeNames,
+			ParentOnTypeNames: f.ParentOnTypeNames,
+			Info:              f.Info,
+		}
+		newItem := fvItem.Copy().(*resolve.Object)
+		newItem.Fields = nil
+
+		ret.Value = &resolve.Array{
+			Path:     fv.Path,
+			Nullable: fv.Nullable,
+			Item:     newItem,
 		}
 		return ret
 	default:
 		return f.Copy()
-
 	}
 }

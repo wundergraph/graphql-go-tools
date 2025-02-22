@@ -6,7 +6,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-func AnalyzePlanKind(operation, definition *ast.Document, operationName string) (operationType ast.OperationType, streaming bool, error error) {
+func AnalyzePlanKind(operation, definition *ast.Document, operationName string) (operationType ast.OperationType, error error) {
 	walker := astvisitor.NewWalker(48)
 	visitor := &planKindVisitor{
 		Walker:        &walker,
@@ -20,10 +20,9 @@ func AnalyzePlanKind(operation, definition *ast.Document, operationName string) 
 	var report operationreport.Report
 	walker.Walk(operation, definition, &report)
 	if report.HasErrors() {
-		return ast.OperationTypeUnknown, false, report
+		return ast.OperationTypeUnknown, report
 	}
 	operationType = visitor.operationType
-	streaming = visitor.hasDeferDirective || visitor.hasStreamDirective
 	return
 }
 

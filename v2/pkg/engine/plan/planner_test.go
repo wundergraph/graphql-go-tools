@@ -384,7 +384,7 @@ func TestPlanner_Plan(t *testing.T) {
 		}))
 
 		t.Run("multi-level defer", test(testDefinition, `
-			query ComplexDefers {
+			query MultiLevelDefers {
 				hero {
 					name
 					... on Droid @defer {
@@ -397,6 +397,169 @@ func TestPlanner_Plan(t *testing.T) {
 									name
 								}
 							}
+						}
+					}
+					... on Human @defer {
+						height
+					}
+				}
+			}
+		`, "MultiLevelDefers", &SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("hero"),
+							Value: &resolve.Object{
+								Path:          []string{"hero"},
+								Nullable:      true,
+								TypeName:      "Character",
+								PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("name"),
+										Value: &resolve.String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+									},
+									{
+										Name:        []byte("primaryFunction"),
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$1Droid"},
+										},
+										Value: &resolve.String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
+									},
+									{
+										Name:        []byte("favoriteEpisode"),
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$1Droid"},
+										},
+										Value: &resolve.Enum{
+											Path:     []string{"favoriteEpisode"},
+											Nullable: true,
+											TypeName: "Episode",
+											Values: []string{
+												"NEWHOPE",
+												"EMPIRE",
+												"JEDI",
+											},
+										},
+									},
+									{
+										Name:        []byte("friends"),
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$1Droid"},
+										},
+										Value: &resolve.Array{
+											Path:     []string{"friends"},
+											Nullable: true,
+											Item: &resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("name"),
+														Defer: &resolve.DeferField{
+															Path: []string{"query", "hero", "$1Droid"},
+														},
+														Value: &resolve.String{
+															Path:     []string{"name"},
+															Nullable: false,
+														},
+													},
+													{
+														Name:        []byte("friends"),
+														OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
+														Defer: &resolve.DeferField{
+															Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
+														},
+														Value: &resolve.Array{
+															Path:     []string{"friends"},
+															Nullable: true,
+															Item: &resolve.Object{
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("name"),
+																		Value: &resolve.String{
+																			Path:     []string{"name"},
+																			Nullable: false},
+																		Defer: &resolve.DeferField{
+																			Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
+																		},
+																	},
+																},
+																PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
+																TypeName:      "Character",
+															},
+														},
+													},
+												},
+												PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
+												TypeName:      "Character",
+											},
+										},
+									},
+									{
+										Name:        []byte("height"),
+										OnTypeNames: [][]byte{[]byte("Human")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$2Human"},
+										},
+										Value: &resolve.String{
+											Path:     []string{"height"},
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
+						},
+					},
+				},
+			},
+		}, Configuration{
+			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
+			DataSources:                  []DataSource{testDefinitionDSConfiguration},
+		}))
+
+		t.Run("complex defer", test(testDefinition, `
+			query ComplexDefers {
+				hero {
+					name
+					... on Droid @defer {
+						primaryFunction
+						friends {
+							name
+							... @defer {
+								friends {
+									name
+								}
+							}
+							... on Human @defer {
+								height
+							}
+							... on Droid @defer {
+								primaryFunction
+							}
+						}
+						... @defer {
+							favoriteEpisode
 						}
 					}
 					... on Human @defer {
@@ -432,24 +595,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										OnTypeNames: [][]byte{[]byte("Droid")},
 										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$1Droid"},
-										},
-									},
-									{
-										Name: []byte("favoriteEpisode"),
-										Value: &resolve.Enum{
-											Path:     []string{"favoriteEpisode"},
-											Nullable: true,
-											TypeName: "Episode",
-											Values: []string{
-												"NEWHOPE",
-												"EMPIRE",
-												"JEDI",
-											},
-										},
-										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$1Droid"},
+											Path: []string{"query", "hero", "$4Droid"},
 										},
 									},
 									{
@@ -467,7 +613,7 @@ func TestPlanner_Plan(t *testing.T) {
 															Nullable: false,
 														},
 														Defer: &resolve.DeferField{
-															Path: []string{"query", "hero", "$1Droid", "friends"},
+															Path: []string{"query", "hero", "$4Droid"},
 														},
 													},
 													{
@@ -484,7 +630,7 @@ func TestPlanner_Plan(t *testing.T) {
 																			Path:     []string{"name"},
 																			Nullable: false},
 																		Defer: &resolve.DeferField{
-																			Path: []string{"query", "hero", "$1Droid", "friends", "$0Character", "friends"},
+																			Path: []string{"query", "hero", "$4Droid", "friends", "$0Character"},
 																		},
 																	},
 																},
@@ -493,9 +639,31 @@ func TestPlanner_Plan(t *testing.T) {
 															},
 														},
 														Defer: &resolve.DeferField{
-															Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
+															Path: []string{"query", "hero", "$4Droid", "friends", "$0Character"},
 														},
 														OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
+													},
+													{
+														Name: []byte("height"),
+														Value: &resolve.String{
+															Path:     []string{"height"},
+															Nullable: false,
+														},
+														OnTypeNames: [][]byte{[]byte("Human")},
+														Defer: &resolve.DeferField{
+															Path: []string{"query", "hero", "$4Droid", "friends", "$1Human"},
+														},
+													},
+													{
+														Name: []byte("primaryFunction"),
+														Value: &resolve.String{
+															Path:     []string{"primaryFunction"},
+															Nullable: false,
+														},
+														OnTypeNames: [][]byte{[]byte("Droid")},
+														Defer: &resolve.DeferField{
+															Path: []string{"query", "hero", "$4Droid", "friends", "$2Droid"},
+														},
 													},
 												},
 												PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
@@ -504,7 +672,24 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										OnTypeNames: [][]byte{[]byte("Droid")},
 										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$1Droid"},
+											Path: []string{"query", "hero", "$4Droid"},
+										},
+									},
+									{
+										Name: []byte("favoriteEpisode"),
+										Value: &resolve.Enum{
+											Path:     []string{"favoriteEpisode"},
+											Nullable: true,
+											TypeName: "Episode",
+											Values: []string{
+												"NEWHOPE",
+												"EMPIRE",
+												"JEDI",
+											},
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$4Droid", "$3Droid"},
 										},
 									},
 									{
@@ -515,7 +700,7 @@ func TestPlanner_Plan(t *testing.T) {
 										},
 										OnTypeNames: [][]byte{[]byte("Human")},
 										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$2Human"},
+											Path: []string{"query", "hero", "$5Human"},
 										},
 									},
 								},

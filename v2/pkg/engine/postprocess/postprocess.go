@@ -142,13 +142,8 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		for i := range p.processResponseTree {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
-		p.extractDeferredFields.Process(t.Response) // TODO: should this be before or after the fetch tree processors?
-		p.createFetchTree(t.Response)
-		p.dedupe.ProcessFetchTree(t.Response.Fetches)
-		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
-		for i := range p.processFetchTree {
-			p.processFetchTree[i].ProcessFetchTree(t.Response.Fetches)
-		}
+		p.extractDeferredFields.Process(t.Response)
+		p.processFetchTrees(t.Response)
 	case *plan.SubscriptionResponsePlan:
 		for i := range p.processResponseTree {
 			p.processResponseTree[i].ProcessSubscription(t.Response.Response.Data)
@@ -195,6 +190,18 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	res.Fetches = &resolve.FetchTreeNode{
 		Kind:       resolve.FetchTreeNodeKindSequence,
 		ChildNodes: children,
+	}
+}
+
+func (p *Processor) processFetchTrees(resp *resolve.GraphQLResponse) {
+	p.createFetchTree(resp)
+	p.dedupe.ProcessFetchTree(resp.Fetches)
+	p.resolveInputTemplates.ProcessFetchTree(resp.Fetches)
+	for i := range p.processFetchTree {
+		p.processFetchTree[i].ProcessFetchTree(resp.Fetches)
+	}
+	for _, deferred := range resp.DeferredResponses {
+		p.processFetchTrees(deferred)
 	}
 }
 
