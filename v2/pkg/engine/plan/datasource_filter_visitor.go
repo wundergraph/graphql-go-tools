@@ -206,7 +206,11 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 		if !ok {
 			break
 		}
-		f.nodes.items[parentIdx].selectWithReason(ReasonStage1SameSourceParent, f.enableSelectionReasons)
+
+		if !f.selectWithExternalCheck(parentIdx, ReasonStage1SameSourceParent) {
+			// when we see an external node in the chain, we stop selectiong process
+			break
+		}
 
 		current = parentIdx
 		if f.nodes.items[current].IsRootNode {
