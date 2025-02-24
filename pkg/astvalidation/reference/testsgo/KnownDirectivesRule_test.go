@@ -5,7 +5,6 @@ import (
 )
 
 func TestKnownDirectivesRule(t *testing.T) {
-	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, KnownDirectivesRule, queryStr)
@@ -191,11 +190,7 @@ func TestKnownDirectivesRule(t *testing.T) {
 		})
 
 		t.Run("within SDL", func(t *testing.T) {
-			t.Skip("NOT_IMPLEMENTED: Definition directive defined rule")
-
 			t.Run("with directive defined inside SDL", func(t *testing.T) {
-				t.Skip("NOT_IMPLEMENTED: Definition directive defined rule")
-
 				ExpectValidSDL(t, `
         type Query {
           foo: String @test

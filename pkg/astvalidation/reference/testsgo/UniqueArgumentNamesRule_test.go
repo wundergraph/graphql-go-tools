@@ -5,7 +5,6 @@ import (
 )
 
 func TestUniqueArgumentNamesRule(t *testing.T) {
-	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, UniqueArgumentNamesRule, queryStr)

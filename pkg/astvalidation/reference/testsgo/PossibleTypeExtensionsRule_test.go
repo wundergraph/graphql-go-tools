@@ -5,7 +5,6 @@ import (
 )
 
 func TestPossibleTypeExtensionsRule(t *testing.T) {
-	t.Skip()
 
 	ExpectSDLErrors := func(t *testing.T, sdlStr string, schemas ...string) ResultCompare {
 		schema := ""

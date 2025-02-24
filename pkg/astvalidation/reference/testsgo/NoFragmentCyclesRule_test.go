@@ -5,7 +5,6 @@ import (
 )
 
 func TestNoFragmentCyclesRule(t *testing.T) {
-	t.Skip("fails with fragment is unused - seems our rule should be splitted")
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, NoFragmentCyclesRule, queryStr)
@@ -16,7 +15,6 @@ func TestNoFragmentCyclesRule(t *testing.T) {
 	}
 
 	t.Run("Validate: No circular fragment spreads", func(t *testing.T) {
-
 		t.Run("single reference is valid", func(t *testing.T) {
 			ExpectValid(t, `
       fragment fragA on Dog { ...fragB }

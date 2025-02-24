@@ -138,7 +138,7 @@ func TestVariablesInAllowedPositionRule(t *testing.T) {
       query Query($boolVar: Boolean = false)
       {
         complicatedArgs {
-          complexArgField(complexArg: {requiredField: $boolVar}) # requiredArg is not exists in complex input
+          complexArgField(complexArg: {requiredArg: $boolVar})
         }
       }
     `)
