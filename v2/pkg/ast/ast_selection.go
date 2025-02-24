@@ -249,3 +249,7 @@ func (d *Document) SelectionIsFieldSelection(ref int) bool {
 func (d *Document) SelectionIsInlineFragmentSelection(ref int) bool {
 	return d.Selections[ref].Kind == SelectionKindInlineFragment
 }
+
+func (d *Document) SelectionIsFragmentSpreadSelection(ref int) bool {
+	return d.Selections[ref].Kind == SelectionKindFragmentSpread
+}

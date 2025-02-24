@@ -40,6 +40,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
 			WithNormalizeDefinition(),
+			WithSortSelectionSetFields(CompareSelectionSetFieldsLexicographically),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -94,11 +95,11 @@ func TestNormalizeOperation(t *testing.T) {
 					disallowedSecondRootField
 				}`, `
 				subscription sub {
+					disallowedSecondRootField
 					newMessage {
 						body
 						sender
 					}
-					disallowedSecondRootField
 				}`, "", "")
 	})
 	t.Run("inject default", func(t *testing.T) {
@@ -189,13 +190,12 @@ func TestNormalizeOperation(t *testing.T) {
 				query q {
 					pet {
 						... on Dog {
-							name
 							barkVolume
+							name
 						}
 					}
 				}`, ``, ``)
 	})
-
 	t.Run("fragments", func(t *testing.T) {
 		run(t, variablesExtractionDefinition, `
 			mutation HttpBinPost{
@@ -210,11 +210,11 @@ func TestNormalizeOperation(t *testing.T) {
 			}`, `
 			mutation HttpBinPost($a: HttpBinPostInput){
 			  httpBinPost(input: $a){
-				headers {
-				  userAgent
-				}
 				data {
 				  foo
+				}
+				headers {
+				  userAgent
 				}
 			  }
 			}`, ``, `{"a":{"foo":"bar"}}`)
@@ -240,9 +240,10 @@ func TestNormalizeOperation(t *testing.T) {
 				}
 			}`, `query($a: Location){
 				findUserByLocation(loc: $a) {
-					id
-					name
 					age
+					id
+					metadata
+					name
 					type {
 						... on TrialUser {
 							__typename
@@ -253,7 +254,6 @@ func TestNormalizeOperation(t *testing.T) {
 							subscription
 						}
 					}
-					metadata
 				}
 			}`,
 			`{"a": {"lat": 1.000, "lon": 2.000, "planet": "EARTH"}}`,

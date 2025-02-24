@@ -149,6 +149,7 @@ type options struct {
 	removeUnusedVariables                 bool
 	removeNotMatchingOperationDefinitions bool
 	normalizeDefinition                   bool
+	sortSelectionSetFieldsFunction        selectionSetFieldsCompare
 }
 
 type Option func(options *options)
@@ -186,6 +187,12 @@ func WithRemoveNotMatchingOperationDefinitions() Option {
 func WithNormalizeDefinition() Option {
 	return func(options *options) {
 		options.normalizeDefinition = true
+	}
+}
+
+func WithSortSelectionSetFields(fn selectionSetFieldsCompare) Option {
+	return func(options *options) {
+		options.sortSelectionSetFieldsFunction = fn
 	}
 }
 
@@ -273,6 +280,16 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,
 	})
+
+	if o.options.sortSelectionSetFieldsFunction != nil {
+		sortFields := astvisitor.NewWalker(8)
+		sortSelectionSetFields(&sortFields, o.options.sortSelectionSetFieldsFunction)
+
+		o.operationWalkers = append(o.operationWalkers, walkerStage{
+			name:   "sortSelectionSetFields",
+			walker: &sortFields,
+		})
+	}
 
 	if o.options.extractVariables {
 		variablesProcessing := astvisitor.NewWalker(8)
