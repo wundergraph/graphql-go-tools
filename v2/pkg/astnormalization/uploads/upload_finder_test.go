@@ -36,7 +36,7 @@ func TestUploadsFinder(t *testing.T) {
 			}
 			paths, err := runTest(t, tc)
 			require.NoError(t, err)
-			assert.Equal(t, []uploads.UploadPathMapping{{"bar", "variables.bar", ""}}, paths)
+			assert.Equal(t, []uploads.UploadPathMapping{{VariableName: "bar", OriginalUploadPath: "variables.bar"}}, paths)
 		})
 
 		t.Run("arg has nested upload", func(t *testing.T) {
@@ -48,7 +48,7 @@ func TestUploadsFinder(t *testing.T) {
 			paths, err := runTest(t, tc)
 			require.NoError(t, err)
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{"i", "variables.i.f", ""},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f"},
 			}, paths)
 		})
 
@@ -61,8 +61,8 @@ func TestUploadsFinder(t *testing.T) {
 			paths, err := runTest(t, tc)
 			require.NoError(t, err)
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{"i", "variables.i.f", ""},
-				{"i", "variables.i.f2", ""},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f"},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f2"},
 			}, paths)
 		})
 
@@ -75,10 +75,10 @@ func TestUploadsFinder(t *testing.T) {
 			paths, err := runTest(t, tc)
 			require.NoError(t, err)
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{"i", "variables.i.f.0", ""},
-				{"i", "variables.i.f2.0", ""},
-				{"i", "variables.i.f2.1", ""},
-				{"i", "variables.i.f2.2", ""},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f.0"},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f2.0"},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f2.1"},
+				{VariableName: "i", OriginalUploadPath: "variables.i.f2.2"},
 			}, paths)
 		})
 	})
@@ -93,7 +93,7 @@ func TestUploadsFinder(t *testing.T) {
 			paths, err := runTest(t, tc)
 			require.NoError(t, err)
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{"i", "variables.i", "f"},
+				{VariableName: "i", OriginalUploadPath: "variables.i", NewUploadPath: "f"},
 			}, paths)
 		})
 
@@ -149,18 +149,17 @@ func TestUploadsFinder(t *testing.T) {
 			paths, err := runTest(t, tc)
 			require.NoError(t, err)
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{"varOne", "variables.varOne.0.oneList.0.list.0", "twoList.0.oneList.0.list.0"},
-				{"varOne", "variables.varOne.0.oneList.0.list.1", "twoList.0.oneList.0.list.1"},
-				{"varOne", "variables.varOne.0.oneList.0.value", "twoList.0.oneList.0.value"},
-				{"varOne", "variables.varOne.0.one.list.0", "twoList.0.one.list.0"},
-				{"varOne", "variables.varOne.0.one.value", "twoList.0.one.value"},
-				{"varTwo", "variables.varTwo.oneList.0.list.0", "two.oneList.0.list.0"},
-				{"varTwo", "variables.varTwo.oneList.0.list.1", "two.oneList.0.list.1"},
-				{"varTwo", "variables.varTwo.oneList.0.value", "two.oneList.0.value"},
-				{"varTwo", "variables.varTwo.one.list.0", "two.one.list.0"},
-				{"varTwo", "variables.varTwo.one.value", "two.one.value"},
+				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.oneList.0.list.0", NewUploadPath: "twoList.0.oneList.0.list.0"},
+				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.oneList.0.list.1", NewUploadPath: "twoList.0.oneList.0.list.1"},
+				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.oneList.0.value", NewUploadPath: "twoList.0.oneList.0.value"},
+				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.one.list.0", NewUploadPath: "twoList.0.one.list.0"},
+				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.one.value", NewUploadPath: "twoList.0.one.value"},
+				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.oneList.0.list.0", NewUploadPath: "two.oneList.0.list.0"},
+				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.oneList.0.list.1", NewUploadPath: "two.oneList.0.list.1"},
+				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "two.oneList.0.value"},
+				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "two.one.list.0"},
+				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "two.one.value"},
 			}, paths)
-
 		})
 	})
 }
