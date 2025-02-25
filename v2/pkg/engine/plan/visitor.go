@@ -42,6 +42,7 @@ type Visitor struct {
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
+	deferredFragmentStack        []deferInfo
 	disableResolveFieldPositions bool
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
@@ -51,6 +52,16 @@ type Visitor struct {
 type indirectInterfaceField struct {
 	interfaceName string
 	node          ast.Node
+}
+
+type deferInfo struct {
+	// TODO: Label and If
+	Path []string
+	Ref  int
+}
+
+func (d *deferInfo) Equal(other *deferInfo) bool {
+	return slices.Equal(d.Path, other.Path) && d.Ref == other.Ref
 }
 
 func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
@@ -68,6 +79,9 @@ func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
 		v.debugPrint("EnterInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
 	case ast.NodeKindSelectionSet:
 		v.debugPrint("EnterSelectionSet", " ref: ", ref)
+	case ast.NodeKindFragmentSpread:
+		// TODO: fragment name (and type?)
+		v.debugPrint("EnterFragmentSpread", " ref: ", ref)
 	}
 }
 
@@ -86,6 +100,9 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 		v.debugPrint("LeaveInlineFragment : ", fragmentTypeCondition, " ref: ", ref)
 	case ast.NodeKindSelectionSet:
 		v.debugPrint("LeaveSelectionSet", " ref: ", ref)
+	case ast.NodeKindFragmentSpread:
+		// TODO: fragment name (and type?)
+		v.debugPrint("LeaveFragmentSpread", " ref: ", ref)
 	}
 }
 
@@ -254,8 +271,6 @@ func (v *Visitor) EnterDirective(ref int) {
 			v.currentField.Stream = &resolve.StreamField{
 				InitialBatchSize: initialBatchSize,
 			}
-		case "defer":
-			v.currentField.Defer = &resolve.DeferField{}
 		}
 	}
 }
@@ -287,10 +302,29 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 			includeVariableName: includeVariableName,
 		}
 	}
+
+	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		v.enterDefer(ref)
+	}
 }
 
 func (v *Visitor) LeaveInlineFragment(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindInlineFragment, ref)
+	v.leaveDeferIf()
+}
+
+func (v *Visitor) EnterFragmentSpread(ref int) {
+	v.debugOnEnterNode(ast.NodeKindFragmentSpread, ref)
+
+	directives := v.Operation.InlineFragments[ref].Directives.Refs
+	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		v.enterDefer(ref)
+	}
+}
+
+func (v *Visitor) LeaveFragmentSpread(ref int) {
+	v.debugOnLeaveNode(ast.NodeKindFragmentSpread, ref)
+	v.leaveDeferIf()
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
@@ -333,6 +367,12 @@ func (v *Visitor) EnterField(ref int) {
 		OnTypeNames: onTypeNames,
 		Position:    v.resolveFieldPosition(ref),
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
+	}
+
+	if v.inDefer() {
+		v.currentField.Defer = &resolve.DeferField{
+			Path: v.currentDeferPath().Path,
+		}
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
@@ -854,7 +894,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		popOnField: -1,
 	})
 
-	operationKind, _, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
+	operationKind, err := AnalyzePlanKind(v.Operation, v.Definition, v.OperationName)
 	if err != nil {
 		v.Walker.StopWithInternalErr(err)
 		return
@@ -879,7 +919,6 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 		}
 		return
 	}
-
 	v.plan = &SynchronousResponsePlan{
 		Response: graphQLResponse,
 	}
@@ -928,6 +967,7 @@ func (v *Visitor) EnterDocument(operation, definition *ast.Document) {
 	v.fieldConfigs = map[int]*FieldConfiguration{}
 	v.exportedVariables = map[string]struct{}{}
 	v.skipIncludeOnFragments = map[int]skipIncludeInfo{}
+	v.deferredFragmentStack = nil
 	v.indirectInterfaceFields = map[int]indirectInterfaceField{}
 	v.pathCache = map[astvisitor.VisitorKind]map[int]string{}
 }
@@ -1191,4 +1231,31 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	}
 
 	return singleFetch
+}
+
+func (v *Visitor) enterDefer(ref int) {
+	path := v.Walker.Path.StringSlice()
+	fragName := v.Operation.InlineFragmentTypeConditionNameString(ref)
+
+	v.deferredFragmentStack = append(v.deferredFragmentStack, deferInfo{
+		Path: append(path[:], fmt.Sprintf("%s%d%s", ast.InlineFragmentPathPrefix, ref, fragName)),
+		Ref:  ref,
+	})
+}
+
+func (v *Visitor) inDefer() bool {
+	return len(v.deferredFragmentStack) > 0
+}
+
+func (v *Visitor) currentDeferPath() *deferInfo {
+	if !v.inDefer() {
+		return nil
+	}
+	return &v.deferredFragmentStack[len(v.deferredFragmentStack)-1]
+}
+
+func (v *Visitor) leaveDeferIf() {
+	if v.inDefer() {
+		v.deferredFragmentStack = v.deferredFragmentStack[:len(v.deferredFragmentStack)-1]
+	}
 }
