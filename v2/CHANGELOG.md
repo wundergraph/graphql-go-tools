@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.158](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.157...v2.0.0-rc.158) (2025-02-22)
+
+
+### Bug Fixes
+
+* fix node selections do not select external parents of unique node ([#1087](https://github.com/wundergraph/graphql-go-tools/issues/1087)) ([6adc0f6](https://github.com/wundergraph/graphql-go-tools/commit/6adc0f69b40d1aa6bf8bd660cfdea6327b93ce1b))
+
 ## [2.0.0-rc.157](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.156...v2.0.0-rc.157) (2025-02-20)
 
 
