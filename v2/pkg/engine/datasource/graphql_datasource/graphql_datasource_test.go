@@ -8812,7 +8812,7 @@ func TestLoadFiles(t *testing.T) {
 			}}
 			verifyMultipartRequest(t, r.Clone(r.Context()), ExpectedRequest{
 				Operations: fmt.Sprintf(`{"query":"%s","variables":%s}`, queryString, variableString),
-				Map:        `{ "0" : ["variables.file"] }`,
+				Map:        `{"0":["variables.file"]}`,
 				Files:      expectedFiles,
 			})
 			body, _ := io.ReadAll(r.Body)
@@ -8840,12 +8840,7 @@ func TestLoadFiles(t *testing.T) {
 		buf := bytes.NewBuffer(nil)
 
 		ctx := context.Background()
-		require.NoError(t, src.LoadWithFiles(
-			ctx,
-			input,
-			[]httpclient.File{httpclient.NewFile(f.Name(), fileName)},
-			buf,
-		))
+		require.NoError(t, src.LoadWithFiles(ctx, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")}, buf))
 	})
 
 	t.Run("multiple files", func(t *testing.T) {
@@ -8867,7 +8862,7 @@ func TestLoadFiles(t *testing.T) {
 			}}
 			verifyMultipartRequest(t, r.Clone(r.Context()), ExpectedRequest{
 				Operations: fmt.Sprintf(`{"query":"%s","variables":%s}`, queryString, variableString),
-				Map:        `{ "0" : ["variables.files.0"], "1" : ["variables.files.1"] }`,
+				Map:        `{"0":["variables.files.0"],"1":["variables.files.1"]}`,
 				Files:      expectedFiles,
 			})
 			body, _ := io.ReadAll(r.Body)
@@ -8900,12 +8895,11 @@ func TestLoadFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		ctx := context.Background()
-		require.NoError(t, src.LoadWithFiles(
-			ctx,
-			input,
-			[]httpclient.File{httpclient.NewFile(f1.Name(), file1Name), httpclient.NewFile(f2.Name(), file2Name)},
-			buf,
-		))
+		require.NoError(t, src.LoadWithFiles(ctx, input,
+			[]*httpclient.FileUpload{
+				httpclient.NewFileUpload(f1.Name(), file1Name, "variables.files.0"),
+				httpclient.NewFileUpload(f2.Name(), file2Name, "variables.files.1")},
+			buf))
 	})
 }
 
