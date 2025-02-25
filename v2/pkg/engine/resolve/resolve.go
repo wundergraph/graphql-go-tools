@@ -297,6 +297,8 @@ func (s *sub) startWorkerWithHeartbeat() {
 
 	for {
 		select {
+		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
+			return
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
 		case fn := <-s.workChan:
@@ -310,8 +312,11 @@ func (s *sub) startWorkerWithHeartbeat() {
 }
 
 func (s *sub) startWorkerWithoutHeartbeat() {
+
 	for {
 		select {
+		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
+			return
 		case fn := <-s.workChan:
 			fn()
 		case <-s.completed: // Shutdown the writer when the subscription is completed
@@ -689,8 +694,18 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 
 		select {
 		case <-r.ctx.Done():
+			// Skip sending all events if the resolver is shutting down
+			return
 		case <-c.ctx.Done():
+			// Skip sending the event if the client disconnected
 		case s.workChan <- fn:
+			// Send the work to the subscription worker
+		case <-s.completed:
+			// Stop sending if the subscription is completed. Otherwise, this could block the event loop forever
+			// when the subscription worker was shutdown after channel close but the event was still scheduled.
+			if s.resolver.options.Debug {
+				fmt.Printf("resolver:trigger:subscription:completed:%d:%d\n", s.id.ConnectionID, s.id.SubscriptionID)
+			}
 		}
 	}
 }
@@ -733,16 +748,22 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 		if shutdownMatcher != nil && !shutdownMatcher(s.id) {
 			continue
 		}
-
 		// We close the completed channel on the work channel of the subscription
 		// to ensure that all jobs are processed before the channel is closed.
-		s.workChan <- func() {
+		select {
+		case <-r.ctx.Done():
+			// Skip sending the event if the resolver is shutting down
+		case <-c.ctx.Done():
+			// Skip sending the event if the client disconnected
+		case s.workChan <- func() {
 			// We put the complete handshake to the work channel of the subscription
 			// to ensure that it is the last message that is sent to the client.
 			if c.Context().Err() == nil {
 				s.writer.Complete()
 			}
+			// This will shutdown the subscription worker
 			close(s.completed)
+		}:
 		}
 
 		delete(trig.subscriptions, c)
