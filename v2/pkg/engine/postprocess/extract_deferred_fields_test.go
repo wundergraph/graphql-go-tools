@@ -209,7 +209,6 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 		{
 			name: "multi-level case",
 			input: &resolve.GraphQLResponse{
-				// { hero name ...on Droid @defer { ... } ...on Human @defer { ... } }
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -229,18 +228,22 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 										},
 									},
 									{
-										Name: []byte("primaryFunction"),
-										Value: &resolve.String{
-											Path:     []string{"primaryFunction"},
-											Nullable: false,
-										},
+										Name:        []byte("primaryFunction"),
 										OnTypeNames: [][]byte{[]byte("Droid")},
 										Defer: &resolve.DeferField{
 											Path: []string{"query", "hero", "$1Droid"},
 										},
+										Value: &resolve.String{
+											Path:     []string{"primaryFunction"},
+											Nullable: false,
+										},
 									},
 									{
-										Name: []byte("favoriteEpisode"),
+										Name:        []byte("favoriteEpisode"),
+										OnTypeNames: [][]byte{[]byte("Droid")},
+										Defer: &resolve.DeferField{
+											Path: []string{"query", "hero", "$1Droid"},
+										},
 										Value: &resolve.Enum{
 											Path:     []string{"favoriteEpisode"},
 											Nullable: true,
@@ -251,13 +254,13 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 												"JEDI",
 											},
 										},
+									},
+									{
+										Name:        []byte("friends"),
 										OnTypeNames: [][]byte{[]byte("Droid")},
 										Defer: &resolve.DeferField{
 											Path: []string{"query", "hero", "$1Droid"},
 										},
-									},
-									{
-										Name: []byte("friends"),
 										Value: &resolve.Array{
 											Path:     []string{"friends"},
 											Nullable: true,
@@ -266,16 +269,20 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 												Fields: []*resolve.Field{
 													{
 														Name: []byte("name"),
+														Defer: &resolve.DeferField{
+															Path: []string{"query", "hero", "$1Droid"},
+														},
 														Value: &resolve.String{
 															Path:     []string{"name"},
 															Nullable: false,
 														},
-														Defer: &resolve.DeferField{
-															Path: []string{"query", "hero", "$1Droid", "friends"},
-														},
 													},
 													{
-														Name: []byte("friends"),
+														Name:        []byte("friends"),
+														OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
+														Defer: &resolve.DeferField{
+															Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
+														},
 														Value: &resolve.Array{
 															Path:     []string{"friends"},
 															Nullable: true,
@@ -288,7 +295,7 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 																			Path:     []string{"name"},
 																			Nullable: false},
 																		Defer: &resolve.DeferField{
-																			Path: []string{"query", "hero", "$1Droid", "friends", "$0Character", "friends"},
+																			Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
 																		},
 																	},
 																},
@@ -296,30 +303,22 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 																TypeName:      "Character",
 															},
 														},
-														Defer: &resolve.DeferField{
-															Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
-														},
-														OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
 													},
 												},
 												PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}},
 												TypeName:      "Character",
 											},
 										},
-										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$1Droid"},
-										},
 									},
 									{
-										Name: []byte("height"),
-										Value: &resolve.String{
-											Path:     []string{"height"},
-											Nullable: false,
-										},
+										Name:        []byte("height"),
 										OnTypeNames: [][]byte{[]byte("Human")},
 										Defer: &resolve.DeferField{
 											Path: []string{"query", "hero", "$2Human"},
+										},
+										Value: &resolve.String{
+											Path:     []string{"height"},
+											Nullable: false,
 										},
 									},
 								},
@@ -332,7 +331,6 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 			},
 			expected: &resolve.GraphQLResponse{
-				// { hero name }
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -359,10 +357,8 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 						&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
 					},
 				},
-				// { hero ...on Droid { primaryFunction favoriteEpisode friends { name ... @defer { friends { name } } } } }
 				DeferredResponses: []*resolve.GraphQLResponse{
 					{
-						// { hero ...on Droid { primaryFunction favoriteEpisode friends { name } } }
 						Data: &resolve.Object{
 							Path:          []string{"hero"},
 							Nullable:      true,
@@ -430,10 +426,12 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 								&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
 							},
 						},
-						// { hero ...on Droid { friends { friends { name } } } }
 						DeferredResponses: []*resolve.GraphQLResponse{
 							{
 								Data: &resolve.Object{
+									Nullable:      true,
+									TypeName:      "Character",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
 									Fields: []*resolve.Field{
 										{
 											Name: []byte("friends"),
@@ -463,14 +461,13 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 											OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
 										},
 									},
-									// Fetches: []resolve.Fetch{
-									// 	&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
-									// },
+									Fetches: []resolve.Fetch{
+										&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+									},
 								},
 							},
 						},
 					},
-					// { hero ...on Human { height } }
 					{
 						Data: &resolve.Object{
 							Path:          []string{"hero"},

@@ -55,7 +55,7 @@ type indirectInterfaceField struct {
 }
 
 type deferInfo struct {
-	// TODO: Label and If
+	// TODO(cd): Label and If
 	Path []string
 	Ref  int
 }
@@ -80,7 +80,7 @@ func (v *Visitor) debugOnEnterNode(kind ast.NodeKind, ref int) {
 	case ast.NodeKindSelectionSet:
 		v.debugPrint("EnterSelectionSet", " ref: ", ref)
 	case ast.NodeKindFragmentSpread:
-		// TODO: fragment name (and type?)
+		// TODO(cd): fragment name (and type?)
 		v.debugPrint("EnterFragmentSpread", " ref: ", ref)
 	}
 }
@@ -101,7 +101,7 @@ func (v *Visitor) debugOnLeaveNode(kind ast.NodeKind, ref int) {
 	case ast.NodeKindSelectionSet:
 		v.debugPrint("LeaveSelectionSet", " ref: ", ref)
 	case ast.NodeKindFragmentSpread:
-		// TODO: fragment name (and type?)
+		// TODO(cd): fragment name (and type?)
 		v.debugPrint("LeaveFragmentSpread", " ref: ", ref)
 	}
 }

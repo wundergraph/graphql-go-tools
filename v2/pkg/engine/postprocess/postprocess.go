@@ -142,7 +142,7 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		for i := range p.processResponseTree {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
-		p.extractDeferredFields.Process(t.Response)
+		p.extractDeferredFields.Process(t.Response) // TODO(cd): consider skipping if no deferred fields found.
 		p.processFetchTrees(t.Response)
 	case *plan.SubscriptionResponsePlan:
 		for i := range p.processResponseTree {
