@@ -2,9 +2,10 @@ package astvalidation
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -3946,6 +3947,30 @@ func TestExecutionValidation(t *testing.T) {
 					withValidationErrors(
 						`Variable "$a" of type "Boolean" used in position expecting type "[String]"`,
 					))
+			})
+
+			t.Run("complex nested optionalListOfOptionalStrings of type [String] should accept more restrictive type [String!]!", func(t *testing.T) {
+				runWithDefinition(t, `
+						scalar String
+
+						schema {
+							query: Query
+						}
+
+						type Query {
+							nested(input: NestedInput): String
+						}
+
+						input NestedInput {
+							optionalListOfOptionalStrings: [String]
+						}
+						`, `
+						query Q($a: [String!]!) {
+							nested(input: {
+								optionalListOfOptionalStrings: $a
+							})
+						}
+						`, Values(), Valid)
 			})
 		})
 	})

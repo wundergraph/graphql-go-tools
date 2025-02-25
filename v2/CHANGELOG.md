@@ -1,5 +1,31 @@
 # Changelog
 
+## [2.0.0-rc.158](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.157...v2.0.0-rc.158) (2025-02-22)
+
+
+### Bug Fixes
+
+* fix node selections do not select external parents of unique node ([#1087](https://github.com/wundergraph/graphql-go-tools/issues/1087)) ([6adc0f6](https://github.com/wundergraph/graphql-go-tools/commit/6adc0f69b40d1aa6bf8bd660cfdea6327b93ce1b))
+
+## [2.0.0-rc.157](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.156...v2.0.0-rc.157) (2025-02-20)
+
+
+### Features
+
+* **engine:** mutex free subscription handling ([#1076](https://github.com/wundergraph/graphql-go-tools/issues/1076)) ([21be4ab](https://github.com/wundergraph/graphql-go-tools/commit/21be4ab2fff9962d6f56b2bcb6d51b70a2651381))
+
+
+### Bug Fixes
+
+* fix values validation list compatibility check ([#1082](https://github.com/wundergraph/graphql-go-tools/issues/1082)) ([541be0d](https://github.com/wundergraph/graphql-go-tools/commit/541be0d07d200c79235c1af9b9c6cdf2f4870d65))
+
+## [2.0.0-rc.156](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.155...v2.0.0-rc.156) (2025-02-18)
+
+
+### Features
+
+* apollo-router-like non-ok http status errors ([#1072](https://github.com/wundergraph/graphql-go-tools/issues/1072)) ([e685c29](https://github.com/wundergraph/graphql-go-tools/commit/e685c29331c0d1879ff8e099d4441047fbddf054))
+
 ## [2.0.0-rc.155](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.154...v2.0.0-rc.155) (2025-02-15)
 
 
