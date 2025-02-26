@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.159](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.158...v2.0.0-rc.159) (2025-02-26)
+
+
+### Features
+
+* support files in nested variable input ([#1095](https://github.com/wundergraph/graphql-go-tools/issues/1095)) ([88c583a](https://github.com/wundergraph/graphql-go-tools/commit/88c583ac7447a6a204b67857823d847ce66550c8))
+
 ## [2.0.0-rc.158](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.157...v2.0.0-rc.158) (2025-02-22)
 
 
