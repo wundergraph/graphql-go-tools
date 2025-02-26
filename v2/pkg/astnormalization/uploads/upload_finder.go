@@ -59,6 +59,17 @@ func (v *UploadFinder) FindUploads(operation, definition *ast.Document, variable
 	v.definition = definition
 	v.operation = operation
 
+	node, ok := v.definition.NodeByName(uploadScalarName)
+	if !ok {
+		// there is no Upload type found in the schema
+		return
+	}
+
+	if node.Kind != ast.NodeKindScalarTypeDefinition {
+		// Upload type is not a scalar type
+		return
+	}
+
 	if variables == nil || bytes.Equal(variables, []byte("null")) || bytes.Equal(variables, []byte("")) {
 		variables = []byte("{}")
 	}
@@ -83,19 +94,21 @@ func (v *UploadFinder) FindUploads(operation, definition *ast.Document, variable
 	return nil, nil
 }
 
+// traverseValue is a recursive function that traverses ast.Value aka input object representation passed to a query field argument
 func (v *UploadFinder) traverseValue(value ast.Value, valueTypeRef int) {
 	switch value.Kind {
-	case ast.ValueKindVariable:
+	case ast.ValueKindVariable: // when direct value of an argument is a variable
 		v.variableUsedDirectlyOnArg = !v.currentArgPath.hasPath()
 		v.traverseVariable(value.Ref, valueTypeRef)
-	case ast.ValueKindList:
+	case ast.ValueKindList: // when value is a list we will be traversing each list item
 		listItemTypeRef := valueTypeRef
 		for i, ref := range v.operation.ListValues[value.Ref].Refs {
+			// during traversion a list we track list index in the path
 			v.currentArgPath.pushArrayPath(i)
 			v.traverseValue(v.operation.Value(ref), v.definition.Types[listItemTypeRef].OfType)
 			v.currentArgPath.popPath()
 		}
-	case ast.ValueKindObject:
+	case ast.ValueKindObject: // when value is an object, we need to traverse it's fields
 		typeNameBytes := v.definition.ResolveTypeNameBytes(valueTypeRef)
 		objectTypeNode, ok := v.definition.NodeByName(typeNameBytes)
 		if !ok {
@@ -113,6 +126,7 @@ func (v *UploadFinder) traverseValue(value ast.Value, valueTypeRef int) {
 				continue
 			}
 
+			// during traversion of an object we track object field name in the path
 			v.currentArgPath.pushObjectPath(objectFieldName)
 			v.traverseValue(v.operation.ObjectField(ref).Value, v.definition.InputValueDefinitionType(fieldInputValueDefinitionRef))
 			v.currentArgPath.popPath()
@@ -133,15 +147,15 @@ func (v *UploadFinder) traverseVariable(variableValueRef int, definitionValueTyp
 	v.currentVariableValue = v.variables.Get(operationVariableName)
 
 	// we rely on the fact that there is only one operation in the document
+	// we need to get a variable typename from operation to be able to find corresponding type in the definition
 	const operationDefinitionRef = 0
 	variableDefinitionRef, ok := v.operation.VariableDefinitionByNameAndOperation(operationDefinitionRef, operationVariableNameBytes)
 	if !ok {
 		return
 	}
-
 	variableTypeRef := v.operation.VariableDefinitionType(variableDefinitionRef)
-
 	variableTypeName := v.operation.ResolveTypeNameBytes(variableTypeRef)
+
 	definitionTypeName := v.definition.ResolveTypeNameBytes(definitionValueTypeRef)
 	if !bytes.Equal(variableTypeName, definitionTypeName) {
 		return
@@ -149,6 +163,8 @@ func (v *UploadFinder) traverseVariable(variableValueRef int, definitionValueTyp
 
 	v.currentVariablePath.pushObjectPath(variablesLiteral)
 	v.currentVariablePath.pushObjectPath(operationVariableNameBytes)
+	// once we have found a variable we need to traverse its value
+	// but this time we will be walking on the definition types and look into json to see which fields are present
 	v.traverseOperationType(v.currentVariableValue, variableTypeRef)
 	v.currentVariablePath.popPath()
 	v.currentVariablePath.popPath()
