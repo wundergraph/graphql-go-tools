@@ -1063,8 +1063,21 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 								},
 							},
 						},
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{FetchDependencies: resolve.FetchDependencies{FetchID: 1}},
+					},
+					Fetches: &resolve.FetchTreeNode{
+						Kind: resolve.FetchTreeNodeKindSequence,
+						ChildNodes: []*resolve.FetchTreeNode{
+							{
+								Kind: resolve.FetchTreeNodeKindSingle,
+								Item: &resolve.FetchItem{
+									Fetch: &resolve.SingleFetch{
+										FetchConfiguration: resolve.FetchConfiguration{},
+										FetchDependencies: resolve.FetchDependencies{
+											FetchID: 1,
+										},
+									},
+								},
+							},
 						},
 					},
 					DeferredResponses: []*resolve.GraphQLResponse{
@@ -1152,7 +1165,8 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 																Name: []byte("name"),
 																Value: &resolve.String{
 																	Path:     []string{"name"},
-																	Nullable: false},
+																	Nullable: false,
+																},
 																Defer: &resolve.DeferField{
 																	Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
 																},
@@ -1163,6 +1177,9 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 													},
 												},
 												OnTypeNames: [][]byte{[]byte("Human"), []byte("Droid")},
+												Defer: &resolve.DeferField{
+													Path: []string{"query", "hero", "$1Droid", "friends", "$0Character"},
+												},
 											},
 										},
 									},
@@ -1194,6 +1211,12 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 												FetchConfiguration: resolve.FetchConfiguration{},
 												FetchDependencies: resolve.FetchDependencies{
 													FetchID: 1,
+												},
+											},
+											FetchPath: []resolve.FetchItemPathElement{
+												{
+													Kind: resolve.FetchItemPathElementKindObject,
+													Path: []string{"hero"},
 												},
 											},
 										},
@@ -1231,6 +1254,12 @@ func TestProcess_IncrementalConversion(t *testing.T) {
 												FetchConfiguration: resolve.FetchConfiguration{},
 												FetchDependencies: resolve.FetchDependencies{
 													FetchID: 1,
+												},
+											},
+											FetchPath: []resolve.FetchItemPathElement{
+												{
+													Kind: resolve.FetchItemPathElementKindObject,
+													Path: []string{"hero"},
 												},
 											},
 										},
