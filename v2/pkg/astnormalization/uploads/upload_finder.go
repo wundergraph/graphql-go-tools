@@ -14,6 +14,9 @@ var (
 	variablesLiteral = []byte("variables")
 )
 
+// UploadFinder is a helper to find upload structs in the arguments of a query
+// it can be used only in context of arguments extraction normalization rule
+// because it iterates one argument at time
 type UploadFinder struct {
 	operation                 *ast.Document
 	definition                *ast.Document
@@ -28,9 +31,9 @@ type UploadFinder struct {
 }
 
 type UploadPathMapping struct {
-	VariableName       string
-	OriginalUploadPath string
-	NewUploadPath      string
+	VariableName       string // is a variable name holding the direct or nested value of type Upload, example "f"
+	OriginalUploadPath string // is a path relative to variables which have an Upload type, example "variables.f"
+	NewUploadPath      string // if variable was used in the inline object like this `arg: {f: $f}` this field will hold the new extracted path, example "variables.a.f", if it is an empty, there was no change in the path
 }
 
 func NewUploadFinder() *UploadFinder {

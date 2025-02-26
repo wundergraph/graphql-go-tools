@@ -87,9 +87,18 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	}
 
 	if len(uploadsMapping) > 0 {
+		// when we are extracting an input object into a variable and there were uploads inside
+		// we have to update the upload path mapping to reflect the new extracted variable path
 		for i := range uploadsMapping {
 			if uploadsMapping[i].NewUploadPath != "" {
-				uploadsMapping[i].NewUploadPath = fmt.Sprintf("variables.%s.%s", string(variableNameBytes), uploadsMapping[i].NewUploadPath)
+				// we alter a path only when upload was in a nested value
+				// NewUploadPath, which returned from upload finder, is relative to the extracted argument "nested.f"
+				variableNameString := string(variableNameBytes)
+				// in order to replace file map values we prepend it with fully quilifying argument path in variables
+				// e.g. variables.a.nested.f
+				uploadsMapping[i].NewUploadPath = fmt.Sprintf("variables.%s.%s", variableNameString, uploadsMapping[i].NewUploadPath)
+				// update variable name which holds an upload
+				uploadsMapping[i].VariableName = variableNameString
 			}
 			v.uploadsPath = append(v.uploadsPath, uploadsMapping[i])
 		}

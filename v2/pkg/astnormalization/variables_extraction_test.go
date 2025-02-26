@@ -573,7 +573,7 @@ func TestVariablesExtraction(t *testing.T) {
 			)
 
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{VariableName: "i", OriginalUploadPath: "variables.i", NewUploadPath: "variables.a.f"},
+				{VariableName: "a", OriginalUploadPath: "variables.i", NewUploadPath: "variables.a.f"},
 			}, visitor.uploadsPath)
 		})
 
@@ -600,16 +600,16 @@ func TestVariablesExtraction(t *testing.T) {
 			)
 
 			assert.Equal(t, []uploads.UploadPathMapping{
-				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.oneList.0.list.0", NewUploadPath: "variables.a.twoList.0.oneList.0.list.0"},
-				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.oneList.0.list.1", NewUploadPath: "variables.a.twoList.0.oneList.0.list.1"},
-				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.oneList.0.value", NewUploadPath: "variables.a.twoList.0.oneList.0.value"},
-				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.one.list.0", NewUploadPath: "variables.a.twoList.0.one.list.0"},
-				{VariableName: "varOne", OriginalUploadPath: "variables.varOne.0.one.value", NewUploadPath: "variables.a.twoList.0.one.value"},
-				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.oneList.0.list.0", NewUploadPath: "variables.a.two.oneList.0.list.0"},
-				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.oneList.0.list.1", NewUploadPath: "variables.a.two.oneList.0.list.1"},
-				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
-				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
-				{VariableName: "varTwo", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.0", NewUploadPath: "variables.a.twoList.0.oneList.0.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.1", NewUploadPath: "variables.a.twoList.0.oneList.0.list.1"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.value", NewUploadPath: "variables.a.twoList.0.oneList.0.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.list.0", NewUploadPath: "variables.a.twoList.0.one.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.value", NewUploadPath: "variables.a.twoList.0.one.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.0", NewUploadPath: "variables.a.two.oneList.0.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.1", NewUploadPath: "variables.a.two.oneList.0.list.1"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
 			}, visitor.uploadsPath)
 		})
 
