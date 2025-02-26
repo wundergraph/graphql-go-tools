@@ -45,7 +45,7 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte, out *bytes.Buf
 	return
 }
 
-func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
+func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}

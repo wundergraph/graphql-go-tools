@@ -70,6 +70,7 @@ package astnormalization
 
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -338,10 +339,11 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 }
 
 type VariablesNormalizer struct {
-	firstDetectUnused *astvisitor.Walker
-	secondExtract     *astvisitor.Walker
-	thirdDeleteUnused *astvisitor.Walker
-	fourthCoerce      *astvisitor.Walker
+	firstDetectUnused          *astvisitor.Walker
+	secondExtract              *astvisitor.Walker
+	thirdDeleteUnused          *astvisitor.Walker
+	fourthCoerce               *astvisitor.Walker
+	variablesExtractionVisitor *variablesExtractionVisitor
 }
 
 func NewVariablesNormalizer() *VariablesNormalizer {
@@ -358,32 +360,35 @@ func NewVariablesNormalizer() *VariablesNormalizer {
 	detectVariableUsage(&firstDetectUnused, del)
 
 	secondExtract := astvisitor.NewWalker(8)
-	extractVariables(&secondExtract)
+	variablesExtractionVisitor := extractVariables(&secondExtract)
 	extractVariablesDefaultValue(&secondExtract)
 
 	fourthCoerce := astvisitor.NewWalker(0)
 	inputCoercionForList(&fourthCoerce)
 
 	return &VariablesNormalizer{
-		firstDetectUnused: &firstDetectUnused,
-		secondExtract:     &secondExtract,
-		thirdDeleteUnused: &thirdDeleteUnused,
-		fourthCoerce:      &fourthCoerce,
+		firstDetectUnused:          &firstDetectUnused,
+		secondExtract:              &secondExtract,
+		thirdDeleteUnused:          &thirdDeleteUnused,
+		fourthCoerce:               &fourthCoerce,
+		variablesExtractionVisitor: variablesExtractionVisitor,
 	}
 }
 
-func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
+func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) []uploads.UploadPathMapping {
 	v.firstDetectUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return nil
 	}
 	v.secondExtract.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return nil
 	}
 	v.thirdDeleteUnused.Walk(operation, definition, report)
 	if report.HasErrors() {
-		return
+		return nil
 	}
 	v.fourthCoerce.Walk(operation, definition, report)
+
+	return v.variablesExtractionVisitor.uploadsPath
 }

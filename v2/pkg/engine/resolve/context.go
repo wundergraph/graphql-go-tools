@@ -16,7 +16,7 @@ import (
 type Context struct {
 	ctx              context.Context
 	Variables        *astjson.Value
-	Files            []httpclient.File
+	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
 	RemapVariables   map[string]string
@@ -145,7 +145,7 @@ func (c *Context) clone(ctx context.Context) *Context {
 		variablesData := c.Variables.MarshalTo(nil)
 		cpy.Variables = astjson.MustParseBytes(variablesData)
 	}
-	cpy.Files = append([]httpclient.File(nil), c.Files...)
+	cpy.Files = append([]*httpclient.FileUpload(nil), c.Files...)
 	cpy.Request.Header = c.Request.Header.Clone()
 	cpy.RenameTypeNames = append([]RenameTypeName(nil), c.RenameTypeNames...)
 
