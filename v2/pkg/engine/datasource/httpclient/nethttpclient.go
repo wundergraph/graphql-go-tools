@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -264,7 +265,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out *byte
 }
 
 func DoMultipartForm(
-	client *http.Client, ctx context.Context, requestInput []byte, files []File, out *bytes.Buffer,
+	client *http.Client, ctx context.Context, requestInput []byte, files []*FileUpload, out *bytes.Buffer,
 ) (err error) {
 	if len(files) == 0 {
 		return errors.New("no files provided")
@@ -280,18 +281,20 @@ func DoMultipartForm(
 		"operations": bytes.NewReader(body),
 	}
 
-	var fileMap string
 	var tempFiles []*os.File
+
+	fileMap := bytes.NewBuffer(nil)
+	fileMap.WriteString("{")
+	hasWrittenFileName := false
+
 	for i, file := range files {
-		if len(fileMap) == 0 {
-			if len(files) == 1 {
-				fileMap = fmt.Sprintf(`"%d" : ["variables.file"]`, i)
-			} else {
-				fileMap = fmt.Sprintf(`"%d" : ["variables.files.%d"]`, i, i)
-			}
-		} else {
-			fileMap = fmt.Sprintf(`%s, "%d" : ["variables.files.%d"]`, fileMap, i, i)
+		if hasWrittenFileName {
+			fileMap.WriteString(",")
 		}
+		hasWrittenFileName = true
+
+		fileMap.WriteString(fmt.Sprintf(`"%d":["%s"]`, i, file.variablePath))
+
 		key := fmt.Sprintf("%d", i)
 		_, _ = h.WriteString(file.Path())
 		temporaryFile, err := os.Open(file.Path())
@@ -301,7 +304,8 @@ func DoMultipartForm(
 		}
 		formValues[key] = bufio.NewReader(temporaryFile)
 	}
-	formValues["map"] = strings.NewReader("{ " + fileMap + " }")
+	fileMap.WriteString("}")
+	formValues["map"] = strings.NewReader(fileMap.String())
 
 	multipartBody, contentType, err := multipartBytes(formValues, files)
 	if err != nil {
@@ -326,7 +330,7 @@ func DoMultipartForm(
 	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
 }
 
-func multipartBytes(values map[string]io.Reader, files []File) (*io.PipeReader, string, error) {
+func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeReader, string, error) {
 	byteBuf := &bytes.Buffer{}
 	mpWriter := multipart.NewWriter(byteBuf)
 	contentType := mpWriter.FormDataContentType()

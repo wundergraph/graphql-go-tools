@@ -1473,6 +1473,26 @@ func TestVariablesValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, `Variable "$input" got invalid value at "input.foo.bar"; String cannot represent a non string value`, err.Error())
 	})
+
+	t.Run("nested input object provided with null for Upload", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { file: Upload! } type Query { hello(arg: Foo!): String }`,
+			operation: `query Foo($input: Foo!) { hello(arg: $input) }`,
+			variables: `{"input":{"file":null}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
+
+	t.Run("nested input object on nested input object provided with null for Upload", func(t *testing.T) {
+		tc := testCase{
+			schema:    `input Foo { bar: Upload! } input Bar { foo: Foo! } type Query { hello(arg: Bar!): String }`,
+			operation: `query Foo($input: Bar!) { hello(arg: $input) }`,
+			variables: `{"input":{"foo":{"bar":null}}}`,
+		}
+		err := runTest(t, tc)
+		require.NoError(t, err)
+	})
 }
 
 type testCase struct {
