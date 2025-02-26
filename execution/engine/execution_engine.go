@@ -231,8 +231,6 @@ func (e *ExecutionEngine) Execute(ctx context.Context, operation *graphql.Reques
 		return err
 	case *plan.SubscriptionResponsePlan:
 		return e.resolver.ResolveGraphQLSubscription(execContext.resolveContext, p.Response, writer)
-	case *plan.IncrementalResponsePlan:
-		return e.resolver.ResolveGraphQLIncrementalResponse(execContext.resolveContext, p.Response, writer)
 	default:
 		return errors.New("execution of operation is not possible")
 	}

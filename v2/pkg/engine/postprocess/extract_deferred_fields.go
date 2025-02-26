@@ -9,7 +9,9 @@ import (
 type extractDeferredFields struct{}
 
 func (e *extractDeferredFields) Process(resp *resolve.GraphQLResponse) {
-	baseResponse := &resolve.GraphQLResponse{} // TODO(cd): may not be needed.
+	baseResponse := &resolve.GraphQLResponse{
+		Info: resp.Info,
+	}
 	visitor := &deferredFieldsVisitor{
 		responseStack: []*responseItem{
 			{
@@ -20,7 +22,6 @@ func (e *extractDeferredFields) Process(resp *resolve.GraphQLResponse) {
 	visitor.walker = &PlanWalker{
 		objectVisitor: visitor,
 		fieldVisitor:  visitor,
-		arrayVisitor:  visitor, // TODO(cd): may not be needed.
 	}
 	visitor.walker.Walk(resp.Data, resp.Info)
 
@@ -94,12 +95,6 @@ func (v *deferredFieldsVisitor) LeaveObject(*resolve.Object) {
 	if depth := len(resp.objectStack); depth > 1 {
 		resp.objectStack = resp.objectStack[:depth-1]
 	}
-}
-
-func (v *deferredFieldsVisitor) EnterArray(obj *resolve.Array) {
-}
-
-func (v *deferredFieldsVisitor) LeaveArray(*resolve.Array) {
 }
 
 func (v *deferredFieldsVisitor) EnterField(field *resolve.Field) {
@@ -182,6 +177,7 @@ func (v *deferredFieldsVisitor) enterDefer(field *resolve.Field) {
 	parentResponse := v.currentResponseItem()
 	newResponse := &resolve.GraphQLResponse{
 		Data: newObj,
+		Info: parentResponse.response.Info,
 	}
 	parentResponse.response.DeferredResponses = append(parentResponse.response.DeferredResponses, newResponse)
 

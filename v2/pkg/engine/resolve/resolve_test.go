@@ -4773,93 +4773,107 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 func TestResolver_ResolveGraphQLIncrementalResponse(t *testing.T) {
 	cases := []struct {
 		name     string
-		response *GraphQLIncrementalResponse
+		response *GraphQLResponse
 		expected string
 	}{
 		{
 			name: "sunny day",
-			response: &GraphQLIncrementalResponse{
-				ImmediateResponse: &GraphQLResponse{
-					Info: &GraphQLResponseInfo{
-						OperationType: ast.OperationTypeQuery,
-					},
-					Data: &Object{
-						Nullable: false,
-						Fields: []*Field{
-							{
-								Name: []byte("hero"),
-								Value: &Object{
-									Path:          []string{"hero"},
-									Nullable:      true,
-									TypeName:      "Character",
-									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
-									Fields: []*Field{
-										{
-											Name: []byte("name"),
-											Value: &String{
-												Path:     []string{"name"},
-												Nullable: false,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-					Fetches: Single(&SingleFetch{
-						FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"name":"Luke"}}`)},
-					}),
+			response: &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
 				},
-				DeferredResponses: []*GraphQLIncrementalResponse{
-					{
-						ImmediateResponse: &GraphQLResponse{
-							Info: &GraphQLResponseInfo{
-								OperationType: ast.OperationTypeQuery,
-							},
-							Data: &Object{
-								Nullable: false,
-								Path:     []string{"hero"},
+				Data: &Object{
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("hero"),
+							Value: &Object{
+								Path:          []string{"hero"},
+								Nullable:      true,
+								TypeName:      "Character",
+								PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
 								Fields: []*Field{
 									{
-										Name: []byte("primaryFunction"),
+										Name: []byte("name"),
 										Value: &String{
-											Path:     []string{"primaryFunction"},
+											Path:     []string{"name"},
 											Nullable: false,
 										},
-										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer:       &DeferField{},
-									},
-									{
-										Name: []byte("favoriteEpisode"),
-										Value: &Enum{
-											Path:     []string{"favoriteEpisode"},
-											Nullable: true,
-											TypeName: "Episode",
-											Values: []string{
-												"NEWHOPE",
-												"EMPIRE",
-												"JEDI",
-											},
-										},
-										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer:       &DeferField{},
 									},
 								},
 							},
-							Fetches: Single(&SingleFetch{
-								FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}`)},
-							}),
 						},
+					},
+				},
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"name":"Luke"}}`)},
+				}),
+				DeferredResponses: []*GraphQLResponse{
+					{
+						Info: &GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
+						},
+						Data: &Object{
+							Path:          []string{"hero"},
+							Nullable:      true,
+							TypeName:      "Character",
+							PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+							Fields: []*Field{
+								// TODO(cd): can injecting this be avoided?
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path: []string{"__typename"},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &String{
+										Path:     []string{"primaryFunction"},
+										Nullable: false,
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									Defer: &DeferField{
+										Path: []string{"query", "hero", "$0Droid"},
+									},
+								},
+								{
+									Name: []byte("favoriteEpisode"),
+									Value: &Enum{
+										Path:     []string{"favoriteEpisode"},
+										Nullable: true,
+										TypeName: "Episode",
+										Values: []string{
+											"NEWHOPE",
+											"EMPIRE",
+											"JEDI",
+										},
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									Defer: &DeferField{
+										Path: []string{"query", "hero", "$0Droid"},
+									},
+								},
+							},
+						},
+						Fetches: Single(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}`)},
+						}),
 					},
 				},
 			},
 			expected: strings.ReplaceAll(`--graphql-go-tools
-content-type: application/json; charset=utf-8
+Content-Type: application/json; charset=utf-8
 
-{"data":{"hero":{"name":"Luke"}}}--graphql-go-tools
-content-type: application/json
+{"data":{"hero":{"name":"Luke"}}}
+--graphql-go-tools
+Content-Type: application/json; charset=utf-8
 
-{"hasNext":false,"incremental":[{"data":{"hero":{"primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}]}
+{"hasNext":true,"incremental":[{"data":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}},"path":["hero"]]}
+--graphql-go-tools
+Content-Type: application/json; charset=utf-8
+
+{"hasNext":false,"incremental":[]}
 --graphql-go-tools--
 `, "\n", "\r\n"),
 		},
@@ -4870,10 +4884,14 @@ content-type: application/json
 			ctx := context.Background()
 			r := newResolver(ctx)
 			var buf bytes.Buffer
-			w := &MultipartIncrementalResponseWriter{Writer: &buf}
-			err := r.ResolveGraphQLIncrementalResponse(&Context{ctx: ctx}, tc.response, w)
+			w := &MultipartJSONWriter{
+				Writer:        &buf,
+				BoundaryToken: "graphql-go-tools",
+			}
+			info, err := r.ResolveGraphQLResponse(&Context{ctx: ctx}, tc.response, nil, w)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, buf.String())
+			require.NotNil(t, info)
 		})
 	}
 }

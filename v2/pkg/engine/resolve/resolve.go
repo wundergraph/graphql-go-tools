@@ -236,29 +236,81 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	defer func() {
 		r.maxConcurrency <- struct{}{}
 	}()
-
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
-	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
-	if err != nil {
+	if err := r.doResolve(ctx, t, response, data, writer); err != nil {
 		return nil, err
 	}
 
+	if iw, ok := writer.(IncrementalResponseWriter); ok {
+		if err := iw.Complete(); err != nil {
+			return nil, fmt.Errorf("completing response: %w", err)
+		}
+	}
+	return resp, nil
+}
+
+var errInvalidWriter = errors.New("invalid writer")
+
+func (r *Resolver) doResolve(ctx *Context, t *tools, response *GraphQLResponse, data []byte, writer io.Writer) error {
+
+	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
+	if err != nil {
+		return err
+	}
 	if !ctx.ExecutionOptions.SkipLoader {
-		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		err := t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	buf := &bytes.Buffer{}
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
-	if err != nil {
-		return nil, err
+	if err := t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf); err != nil {
+		return err
 	}
 
-	_, err = buf.WriteTo(writer)
-	return resp, err
+	if _, err := buf.WriteTo(writer); err != nil {
+		return fmt.Errorf("writing response: %w", err)
+	}
+
+	if iw, ok := writer.(IncrementalResponseWriter); ok {
+		if err := iw.Flush(resolvedPath(response.Data.Path)); err != nil {
+			return fmt.Errorf("flushing immediate response: %w", err)
+		}
+	}
+
+	if len(response.DeferredResponses) > 0 {
+		iw, ok := writer.(IncrementalResponseWriter)
+		if !ok {
+			return fmt.Errorf("%w: writer %T does not support incremental writing", errInvalidWriter, writer)
+		}
+
+		for i, deferredResponse := range response.DeferredResponses {
+			if err := r.doResolve(ctx, t, deferredResponse, nil, iw); err != nil {
+				return fmt.Errorf("resolving deferred response %d: %w", i, err)
+			}
+			if err := iw.Flush(resolvedPath(deferredResponse.Data.Path)); err != nil {
+				return fmt.Errorf("flushing incremental response: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+func resolvedPath(data []string) []any {
+	if len(data) == 0 {
+		return nil
+	}
+	ret := make([]any, len(data))
+	for i, v := range data {
+		if v == "@" {
+			ret[i] = 0 // TODO(cd): need the real values here.
+			continue
+		}
+		ret[i] = v
+	}
+	return ret
 }
 
 type trigger struct {

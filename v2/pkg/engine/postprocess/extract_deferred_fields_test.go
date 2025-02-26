@@ -8,6 +8,7 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
@@ -20,6 +21,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 		{
 			name: "trivial case",
 			input: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -48,6 +52,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 			},
 			expected: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -79,6 +86,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 		{
 			name: "simple case",
 			input: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -135,6 +145,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 			},
 			expected: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -163,6 +176,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 				DeferredResponses: []*resolve.GraphQLResponse{
 					{
+						Info: &resolve.GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
+						},
 						Data: &resolve.Object{
 							Path:          []string{"hero"},
 							Nullable:      true,
@@ -209,6 +225,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 		{
 			name: "multi-level case",
 			input: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -331,6 +350,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 			},
 			expected: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -359,6 +381,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 				DeferredResponses: []*resolve.GraphQLResponse{
 					{
+						Info: &resolve.GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
+						},
 						Data: &resolve.Object{
 							Path:          []string{"hero"},
 							Nullable:      true,
@@ -428,6 +453,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 						},
 						DeferredResponses: []*resolve.GraphQLResponse{
 							{
+								Info: &resolve.GraphQLResponseInfo{
+									OperationType: ast.OperationTypeQuery,
+								},
 								Data: &resolve.Object{
 									Nullable:      true,
 									TypeName:      "Character",
@@ -469,6 +497,9 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 						},
 					},
 					{
+						Info: &resolve.GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
+						},
 						Data: &resolve.Object{
 							Path:          []string{"hero"},
 							Nullable:      true,
