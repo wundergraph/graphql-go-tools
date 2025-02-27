@@ -39,7 +39,6 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(FieldSelections(opts))
 	validator.RegisterRule(FieldSelectionMerging())
 	validator.RegisterRule(KnownArguments())
-	validator.RegisterRule(ValidArguments())
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())
 	validator.RegisterRule(RequiredArguments())
