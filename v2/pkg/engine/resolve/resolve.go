@@ -764,7 +764,7 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 			// If a flush fails and at the same time the connection pool decided to close the connection and all subscriptions.
 			// This would produce in two events to close the subscription. Both events could occur after another, and because
 			// it is offloaded onto a separate goroutine, we might try to send events an event after the channel was closed
-			// which would block the event loop.
+			// which would block the event loop forever.
 		case s.workChan <- func() {
 			// We put the complete handshake to the work channel of the subscription
 			// to ensure that it is the last message that is sent to the client.
