@@ -376,6 +376,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 
 	if err := sub.writer.Flush(); err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
+		// Need to happen over the channel to not produce a race condition
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		return
 	}
@@ -453,6 +454,7 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 	if _, err := sub.writer.Write(data); err != nil {
 		if errors.Is(err, context.Canceled) {
 			// If Write fails (e.g. client disconnected), remove the subscription.
+			// Need to happen over the channel to not produce a race condition
 			_ = r.AsyncUnsubscribeSubscription(sub.id)
 			return
 		}
@@ -461,6 +463,7 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 	err := sub.writer.Flush()
 	if err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
+		// Need to happen over the channel to not produce a race condition
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		return
 	}
@@ -750,11 +753,17 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 		}
 		// We close the completed channel on the work channel of the subscription
 		// to ensure that all jobs are processed before the channel is closed.
+		// We never return to remove the subscription from the map.
 		select {
 		case <-r.ctx.Done():
 			// Skip sending the event if the resolver is shutting down
 		case <-c.ctx.Done():
 			// Skip sending the event if the client disconnected
+		case <-s.completed:
+			// Skip sending the event if the subscription was already completed e.g.
+			// flush fails and at the same time the connection pool decided to close the connection and all subscriptions.
+			// This would produce two events to close the subscription. Both events could occur after another and we might
+			// try to send events to a closed channel which would block the event loop.
 		case s.workChan <- func() {
 			// We put the complete handshake to the work channel of the subscription
 			// to ensure that it is the last message that is sent to the client.
