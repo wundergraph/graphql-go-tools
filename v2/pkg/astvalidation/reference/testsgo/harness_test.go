@@ -86,7 +86,7 @@ var rulesMap = map[string][]astvalidation.Rule{
 	ValuesOfCorrectTypeRule:                   {astvalidation.Values()},
 	VariablesAreInputTypesRule:                {astvalidation.VariablesAreInputTypes()},
 	KnownTypeNamesOperationRule:               {astvalidation.VariablesAreInputTypes(), astvalidation.Fragments()},
-	VariablesInAllowedPositionRule:            {astvalidation.ValidArguments(), astvalidation.Values()},
+	VariablesInAllowedPositionRule:            {astvalidation.Values()},
 
 	// fragments rules
 	FragmentsOnCompositeTypesRule: {astvalidation.Fragments()},

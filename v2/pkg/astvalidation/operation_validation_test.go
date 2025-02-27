@@ -2118,7 +2118,7 @@ func TestExecutionValidation(t *testing.T) {
 									doesKnowCommand(dogCommand: $catCommand)
 								}
 							}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$catCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
+					Values(), Invalid, withValidationErrors(`Variable "$catCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `query argOnRequiredArg($dogCommand: CatCommand) {
@@ -2128,7 +2128,7 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$dogCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
+					Values(), Invalid, withValidationErrors(`Variable "$dogCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean) {
@@ -2139,7 +2139,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $booleanArg) @include(if: true)
 							}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	
@@ -2151,7 +2151,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 							}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	
@@ -2163,7 +2163,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 							}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
+					Values(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean!) {
@@ -2176,7 +2176,7 @@ func TestExecutionValidation(t *testing.T) {
 											isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 										}
 									}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2187,7 +2187,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
+					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2198,7 +2198,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
+					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2211,7 +2211,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
+					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("118", func(t *testing.T) {
 				run(t, `	
@@ -2251,7 +2251,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment multipleArgsReverseOrder on ValidArguments {
 								multipleReqs(y: 2, x: 1)
 							}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("undefined arg", func(t *testing.T) {
 				run(t, `	{
@@ -3729,7 +3729,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanArgField(booleanArg: $intArg)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$intArg" of type "Int" used in position expecting type "Boolean".`))
+					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Int" used in position expecting type "Boolean".`))
 			})
 			t.Run("170", func(t *testing.T) {
 				run(t, `query booleanListCannotGoIntoBoolean($booleanListArg: [Boolean]) {
@@ -3737,7 +3737,7 @@ func TestExecutionValidation(t *testing.T) {
 										booleanArgField(booleanArg: $booleanListArg)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanListArg" of type "[Boolean]" used in position expecting type "Boolean".`))
+					Values(), Invalid, withValidationErrors(`Variable "$booleanListArg" of type "[Boolean]" used in position expecting type "Boolean".`))
 			})
 			t.Run("171", func(t *testing.T) {
 				run(t, `query booleanArgQuery($booleanArg: Boolean) {
@@ -3745,7 +3745,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
+					Values(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
 			// Non-null types are compatible with nullable types.
 			t.Run("172", func(t *testing.T) {
@@ -3754,7 +3754,7 @@ func TestExecutionValidation(t *testing.T) {
 									nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $nonNullListOfBoolean)
 								}
 							}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listToList($listOfBoolean: [Boolean]) {
@@ -3762,7 +3762,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfBooleanArgField(listOfBooleanArg: $listOfBoolean)
 									}
 								}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listOfNonNullToList($listOfNonNullBoolean: [Boolean!]) {
@@ -3770,7 +3770,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfBooleanArgField(listOfBooleanArg: $listOfNonNullBoolean)
 									}
 								}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query nonNullListOfNonNullToList($nonNullListOfNonNullBoolean: [Boolean!]!) {
@@ -3778,7 +3778,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfBooleanArgField(listOfBooleanArg: $nonNullListOfNonNullBoolean)
 									}
 								}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query nonNullListToListLiteral {
@@ -3812,7 +3812,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $listOfBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean!]"`))
+					Values(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean!]"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query nonNullListToListOfNonNull($nonNullListOfBoolean: [Boolean]!) {
@@ -3820,7 +3820,7 @@ func TestExecutionValidation(t *testing.T) {
 										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $nonNullListOfBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$nonNullListOfBoolean" of type "[Boolean]!" used in position expecting type "[Boolean!]"`))
+					Values(), Invalid, withValidationErrors(`Variable "$nonNullListOfBoolean" of type "[Boolean]!" used in position expecting type "[Boolean!]"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listOfNonNullToNonNullList($listOfNonNullBoolean: [Boolean!]) {
@@ -3828,7 +3828,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfNonNullBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$listOfNonNullBoolean" of type "[Boolean!]" used in position expecting type "[Boolean]!"`))
+					Values(), Invalid, withValidationErrors(`Variable "$listOfNonNullBoolean" of type "[Boolean!]" used in position expecting type "[Boolean]!"`))
 			})
 			t.Run("173", func(t *testing.T) {
 				run(t, `query listToNonNullList($listOfBoolean: [Boolean]) {
@@ -3836,7 +3836,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfBoolean)
 									}
 								}`,
-					ValidArguments(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean]!"`))
+					Values(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean]!"`))
 			})
 			t.Run("174", func(t *testing.T) {
 				run(t, `query booleanArgQueryWithDefault($booleanArg: Boolean) {
@@ -3844,7 +3844,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanWithDefaultArgField(nonNullBooleanWithDefaultArg: $booleanArg)
 									}
 								}`,
-					ValidArguments(), Valid)
+					Values(), Valid)
 			})
 			t.Run("175", func(t *testing.T) {
 				run(t, `query booleanArgQueryWithDefault($booleanArg: Boolean = true) {
@@ -3852,7 +3852,7 @@ func TestExecutionValidation(t *testing.T) {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					ValidArguments(), Valid, withDisableNormalization())
+					Values(), Valid, withDisableNormalization())
 			})
 			t.Run("complex values", func(t *testing.T) {
 				runWithDefinition(t, wundergraphSchema, `
@@ -3867,7 +3867,7 @@ func TestExecutionValidation(t *testing.T) {
 							}
 						}
 					}
-					`, ValidArguments(), Valid)
+					`, Values(), Valid)
 			})
 			t.Run("complex values", func(t *testing.T) {
 				runWithDefinition(t, wundergraphSchema, `
@@ -3949,28 +3949,115 @@ func TestExecutionValidation(t *testing.T) {
 					))
 			})
 
-			t.Run("complex nested optionalListOfOptionalStrings of type [String] should accept more restrictive type [String!]!", func(t *testing.T) {
-				runWithDefinition(t, `
-						scalar String
+			t.Run("nested variable with a list type validation", func(t *testing.T) {
+				definition := `
+					scalar String
 
-						schema {
-							query: Query
-						}
+					schema {
+						query: Query
+					}
 
-						type Query {
-							nested(input: NestedInput): String
-						}
+					type Query {
+						nested(input: Input): String
+						nested2(input: Input2): String
+						nested3(input: Input3): String
+						nested4(input: Input4): String
+					}
 
-						input NestedInput {
-							optionalListOfOptionalStrings: [String]
-						}
-						`, `
-						query Q($a: [String!]!) {
-							nested(input: {
-								optionalListOfOptionalStrings: $a
-							})
-						}
-						`, Values(), Valid)
+					input Input {
+						list: [String]
+					}
+
+					input Input2 {
+						list: [String!]
+					}
+
+					input Input3 {
+						list: [String]!
+					}
+
+					input Input4 {
+						list: [String!]!
+					}`
+
+				t.Run("[String]", func(t *testing.T) {
+					t.Run("[String] -> [String]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]) { nested(input: {list: $a})}`, Values(), Valid)
+					})
+
+					t.Run("[String]! -> [String]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]!) { nested(input: {list: $a})}`, Values(), Valid)
+					})
+
+					t.Run("[String!] -> [String]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]) { nested(input: {list: $a})}`, Values(), Valid)
+					})
+
+					t.Run("[String!]! -> [String]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]!) { nested(input: {list: $a})}`, Values(), Valid)
+					})
+				})
+
+				t.Run("[String!]", func(t *testing.T) {
+					t.Run("[String] -> [String!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]) { nested2(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String]" used in position expecting type "[String!]"`))
+					})
+
+					t.Run("[String]! -> [String!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]!) { nested2(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String]!" used in position expecting type "[String!]"`))
+					})
+
+					t.Run("[String!] -> [String!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]) { nested2(input: {list: $a})}`, Values(), Valid)
+					})
+
+					t.Run("[String!]! -> [String!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]!) { nested2(input: {list: $a})}`, Values(), Valid)
+					})
+				})
+
+				t.Run("[String]!", func(t *testing.T) {
+					t.Run("[String] -> [String]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]) { nested3(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String]" used in position expecting type "[String]!"`))
+					})
+
+					t.Run("[String]! -> [String]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]!) { nested3(input: {list: $a})}`, Values(), Valid)
+					})
+
+					t.Run("[String!] -> [String]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]) { nested3(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String!]" used in position expecting type "[String]!"`))
+					})
+
+					t.Run("[String!]! -> [String]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]!) { nested3(input: {list: $a})}`, Values(), Valid)
+					})
+				})
+
+				t.Run("[String!]!", func(t *testing.T) {
+					t.Run("[String] -> [String!]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]) { nested4(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String]" used in position expecting type "[String!]!"`))
+					})
+
+					t.Run("[String]! -> [String!]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String]!) { nested4(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String]!" used in position expecting type "[String!]!"`))
+					})
+
+					t.Run("[String!] -> [String!]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]) { nested4(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[String!]" used in position expecting type "[String!]!"`))
+					})
+
+					t.Run("[String!]! -> [String!]!", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [String!]!) { nested4(input: {list: $a})}`, Values(), Valid)
+					})
+				})
 			})
 		})
 	})
@@ -4870,7 +4957,7 @@ type __Field {
     deprecationReason: String
 }
 
-"""ValidArguments provided to FieldSelections or Directives and the input fields of an
+"""Arguments provided to FieldSelections or Directives and the input fields of an
 InputObject are represented as Input Values which describe their type and
 optionally a default value.
 """

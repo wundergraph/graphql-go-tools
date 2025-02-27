@@ -45,27 +45,24 @@ func (v *valuesVisitor) EnterVariableDefinition(ref int) {
 
 func (v *valuesVisitor) EnterArgument(ref int) {
 
-	definition, exists := v.ArgumentInputValueDefinition(ref)
+	definitionRef, exists := v.ArgumentInputValueDefinition(ref)
 	if !exists {
 		return
 	}
 
 	value := v.operation.ArgumentValue(ref)
 	if value.Kind == ast.ValueKindVariable {
-		variableName := v.operation.VariableValueNameBytes(value.Ref)
-		variableDefinition, exists := v.operation.VariableDefinitionByNameAndOperation(v.Ancestors[0].Ref, variableName)
+		_, exists := v.variableDefinition(value.Ref)
 		if !exists {
-			operationName := v.operation.OperationDefinitionNameBytes(v.Ancestors[0].Ref)
-			v.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnOperation(variableName, operationName))
+			v.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnOperation(v.operation.VariableValueNameBytes(value.Ref), []byte("")))
 			return
 		}
-		if !v.operation.VariableDefinitions[variableDefinition].DefaultValue.IsDefined {
-			return // variable has no default value, deep type check not required
-		}
-		value = v.operation.VariableDefinitions[variableDefinition].DefaultValue.Value
+
+		v.validateIfValueSatisfiesInputFieldDefinition(value, definitionRef)
+		return
 	}
 
-	v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definition].Type)
+	v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definitionRef].Type)
 }
 
 func (v *valuesVisitor) valueSatisfiesOperationType(value ast.Value, operationTypeRef int) bool {
@@ -160,11 +157,32 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 	case ast.TypeKindNamed:
 		return v.valuesSatisfiesNamedType(value, definitionTypeRef)
 	case ast.TypeKindList:
-		return v.valueSatisfiesListType(value, definitionTypeRef, v.definition.Types[definitionTypeRef].OfType)
+		return v.valueSatisfiesListType(value, definitionTypeRef)
 	default:
 		v.handleTypeError(value, definitionTypeRef)
 		return false
 	}
+}
+
+func (v *valuesVisitor) variableValueSatisfiesDefinitionType(value ast.Value, definitionTypeRef int) bool {
+	variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
+	if !ok {
+		v.handleTypeError(value, definitionTypeRef)
+		return false
+	}
+
+	hasDefaultValue := v.operation.VariableDefinitionHasDefaultValue(variableDefinitionRef)
+
+	if !v.operationTypeSatisfiesDefinitionType(variableTypeRef, definitionTypeRef, hasDefaultValue) {
+		v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
+		return false
+	}
+
+	if hasDefaultValue {
+		return v.valueSatisfiesInputValueDefinitionType(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.Value, definitionTypeRef)
+	}
+
+	return true
 }
 
 func (v *valuesVisitor) valuesSatisfiesNonNullType(value ast.Value, definitionTypeRef int) bool {
@@ -173,22 +191,7 @@ func (v *valuesVisitor) valuesSatisfiesNonNullType(value ast.Value, definitionTy
 		v.handleUnexpectedNullError(value, definitionTypeRef)
 		return false
 	case ast.ValueKindVariable:
-		variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
-		if !ok {
-			v.handleTypeError(value, definitionTypeRef)
-			return false
-		}
-
-		if v.operation.VariableDefinitionHasDefaultValue(variableDefinitionRef) {
-			return v.valueSatisfiesInputValueDefinitionType(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.Value, definitionTypeRef)
-		}
-
-		importedDefinitionType := v.importer.ImportType(definitionTypeRef, v.definition, v.operation)
-		if !v.operation.TypesAreEqualDeep(importedDefinitionType, variableTypeRef) {
-			v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
-			return false
-		}
-		return true
+		return v.variableValueSatisfiesDefinitionType(value, definitionTypeRef)
 	}
 	return v.valueSatisfiesInputValueDefinitionType(value, v.definition.Types[definitionTypeRef].OfType)
 }
@@ -209,27 +212,11 @@ func (v *valuesVisitor) valuesSatisfiesNamedType(value ast.Value, definitionType
 	return v.valueSatisfiesTypeDefinitionNode(value, definitionTypeRef, node)
 }
 
-func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRef int, listItemType int) bool {
+func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRef int) bool {
+	listItemType := v.definition.Types[definitionTypeRef].OfType
 
 	if value.Kind == ast.ValueKindVariable {
-		variableDefinitionRef, actualType, _, ok := v.operationVariableType(value.Ref)
-		if !ok {
-			v.handleTypeError(value, definitionTypeRef)
-			return false
-		}
-
-		if v.operation.VariableDefinitionHasDefaultValue(variableDefinitionRef) {
-			return v.valueSatisfiesInputValueDefinitionType(v.operation.VariableDefinitions[variableDefinitionRef].DefaultValue.Value, definitionTypeRef)
-		}
-
-		expectedType := v.importer.ImportType(listItemType, v.definition, v.operation)
-		actualType = v.operation.ResolveUnderlyingType(actualType)
-
-		if !v.operation.TypesAreEqualDeep(expectedType, actualType) {
-			v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
-			return false
-		}
-		return true
+		return v.variableValueSatisfiesDefinitionType(value, definitionTypeRef)
 	}
 
 	if value.Kind == ast.ValueKindNull {
@@ -259,7 +246,6 @@ func (v *valuesVisitor) valueSatisfiesListType(value ast.Value, definitionTypeRe
 
 	return valid
 }
-
 func (v *valuesVisitor) valueSatisfiesTypeDefinitionNode(value ast.Value, definitionTypeRef int, node ast.Node) bool {
 	switch node.Kind {
 	case ast.NodeKindEnumTypeDefinition:
@@ -587,8 +573,13 @@ func (v *valuesVisitor) handleVariableHasIncompatibleTypeError(value ast.Value, 
 		return
 	}
 
-	variableDefinitionRef, _, actualTypeName, ok := v.operationVariableType(value.Ref)
+	variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
 	if !ok {
+		return
+	}
+
+	actualTypeName, err := v.operation.PrintTypeBytes(variableTypeRef, nil)
+	if v.HandleInternalErr(err) {
 		return
 	}
 
