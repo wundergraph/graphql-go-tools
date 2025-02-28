@@ -303,6 +303,7 @@ func (s *sub) startWorkerWithHeartbeat() {
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
 		case fn, ok := <-s.workChan:
 			if !ok {
+				s.complete()
 				return
 			}
 			fn()
@@ -320,10 +321,24 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 			return
 		case fn, ok := <-s.workChan:
 			if !ok {
+				s.complete()
 				return
 			}
 			fn()
 		}
+	}
+}
+
+func (s *sub) complete() {
+	// The channel is used to communicate that the subscription is done
+	// It is used only in the synchronous subscription case and to avoid sending events
+	// to a subscription that is already done.
+	defer close(s.completed)
+
+	// We put the complete handshake to the work channel of the subscription
+	// to ensure that it is the last message that is sent to the client.
+	if s.ctx.Context().Err() == nil {
+		s.writer.Complete()
 	}
 }
 
@@ -545,6 +560,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
+		completed: s.completed,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -743,24 +759,6 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 	for c, s := range trig.subscriptions {
 		if shutdownMatcher != nil && !shutdownMatcher(s.id) {
 			continue
-		}
-		// We close the completed channel on the work channel of the subscription
-		// to ensure that all jobs are processed before the channel is closed.
-		select {
-		case <-r.ctx.Done():
-			// Skip sending the event if the resolver is shutting down
-		case <-c.ctx.Done():
-			// Skip sending the event if the client disconnected
-		case s.workChan <- func() {
-			// We put the complete handshake to the work channel of the subscription
-			// to ensure that it is the last message that is sent to the client.
-			if c.Context().Err() == nil {
-				s.writer.Complete()
-			}
-			// The channel is used to wait for the subscription to drain
-			// in the synchronous subscription case
-			close(s.completed)
-		}:
 		}
 
 		// Because the event loop is single threaded, we can safely close the channel from this sender
@@ -1016,6 +1014,7 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
+	completed chan struct{}
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1025,6 +1024,8 @@ func (s *subscriptionUpdater) Update(data []byte) {
 
 	select {
 	case <-s.ctx.Done():
+		return
+	case <-s.completed: // Fail fast if already completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
@@ -1041,6 +1042,8 @@ func (s *subscriptionUpdater) Done() {
 
 	select {
 	case <-s.ctx.Done():
+		return
+	case <-s.completed: // Fail fast if already completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
