@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.161](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.160...v2.0.0-rc.161) (2025-02-28)
+
+
+### Bug Fixes
+
+* fix validation of variables used in nested fields of type list of an input object ([#1099](https://github.com/wundergraph/graphql-go-tools/issues/1099)) ([d74dc37](https://github.com/wundergraph/graphql-go-tools/commit/d74dc37ea452f8e1a2d63a57ce4cab52c1b7ec66)), closes [#1096](https://github.com/wundergraph/graphql-go-tools/issues/1096)
+
 ## [2.0.0-rc.160](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.159...v2.0.0-rc.160) (2025-02-27)
 
 
