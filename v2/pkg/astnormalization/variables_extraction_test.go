@@ -3,6 +3,9 @@ package astnormalization
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
@@ -550,6 +553,107 @@ func TestVariablesExtraction(t *testing.T) {
 				foo(input: $a)
 				bat(input: $b)
 			}`, `{}`, `{"b":{"input":{"string":"foo"}},"a":{"input":{"string":"foo"}}}`)
+	})
+
+	t.Run("file uploads", func(t *testing.T) {
+		t.Run("arg has inline object value with upload passed via variable", func(t *testing.T) {
+			var visitor *variablesExtractionVisitor
+
+			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
+				visitor = extractVariables(walker)
+				return visitor
+			}
+
+			runWithVariablesExtractionAndPreNormalize(t, register,
+				`scalar Upload input Input {f: Upload!} type Mutation { hello(arg: Input!): String }`,
+				`mutation Foo($i: Upload!) { hello(arg: {f: $i}) }`,
+				"Foo",
+				`mutation Foo($i: Upload!, $a: Input!){hello(arg: $a)}`,
+				`{"i":null}`, `{"a":{"f":null},"i":null}`,
+			)
+
+			assert.Equal(t, []uploads.UploadPathMapping{
+				{VariableName: "a", OriginalUploadPath: "variables.i", NewUploadPath: "variables.a.f"},
+			}, visitor.uploadsPath)
+		})
+
+		t.Run("arg has inline objects with variables which have nested file uploads", func(t *testing.T) {
+			var visitor *variablesExtractionVisitor
+
+			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
+				visitor = extractVariables(walker)
+				return visitor
+			}
+
+			runWithVariablesExtractionAndPreNormalize(t, register,
+				`
+					scalar Upload
+					input Input {list: [Upload!]! value: Upload!}
+					input Input2 {oneList: [Input!]! one: Input!}
+					input Input3 {twoList: [Input2!]! two: Input2!}
+					type Mutation { hello(arg: Input3!): String }`,
+				`mutation Foo($varOne: [Input2!]! $varTwo: Input2!) { hello(arg: {twoList: $varOne two: $varTwo}) }`,
+				"Foo",
+				`mutation Foo($varOne: [Input2!]!, $varTwo: Input2!, $a: Input3!){hello(arg: $a)}`,
+				`{"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`,
+				`{"a":{"twoList":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"two":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}},"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`,
+			)
+
+			assert.Equal(t, []uploads.UploadPathMapping{
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.0", NewUploadPath: "variables.a.twoList.0.oneList.0.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.1", NewUploadPath: "variables.a.twoList.0.oneList.0.list.1"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.value", NewUploadPath: "variables.a.twoList.0.oneList.0.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.list.0", NewUploadPath: "variables.a.twoList.0.one.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.value", NewUploadPath: "variables.a.twoList.0.one.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.0", NewUploadPath: "variables.a.two.oneList.0.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.1", NewUploadPath: "variables.a.two.oneList.0.list.1"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
+				{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
+			}, visitor.uploadsPath)
+		})
+
+		t.Run("arg of type upload", func(t *testing.T) {
+			var visitor *variablesExtractionVisitor
+
+			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
+				visitor = extractVariables(walker)
+				return visitor
+			}
+
+			runWithVariablesExtractionAndPreNormalize(t, register,
+				`scalar Upload type Query { hello(arg: Upload!): String }`,
+				`query Foo($bar: Upload!) { hello(arg: $bar) }`,
+				"Foo",
+				`query Foo($bar: Upload!) { hello(arg: $bar) }`,
+				`{"bar": null}`, `{"bar": null}`,
+			)
+
+			assert.Equal(t, []uploads.UploadPathMapping{
+				{VariableName: "bar", OriginalUploadPath: "variables.bar"},
+			}, visitor.uploadsPath)
+		})
+
+		t.Run("arg has nested upload in a variable", func(t *testing.T) {
+			var visitor *variablesExtractionVisitor
+
+			register := func(walker *astvisitor.Walker) *variablesExtractionVisitor {
+				visitor = extractVariables(walker)
+				return visitor
+			}
+
+			runWithVariablesExtractionAndPreNormalize(t, register,
+				`scalar Upload input Input {f: Upload!} type Mutation { hello(arg: Input!): String }`,
+				`mutation Foo($i: Input!) { hello(arg: $i) }`,
+				"Foo",
+				`mutation Foo($i: Input!) { hello(arg: $i) }`,
+				`{"i":{"f":null}}`, `{"i":{"f":null}}`,
+			)
+
+			assert.Equal(t, []uploads.UploadPathMapping{
+				{VariableName: "i", OriginalUploadPath: "variables.i.f"},
+			}, visitor.uploadsPath)
+		})
 	})
 }
 

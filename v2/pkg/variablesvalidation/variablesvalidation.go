@@ -329,6 +329,11 @@ func (v *variablesVisitor) renderVariableInvalidNullError(variableName []byte, t
 func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKind ast.NodeKind, fieldName ast.ByteSlice, jsonValue *astjson.Value, typeRef, inputFieldRef int) {
 	if v.definition.TypeIsNonNull(typeRef) {
 		if jsonValue == nil || jsonValue.Type() == astjson.TypeNull {
+
+			if bytes.Equal(v.definition.TypeNameBytes(v.definition.Types[typeRef].OfType), []byte("Upload")) {
+				return
+			}
+
 			// An undefined required input field is valid if it has a default value
 			if v.definition.InputValueDefinitionHasDefaultValue(inputFieldRef) {
 				return

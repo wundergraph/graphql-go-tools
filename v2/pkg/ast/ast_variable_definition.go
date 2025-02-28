@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
@@ -39,6 +40,10 @@ func (d *Document) VariableDefinitionHasDefaultValue(ref int) bool {
 
 func (d *Document) VariableDefinitionDefaultValue(ref int) Value {
 	return d.VariableDefinitions[ref].DefaultValue.Value
+}
+
+func (d *Document) VariableDefinitionType(ref int) int {
+	return d.VariableDefinitions[ref].Type
 }
 
 func (d *Document) VariableDefinitionByNameAndOperation(operationDefinitionRef int, name ByteSlice) (definition int, exists bool) {

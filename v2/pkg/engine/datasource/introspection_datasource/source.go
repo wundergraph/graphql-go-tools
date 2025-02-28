@@ -37,7 +37,7 @@ func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err
 	return json.NewEncoder(out).Encode(s.schemaWithoutTypeInfo())
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
 	panic("not implemented")
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -826,37 +827,70 @@ func TestParseMissingBaseSchema(t *testing.T) {
 }
 
 func TestVariablesNormalizer(t *testing.T) {
-	t.Parallel()
-	input := `
-		mutation HttpBinPost($foo: String! = "bar" $bar: String! $bazz: String){
-		  httpBinPost(input: {foo: $foo bar: $bazz}){
-			headers {
-			  userAgent
+
+	t.Run("httpBinPost", func(t *testing.T) {
+		t.Parallel()
+		input := `
+			mutation HttpBinPost($foo: String! = "bar" $bar: String! $bazz: String){
+			  httpBinPost(input: {foo: $foo bar: $bazz}){
+				headers {
+				  userAgent
+				}
+				data {
+				  foo
+				}
+			  }
 			}
-			data {
-			  foo
-			}
-		  }
-		}
 		`
 
-	definitionDocument := unsafeparser.ParseGraphqlDocumentString(variablesExtractionDefinition)
-	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
-	if err != nil {
-		panic(err)
-	}
+		definitionDocument := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(variablesExtractionDefinition)
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
+		operationDocument.Input.Variables = []byte(`{}`)
 
-	operationDocument := unsafeparser.ParseGraphqlDocumentString(input)
-	operationDocument.Input.Variables = []byte(`{}`)
+		normalizer := NewVariablesNormalizer()
+		report := operationreport.Report{}
+		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		require.False(t, report.HasErrors(), report.Error())
 
-	normalizer := NewVariablesNormalizer()
-	report := operationreport.Report{}
-	normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
-	require.False(t, report.HasErrors(), report.Error())
+		out := unsafeprinter.Print(&operationDocument)
+		assert.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
+		require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
+	})
 
-	out := unsafeprinter.Print(&operationDocument)
-	assert.Equal(t, `mutation HttpBinPost($bar: String!, $a: HttpBinPostInput){httpBinPost(input: $a){headers {userAgent} data {foo}}}`, out)
-	require.Equal(t, `{"a":{"foo":"bar"}}`, string(operationDocument.Input.Variables))
+	t.Run("file uploads", func(t *testing.T) {
+		definitionDocument := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`
+			scalar Upload
+			input Input {list: [Upload!]! value: Upload!}
+			input Input2 {oneList: [Input!]! one: Input!}
+			input Input3 {twoList: [Input2!]! two: Input2!}
+			type Mutation { hello(arg: Input3!): String }
+		`)
+
+		operationDocument := unsafeparser.ParseGraphqlDocumentString(`mutation Foo($varOne: [Input2!]! $varTwo: Input2!) { hello(arg: {twoList: $varOne two: $varTwo}) }`)
+		operationDocument.Input.Variables = []byte(`{"varOne":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"varTwo":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}`)
+
+		normalizer := NewVariablesNormalizer()
+		report := operationreport.Report{}
+		uploadsMapping := normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
+		require.False(t, report.HasErrors(), report.Error())
+
+		out := unsafeprinter.Print(&operationDocument)
+		assert.Equal(t, `mutation Foo($a: Input3!){hello(arg: $a)}`, out)
+		require.Equal(t, `{"a":{"twoList":[{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}],"two":{"oneList":[{"list":[null,null],"value":null}],"one":{"list":[null],"value":null}}}}`, string(operationDocument.Input.Variables))
+
+		assert.Equal(t, []uploads.UploadPathMapping{
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.0", NewUploadPath: "variables.a.twoList.0.oneList.0.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.list.1", NewUploadPath: "variables.a.twoList.0.oneList.0.list.1"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.oneList.0.value", NewUploadPath: "variables.a.twoList.0.oneList.0.value"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.list.0", NewUploadPath: "variables.a.twoList.0.one.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varOne.0.one.value", NewUploadPath: "variables.a.twoList.0.one.value"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.0", NewUploadPath: "variables.a.two.oneList.0.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.list.1", NewUploadPath: "variables.a.two.oneList.0.list.1"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.oneList.0.value", NewUploadPath: "variables.a.two.oneList.0.value"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.list.0", NewUploadPath: "variables.a.two.one.list.0"},
+			{VariableName: "a", OriginalUploadPath: "variables.varTwo.one.value", NewUploadPath: "variables.a.two.one.value"},
+		}, uploadsMapping)
+	})
 }
 
 func BenchmarkAstNormalization(b *testing.B) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -92,7 +93,7 @@ func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, out *byt
 	return err
 }
 
-func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) error {
+func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) error {
 	panic("not implemented")
 }
 
@@ -110,6 +111,6 @@ func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte, out *byt
 	return s.pubSub.Request(ctx, subscriptionConfiguration, out)
 }
 
-func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) error {
+func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) error {
 	panic("not implemented")
 }

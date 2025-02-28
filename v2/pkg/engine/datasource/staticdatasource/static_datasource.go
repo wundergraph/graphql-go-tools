@@ -80,6 +80,6 @@ func (Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err er
 	return
 }
 
-func (Source) LoadWithFiles(ctx context.Context, input []byte, files []httpclient.File, out *bytes.Buffer) (err error) {
+func (Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
 	panic("not implemented")
 }

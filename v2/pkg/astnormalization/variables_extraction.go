@@ -2,19 +2,22 @@ package astnormalization
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/buger/jsonparser"
 	"github.com/tidwall/sjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization/uploads"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {
 	visitor := &variablesExtractionVisitor{
-		Walker: walker,
+		Walker:       walker,
+		uploadFinder: uploads.NewUploadFinder(),
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
@@ -28,12 +31,11 @@ type variablesExtractionVisitor struct {
 	skip                      bool
 	extractedVariables        [][]byte
 	extractedVariableTypeRefs []int
+	uploadFinder              *uploads.UploadFinder
+	uploadsPath               []uploads.UploadPathMapping
 }
 
 func (v *variablesExtractionVisitor) EnterArgument(ref int) {
-	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
-		return
-	}
 	if len(v.Ancestors) == 0 || v.Ancestors[0].Kind != ast.NodeKindOperationDefinition {
 		return
 	}
@@ -48,6 +50,21 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	if !ok {
 		return
 	}
+
+	uploadsMapping, err := v.uploadFinder.FindUploads(v.operation, v.definition, v.operation.Input.Variables, ref, inputValueDefinition)
+	if err != nil {
+		v.StopWithInternalErr(err)
+		return
+	}
+	v.uploadFinder.Reset()
+
+	if v.operation.Arguments[ref].Value.Kind == ast.ValueKindVariable {
+		if len(uploadsMapping) > 0 {
+			v.uploadsPath = append(v.uploadsPath, uploadsMapping...)
+		}
+		return
+	}
+
 	valueBytes, err := v.operation.ValueToJSON(v.operation.Arguments[ref].Value)
 	if err != nil {
 		v.StopWithInternalErr(err)
@@ -67,6 +84,24 @@ func (v *variablesExtractionVisitor) EnterArgument(ref int) {
 	if err != nil {
 		v.StopWithInternalErr(err)
 		return
+	}
+
+	if len(uploadsMapping) > 0 {
+		// when we are extracting an input object into a variable and there were uploads inside
+		// we have to update the upload path mapping to reflect the new extracted variable path
+		for i := range uploadsMapping {
+			if uploadsMapping[i].NewUploadPath != "" {
+				// we alter a path only when upload was in a nested value
+				// NewUploadPath, which returned from upload finder, is relative to the extracted argument "nested.f"
+				variableNameString := string(variableNameBytes)
+				// in order to replace file map values we prepend it with fully quilifying argument path in variables
+				// e.g. variables.a.nested.f
+				uploadsMapping[i].NewUploadPath = fmt.Sprintf("variables.%s.%s", variableNameString, uploadsMapping[i].NewUploadPath)
+				// update variable name which holds an upload
+				uploadsMapping[i].VariableName = variableNameString
+			}
+			v.uploadsPath = append(v.uploadsPath, uploadsMapping[i])
+		}
 	}
 
 	v.extractedVariables = append(v.extractedVariables, variableNameBytes)
