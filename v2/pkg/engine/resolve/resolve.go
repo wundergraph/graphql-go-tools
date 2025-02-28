@@ -301,12 +301,13 @@ func (s *sub) startWorkerWithHeartbeat() {
 			return
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
-		case fn := <-s.workChan:
+		case fn, ok := <-s.workChan:
+			if !ok {
+				return
+			}
 			fn()
 			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
 			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
-		case <-s.completed: // Shutdown the writer when the subscription is completed
-			return
 		}
 	}
 }
@@ -317,10 +318,11 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 		select {
 		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
 			return
-		case fn := <-s.workChan:
+		case fn, ok := <-s.workChan:
+			if !ok {
+				return
+			}
 			fn()
-		case <-s.completed: // Shutdown the writer when the subscription is completed
-			return
 		}
 	}
 }
@@ -376,7 +378,6 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 
 	if err := sub.writer.Flush(); err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
-		// Need to happen over the channel to not produce a race condition
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		return
 	}
@@ -454,7 +455,6 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 	if _, err := sub.writer.Write(data); err != nil {
 		if errors.Is(err, context.Canceled) {
 			// If Write fails (e.g. client disconnected), remove the subscription.
-			// Need to happen over the channel to not produce a race condition
 			_ = r.AsyncUnsubscribeSubscription(sub.id)
 			return
 		}
@@ -463,7 +463,6 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 	err := sub.writer.Flush()
 	if err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
-		// Need to happen over the channel to not produce a race condition
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
 		return
 	}
@@ -702,13 +701,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		case <-c.ctx.Done():
 			// Skip sending the event if the client disconnected
 		case s.workChan <- fn:
-			// Send the work to the subscription worker
-		case <-s.completed:
-			// Stop sending if the subscription is completed. Otherwise, this could block the event loop forever
-			// when the subscription worker was shutdown after channel close but the event was still scheduled.
-			if s.resolver.options.Debug {
-				fmt.Printf("resolver:trigger:subscription:completed:%d:%d\n", s.id.ConnectionID, s.id.SubscriptionID)
-			}
+			// Send the event to the subscription worker
 		}
 	}
 }
@@ -753,28 +746,26 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 		}
 		// We close the completed channel on the work channel of the subscription
 		// to ensure that all jobs are processed before the channel is closed.
-		// We never return to remove the subscription from the map.
 		select {
 		case <-r.ctx.Done():
 			// Skip sending the event if the resolver is shutting down
 		case <-c.ctx.Done():
 			// Skip sending the event if the client disconnected
-		case <-s.completed:
-			// Skip sending the event if the subscription was already completed e.g.
-			// If a flush fails and at the same time the connection pool decided to close the connection and all subscriptions.
-			// This would produce in two events to close the subscription. Both events could occur after another, and because
-			// it is offloaded onto a separate goroutine, we might try to send events an event after the channel was closed
-			// which would block the event loop forever.
 		case s.workChan <- func() {
 			// We put the complete handshake to the work channel of the subscription
 			// to ensure that it is the last message that is sent to the client.
 			if c.Context().Err() == nil {
 				s.writer.Complete()
 			}
-			// This will shutdown the subscription worker
+			// The channel is used to wait for the subscription to drain
+			// in the synchronous subscription case
 			close(s.completed)
 		}:
 		}
+
+		// Because the event loop is single threaded, we can safely close the channel from this sender
+		// The subscription worker will finish processing all events before the channel is closed.
+		close(s.workChan)
 
 		delete(trig.subscriptions, c)
 
