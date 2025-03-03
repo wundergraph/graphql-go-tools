@@ -42,6 +42,11 @@ type AsyncErrorWriter interface {
 	WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer)
 }
 
+// Resolver is a single threaded event loop that processes all events on a single goroutine.
+// It is absolutely critical to ensure that all events are processed quickly to prevent blocking
+// and that resolver modifications are done on the event loop goroutine. Long-running operations
+// should be offloaded to the subscription worker goroutine. If a different goroutine needs to emit
+// an event, it should be done through the events channel to avoid race conditions.
 type Resolver struct {
 	ctx            context.Context
 	options        ResolverOptions
