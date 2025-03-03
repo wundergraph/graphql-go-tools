@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.162](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.161...v2.0.0-rc.162) (2025-03-03)
+
+
+### Bug Fixes
+
+* **subscription:** never try to send on blocked channel when subscription was completed ([#1100](https://github.com/wundergraph/graphql-go-tools/issues/1100)) ([1a1bb20](https://github.com/wundergraph/graphql-go-tools/commit/1a1bb20e4cc02888ff9780f0e38c27b09774e9d7))
+
 ## [2.0.0-rc.161](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.160...v2.0.0-rc.161) (2025-02-28)
 
 
