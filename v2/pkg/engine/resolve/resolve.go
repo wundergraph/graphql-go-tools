@@ -288,6 +288,7 @@ type sub struct {
 
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
 // it also takes care of sending heartbeats to the client but only if the subscription supports it
+// TODO implement a goroutine pool that is sharded by the subscription id to avoid creating a new goroutine for each subscription
 func (s *sub) startWorker() {
 	if s.heartbeat {
 		s.startWorkerWithHeartbeat()
@@ -296,6 +297,9 @@ func (s *sub) startWorker() {
 	s.startWorkerWithoutHeartbeat()
 }
 
+// startWorkerWithHeartbeat is similar to startWorker but sends heartbeats to the client when
+// subscription over multipart is used. It sends a heartbeat to the client every heartbeatInterval.
+// TODO: Implement a shared timer implementation to avoid creating a new ticker for each subscription.
 func (s *sub) startWorkerWithHeartbeat() {
 	heartbeatTicker := time.NewTicker(s.resolver.heartbeatInterval)
 	defer heartbeatTicker.Stop()
@@ -433,6 +437,7 @@ func (r *Resolver) processEvents() {
 // All events are processed in the order they are received and need to be processed quickly
 // to prevent blocking the event loop and any other events from being processed.
 // TODO: consider using a worker pool that distributes events from different triggers to different workers
+// to avoid blocking the event loop and improve performance.
 func (r *Resolver) handleEvent(event subscriptionEvent) {
 	switch event.kind {
 	case subscriptionEventKindAddSubscription:
