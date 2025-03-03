@@ -765,6 +765,8 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 		// The subscription worker will finish processing all events before the channel is closed.
 		close(s.workChan)
 
+		// Important because we remove the subscription from the trigger on the same goroutine
+		// as we send work to the subscription worker. We can ensure that no new work is sent to the worker after this point.
 		delete(trig.subscriptions, c)
 
 		if r.options.Debug {
