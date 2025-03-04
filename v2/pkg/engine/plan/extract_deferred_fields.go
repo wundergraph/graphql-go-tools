@@ -1,4 +1,4 @@
-package postprocess
+package plan
 
 import (
 	"slices"
@@ -168,10 +168,14 @@ func (v *deferredFieldsVisitor) enterDefer(field *resolve.Field) {
 		Nullable: preDeferObject.Nullable,
 		// Field will be appended below.
 		Path:    preDeferObject.Path,
-		Fetches: v.fetchesFromPath(),
+		Fetches: preDeferObject.Fetches,
 
 		PossibleTypes: preDeferObject.PossibleTypes,
 		TypeName:      preDeferObject.TypeName,
+	}
+
+	if newObj.Fetches == nil {
+		newObj.Fetches = v.fetchesFromPath()
 	}
 
 	parentResponse := v.currentResponseItem()

@@ -47,6 +47,7 @@ type Visitor struct {
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
+	extractDeferredFields        *extractDeferredFields
 }
 
 type indirectInterfaceField struct {
@@ -310,7 +311,11 @@ func (v *Visitor) EnterInlineFragment(ref int) {
 
 func (v *Visitor) LeaveInlineFragment(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindInlineFragment, ref)
-	v.leaveDeferIf()
+
+	directives := v.Operation.InlineFragments[ref].Directives.Refs
+	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		v.leaveDefer()
+	}
 }
 
 func (v *Visitor) EnterFragmentSpread(ref int) {
@@ -324,7 +329,11 @@ func (v *Visitor) EnterFragmentSpread(ref int) {
 
 func (v *Visitor) LeaveFragmentSpread(ref int) {
 	v.debugOnLeaveNode(ast.NodeKindFragmentSpread, ref)
-	v.leaveDeferIf()
+
+	directives := v.Operation.InlineFragments[ref].Directives.Refs
+	if _, ok := v.Operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		v.leaveDefer()
+	}
 }
 
 func (v *Visitor) EnterSelectionSet(ref int) {
@@ -980,6 +989,10 @@ func (v *Visitor) LeaveDocument(_, _ *ast.Document) {
 			v.configureObjectFetch(v.planners[i].ObjectFetchConfiguration())
 		}
 	}
+
+	if sync, ok := v.plan.(*SynchronousResponsePlan); ok && v.hasDefer() {
+		v.extractDeferredFields.Process(sync.Response)
+	}
 }
 
 var (
@@ -1197,6 +1210,7 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 		v.Walker.StopWithInternalErr(fmt.Errorf("object fetch configuration has empty object"))
 		return
 	}
+	// TODO(cd) this is around where the actual upstream fetches are built. Not in postprocess. They need to be defer-aware.
 	fetchConfig := config.planner.ConfigureFetch()
 	if v.includeQueryPlans && fetchConfig.QueryPlan == nil {
 		fetchConfig.QueryPlan = &resolve.QueryPlan{}
@@ -1254,8 +1268,13 @@ func (v *Visitor) currentDeferPath() *deferInfo {
 	return &v.deferredFragmentStack[len(v.deferredFragmentStack)-1]
 }
 
-func (v *Visitor) leaveDeferIf() {
-	if v.inDefer() {
-		v.deferredFragmentStack = v.deferredFragmentStack[:len(v.deferredFragmentStack)-1]
+func (v *Visitor) leaveDefer() {
+	if depth := len(v.deferredFragmentStack); depth > 0 {
+		v.deferredFragmentStack = v.deferredFragmentStack[:depth-1]
 	}
+}
+
+func (v *Visitor) hasDefer() bool {
+	// It could be empty, but will be nil unless we ever entered a defer.
+	return v.deferredFragmentStack != nil
 }

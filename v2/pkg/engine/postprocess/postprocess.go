@@ -25,7 +25,6 @@ type Processor struct {
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
 	processFetchTree      []FetchTreeProcessor
-	extractDeferredFields *extractDeferredFields
 }
 
 type processorOptions struct {
@@ -132,7 +131,6 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 				disable: opts.disableMergeFields,
 			},
 		},
-		extractDeferredFields: &extractDeferredFields{},
 	}
 }
 
@@ -142,7 +140,6 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		for i := range p.processResponseTree {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
-		p.extractDeferredFields.Process(t.Response) // TODO(cd): consider skipping if no deferred fields found.
 		p.processFetchTrees(t.Response)
 	case *plan.SubscriptionResponsePlan:
 		for i := range p.processResponseTree {

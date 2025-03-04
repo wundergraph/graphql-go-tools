@@ -82,6 +82,7 @@ type PlannerPathConfiguration interface {
 	ForEachPath(each func(*pathConfiguration) (shouldBreak bool))
 	RemoveLeafFragmentPaths() (hasRemovals bool)
 	ParentPath() string
+	DeferPath() string
 	AddPath(configuration pathConfiguration)
 	IsNestedPlanner() bool
 	HasPath(path string) bool
@@ -91,10 +92,11 @@ type PlannerPathConfiguration interface {
 	HasParent(parent string) bool
 }
 
-func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration) *plannerPathsConfiguration {
+func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration, deferPath string) *plannerPathsConfiguration {
 	p := &plannerPathsConfiguration{
 		parentPath:      parentPath,
 		parentPathType:  parentPathType,
+		deferPath:       deferPath,
 		index:           make(map[string][]int),
 		indexByFieldRef: make(map[int]struct{}),
 		fragmentPaths:   make(map[pathConfiguration]struct{}),
@@ -112,6 +114,7 @@ type plannerPathsConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 	paths          []pathConfiguration
+	deferPath      string
 
 	// indexes
 
@@ -134,6 +137,10 @@ func (p *plannerPathsConfiguration) ForEachPath(callback func(*pathConfiguration
 
 func (p *plannerPathsConfiguration) ParentPath() string {
 	return p.parentPath
+}
+
+func (p *plannerPathsConfiguration) DeferPath() string {
+	return p.deferPath
 }
 
 func (p *plannerPathsConfiguration) AddPath(configuration pathConfiguration) {

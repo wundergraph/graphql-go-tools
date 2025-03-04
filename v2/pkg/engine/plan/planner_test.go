@@ -335,34 +335,6 @@ func TestPlanner_Plan(t *testing.T) {
 											Nullable: false,
 										},
 									},
-									{
-										Name: []byte("primaryFunction"),
-										Value: &resolve.String{
-											Path:     []string{"primaryFunction"},
-											Nullable: false,
-										},
-										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$0Droid"},
-										},
-									},
-									{
-										Name: []byte("favoriteEpisode"),
-										Value: &resolve.Enum{
-											Path:     []string{"favoriteEpisode"},
-											Nullable: true,
-											TypeName: "Episode",
-											Values: []string{
-												"NEWHOPE",
-												"EMPIRE",
-												"JEDI",
-											},
-										},
-										OnTypeNames: [][]byte{[]byte("Droid")},
-										Defer: &resolve.DeferField{
-											Path: []string{"query", "hero", "$0Droid"},
-										},
-									},
 								},
 							},
 						},
@@ -373,6 +345,54 @@ func TestPlanner_Plan(t *testing.T) {
 								DataSource: &FakeDataSource{&StatefulSource{}},
 							},
 							DataSourceIdentifier: []byte("plan.FakeDataSource"),
+						},
+					},
+				},
+				DeferredResponses: []*resolve.GraphQLResponse{
+					{
+						Data: &resolve.Object{
+							Path:          []string{"hero"},
+							Nullable:      true,
+							TypeName:      "Character",
+							PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("primaryFunction"),
+									Value: &resolve.String{
+										Path:     []string{"primaryFunction"},
+										Nullable: false,
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									Defer: &resolve.DeferField{
+										Path: []string{"query", "hero", "$0Droid"},
+									},
+								},
+								{
+									Name: []byte("favoriteEpisode"),
+									Value: &resolve.Enum{
+										Path:     []string{"favoriteEpisode"},
+										Nullable: true,
+										TypeName: "Episode",
+										Values: []string{
+											"NEWHOPE",
+											"EMPIRE",
+											"JEDI",
+										},
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									Defer: &resolve.DeferField{
+										Path: []string{"query", "hero", "$0Droid"},
+									},
+								},
+							},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
+								},
+							},
 						},
 					},
 				},

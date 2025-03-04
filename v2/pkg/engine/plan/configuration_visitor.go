@@ -12,6 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // configurationVisitor - walks through the operation multiple times to collect plannings paths
@@ -53,6 +54,8 @@ type configurationVisitor struct {
 
 	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
 	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
+
+	defers []deferInfo
 }
 
 type FailedToCreatePlanningPathsError struct {
@@ -402,7 +405,7 @@ func (c *configurationVisitor) EnterField(fieldRef int) {
 	}
 	isSubscription := c.isSubscription(root.Ref, currentPath)
 
-	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath, c.currentDeferPath())
 	shareable := len(suggestions) > 1
 	for _, suggestion := range suggestions {
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
@@ -639,6 +642,7 @@ func (c *configurationVisitor) planWithExistingPlanners(fieldRef int, typeName, 
 		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
 		currentPlannerDSHash := dsConfiguration.Hash()
+		currentDeferPath := c.currentDeferPath()
 
 		hasSuggestion := suggestion != nil
 		if !hasSuggestion {
@@ -646,6 +650,10 @@ func (c *configurationVisitor) planWithExistingPlanners(fieldRef int, typeName, 
 		}
 
 		if suggestion.DataSourceHash != currentPlannerDSHash {
+			continue
+		}
+
+		if suggestion.DeferPath != currentDeferPath {
 			continue
 		}
 
@@ -841,6 +849,7 @@ func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, 
 		plannerPath,
 		c.plannerPathType(plannerPath),
 		paths,
+		c.currentDeferPath(),
 	)
 
 	plannerConfig := dsConfig.CreatePlannerConfiguration(c.logger, fetchConfiguration, plannerPathConfig, c.plannerConfiguration)
@@ -994,7 +1003,7 @@ func (c *configurationVisitor) resolveRootFieldOperationType(typeName string) as
 
 // handleMissingPath - records missing path for the case when we don't yet have a planner for the field
 func (c *configurationVisitor) handleMissingPath(planned bool, typeName string, fieldName string, currentPath string, shareable bool) {
-	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath, c.currentDeferPath())
 
 	if len(suggestions) <= 1 {
 		if planned {
@@ -1049,6 +1058,49 @@ func (c *configurationVisitor) LeaveField(ref int) {
 		// we should evaluate exit paths only on the second run
 		return
 	}
+}
+
+func (c *configurationVisitor) EnterInlineFragment(ref int) {
+	typeName := c.operation.InlineFragmentTypeConditionNameString(ref)
+	c.debugPrint("EnterInlineFragment ref:", ref, "typeName:", typeName)
+
+	directives := c.operation.InlineFragments[ref].Directives.Refs
+	if _, ok := c.operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		c.enterDefer(ref)
+	}
+}
+
+func (c *configurationVisitor) LeaveInlineFragment(ref int) {
+	typeName := c.operation.InlineFragmentTypeConditionNameString(ref)
+	c.debugPrint("LeaveInlineFragment ref:", ref, "typeName:", typeName)
+
+	directives := c.operation.InlineFragments[ref].Directives.Refs
+	if _, ok := c.operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		c.leaveDefer()
+	}
+}
+
+func (c *configurationVisitor) enterDefer(ref int) {
+	path := c.walker.Path.StringSlice()
+	fragName := c.operation.InlineFragmentTypeConditionNameString(ref)
+
+	c.defers = append(c.defers, deferInfo{
+		Path: append(path[:], fmt.Sprintf("%s%d%s", ast.InlineFragmentPathPrefix, ref, fragName)),
+		Ref:  ref,
+	})
+}
+
+func (c *configurationVisitor) leaveDefer() {
+	if depth := len(c.defers); depth > 0 {
+		c.defers = c.defers[:depth-1]
+	}
+}
+
+func (c *configurationVisitor) currentDeferPath() string {
+	if len(c.defers) == 0 {
+		return ""
+	}
+	return strings.Join(c.defers[len(c.defers)-1].Path, ".")
 }
 
 // addPlannerPathForTypename adds a path for the __typename field

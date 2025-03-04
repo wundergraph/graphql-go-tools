@@ -64,6 +64,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	nodeSelection.RegisterFieldVisitor(nodeSelectionVisitor)
 	nodeSelection.RegisterEnterOperationVisitor(nodeSelectionVisitor)
 	nodeSelection.RegisterSelectionSetVisitor(nodeSelectionVisitor)
+	nodeSelection.RegisterInlineFragmentVisitor(nodeSelectionVisitor)
 
 	// configuration
 	configurationWalker := astvisitor.NewWalker(48)
@@ -76,6 +77,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	configurationWalker.RegisterFieldVisitor(configVisitor)
 	configurationWalker.RegisterEnterOperationVisitor(configVisitor)
 	configurationWalker.RegisterSelectionSetVisitor(configVisitor)
+	configurationWalker.RegisterInlineFragmentVisitor(configVisitor)
 
 	// planning
 
