@@ -1084,7 +1084,11 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		 * and not the second walk (which prints the data).
 		 */
 		if !r.print {
-			r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: "%s"`, e.TypeName, valueString), errorcodes.InternalServerError, e.Path)
+			if r.options.ApolloCompatibilityValueCompletionInExtensions {
+				r.renderInaccessibleEnumValueError(e)
+			} else {
+				r.addErrorWithCodeAndPath(fmt.Sprintf(`Enum "%s" cannot represent value: "%s"`, e.TypeName, valueString), errorcodes.InternalServerError, e.Path)
+			}
 		}
 		if e.Nullable {
 			return r.walkNull()
