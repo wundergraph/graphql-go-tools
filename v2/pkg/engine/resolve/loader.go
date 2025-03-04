@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
