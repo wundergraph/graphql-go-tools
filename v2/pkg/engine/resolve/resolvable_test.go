@@ -619,6 +619,140 @@ func TestResolvable_ResolveWithErrorBubbleUpUntilData(t *testing.T) {
 	assert.Equal(t, `{"errors":[{"message":"Cannot return null for non-nullable field 'Query.topProducts.reviews.author.name'.","path":["topProducts",0,"reviews",1,"author","name"]}],"data":null}`, out.String())
 }
 
+func TestResolvable_InvalidEnumValues(t *testing.T) {
+	t.Run("Invalid enum value", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(ResolvableOptions{})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: make([]string, 0),
+						Values: []string{
+							"A",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"errors":[{"message":"Enum \"Enum\" cannot represent value: \"B\"","path":["enum"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],"data":null}`, out.String())
+	})
+
+	t.Run("Inaccessible enum value", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(ResolvableOptions{})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: []string{
+							"B",
+						},
+						Values: []string{
+							"A", "B",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"errors":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}],"data":null}`, out.String())
+	})
+
+	t.Run("Invalid enum value with value completion Apollo compatibility flag", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: make([]string, 0),
+						Values: []string{
+							"A",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+	})
+
+	t.Run("Inaccessible enum value with value completion Apollo compatibility flag", func(t *testing.T) {
+		enum := `{"enum":"B"}`
+		res := NewResolvable(ResolvableOptions{
+			ApolloCompatibilityValueCompletionInExtensions: true,
+		})
+		ctx := &Context{
+			Variables: nil,
+		}
+		err := res.Init(ctx, []byte(enum), ast.OperationTypeQuery)
+		assert.NoError(t, err)
+		assert.NotNil(t, res)
+		object := &Object{
+			Fields: []*Field{
+				{
+					Name: []byte("enum"),
+					Value: &Enum{
+						InaccessibleValues: []string{
+							"B",
+						},
+						Values: []string{
+							"A", "B",
+						},
+						TypeName: "Enum",
+						Path:     []string{"enum"},
+					},
+				},
+			},
+		}
+
+		out := &bytes.Buffer{}
+		err = res.Resolve(context.Background(), object, nil, out)
+		assert.NoError(t, err)
+		assert.Equal(t, `{"data":null,"extensions":{"valueCompletion":[{"message":"Invalid value found for field Query.enum.","path":["enum"],"extensions":{"code":"INVALID_GRAPHQL"}}]}}`, out.String())
+	})
+}
+
 func BenchmarkResolvable_Resolve(b *testing.B) {
 	topProducts := `{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}`
 	res := NewResolvable(ResolvableOptions{})
