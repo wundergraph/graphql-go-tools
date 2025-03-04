@@ -25,19 +25,19 @@ func TestMultipartJSONWriter(t *testing.T) {
 			name:          "simple case",
 			boundaryToken: "boundary",
 			path:          []any{"path", "to", "part"},
-			parts:         [][]string{[]string{`"part1"`}, []string{`"part2"`}, []string{`"part3"`}},
+			parts:         [][]string{[]string{`{"data":"part1"}`}, []string{`{"data":"part2"}`}, []string{`{"data":"part3"}`}},
 			expected: strings.ReplaceAll(`--boundary
 Content-Type: application/json; charset=utf-8
 
-"part1"
+{"hasNext":true,"data":"part1"}
 --boundary
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":["part2","path":["path","to","part"]]}
+{"hasNext":true,"incremental":[{"data":"part2","path":["path","to","part"]}]}
 --boundary
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":["part3","path":["path","to","part"]]}
+{"hasNext":true,"incremental":[{"data":"part3","path":["path","to","part"]}]}
 --boundary
 Content-Type: application/json; charset=utf-8
 
@@ -49,19 +49,19 @@ Content-Type: application/json; charset=utf-8
 			name:          "multiple writes",
 			boundaryToken: "boundary",
 			path:          []any{"path", 4, "part"},
-			parts:         [][]string{[]string{`"part1a`, `part1b"`}, []string{`"part2"`}, []string{`"part3a`, `part3b"`}},
+			parts:         [][]string{[]string{`{"data":`, `"part1a`, `part1b"}`}, []string{`{"data":"part2"}`}, []string{`{"data":"part3a`, `part3b"}`}},
 			expected: strings.ReplaceAll(`--boundary
 Content-Type: application/json; charset=utf-8
 
-"part1apart1b"
+{"hasNext":true,"data":"part1apart1b"}
 --boundary
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":["part2","path":["path",4,"part"]]}
+{"hasNext":true,"incremental":[{"data":"part2","path":["path",4,"part"]}]}
 --boundary
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":["part3apart3b","path":["path",4,"part"]]}
+{"hasNext":true,"incremental":[{"data":"part3apart3b","path":["path",4,"part"]}]}
 --boundary
 Content-Type: application/json; charset=utf-8
 
@@ -139,7 +139,7 @@ func TestMultipartJSONWriter_Flush(t *testing.T) {
 	}{
 		{
 			name:        "successful flush",
-			input:       []byte("test data"),
+			input:       []byte(`{"data":"test data"}`),
 			expectedErr: nil,
 		},
 		{
@@ -149,7 +149,7 @@ func TestMultipartJSONWriter_Flush(t *testing.T) {
 		},
 		{
 			name:        "flush with error",
-			input:       []byte("error data"),
+			input:       []byte(`{"error": "data"}`),
 			expectedErr: errors.New("flush error"),
 		},
 	}

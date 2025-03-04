@@ -38,10 +38,17 @@ func (w *MultipartJSONWriter) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (w *MultipartJSONWriter) Flush(path []any) error {
+func (w *MultipartJSONWriter) Flush(path []any) (err error) {
 	if w.buf.Len() == 0 {
 		return nil
 	}
+
+	var part incrementalPart
+
+	if err := json.Unmarshal(w.buf.Bytes(), &part); err != nil {
+		return fmt.Errorf("unmarshaling data: %w", err)
+	}
+	part.HasNext = true
 
 	if _, err := w.Writer.Write(w.partHeader()); err != nil {
 		return fmt.Errorf("writing part header: %w", err)
@@ -49,37 +56,30 @@ func (w *MultipartJSONWriter) Flush(path []any) error {
 	defer w.buf.Reset()
 
 	if w.wroteInitial {
-		if _, err := w.Writer.Write([]byte(`{"hasNext":true,"incremental":[`)); err != nil {
-			return fmt.Errorf("writing increment preamble: %w", err)
+		part.Incremental = []incrementalDataPart{
+			{
+				Data: part.Data,
+				Path: path,
+			},
 		}
-	}
+		part.Data = nil
 
-	if _, err := w.buf.WriteTo(w.Writer); err != nil {
-		return fmt.Errorf("writing incremental data: %w", err)
-	}
-
-	if w.wroteInitial {
 		if len(path) > 0 {
-			if _, err := w.Writer.Write([]byte(`,"path":`)); err != nil {
-				return fmt.Errorf("writing incremental trailer: %w", err)
-			}
-
-			var buf bytes.Buffer
-			if err := json.NewEncoder(&buf).Encode(path); err != nil {
-				return fmt.Errorf("encoding path: %w", err)
-			}
-			if buf.Len() > 0 {
-				buf.Truncate(buf.Len() - 1) // remove trailing newline
-			}
-			if _, err := buf.WriteTo(w.Writer); err != nil {
-				return fmt.Errorf("writing path: %w", err)
-			}
-		}
-
-		if _, err := w.Writer.Write([]byte(`]}`)); err != nil {
-			return fmt.Errorf("writing incremental trailer: %w", err)
+			part.Incremental[0].Path = path
 		}
 	}
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(part); err != nil {
+		return fmt.Errorf("encoding part body: %w", err)
+	}
+	if buf.Len() > 0 {
+		buf.Truncate(buf.Len() - 1) // remove trailing newline
+	}
+	if _, err := buf.WriteTo(w.Writer); err != nil {
+		return fmt.Errorf("writing part body: %w", err)
+	}
+
 	if _, err := w.Writer.Write([]byte("\r\n")); err != nil {
 		return fmt.Errorf("writing part terminator: %w", err)
 	}
@@ -110,4 +110,21 @@ func (w *MultipartJSONWriter) boundaryToken() string {
 		return DefaultBoundaryToken
 	}
 	return w.BoundaryToken
+}
+
+// incrementalPart is a part of a multipart response.
+// It can contain a full response (for the first or only part) in `data`, or an incremental part in `incremental`.
+type incrementalPart struct {
+	HasNext bool `json:"hasNext"`
+
+	Data        json.RawMessage       `json:"data,omitempty"`
+	Incremental []incrementalDataPart `json:"incremental,omitempty"`
+
+	Errors     json.RawMessage `json:"errors,omitempty"`
+	Extensions json.RawMessage `json:"extensions,omitempty"`
+}
+
+type incrementalDataPart struct {
+	Data json.RawMessage `json:"data"`
+	Path []any           `json:"path,omitempty"`
 }

@@ -4865,11 +4865,11 @@ func TestResolver_ResolveGraphQLIncrementalResponse(t *testing.T) {
 			expected: strings.ReplaceAll(`--graphql-go-tools
 Content-Type: application/json; charset=utf-8
 
-{"data":{"hero":{"name":"Luke"}}}
+{"hasNext":true,"data":{"hero":{"name":"Luke"}}}
 --graphql-go-tools
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":[{"data":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}},"path":["hero"]]}
+{"hasNext":true,"incremental":[{"data":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"},"path":["hero"]}]}
 --graphql-go-tools
 Content-Type: application/json; charset=utf-8
 
