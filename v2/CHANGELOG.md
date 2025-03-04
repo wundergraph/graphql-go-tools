@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.163](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.162...v2.0.0-rc.163) (2025-03-04)
+
+
+### Bug Fixes
+
+* invalid enum values with value completion flag ([#1104](https://github.com/wundergraph/graphql-go-tools/issues/1104)) ([714fb3e](https://github.com/wundergraph/graphql-go-tools/commit/714fb3e098c795f23ee6273b33af3524de67c4b0))
+
 ## [2.0.0-rc.162](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.161...v2.0.0-rc.162) (2025-03-03)
 
 
