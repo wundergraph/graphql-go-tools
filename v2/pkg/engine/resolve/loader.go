@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -552,6 +551,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	value, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
+		fmt.Println("Failed to parse response:", string(res.out.Bytes()))
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
