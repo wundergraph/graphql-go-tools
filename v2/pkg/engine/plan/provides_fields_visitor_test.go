@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -39,356 +40,90 @@ func TestProvidesSuggestions(t *testing.T) {
 	assert.False(t, report.HasErrors())
 
 	cases := []struct {
-		operation       string
 		selectionSetRef int
 		expected        []*NodeSuggestion
 	}{
 		{
-			operation: `query {
-				me { # selection set ref 1
-					info {
-						age
-					}
-				}
-			}`,
-			selectionSetRef: 1,
+			selectionSetRef: 2,
 			expected: []*NodeSuggestion{
 				{
-					FieldRef:       0,
-					TypeName:       "Info",
-					FieldName:      "age",
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "User",
+					FieldName:      "name",
 					DataSourceHash: 2023,
-					Path:           "query.me.info.age",
-					ParentPath:     "query.me.info",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsLeaf:         true,
-					treeNodeId:     100,
+					Path:           "query.me.name",
+					ParentPath:     "query.me",
 				},
 				{
-					FieldRef:       1,
+					FieldRef:       ast.InvalidRef,
 					TypeName:       "User",
 					FieldName:      "info",
 					DataSourceHash: 2023,
 					Path:           "query.me.info",
 					ParentPath:     "query.me",
-					Selected:       false,
-					IsExternal:     true,
-					IsProvided:     true,
-					IsRootNode:     true,
-					treeNodeId:     101,
 				},
-			},
-		},
-		{
-			operation: `query {
-				me { # selection set ref 1
-					__typename
-					info {
-						__typename
-						age
-					}
-				}
-			}`,
-			selectionSetRef: 1,
-			expected: []*NodeSuggestion{
 				{
-					FieldRef:       2,
+					FieldRef:       ast.InvalidRef,
 					TypeName:       "Info",
 					FieldName:      "age",
 					DataSourceHash: 2023,
 					Path:           "query.me.info.age",
 					ParentPath:     "query.me.info",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsLeaf:         true,
-					treeNodeId:     102,
 				},
 				{
-					FieldRef:       1,
+					FieldRef:       ast.InvalidRef,
 					TypeName:       "Info",
 					FieldName:      "__typename",
 					DataSourceHash: 2023,
 					Path:           "query.me.info.__typename",
 					ParentPath:     "query.me.info",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     false,
-					IsLeaf:         true,
-					isTypeName:     true,
-					treeNodeId:     101,
 				},
 				{
-					FieldRef:       3,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsRootNode:     true,
-					IsExternal:     true,
-					treeNodeId:     103,
-				},
-				{
-					FieldRef:       0,
-					TypeName:       "User",
-					FieldName:      "__typename",
-					DataSourceHash: 2023,
-					Path:           "query.me.__typename",
-					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     false,
-					IsRootNode:     false,
-					IsLeaf:         true,
-					isTypeName:     true,
-					treeNodeId:     100,
-				},
-			},
-		},
-
-		{
-			operation: `query {
-				me { # selection set ref 1
-					info {
-						weight
-					}
-				}
-			}`,
-			selectionSetRef: 1,
-			expected:        nil,
-		},
-		{
-			operation: `query {
-				me {
-					name
-					info {
-						age
-					}
-				}
-			}`,
-			selectionSetRef: 1,
-			expected: []*NodeSuggestion{
-				{
-					FieldRef:       0,
-					TypeName:       "User",
-					FieldName:      "name",
-					DataSourceHash: 2023,
-					Path:           "query.me.name",
-					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         true,
-					treeNodeId:     100,
-				},
-				{
-					FieldRef:       1,
-					TypeName:       "Info",
-					FieldName:      "age",
-					DataSourceHash: 2023,
-					Path:           "query.me.info.age",
-					ParentPath:     "query.me.info",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     false,
-					IsLeaf:         true,
-					treeNodeId:     101,
-				},
-				{
-					FieldRef:       2,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         false,
-					treeNodeId:     102,
-				},
-			},
-		},
-		{
-			operation: `query {
-				me {
-					address {
-						street
-					}
-				}
-			}`,
-			selectionSetRef: 1,
-			expected: []*NodeSuggestion{
-				{
-					FieldRef:       0,
-					TypeName:       "Address",
-					FieldName:      "street",
-					DataSourceHash: 2023,
-					Path:           "query.me.address.street",
-					ParentPath:     "query.me.address",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         true,
-					treeNodeId:     100,
-				},
-				{
-					FieldRef:       1,
+					FieldRef:       ast.InvalidRef,
 					TypeName:       "User",
 					FieldName:      "address",
 					DataSourceHash: 2023,
 					Path:           "query.me.address",
 					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     false,
-					IsRootNode:     true,
-					IsLeaf:         false,
-					treeNodeId:     101,
-				},
-			},
-		},
-		{
-			operation: `query {
-				me {
-					address {
-						city
-					}
-				}
-			}`,
-			selectionSetRef: 1,
-			expected:        nil,
-		},
-		{
-			operation: `query {
-				me { # selection set ref 2
-					surname
-					info { # selection set ref 0
-						weight
-					}
-					address { # selection set ref 1
-						city
-					}
-				}
-			}`,
-			selectionSetRef: 2,
-			expected:        nil,
-		},
-		{
-			operation: `query {
-				me { # selection set ref 2
-					name
-					info { # selection set ref 0
-						age
-					}
-					address { # selection set ref 1
-						street
-						zip
-					}
-				}
-			}`,
-			selectionSetRef: 2,
-			expected: []*NodeSuggestion{
-				{
-					FieldRef:       0,
-					TypeName:       "User",
-					FieldName:      "name",
-					DataSourceHash: 2023,
-					Path:           "query.me.name",
-					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         true,
-					treeNodeId:     100,
 				},
 				{
-					FieldRef:       1,
-					TypeName:       "Info",
-					FieldName:      "age",
-					DataSourceHash: 2023,
-					Path:           "query.me.info.age",
-					ParentPath:     "query.me.info",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     false,
-					IsLeaf:         true,
-					treeNodeId:     101,
-				},
-				{
-					FieldRef:       2,
-					TypeName:       "User",
-					FieldName:      "info",
-					DataSourceHash: 2023,
-					Path:           "query.me.info",
-					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         false,
-					treeNodeId:     102,
-				},
-				{
-					FieldRef:       3,
+					FieldRef:       ast.InvalidRef,
 					TypeName:       "Address",
 					FieldName:      "street",
 					DataSourceHash: 2023,
 					Path:           "query.me.address.street",
 					ParentPath:     "query.me.address",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         true,
-					treeNodeId:     103,
 				},
 				{
-					FieldRef:       4,
+					FieldRef:       ast.InvalidRef,
 					TypeName:       "Address",
 					FieldName:      "zip",
 					DataSourceHash: 2023,
 					Path:           "query.me.address.zip",
 					ParentPath:     "query.me.address",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     true,
-					IsRootNode:     true,
-					IsLeaf:         true,
-					treeNodeId:     104,
 				},
 				{
-					FieldRef:       5,
-					TypeName:       "User",
-					FieldName:      "address",
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "Address",
+					FieldName:      "__typename",
 					DataSourceHash: 2023,
-					Path:           "query.me.address",
+					Path:           "query.me.address.__typename",
+					ParentPath:     "query.me.address",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "User",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.me.__typename",
 					ParentPath:     "query.me",
-					Selected:       false,
-					IsProvided:     true,
-					IsExternal:     false,
-					IsRootNode:     true,
-					IsLeaf:         false,
-					treeNodeId:     105,
 				},
 			},
 		},
 	}
 
 	for _, c := range cases {
-		t.Run(c.operation, func(t *testing.T) {
-			operation := unsafeparser.ParseGraphqlDocumentString(c.operation)
+		t.Run(keySDL, func(t *testing.T) {
 			report := &operationreport.Report{}
 
 			meta := &DataSourceMetadata{
@@ -425,10 +160,208 @@ func TestProvidesSuggestions(t *testing.T) {
 			input := &providesInput{
 				operationSelectionSet: c.selectionSetRef,
 				providesFieldSet:      fieldSet,
-				operation:             &operation,
 				definition:            &definition,
 				report:                report,
 				parentPath:            "query.me",
+				dataSource:            ds,
+			}
+
+			suggestions := providesSuggestions(input)
+			assert.False(t, report.HasErrors())
+			assert.Equal(t, c.expected, suggestions)
+		})
+	}
+}
+
+func TestProvidesSuggestionsWithFragments(t *testing.T) {
+	definitionSDL := `
+		type Query {
+			ab: AB! @provides(fields: "... on A {a} ... on B {b}")
+			nestedAB: NestedAB! @provides(fields: "ab { ... on A {a} ... on B {b} }")
+		}
+
+		type NestedAB {
+			ab: AB!
+		}
+
+		type A {
+			a: String!
+			b: String!
+		}
+
+		type B {
+			a: String!
+			b: String!
+		}
+
+		union AB = A | B
+	`
+
+	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
+
+	cases := []struct {
+		selectionSetRef      int
+		parentPath           string
+		fieldTypeName        string
+		providesSelectionSet string
+		expected             []*NodeSuggestion
+	}{
+		{
+			selectionSetRef:      1,
+			parentPath:           "query.ab",
+			fieldTypeName:        "AB",
+			providesSelectionSet: `... on A {a} ... on B {b}`,
+			expected: []*NodeSuggestion{
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "A",
+					FieldName:      "a",
+					DataSourceHash: 2023,
+					Path:           "query.ab.a",
+					ParentPath:     "query.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "A",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.ab.__typename",
+					ParentPath:     "query.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "B",
+					FieldName:      "b",
+					DataSourceHash: 2023,
+					Path:           "query.ab.b",
+					ParentPath:     "query.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "B",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.ab.__typename",
+					ParentPath:     "query.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "AB",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.ab.__typename",
+					ParentPath:     "query.ab",
+				},
+			},
+		},
+		{
+			selectionSetRef:      1,
+			parentPath:           "query.nestedAB",
+			fieldTypeName:        "NestedAB",
+			providesSelectionSet: `ab { ... on A {a} ... on B {b} }`,
+			expected: []*NodeSuggestion{
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "NestedAB",
+					FieldName:      "ab",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.ab",
+					ParentPath:     "query.nestedAB",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "A",
+					FieldName:      "a",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.ab.a",
+					ParentPath:     "query.nestedAB.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "A",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.ab.__typename",
+					ParentPath:     "query.nestedAB.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "B",
+					FieldName:      "b",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.ab.b",
+					ParentPath:     "query.nestedAB.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "B",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.ab.__typename",
+					ParentPath:     "query.nestedAB.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "AB",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.ab.__typename",
+					ParentPath:     "query.nestedAB.ab",
+				},
+				{
+					FieldRef:       ast.InvalidRef,
+					TypeName:       "NestedAB",
+					FieldName:      "__typename",
+					DataSourceHash: 2023,
+					Path:           "query.nestedAB.__typename",
+					ParentPath:     "query.nestedAB",
+				},
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.providesSelectionSet, func(t *testing.T) {
+			report := &operationreport.Report{}
+
+			meta := &DataSourceMetadata{
+				RootNodes: []TypeField{
+					{
+						TypeName:   "Query",
+						FieldNames: []string{"ab", "nestedAB"},
+					},
+					{
+						TypeName:           "A",
+						FieldNames:         []string{"a"},
+						ExternalFieldNames: []string{"b"},
+					},
+					{
+						TypeName:           "B",
+						FieldNames:         []string{"b"},
+						ExternalFieldNames: []string{"a"},
+					},
+					{
+						TypeName:   "NestedAB",
+						FieldNames: []string{"ab"},
+					},
+				},
+			}
+			meta.InitNodesIndex()
+
+			ds := &dataSourceConfiguration[string]{
+				hash:               2023,
+				DataSourceMetadata: meta,
+			}
+
+			fieldSet, report := providesFragment(c.fieldTypeName, c.providesSelectionSet, &definition)
+			assert.False(t, report.HasErrors())
+
+			input := &providesInput{
+				operationSelectionSet: c.selectionSetRef,
+				providesFieldSet:      fieldSet,
+				definition:            &definition,
+				report:                report,
+				parentPath:            c.parentPath,
 				dataSource:            ds,
 			}
 
