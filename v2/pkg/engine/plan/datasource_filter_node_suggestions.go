@@ -27,7 +27,7 @@ type NodeSuggestion struct {
 	IsLeaf                    bool   `json:"isLeaf"`
 	isTypeName                bool
 
-	parentPathWithoutFragment *string
+	parentPathWithoutFragment string
 	onFragment                bool
 	Selected                  bool     `json:"isSelected"`
 	SelectionReasons          []string `json:"selectReason"`
