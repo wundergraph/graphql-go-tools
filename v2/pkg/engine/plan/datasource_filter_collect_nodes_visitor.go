@@ -85,6 +85,7 @@ func (c *nodesCollector) collectNodes() {
 			}()
 
 			walker.Walk(c.operation, c.definition, report)
+
 		}(walker, &report)
 	}
 	wg.Wait()
@@ -168,6 +169,7 @@ type collectNodesVisitor struct {
 	dataSource DataSource
 
 	localSuggestions []*NodeSuggestion
+	providesEntries  []*NodeSuggestion
 
 	nodes *NodeSuggestions
 
@@ -274,26 +276,13 @@ func (f *collectNodesVisitor) handleProvidesSuggestions(fieldRef int, typeName, 
 		parentPath:            currentPath,
 		dataSource:            f.dataSource,
 	}
-	suggestions := providesSuggestions(input)
+	providesSuggestions := providesSuggestions(input)
 	if report.HasErrors() {
 		f.walker.StopWithInternalErr(fmt.Errorf("failed to get provides suggestions for %s.%s at path %s: %v", typeName, fieldName, currentPath, report))
 		return
 	}
 
-	for _, suggestion := range suggestions {
-		treeNode, _ := f.nodes.responseTree.Find(suggestion.treeNodeId)
-		nodesIndexes := treeNode.GetData()
-
-		exists := slices.ContainsFunc(nodesIndexes, func(i int) bool {
-			return f.nodes.items[i].DataSourceHash == f.dataSource.Hash()
-		})
-		if exists {
-			continue
-		}
-
-		// if suggestions is not exists we adding it
-		f.localSuggestions = append(f.localSuggestions, suggestion)
-	}
+	f.providesEntries = append(f.providesEntries, providesSuggestions...)
 }
 
 func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldInfo) bool {
@@ -383,29 +372,18 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	itemIds := treeNode.GetData()
 
 	// this is the check for the global suggestions
-	if itemID, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
-		// when we already have such suggestion we skip adding it
-		// we could have such suggestion if the field was provided or already added on previous steps
-
-		if f.nodes.items[itemID].IsProvided &&
-			f.nodes.items[itemID].IsExternal &&
-			!f.nodes.items[itemID].IsLeaf {
-			// we don't need to add a suggestion for an external provided field childs
-			f.walker.SkipNode()
-		}
-
+	if _, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
 		return
 	}
 
 	// this is the check for the current collect nodes iterations suggestions
-	if localItemId, ok := f.hasLocalSuggestion(fieldRef); ok {
-		if f.localSuggestions[localItemId].IsProvided &&
-			f.localSuggestions[localItemId].IsExternal &&
-			!f.localSuggestions[localItemId].IsLeaf {
-			// we don't need to add a suggestion for an external provided field childs
-			f.walker.SkipNode()
-		}
+	if _, ok := f.hasLocalSuggestion(fieldRef); ok {
+		return
 	}
+
+	isProvided := slices.ContainsFunc(f.providesEntries, func(suggestion *NodeSuggestion) bool {
+		return suggestion.TypeName == info.typeName && suggestion.FieldName == info.fieldName && suggestion.Path == info.currentPathWithoutFragments
+	})
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
 		// we should not add a typename on the interface object
@@ -442,7 +420,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		isExternal = false
 	}
 
-	if hasRootNode || hasChildNode || isExternal {
+	if hasRootNode || hasChildNode || isExternal || isProvided {
 		disabledEntityResolver := hasRootNode && f.allKeysHasDisabledEntityResolver(info.typeName)
 
 		node := NodeSuggestion{
@@ -461,6 +439,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			DisabledEntityResolver:    disabledEntityResolver,
 			IsEntityInterfaceTypeName: info.isTypeName && f.isEntityInterface(info.typeName),
 			IsExternal:                isExternal,
+			IsProvided:                isProvided,
 			IsLeaf:                    isLeaf,
 			isTypeName:                info.isTypeName,
 			treeNodeId:                currentNodeId,
@@ -536,8 +515,9 @@ type fieldInfoVisitor struct {
 type fieldInfo struct {
 	typeName, fieldName, fieldAliasOrName, parentPath, currentPath string
 	onFragment, isTypeName                                         bool
-	parentPathWithoutFragment                                      *string
+	parentPathWithoutFragment                                      string
 	possibleTypeNames                                              []string
+	currentPathWithoutFragments                                    string
 }
 
 func (f *fieldInfoVisitor) EnterField(ref int) {
@@ -557,21 +537,21 @@ func (f *fieldInfoVisitor) EnterField(ref int) {
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
-	var parentPathWithoutFragment *string
-	if onFragment {
-		p := f.walker.Path[:len(f.walker.Path)-1].DotDelimitedString()
-		parentPathWithoutFragment = &p
-	}
+	parentPathWithoutFragment := f.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+
 	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
+	currentPathWithoutFragments := fmt.Sprintf("%s.%s", parentPathWithoutFragment, fieldAliasOrName)
+
 	f.infoCache[ref] = fieldInfo{
-		typeName:                  typeName,
-		possibleTypeNames:         possibleTypes,
-		fieldName:                 fieldName,
-		fieldAliasOrName:          fieldAliasOrName,
-		parentPath:                parentPath,
-		currentPath:               currentPath,
-		onFragment:                onFragment,
-		parentPathWithoutFragment: parentPathWithoutFragment,
-		isTypeName:                isTypeName,
+		typeName:                    typeName,
+		possibleTypeNames:           possibleTypes,
+		fieldName:                   fieldName,
+		fieldAliasOrName:            fieldAliasOrName,
+		parentPath:                  parentPath,
+		currentPath:                 currentPath,
+		onFragment:                  onFragment,
+		parentPathWithoutFragment:   parentPathWithoutFragment,
+		currentPathWithoutFragments: currentPathWithoutFragments,
+		isTypeName:                  isTypeName,
 	}
 }
