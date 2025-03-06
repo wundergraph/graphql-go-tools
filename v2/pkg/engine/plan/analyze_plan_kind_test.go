@@ -11,27 +11,21 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 )
 
-type expectation func(t *testing.T, operationKind ast.OperationType, streaming bool, err error)
+type expectation func(t *testing.T, operationKind ast.OperationType, err error)
 
 func mustNotErr() expectation {
-	return func(t *testing.T, operationKind ast.OperationType, streaming bool, err error) {
+	return func(t *testing.T, operationKind ast.OperationType, err error) {
 		assert.NoError(t, err)
 	}
 }
 
 func mustSubscription(expect bool) expectation {
-	return func(t *testing.T, operationKind ast.OperationType, streaming bool, err error) {
+	return func(t *testing.T, operationKind ast.OperationType, err error) {
 		if expect {
 			assert.Equal(t, ast.OperationTypeSubscription, operationKind)
 		} else {
 			assert.NotEqual(t, ast.OperationTypeSubscription, operationKind)
 		}
-	}
-}
-
-func mustStreaming(expectStreaming bool) expectation {
-	return func(t *testing.T, operationKind ast.OperationType, streaming bool, err error) {
-		assert.Equal(t, expectStreaming, streaming)
 	}
 }
 
@@ -44,9 +38,9 @@ func TestAnalyzePlanKind(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			operationKind, streaming, err := AnalyzePlanKind(&op, &def, operationName)
+			operationKind, err := AnalyzePlanKind(&op, &def, operationName)
 			for i := range expectations {
-				expectations[i](t, operationKind, streaming, err)
+				expectations[i](t, operationKind, err)
 			}
 		}
 	}
@@ -67,7 +61,6 @@ func TestAnalyzePlanKind(t *testing.T) {
 		}`,
 		"MyQuery",
 		mustNotErr(),
-		mustStreaming(false),
 		mustSubscription(false),
 	))
 	t.Run("query stream", run(testDefinition, `
@@ -86,7 +79,6 @@ func TestAnalyzePlanKind(t *testing.T) {
 		}`,
 		"MyQuery",
 		mustNotErr(),
-		mustStreaming(true),
 		mustSubscription(false),
 	))
 	t.Run("query defer", run(testDefinition, `
@@ -100,12 +92,13 @@ func TestAnalyzePlanKind(t *testing.T) {
 					name
 				}
 				primaryFunction
-				favoriteEpisode @defer
+				... @defer {
+					favoriteEpisode
+				}
 			}
 		}`,
 		"MyQuery",
 		mustNotErr(),
-		mustStreaming(true),
 		mustSubscription(false),
 	))
 	t.Run("query defer", run(testDefinition, `
@@ -132,7 +125,6 @@ func TestAnalyzePlanKind(t *testing.T) {
 		}`,
 		"MyQuery",
 		mustNotErr(),
-		mustStreaming(false),
 		mustSubscription(false),
 	))
 	t.Run("query defer different name", run(testDefinition, `
@@ -146,12 +138,13 @@ func TestAnalyzePlanKind(t *testing.T) {
 					name
 				}
 				primaryFunction
-				favoriteEpisode @defer
+				... @defer {
+					favoriteEpisode
+				}
 			}
 		}`,
 		"OperationNameNotExists",
 		mustNotErr(),
-		mustStreaming(false),
 		mustSubscription(false),
 	))
 	t.Run("subscription", run(testDefinition, `
@@ -160,19 +153,19 @@ func TestAnalyzePlanKind(t *testing.T) {
 		}`,
 		"RemainingJedis",
 		mustNotErr(),
-		mustStreaming(false),
 		mustSubscription(true),
 	))
 	t.Run("subscription with streaming", run(testDefinition, `
 		subscription NewReviews {
 			newReviews {
 				id
-				stars @defer
+				... @defer {
+					stars
+				}
 			}
 		}`,
 		"NewReviews",
 		mustNotErr(),
-		mustStreaming(true),
 		mustSubscription(true),
 	))
 	t.Run("subscription name not exists", run(testDefinition, `
@@ -181,7 +174,6 @@ func TestAnalyzePlanKind(t *testing.T) {
 		}`,
 		"OperationNameNotExists",
 		mustNotErr(),
-		mustStreaming(false),
 		mustSubscription(false),
 	))
 }

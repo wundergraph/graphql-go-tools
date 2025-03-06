@@ -4,9 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // nodeSelectionVisitor - walks through the operation multiple times to rewrite operation
@@ -44,6 +46,8 @@ type nodeSelectionVisitor struct {
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
 	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates
+
+	defers []deferInfo
 }
 
 func (c *nodeSelectionVisitor) shouldRevisit() bool {
@@ -159,6 +163,20 @@ func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
 	}
 }
 
+func (c *nodeSelectionVisitor) EnterInlineFragment(ref int) {
+	directives := c.operation.InlineFragments[ref].Directives.Refs
+	if _, ok := c.operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		c.enterDefer(ref)
+	}
+}
+
+func (c *nodeSelectionVisitor) LeaveInlineFragment(ref int) {
+	directives := c.operation.InlineFragments[ref].Directives.Refs
+	if _, ok := c.operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		c.leaveDefer()
+	}
+}
+
 func (c *nodeSelectionVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
 	c.selectionSetRefs = append(c.selectionSetRefs, ref)
@@ -186,7 +204,7 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	parentPath := c.walker.Path.DotDelimitedString()
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
+	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath, c.currentDeferPath())
 
 	for _, suggestion := range suggestions {
 		if suggestion.IsRequiredKeyField {
@@ -224,6 +242,29 @@ func (c *nodeSelectionVisitor) LeaveField(ref int) {
 	if len(c.fieldPathCoordinates) > 0 {
 		c.fieldPathCoordinates = c.fieldPathCoordinates[:len(c.fieldPathCoordinates)-1]
 	}
+}
+
+func (c *nodeSelectionVisitor) enterDefer(ref int) {
+	path := c.walker.Path.StringSlice()
+	fragName := c.operation.InlineFragmentTypeConditionNameString(ref)
+
+	c.defers = append(c.defers, deferInfo{
+		Path: append(path[:], fmt.Sprintf("%s%d%s", ast.InlineFragmentPathPrefix, ref, fragName)),
+		Ref:  ref,
+	})
+}
+
+func (c *nodeSelectionVisitor) leaveDefer() {
+	if depth := len(c.defers); depth > 0 {
+		c.defers = c.defers[:depth-1]
+	}
+}
+
+func (c *nodeSelectionVisitor) currentDeferPath() string {
+	if len(c.defers) == 0 {
+		return ""
+	}
+	return strings.Join(c.defers[len(c.defers)-1].Path, ".")
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {

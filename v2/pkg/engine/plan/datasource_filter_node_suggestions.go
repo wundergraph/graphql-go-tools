@@ -14,6 +14,7 @@ type NodeSuggestion struct {
 	DataSourceName            string `json:"dsName"`
 	DataSourceHash            DSHash `json:"-"`
 	Path                      string `json:"path"`
+	DeferPath                 string `json:"deferPath"`
 	TypeName                  string `json:"typeName"`
 	FieldName                 string `json:"fieldName"`
 	FieldRef                  int    `json:"fieldRef"`
@@ -117,14 +118,14 @@ func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int
 	return len(f.items) - 1
 }
 
-func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (suggestions []*NodeSuggestion) {
+func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string, deferPath string) (suggestions []*NodeSuggestion) {
 	items, ok := f.pathSuggestions[path]
 	if !ok {
 		return nil
 	}
 
 	for i := range items {
-		if items[i].Selected && typeName == items[i].TypeName && fieldName == items[i].FieldName {
+		if items[i].Selected && typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].DeferPath == deferPath {
 			suggestions = append(suggestions, items[i])
 		}
 	}

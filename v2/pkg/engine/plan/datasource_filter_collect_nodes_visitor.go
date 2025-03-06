@@ -3,10 +3,12 @@ package plan
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -51,6 +53,7 @@ func (c *nodesCollector) collectNodes() {
 			info:       info,
 		}
 		walker.RegisterFieldVisitor(visitor)
+		walker.RegisterInlineFragmentVisitor(visitor)
 		visitor.dataSource = dataSource
 		visitor.keyPaths = make(map[string]struct{})
 		visitors[i] = visitor
@@ -143,6 +146,7 @@ type collectNodesVisitor struct {
 	dataSource DataSource
 
 	localSuggestions []*NodeSuggestion
+	defers           []deferInfo
 
 	nodes *NodeSuggestions
 
@@ -430,6 +434,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			DataSourceName:            f.dataSource.Name(),
 			Path:                      info.currentPath,
 			ParentPath:                info.parentPath,
+			DeferPath:                 f.currentDeferPath(),
 			IsRootNode:                hasRootNode,
 			onFragment:                info.onFragment,
 			parentPathWithoutFragment: info.parentPathWithoutFragment,
@@ -458,6 +463,43 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 
 func (f *collectNodesVisitor) LeaveField(ref int) {
 
+}
+
+func (f *collectNodesVisitor) EnterInlineFragment(ref int) {
+	directives := f.operation.InlineFragments[ref].Directives.Refs
+	if _, ok := f.operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		f.enterDefer(ref)
+	}
+}
+
+func (f *collectNodesVisitor) LeaveInlineFragment(ref int) {
+	directives := f.operation.InlineFragments[ref].Directives.Refs
+	if _, ok := f.operation.DirectiveWithNameBytes(directives, literal.DEFER); ok {
+		f.leaveDefer()
+	}
+}
+
+func (f *collectNodesVisitor) enterDefer(ref int) {
+	path := f.walker.Path.StringSlice()
+	fragName := f.operation.InlineFragmentTypeConditionNameString(ref)
+
+	f.defers = append(f.defers, deferInfo{
+		Path: append(path[:], fmt.Sprintf("%s%d%s", ast.InlineFragmentPathPrefix, ref, fragName)),
+		Ref:  ref,
+	})
+}
+
+func (f *collectNodesVisitor) leaveDefer() {
+	if depth := len(f.defers); depth > 0 {
+		f.defers = f.defers[:depth-1]
+	}
+}
+
+func (f *collectNodesVisitor) currentDeferPath() string {
+	if len(f.defers) == 0 {
+		return ""
+	}
+	return strings.Join(f.defers[len(f.defers)-1].Path, ".")
 }
 
 func (f *collectNodesVisitor) applySuggestions() {
