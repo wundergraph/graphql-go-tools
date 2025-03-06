@@ -41,10 +41,18 @@ func (p *planKindVisitor) EnterDirective(ref int) {
 	switch ancestor.Kind {
 	case ast.NodeKindField:
 		switch directiveName {
-		case "defer":
-			p.hasDeferDirective = true
 		case "stream":
 			p.hasStreamDirective = true
+		}
+	case ast.NodeKindInlineFragment:
+		switch directiveName {
+		case "defer":
+			p.hasDeferDirective = true
+		}
+	case ast.NodeKindFragmentSpread:
+		switch directiveName {
+		case "defer":
+			p.hasDeferDirective = true
 		}
 	}
 }

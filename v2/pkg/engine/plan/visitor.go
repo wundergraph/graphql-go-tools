@@ -254,8 +254,6 @@ func (v *Visitor) EnterDirective(ref int) {
 			v.currentField.Stream = &resolve.StreamField{
 				InitialBatchSize: initialBatchSize,
 			}
-		case "defer":
-			v.currentField.Defer = &resolve.DeferField{}
 		}
 	}
 }

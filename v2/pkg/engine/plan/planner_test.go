@@ -379,7 +379,7 @@ func TestPlanner_Plan(t *testing.T) {
 						name
 					}
 				}
-		
+
 				query MyHero {
 					hero{
 						name
@@ -392,15 +392,15 @@ func TestPlanner_Plan(t *testing.T) {
 	t.Run("unescape response json", func(t *testing.T) {
 		schema := `
 			scalar JSON
-			
+
 			schema {
 				query: Query
 			}
-			
+
 			type Query {
 				hero: Character!
 			}
-			
+
 			type Character {
 				info: JSON!
 				infos: [JSON!]!
@@ -678,11 +678,7 @@ var testDefinitionDSConfiguration = dsb().
 
 const testDefinition = `
 
-directive @defer on FIELD
-
 directive @flushInterval(milliSeconds: Int!) on QUERY | SUBSCRIPTION
-
-directive @stream(initialBatchSize: Int) on FIELD
 
 union SearchResult = Human | Droid | Starship
 
