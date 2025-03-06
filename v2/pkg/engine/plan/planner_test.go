@@ -1118,13 +1118,7 @@ var testDefinitionDSConfiguration = dsb().
 
 const testDefinition = `
 
-directive @defer(label: String if: Boolean! = true) on FRAGMENT_SPREAD | INLINE_FRAGMENT
-
-directive @stream(label: String if: Boolean! = true initialCount: Int = 0) on FIELD
-
 directive @flushInterval(milliSeconds: Int!) on QUERY | SUBSCRIPTION
-
-directive @stream(initialBatchSize: Int) on FIELD
 
 union SearchResult = Human | Droid | Starship
 
