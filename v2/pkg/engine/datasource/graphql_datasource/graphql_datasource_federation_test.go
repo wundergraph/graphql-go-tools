@@ -13506,10 +13506,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					entityOne: Entity!
 				}
 				
-				type Entity @key(fields: "id") @key(fields: "name", resolvable: false) @key(fields: "uuid", resolvable: false) {
+				type Entity @key(fields: "id") {
 					id: ID!
-					uuid: ID!
-					name: String!
 					isEntity: Boolean!
 				}
 			`
@@ -13526,7 +13524,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 						{
 							TypeName:   "Entity",
-							FieldNames: []string{"id", "uuid", "name", "isEntity"},
+							FieldNames: []string{"id", "isEntity"},
 						},
 					},
 					FederationMetaData: plan.FederationMetaData{
@@ -13534,16 +13532,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							{
 								TypeName:     "Entity",
 								SelectionSet: "id",
-							},
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "name",
-								DisableEntityResolver: true,
-							},
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "uuid",
-								DisableEntityResolver: true,
 							},
 						},
 					},
@@ -13568,8 +13556,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				type Query {
 					entityTwo: Entity!
 				}
-				
-				type Entity @key(fields: "id", resolvable: false) @key(fields: "name", resolvable: false) @key(fields: "uuid") {
+
+				type Entity @key(fields: "id") @key(fields: "name", resolvable: false) @key(fields: "uuid") {
 					id: ID!
 					uuid: ID!
 					name: String!
@@ -13596,9 +13584,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					FederationMetaData: plan.FederationMetaData{
 						Keys: plan.FederationFieldConfigurations{
 							{
-								TypeName:              "Entity",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
+								TypeName:     "Entity",
+								SelectionSet: "id",
 							},
 							{
 								TypeName:              "Entity",
@@ -13633,8 +13620,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					entityThree: Entity!
 				}
 				
-				type Entity @key(fields: "id", resolvable: false) @key(fields: "name") @key(fields: "uuid", resolvable: false) {
-					id: ID!
+				type Entity @key(fields: "name") @key(fields: "uuid", resolvable: false) {
 					uuid: ID!
 					name: String!
 					age: Int!
@@ -13653,16 +13639,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					},
 					{
 						TypeName:   "Entity",
-						FieldNames: []string{"id", "uuid", "name", "age", "isImportant"},
+						FieldNames: []string{"uuid", "name", "age", "isImportant"},
 					},
 				},
 					FederationMetaData: plan.FederationMetaData{
 						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:              "Entity",
-								SelectionSet:          "id",
-								DisableEntityResolver: true,
-							},
 							{
 								TypeName:     "Entity",
 								SelectionSet: "name",
@@ -13698,16 +13679,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					thirdDatasourceConfiguration,
 				},
 				DisableResolveFieldPositions: true,
-				Debug:                        plan.DebugConfiguration{},
+				Debug: plan.DebugConfiguration{
+					PrintQueryPlans: true,
+				},
 			}
 
-			t.Run("query", func(t *testing.T) {
+			t.Run("query all possible fields", func(t *testing.T) {
 				entityOneNestedFetch2Second := func(fetchID int, variantOne bool) resolve.Fetch {
 					var entitySelectionSet string
 					if variantOne {
-						entitySelectionSet = "age rating"
+						entitySelectionSet = "uuid name age rating"
 					} else {
-						entitySelectionSet = "rating"
+						entitySelectionSet = "name rating"
 					}
 
 					return &resolve.SingleFetch{
@@ -13733,9 +13716,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												OnTypeNames: [][]byte{[]byte("Entity")},
 											},
 											{
-												Name: []byte("uuid"),
+												Name: []byte("id"),
 												Value: &resolve.Scalar{
-													Path: []string{"uuid"},
+													Path: []string{"id"},
 												},
 												OnTypeNames: [][]byte{[]byte("Entity")},
 											},
@@ -13753,13 +13736,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					if variantOne {
 						entitySelectionSet = "isImportant"
 					} else {
-						entitySelectionSet = "age isImportant"
+						entitySelectionSet = "uuid age isImportant"
 					}
 
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{0},
+							DependsOnFetchIDs: []int{1},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -13798,7 +13781,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{2},
+							DependsOnFetchIDs: []int{3},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -13837,7 +13820,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{2},
+							DependsOnFetchIDs: []int{3},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -13876,7 +13859,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{5},
+							DependsOnFetchIDs: []int{7},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
@@ -13915,11 +13898,11 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					return &resolve.SingleFetch{
 						FetchDependencies: resolve.FetchDependencies{
 							FetchID:           fetchID,
-							DependsOnFetchIDs: []int{5},
+							DependsOnFetchIDs: []int{6},
 						}, FetchConfiguration: resolve.FetchConfiguration{
 							RequiresEntityBatchFetch:              false,
 							RequiresEntityFetch:                   true,
-							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename rating}}}","variables":{"representations":[$$0$$]}}}`,
+							Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id rating}}}","variables":{"representations":[$$0$$]}}}`,
 							DataSource:                            &Source{},
 							SetTemplateOutputToNullOnVariableNull: true,
 							Variables: []resolve.Variable{
@@ -13968,7 +13951,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FetchID: 0,
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id name isEntity __typename uuid}}"}}`,
+											Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id isEntity __typename}}"}}`,
 											PostProcessing: DefaultPostProcessingConfiguration,
 											DataSource:     &Source{},
 										},
@@ -13976,10 +13959,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}),
 									resolve.Single(&resolve.SingleFetch{
 										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 2,
+											FetchID: 3,
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id name age rating __typename}}"}}`,
+											Input:          `{"method":"POST","url":"http://second.service","body":{"query":"{entityTwo {id uuid name age rating __typename}}"}}`,
 											PostProcessing: DefaultPostProcessingConfiguration,
 											DataSource:     &Source{},
 										},
@@ -13987,10 +13970,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}),
 									resolve.Single(&resolve.SingleFetch{
 										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 5,
+											FetchID: 6,
 										},
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {id name age isImportant __typename uuid}}"}}`,
+											Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {uuid name age isImportant __typename}}"}}`,
 											PostProcessing: DefaultPostProcessingConfiguration,
 											DataSource:     &Source{},
 										},
@@ -13999,10 +13982,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								),
 								resolve.Parallel(
 									resolve.SingleWithPath(entityOneFetchOne, "entityOne", resolve.ObjectPath("entityOne")),
-									resolve.SingleWithPath(entityOneFetchTwo, "entityOne", resolve.ObjectPath("entityOne")),
 									resolve.SingleWithPath(entityTwoFetchOne, "entityTwo", resolve.ObjectPath("entityTwo")),
 									resolve.SingleWithPath(entityTwoFetchTwo, "entityTwo", resolve.ObjectPath("entityTwo")),
 									resolve.SingleWithPath(entityThreeFetchOne, "entityThree", resolve.ObjectPath("entityThree")),
+								),
+								resolve.Parallel(
+									resolve.SingleWithPath(entityOneFetchTwo, "entityOne", resolve.ObjectPath("entityOne")),
 									resolve.SingleWithPath(entityThreeFetchTwo, "entityThree", resolve.ObjectPath("entityThree")),
 								),
 							),
@@ -14022,6 +14007,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													Name: []byte("id"),
 													Value: &resolve.Scalar{
 														Path: []string{"id"},
+													},
+												},
+												{
+													Name: []byte("uuid"),
+													Value: &resolve.Scalar{
+														Path: []string{"uuid"},
 													},
 												},
 												{
@@ -14074,6 +14065,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												{
+													Name: []byte("uuid"),
+													Value: &resolve.Scalar{
+														Path: []string{"uuid"},
+													},
+												},
+												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path: []string{"name"},
@@ -14123,6 +14120,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 													},
 												},
 												{
+													Name: []byte("uuid"),
+													Value: &resolve.Scalar{
+														Path: []string{"uuid"},
+													},
+												},
+												{
 													Name: []byte("name"),
 													Value: &resolve.String{
 														Path: []string{"name"},
@@ -14162,15 +14165,15 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 
 				variant1 := expectedPlan(
-					entityOneNestedFetch2Third(1, true), entityOneNestedFetch2Second(7, true),
-					entityTwoNestedFetch2First(3), entityTwoNestedFetch2Third(4),
-					entityThreeNestedFetch2First(6), entityThreeNestedFetch2Second(8),
+					entityOneNestedFetch2Second(1, true), entityOneNestedFetch2Third(2, true),
+					entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+					entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
 				)
 
 				variant2 := expectedPlan(
-					entityOneNestedFetch2Third(1, false), entityOneNestedFetch2Second(7, false),
-					entityTwoNestedFetch2First(3), entityTwoNestedFetch2Third(4),
-					entityThreeNestedFetch2First(6), entityThreeNestedFetch2Second(8),
+					entityOneNestedFetch2Second(1, false), entityOneNestedFetch2Third(2, false),
+					entityTwoNestedFetch2First(4), entityTwoNestedFetch2Third(5),
+					entityThreeNestedFetch2Second(7), entityThreeNestedFetch2First(8),
 				)
 
 				expectedPlans := []plan.Plan{
@@ -14189,6 +14192,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						query Query {
 							entityOne {
 								id
+								uuid
 								name
 								age
 								isEntity
@@ -14197,6 +14201,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 							entityTwo {
 								id
+								uuid
 								name
 								age
 								isEntity
@@ -14205,6 +14210,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 							entityThree {
 								id
+								uuid
 								name
 								age
 								isEntity
@@ -14215,6 +14221,273 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					`,
 					"Query",
 					expectedPlans,
+					planConfiguration,
+					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
+				)
+			})
+
+			t.Run("query last field in a chain first-second-third", func(t *testing.T) {
+				expectedPlan := &plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Fetches: resolve.Sequence(
+							resolve.Single(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id __typename}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+									DataSource:     &Source{},
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+
+							resolve.SingleWithPath(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
+								}, FetchConfiguration: resolve.FetchConfiguration{
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
+										},
+									},
+									PostProcessing: SingleEntityPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}, "entityOne", resolve.ObjectPath("entityOne")),
+							resolve.SingleWithPath(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           2,
+									DependsOnFetchIDs: []int{1},
+								}, FetchConfiguration: resolve.FetchConfiguration{
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isImportant}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+													{
+														Name: []byte("name"),
+														Value: &resolve.String{
+															Path: []string{"name"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
+										},
+									},
+									PostProcessing: SingleEntityPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}, "entityOne", resolve.ObjectPath("entityOne")),
+						),
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("entityOne"),
+									Value: &resolve.Object{
+										Path:     []string{"entityOne"},
+										Nullable: false,
+										PossibleTypes: map[string]struct{}{
+											"Entity": {},
+										},
+										TypeName: "Entity",
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("isImportant"),
+												Value: &resolve.Boolean{
+													Path: []string{"isImportant"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query Query {
+							entityOne {
+								isImportant
+							}
+						}
+					`,
+					"Query",
+					expectedPlan,
+					planConfiguration,
+					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
+				)
+			})
+
+			t.Run("query last field in a chain third-second-first", func(t *testing.T) {
+				expectedPlan := &plan.SynchronousResponsePlan{
+					Response: &resolve.GraphQLResponse{
+						Fetches: resolve.Sequence(
+							resolve.Single(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID: 0,
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {uuid __typename}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+									DataSource:     &Source{},
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+							resolve.SingleWithPath(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           1,
+									DependsOnFetchIDs: []int{0},
+								}, FetchConfiguration: resolve.FetchConfiguration{
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename id}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+													{
+														Name: []byte("uuid"),
+														Value: &resolve.Scalar{
+															Path: []string{"uuid"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
+										},
+									},
+									PostProcessing: SingleEntityPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}, "entityThree", resolve.ObjectPath("entityThree")),
+							resolve.SingleWithPath(&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           2,
+									DependsOnFetchIDs: []int{1},
+								}, FetchConfiguration: resolve.FetchConfiguration{
+									RequiresEntityBatchFetch:              false,
+									RequiresEntityFetch:                   true,
+									Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Entity {__typename isEntity}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Entity")},
+													},
+												},
+											}),
+										},
+									},
+									PostProcessing: SingleEntityPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}, "entityThree", resolve.ObjectPath("entityThree")),
+						),
+						Data: &resolve.Object{
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("entityThree"),
+									Value: &resolve.Object{
+										Path:     []string{"entityThree"},
+										Nullable: false,
+										PossibleTypes: map[string]struct{}{
+											"Entity": {},
+										},
+										TypeName: "Entity",
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("isEntity"),
+												Value: &resolve.Boolean{
+													Path: []string{"isEntity"},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				}
+
+				RunWithPermutations(
+					t,
+					definition,
+					`
+						query Query {
+							entityThree {
+								isEntity
+							}
+						}
+					`,
+					"Query",
+					expectedPlan,
 					planConfiguration,
 					WithDefaultCustomPostProcessor(postprocess.DisableResolveInputTemplates(), postprocess.DisableCreateConcreteSingleFetchTypes(), postprocess.DisableOrderSequenceByDependencies(), postprocess.DisableMergeFields()),
 				)
