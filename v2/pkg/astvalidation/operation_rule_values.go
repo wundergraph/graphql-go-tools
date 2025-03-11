@@ -296,7 +296,7 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, definitionTypeRef 
 	case bytes.Equal(scalarName, literal.FLOAT):
 		return v.valueSatisfiesScalarFloat(value, definitionTypeRef)
 	case bytes.Equal(scalarName, literal.STRING):
-		return v.valueSatisfiesScalarString(value, definitionTypeRef, true)
+		return v.valueSatisfiesScalarString(value, definitionTypeRef)
 	default:
 		// custom scalar values could be of any kind
 		return true
@@ -374,7 +374,7 @@ func (v *valuesVisitor) valueSatisfiesScalarFloat(value ast.Value, definitionTyp
 	return false
 }
 
-func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTypeRef int, builtInStringScalar bool) bool {
+func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTypeRef int) bool {
 	if value.Kind == ast.ValueKindString {
 		return true
 	}
@@ -384,11 +384,7 @@ func (v *valuesVisitor) valueSatisfiesScalarString(value ast.Value, definitionTy
 		return false
 	}
 
-	if builtInStringScalar {
-		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyString(printedValue, printedType, value.Position))
-	} else {
-		v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyType(printedValue, printedType, value.Position))
-	}
+	v.Report.AddExternalError(operationreport.ErrValueDoesntSatisfyString(printedValue, printedType, value.Position))
 
 	return false
 }
