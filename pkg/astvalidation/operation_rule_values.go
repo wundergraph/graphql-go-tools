@@ -313,7 +313,8 @@ func (v *valuesVisitor) valueSatisfiesScalar(value ast.Value, definitionTypeRef 
 	case bytes.Equal(scalarName, literal.STRING):
 		return v.valueSatisfiesScalarString(value, definitionTypeRef, true)
 	default:
-		return v.valueSatisfiesScalarString(value, definitionTypeRef, false)
+		// custom scalar values could be of any kind
+		return true
 	}
 }
 
