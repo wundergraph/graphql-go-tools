@@ -48,6 +48,12 @@ type SubscriptionResponseWriter interface {
 	Complete()
 }
 
+type IncrementalResponseWriter interface {
+	ResponseWriter
+	Flush(path []any) error
+	Complete() error
+}
+
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
 	hasErrors := buf.Errors.Len() != 0
 	hasData := buf.Data.Len() != 0 && !ignoreData
