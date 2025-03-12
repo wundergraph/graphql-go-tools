@@ -3,6 +3,8 @@ package resolve
 import (
 	"bytes"
 	"slices"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 type Object struct {
@@ -93,7 +95,7 @@ type Field struct {
 	Name              []byte
 	Value             Node
 	Position          Position
-	Defer             *DeferField
+	DeferPaths        []ast.Path
 	Stream            *StreamField
 	OnTypeNames       [][]byte
 	ParentOnTypeNames []ParentOnTypeNames
@@ -110,7 +112,7 @@ func (f *Field) Copy() *Field {
 		Name:        f.Name,
 		Value:       f.Value.Copy(),
 		Position:    f.Position,
-		Defer:       f.Defer,
+		DeferPaths:  f.DeferPaths,
 		Stream:      f.Stream,
 		OnTypeNames: f.OnTypeNames,
 		Info:        f.Info,
@@ -182,4 +184,52 @@ type StreamField struct {
 	InitialBatchSize int
 }
 
-type DeferField struct{}
+type DeferInfo struct {
+	// TODO(cd): Label and If
+	Path ast.Path
+}
+
+func (d *DeferInfo) Equals(other *DeferInfo) bool {
+	if d == nil || other == nil {
+		return d == other
+	}
+	return d.Path.Equals(other.Path)
+}
+
+func (d *DeferInfo) Overlaps(path ast.Path) bool {
+	if d == nil {
+		return false
+	}
+	return d.Path.Overlaps(path)
+}
+
+func (d *DeferInfo) HasPrefix(prefix []string) bool {
+	if len(prefix) == 0 {
+		return true
+	}
+	if d == nil || len(d.Path) == 0 {
+		return false
+	}
+	deferPath := d.Path
+	if !slices.Contains([]string{"query", "mutation", "subscription"}, prefix[0]) {
+		deferPath = deferPath[1:]
+	}
+	if len(prefix) > len(deferPath) {
+		return false
+	}
+	var skip int
+	for i, p := range deferPath {
+		if p.Kind == ast.InlineFragmentName {
+			skip++
+			continue
+		}
+		idx := i + skip
+		if idx >= len(prefix) {
+			return true
+		}
+		if idx >= len(prefix) || prefix[idx] != string(p.FieldName) {
+			return false
+		}
+	}
+	return true
+}
