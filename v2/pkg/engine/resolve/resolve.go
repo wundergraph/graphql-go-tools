@@ -243,7 +243,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	}()
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
-	if err := r.doResolve(ctx, t, response, data, writer); err != nil {
+	if err := r.doResolve(ctx, t, response, data, writer, true); err != nil {
 		return nil, err
 	}
 
@@ -257,7 +257,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 
 var errInvalidWriter = errors.New("invalid writer")
 
-func (r *Resolver) doResolve(ctx *Context, t *tools, response *GraphQLResponse, data []byte, writer io.Writer) error {
+func (r *Resolver) doResolve(ctx *Context, t *tools, response *GraphQLResponse, data []byte, writer io.Writer, isFinal bool) error {
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
 		return err
@@ -279,7 +279,8 @@ func (r *Resolver) doResolve(ctx *Context, t *tools, response *GraphQLResponse, 
 	}
 
 	if iw, ok := writer.(IncrementalResponseWriter); ok {
-		if err := iw.Flush(resolvedPath(response.Data.Path)); err != nil {
+		isReallyFinal := isFinal && len(response.DeferredResponses) == 0
+		if err := iw.Flush(resolvedPath(response.Data.Path), isReallyFinal); err != nil {
 			return fmt.Errorf("flushing immediate response: %w", err)
 		}
 	}
@@ -291,11 +292,10 @@ func (r *Resolver) doResolve(ctx *Context, t *tools, response *GraphQLResponse, 
 		}
 
 		for i, deferredResponse := range response.DeferredResponses {
-			if err := r.doResolve(ctx, t, deferredResponse, nil, iw); err != nil {
+			isReallyFinal := isFinal && i == len(response.DeferredResponses)-1
+
+			if err := r.doResolve(ctx, t, deferredResponse, nil, iw, isReallyFinal); err != nil {
 				return fmt.Errorf("resolving deferred response %d: %w", i, err)
-			}
-			if err := iw.Flush(resolvedPath(deferredResponse.Data.Path)); err != nil {
-				return fmt.Errorf("flushing incremental response: %w", err)
 			}
 		}
 	}

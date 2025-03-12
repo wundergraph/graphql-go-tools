@@ -50,7 +50,7 @@ type SubscriptionResponseWriter interface {
 
 type IncrementalResponseWriter interface {
 	ResponseWriter
-	Flush(path []any) error
+	Flush(path []any, isFinal bool) error
 	Complete() error
 }
 

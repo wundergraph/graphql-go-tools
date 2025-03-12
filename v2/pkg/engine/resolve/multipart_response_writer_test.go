@@ -37,11 +37,7 @@ Content-Type: application/json; charset=utf-8
 --boundary
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":[{"data":"part3","path":["path","to","part"]}]}
---boundary
-Content-Type: application/json; charset=utf-8
-
-{"hasNext":false,"incremental":[]}
+{"hasNext":false,"incremental":[{"data":"part3","path":["path","to","part"]}]}
 --boundary--
 `, "\n", "\r\n"),
 		},
@@ -61,11 +57,7 @@ Content-Type: application/json; charset=utf-8
 --boundary
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":[{"data":"part3apart3b","path":["path",4,"part"]}]}
---boundary
-Content-Type: application/json; charset=utf-8
-
-{"hasNext":false,"incremental":[]}
+{"hasNext":false,"incremental":[{"data":"part3apart3b","path":["path",4,"part"]}]}
 --boundary--
 `, "\n", "\r\n"),
 		},
@@ -79,12 +71,12 @@ Content-Type: application/json; charset=utf-8
 				BoundaryToken: tt.boundaryToken,
 			}
 
-			for _, part := range tt.parts {
+			for i, part := range tt.parts {
 				for _, p := range part {
 					_, err := writer.Write([]byte(p))
 					require.NoError(t, err)
 				}
-				err := writer.Flush(tt.path)
+				err := writer.Flush(tt.path, i == len(tt.parts)-1)
 				require.NoError(t, err)
 			}
 
@@ -171,7 +163,7 @@ func TestMultipartJSONWriter_Flush(t *testing.T) {
 			_, err := writer.Write(tt.input)
 			require.NoError(t, err)
 
-			err = writer.Flush(nil)
+			err = writer.Flush(nil, true)
 			assert.ErrorIs(t, err, tt.expectedErr)
 		})
 	}

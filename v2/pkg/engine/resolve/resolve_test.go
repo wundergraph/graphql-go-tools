@@ -4868,11 +4868,7 @@ Content-Type: application/json; charset=utf-8
 --graphql-go-tools
 Content-Type: application/json; charset=utf-8
 
-{"hasNext":true,"incremental":[{"data":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"},"path":["hero"]}]}
---graphql-go-tools
-Content-Type: application/json; charset=utf-8
-
-{"hasNext":false,"incremental":[]}
+{"hasNext":false,"incremental":[{"data":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"},"path":["hero"]}]}
 --graphql-go-tools--
 `, "\n", "\r\n"),
 		},

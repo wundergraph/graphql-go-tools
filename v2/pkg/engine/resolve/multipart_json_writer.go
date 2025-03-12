@@ -38,7 +38,7 @@ func (w *MultipartJSONWriter) Write(p []byte) (n int, err error) {
 	return n, nil
 }
 
-func (w *MultipartJSONWriter) Flush(path []any) (err error) {
+func (w *MultipartJSONWriter) Flush(path []any, isFinal bool) (err error) {
 	if w.buf.Len() == 0 {
 		return nil
 	}
@@ -48,7 +48,7 @@ func (w *MultipartJSONWriter) Flush(path []any) (err error) {
 	if err := json.Unmarshal(w.buf.Bytes(), &part); err != nil {
 		return fmt.Errorf("unmarshaling data: %w", err)
 	}
-	part.HasNext = true
+	part.HasNext = !isFinal
 
 	if _, err := w.Writer.Write(w.partHeader()); err != nil {
 		return fmt.Errorf("writing part header: %w", err)
@@ -89,12 +89,6 @@ func (w *MultipartJSONWriter) Flush(path []any) (err error) {
 }
 
 func (w *MultipartJSONWriter) Complete() error {
-	if w.wroteInitial {
-		// Kind of a hack, but should work.
-		if _, err := w.Writer.Write([]byte(string(w.partHeader()) + `{"hasNext":false,"incremental":[]}` + "\r\n")); err != nil {
-			return fmt.Errorf("writing final part: %w", err)
-		}
-	}
 	if _, err := w.Writer.Write([]byte(fmt.Sprintf("--%s--\r\n", w.boundaryToken()))); err != nil {
 		return fmt.Errorf("writing final boundary: %w", err)
 	}
