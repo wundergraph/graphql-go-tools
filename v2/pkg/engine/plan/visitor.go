@@ -3,6 +3,7 @@ package plan
 import (
 	"bytes"
 	"fmt"
+	"iter"
 	"reflect"
 	"regexp"
 	"slices"
@@ -46,6 +47,8 @@ type Visitor struct {
 	includeQueryPlans            bool
 	indirectInterfaceFields      map[int]indirectInterfaceField
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
+	deferredFragments            []resolve.DeferInfo
+	deferredFields               map[int]resolve.DeferInfo
 }
 
 type indirectInterfaceField struct {
@@ -333,6 +336,20 @@ func (v *Visitor) EnterField(ref int) {
 		Info:        v.resolveFieldInfo(ref, fieldDefinitionTypeRef, onTypeNames),
 	}
 
+	if deferInfo, ok := v.deferredFields[ref]; ok {
+		// This field is part of a deferred fragment.
+		v.currentField.DeferPaths = append(v.currentField.DeferPaths, deferInfo.Path)
+	}
+
+	// Add deferred paths below this field.
+	for path := range v.followingDeferredFragmentPaths(fieldAliasOrName.String()) {
+		if !slices.ContainsFunc(v.currentField.DeferPaths, func(other ast.Path) bool {
+			return path.Equals(other)
+		}) {
+			v.currentField.DeferPaths = append(v.currentField.DeferPaths, path)
+		}
+	}
+
 	if bytes.Equal(fieldName, literal.TYPENAME) {
 		str := &resolve.String{
 			Nullable:   false,
@@ -349,6 +366,19 @@ func (v *Visitor) EnterField(ref int) {
 	*v.currentFields[len(v.currentFields)-1].fields = append(*v.currentFields[len(v.currentFields)-1].fields, v.currentField)
 
 	v.mapFieldConfig(ref)
+}
+
+func (v *Visitor) followingDeferredFragmentPaths(itemName string) iter.Seq[ast.Path] {
+	return func(yield func(ast.Path) bool) {
+		for _, frag := range v.deferredFragments {
+			fullPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString() + "." + itemName
+			if strings.HasPrefix(frag.Path.WithoutInlineFragmentNames().DotDelimitedString(), fullPath) {
+				if !yield(frag.Path) {
+					return
+				}
+			}
+		}
+	}
 }
 
 func (v *Visitor) mapFieldConfig(ref int) {
@@ -879,7 +909,9 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 	}
 
 	v.plan = &SynchronousResponsePlan{
-		Response: graphQLResponse,
+		Response:          graphQLResponse,
+		DeferredFragments: v.deferredFragments,
+		DeferredFields:    v.deferredFields,
 	}
 }
 
@@ -1176,6 +1208,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			DependsOnFetchIDs: internal.dependsOnFetchIDs,
 		},
 		DataSourceIdentifier: []byte(dataSourceType),
+		DeferInfo:            internal.deferInfo,
 	}
 
 	if !v.Config.DisableIncludeInfo {
