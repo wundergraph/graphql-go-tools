@@ -386,6 +386,381 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "simple case with arrays",
+			input: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("searchResults"),
+							Value: &resolve.Array{
+								Path:     []string{"searchResults"},
+								Nullable: true,
+								Item: &resolve.Object{
+									TypeName:      "SearchResult",
+									Nullable:      true,
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}, "Starship": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Human")},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											DeferPaths: []ast.Path{
+												{
+													ast.PathItem{
+														Kind:      ast.FieldName,
+														FieldName: []byte("query"),
+													},
+													ast.PathItem{
+														Kind:      ast.FieldName,
+														FieldName: []byte("searchResults"),
+													},
+													ast.PathItem{
+														Kind:        ast.InlineFragmentName,
+														FieldName:   []byte("Droid"),
+														FragmentRef: 1,
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("primaryFunction"),
+											Value: &resolve.String{
+												Path:     []string{"primaryFunction"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											DeferPaths: []ast.Path{
+												{
+													ast.PathItem{
+														Kind:      ast.FieldName,
+														FieldName: []byte("query"),
+													},
+													ast.PathItem{
+														Kind:      ast.FieldName,
+														FieldName: []byte("searchResults"),
+													},
+													ast.PathItem{
+														Kind:        ast.InlineFragmentName,
+														FieldName:   []byte("Droid"),
+														FragmentRef: 1,
+													},
+												},
+											},
+										},
+										{
+											Name: []byte("favoriteEpisode"),
+											Value: &resolve.Enum{
+												Path:     []string{"favoriteEpisode"},
+												Nullable: true,
+												TypeName: "Episode",
+												Values: []string{
+													"NEWHOPE",
+													"EMPIRE",
+													"JEDI",
+												},
+												InaccessibleValues: []string{},
+											},
+											OnTypeNames: [][]byte{[]byte("Droid")},
+											DeferPaths: []ast.Path{
+												{
+													ast.PathItem{
+														Kind:      ast.FieldName,
+														FieldName: []byte("query"),
+													},
+													ast.PathItem{
+														Kind:      ast.FieldName,
+														FieldName: []byte("searchResults"),
+													},
+													ast.PathItem{
+														Kind:        ast.InlineFragmentName,
+														FieldName:   []byte("Droid"),
+														FragmentRef: 1,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+							DeferPaths: []ast.Path{
+								{
+									ast.PathItem{
+										Kind:      ast.FieldName,
+										FieldName: []byte("query"),
+									},
+									ast.PathItem{
+										Kind:      ast.FieldName,
+										FieldName: []byte("searchResults"),
+									},
+									ast.PathItem{
+										Kind:        ast.InlineFragmentName,
+										FieldName:   []byte("Droid"),
+										FragmentRef: 1,
+									},
+								},
+							},
+						},
+					},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{DataSourceIdentifier: []byte("plan.FakeDataSource")},
+						&resolve.SingleFetch{
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
+							DeferInfo: &resolve.DeferInfo{
+								Path: ast.Path{
+									ast.PathItem{
+										Kind:      ast.FieldName,
+										FieldName: []byte("query"),
+									},
+									ast.PathItem{
+										Kind:      ast.FieldName,
+										FieldName: []byte("searchResults"),
+									},
+									ast.PathItem{
+										Kind:        ast.InlineFragmentName,
+										FieldName:   []byte("Droid"),
+										FragmentRef: 1,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			defers: []resolve.DeferInfo{
+				{
+					Path: ast.Path{
+						ast.PathItem{
+							Kind:      ast.FieldName,
+							FieldName: []byte("query"),
+						},
+						ast.PathItem{
+							Kind:      ast.FieldName,
+							FieldName: []byte("searchResults"),
+						},
+						ast.PathItem{
+							Kind:        ast.InlineFragmentName,
+							FieldName:   []byte("Droid"),
+							FragmentRef: 1,
+						},
+					},
+				},
+			},
+			expected: &resolve.GraphQLResponse{
+				Info: &resolve.GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Data: &resolve.Object{
+					Nullable: false,
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("searchResults"),
+							Value: &resolve.Array{
+								Path:     []string{"searchResults"},
+								Nullable: true,
+								Item: &resolve.Object{
+									Nullable:      true,
+									TypeName:      "SearchResult",
+									PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}, "Starship": {}},
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path:     []string{"name"},
+												Nullable: false,
+											},
+											OnTypeNames: [][]byte{[]byte("Human")},
+										},
+									},
+								},
+							},
+							DeferPaths: []ast.Path{
+								{
+									ast.PathItem{
+										Kind:      ast.FieldName,
+										FieldName: []byte("query"),
+									},
+									ast.PathItem{
+										Kind:      ast.FieldName,
+										FieldName: []byte("searchResults"),
+									},
+									ast.PathItem{
+										Kind:        ast.InlineFragmentName,
+										FieldName:   []byte("Droid"),
+										FragmentRef: 1,
+									},
+								},
+							},
+						},
+					},
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{DataSourceIdentifier: []byte("plan.FakeDataSource")},
+					},
+				},
+				DeferredResponses: []*resolve.GraphQLResponse{
+					{
+						Info: &resolve.GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
+						},
+						Data: &resolve.Object{
+							Nullable: false,
+							Fields: []*resolve.Field{
+								{
+									Name: []byte("searchResults"),
+									Value: &resolve.Array{
+										Nullable: true,
+										Path:     []string{"searchResults"},
+										Item: &resolve.Object{
+											Nullable:      true,
+											TypeName:      "SearchResult",
+											PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}, "Starship": {}},
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path:     []string{"name"},
+														Nullable: false,
+													},
+													OnTypeNames: [][]byte{[]byte("Droid")},
+													DeferPaths: []ast.Path{
+														{
+															ast.PathItem{
+																Kind:      ast.FieldName,
+																FieldName: []byte("query"),
+															},
+															ast.PathItem{
+																Kind:      ast.FieldName,
+																FieldName: []byte("searchResults"),
+															},
+															ast.PathItem{
+																Kind:        ast.InlineFragmentName,
+																FieldName:   []byte("Droid"),
+																FragmentRef: 1,
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("primaryFunction"),
+													Value: &resolve.String{
+														Path:     []string{"primaryFunction"},
+														Nullable: false,
+													},
+													OnTypeNames: [][]byte{[]byte("Droid")},
+													DeferPaths: []ast.Path{
+														{
+															ast.PathItem{
+																Kind:      ast.FieldName,
+																FieldName: []byte("query"),
+															},
+															ast.PathItem{
+																Kind:      ast.FieldName,
+																FieldName: []byte("searchResults"),
+															},
+															ast.PathItem{
+																Kind:        ast.InlineFragmentName,
+																FieldName:   []byte("Droid"),
+																FragmentRef: 1,
+															},
+														},
+													},
+												},
+												{
+													Name: []byte("favoriteEpisode"),
+													Value: &resolve.Enum{
+														Path:     []string{"favoriteEpisode"},
+														Nullable: true,
+														TypeName: "Episode",
+														Values: []string{
+															"NEWHOPE",
+															"EMPIRE",
+															"JEDI",
+														},
+														InaccessibleValues: []string{},
+													},
+													OnTypeNames: [][]byte{[]byte("Droid")},
+													DeferPaths: []ast.Path{
+														{
+															ast.PathItem{
+																Kind:      ast.FieldName,
+																FieldName: []byte("query"),
+															},
+															ast.PathItem{
+																Kind:      ast.FieldName,
+																FieldName: []byte("searchResults"),
+															},
+															ast.PathItem{
+																Kind:        ast.InlineFragmentName,
+																FieldName:   []byte("Droid"),
+																FragmentRef: 1,
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+									DeferPaths: []ast.Path{
+										{
+											ast.PathItem{
+												Kind:      ast.FieldName,
+												FieldName: []byte("query"),
+											},
+											ast.PathItem{
+												Kind:      ast.FieldName,
+												FieldName: []byte("searchResults"),
+											},
+											ast.PathItem{
+												Kind:        ast.InlineFragmentName,
+												FieldName:   []byte("Droid"),
+												FragmentRef: 1,
+											},
+										},
+									},
+								},
+							},
+							Fetches: []resolve.Fetch{
+								&resolve.SingleFetch{
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
+									DeferInfo: &resolve.DeferInfo{
+										Path: ast.Path{
+											ast.PathItem{
+												Kind:      ast.FieldName,
+												FieldName: []byte("query"),
+											},
+											ast.PathItem{
+												Kind:      ast.FieldName,
+												FieldName: []byte("searchResults"),
+											},
+											ast.PathItem{
+												Kind:        ast.InlineFragmentName,
+												FieldName:   []byte("Droid"),
+												FragmentRef: 1,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -400,7 +775,7 @@ func TestExtractDeferredFields_Process(t *testing.T) {
 
 				prettyCfg := &pretty.Config{
 					Diffable:          true,
-					IncludeUnexported: false,
+					IncludeUnexported: true,
 					Formatter:         formatterConfig,
 				}
 

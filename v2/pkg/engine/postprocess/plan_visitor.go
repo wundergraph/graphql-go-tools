@@ -69,15 +69,15 @@ func (e *PlanWalker) SetSkip(skip bool) {
 	e.skip = skip
 }
 
-func (e *PlanWalker) registerObjectVisitor(visitor PlanObjectVisitor) {
+func (e *PlanWalker) RegisterObjectVisitor(visitor PlanObjectVisitor) {
 	e.objectVisitor = visitor
 }
 
-func (e *PlanWalker) registerArrayVisitor(visitor PlanArrayVisitor) {
+func (e *PlanWalker) RegisterArrayVisitor(visitor PlanArrayVisitor) {
 	e.arrayVisitor = visitor
 }
 
-func (e *PlanWalker) registerFieldVisitor(visitor PlanFieldVisitor) {
+func (e *PlanWalker) RegisterFieldVisitor(visitor PlanFieldVisitor) {
 	e.fieldVisitor = visitor
 }
 
@@ -151,11 +151,11 @@ func (e *PlanWalker) walkNode(node resolve.Node) {
 }
 
 func (e *PlanWalker) walkField(field *resolve.Field) {
-	e.pushPath(field.Value.NodePath())
-	defer e.popPath(field.Value.NodePath())
-
 	e.onEnterField(field)
 	defer e.onLeaveField(field)
+
+	e.pushPath(field.Value.NodePath())
+	defer e.popPath(field.Value.NodePath())
 
 	e.pushField(field)
 	defer e.popField()
@@ -180,8 +180,8 @@ func (e *PlanWalker) onLeaveField(field *resolve.Field) {
 }
 
 func (e *PlanWalker) walkObject(object *resolve.Object) {
-	e.objectVisitor.EnterObject(object)
-	defer e.objectVisitor.LeaveObject(object)
+	e.onEnterObject(object)
+	defer e.onLeaveObject(object)
 
 	e.pushObject(object)
 	defer e.popObject()

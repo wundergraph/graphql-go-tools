@@ -60,39 +60,21 @@ type deferredFieldsVisitor struct {
 }
 
 func (v *deferredFieldsVisitor) EnterObject(obj *resolve.Object) {
-	var (
-		currentField *resolve.Field
-	)
+	if len(v.walker.CurrentFields) == 0 {
+		// Set up root objects.
+		for _, resp := range v.responseItems {
+			newObject := resp.copyObjectWithoutFields(obj)
+			resp.objectStack = append(resp.objectStack, newObject)
 
-	if len(v.walker.CurrentFields) > 0 {
-		currentField = v.walker.CurrentFields[len(v.walker.CurrentFields)-1]
-	}
-
-	for resp := range v.matchingResponseItems() {
-		newObject := resp.copyObjectWithoutFields(obj)
-
-		if currentField != nil {
-			if resp.deferInfo == nil || slices.ContainsFunc(currentField.DeferPaths, func(el ast.Path) bool {
-				return resp.deferInfo != nil && el.Equals(resp.deferInfo.Path)
-			}) {
-				resp.updateCurrentFieldObject(currentField, newObject)
+			if resp.response.Data == nil {
+				resp.response.Data = newObject
 			}
 		}
-		resp.objectStack = append(resp.objectStack, newObject)
-
-		if resp.response.Data == nil {
-			resp.response.Data = newObject
-		}
+		return
 	}
 }
 
-func (v *deferredFieldsVisitor) LeaveObject(*resolve.Object) {
-	for resp := range v.matchingResponseItems() {
-		if depth := len(resp.objectStack); depth > 1 {
-			resp.objectStack = resp.objectStack[:depth-1]
-		}
-	}
-}
+func (v *deferredFieldsVisitor) LeaveObject(*resolve.Object) {}
 
 func (v *deferredFieldsVisitor) EnterField(field *resolve.Field) {
 	// Reasons to append a field:
@@ -102,8 +84,8 @@ func (v *deferredFieldsVisitor) EnterField(field *resolve.Field) {
 	// 4. It's above a non-deferred field? TODO(cd): post-cleanup.
 	var deferred bool
 	for resp := range v.matchingResponseItems() {
-		if slices.ContainsFunc(field.DeferPaths, func(el ast.Path) bool {
-			return resp.deferInfo != nil && el.Equals(resp.deferInfo.Path)
+		if resp.deferInfo != nil && slices.ContainsFunc(field.DeferPaths, func(el ast.Path) bool {
+			return el.Equals(resp.deferInfo.Path)
 		}) {
 			resp.appendField(field)
 			deferred = true
@@ -121,12 +103,31 @@ func (v *deferredFieldsVisitor) EnterField(field *resolve.Field) {
 	}
 }
 
-func (v *deferredFieldsVisitor) LeaveField(field *resolve.Field) {}
+func (v *deferredFieldsVisitor) LeaveField(field *resolve.Field) {
+	popObjectStack := func(resp *responseItem) {
+		if depth := len(resp.objectStack); depth > 1 {
+			switch fv := field.Value.(type) {
+			case *resolve.Object:
+				resp.objectStack = resp.objectStack[:depth-1]
+			case *resolve.Array:
+				if _, ok := fv.Item.(*resolve.Object); ok {
+					resp.objectStack = resp.objectStack[:depth-1]
+				}
+			}
+		}
+	}
+	for resp := range v.matchingResponseItems() {
+		popObjectStack(resp)
+	}
+	popObjectStack(v.responseItems[""])
+}
 
+// matchingResponseItems returns a sequence of response items that match the current path.
+// It specifically excludes the immediate response.
 func (v *deferredFieldsVisitor) matchingResponseItems() iter.Seq[*responseItem] {
 	return func(yield func(*responseItem) bool) {
 		for path, resp := range v.responseItems {
-			if path == "" || resp.deferInfo.HasPrefix(v.walker.path) {
+			if path != "" && resp.deferInfo.HasPrefix(v.walker.path) {
 				if !yield(resp) {
 					return
 				}
@@ -139,7 +140,6 @@ type responseItem struct {
 	deferInfo   *resolve.DeferInfo
 	response    *resolve.GraphQLResponse
 	objectStack []*resolve.Object
-	lastArray   *resolve.Array
 }
 
 func (r *responseItem) currentObject() *resolve.Object {
@@ -153,52 +153,36 @@ func (r *responseItem) appendField(field *resolve.Field) {
 	newField := r.copyFieldWithoutObjectFields(field)
 	r.currentObject().Fields = append(r.currentObject().Fields, newField)
 
-	if _, ok := field.Value.(*resolve.Array); ok {
-		r.lastArray = newField.Value.(*resolve.Array)
-	} else {
-		r.lastArray = nil
+	switch fv := newField.Value.(type) {
+	case *resolve.Object:
+		r.objectStack = append(r.objectStack, fv)
+	case *resolve.Array:
+		if item, ok := fv.Item.(*resolve.Object); ok {
+			r.objectStack = append(r.objectStack, item)
+		}
 	}
 }
 
 func (r *responseItem) copyFieldWithoutObjectFields(f *resolve.Field) *resolve.Field {
+	ret := &resolve.Field{
+		Name:              f.Name,
+		Value:             f.Value.Copy(),
+		Position:          f.Position,
+		DeferPaths:        f.DeferPaths,
+		Stream:            f.Stream,
+		OnTypeNames:       f.OnTypeNames,
+		ParentOnTypeNames: f.ParentOnTypeNames,
+		Info:              f.Info,
+	}
 	switch fv := f.Value.(type) {
 	case *resolve.Object:
-		ret := &resolve.Field{
-			Name:              f.Name,
-			Position:          f.Position,
-			DeferPaths:        f.DeferPaths,
-			Stream:            f.Stream,
-			OnTypeNames:       f.OnTypeNames,
-			ParentOnTypeNames: f.ParentOnTypeNames,
-			Info:              f.Info,
-		}
 		ret.Value = r.copyObjectWithoutFields(fv)
-		return ret
 	case *resolve.Array:
-		arrObj, ok := fv.Item.(*resolve.Object)
-		if !ok {
-			return f.Copy()
+		if arrObj, ok := fv.Item.(*resolve.Object); ok {
+			ret.Value.(*resolve.Array).Item = r.copyObjectWithoutFields(arrObj)
 		}
-		ret := &resolve.Field{
-			Name:              f.Name,
-			Position:          f.Position,
-			DeferPaths:        f.DeferPaths,
-			Stream:            f.Stream,
-			OnTypeNames:       f.OnTypeNames,
-			ParentOnTypeNames: f.ParentOnTypeNames,
-			Info:              f.Info,
-		}
-		newItem := r.copyObjectWithoutFields(arrObj)
-
-		ret.Value = &resolve.Array{
-			Path:     fv.Path,
-			Nullable: fv.Nullable,
-			Item:     newItem,
-		}
-		return ret
-	default:
-		return f.Copy()
 	}
+	return ret
 }
 
 func (r *responseItem) copyObjectWithoutFields(fv *resolve.Object) *resolve.Object {
@@ -217,23 +201,6 @@ func (r *responseItem) copyObjectWithoutFields(fv *resolve.Object) *resolve.Obje
 	newValue.Fetches = r.fetchesForDeferFrom(fv.Fetches)
 
 	return newValue
-}
-
-func (r *responseItem) updateCurrentFieldObject(field *resolve.Field, obj *resolve.Object) {
-	switch field.Value.(type) {
-	case *resolve.Array:
-		// This object is an item in an array.
-		if r.lastArray != nil {
-			if _, ok := r.lastArray.Item.(*resolve.Object); ok {
-				r.lastArray.Item = obj
-			}
-		}
-	case *resolve.Object:
-		// This object is a field in another object.
-		if r.currentObject() != nil && len(r.currentObject().Fields) > 0 {
-			r.currentObject().Fields[len(r.currentObject().Fields)-1].Value = obj
-		}
-	}
 }
 
 func (r *responseItem) fetchesForDeferFrom(fetches []resolve.Fetch) []resolve.Fetch {

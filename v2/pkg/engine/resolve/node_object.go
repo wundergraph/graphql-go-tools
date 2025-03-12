@@ -219,16 +219,23 @@ func (d *DeferInfo) HasPrefix(prefix []string) bool {
 	}
 	var skip int
 	for i, p := range deferPath {
-		if p.Kind == ast.InlineFragmentName {
-			skip++
-			continue
-		}
 		idx := i + skip
 		if idx >= len(prefix) {
 			return true
 		}
-		if idx >= len(prefix) || prefix[idx] != string(p.FieldName) {
-			return false
+
+		switch p.Kind {
+		case ast.InlineFragmentName:
+			skip++
+			continue
+		case ast.ArrayIndex:
+			if prefix[idx] != "@" {
+				return false
+			}
+		case ast.FieldName:
+			if idx >= len(prefix) || prefix[idx] != string(p.FieldName) {
+				return false
+			}
 		}
 	}
 	return true

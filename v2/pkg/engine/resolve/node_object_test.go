@@ -10,7 +10,7 @@ import (
 var (
 	pathItem1 = ast.PathItem{Kind: ast.FieldName, FieldName: []byte("query")}
 	pathItem2 = ast.PathItem{Kind: ast.FieldName, FieldName: []byte("object1")}
-	pathItem3 = ast.PathItem{Kind: ast.ArrayIndex, ArrayIndex: 3, FieldName: []byte("field1")}
+	pathItem3 = ast.PathItem{Kind: ast.FieldName, FieldName: []byte("field1")}
 
 	fragmentItem = ast.PathItem{Kind: ast.InlineFragmentName, FieldName: []byte("frag2"), FragmentRef: 2}
 	arrayItem    = ast.PathItem{Kind: ast.ArrayIndex, ArrayIndex: 3, FieldName: []byte("arrayField3")}
@@ -226,6 +226,18 @@ func TestDeferInfo_HasPrefix(t *testing.T) {
 			name:      "ignore terminal inline fragment, but mis-match",
 			deferInfo: &DeferInfo{Path: ast.Path{pathItem1, pathItem2, fragmentItem}},
 			prefix:    []string{"query", "x"},
+			expected:  false,
+		},
+		{
+			name:      "handle arrays",
+			deferInfo: &DeferInfo{Path: ast.Path{pathItem1, arrayItem, pathItem2}},
+			prefix:    []string{"query", "@", "object1"},
+			expected:  true,
+		},
+		{
+			name:      "handle arrays, but mis-match",
+			deferInfo: &DeferInfo{Path: ast.Path{pathItem1, arrayItem, pathItem2}},
+			prefix:    []string{"query", "@", "x"},
 			expected:  false,
 		},
 		{
