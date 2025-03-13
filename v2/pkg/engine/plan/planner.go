@@ -15,6 +15,8 @@ import (
 
 type Planner struct {
 	config                Configuration
+	nodeResolvableWalker  *astvisitor.Walker
+	nodeResolvableVisitor *nodesResolvableVisitor
 	nodeSelectionsWalker  *astvisitor.Walker
 	nodeSelectionsVisitor *nodeSelectionVisitor
 	configurationWalker   *astvisitor.Walker
@@ -219,7 +221,6 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 }
 
 func (p *Planner) selectNodes(operation, definition *ast.Document, report *operationreport.Report) {
-	resolvableWalker := astvisitor.NewWalker(32)
 	dsFilter := NewDataSourceFilter(operation, definition, report)
 
 	if p.config.Debug.NodeSuggestion.SelectionReasons {
@@ -301,7 +302,7 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 
 		i++
 
-		if resolvableReport := p.isResolvable(resolvableWalker, operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
+		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
 			p.nodeSelectionsVisitor.hasUnresolvedFields = true
 
 			if i > 100 {
@@ -313,23 +314,29 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 
 	if i == 1 {
 		// if we have not revisited the operation, we need to check if it is resolvable
-		if resolvableReport := p.isResolvable(resolvableWalker, operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
+		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
 			p.nodeSelectionsVisitor.hasUnresolvedFields = true
 			report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 		}
 	}
 }
 
-func (p *Planner) isResolvable(walker astvisitor.Walker, operation, definition *ast.Document, nodes *NodeSuggestions) *operationreport.Report {
-	resolvableReport := &operationreport.Report{}
-	visitor := &nodesResolvableVisitor{
-		operation:  operation,
-		definition: definition,
-		walker:     &walker,
-		nodes:      p.nodeSelectionsVisitor.nodeSuggestions,
+func (p *Planner) isResolvable(operation, definition *ast.Document, nodes *NodeSuggestions) *operationreport.Report {
+	if p.nodeResolvableWalker == nil {
+		walker := astvisitor.NewWalker(32)
+		p.nodeResolvableWalker = &walker
+
+		visitor := &nodesResolvableVisitor{
+			walker: &walker,
+		}
+		p.nodeResolvableVisitor = visitor
+		walker.RegisterEnterDocumentVisitor(visitor)
+		walker.RegisterEnterFieldVisitor(visitor)
 	}
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(operation, definition, resolvableReport)
+
+	p.nodeResolvableVisitor.nodes = nodes
+	resolvableReport := &operationreport.Report{}
+	p.nodeResolvableWalker.Walk(operation, definition, resolvableReport)
 
 	return resolvableReport
 }
