@@ -17,6 +17,11 @@ type nodesResolvableVisitor struct {
 	nodes *NodeSuggestions
 }
 
+func (f *nodesResolvableVisitor) EnterDocument(operation, definition *ast.Document) {
+	f.operation = operation
+	f.definition = definition
+}
+
 func (f *nodesResolvableVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
