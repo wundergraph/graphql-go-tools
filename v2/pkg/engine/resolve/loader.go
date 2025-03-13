@@ -1040,14 +1040,12 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
 				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s.", %s}`, pathPart, extensionErrorCode))
-				//errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s."}`, pathPart))
 				if err != nil {
 					continue
 				}
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
 				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s.", %s}`, pathPart, reason, extensionErrorCode))
-				//errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized Subgraph request%s, Reason: %s."}`, pathPart, reason))
 				if err != nil {
 					continue
 				}
@@ -1058,14 +1056,12 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
 				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s.",%s}`, res.ds.Name, pathPart, extensionErrorCode))
-				//errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s."}`, res.ds.Name, pathPart))
 				if err != nil {
 					continue
 				}
 				astjson.AppendToArray(l.resolvable.errors, errorObject)
 			} else {
-				//errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
-				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s."}`, res.ds.Name, pathPart, reason))
+				errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"Unauthorized request to Subgraph '%s'%s, Reason: %s.",%s}`, res.ds.Name, pathPart, reason, extensionErrorCode))
 				if err != nil {
 					continue
 				}
