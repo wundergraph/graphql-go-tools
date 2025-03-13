@@ -705,7 +705,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	}
 	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
 		NewSubgraphError(ds, fieldPath, reason, 0)))
-	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
+	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
 	r.popNodePathElement(nodePath)
 }
 
