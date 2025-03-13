@@ -112,6 +112,16 @@ func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 	f.seenFields[fieldRef] = struct{}{}
 }
 
+func (f *NodeSuggestions) RemoveTreeNodeChilds(fieldRef int) {
+	treeNodeId := TreeNodeID(fieldRef)
+	node, ok := f.responseTree.Find(treeNodeId)
+	if !ok {
+		return
+	}
+
+	node.ReplaceChildren()
+}
+
 func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
 	f.items = append(f.items, node)
 	return len(f.items) - 1
