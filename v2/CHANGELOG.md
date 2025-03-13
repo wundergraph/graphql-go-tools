@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.164](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.163...v2.0.0-rc.164) (2025-03-13)
+
+
+### Features
+
+* add error code for authorization errors ([#1109](https://github.com/wundergraph/graphql-go-tools/issues/1109)) ([54e744e](https://github.com/wundergraph/graphql-go-tools/commit/54e744e9843b87e02c3251c8d5262e55c588e89a))
+
 ## [2.0.0-rc.163](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.162...v2.0.0-rc.163) (2025-03-04)
 
 
