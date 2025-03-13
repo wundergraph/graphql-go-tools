@@ -262,6 +262,13 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 	i := 1
 	// secondary runs to add path for the new required fields
 	for p.nodeSelectionsVisitor.shouldRevisit() {
+
+		// when we have rewritten a field old node suggestion are not make sense anymore
+		// so we are removing child nodes of the rewritten fields
+		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
+			p.nodeSelectionsVisitor.nodeSuggestions.RemoveTreeNodeChilds(fieldRef)
+		}
+
 		p.nodeSelectionsVisitor.secondaryRun = true
 
 		if p.nodeSelectionsVisitor.hasNewFields {

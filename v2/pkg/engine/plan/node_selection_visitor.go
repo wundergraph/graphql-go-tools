@@ -44,6 +44,7 @@ type nodeSelectionVisitor struct {
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
 	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates
+	rewrittenFieldRefs   []int
 }
 
 func (c *nodeSelectionVisitor) shouldRevisit() bool {
@@ -112,6 +113,7 @@ func (c *nodeSelectionVisitor) debugPrint(args ...any) {
 func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
 	c.hasUnresolvedFields = false
+	c.rewrittenFieldRefs = c.rewrittenFieldRefs[:0]
 
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
@@ -699,6 +701,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipFieldRefs...)
 
 	c.hasNewFields = true
+	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
