@@ -17,8 +17,10 @@ type Plan interface {
 }
 
 type SynchronousResponsePlan struct {
-	Response      *resolve.GraphQLResponse
-	FlushInterval int64
+	Response          *resolve.GraphQLResponse
+	DeferredFragments []resolve.DeferInfo
+	DeferredFields    map[int]resolve.DeferInfo
+	FlushInterval     int64
 }
 
 func (s *SynchronousResponsePlan) SetFlushInterval(interval int64) {
