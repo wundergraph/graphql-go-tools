@@ -7,12 +7,13 @@ import (
 )
 
 type Configuration struct {
-	Logger                     abstractlogger.Logger
-	DefaultFlushIntervalMillis int64
-	DataSources                []DataSource
-	Fields                     FieldConfigurations
-	Types                      TypeConfigurations
-	EntityInterfaceNames       []string
+	Logger                             abstractlogger.Logger
+	DefaultFlushIntervalMillis         int64
+	DataSources                        []DataSource
+	MaxDataSourceCollectorsConcurrency uint
+	Fields                             FieldConfigurations
+	Types                              TypeConfigurations
+	EntityInterfaceNames               []string
 	// DisableResolveFieldPositions should be set to true for testing purposes
 	// This setting removes position information from all fields
 	// In production, this should be set to false so that error messages are easier to understand
