@@ -11,11 +11,12 @@ import (
 )
 
 type nodesCollector struct {
-	operation   *ast.Document
-	definition  *ast.Document
-	dataSources []DataSource
-	nodes       *NodeSuggestions
-	report      *operationreport.Report
+	operation      *ast.Document
+	definition     *ast.Document
+	dataSources    []DataSource
+	nodes          *NodeSuggestions
+	report         *operationreport.Report
+	maxConcurrency uint
 }
 
 func (c *nodesCollector) CollectNodes() *NodeSuggestions {
@@ -41,6 +42,12 @@ func (c *nodesCollector) collectNodes() {
 	visitors := make([]*collectNodesVisitor, len(c.dataSources))
 	reports := make([]*operationreport.Report, len(c.dataSources))
 
+	// Create a semaphore if concurrency is limited
+	var sem chan struct{}
+	if c.maxConcurrency > 0 {
+		sem = make(chan struct{}, c.maxConcurrency)
+	}
+
 	for i, dataSource := range c.dataSources {
 		walker := astvisitor.WalkerFromPool()
 		visitor := &collectNodesVisitor{
@@ -56,9 +63,16 @@ func (c *nodesCollector) collectNodes() {
 		visitors[i] = visitor
 		report := operationreport.Report{}
 		reports[i] = &report
+
+		if sem != nil {
+			sem <- struct{}{}
+		}
 		go func(walker *astvisitor.Walker, report *operationreport.Report) {
 			walker.Walk(c.operation, c.definition, report)
 			walker.Release()
+			if sem != nil {
+				<-sem
+			}
 			wg.Done()
 		}(walker, &report)
 	}
