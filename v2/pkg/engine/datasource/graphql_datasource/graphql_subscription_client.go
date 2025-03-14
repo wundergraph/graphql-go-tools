@@ -28,7 +28,11 @@ import (
 	"go.uber.org/atomic"
 )
 
-const ackWaitTimeout = 30 * time.Second
+const (
+	writeTimeout       = 10 * time.Second
+	readMessageTimeout = 1 * time.Second
+	ackWaitTimeout     = 30 * time.Second
+)
 
 type netPollState struct {
 	// connections is a map of fd -> connection to keep track of all active connections
@@ -468,12 +472,15 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	}
 
 	// init + ack
+	if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return nil, err
+	}
 	err = wsutil.WriteClientText(conn, connectionInitMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := waitForAck(conn); err != nil {
+	if err := waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
 		return nil, err
 	}
 
@@ -603,13 +610,16 @@ type ConnectionHandler interface {
 	Subscribe() error
 }
 
-func waitForAck(conn net.Conn) error {
+func waitForAck(conn net.Conn, readTimeout, writeTimeout time.Duration) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
 		case <-timer.C:
 			return fmt.Errorf("timeout while waiting for connection_ack")
 		default:
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
+			return fmt.Errorf("failed to set read deadline: %w", err)
 		}
 		msg, err := wsutil.ReadServerText(conn)
 		if err != nil {
@@ -623,6 +633,9 @@ func waitForAck(conn net.Conn) error {
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
+			if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+				return fmt.Errorf("failed to set write deadline: %w", err)
+			}
 			err = wsutil.WriteClientText(conn, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
@@ -863,7 +876,7 @@ func handleConnectionError(err error) (done bool) {
 	return false
 }
 
-func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
+func readMessage(conn net.Conn, frameReadTimeout time.Duration) ([]byte, error) {
 	controlHandler := wsutil.ControlFrameHandler(conn, ws.StateClientSide)
 	rd := &wsutil.Reader{
 		Source:          conn,
@@ -873,7 +886,7 @@ func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
 		OnIntermediate:  controlHandler,
 	}
 	for {
-		err := conn.SetReadDeadline(time.Now().Add(timeout))
+		err := conn.SetReadDeadline(time.Now().Add(frameReadTimeout))
 		if err != nil {
 			return nil, err
 		}
@@ -893,7 +906,7 @@ func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
 			}
 			continue
 		}
-		err = conn.SetReadDeadline(time.Now().Add(time.Second))
+		err = conn.SetReadDeadline(time.Now().Add(readMessageTimeout))
 		if err != nil {
 			return nil, err
 		}
