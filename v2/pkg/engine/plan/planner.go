@@ -230,6 +230,10 @@ func (p *Planner) selectNodes(operation, definition *ast.Document, report *opera
 		p.printOperation(operation)
 	}
 
+	if p.config.MaxDataSourceCollectorsConcurrency > 0 {
+		dsFilter.WithMaxDataSourceCollectorsConcurrency(p.config.MaxDataSourceCollectorsConcurrency)
+	}
+
 	p.nodeSelectionsVisitor.debug = p.config.Debug
 
 	// set initial suggestions and used data sources

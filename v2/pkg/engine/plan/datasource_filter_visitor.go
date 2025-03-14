@@ -23,8 +23,9 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 	secondaryRun           bool
 
-	fieldDependsOn map[int][]int
-	dataSources    []DataSource
+	fieldDependsOn                     map[int][]int
+	dataSources                        []DataSource
+	maxDataSourceCollectorsConcurrency uint
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -37,6 +38,12 @@ func NewDataSourceFilter(operation, definition *ast.Document, report *operationr
 
 func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
+}
+
+// WithMaxDataSourceCollectorsConcurrency sets the maximum number of concurrent data source collectors
+func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(maxConcurrency uint) *DataSourceFilter {
+	f.maxDataSourceCollectorsConcurrency = maxConcurrency
+	return f
 }
 
 func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash, fieldDependsOn map[int][]int) (used []DataSource, suggestions *NodeSuggestions) {
@@ -117,11 +124,12 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 	}
 
 	nodesCollector := &nodesCollector{
-		operation:   f.operation,
-		definition:  f.definition,
-		dataSources: dataSources,
-		nodes:       existingNodes,
-		report:      f.report,
+		operation:      f.operation,
+		definition:     f.definition,
+		dataSources:    dataSources,
+		nodes:          existingNodes,
+		report:         f.report,
+		maxConcurrency: f.maxDataSourceCollectorsConcurrency,
 	}
 
 	return nodesCollector.CollectNodes()
