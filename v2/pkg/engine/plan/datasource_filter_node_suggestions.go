@@ -67,14 +67,6 @@ func (n *NodeSuggestion) String() string {
 	return string(j)
 }
 
-type NodeSuggestionHint struct {
-	fieldRef int
-	dsHash   DSHash
-
-	fieldName  string
-	parentPath string
-}
-
 type NodeSuggestions struct {
 	items           []*NodeSuggestion
 	pathSuggestions map[string][]*NodeSuggestion
