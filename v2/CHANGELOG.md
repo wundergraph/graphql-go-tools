@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.165](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.164...v2.0.0-rc.165) (2025-03-14)
+
+
+### Features
+
+* add max concurrency for data source collectors ([#1111](https://github.com/wundergraph/graphql-go-tools/issues/1111)) ([bae36b2](https://github.com/wundergraph/graphql-go-tools/commit/bae36b241bcb72619af8b76f8410c7796e018a72))
+
 ## [2.0.0-rc.164](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.163...v2.0.0-rc.164) (2025-03-13)
 
 
