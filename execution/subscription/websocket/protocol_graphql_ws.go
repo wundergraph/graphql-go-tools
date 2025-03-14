@@ -307,7 +307,10 @@ func (p *ProtocolGraphQLWSHandler) Handle(ctx context.Context, engine subscripti
 		ctx, err = p.handleInit(ctx, message.Payload)
 		if err != nil {
 			p.writeEventHandler.HandleWriteEvent(GraphQLWSMessageTypeConnectionError, "", nil, errors.New("failed to accept the websocket connection"))
-			return engine.TerminateAllSubscriptions(&p.writeEventHandler)
+			if termErr := engine.TerminateAllSubscriptions(&p.writeEventHandler); termErr != nil {
+				return fmt.Errorf("failed to accept websocket connection: %v; additionally, failed to terminate subscriptions: %v", err, termErr)
+			}
+			return err
 		}
 
 		go p.handleKeepAlive(ctx)

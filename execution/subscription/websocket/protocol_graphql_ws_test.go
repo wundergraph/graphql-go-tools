@@ -386,6 +386,37 @@ func TestProtocolGraphQLWSHandler_Handle(t *testing.T) {
 		actualMessage := testClient.readMessageToClient()
 		assert.Equal(t, expectedMessage, actualMessage)
 	})
+
+	t.Run("should init connection", func(t *testing.T) {
+		testClient := NewTestClient(false)
+		protocol := NewTestProtocolGraphQLWSHandler(testClient)
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		ctrl := gomock.NewController(t)
+		mockEngine := NewMockEngine(ctrl)
+		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_init", "payload":{"query":"{ hello }"}}`))
+		assert.NoError(t, err)
+	})
+
+	t.Run("should return init error when initFunc fails", func(t *testing.T) {
+		initError := errors.New("an init error")
+		testClient := NewTestClient(false)
+		protocol := NewTestProtocolGraphQLWSHandler(testClient, func(handler *ProtocolGraphQLWSHandler) {
+			handler.initFunc = func(ctx context.Context, initPayload InitPayload) (context.Context, error) {
+				return nil, initError
+			}
+		})
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
+		ctrl := gomock.NewController(t)
+		mockEngine := NewMockEngine(ctrl)
+		mockEngine.EXPECT().TerminateAllSubscriptions(gomock.Eq(protocol.EventHandler()))
+
+		err := protocol.Handle(ctx, mockEngine, []byte(`{"type":"connection_init", "payload":{"query":"{ hello }"}}`))
+		assert.ErrorIs(t, err, initError)
+	})
 }
 
 func NewTestGraphQLWSWriteEventHandler(testClient subscription.TransportClient) GraphQLWSWriteEventHandler {
@@ -399,8 +430,10 @@ func NewTestGraphQLWSWriteEventHandler(testClient subscription.TransportClient) 
 	}
 }
 
-func NewTestProtocolGraphQLWSHandler(testClient subscription.TransportClient) *ProtocolGraphQLWSHandler {
-	return &ProtocolGraphQLWSHandler{
+type handlerOption func(*ProtocolGraphQLWSHandler)
+
+func NewTestProtocolGraphQLWSHandler(testClient subscription.TransportClient, options ...handlerOption) *ProtocolGraphQLWSHandler {
+	handler := &ProtocolGraphQLWSHandler{
 		logger: abstractlogger.Noop{},
 		reader: GraphQLWSMessageReader{
 			logger: abstractlogger.Noop{},
@@ -408,4 +441,10 @@ func NewTestProtocolGraphQLWSHandler(testClient subscription.TransportClient) *P
 		writeEventHandler: NewTestGraphQLWSWriteEventHandler(testClient),
 		keepAliveInterval: 30,
 	}
+
+	for _, option := range options {
+		option(handler)
+	}
+
+	return handler
 }
