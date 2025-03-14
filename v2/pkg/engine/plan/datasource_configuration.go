@@ -239,14 +239,14 @@ type DataSource interface {
 	Name() string
 	Hash() DSHash
 	FederationConfiguration() FederationMetaData
-	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration Configuration) PlannerConfiguration
+	CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration *Configuration) PlannerConfiguration
 }
 
 func (d *dataSourceConfiguration[T]) CustomConfiguration() T {
 	return d.custom
 }
 
-func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration Configuration) PlannerConfiguration {
+func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractlogger.Logger, fetchConfig *objectFetchConfiguration, pathConfig *plannerPathsConfiguration, configuration *Configuration) PlannerConfiguration {
 	planner := d.factory.Planner(logger)
 
 	fetchConfig.planner = planner
