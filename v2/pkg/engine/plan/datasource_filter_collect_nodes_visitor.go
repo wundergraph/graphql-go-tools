@@ -159,6 +159,8 @@ type collectNodesVisitor struct {
 
 	keyPaths map[string]struct{}
 	info     map[int]fieldInfo
+
+	keysForPath map[string][]KeyInfo
 }
 
 func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
