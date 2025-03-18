@@ -121,7 +121,10 @@ func TestKeyInfo(t *testing.T) {
 			dataSource: dsb().Hash(22).
 				RootNode("User").
 				AddRootNodeExternalFieldNames("User", "id", "name").DS(),
-			expectPaths:          nil,
+			expectPaths: []string{
+				"query.me.id",
+				"query.me.name",
+			},
 			expectExternalFields: true,
 		},
 		{
@@ -161,7 +164,7 @@ func TestKeyInfo(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		t.Run(c.keyFieldSet, func(t *testing.T) {
+		t.Run(c.name, func(t *testing.T) {
 			fieldSet, report := RequiredFieldsFragment(c.typeName, c.keyFieldSet, false)
 			require.False(t, report.HasErrors())
 
@@ -182,6 +185,253 @@ func TestKeyInfo(t *testing.T) {
 			assert.False(t, report.HasErrors())
 			assert.Equal(t, c.expectPaths, keyPaths)
 			assert.Equal(t, c.expectExternalFields, hasExternalFields)
+		})
+	}
+}
+
+func TestCollectKeysForPath(t *testing.T) {
+
+	cases := []struct {
+		name       string
+		definition string
+		parentPath string
+		typeName   string
+
+		dataSource      DataSource
+		providesEntries []*NodeSuggestion
+
+		expectKeys []KeyInfo
+	}{
+		{
+			name: "regular key",
+			definition: `
+				type User @key(fields: "id name") {
+					id: ID!
+					name: String!
+				}`,
+			parentPath: "query.me",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).
+				DS(),
+			expectKeys: []KeyInfo{
+				{
+					DSHash:       22,
+					Source:       true,
+					Target:       true,
+					TypeName:     "User",
+					SelectionSet: "id name",
+					FieldPaths: []string{
+						"query.me.id",
+						"query.me.name",
+					},
+				},
+			},
+		},
+		{
+			name: "regular key with all fields external",
+			definition: `
+				type User @key(fields: "id name") {
+					id: ID! @external
+					name: String! @external
+				}`,
+			parentPath: "query.me",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User").
+				AddRootNodeExternalFieldNames("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).
+				DS(),
+			expectKeys: []KeyInfo{
+				{
+					DSHash:       22,
+					Source:       false,
+					Target:       true,
+					TypeName:     "User",
+					SelectionSet: "id name",
+					FieldPaths: []string{
+						"query.me.id",
+						"query.me.name",
+					},
+				},
+			},
+		},
+		{
+			name: "regular key with all fields external, but provided",
+			definition: `
+				type Query {
+					me: User @provides(fields: "id name")
+				}
+				type User @key(fields: "id name") {
+					id: ID! @external
+					name: String! @external
+				}`,
+			parentPath: "query.me",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User").
+				AddRootNodeExternalFieldNames("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).
+				DS(),
+			providesEntries: []*NodeSuggestion{
+				{
+					TypeName:  "User",
+					FieldName: "id",
+					Path:      "query.me.id",
+				},
+				{
+					TypeName:  "User",
+					FieldName: "name",
+					Path:      "query.me.name",
+				},
+			},
+			expectKeys: []KeyInfo{
+				{
+					DSHash:       22,
+					Source:       true,
+					Target:       true,
+					TypeName:     "User",
+					SelectionSet: "id name",
+					FieldPaths: []string{
+						"query.me.id",
+						"query.me.name",
+					},
+				},
+			},
+		},
+		{
+			name: "regular key with all fields external - target only",
+			definition: `
+				type Query {
+					me: User
+				}
+				type User @key(fields: "id name") {
+					id: ID! @external
+					name: String! @external
+				}`,
+			parentPath: "query.me",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User").
+				AddRootNodeExternalFieldNames("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).
+				DS(),
+			expectKeys: []KeyInfo{
+				{
+					DSHash:       22,
+					Source:       false,
+					Target:       true,
+					TypeName:     "User",
+					SelectionSet: "id name",
+					FieldPaths: []string{
+						"query.me.id",
+						"query.me.name",
+					},
+				},
+			},
+		},
+		{
+			name: "resolvable false key",
+			definition: `
+				type Query {
+					me: User
+				}
+				type User @key(fields: "id name", resolvable: false) {
+					id: ID!
+					name: String!
+				}`,
+			parentPath: "query.me",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:              "User",
+						SelectionSet:          "id name",
+						DisableEntityResolver: true,
+					},
+				}).
+				DS(),
+			expectKeys: []KeyInfo{
+				{
+					DSHash:       22,
+					Source:       true,
+					Target:       false,
+					TypeName:     "User",
+					SelectionSet: "id name",
+					FieldPaths: []string{
+						"query.me.id",
+						"query.me.name",
+					},
+				},
+			},
+		},
+		{
+			name: "resolvable false all fields external - not usable key",
+			definition: `
+				type Query {
+					me: User
+				}
+				type User @key(fields: "id name", resolvable: false) {
+					id: ID! @external
+					name: String! @external
+				}`,
+			parentPath: "query.me",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User").
+				AddRootNodeExternalFieldNames("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:              "User",
+						SelectionSet:          "id name",
+						DisableEntityResolver: true,
+					},
+				}).
+				DS(),
+			expectKeys: []KeyInfo{},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
+
+			collectNodesVisitor := &collectNodesVisitor{
+				definition:      &definition,
+				dataSource:      c.dataSource,
+				providesEntries: c.providesEntries,
+				keysForPath:     make(map[string][]KeyInfo),
+			}
+
+			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
+
+			keys, ok := collectNodesVisitor.keysForPath[c.parentPath]
+			require.True(t, ok)
+
+			assert.Equal(t, len(c.expectKeys), len(keys))
+			assert.Equal(t, c.expectKeys, keys)
 		})
 	}
 }

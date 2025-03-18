@@ -110,14 +110,15 @@ type Entity {
 
 */
 
-func (f *collectNodesVisitor) collectKeysForPath(typeName, currentPath, parentPath string) {
+func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 	// TODO: clarify what skip logic is
-	pathKeys, ok := f.keysForPath[currentPath]
+	pathKeys, ok := f.keysForPath[parentPath]
 	if ok {
 		return
 	}
 
-	keys := f.dataSource.RequiredFieldsByKey(typeName)
+	allKeys := f.dataSource.FederationConfiguration().Keys
+	keys := allKeys.FilterByTypeAndResolvability(typeName, false)
 	if len(keys) == 0 {
 		return
 	}
@@ -144,7 +145,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, currentPath, parentPa
 
 		keyPaths, hasExternalFields := keyInfo(input)
 
-		target := !(key.DisableEntityResolver || hasExternalFields)
+		target := !key.DisableEntityResolver
 		source := !hasExternalFields // provided counted as not external
 
 		if !target && !source {
@@ -164,7 +165,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, currentPath, parentPa
 		pathKeys = append(pathKeys, keyInfo)
 	}
 
-	f.keysForPath[currentPath] = pathKeys
+	f.keysForPath[parentPath] = pathKeys
 }
 
 func keyInfo(input *keyVisitorInput) (keyPaths []string, hasExternalFields bool) {
@@ -219,11 +220,7 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		}
 	}
 
-	shouldAdd := hasRootNode || hasChildNode || !isExternal
-
-	if shouldAdd {
-		v.keyPaths = append(v.keyPaths, currentPath)
-	}
+	v.keyPaths = append(v.keyPaths, currentPath)
 
 	if isExternal {
 		v.hasExternalFields = true
