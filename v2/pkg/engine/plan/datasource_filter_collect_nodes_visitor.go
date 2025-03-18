@@ -355,16 +355,19 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		return
 	}
 
-	f.collectKeysForPath(info.typeName, info.parentPath)
-
 	// add fields from provides directive on the current field
 	// it needs to be done each time we enter a field
 	// because we add provides suggestion only for a fields present in the query
 	f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath)
 
+	// should be done after handling provides
+	f.collectKeysForPath(info.typeName, info.parentPath)
+
 	currentNodeId := TreeNodeID(fieldRef)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
+
+	// TODO: use local seen fields - which survives between iterations
 
 	// this is the check for the global suggestions
 	if _, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
