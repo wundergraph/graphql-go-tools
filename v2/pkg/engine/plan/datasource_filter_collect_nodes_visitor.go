@@ -12,25 +12,26 @@ import (
 )
 
 type nodesCollector struct {
-	operation   *ast.Document
-	definition  *ast.Document
-	dataSources []DataSource
-	nodes       *NodeSuggestions
-	report      *operationreport.Report
+	operation        *ast.Document
+	definition       *ast.Document
+	dataSources      []DataSource
+	nodes            *NodeSuggestions
+	report           *operationreport.Report
+	keysPerDSPerPath map[DSHash]map[string][]KeyInfo
 }
 
-func (c *nodesCollector) CollectNodes() *NodeSuggestions {
+func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys map[DSHash]map[string][]KeyInfo) {
 	c.buildTree()
 	if c.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
 	c.collectNodes()
 	if c.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
-	return c.nodes
+	return c.nodes, c.keysPerDSPerPath
 }
 
 func (c *nodesCollector) collectNodes() {
@@ -45,11 +46,12 @@ func (c *nodesCollector) collectNodes() {
 	for i, dataSource := range c.dataSources {
 		walker := astvisitor.WalkerFromPool()
 		visitor := &collectNodesVisitor{
-			operation:  c.operation,
-			definition: c.definition,
-			walker:     walker,
-			nodes:      c.nodes,
-			info:       info,
+			operation:   c.operation,
+			definition:  c.definition,
+			walker:      walker,
+			nodes:       c.nodes,
+			info:        info,
+			keysForPath: make(map[string][]KeyInfo),
 		}
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
@@ -84,10 +86,15 @@ func (c *nodesCollector) collectNodes() {
 			return
 		}
 	}
+
+	c.keysPerDSPerPath = make(map[DSHash]map[string][]KeyInfo, len(c.dataSources))
+
 	// NOTE: collect nodes should never modify the tree and nodes during the walk
 	// it will be a data race
 	for _, visitor := range visitors {
 		visitor.applySuggestions()
+
+		c.keysPerDSPerPath[visitor.dataSource.Hash()] = visitor.keysForPath
 	}
 }
 
@@ -347,6 +354,8 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	if !ok {
 		return
 	}
+
+	f.collectKeysForPath(info.typeName, info.parentPath)
 
 	// add fields from provides directive on the current field
 	// it needs to be done each time we enter a field

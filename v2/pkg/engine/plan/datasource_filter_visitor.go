@@ -25,6 +25,7 @@ type DataSourceFilter struct {
 
 	fieldDependsOn map[int][]int
 	dataSources    []DataSource
+	keysPerPath    map[string]map[DSHash][]KeyInfo
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -63,7 +64,7 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 }
 
 func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
-	f.nodes = f.collectNodes(f.dataSources, existingNodes)
+	f.collectNodes(f.dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
 	}
@@ -111,7 +112,7 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) (nodes *NodeSuggestions) {
+func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) {
 	if existingNodes == nil {
 		existingNodes = NewNodeSuggestions()
 	}
@@ -124,7 +125,23 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		report:      f.report,
 	}
 
-	return nodesCollector.CollectNodes()
+	var keys map[DSHash]map[string][]KeyInfo
+
+	f.nodes, keys = nodesCollector.CollectNodes()
+
+	keysPerPath := make(map[string]map[DSHash][]KeyInfo)
+
+	for dsHash, keyInfos := range keys {
+		for path, keyInfos := range keyInfos {
+			if keysPerPath[path] == nil {
+				keysPerPath[path] = make(map[DSHash][]KeyInfo)
+			}
+
+			keysPerPath[path][dsHash] = keyInfos
+		}
+	}
+
+	f.keysPerPath = keysPerPath
 }
 
 const (
