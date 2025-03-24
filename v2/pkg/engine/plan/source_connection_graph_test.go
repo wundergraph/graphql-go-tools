@@ -397,3 +397,41 @@ func TestSourceConnectionGraph(t *testing.T) {
 		})
 	})
 }
+
+func TestSourceConnectionGraphCache(t *testing.T) {
+	keysPerPath := map[DSHash][]KeyInfo{
+		1: {
+			{
+				DSHash:       1,
+				TypeName:     "User",
+				SelectionSet: "id",
+				FieldPaths:   []string{"id"},
+				Source:       true,
+				Target:       false,
+			},
+		},
+		2: {
+			{
+				DSHash:       2,
+				TypeName:     "User",
+				SelectionSet: "id",
+				FieldPaths:   []string{"id"},
+				Source:       false,
+				Target:       true,
+			},
+		},
+	}
+
+	graph := NewDataSourceJumpsGraph(keysPerPath)
+
+	// First call to GetPaths should compute the path
+	path, exists := graph.GetPaths(1, 2)
+	assert.True(t, exists, "Should have a connection")
+	assert.NotNil(t, path, "Path should not be nil")
+
+	// Check that the cache is not empty and contains the expected path
+	cacheKey := JumpCacheKey{Source: 1, Target: 2}
+	cachedPath, cacheExists := graph.Cache[cacheKey]
+	assert.True(t, cacheExists, "Cache should contain the path")
+	assert.Equal(t, path, cachedPath, "Cached path should match the computed path")
+}
