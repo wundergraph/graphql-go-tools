@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.166](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.165...v2.0.0-rc.166) (2025-03-25)
+
+
+### Bug Fixes
+
+* catch an error on provides with fragments ([#1115](https://github.com/wundergraph/graphql-go-tools/issues/1115)) ([f4bb0af](https://github.com/wundergraph/graphql-go-tools/commit/f4bb0afa4b0124eff279635f7a0dc7d65d2e8554))
+
 ## [2.0.0-rc.165](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.164...v2.0.0-rc.165) (2025-03-14)
 
 
