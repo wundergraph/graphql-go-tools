@@ -12,15 +12,22 @@ import (
 )
 
 type nodesCollector struct {
-	operation        *ast.Document
-	definition       *ast.Document
-	dataSources      []DataSource
-	nodes            *NodeSuggestions
-	report           *operationreport.Report
-	keysPerDSPerPath map[DSHash]map[string][]KeyInfo
+	operation   *ast.Document
+	definition  *ast.Document
+	dataSources []DataSource
+	nodes       *NodeSuggestions
+	report      *operationreport.Report
+	keys        []DSKeyInfo
 }
 
-func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys map[DSHash]map[string][]KeyInfo) {
+type DSKeyInfo struct {
+	DSHash   DSHash
+	TypeName string
+	Path     string
+	Keys     []KeyInfo
+}
+
+func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys []DSKeyInfo) {
 	c.buildTree()
 	if c.report.HasErrors() {
 		return nil, nil
@@ -31,7 +38,7 @@ func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys map[DSHash
 		return nil, nil
 	}
 
-	return c.nodes, c.keysPerDSPerPath
+	return c.nodes, c.keys
 }
 
 func (c *nodesCollector) collectNodes() {
@@ -46,12 +53,12 @@ func (c *nodesCollector) collectNodes() {
 	for i, dataSource := range c.dataSources {
 		walker := astvisitor.WalkerFromPool()
 		visitor := &collectNodesVisitor{
-			operation:   c.operation,
-			definition:  c.definition,
-			walker:      walker,
-			nodes:       c.nodes,
-			info:        info,
-			keysForPath: make(map[string][]KeyInfo),
+			operation:  c.operation,
+			definition: c.definition,
+			walker:     walker,
+			nodes:      c.nodes,
+			info:       info,
+			keys:       make([]DSKeyInfo, 0, 2),
 		}
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
@@ -87,14 +94,14 @@ func (c *nodesCollector) collectNodes() {
 		}
 	}
 
-	c.keysPerDSPerPath = make(map[DSHash]map[string][]KeyInfo, len(c.dataSources))
+	c.keys = make([]DSKeyInfo, 0, len(c.dataSources))
 
 	// NOTE: collect nodes should never modify the tree and nodes during the walk
 	// it will be a data race
 	for _, visitor := range visitors {
 		visitor.applySuggestions()
 
-		c.keysPerDSPerPath[visitor.dataSource.Hash()] = visitor.keysForPath
+		c.keys = append(c.keys, visitor.keys...)
 	}
 }
 
@@ -167,7 +174,7 @@ type collectNodesVisitor struct {
 	keyPaths map[string]struct{}
 	info     map[int]fieldInfo
 
-	keysForPath map[string][]KeyInfo
+	keys []DSKeyInfo
 }
 
 func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {

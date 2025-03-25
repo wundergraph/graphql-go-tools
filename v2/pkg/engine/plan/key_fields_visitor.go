@@ -111,19 +111,13 @@ type Entity {
 */
 
 func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
-	// TODO: clarify what skip logic is
-	pathKeys, ok := f.keysForPath[parentPath]
-	if ok {
-		return
-	}
-
 	allKeys := f.dataSource.FederationConfiguration().Keys
 	keys := allKeys.FilterByTypeAndResolvability(typeName, false)
 	if len(keys) == 0 {
 		return
 	}
 
-	pathKeys = make([]KeyInfo, 0, len(keys))
+	typeNameKeys := make([]KeyInfo, 0, len(keys))
 
 	for _, key := range keys {
 		fieldSet, report := RequiredFieldsFragment(typeName, key.SelectionSet, false)
@@ -162,10 +156,15 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 			FieldPaths:   keyPaths,
 		}
 
-		pathKeys = append(pathKeys, keyInfo)
+		typeNameKeys = append(typeNameKeys, keyInfo)
 	}
 
-	f.keysForPath[parentPath] = pathKeys
+	f.keys = append(f.keys, DSKeyInfo{
+		DSHash:   f.dataSource.Hash(),
+		TypeName: typeName,
+		Path:     parentPath,
+		Keys:     typeNameKeys,
+	})
 }
 
 func keyInfo(input *keyVisitorInput) (keyPaths []string, hasExternalFields bool) {

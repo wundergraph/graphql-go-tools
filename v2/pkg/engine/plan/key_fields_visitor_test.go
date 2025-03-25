@@ -419,15 +419,15 @@ func TestCollectKeysForPath(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
 
 			collectNodesVisitor := &collectNodesVisitor{
-				definition:      &definition,
-				dataSource:      c.dataSource,
-				providesEntries: c.providesEntries,
-				keysForPath:     make(map[string][]KeyInfo),
+				definition:            &definition,
+				dataSource:            c.dataSource,
+				providesEntries:       c.providesEntries,
+				keysForPathByTypename: make(map[string][]KeyInfo),
 			}
 
 			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
 
-			keys, ok := collectNodesVisitor.keysForPath[c.parentPath]
+			keys, ok := collectNodesVisitor.keysForPathByTypename[c.parentPath]
 			require.True(t, ok)
 
 			assert.Equal(t, len(c.expectKeys), len(keys))

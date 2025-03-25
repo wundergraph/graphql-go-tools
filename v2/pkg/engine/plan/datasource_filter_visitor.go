@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/kingledion/go-tools/tree"
@@ -26,8 +27,8 @@ type DataSourceFilter struct {
 	fieldDependsOn map[int][]int
 	dataSources    []DataSource
 
-	keysPerPath        map[string]map[DSHash][]KeyInfo
-	dsHashesHavingKeys map[DSHash]struct{}
+	jumpsForPathForTypename map[string]map[string]*DataSourceJumpsGraph
+	dsHashesHavingKeys      map[DSHash]struct{}
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -72,10 +73,11 @@ func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions,
 	}
 
 	// f.nodes.printNodes("initial nodes")
-	f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
+	// f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
 
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("unique nodes")
+
 	f.selectDuplicateNodes(false)
 	// f.nodes.printNodes("duplicate nodes")
 	f.selectDuplicateNodes(true)
@@ -133,26 +135,46 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		report:      f.report,
 	}
 
-	var keys map[DSHash]map[string][]KeyInfo
+	var keysInfo []DSKeyInfo
+	f.nodes, keysInfo = nodesCollector.CollectNodes()
 
-	f.nodes, keys = nodesCollector.CollectNodes()
+	f.dsHashesHavingKeys = make(map[DSHash]struct{})
 
-	keysPerPath := make(map[string]map[DSHash][]KeyInfo)
-	dsHashesHavingKeys := make(map[DSHash]struct{})
+	keysForPathForTypename := make(map[string]map[string]map[DSHash][]KeyInfo)
 
-	for dsHash, keyInfos := range keys {
-		for path, keyInfos := range keyInfos {
-			if keysPerPath[path] == nil {
-				keysPerPath[path] = make(map[DSHash][]KeyInfo)
-			}
+	for _, keyInfo := range keysInfo {
+		path := keyInfo.Path
 
-			keysPerPath[path][dsHash] = keyInfos
+		keysPerTypeName, ok := keysForPathForTypename[path]
+		if !ok {
+			keysPerTypeName = make(map[string]map[DSHash][]KeyInfo)
 		}
-		dsHashesHavingKeys[dsHash] = struct{}{}
+
+		keysPerDS, ok := keysPerTypeName[keyInfo.TypeName]
+		if !ok {
+			keysPerDS = make(map[DSHash][]KeyInfo)
+		}
+
+		_, ok = keysPerDS[keyInfo.DSHash]
+		if ok {
+			continue
+		}
+
+		keysPerDS[keyInfo.DSHash] = keyInfo.Keys
+		keysPerTypeName[keyInfo.TypeName] = keysPerDS
+		keysForPathForTypename[path] = keysPerTypeName
+
+		f.dsHashesHavingKeys[keyInfo.DSHash] = struct{}{}
 	}
 
-	f.keysPerPath = keysPerPath
-	f.dsHashesHavingKeys = dsHashesHavingKeys
+	f.jumpsForPathForTypename = make(map[string]map[string]*DataSourceJumpsGraph)
+
+	for path, keysPerTypeName := range keysForPathForTypename {
+		f.jumpsForPathForTypename[path] = make(map[string]*DataSourceJumpsGraph)
+		for typeName, keysPerDS := range keysPerTypeName {
+			f.jumpsForPathForTypename[path][typeName] = NewDataSourceJumpsGraph(keysPerDS)
+		}
+	}
 }
 
 const (
@@ -267,13 +289,58 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		itemIDs := treeNode.GetData()
-		if len(itemIDs) == 1 {
-			// such node already selected as unique
+		if len(itemIDs) == 0 {
+			// no available nodes to select
 			continue
 		}
 
-		if len(itemIDs) == 0 {
-			// no available nodes to select
+		if len(itemIDs) == 1 {
+			// such node already selected as unique
+
+			parentNodeIndexes := treeNode.GetParent().GetData()
+
+			currentNode := f.nodes.items[itemIDs[0]]
+			currentNodeDsHash := currentNode.DataSourceHash
+			currentNodeTypeName := currentNode.TypeName
+
+			selectedParentHashes := make([]DSHash, 0, len(parentNodeIndexes))
+			hasSelectedParentOnSameDataSource := false
+
+			for _, parentIdx := range parentNodeIndexes {
+				if !f.nodes.items[parentIdx].Selected {
+					continue
+				}
+
+				if f.nodes.items[parentIdx].DataSourceHash == currentNodeDsHash {
+					hasSelectedParentOnSameDataSource = true
+					break
+				}
+
+				selectedParentHashes = append(selectedParentHashes, f.nodes.items[parentIdx].DataSourceHash)
+			}
+
+			if hasSelectedParentOnSameDataSource {
+				continue
+			}
+
+			forPath, exists := f.jumpsForPathForTypename[currentNode.ParentPath]
+			if !exists {
+				continue
+			}
+			jumpsForTypename, exists := forPath[currentNodeTypeName]
+			if !exists {
+				continue
+			}
+
+			for _, selectedParentHash := range selectedParentHashes {
+				path, exists := jumpsForTypename.GetPaths(selectedParentHash, currentNodeDsHash)
+				if !exists {
+					continue
+				}
+
+				fmt.Println("path", path)
+			}
+
 			continue
 		}
 
