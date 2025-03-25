@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"sync"
 
@@ -68,12 +69,22 @@ func (c *nodesCollector) collectNodes() {
 			sem <- struct{}{}
 		}
 		go func(walker *astvisitor.Walker, report *operationreport.Report) {
+			defer wg.Done()
+			defer func() {
+				if sem != nil {
+					<-sem
+				}
+			}()
+			defer walker.Release()
+
+			defer func() {
+				// recover from panic and add it to the report
+				if r := recover(); r != nil {
+					report.AddInternalError(fmt.Errorf("panic: %v stack: %s", r, debug.Stack()))
+				}
+			}()
+
 			walker.Walk(c.operation, c.definition, report)
-			walker.Release()
-			if sem != nil {
-				<-sem
-			}
-			wg.Done()
 		}(walker, &report)
 	}
 	wg.Wait()
