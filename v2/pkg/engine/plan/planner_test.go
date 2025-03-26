@@ -576,7 +576,7 @@ func TestPlanner_Plan(t *testing.T) {
 		})
 	})
 
-	t.Run("two different queries in differente executions should not affect each other", func(t *testing.T) {
+	t.Run("two different queries in different executions should not affect each other", func(t *testing.T) {
 		definition := `
 			type Account {
 				id: ID!
