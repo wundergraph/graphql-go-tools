@@ -648,6 +648,7 @@ func TestPlanner_Plan(t *testing.T) {
 			}`
 		op2Expected := unsafeparser.ParseGraphqlDocumentString(operation2)
 		planner1, err := NewPlanner(planConfiguration)
+		require.NoError(t, err)
 		plan2Expected := planner1.Plan(&op2Expected, &def, "", report)
 		require.False(t, report.HasErrors())
 
