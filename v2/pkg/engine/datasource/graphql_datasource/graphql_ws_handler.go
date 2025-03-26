@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"time"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -29,15 +30,18 @@ type gqlWSConnectionHandler struct {
 }
 
 func (h *gqlWSConnectionHandler) ServerClose() {
-	// Because the server closes the connection, we need to send a close frame to event loop.
+	// Because the server closes the connection, we need to send a close frame to the event loop.
 	h.updater.Done()
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
 
 // ClientClose is called when the client closes the connection. Is called when the trigger is shutdown with all subscriptions.
 func (h *gqlWSConnectionHandler) ClientClose() {
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = wsutil.WriteClientText(h.conn, []byte(`{"type":"stop","id":"1"}`))
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
@@ -107,7 +111,7 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 		return err
 	}
 
-	go h.readBlocking(readCtx, dataCh, errCh)
+	go h.readBlocking(readCtx, h.options.readTimeout, dataCh, errCh)
 
 	for {
 		select {
@@ -155,9 +159,10 @@ func (h *gqlWSConnectionHandler) StartBlocking() error {
 // readBlocking is a dedicated loop running in a separate goroutine
 // because the library "github.com/coder/websocket" doesn't allow reading with a context with Timeout
 // we'll block forever on reading until the context of the gqlWSConnectionHandler stops
-func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
+func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, readTimeout time.Duration, dataCh chan []byte, errCh chan error) {
 	netOpErr := &net.OpError{}
 	for {
+		_ = h.conn.SetReadDeadline(time.Now().Add(readTimeout))
 		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
 			if errors.As(err, &netOpErr) {
@@ -186,6 +191,7 @@ func (h *gqlWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan [
 
 func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	h.unsubscribe()
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
@@ -197,6 +203,7 @@ func (h *gqlWSConnectionHandler) subscribe() error {
 		return err
 	}
 	startRequest := fmt.Sprintf(startMessage, "1", string(graphQLBody))
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err = wsutil.WriteClientText(h.conn, []byte(startRequest))
 	if err != nil {
 		return err
@@ -278,5 +285,6 @@ func (h *gqlWSConnectionHandler) handleMessageTypeError(data []byte) {
 func (h *gqlWSConnectionHandler) unsubscribe() {
 	h.updater.Done()
 	stopRequest := fmt.Sprintf(stopMessage, "1")
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = wsutil.WriteClientText(h.conn, []byte(stopRequest))
 }

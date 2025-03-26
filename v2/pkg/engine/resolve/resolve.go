@@ -422,6 +422,9 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 func (r *Resolver) processEvents() {
 	done := r.ctx.Done()
 
+	// events channel can't be closed here because producers are
+	// sending events across multiple goroutines
+
 	for {
 		select {
 		case <-done:
@@ -889,6 +892,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	select {
 	case <-r.ctx.Done():
+		// Stop processing if the resolver is shutting down
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: uniqueID,
@@ -993,6 +997,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 
 	select {
 	case <-r.ctx.Done():
+		// Stop resolving if the resolver is shutting down
 		return r.ctx.Err()
 	case r.events <- event:
 	}
@@ -1036,8 +1041,10 @@ func (s *subscriptionUpdater) Update(data []byte) {
 
 	select {
 	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
 		return
-	case <-s.completed: // Fail fast if already completed
+	case <-s.completed:
+		// Fail fast if already trigger is completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
@@ -1054,8 +1061,10 @@ func (s *subscriptionUpdater) Done() {
 
 	select {
 	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
 		return
-	case <-s.completed: // Fail fast if already completed
+	case <-s.completed:
+		// Fail fast if already trigger is completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
