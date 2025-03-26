@@ -626,23 +626,19 @@ func TestPlanner_Plan(t *testing.T) {
 			RootNode("Account", "id", "name").
 			DS()
 		planConfiguration := Configuration{
-			Debug: DebugConfiguration{
-				PrintQueryPlans:    false,
-				PrintPlanningPaths: false,
-			},
 			DataSources:                  []DataSource{accountDS, addressDS},
 			DisableResolveFieldPositions: true,
 			DisableIncludeInfo:           true,
 		}
 		report := &operationreport.Report{}
-		operation := `
+		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
+
+		operation1 := `
 			query MyHero {
 				account {
 					name
 				}
 			}`
-		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
-
 		operation2 := `
 			query MyHero {
 				account {
@@ -650,53 +646,23 @@ func TestPlanner_Plan(t *testing.T) {
 					id
 				}
 			}`
-		op2 := unsafeparser.ParseGraphqlDocumentString(operation2)
-		p1, err := NewPlanner(planConfiguration)
-		pp1 := p1.Plan(&op2, &def, "", report)
+		op2Expected := unsafeparser.ParseGraphqlDocumentString(operation2)
+		planner1, err := NewPlanner(planConfiguration)
+		plan2Expected := planner1.Plan(&op2Expected, &def, "", report)
 		require.False(t, report.HasErrors())
 
-		p, err := NewPlanner(planConfiguration)
+		sharedPlanner, err := NewPlanner(planConfiguration)
 		require.NoError(t, err)
 
-		op := unsafeparser.ParseGraphqlDocumentString(operation)
-		_ = p.Plan(&op, &def, "", report)
+		op1 := unsafeparser.ParseGraphqlDocumentString(operation1)
+		_ = sharedPlanner.Plan(&op1, &def, "", report)
 		require.False(t, report.HasErrors())
 
-		op2 = unsafeparser.ParseGraphqlDocumentString(operation2)
-		pp2 := p.Plan(&op2, &def, "", report)
+		op2 := unsafeparser.ParseGraphqlDocumentString(operation2)
+		plan2 := sharedPlanner.Plan(&op2, &def, "", report)
 		require.False(t, report.HasErrors())
 
-		require.False(t, report.HasErrors())
-		formatterConfig := map[reflect.Type]interface{}{
-			// normalize byte slices to strings
-			reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
-			// normalize map[string]struct{} to json array of keys
-			reflect.TypeOf(map[string]struct{}{}): func(m map[string]struct{}) string {
-				var keys []string
-				for k := range m {
-					keys = append(keys, k)
-				}
-				slices.Sort(keys)
-
-				keysPrinted, _ := json.Marshal(keys)
-				return string(keysPrinted)
-			},
-		}
-
-		prettyCfg := &pretty.Config{
-			Diffable:          true,
-			IncludeUnexported: false,
-			Formatter:         formatterConfig,
-		}
-
-		exp := prettyCfg.Sprint(pp1)
-		act := prettyCfg.Sprint(pp2)
-
-		if !assert.Equal(t, exp, act) {
-			if diffResult := diff.Diff(exp, act); diffResult != "" {
-				t.Errorf("Plan does not match(-want +got)\n%s", diffResult)
-			}
-		}
+		assert.Equal(t, plan2Expected, plan2)
 	})
 }
 
