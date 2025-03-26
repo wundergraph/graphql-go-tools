@@ -251,15 +251,6 @@ func (c *configurationVisitor) debugPrint(args ...any) {
 	fmt.Println(printArgs...)
 }
 
-func (c *configurationVisitor) Reset() {
-	c.selectionSetRefs = nil
-	c.arrayFields = nil
-	c.operation = nil
-	c.definition = nil
-	c.planners = nil
-	c.skipFieldsRefs = nil
-}
-
 func (c *configurationVisitor) EnterDocument(operation, definition *ast.Document) {
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)

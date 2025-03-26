@@ -642,14 +642,30 @@ func TestPlanner_Plan(t *testing.T) {
 				}
 			}`
 		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
-		op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+		operation2 := `
+			query MyHero {
+				account {
+					name
+					id
+				}
+			}`
+		op2 := unsafeparser.ParseGraphqlDocumentString(operation2)
+		p1, err := NewPlanner(planConfiguration)
+		pp1 := p1.Plan(&op2, &def, "", report)
+		require.False(t, report.HasErrors())
 
 		p, err := NewPlanner(planConfiguration)
 		require.NoError(t, err)
 
-		pp1 := p.Plan(&op, &def, "", report)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+		_ = p.Plan(&op, &def, "", report)
 		require.False(t, report.HasErrors())
-		pp2 := p.Plan(&op, &def, "", report)
+
+		op2 = unsafeparser.ParseGraphqlDocumentString(operation2)
+		pp2 := p.Plan(&op2, &def, "", report)
+		require.False(t, report.HasErrors())
+
 		require.False(t, report.HasErrors())
 		formatterConfig := map[reflect.Type]interface{}{
 			// normalize byte slices to strings

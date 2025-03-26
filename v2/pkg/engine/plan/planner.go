@@ -121,8 +121,7 @@ func IncludeQueryPlanInResponse() Opts {
 }
 
 func (p *Planner) Plan(operation, definition *ast.Document, operationName string, report *operationreport.Report, options ...Opts) (plan Plan) {
-	p.nodeSelectionsVisitor.Reset()
-	p.configurationVisitor.Reset()
+	p.nodeSelectionsVisitor.skipFieldsRefs = nil
 
 	var opts _opts
 	for _, opt := range options {
