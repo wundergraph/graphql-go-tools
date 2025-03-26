@@ -109,6 +109,12 @@ func (c *nodeSelectionVisitor) debugPrint(args ...any) {
 	fmt.Println(printArgs...)
 }
 
+func (c *nodeSelectionVisitor) Reset() {
+	c.selectionSetRefs = nil
+	c.fieldPathCoordinates = nil
+	c.skipFieldsRefs = nil
+}
+
 func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
 	c.hasUnresolvedFields = false
