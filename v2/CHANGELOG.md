@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.167](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.166...v2.0.0-rc.167) (2025-03-26)
+
+
+### Features
+
+* reset skipFieldsRefs ([#1117](https://github.com/wundergraph/graphql-go-tools/issues/1117)) ([7527cff](https://github.com/wundergraph/graphql-go-tools/commit/7527cff29f41755ea341faa235e8f92781cea936))
+
 ## [2.0.0-rc.166](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.165...v2.0.0-rc.166) (2025-03-25)
 
 
