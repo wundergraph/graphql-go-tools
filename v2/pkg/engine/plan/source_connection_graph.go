@@ -6,6 +6,7 @@ type KeyJump struct {
 	To           DSHash
 	SelectionSet string
 	FieldPaths   []string
+	TypeName     string
 }
 
 type SourceConnectionType int
@@ -89,7 +90,7 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 	return paths, found
 }
 
-func NewDataSourceJumpsGraph(keysPerPath map[DSHash][]KeyInfo) *DataSourceJumpsGraph {
+func NewDataSourceJumpsGraph(keysPerPath map[DSHash][]KeyInfo, typeName string) *DataSourceJumpsGraph {
 	graph := &DataSourceJumpsGraph{
 		Jumps: make(map[DSHash][]KeyJump),
 		Cache: make(map[JumpCacheKey][]SourceConnection),
@@ -107,6 +108,7 @@ func NewDataSourceJumpsGraph(keysPerPath map[DSHash][]KeyInfo) *DataSourceJumpsG
 									To:           targetDSHash,
 									SelectionSet: keyInfo.SelectionSet,
 									FieldPaths:   keyInfo.FieldPaths,
+									TypeName:     typeName,
 								}
 								graph.Jumps[dsHash] = append(graph.Jumps[dsHash], jump)
 							}

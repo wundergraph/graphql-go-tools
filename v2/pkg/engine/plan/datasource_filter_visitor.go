@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/kingledion/go-tools/tree"
@@ -73,7 +72,7 @@ func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions,
 	}
 
 	// f.nodes.printNodes("initial nodes")
-	// f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
+	f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
 
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("unique nodes")
@@ -172,7 +171,7 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 	for path, keysPerTypeName := range keysForPathForTypename {
 		f.jumpsForPathForTypename[path] = make(map[string]*DataSourceJumpsGraph)
 		for typeName, keysPerDS := range keysPerTypeName {
-			f.jumpsForPathForTypename[path][typeName] = NewDataSourceJumpsGraph(keysPerDS)
+			f.jumpsForPathForTypename[path][typeName] = NewDataSourceJumpsGraph(keysPerDS, typeName)
 		}
 	}
 }
@@ -333,12 +332,28 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			}
 
 			for _, selectedParentHash := range selectedParentHashes {
-				path, exists := jumpsForTypename.GetPaths(selectedParentHash, currentNodeDsHash)
+				possiblePaths, exists := jumpsForTypename.GetPaths(selectedParentHash, currentNodeDsHash)
 				if !exists {
 					continue
 				}
 
-				fmt.Println("path", path)
+				// TODO: add a logic to determine the best path
+				// - shortest one aka direct
+				// - one of indirect which contains fields request in the query
+
+				// var bestPath *SourceConnection
+				// for _, path := range possiblePaths {
+				// 	if bestPath == nil {
+				// 		bestPath = &path
+				// 		continue
+				// 	}
+				//
+				//
+				// }
+
+				bestPath := possiblePaths[0]
+
+				currentNode.requiresKey = &bestPath
 			}
 
 			continue

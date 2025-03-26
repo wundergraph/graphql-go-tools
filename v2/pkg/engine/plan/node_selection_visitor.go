@@ -31,6 +31,9 @@ type nodeSelectionVisitor struct {
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
 	pendingFieldRequirements map[int]pendingFieldRequirements // pendingFieldRequirements is a map[selectionSetRef]fieldRequirements
 
+	// TMP
+	pendingKeys map[int]pendingKey
+
 	visitedFieldsRequiresChecks map[fieldIndexKey]struct{}                       // visitedFieldsRequiresChecks is a map[fieldIndexKey] of already processed fields which we check for presence of @requires directive
 	visitedFieldsKeyChecks      map[fieldIndexKey]struct{}                       // visitedFieldsKeyChecks is a map[fieldIndexKey] of already processed fields which we check for @key requirements
 	visitedFieldsAbstractChecks map[int]struct{}                                 // visitedFieldsAbstractChecks is a map[FieldRef] of already processed fields which we check for abstract type, e.g. union or interface
@@ -54,6 +57,12 @@ func (c *nodeSelectionVisitor) shouldRevisit() bool {
 type fieldIndexKey struct {
 	fieldRef int
 	dsHash   DSHash
+}
+
+type pendingKey struct {
+	requestedByFieldRefs []int
+	targetDSHash         DSHash
+	sc                   SourceConnection
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of keyRequirements but at the same time deduplicate keyRequirements
@@ -142,6 +151,7 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	c.visitedFieldsKeyChecks = make(map[fieldIndexKey]struct{})
 	c.pendingKeyRequirements = make(map[int]pendingKeyRequirements)
 	c.pendingFieldRequirements = make(map[int]pendingFieldRequirements)
+	c.pendingKeys = make(map[int]pendingKey)
 
 	c.fieldDependsOn = make(map[fieldIndexKey][]int)
 	c.fieldRefDependsOn = make(map[int][]int)
@@ -170,6 +180,7 @@ func (c *nodeSelectionVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
 	c.processPendingFieldRequirements(ref)
 	c.processPendingKeyRequirements(ref)
+	c.processPendingKeys(ref)
 	c.selectionSetRefs = c.selectionSetRefs[:len(c.selectionSetRefs)-1]
 }
 
@@ -209,8 +220,12 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 		// check if the field has @requires directive
 		c.handleFieldRequiredByRequires(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
 
-		// check key requirements for the field
-		c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+		if suggestion.requiresKey != nil {
+			c.handleKeyRequirements(fieldRef, parentPath, typeName, fieldName, currentPath, ds, suggestion.requiresKey)
+		} else {
+			// check key requirements for the field
+			c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+		}
 
 		// check if a field type is abstract and need rewrites
 		c.rewriteSelectionSetOfFieldWithInterfaceType(fieldRef, ds)
@@ -265,6 +280,23 @@ func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, paren
 	// they will be added in the on LeaveSelectionSet callback for the current selection set
 	// and current field ref will be added to fieldDependsOn map
 	c.addPendingFieldRequirements(fieldRef, dsConfig.Hash(), requiresConfiguration, currentPath, false)
+}
+
+func (c *nodeSelectionVisitor) handleKeyRequirements(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource, sc *SourceConnection) {
+	fieldKey := fieldIndexKey{fieldRef, dsConfig.Hash()}
+	_, visited := c.visitedFieldsKeyChecks[fieldKey]
+	if visited {
+		return
+	}
+	c.visitedFieldsKeyChecks[fieldKey] = struct{}{}
+
+	// TODO: currently over simplified
+	currentSelectionSet := c.currentSelectionSet()
+	c.pendingKeys[currentSelectionSet] = pendingKey{
+		requestedByFieldRefs: []int{fieldRef},
+		sc:                   *sc,
+		targetDSHash:         dsConfig.Hash(),
+	}
 }
 
 func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
@@ -668,6 +700,84 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 
 	for _, requiredFieldRef := range requiredFieldRefs {
 		c.fieldLandedTo[requiredFieldRef] = landedTo.Hash()
+	}
+
+	c.hasNewFields = true
+}
+
+func (c *nodeSelectionVisitor) processPendingKeys(selectionSetRef int) {
+	pendingKey, hasSelectionSet := c.pendingKeys[selectionSetRef]
+	if !hasSelectionSet {
+		return
+	}
+	delete(c.pendingKeys, selectionSetRef)
+
+	// jumps from parent to - > child
+	// deps child requires parent
+	// we need to add deps for that
+
+	// TODO: interface objects
+
+	var currentFieldRefs []int
+	for i, jump := range pendingKey.sc.Jumps {
+		allowTypeName := i == 0
+		lastJump := i == len(pendingKey.sc.Jumps)-1
+
+		key, report := RequiredFieldsFragment(jump.TypeName, jump.SelectionSet, allowTypeName)
+		if report.HasErrors() {
+			c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s", jump.SelectionSet, jump.TypeName))
+			return
+		}
+
+		input := &addRequiredFieldsInput{
+			key:                   key,
+			operation:             c.operation,
+			definition:            c.definition,
+			report:                report,
+			operationSelectionSet: selectionSetRef,
+		}
+
+		skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
+		if report.HasErrors() {
+			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s", jump.SelectionSet, jump.TypeName))
+			return
+		}
+
+		c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
+
+		// setup deps between key chain
+		if lastJump {
+			// add mapping for the field dependencies
+			for _, requestedByFieldRef := range pendingKey.requestedByFieldRefs {
+				if slices.Contains(currentFieldRefs, requestedByFieldRef) {
+					// we should not add field ref to fieldDependsOn map if it is part of a key
+					continue
+				}
+
+				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
+				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], currentFieldRefs...)
+				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], currentFieldRefs...)
+				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
+					TypeName:     jump.TypeName,
+					SelectionSet: jump.SelectionSet,
+				})
+			}
+		} else if currentFieldRefs != nil {
+			for _, requestedByFieldRef := range requiredFieldRefs {
+				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
+				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], currentFieldRefs...)
+				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], currentFieldRefs...)
+				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
+					TypeName:     jump.TypeName,
+					SelectionSet: jump.SelectionSet,
+				})
+			}
+		}
+		currentFieldRefs = requiredFieldRefs
+
+		for _, requiredFieldRef := range currentFieldRefs {
+			c.fieldLandedTo[requiredFieldRef] = jump.From
+		}
 	}
 
 	c.hasNewFields = true

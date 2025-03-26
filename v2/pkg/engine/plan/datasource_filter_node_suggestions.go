@@ -33,6 +33,8 @@ type NodeSuggestion struct {
 	SelectionReasons          []string `json:"selectReason"`
 	treeNodeId                uint
 	possibleTypeNames         []string
+
+	requiresKey *SourceConnection
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
