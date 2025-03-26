@@ -575,6 +575,113 @@ func TestPlanner_Plan(t *testing.T) {
 			))
 		})
 	})
+
+	t.Run("two different queries in differente executions should not affect each other", func(t *testing.T) {
+		definition := `
+			type Account {
+				id: ID!
+				name: String
+			}
+			type Query {
+				account: Account
+			}
+		`
+		var accountDS = dsb().
+			WithBehavior(DataSourcePlanningBehavior{
+				MergeAliasedRootNodes: true,
+			}).
+			Schema(`type Account {
+				id: ID!
+			}
+			type Query {
+				account: Account
+			}`).
+			Id("accountDS").
+			Hash(1).
+			RootNode("Query", "account").
+			RootNode("Account", "id").
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+			}).
+			DS()
+		var addressDS = dsb().
+			WithBehavior(DataSourcePlanningBehavior{
+				MergeAliasedRootNodes: true,
+			}).
+			Schema(`type Account {
+				id: ID!
+				name: String
+			}`).
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+			}).
+			Id("addressDS").
+			Hash(2).
+			RootNode("Account", "id", "name").
+			DS()
+		planConfiguration := Configuration{
+			Debug: DebugConfiguration{
+				PrintQueryPlans:    false,
+				PrintPlanningPaths: false,
+			},
+			DataSources:                  []DataSource{accountDS, addressDS},
+			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
+		}
+		report := &operationreport.Report{}
+		operation := `
+			query MyHero {
+				account {
+					name
+				}
+			}`
+		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
+		op := unsafeparser.ParseGraphqlDocumentString(operation)
+
+		p, err := NewPlanner(planConfiguration)
+		require.NoError(t, err)
+
+		pp1 := p.Plan(&op, &def, "", report)
+		require.False(t, report.HasErrors())
+		pp2 := p.Plan(&op, &def, "", report)
+		require.False(t, report.HasErrors())
+		formatterConfig := map[reflect.Type]interface{}{
+			// normalize byte slices to strings
+			reflect.TypeOf([]byte{}): func(b []byte) string { return fmt.Sprintf(`"%s"`, string(b)) },
+			// normalize map[string]struct{} to json array of keys
+			reflect.TypeOf(map[string]struct{}{}): func(m map[string]struct{}) string {
+				var keys []string
+				for k := range m {
+					keys = append(keys, k)
+				}
+				slices.Sort(keys)
+
+				keysPrinted, _ := json.Marshal(keys)
+				return string(keysPrinted)
+			},
+		}
+
+		prettyCfg := &pretty.Config{
+			Diffable:          true,
+			IncludeUnexported: false,
+			Formatter:         formatterConfig,
+		}
+
+		exp := prettyCfg.Sprint(pp1)
+		act := prettyCfg.Sprint(pp2)
+
+		if !assert.Equal(t, exp, act) {
+			if diffResult := diff.Diff(exp, act); diffResult != "" {
+				t.Errorf("Plan does not match(-want +got)\n%s", diffResult)
+			}
+		}
+	})
 }
 
 var expectedMyHeroPlan = &SynchronousResponsePlan{
@@ -764,6 +871,7 @@ func (s *StatefulSource) Start() {
 
 type FakeFactory[T any] struct {
 	upstreamSchema *ast.Document
+	behavior       *DataSourcePlanningBehavior
 }
 
 func (f *FakeFactory[T]) UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (*ast.Document, bool) {
@@ -776,6 +884,7 @@ func (f *FakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner
 	return &FakePlanner[T]{
 		source:         source,
 		upstreamSchema: f.upstreamSchema,
+		behavior:       f.behavior,
 	}
 }
 
@@ -787,6 +896,7 @@ type FakePlanner[T any] struct {
 	id             int
 	source         *StatefulSource
 	upstreamSchema *ast.Document
+	behavior       *DataSourcePlanningBehavior
 }
 
 func (f *FakePlanner[T]) ID() int {
@@ -819,10 +929,14 @@ func (f *FakePlanner[T]) ConfigureSubscription() SubscriptionConfiguration {
 }
 
 func (f *FakePlanner[T]) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
-	return DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: false,
+	if f.behavior == nil {
+		return DataSourcePlanningBehavior{
+			MergeAliasedRootNodes:      false,
+			OverrideFieldPathFromAlias: false,
+		}
 	}
+
+	return *f.behavior
 }
 
 func (f *FakePlanner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {
