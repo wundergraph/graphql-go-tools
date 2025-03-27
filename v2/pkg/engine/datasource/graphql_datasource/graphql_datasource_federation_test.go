@@ -12468,7 +12468,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {field1 __typename key1}}"}}`,
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {__typename key1}}"}}`,
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},
@@ -12481,7 +12481,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field2 key2}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key2}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -12518,7 +12518,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									}, FetchConfiguration: resolve.FetchConfiguration{
 										RequiresEntityBatchFetch:              false,
 										RequiresEntityFetch:                   true,
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename field3 key3}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename key3}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										Variables: []resolve.Variable{
@@ -12598,24 +12598,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											},
 											TypeName: "User",
 											Fields: []*resolve.Field{
-												{
-													Name: []byte("field1"),
-													Value: &resolve.String{
-														Path: []string{"field1"},
-													},
-												},
-												{
-													Name: []byte("field2"),
-													Value: &resolve.String{
-														Path: []string{"field2"},
-													},
-												},
-												{
-													Name: []byte("field3"),
-													Value: &resolve.String{
-														Path: []string{"field3"},
-													},
-												},
 												{
 													Name: []byte("field4"),
 													Value: &resolve.String{
@@ -14429,7 +14411,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FetchID: 0,
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {id __typename}}"}}`,
+									Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{entityOne {__typename id}}"}}`,
 									PostProcessing: DefaultPostProcessingConfiguration,
 									DataSource:     &Source{},
 								},
@@ -14563,7 +14545,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FetchID: 0,
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
-									Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {uuid __typename}}"}}`,
+									Input:          `{"method":"POST","url":"http://third.service","body":{"query":"{entityThree {__typename uuid}}"}}`,
 									PostProcessing: DefaultPostProcessingConfiguration,
 									DataSource:     &Source{},
 								},
