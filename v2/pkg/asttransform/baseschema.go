@@ -156,6 +156,22 @@ directive @skip(
     "Skipped when true."
     if: Boolean!
 ) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"Directs the executor to defer this fragment when the if argument is true or undefined."
+directive @defer(
+    "A unique identifier for the results."
+    label: String
+    "Controls whether the fragment will be deferred, usually via a variable."
+    if: Boolean! = true
+) on FRAGMENT_SPREAD | INLINE_FRAGMENT
+"Directs the executor to stream this array field when the if argument is true or undefined."
+directive @stream(
+    "A unique identifier for the results."
+    label: String
+    "Controls streaming, usually via a variable."
+    if: Boolean! = true
+    "The number of results to include in the initial (non-streamed) response."
+    initialCount: Int = 0
+) on FIELD
 "Marks an element of a GraphQL schema as no longer supported."
 directive @deprecated(
     """
