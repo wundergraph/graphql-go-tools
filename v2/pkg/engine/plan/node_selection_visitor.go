@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
@@ -719,6 +720,7 @@ func (c *nodeSelectionVisitor) processPendingKeys(selectionSetRef int) {
 	// TODO: interface objects
 
 	var currentFieldRefs []int
+	var previousJump *KeyJump
 	for i, jump := range pendingKey.sc.Jumps {
 		allowTypeName := i == 0
 		lastJump := i == len(pendingKey.sc.Jumps)-1
@@ -743,9 +745,31 @@ func (c *nodeSelectionVisitor) processPendingKeys(selectionSetRef int) {
 			return
 		}
 
+		op, _ := astprinter.PrintStringIndentDebug(c.operation, " ")
+		fmt.Println("operation: ", op)
+
 		c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
 
-		// setup deps between key chain
+		// setup deps between key chain items
+		if currentFieldRefs != nil && previousJump != nil {
+			for _, requestedByFieldRef := range requiredFieldRefs {
+				if slices.Contains(currentFieldRefs, requestedByFieldRef) {
+					// we should not add field ref to fieldDependsOn map if it is part of a key
+					continue
+				}
+
+				fieldKey := fieldIndexKey{requestedByFieldRef, jump.From}
+				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], currentFieldRefs...)
+				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], currentFieldRefs...)
+				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
+					TypeName:     previousJump.TypeName,
+					SelectionSet: previousJump.SelectionSet,
+				})
+			}
+		}
+		currentFieldRefs = requiredFieldRefs
+
+		// setup deps for the field requested this chain
 		if lastJump {
 			// add mapping for the field dependencies
 			for _, requestedByFieldRef := range pendingKey.requestedByFieldRefs {
@@ -755,29 +779,24 @@ func (c *nodeSelectionVisitor) processPendingKeys(selectionSetRef int) {
 				}
 
 				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
-				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], currentFieldRefs...)
-				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], currentFieldRefs...)
-				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
-					TypeName:     jump.TypeName,
-					SelectionSet: jump.SelectionSet,
-				})
-			}
-		} else if currentFieldRefs != nil {
-			for _, requestedByFieldRef := range requiredFieldRefs {
-				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
-				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], currentFieldRefs...)
-				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], currentFieldRefs...)
+				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
+				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
 				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
 					TypeName:     jump.TypeName,
 					SelectionSet: jump.SelectionSet,
 				})
 			}
 		}
-		currentFieldRefs = requiredFieldRefs
 
 		for _, requiredFieldRef := range currentFieldRefs {
 			c.fieldLandedTo[requiredFieldRef] = jump.From
 		}
+
+		previousJump = &jump
+	}
+
+	for _, ds := range c.dataSources {
+		fmt.Println("ds: ", ds.Hash(), "name: ", ds.Name())
 	}
 
 	c.hasNewFields = true
