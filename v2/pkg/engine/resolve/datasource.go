@@ -6,12 +6,17 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 )
 
 type DataSource interface {
 	Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error)
 	LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error)
+}
+
+type RPCDatasource interface {
+	LoadFromRPC(ctx context.Context, input []byte) (*astjson.Value, error)
 }
 
 type SubscriptionDataSource interface {
