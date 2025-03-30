@@ -306,7 +306,12 @@ func (s *sub) startWorkerWithHeartbeat() {
 
 	for {
 		select {
-		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
+		case <-s.ctx.ctx.Done():
+			// Complete when the client request context is done for synchronous subscriptions
+			s.complete()
+			return
+		case <-s.resolver.ctx.Done():
+			// Abort immediately if the resolver is shutting down
 			return
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
@@ -326,7 +331,12 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 
 	for {
 		select {
-		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
+		case <-s.ctx.ctx.Done():
+			// Complete when the client request context is done for synchronous subscriptions
+			s.complete()
+			return
+		case <-s.resolver.ctx.Done():
+			// Abort immediately if the resolver is shutting down
 			return
 		case fn, ok := <-s.workChan:
 			if !ok {
@@ -344,11 +354,7 @@ func (s *sub) complete() {
 	// to a subscription that is already done.
 	defer close(s.completed)
 
-	// We put the complete handshake to the work channel of the subscription
-	// to ensure that it is the last message that is sent to the client.
-	if s.ctx.Context().Err() == nil {
-		s.writer.Complete()
-	}
+	s.writer.Complete()
 }
 
 func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, sharedInput []byte) {
@@ -917,9 +923,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		// Resolver shutdown, no way to gracefully shut down the subscription
 		// because the event loop is not running anymore.
 		return r.ctx.Err()
+	}
+
+	select {
+	case <-r.ctx.Done():
+		// Still check if the resolver is shutting down
+		// to avoid blocking forever.
+		return r.ctx.Err()
 	case <-completed:
-		// Subscription completed and drained. No need to do anything.
-		return nil
 	}
 
 	if r.options.Debug {
