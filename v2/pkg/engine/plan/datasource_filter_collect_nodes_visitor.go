@@ -364,7 +364,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 
 	// add fields from provides directive on the current field
 	// it needs to be done each time we enter a field
-	// because we add provides suggestion only for a fields present in the query
+	// because we add provides suggestion only for a fields present in the query - TODO: we do not evaluate only query fields anymore, so probably we could make it once, but currently provides is not cached anywhere
 	f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath)
 
 	// should be done after handling provides
