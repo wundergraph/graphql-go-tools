@@ -24,20 +24,25 @@ var _ resolve.DataSource = (*DataSource)(nil)
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
 	Plan   *RPCExecutionPlan
-	Client grpc.ClientConnInterface
-	c      *ProtoCompiler
+	client grpc.ClientConnInterface
+	rc     *RPCCompiler
+}
+
+type ProtoConfig struct {
+	Schema string
 }
 
 // NewDataSource creates a new gRPC datasource
-func NewDataSource(plan *RPCExecutionPlan, schema string) (*DataSource, error) {
+func NewDataSource(plan *RPCExecutionPlan, client grpc.ClientConnInterface, schema string) (*DataSource, error) {
 	compiler, err := NewProtoCompiler(schema)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DataSource{
-		Plan: plan,
-		c:    compiler,
+		Plan:   plan,
+		client: client,
+		rc:     compiler,
 	}, nil
 }
 
@@ -49,8 +54,6 @@ func NewDataSource(plan *RPCExecutionPlan, schema string) (*DataSource, error) {
 // a gRPC call, including service name, method name, and request data.
 // TODO Implement this
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
-	d.Client = &grpc.ClientConn{}
-
 	return nil
 }
 

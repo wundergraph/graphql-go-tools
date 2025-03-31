@@ -119,9 +119,9 @@ type EnumValue struct {
 	Number int32  // The numeric value of the enum value
 }
 
-// ProtoCompiler compiles protobuf schema strings into a Document and can
+// RPCCompiler compiles protobuf schema strings into a Document and can
 // build protobuf messages from JSON data based on the schema.
-type ProtoCompiler struct {
+type RPCCompiler struct {
 	doc *Document // The compiled Document
 }
 
@@ -203,7 +203,7 @@ func (d *Document) MessageByRef(ref int) Message {
 // NewProtoCompiler compiles the protobuf schema into a Document structure.
 // It extracts information about services, methods, messages, and enums
 // from the protobuf schema.
-func NewProtoCompiler(schema string) (*ProtoCompiler, error) {
+func NewProtoCompiler(schema string) (*RPCCompiler, error) {
 	// Create a protocompile compiler with standard imports
 	c := protocompile.Compiler{
 		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
@@ -224,7 +224,7 @@ func NewProtoCompiler(schema string) (*ProtoCompiler, error) {
 	}
 
 	f := fd[0]
-	pc := &ProtoCompiler{
+	pc := &RPCCompiler{
 		doc: &Document{
 			Package: string(f.Package()),
 		},
@@ -262,7 +262,7 @@ type Invocation struct {
 
 // Compile processes an RPCExecutionPlan and builds protobuf messages from JSON data
 // based on the compiled schema.
-func (p *ProtoCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]Invocation, error) {
+func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]Invocation, error) {
 	invocations := make([]Invocation, 0, len(executionPlan.Calls))
 
 	for _, call := range executionPlan.Calls {
@@ -287,14 +287,14 @@ func (p *ProtoCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson
 }
 
 // newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.
-func (p *ProtoCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
+func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
 	return dynamicpb.NewMessage(message.Desc)
 }
 
 // buildProtoMessage recursively builds a protobuf message from an RPCMessage definition
 // and JSON data. It handles nested messages and repeated fields.
 // TODO provide a way to have data
-func (p *ProtoCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) *dynamicpb.Message {
+func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) *dynamicpb.Message {
 	if rpcMessage == nil {
 		return nil
 	}
@@ -348,7 +348,7 @@ func (p *ProtoCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCM
 
 // setValueForKind converts a gjson.Result value to the appropriate protobuf value
 // based on its kind/type.
-func (p *ProtoCompiler) setValueForKind(kind DataType, data gjson.Result) protoref.Value {
+func (p *RPCCompiler) setValueForKind(kind DataType, data gjson.Result) protoref.Value {
 	switch kind {
 	case DataTypeString:
 		return protoref.ValueOfString(data.String())
@@ -372,7 +372,7 @@ func (p *ProtoCompiler) setValueForKind(kind DataType, data gjson.Result) protor
 }
 
 // parseEnum extracts information from a protobuf enum descriptor.
-func (p *ProtoCompiler) parseEnum(e protoref.EnumDescriptor) Enum {
+func (p *RPCCompiler) parseEnum(e protoref.EnumDescriptor) Enum {
 	name := string(e.Name())
 
 	values := make([]EnumValue, 0, e.Values().Len())
@@ -385,7 +385,7 @@ func (p *ProtoCompiler) parseEnum(e protoref.EnumDescriptor) Enum {
 }
 
 // parseEnumValue extracts information from a protobuf enum value descriptor.
-func (p *ProtoCompiler) parseEnumValue(v protoref.EnumValueDescriptor) EnumValue {
+func (p *RPCCompiler) parseEnumValue(v protoref.EnumValueDescriptor) EnumValue {
 	name := string(v.Name())
 	number := int32(v.Number())
 
@@ -394,7 +394,7 @@ func (p *ProtoCompiler) parseEnumValue(v protoref.EnumValueDescriptor) EnumValue
 
 // parseService extracts information from a protobuf service descriptor,
 // including all its methods.
-func (p *ProtoCompiler) parseService(s protoref.ServiceDescriptor) Service {
+func (p *RPCCompiler) parseService(s protoref.ServiceDescriptor) Service {
 	name := string(s.Name())
 	m := s.Methods()
 
@@ -417,7 +417,7 @@ func (p *ProtoCompiler) parseService(s protoref.ServiceDescriptor) Service {
 
 // parseMethod extracts information from a protobuf method descriptor,
 // including its input and output message types.
-func (p *ProtoCompiler) parseMethod(m protoref.MethodDescriptor) Method {
+func (p *RPCCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 	name := string(m.Name())
 	input, output := m.Input(), m.Output()
 
@@ -432,7 +432,7 @@ func (p *ProtoCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 
 // parseMessage recursively extracts information from a protobuf message descriptor,
 // including all its fields and nested message types.
-func (p *ProtoCompiler) parseMessage(m protoref.MessageDescriptor) Message {
+func (p *RPCCompiler) parseMessage(m protoref.MessageDescriptor) Message {
 	name := string(m.Name())
 
 	fields := []Field{}
@@ -460,7 +460,7 @@ func (p *ProtoCompiler) parseMessage(m protoref.MessageDescriptor) Message {
 }
 
 // parseField extracts information from a protobuf field descriptor.
-func (p *ProtoCompiler) parseField(f protoref.FieldDescriptor) Field {
+func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 	name := string(f.Name())
 	typeName := f.Kind().String()
 
