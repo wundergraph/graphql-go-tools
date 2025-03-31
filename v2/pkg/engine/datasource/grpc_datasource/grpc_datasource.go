@@ -28,6 +28,19 @@ type DataSource struct {
 	c      *ProtoCompiler
 }
 
+// NewDataSource creates a new gRPC datasource
+func NewDataSource(plan *RPCExecutionPlan, schema string) (*DataSource, error) {
+	compiler, err := NewProtoCompiler(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	return &DataSource{
+		Plan: plan,
+		c:    compiler,
+	}, nil
+}
+
 // Load implements resolve.DataSource interface.
 // It processes the input JSON data to make gRPC calls and writes
 // the response to the output buffer.
