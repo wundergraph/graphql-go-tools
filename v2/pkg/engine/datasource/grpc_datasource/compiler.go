@@ -10,23 +10,26 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
+// DataType represents the different types of data that can be stored in a protobuf field.
 type DataType string
 
+// Protobuf data types supported by the compiler.
 const (
-	DataTypeString  DataType = "string"
-	DataTypeInt32   DataType = "int32"
-	DataTypeInt64   DataType = "int64"
-	DataTypeUint32  DataType = "uint32"
-	DataTypeUint64  DataType = "uint64"
-	DataTypeFloat   DataType = "float"
-	DataTypeDouble  DataType = "double"
-	DataTypeBool    DataType = "bool"
-	DataTypeEnum    DataType = "enum"
-	DataTypeMessage DataType = "message"
-	DataTypeGroup   DataType = "group"
-	DataTypeUnknown DataType = "<unknown>"
+	DataTypeString  DataType = "string"    // String type
+	DataTypeInt32   DataType = "int32"     // 32-bit integer type
+	DataTypeInt64   DataType = "int64"     // 64-bit integer type
+	DataTypeUint32  DataType = "uint32"    // 32-bit unsigned integer type
+	DataTypeUint64  DataType = "uint64"    // 64-bit unsigned integer type
+	DataTypeFloat   DataType = "float"     // 32-bit floating point type
+	DataTypeDouble  DataType = "double"    // 64-bit floating point type
+	DataTypeBool    DataType = "bool"      // Boolean type
+	DataTypeEnum    DataType = "enum"      // Enumeration type
+	DataTypeMessage DataType = "message"   // Nested message type
+	DataTypeGroup   DataType = "group"     // Group type (deprecated in protobuf)
+	DataTypeUnknown DataType = "<unknown>" // Represents an unknown or unsupported type
 )
 
+// dataTypeMap maps string representation of protobuf types to DataType constants.
 var dataTypeMap = map[string]DataType{
 	"string":  DataTypeString,
 	"int32":   DataTypeInt32,
@@ -41,15 +44,19 @@ var dataTypeMap = map[string]DataType{
 	"group":   DataTypeGroup,
 }
 
+// String returns the string representation of the DataType.
 func (d DataType) String() string {
 	return string(d)
 }
 
+// IsValid checks if the DataType is a valid protobuf type.
 func (d DataType) IsValid() bool {
 	_, ok := dataTypeMap[string(d)]
 	return ok
 }
 
+// parseDataType converts a string type name to a DataType constant.
+// Returns DataTypeUnknown if the type is not recognized.
 func parseDataType(name string) DataType {
 	if !dataTypeMap[name].IsValid() {
 		return DataTypeUnknown
@@ -58,58 +65,68 @@ func parseDataType(name string) DataType {
 	return dataTypeMap[name]
 }
 
+// Document represents a compiled protobuf document with all its services, messages, and methods.
 type Document struct {
-	Package  string
-	Services []Service
-	Enums    []Enum
-	Messages []Message
-	Methods  []Method
+	Package  string    // The package name of the protobuf document
+	Services []Service // All services defined in the document
+	Enums    []Enum    // All enums defined in the document
+	Messages []Message // All messages defined in the document
+	Methods  []Method  // All methods from all services in the document
 }
 
+// Service represents a gRPC service with methods.
 type Service struct {
-	Name        string
-	MethodsRefs []int
+	Name        string // The name of the service
+	MethodsRefs []int  // References to methods in the Document.Methods slice
 }
 
+// Method represents a gRPC method with input and output message types.
 type Method struct {
-	Name       string
-	InputName  string
-	InputRef   int
-	OutputName string
-	OutputRef  int
+	Name       string // The name of the method
+	InputName  string // The name of the input message type
+	InputRef   int    // Reference to the input message in the Document.Messages slice
+	OutputName string // The name of the output message type
+	OutputRef  int    // Reference to the output message in the Document.Messages slice
 }
 
+// Message represents a protobuf message type with its fields.
 type Message struct {
-	Name   string
-	Fields []Field
-	Desc   protoref.MessageDescriptor
+	Name   string                     // The name of the message
+	Fields []Field                    // The fields in the message
+	Desc   protoref.MessageDescriptor // The protobuf descriptor for the message
 }
 
+// Field represents a field in a protobuf message.
 type Field struct {
-	Name     string
-	Type     DataType
-	Number   int32
-	Ref      int
-	Repeated bool
-	Optional bool
-	Message  *Message
+	Name     string   // The name of the field
+	Type     DataType // The data type of the field
+	Number   int32    // The field number in the protobuf message
+	Ref      int      // Reference to the field (used for complex types)
+	Repeated bool     // Whether the field is a repeated field (array/list)
+	Optional bool     // Whether the field is optional
+	Message  *Message // If the field is a message type, this points to the message definition
 }
 
+// Enum represents a protobuf enum type with its values.
 type Enum struct {
-	Name   string
-	Values []EnumValue
+	Name   string      // The name of the enum
+	Values []EnumValue // The values in the enum
 }
 
+// EnumValue represents a single value in a protobuf enum.
 type EnumValue struct {
-	Name   string
-	Number int32
+	Name   string // The name of the enum value
+	Number int32  // The numeric value of the enum value
 }
 
+// ProtoCompiler compiles protobuf schema strings into a Document and can
+// build protobuf messages from JSON data based on the schema.
 type ProtoCompiler struct {
-	schema string
-	doc    *Document
+	doc *Document // The compiled Document
 }
 
+// ServiceByName returns a Service by its name.
+// Returns an empty Service if no service with the given name exists.
 func (d *Document) ServiceByName(name string) Service {
 	for _, s := range d.Services {
 		if s.Name == name {
@@ -120,6 +137,8 @@ func (d *Document) ServiceByName(name string) Service {
 	return Service{}
 }
 
+// MethodByName returns a Method by its name.
+// Returns an empty Method if no method with the given name exists.
 func (d *Document) MethodByName(name string) Method {
 	for _, m := range d.Methods {
 		if m.Name == name {
@@ -130,6 +149,8 @@ func (d *Document) MethodByName(name string) Method {
 	return Method{}
 }
 
+// MethodRefByName returns the index of a Method in the Methods slice by its name.
+// Returns -1 if no method with the given name exists.
 func (d *Document) MethodRefByName(name string) int {
 	for i, m := range d.Methods {
 		if m.Name == name {
@@ -140,14 +161,18 @@ func (d *Document) MethodRefByName(name string) int {
 	return -1
 }
 
+// MethodByRef returns a Method by its reference index.
 func (d *Document) MethodByRef(ref int) Method {
 	return d.Methods[ref]
 }
 
+// ServiceByRef returns a Service by its reference index.
 func (d *Document) ServiceByRef(ref int) Service {
 	return d.Services[ref]
 }
 
+// MessageByName returns a Message by its name.
+// Returns an empty Message if no message with the given name exists.
 func (d *Document) MessageByName(name string) Message {
 	for _, m := range d.Messages {
 		if m.Name == name {
@@ -158,6 +183,8 @@ func (d *Document) MessageByName(name string) Message {
 	return Message{}
 }
 
+// MessageRefByName returns the index of a Message in the Messages slice by its name.
+// Returns -1 if no message with the given name exists.
 func (d *Document) MessageRefByName(name string) int {
 	for i, m := range d.Messages {
 		if m.Name == name {
@@ -168,33 +195,104 @@ func (d *Document) MessageRefByName(name string) int {
 	return -1
 }
 
+// MessageByRef returns a Message by its reference index.
 func (d *Document) MessageByRef(ref int) Message {
 	return d.Messages[ref]
 }
 
-func NewProtoCompiler(schema string) *ProtoCompiler {
-	return &ProtoCompiler{schema: schema, doc: &Document{}}
+// NewProtoCompiler compiles the protobuf schema into a Document structure.
+// It extracts information about services, methods, messages, and enums
+// from the protobuf schema.
+func NewProtoCompiler(schema string) (*ProtoCompiler, error) {
+	// Create a protocompile compiler with standard imports
+	c := protocompile.Compiler{
+		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
+			Accessor: protocompile.SourceAccessorFromMap(map[string]string{
+				"": schema,
+			}),
+		}),
+	}
+
+	// Compile the schema
+	fd, err := c.Compile(context.Background(), "")
+	if err != nil {
+		return nil, err
+	}
+
+	if len(fd) == 0 {
+		return nil, fmt.Errorf("no files compiled")
+	}
+
+	f := fd[0]
+	pc := &ProtoCompiler{
+		doc: &Document{
+			Package: string(f.Package()),
+		},
+	}
+
+	// Extract information from the compiled file descriptor
+	pc.doc.Package = string(f.Package())
+
+	// Process all enums in the schema
+	for i := 0; i < f.Enums().Len(); i++ {
+		pc.doc.Enums = append(pc.doc.Enums, pc.parseEnum(f.Enums().Get(i)))
+	}
+
+	// Process all messages in the schema
+	for i := 0; i < f.Messages().Len(); i++ {
+		pc.doc.Messages = append(pc.doc.Messages, pc.parseMessage(f.Messages().Get(i)))
+	}
+
+	// Process all services in the schema
+	for i := 0; i < f.Services().Len(); i++ {
+		pc.doc.Services = append(pc.doc.Services, pc.parseService(f.Services().Get(i)))
+	}
+
+	return pc, nil
 }
 
-func (p *ProtoCompiler) Compile(executionPlan *RPCExecutionPlan, data gjson.Result) error {
+// Invocation represents a single gRPC invocation with its input and output messages.
+type Invocation struct {
+	ServiceName string
+	MethodName  string
+	Input       *dynamicpb.Message
+	Output      *dynamicpb.Message
+	Plan        *RPCExecutionPlan
+}
+
+// Compile processes an RPCExecutionPlan and builds protobuf messages from JSON data
+// based on the compiled schema.
+func (p *ProtoCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]Invocation, error) {
+	invocations := make([]Invocation, 0, len(executionPlan.Calls))
+
 	for _, call := range executionPlan.Calls {
 		// service := p.doc.ServiceByName(call.ServiceName)
 		// method := p.doc.MethodByName(call.MethodName)
 		inputMessage := p.doc.MessageByName(call.Request.Name)
 		outputMessage := p.doc.MessageByName(call.Response.Name)
 
-		request := p.buildProtoMessage(inputMessage, &call.Request, data)
+		request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
 		response := p.newEmptyMessage(outputMessage)
 
-		fmt.Println(request.String(), response.String())
+		invocations = append(invocations, Invocation{
+			ServiceName: call.ServiceName,
+			MethodName:  call.MethodName,
+			Input:       request,
+			Output:      response,
+			Plan:        executionPlan,
+		})
 	}
-	return nil
+
+	return invocations, nil
 }
 
+// newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.
 func (p *ProtoCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
 	return dynamicpb.NewMessage(message.Desc)
 }
 
+// buildProtoMessage recursively builds a protobuf message from an RPCMessage definition
+// and JSON data. It handles nested messages and repeated fields.
 // TODO provide a way to have data
 func (p *ProtoCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) *dynamicpb.Message {
 	if rpcMessage == nil {
@@ -206,19 +304,24 @@ func (p *ProtoCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCM
 	for _, field := range inputMessage.Fields {
 		fd := inputMessage.Desc.Fields()
 
+		// Look up the field in the RPC message definition
 		rpcField := rpcMessage.Fields.ByName(field.Name)
 		if rpcField == nil {
 			continue
 		}
 
+		// Handle repeated fields (arrays/lists)
 		if field.Repeated {
+			// Get a mutable reference to the list field
 			list := message.Mutable(fd.ByName(protoref.Name(field.Name))).List()
 
+			// Extract the array elements from the JSON data
 			elements := data.Get(rpcField.JSONPath).Array()
 			if len(elements) == 0 {
 				continue
 			}
 
+			// Process each element and append to the list
 			for _, element := range elements {
 				fieldMsg := p.buildProtoMessage(*field.Message, rpcField.Message, element)
 				list.Append(protoref.ValueOfMessage(fieldMsg))
@@ -227,6 +330,7 @@ func (p *ProtoCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCM
 			continue
 		}
 
+		// Handle nested message fields
 		if field.Message != nil {
 			fieldMsg := p.buildProtoMessage(*field.Message, rpcField.Message, data)
 			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
@@ -234,12 +338,16 @@ func (p *ProtoCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCM
 			continue
 		}
 
-		message.Set(fd.ByName(protoref.Name(field.Name)), p.setValueForKind(field.Type, data))
+		// Handle scalar fields
+		value := data.Get(rpcField.JSONPath)
+		message.Set(fd.ByName(protoref.Name(field.Name)), p.setValueForKind(field.Type, value))
 	}
 
 	return message
 }
 
+// setValueForKind converts a gjson.Result value to the appropriate protobuf value
+// based on its kind/type.
 func (p *ProtoCompiler) setValueForKind(kind DataType, data gjson.Result) protoref.Value {
 	switch kind {
 	case DataTypeString:
@@ -263,42 +371,7 @@ func (p *ProtoCompiler) setValueForKind(kind DataType, data gjson.Result) protor
 	return protoref.Value{}
 }
 
-func (p *ProtoCompiler) Parse() error {
-	c := protocompile.Compiler{
-		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
-			Accessor: protocompile.SourceAccessorFromMap(map[string]string{
-				"": p.schema,
-			}),
-		}),
-	}
-
-	fd, err := c.Compile(context.Background(), "")
-	if err != nil {
-		return err
-	}
-
-	if len(fd) == 0 {
-		return fmt.Errorf("no files compiled")
-	}
-
-	f := fd[0]
-	p.doc.Package = string(f.Package())
-
-	for i := 0; i < f.Enums().Len(); i++ {
-		p.doc.Enums = append(p.doc.Enums, p.parseEnum(f.Enums().Get(i)))
-	}
-
-	for i := 0; i < f.Messages().Len(); i++ {
-		p.doc.Messages = append(p.doc.Messages, p.parseMessage(f.Messages().Get(i)))
-	}
-
-	for i := 0; i < f.Services().Len(); i++ {
-		p.doc.Services = append(p.doc.Services, p.parseService(f.Services().Get(i)))
-	}
-
-	return nil
-}
-
+// parseEnum extracts information from a protobuf enum descriptor.
 func (p *ProtoCompiler) parseEnum(e protoref.EnumDescriptor) Enum {
 	name := string(e.Name())
 
@@ -311,6 +384,7 @@ func (p *ProtoCompiler) parseEnum(e protoref.EnumDescriptor) Enum {
 	return Enum{Name: name, Values: values}
 }
 
+// parseEnumValue extracts information from a protobuf enum value descriptor.
 func (p *ProtoCompiler) parseEnumValue(v protoref.EnumValueDescriptor) EnumValue {
 	name := string(v.Name())
 	number := int32(v.Number())
@@ -318,6 +392,8 @@ func (p *ProtoCompiler) parseEnumValue(v protoref.EnumValueDescriptor) EnumValue
 	return EnumValue{Name: name, Number: number}
 }
 
+// parseService extracts information from a protobuf service descriptor,
+// including all its methods.
 func (p *ProtoCompiler) parseService(s protoref.ServiceDescriptor) Service {
 	name := string(s.Name())
 	m := s.Methods()
@@ -330,6 +406,7 @@ func (p *ProtoCompiler) parseService(s protoref.ServiceDescriptor) Service {
 		methodsRefs = append(methodsRefs, j)
 	}
 
+	// Add the methods to the Document
 	p.doc.Methods = append(p.doc.Methods, methods...)
 
 	return Service{
@@ -338,6 +415,8 @@ func (p *ProtoCompiler) parseService(s protoref.ServiceDescriptor) Service {
 	}
 }
 
+// parseMethod extracts information from a protobuf method descriptor,
+// including its input and output message types.
 func (p *ProtoCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 	name := string(m.Name())
 	input, output := m.Input(), m.Output()
@@ -351,16 +430,20 @@ func (p *ProtoCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 	}
 }
 
+// parseMessage recursively extracts information from a protobuf message descriptor,
+// including all its fields and nested message types.
 func (p *ProtoCompiler) parseMessage(m protoref.MessageDescriptor) Message {
 	name := string(m.Name())
 
 	fields := []Field{}
 
+	// Process all fields in the message
 	for i := 0; i < m.Fields().Len(); i++ {
 		f := m.Fields().Get(i)
 
 		field := p.parseField(f)
 
+		// If the field is a message type, recursively parse the nested message
 		if f.Kind() == protoref.MessageKind {
 			message := p.parseMessage(f.Message())
 			field.Message = &message
@@ -376,6 +459,7 @@ func (p *ProtoCompiler) parseMessage(m protoref.MessageDescriptor) Message {
 	}
 }
 
+// parseField extracts information from a protobuf field descriptor.
 func (p *ProtoCompiler) parseField(f protoref.FieldDescriptor) Field {
 	name := string(f.Name())
 	typeName := f.Kind().String()

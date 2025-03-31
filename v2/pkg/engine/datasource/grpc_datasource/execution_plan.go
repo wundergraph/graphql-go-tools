@@ -1,12 +1,14 @@
 package grpcdatasource
 
 // RPCExecutionPlan represents a plan for executing one or more RPC calls
-// to gRPC services.
+// to gRPC services. It defines the sequence of calls and their dependencies.
 type RPCExecutionPlan struct {
+	// Calls is a list of gRPC calls to execute as part of this plan
 	Calls []RPCCall
 }
 
 // RPCCall represents a single call to a gRPC service method.
+// It contains all the information needed to make the call and process the response.
 type RPCCall struct {
 	// CallID is the unique identifier for the call
 	CallID int
@@ -23,32 +25,40 @@ type RPCCall struct {
 }
 
 // RPCMessage represents a gRPC message structure for requests and responses.
+// It defines the structure of the message including all its fields.
 type RPCMessage struct {
-	// Name is the name of the message type
+	// Name is the name of the message type in the protobuf definition
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
 }
 
 // RPCField represents a single field in a gRPC message.
+// It contains all information required to extract data from GraphQL variables
+// and construct the appropriate protobuf field.
 type RPCField struct {
-	// Repeated indicates if the field is a repeated field
+	// Repeated indicates if the field is a repeated field (array/list)
 	Repeated bool
-	// Name is the name of the field
+	// Name is the name of the field as defined in the protobuf message
 	Name string
-	// TypeName is the name of the type of the field
+	// TypeName is the name of the type of the field in the protobuf definition
 	TypeName string
 	// JSONPath defines the path within the variables to provide the value for the field
+	// This is used to extract data from the GraphQL variables
 	JSONPath string
 	// Index is the index of the field in the message
 	Index int
 	// Message is the message type if the field is a nested message type
+	// This allows for recursive construction of complex message types
 	Message *RPCMessage
 }
 
-// RPCFields is a list of RPCFields
+// RPCFields is a list of RPCFields that provides helper methods
+// for working with collections of fields.
 type RPCFields []RPCField
 
+// ByName returns a field by its name from the collection of fields.
+// Returns nil if no field with the given name exists.
 func (r RPCFields) ByName(name string) *RPCField {
 	for _, field := range r {
 		if field.Name == name {
