@@ -3,15 +3,15 @@ package grpcdatasource
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
 
-var baseProto = `
+// Complete valid protobuf definition with service and message definitions
+// This simulates a product service with methods to look up products by ID or name
+var validProto = `
 syntax = "proto3";
 package product.v1;
-`
-
-var validProto = baseProto + `
 
 option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
 
@@ -63,26 +63,38 @@ message Product {
 } 
 `
 
-func TestCompile(t *testing.T) {
-	compiler := NewProtoCompiler(validProto)
-	err := compiler.Parse()
+// TestNewProtoCompiler tests the basic functionality of the Proto compiler
+// It verifies that the compiler can successfully parse a valid protobuf definition
+func TestNewProtoCompiler(t *testing.T) {
+	// Create a new compiler with the valid protobuf definition
+	compiler, err := NewProtoCompiler(validProto)
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
+
+	require.Equal(t, "product.v1", compiler.doc.Package)
+
+	// At this point, compiler.doc should contain all the services, methods, and messages
+	// defined in the protobuf definition
 }
 
+// TestBuildProtoMessage tests the ability to build a protobuf message
+// from an execution plan and JSON data
 func TestBuildProtoMessage(t *testing.T) {
-	compiler := NewProtoCompiler(validProto)
-	err := compiler.Parse()
+	// Create and parse the protobuf definition
+	compiler, err := NewProtoCompiler(validProto)
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
+	// Create an execution plan that defines how to build the protobuf message
+	// This plan describes how to call the LookupProductById method
 	executionPlan := &RPCExecutionPlan{
 		Calls: []RPCCall{
 			{
 				ServiceName: "ProductService",
 				MethodName:  "LookupProductById",
+				// Define the structure of the request message
 				Request: RPCMessage{
 					Name: "LookupProductByIdRequest",
 					Fields: []RPCField{
@@ -90,7 +102,7 @@ func TestBuildProtoMessage(t *testing.T) {
 							Name:     "inputs",
 							TypeName: string(DataTypeMessage),
 							Repeated: true,
-							JSONPath: "variables.representations",
+							JSONPath: "variables.representations", // Path to extract data from GraphQL variables
 							Index:    1,
 							Message: &RPCMessage{
 								Name: "LookupProductByIdInput",
@@ -105,7 +117,7 @@ func TestBuildProtoMessage(t *testing.T) {
 												{
 													Name:     "id",
 													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													JSONPath: "id", // Extract 'id' from each representation
 													Index:    1,
 												},
 											},
@@ -116,6 +128,7 @@ func TestBuildProtoMessage(t *testing.T) {
 						},
 					},
 				},
+				// Define the structure of the response message
 				Response: RPCMessage{
 					Name: "LookupProductByIdResponse",
 					Fields: []RPCField{
@@ -164,10 +177,16 @@ func TestBuildProtoMessage(t *testing.T) {
 		},
 	}
 
+	// Sample GraphQL variables containing a product representation
 	variables := []byte(`{"variables":{"representations":[{"__typename":"Product","id":"123"}]}}`)
 
-	err = compiler.Compile(executionPlan, gjson.ParseBytes(variables))
+	// Compile the execution plan with the variables
+	// This should build a protobuf message ready to be sent to the gRPC service
+	invocations, err := compiler.Compile(executionPlan, gjson.ParseBytes(variables))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
+
+	require.Equal(t, 1, len(invocations))
+
 }
