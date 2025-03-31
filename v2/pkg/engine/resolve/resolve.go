@@ -919,16 +919,18 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	case <-ctx.ctx.Done():
 		// Client disconnected, request context canceled.
 		// We will ignore the error and remove the subscription in the next step.
+
+		select {
+		case <-completed:
+			// Wait for the subscription to be completed to avoid race conditions
+			// with go sdk request shutdown.
+		case <-r.ctx.Done():
+			// Resolver shutdown, no way to gracefully shut down the subscription
+			return r.ctx.Err()
+		}
 	case <-r.ctx.Done():
 		// Resolver shutdown, no way to gracefully shut down the subscription
-		// because the event loop is not running anymore.
-		return r.ctx.Err()
-	}
-
-	select {
-	case <-r.ctx.Done():
-		// Still check if the resolver is shutting down
-		// to avoid blocking forever.
+		// because the event loop is not running anymore and shutdown all triggers + subscriptions
 		return r.ctx.Err()
 	case <-completed:
 	}
