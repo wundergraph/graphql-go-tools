@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.0.0-rc.168](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.167...v2.0.0-rc.168) (2025-04-01)
+
+
+### Bug Fixes
+
+* allow custom scalar values of any kind ([#1107](https://github.com/wundergraph/graphql-go-tools/issues/1107)) ([1a67689](https://github.com/wundergraph/graphql-go-tools/commit/1a67689322b86debee5aa9c8dd1dfc526a82a559))
+* get query for plan when input is not valid JSON yet ([#1120](https://github.com/wundergraph/graphql-go-tools/issues/1120)) ([69485df](https://github.com/wundergraph/graphql-go-tools/commit/69485dfe7a76f77902595512f8ce6578cdc073f5))
+* set proper write / read timeouts ([#1113](https://github.com/wundergraph/graphql-go-tools/issues/1113)) ([e717013](https://github.com/wundergraph/graphql-go-tools/commit/e717013750e65c4a8e513dfd6b5d4ae5e523dbf7))
+
 ## [2.0.0-rc.167](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.166...v2.0.0-rc.167) (2025-03-26)
 
 
