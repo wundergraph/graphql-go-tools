@@ -1,8 +1,7 @@
 package postprocess
 
 import (
-	"encoding/json"
-	"fmt"
+	"github.com/buger/jsonparser"
 	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -196,17 +195,8 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 }
 
 func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
-	var input struct {
-		Body struct {
-			Query string `json:"query"`
-		} `json:"body"`
-	}
-
-	err := json.Unmarshal(res.Trigger.Input, &input)
-	if err != nil {
-		fmt.Println("error decoding subscription input", err)
-		return
-	}
+	// Using json parser here because input is not yet valid JSON
+	v, _ := jsonparser.GetString(res.Trigger.Input, "body", "query")
 
 	rootData := res.Response.Data
 	if rootData == nil || len(rootData.Fields) == 0 {
@@ -229,7 +219,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 					DataSourceID:   info.Source.IDs[0],
 					DataSourceName: info.Source.Names[0],
 					QueryPlan: &resolve.QueryPlan{
-						Query: input.Body.Query,
+						Query: v,
 					},
 				},
 			},
