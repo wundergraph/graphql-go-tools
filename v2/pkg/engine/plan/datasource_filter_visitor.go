@@ -533,6 +533,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// 3 and 4 - are stages when choices are equal, and we should select first available node
 
 		// 3. we choose first available leaf node
+		// TODO: check when this is used
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
@@ -665,7 +666,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 	}
 
 	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash)
-	if exists {
+	if !exists {
 		return false
 	}
 
