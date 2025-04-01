@@ -39,7 +39,7 @@ func (Product) IsEntity() {}
 
 type Purchase struct {
 	Product  *Product `json:"product"`
-	Wallet   Wallet   `json:"wallet"`
+	Wallet   Wallet   `json:"wallet,omitempty"`
 	Quantity int      `json:"quantity"`
 }
 
@@ -47,6 +47,9 @@ func (Purchase) IsHistory() {}
 
 func (Purchase) IsInfo()               {}
 func (this Purchase) GetQuantity() int { return this.Quantity }
+
+type Query struct {
+}
 
 type Sale struct {
 	Product  *Product `json:"product"`
