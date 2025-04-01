@@ -16,7 +16,8 @@ import (
 )
 
 type dsBuilder struct {
-	ds *dataSourceConfiguration[any]
+	ds       *dataSourceConfiguration[any]
+	behavior *DataSourcePlanningBehavior
 }
 
 func dsb() *dsBuilder {
@@ -55,7 +56,10 @@ func (b *dsBuilder) AddChildNodeExternalFieldNames(typeName string, fieldNames .
 
 func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
-	b.ds.factory = &FakeFactory[any]{upstreamSchema: &def}
+	b.ds.factory = &FakeFactory[any]{
+		upstreamSchema: &def,
+		behavior:       b.behavior,
+	}
 
 	return b
 }
@@ -75,9 +79,19 @@ func (b *dsBuilder) Hash(hash DSHash) *dsBuilder {
 	return b
 }
 
+func (b *dsBuilder) Id(id string) *dsBuilder {
+	b.ds.id = id
+	return b
+}
+
 func (b *dsBuilder) DS() DataSource {
 	b.ds.DataSourceMetadata.InitNodesIndex()
 	return b.ds
+}
+
+func (b *dsBuilder) WithBehavior(behavior DataSourcePlanningBehavior) *dsBuilder {
+	b.behavior = &behavior
+	return b
 }
 
 func strptr(s string) *string { return &s }
