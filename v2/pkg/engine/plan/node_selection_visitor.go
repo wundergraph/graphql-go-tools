@@ -339,10 +339,10 @@ func (c *nodeSelectionVisitor) getSelectedParentsDSHashes(fieldRef int) (out []D
 func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(fieldRef int, dsConfig DataSource, typeName string, parentPath string) {
 	selectedParentsDSHashes := c.getSelectedParentsDSHashes(fieldRef)
 
-	// we should handle key requirements only when the datasource hash differs from the parent datasource hash
-	// it means that this field should be resolved by another datasource
-	// one exception in case field has requires directive - then field is planned on the same datasource
-	// but fields with requires waits for the required fields to be resolved
+	// regularly keys are required only when the datasource hash differs from the parent datasource hash
+	// one exception when the field has requires directive and planned on the same datasource as a parent
+	// in this case we have to add a back jump on the same datasource to get required fields for the field resolver
+	// but jump is possible only with keys, so we have to add any key for this datasource
 	sameAsParentDS := len(selectedParentsDSHashes) == 1 && selectedParentsDSHashes[0] == dsConfig.Hash()
 	if !sameAsParentDS {
 		return
@@ -365,10 +365,21 @@ func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(
 		return
 	}
 
-	// we have to use the first available key configuration
-	// c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), []FederationFieldConfiguration{keyConfigurations[0]}, false, parentPath, selectedParentsDSHashes)
+	keyToUse := keyConfigurations[0]
 
-	// TODO: handle adding pending key of new format
+	sc := SourceConnection{
+		Type: SourceConnectionTypeDirect,
+		Jumps: []KeyJump{
+			{
+				From:         dsConfig.Hash(),
+				To:           dsConfig.Hash(),
+				SelectionSet: keyToUse.SelectionSet,
+				TypeName:     typeName,
+			},
+		},
+	}
+
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, false, parentPath)
 }
 
 func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string, isTypenameForEntityInterface bool) {
@@ -509,6 +520,8 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 }
 
 func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeName string, requirements keyRequirements, landedTo DataSource, fieldConfiguration FederationFieldConfiguration) {
+	// TODO: remove me when interface objects are fixed
+
 	requirementsFromInterfaceObject := requirements.isInterfaceObject
 	requirementsToInterfaceObject := landedTo.HasInterfaceObject(typeName)
 
