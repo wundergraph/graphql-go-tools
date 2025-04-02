@@ -6,6 +6,7 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
@@ -25,7 +26,6 @@ const (
 	DataTypeBool    DataType = "bool"      // Boolean type
 	DataTypeEnum    DataType = "enum"      // Enumeration type
 	DataTypeMessage DataType = "message"   // Nested message type
-	DataTypeGroup   DataType = "group"     // Group type (deprecated in protobuf)
 	DataTypeUnknown DataType = "<unknown>" // Represents an unknown or unsupported type
 )
 
@@ -41,7 +41,6 @@ var dataTypeMap = map[string]DataType{
 	"bool":    DataTypeBool,
 	"enum":    DataTypeEnum,
 	"message": DataTypeMessage,
-	"group":   DataTypeGroup,
 }
 
 // String returns the string representation of the DataType.
@@ -53,6 +52,21 @@ func (d DataType) String() string {
 func (d DataType) IsValid() bool {
 	_, ok := dataTypeMap[string(d)]
 	return ok
+}
+
+func fromGraphQLType(s string) DataType {
+	switch s {
+	case "ID", "String", "Date", "DateTime", "Time", "Timestamp":
+		return DataTypeString
+	case "Int":
+		return DataTypeInt32
+	case "Float":
+		return DataTypeFloat
+	case "Boolean":
+		return DataTypeBool
+	default:
+		return DataTypeUnknown
+	}
 }
 
 // parseDataType converts a string type name to a DataType constant.
@@ -249,6 +263,12 @@ func NewProtoCompiler(schema string) (*RPCCompiler, error) {
 	}
 
 	return pc, nil
+}
+
+// ConstructExecutionPlan constructs an RPCExecutionPlan from a parsed GraphQL operation and schema.
+// It will return an error if the operation does not match the protobuf definition provided to the compiler.
+func (p *RPCCompiler) ConstructExecutionPlan(operation, schema *ast.Document) (*RPCExecutionPlan, error) {
+	return nil, nil
 }
 
 // Invocation represents a single gRPC invocation with its input and output messages.
