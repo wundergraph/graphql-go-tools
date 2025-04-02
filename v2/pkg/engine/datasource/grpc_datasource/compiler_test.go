@@ -137,6 +137,7 @@ func TestBuildProtoMessage(t *testing.T) {
 							TypeName: string(DataTypeMessage),
 							Repeated: true,
 							Index:    1,
+							JSONPath: "results",
 							Message: &RPCMessage{
 								Name: "LookupProductByIdResult",
 								Fields: []RPCField{
