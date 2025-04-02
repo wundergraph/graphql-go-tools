@@ -12,26 +12,34 @@ import (
 )
 
 type nodesCollector struct {
-	operation      *ast.Document
-	definition     *ast.Document
-	dataSources    []DataSource
-	nodes          *NodeSuggestions
-	report         *operationreport.Report
-	maxConcurrency uint
+	operation   *ast.Document
+	definition  *ast.Document
+	dataSources []DataSource
+	nodes       *NodeSuggestions
+	report      *operationreport.Report
+	keys        []DSKeyInfo
+	maxConcurrency   uint
 }
 
-func (c *nodesCollector) CollectNodes() *NodeSuggestions {
+type DSKeyInfo struct {
+	DSHash   DSHash
+	TypeName string
+	Path     string
+	Keys     []KeyInfo
+}
+
+func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys []DSKeyInfo) {
 	c.buildTree()
 	if c.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
 	c.collectNodes()
 	if c.report.HasErrors() {
-		return nil
+		return nil, nil
 	}
 
-	return c.nodes
+	return c.nodes, c.keys
 }
 
 func (c *nodesCollector) collectNodes() {
@@ -57,6 +65,7 @@ func (c *nodesCollector) collectNodes() {
 			walker:     walker,
 			nodes:      c.nodes,
 			info:       info,
+			keys:       make([]DSKeyInfo, 0, 2),
 		}
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
@@ -100,10 +109,15 @@ func (c *nodesCollector) collectNodes() {
 			return
 		}
 	}
+
+	c.keys = make([]DSKeyInfo, 0, len(c.dataSources))
+
 	// NOTE: collect nodes should never modify the tree and nodes during the walk
 	// it will be a data race
 	for _, visitor := range visitors {
 		visitor.applySuggestions()
+
+		c.keys = append(c.keys, visitor.keys...)
 	}
 }
 
@@ -175,6 +189,8 @@ type collectNodesVisitor struct {
 
 	keyPaths map[string]struct{}
 	info     map[int]fieldInfo
+
+	keys []DSKeyInfo
 }
 
 func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {
@@ -364,12 +380,17 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 
 	// add fields from provides directive on the current field
 	// it needs to be done each time we enter a field
-	// because we add provides suggestion only for a fields present in the query
+	// because we add provides suggestion only for a fields present in the query - TODO: we do not evaluate only query fields anymore, so probably we could make it once, but currently provides is not cached anywhere
 	f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath)
+
+	// should be done after handling provides
+	f.collectKeysForPath(info.typeName, info.parentPath)
 
 	currentNodeId := TreeNodeID(fieldRef)
 	treeNode, _ := f.nodes.responseTree.Find(currentNodeId)
 	itemIds := treeNode.GetData()
+
+	// TODO: use local seen fields - which survives between iterations
 
 	// this is the check for the global suggestions
 	if _, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
