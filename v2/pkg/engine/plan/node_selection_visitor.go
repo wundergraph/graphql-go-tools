@@ -70,6 +70,7 @@ type keyRequirements struct {
 	isInterfaceObject    bool
 	sc                   SourceConnection
 	requestedByFieldRefs []int
+	typeName             string
 }
 
 type fieldRequirements struct {
@@ -301,7 +302,7 @@ func (c *nodeSelectionVisitor) handleFieldsRequiredByKey(fieldRef int, parentPat
 		return
 	}
 
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, interfaceObject, parentPath)
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, interfaceObject, parentPath, typeName)
 
 	if isParentHasInterfaceObject && !interfaceObject && !entityInterface {
 		c.addPendingFieldRequirements(
@@ -379,7 +380,7 @@ func (c *nodeSelectionVisitor) handleKeyRequirementsForBackJumpOnSameDataSource(
 		},
 	}
 
-	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, false, parentPath)
+	c.addPendingKeyRequirements(fieldRef, dsConfig.Hash(), sc, false, parentPath, typeName)
 }
 
 func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef int, dsHash DSHash, fieldConfiguration FederationFieldConfiguration, currentPath string, isTypenameForEntityInterface bool) {
@@ -422,7 +423,7 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 	c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 }
 
-func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int, dsHash DSHash, sc SourceConnection, isInterfaceObject bool, parentPath string) {
+func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int, dsHash DSHash, sc SourceConnection, isInterfaceObject bool, parentPath string, typeName string) {
 	currentSelectionSet := c.currentSelectionSet()
 
 	requirements, hasRequirements := c.pendingKeyRequirements[currentSelectionSet]
@@ -441,6 +442,7 @@ func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int
 			isInterfaceObject:    isInterfaceObject,
 			sc:                   sc,
 			requestedByFieldRefs: []int{requestedByFieldRef},
+			typeName:             typeName,
 		}
 
 		requirements.existsTracker[existsKey] = struct{}{}
@@ -513,77 +515,42 @@ func (c *nodeSelectionVisitor) processPendingKeyRequirements(selectionSetRef int
 	delete(c.pendingKeyRequirements, selectionSetRef)
 
 	for _, requirement := range configs.requirementConfigs {
-		c.addKeyRequirementsToOperatioNew(selectionSetRef, requirement)
+		c.addKeyRequirementsToOperation(selectionSetRef, requirement)
 	}
 
-	// c.walker.StopWithInternalErr(fmt.Errorf("could not plan key requirements on a path '%s'", c.walker.Path.DotDelimitedString()))
-}
-
-func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, typeName string, requirements keyRequirements, landedTo DataSource, fieldConfiguration FederationFieldConfiguration) {
-	// TODO: remove me when interface objects are fixed
-
-	requirementsFromInterfaceObject := requirements.isInterfaceObject
-	requirementsToInterfaceObject := landedTo.HasInterfaceObject(typeName)
-
-	// when we jump from interface object to interface object, we don't need a concrete type __typename to do the jump,
-	// so we have to skip adding __typename field along with other key fields
-	dissalowTypeName := requirementsFromInterfaceObject && requirementsToInterfaceObject
-
-	key, report := RequiredFieldsFragment(typeName, fieldConfiguration.SelectionSet, !dissalowTypeName)
-	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", fieldConfiguration.SelectionSet, typeName, requirements.path))
-		return
-	}
-
-	input := &addRequiredFieldsInput{
-		key:                   key,
-		operation:             c.operation,
-		definition:            c.definition,
-		report:                report,
-		operationSelectionSet: selectionSetRef,
-	}
-
-	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
-	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", fieldConfiguration.SelectionSet, typeName, requirements.path))
-		return
-	}
-
-	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
-
-	// add mapping for the field dependencies
-	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
-		if slices.Contains(requiredFieldRefs, requestedByFieldRef) {
-			// we should not add field ref to fieldDependsOn map if it is part of a key
-			continue
-		}
-
-		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.targetDSHash}
-		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
-		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
-	}
-
-	for _, requiredFieldRef := range requiredFieldRefs {
-		c.fieldLandedTo[requiredFieldRef] = landedTo.Hash()
-	}
-
-	c.hasNewFields = true
-}
-
-func (c *nodeSelectionVisitor) addKeyRequirementsToOperatioNew(selectionSetRef int, pendingKey keyRequirements) {
 	// TODO: raise an error in configuration visitor? if fetch is nested, but don't have requirements attached
 	// c.walker.StopWithInternalErr(fmt.Errorf("could not plan key requirements on a path '%s'", c.walker.Path.DotDelimitedString()))
+
+}
+
+func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int, pendingKey keyRequirements) {
+	requirementsFromInterfaceObject := pendingKey.isInterfaceObject
+	requirementsToInterfaceObject := false
+
+	if requirementsFromInterfaceObject {
+		i := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
+			return d.Hash() == pendingKey.sc.Source
+		})
+
+		if i != -1 {
+			targetDsConfiguration := c.dataSources[i]
+			requirementsToInterfaceObject = targetDsConfiguration.HasInterfaceObject(pendingKey.typeName)
+		}
+	}
+
+	// when we jump from interface object to interface object, we don't need a concrete type __typename to do the jump,
+	// we also dissalow adding typename because for the interface object type we intentionally do not add root node for a typename
+	// if we will add a typename it will be queried from the concrete types, which we don't want here
+	// so we have to skip adding __typename field
+	dissalowTypeName := requirementsFromInterfaceObject && requirementsToInterfaceObject
 
 	// jumps represents a chain of keys needed to reach from source to the target, in simple case it is just one jump
 	// each key from the next jump will have dependencies on a key fields from the previous jump
 
-	// TODO: interface objects
-
 	var currentFieldRefs []int
 	var previousJump *KeyJump
 	for i, jump := range pendingKey.sc.Jumps {
-		allowTypeName := i == 0
+		allowTypeName := !dissalowTypeName && i == 0
 		lastJump := i == len(pendingKey.sc.Jumps)-1
 
 		key, report := RequiredFieldsFragment(jump.TypeName, jump.SelectionSet, allowTypeName)

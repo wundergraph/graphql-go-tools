@@ -200,7 +200,7 @@ func TestCollectKeysForPath(t *testing.T) {
 		dataSource      DataSource
 		providesEntries []*NodeSuggestion
 
-		expectKeys []KeyInfo
+		expectKeys []DSKeyInfo
 	}{
 		{
 			name: "regular key",
@@ -220,16 +220,23 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			expectKeys: []KeyInfo{
+			expectKeys: []DSKeyInfo{
 				{
-					DSHash:       22,
-					Source:       true,
-					Target:       true,
-					TypeName:     "User",
-					SelectionSet: "id name",
-					FieldPaths: []string{
-						"query.me.id",
-						"query.me.name",
+					DSHash:   22,
+					TypeName: "User",
+					Path:     "query.me",
+					Keys: []KeyInfo{
+						{
+							DSHash:       22,
+							Source:       true,
+							Target:       true,
+							TypeName:     "User",
+							SelectionSet: "id name",
+							FieldPaths: []string{
+								"query.me.id",
+								"query.me.name",
+							},
+						},
 					},
 				},
 			},
@@ -253,16 +260,23 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			expectKeys: []KeyInfo{
+			expectKeys: []DSKeyInfo{
 				{
-					DSHash:       22,
-					Source:       false,
-					Target:       true,
-					TypeName:     "User",
-					SelectionSet: "id name",
-					FieldPaths: []string{
-						"query.me.id",
-						"query.me.name",
+					DSHash:   22,
+					TypeName: "User",
+					Path:     "query.me",
+					Keys: []KeyInfo{
+						{
+							DSHash:       22,
+							Source:       false,
+							Target:       true,
+							TypeName:     "User",
+							SelectionSet: "id name",
+							FieldPaths: []string{
+								"query.me.id",
+								"query.me.name",
+							},
+						},
 					},
 				},
 			},
@@ -301,16 +315,23 @@ func TestCollectKeysForPath(t *testing.T) {
 					Path:      "query.me.name",
 				},
 			},
-			expectKeys: []KeyInfo{
+			expectKeys: []DSKeyInfo{
 				{
-					DSHash:       22,
-					Source:       true,
-					Target:       true,
-					TypeName:     "User",
-					SelectionSet: "id name",
-					FieldPaths: []string{
-						"query.me.id",
-						"query.me.name",
+					DSHash:   22,
+					TypeName: "User",
+					Path:     "query.me",
+					Keys: []KeyInfo{
+						{
+							DSHash:       22,
+							Source:       true,
+							Target:       true,
+							TypeName:     "User",
+							SelectionSet: "id name",
+							FieldPaths: []string{
+								"query.me.id",
+								"query.me.name",
+							},
+						},
 					},
 				},
 			},
@@ -337,16 +358,23 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			expectKeys: []KeyInfo{
+			expectKeys: []DSKeyInfo{
 				{
-					DSHash:       22,
-					Source:       false,
-					Target:       true,
-					TypeName:     "User",
-					SelectionSet: "id name",
-					FieldPaths: []string{
-						"query.me.id",
-						"query.me.name",
+					DSHash:   22,
+					TypeName: "User",
+					Path:     "query.me",
+					Keys: []KeyInfo{
+						{
+							DSHash:       22,
+							Source:       false,
+							Target:       true,
+							TypeName:     "User",
+							SelectionSet: "id name",
+							FieldPaths: []string{
+								"query.me.id",
+								"query.me.name",
+							},
+						},
 					},
 				},
 			},
@@ -373,16 +401,23 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			expectKeys: []KeyInfo{
+			expectKeys: []DSKeyInfo{
 				{
-					DSHash:       22,
-					Source:       true,
-					Target:       false,
-					TypeName:     "User",
-					SelectionSet: "id name",
-					FieldPaths: []string{
-						"query.me.id",
-						"query.me.name",
+					DSHash:   22,
+					TypeName: "User",
+					Path:     "query.me",
+					Keys: []KeyInfo{
+						{
+							DSHash:       22,
+							Source:       true,
+							Target:       false,
+							TypeName:     "User",
+							SelectionSet: "id name",
+							FieldPaths: []string{
+								"query.me.id",
+								"query.me.name",
+							},
+						},
 					},
 				},
 			},
@@ -410,7 +445,14 @@ func TestCollectKeysForPath(t *testing.T) {
 					},
 				}).
 				DS(),
-			expectKeys: []KeyInfo{},
+			expectKeys: []DSKeyInfo{
+				{
+					DSHash:   22,
+					TypeName: "User",
+					Path:     "query.me",
+					Keys:     []KeyInfo{},
+				},
+			},
 		},
 	}
 
@@ -419,19 +461,15 @@ func TestCollectKeysForPath(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
 
 			collectNodesVisitor := &collectNodesVisitor{
-				definition:            &definition,
-				dataSource:            c.dataSource,
-				providesEntries:       c.providesEntries,
-				keysForPathByTypename: make(map[string][]KeyInfo),
+				definition:      &definition,
+				dataSource:      c.dataSource,
+				providesEntries: c.providesEntries,
 			}
 
 			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
 
-			keys, ok := collectNodesVisitor.keysForPathByTypename[c.parentPath]
-			require.True(t, ok)
-
-			assert.Equal(t, len(c.expectKeys), len(keys))
-			assert.Equal(t, c.expectKeys, keys)
+			assert.Equal(t, len(c.expectKeys), len(collectNodesVisitor.keys))
+			assert.Equal(t, c.expectKeys, collectNodesVisitor.keys)
 		})
 	}
 }

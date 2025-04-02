@@ -39,6 +39,8 @@ func TestSourceConnectionGraph(t *testing.T) {
 
 			assert.Equal(t, []SourceConnection{
 				{
+					Source: 1,
+					Target: 2,
 					Jumps: []KeyJump{
 						{
 							From:         1,
@@ -83,6 +85,8 @@ func TestSourceConnectionGraph(t *testing.T) {
 
 			assert.Equal(t, []SourceConnection{
 				{
+					Source: 1,
+					Target: 2,
 					Jumps: []KeyJump{
 						{
 							From:         1,
@@ -101,6 +105,8 @@ func TestSourceConnectionGraph(t *testing.T) {
 
 			assert.Equal(t, []SourceConnection{
 				{
+					Source: 2,
+					Target: 1,
 					Jumps: []KeyJump{
 						{
 							From:         2,
@@ -161,6 +167,8 @@ func TestSourceConnectionGraph(t *testing.T) {
 
 			assert.Equal(t, []SourceConnection{
 				{
+					Source: 1,
+					Target: 2,
 					Jumps: []KeyJump{
 						{
 							From:         1,
@@ -173,6 +181,8 @@ func TestSourceConnectionGraph(t *testing.T) {
 					Type: SourceConnectionTypeDirect,
 				},
 				{
+					Source: 1,
+					Target: 2,
 					Jumps: []KeyJump{
 						{
 							From:         1,
@@ -255,6 +265,8 @@ func TestSourceConnectionGraph(t *testing.T) {
 
 		assert.Equal(t, []SourceConnection{
 			{
+				Source: 1,
+				Target: 4,
 				Jumps: []KeyJump{
 					{
 						From:         1,

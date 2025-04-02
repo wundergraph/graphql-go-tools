@@ -17,8 +17,10 @@ const (
 )
 
 type SourceConnection struct {
-	Jumps []KeyJump
-	Type  SourceConnectionType
+	Source DSHash
+	Target DSHash
+	Jumps  []KeyJump
+	Type   SourceConnectionType
 }
 
 // JumpCacheKey represents a key for the cache map
@@ -55,7 +57,7 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 				t = SourceConnectionTypeIndirect
 			}
 
-			return []SourceConnection{{Jumps: path, Type: t}}, true
+			return []SourceConnection{{Jumps: path, Type: t, Source: source, Target: target}}, true
 		}
 
 		visited[current] = true
