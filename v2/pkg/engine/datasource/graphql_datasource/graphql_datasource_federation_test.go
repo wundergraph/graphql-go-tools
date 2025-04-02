@@ -6435,7 +6435,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						})
 					})
 
-					t.Run("when all fields queried - ignore provides as not provided path gives more fields", func(t *testing.T) {
+					t.Run("when all fields queried - all non external fields are available under external parent if parent provided", func(t *testing.T) {
 						t.Run("run", func(t *testing.T) {
 							RunWithPermutations(
 								t,
@@ -6473,7 +6473,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												}, FetchConfiguration: resolve.FetchConfiguration{
 													RequiresEntityBatchFetch:              false,
 													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+													Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename hostedImage {image {__typename url id width height}}}}}","variables":{"representations":[$$0$$]}}}`,
 													DataSource:                            &Source{},
 													SetTemplateOutputToNullOnVariableNull: true,
 													Variables: []resolve.Variable{
@@ -6503,43 +6503,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}, "user", resolve.ObjectPath("user")),
-											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           2,
-													DependsOnFetchIDs: []int{1},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {__typename url id width height}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
-																},
-															}),
-														},
-													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
-												},
-												DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 										),
 										Data: &resolve.Object{
 											Fields: []*resolve.Field{
@@ -7670,7 +7633,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						})
 					})
 
-					t.Run("query all fields - we should get not provided fields from a different subgraph", func(t *testing.T) {
+					t.Run("when all fields queried - all non external fields are available under external parent if parent provided", func(t *testing.T) {
 						t.Run("run", func(t *testing.T) {
 							RunWithPermutations(
 								t,
@@ -7695,49 +7658,12 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Fetches: resolve.Sequence(
 											resolve.Single(&resolve.SingleFetch{
 												FetchConfiguration: resolve.FetchConfiguration{
-													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url} __typename id}}}"}}`,
+													Input:          `{"method":"POST","url":"http://first.service","body":{"query":"{user {hostedImage {image {__typename url id width height}}}}"}}`,
 													PostProcessing: DefaultPostProcessingConfiguration,
 													DataSource:     &Source{},
 												},
 												DataSourceIdentifier: []byte("graphql_datasource.Source"),
 											}),
-											resolve.SingleWithPath(&resolve.SingleFetch{
-												FetchDependencies: resolve.FetchDependencies{
-													FetchID:           1,
-													DependsOnFetchIDs: []int{0},
-												}, FetchConfiguration: resolve.FetchConfiguration{
-													RequiresEntityBatchFetch:              false,
-													RequiresEntityFetch:                   true,
-													Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on HostedImage {__typename image {id width height}}}}","variables":{"representations":[$$0$$]}}}`,
-													DataSource:                            &Source{},
-													SetTemplateOutputToNullOnVariableNull: true,
-													Variables: []resolve.Variable{
-														&resolve.ResolvableObjectVariable{
-															Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-																Nullable: true,
-																Fields: []*resolve.Field{
-																	{
-																		Name: []byte("__typename"),
-																		Value: &resolve.String{
-																			Path: []string{"__typename"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
-																	{
-																		Name: []byte("id"),
-																		Value: &resolve.Scalar{
-																			Path: []string{"id"},
-																		},
-																		OnTypeNames: [][]byte{[]byte("HostedImage")},
-																	},
-																},
-															}),
-														},
-													},
-													PostProcessing: SingleEntityPostProcessingConfiguration,
-												},
-												DataSourceIdentifier: []byte("graphql_datasource.Source"),
-											}, "user.hostedImage", resolve.ObjectPath("user"), resolve.ObjectPath("hostedImage")),
 										),
 										Data: &resolve.Object{
 											Fields: []*resolve.Field{
@@ -15775,9 +15701,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 
-				variant2 := expectedPlan("http://third.service")
+				variant1 := expectedPlan("http://third.service")
+				variant2 := expectedPlan("http://second.service")
 
-				RunWithPermutations(
+				RunWithPermutationsVariants(
 					t,
 					definition,
 					`
@@ -15791,7 +15718,32 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 						}`,
 					"User",
-					variant2,
+					[]plan.Plan{
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+					},
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
@@ -16408,9 +16360,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 					}
 				}
 
-				variant1 := expectedPlan("http://second.service")
+				variant1 := expectedPlan("http://third.service")
+				variant2 := expectedPlan("http://second.service")
 
-				RunWithPermutations(
+				RunWithPermutationsVariants(
 					t,
 					definition,
 					`
@@ -16424,7 +16377,32 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 						}`,
 					"User",
-					variant1,
+					[]plan.Plan{
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant1,
+						variant2,
+						variant1,
+						variant2,
+						variant2,
+						variant1,
+						variant1,
+					},
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
