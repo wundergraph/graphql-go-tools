@@ -140,6 +140,12 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 				return
 			}
 		}
+
+		// TODO: what logic should be here?
+		if i > 10 {
+			report.AddInternalError(fmt.Errorf("FUCK"))
+			return
+		}
 	}
 
 	if i == 1 {

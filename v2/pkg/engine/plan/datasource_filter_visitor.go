@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/kingledion/go-tools/tree"
@@ -23,8 +24,12 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 	secondaryRun           bool
 
-	fieldDependsOn                     map[int][]int
-	dataSources                        []DataSource
+	fieldDependsOn map[int][]int
+	dataSources    []DataSource
+
+	jumpsForPathForTypename map[string]map[string]*DataSourceJumpsGraph
+	dsHashesHavingKeys      map[DSHash]struct{}
+
 	maxDataSourceCollectorsConcurrency uint
 }
 
@@ -70,22 +75,34 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 }
 
 func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
-	f.nodes = f.collectNodes(f.dataSources, existingNodes)
+	// // TODO: remove me I'm just debugging
+	// for _, ds := range f.dataSources {
+	// 	fmt.Println("ds: ", ds.Hash(), "name: ", ds.Name())
+	// }
+
+	f.collectNodes(f.dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
 	}
 
 	// f.nodes.printNodes("initial nodes")
-	f.applyLandedTo(landedTo)
+	f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
 
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("unique nodes")
+
 	f.selectDuplicateNodes(false)
 	// f.nodes.printNodes("duplicate nodes")
 	f.selectDuplicateNodes(true)
 	// f.nodes.printNodes("duplicate nodes after second run")
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
+
+	// add ds hashes from the keys
+	for dsHash := range f.dsHashesHavingKeys {
+		uniqueDataSourceHashes[dsHash] = struct{}{}
+	}
+
 	return f.nodes, uniqueDataSourceHashes
 }
 
@@ -118,7 +135,7 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) (nodes *NodeSuggestions) {
+func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) {
 	if existingNodes == nil {
 		existingNodes = NewNodeSuggestions()
 	}
@@ -132,7 +149,46 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		maxConcurrency: f.maxDataSourceCollectorsConcurrency,
 	}
 
-	return nodesCollector.CollectNodes()
+	var keysInfo []DSKeyInfo
+	f.nodes, keysInfo = nodesCollector.CollectNodes()
+
+	f.dsHashesHavingKeys = make(map[DSHash]struct{})
+
+	keysForPathForTypename := make(map[string]map[string]map[DSHash][]KeyInfo)
+
+	for _, keyInfo := range keysInfo {
+		path := keyInfo.Path
+
+		keysPerTypeName, ok := keysForPathForTypename[path]
+		if !ok {
+			keysPerTypeName = make(map[string]map[DSHash][]KeyInfo)
+		}
+
+		keysPerDS, ok := keysPerTypeName[keyInfo.TypeName]
+		if !ok {
+			keysPerDS = make(map[DSHash][]KeyInfo)
+		}
+
+		_, ok = keysPerDS[keyInfo.DSHash]
+		if ok {
+			continue
+		}
+
+		keysPerDS[keyInfo.DSHash] = keyInfo.Keys
+		keysPerTypeName[keyInfo.TypeName] = keysPerDS
+		keysForPathForTypename[path] = keysPerTypeName
+
+		f.dsHashesHavingKeys[keyInfo.DSHash] = struct{}{}
+	}
+
+	f.jumpsForPathForTypename = make(map[string]map[string]*DataSourceJumpsGraph)
+
+	for path, keysPerTypeName := range keysForPathForTypename {
+		f.jumpsForPathForTypename[path] = make(map[string]*DataSourceJumpsGraph)
+		for typeName, keysPerDS := range keysPerTypeName {
+			f.jumpsForPathForTypename[path][typeName] = NewDataSourceJumpsGraph(keysPerDS, typeName)
+		}
+	}
 }
 
 const (
@@ -227,6 +283,100 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 	}
 }
 
+func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *SourceConnection, exists bool) {
+	possiblePaths, exists := jumps.GetPaths(from, to)
+	if !exists {
+		return nil, false
+	}
+
+	var directs []SourceConnection
+	var indirects []SourceConnection
+
+	for _, path := range possiblePaths {
+		if path.Type == SourceConnectionTypeDirect {
+			directs = append(directs, path)
+			continue
+		}
+		indirects = append(indirects, path)
+	}
+
+	if len(directs) > 0 {
+		return &directs[0], true
+	}
+
+	// TODO: indirect path should take into consideration existing nodes?
+
+	for _, path := range indirects {
+		if bestPath == nil {
+			bestPath = &path
+			continue
+		}
+
+		if len(path.Jumps) < len(bestPath.Jumps) {
+			bestPath = &path
+		}
+	}
+
+	return bestPath, bestPath != nil
+}
+
+func (f *DataSourceFilter) jumpsForPathAndTypeName(path string, typeName string) (*DataSourceJumpsGraph, bool) {
+	forPath, exists := f.jumpsForPathForTypename[path]
+	if !exists {
+		return nil, false
+	}
+	jumpsForTypename, exists := forPath[typeName]
+	if !exists {
+		return nil, false
+	}
+
+	return jumpsForTypename, true
+}
+
+func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
+	currentNode := f.nodes.items[itemIdx]
+
+	if currentNode.requiresKey != nil {
+		return
+	}
+
+	currentNodeDsHash := currentNode.DataSourceHash
+	currentNodeTypeName := currentNode.TypeName
+
+	selectedParentHashes := make([]DSHash, 0, len(parentNodeIndexes))
+	hasSelectedParentOnSameDataSource := false
+
+	for _, parentIdx := range parentNodeIndexes {
+		if !f.nodes.items[parentIdx].Selected {
+			continue
+		}
+
+		if f.nodes.items[parentIdx].DataSourceHash == currentNodeDsHash {
+			hasSelectedParentOnSameDataSource = true
+			break
+		}
+
+		selectedParentHashes = append(selectedParentHashes, f.nodes.items[parentIdx].DataSourceHash)
+	}
+
+	if hasSelectedParentOnSameDataSource {
+		return
+	}
+
+	jumpsForTypename, exists := f.jumpsForPathAndTypeName(currentNode.ParentPath, currentNodeTypeName)
+	if !exists {
+		return
+	}
+
+	for _, selectedParentHash := range selectedParentHashes {
+		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash)
+		if exists {
+			currentNode.requiresKey = path
+			break
+		}
+	}
+}
+
 // selectDuplicateNodes - selects nodes (e.g. fields) which are not unique to a single datasource,
 // e.g. could be resolved by multiple datasources
 // This method checks only nodes not already selected on the other datasource
@@ -247,13 +397,17 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		itemIDs := treeNode.GetData()
-		if len(itemIDs) == 1 {
-			// such node already selected as unique
+		if len(itemIDs) == 0 {
+			// no available nodes to select
 			continue
 		}
 
-		if len(itemIDs) == 0 {
-			// no available nodes to select
+		if len(itemIDs) == 1 {
+			// such node already selected as unique
+
+			parentNodeIndexes := treeNode.GetParent().GetData()
+
+			f.assignKeys(itemIDs[0], parentNodeIndexes)
 			continue
 		}
 
@@ -263,9 +417,27 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// if any item on the given node is already selected, we could skip it
-		if slices.ContainsFunc(itemIDs, func(i int) bool {
-			return f.nodes.items[i].Selected
-		}) {
+		skip := false
+		for _, itemID := range itemIDs {
+			if !f.nodes.items[itemID].Selected {
+				continue
+			}
+
+			skip = true
+
+			currentNode := f.nodes.items[itemID]
+
+			if currentNode.requiresKey != nil {
+				continue
+			}
+
+			fmt.Println("current node: ", fmt.Sprintf("%s.%s", currentNode.TypeName, currentNode.FieldName), "parentPath:", currentNode.ParentPath, " typename: ", "ds: ", currentNode.DataSourceHash, "dsName: ", currentNode.DataSourceName)
+			parentNodeIndexes := treeNode.GetParent().GetData()
+
+			f.assignKeys(itemID, parentNodeIndexes)
+		}
+
+		if skip {
 			continue
 		}
 
@@ -370,6 +542,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// 3 and 4 - are stages when choices are equal, and we should select first available node
 
 		// 3. we choose first available leaf node
+		// TODO: check when this is used
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
@@ -496,66 +669,18 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 }
 
 func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string) bool {
-	currentDsHash := f.nodes.items[idx].DataSourceHash
-	currenDsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
-		return ds.Hash() == currentDsHash
-	})
-	if currenDsIdx == -1 {
-		return false
-	}
-	currentDs := f.dataSources[currenDsIdx]
-	currentDsKeys := currentDs.FederationConfiguration().Keys
-	possibleKeys := currentDsKeys.FilterByTypeAndResolvability(typeName, true)
-
-	dsHash := f.nodes.items[parentIdx].DataSourceHash
-	dsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
-		return ds.Hash() == dsHash
-	})
-	if dsIdx == -1 {
+	jumpsForTypename, exists := f.jumpsForPathAndTypeName(f.nodes.items[idx].ParentPath, typeName)
+	if !exists {
 		return false
 	}
 
-	ds := f.dataSources[dsIdx]
-	keys := ds.FederationConfiguration().Keys
-
-	keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
-
-	for _, possibleKey := range possibleKeys {
-		if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
-			return keyCfg.SelectionSet == possibleKey.SelectionSet
-		}) {
-			return true
-		}
+	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash)
+	if !exists {
+		return false
 	}
 
-	// second check is for the keys which do not have entity resolver
-	// e.g. resolvable: false or implicit keys
-	keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
-
-	// NOTE: logic here is limited currently to only resolvable keys
-	// there also could be potential matches with implicit conditional keys
-	// if there will be a need to support such cases, we need to extend this logic
-
-	var (
-		implicitKeys []FederationFieldConfiguration
-	)
-
-	for _, keyCfg := range keyConfigurations {
-		if len(keyCfg.Conditions) == 0 {
-			implicitKeys = append(implicitKeys, keyCfg)
-			continue
-		}
-	}
-
-	for _, possibleKey := range possibleKeys {
-		if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
-			return keyCfg.SelectionSet == possibleKey.SelectionSet
-		}) {
-			return true
-		}
-	}
-
-	return false
+	f.nodes.items[idx].requiresKey = path
+	return true
 }
 
 func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
