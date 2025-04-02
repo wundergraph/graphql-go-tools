@@ -89,7 +89,7 @@ func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions,
 	f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
 
 	f.selectUniqueNodes()
-	// f.nodes.printNodes("unique nodes")
+	// f.nodes.printNodes("select unique nodes")
 
 	f.selectDuplicateNodes(false)
 	// f.nodes.printNodes("duplicate nodes")
@@ -392,6 +392,9 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 	treeNodes := f.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
 
 	for treeNode := range treeNodes {
+		// f.nodes.printNodes("nodes")
+		// fmt.Println()
+
 		if treeNode.GetID() == treeRootID {
 			continue
 		}
@@ -715,7 +718,12 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
 	parentIdx, hasParentOnSameSource := f.nodes.parentNodeOnSameSource(i)
-	if hasParentOnSameSource && f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
+	if !hasParentOnSameSource {
+		return false
+	}
+
+	// we don't have to check for external if the item is selected
+	if !f.nodes.items[parentIdx].Selected {
 		return false
 	}
 
