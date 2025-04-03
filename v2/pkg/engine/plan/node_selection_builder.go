@@ -142,8 +142,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		// TODO: what logic should be here?
-		if i > 10 {
-			report.AddInternalError(fmt.Errorf("FUCK"))
+		if i > 100 {
+			report.AddInternalError(fmt.Errorf("something went wrong"))
 			return
 		}
 	}
