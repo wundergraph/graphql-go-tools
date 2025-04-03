@@ -33,8 +33,8 @@ type ProtoConfig struct {
 }
 
 // NewDataSource creates a new gRPC datasource
-func NewDataSource(plan *RPCExecutionPlan, client grpc.ClientConnInterface, schema string) (*DataSource, error) {
-	compiler, err := NewProtoCompiler(schema)
+func NewDataSource(plan *RPCExecutionPlan, client grpc.ClientConnInterface, protoSchema string) (*DataSource, error) {
+	compiler, err := NewProtoCompiler(protoSchema)
 	if err != nil {
 		return nil, err
 	}

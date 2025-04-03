@@ -1,6 +1,7 @@
 package grpcdatasource
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -105,14 +106,14 @@ func TestBuildProtoMessage(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
 									JSONPath: "variables.representations", // Path to extract data from GraphQL variables
-									Index:    1,
+									Index:    0,
 									Message: &RPCMessage{
 										Name: "LookupProductByIdInput",
 										Fields: []RPCField{
 											{
 												Name:     "key",
 												TypeName: string(DataTypeMessage),
-												Index:    1,
+												Index:    0,
 												Message: &RPCMessage{
 													Name: "ProductByIdKey",
 													Fields: []RPCField{
@@ -120,7 +121,7 @@ func TestBuildProtoMessage(t *testing.T) {
 															Name:     "id",
 															TypeName: string(DataTypeString),
 															JSONPath: "id", // Extract 'id' from each representation
-															Index:    1,
+															Index:    0,
 														},
 													},
 												},
@@ -138,7 +139,7 @@ func TestBuildProtoMessage(t *testing.T) {
 									Name:     "results",
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
-									Index:    1,
+									Index:    0,
 									JSONPath: "results",
 									Message: &RPCMessage{
 										Name: "LookupProductByIdResult",
@@ -146,7 +147,7 @@ func TestBuildProtoMessage(t *testing.T) {
 											{
 												Name:     "product",
 												TypeName: string(DataTypeMessage),
-												Index:    1,
+												Index:    0,
 												Message: &RPCMessage{
 													Name: "Product",
 													Fields: []RPCField{
@@ -154,19 +155,19 @@ func TestBuildProtoMessage(t *testing.T) {
 															Name:     "id",
 															TypeName: string(DataTypeString),
 															JSONPath: "id",
-															Index:    1,
+															Index:    0,
 														},
 														{
 															Name:     "name",
 															TypeName: string(DataTypeString),
 															JSONPath: "name",
-															Index:    2,
+															Index:    1,
 														},
 														{
 															Name:     "price",
 															TypeName: string(DataTypeDouble),
 															JSONPath: "price",
-															Index:    3,
+															Index:    2,
 														},
 													},
 												},
@@ -193,5 +194,9 @@ func TestBuildProtoMessage(t *testing.T) {
 	}
 
 	require.Equal(t, 1, len(invocations))
+
+	for _, invocation := range invocations {
+		fmt.Println(invocation)
+	}
 
 }
