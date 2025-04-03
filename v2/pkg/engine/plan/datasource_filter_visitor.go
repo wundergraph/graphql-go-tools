@@ -1,7 +1,6 @@
 package plan
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/kingledion/go-tools/tree"
@@ -434,7 +433,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				continue
 			}
 
-			fmt.Println("current node: ", fmt.Sprintf("%s.%s", currentNode.TypeName, currentNode.FieldName), "parentPath:", currentNode.ParentPath, " typename: ", "ds: ", currentNode.DataSourceHash, "dsName: ", currentNode.DataSourceName)
 			parentNodeIndexes := treeNode.GetParent().GetData()
 
 			f.assignKeys(itemID, parentNodeIndexes)

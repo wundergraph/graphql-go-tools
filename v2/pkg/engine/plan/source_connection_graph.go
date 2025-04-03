@@ -49,8 +49,12 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 	visited := make(map[DSHash]bool)
 
 	// Helper function to perform DFS and find paths
-	var dfs func(current DSHash, path []KeyJump) ([]SourceConnection, bool)
-	dfs = func(current DSHash, path []KeyJump) ([]SourceConnection, bool) {
+	var dfs func(current DSHash, path []KeyJump, depth int) ([]SourceConnection, bool)
+	dfs = func(current DSHash, path []KeyJump, depth int) ([]SourceConnection, bool) {
+		if depth > 10 {
+			return nil, false // Prevent deep recursion
+		}
+
 		if current == target {
 			t := SourceConnectionTypeDirect
 			if len(path) > 1 {
@@ -67,9 +71,13 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 		found := false
 
 		for _, jump := range g.Jumps[current] {
+			if depth > 0 && jump.SelectionSet == path[len(path)-1].SelectionSet {
+				continue // Skip jumps with the same selection set
+			}
+
 			if !visited[jump.To] {
 				newPath := append(path, jump)
-				if conns, exists := dfs(jump.To, newPath); exists {
+				if conns, exists := dfs(jump.To, newPath, depth+1); exists {
 					connections = append(connections, conns...)
 					found = true
 				}
@@ -80,7 +88,7 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 	}
 
 	// Start DFS from the source
-	paths, found := dfs(source, nil)
+	paths, found := dfs(source, nil, 0)
 
 	// Store the result in the cache
 	if found {
