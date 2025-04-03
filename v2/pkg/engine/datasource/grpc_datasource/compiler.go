@@ -273,6 +273,7 @@ func (p *RPCCompiler) ConstructExecutionPlan(operation, schema *ast.Document) (*
 
 // Invocation represents a single gRPC invocation with its input and output messages.
 type Invocation struct {
+	GroupIndex  int
 	ServiceName string
 	MethodName  string
 	Input       *dynamicpb.Message
@@ -283,24 +284,27 @@ type Invocation struct {
 // Compile processes an RPCExecutionPlan and builds protobuf messages from JSON data
 // based on the compiled schema.
 func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]Invocation, error) {
-	invocations := make([]Invocation, 0, len(executionPlan.Calls))
+	invocations := make([]Invocation, 0, len(executionPlan.Groups))
 
-	for _, call := range executionPlan.Calls {
-		// service := p.doc.ServiceByName(call.ServiceName)
-		// method := p.doc.MethodByName(call.MethodName)
-		inputMessage := p.doc.MessageByName(call.Request.Name)
-		outputMessage := p.doc.MessageByName(call.Response.Name)
+	for i, group := range executionPlan.Groups {
+		for _, call := range group.Calls {
+			// service := p.doc.ServiceByName(call.ServiceName)
+			// method := p.doc.MethodByName(call.MethodName)
+			inputMessage := p.doc.MessageByName(call.Request.Name)
+			outputMessage := p.doc.MessageByName(call.Response.Name)
 
-		request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
-		response := p.newEmptyMessage(outputMessage)
+			request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
+			response := p.newEmptyMessage(outputMessage)
 
-		invocations = append(invocations, Invocation{
-			ServiceName: call.ServiceName,
-			MethodName:  call.MethodName,
-			Input:       request,
-			Output:      response,
-			Plan:        executionPlan,
-		})
+			invocations = append(invocations, Invocation{
+				GroupIndex:  i,
+				ServiceName: call.ServiceName,
+				MethodName:  call.MethodName,
+				Input:       request,
+				Output:      response,
+				Plan:        executionPlan,
+			})
+		}
 	}
 
 	return invocations, nil

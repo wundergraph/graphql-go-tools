@@ -48,13 +48,14 @@ var _ astvisitor.EnterSelectionSetVisitor = &rpcPlanVisitor{}
 type rpcPlanVisitor struct {
 	planInfo planningInfo
 
-	subgraphName  string
-	plan          *RPCExecutionPlan
-	currentCall   *RPCCall
-	currentCallID int
-	walker        *astvisitor.Walker
-	operation     *ast.Document
-	definition    *ast.Document
+	subgraphName      string
+	plan              *RPCExecutionPlan
+	currentGroupIndex int
+	currentCall       *RPCCall
+	currentCallID     int
+	walker            *astvisitor.Walker
+	operation         *ast.Document
+	definition        *ast.Document
 	// currentRequestMessage  *RPCMessage
 	// currentResponseMessage *RPCMessage
 }
@@ -115,6 +116,12 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.currentFieldIndex = 0 // reset the field index for the current selection set
 
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		r.plan.Groups = append(r.plan.Groups, RPCCallGroup{
+			Calls: []RPCCall{},
+		})
+
+		r.currentGroupIndex = len(r.plan.Groups) - 1
+
 		r.currentCall = &RPCCall{
 			CallID:      r.currentCallID,
 			ServiceName: r.subgraphName,
@@ -149,7 +156,7 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		r.currentCall.Request.Name = methodName + "Request"
 		r.currentCall.Response.Name = methodName + "Response"
 
-		r.plan.Calls = append(r.plan.Calls, *r.currentCall)
+		r.plan.Groups[r.currentGroupIndex].Calls = append(r.plan.Groups[r.currentGroupIndex].Calls, *r.currentCall)
 		r.currentCall = nil
 	}
 }
