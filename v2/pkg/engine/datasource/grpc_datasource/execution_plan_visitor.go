@@ -17,6 +17,7 @@ type keyField struct {
 type entityInfo struct {
 	name                    string
 	keyFields               []keyField
+	keyTypeName             string
 	entityRootFieldRef      int
 	entityInlineFragmentRef int
 }
@@ -260,6 +261,13 @@ func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
 				})
 		}
 	}
+
+	keyFields := make([]string, 0, len(r.planInfo.entityInfo.keyFields))
+	for _, key := range r.planInfo.entityInfo.keyFields {
+		keyFields = append(keyFields, key.fieldName)
+	}
+
+	r.planInfo.entityInfo.keyTypeName = r.planInfo.entityInfo.name + "By" + strings.Join(titleSlice(keyFields), "And")
 }
 
 // scaffoldEntityLookup scaffolds the entity lookup call
@@ -271,7 +279,9 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 	}
 
 	entityInfo := &r.planInfo.entityInfo
-	keyFieldMessage := &RPCMessage{}
+	keyFieldMessage := &RPCMessage{
+		Name: entityInfo.keyTypeName + "Key",
+	}
 	for i, key := range entityInfo.keyFields {
 		keyFieldMessage.Fields = append(keyFieldMessage.Fields, RPCField{
 			Index:    i,
@@ -281,30 +291,32 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 		})
 	}
 
-	r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-		Name:     "inputs",
-		TypeName: DataTypeMessage.String(),
-		Repeated: true, // The inputs are always a list of objects
-		JSONPath: "variables.representations",
-		Index:    0,
-		Message: &RPCMessage{
-			Name: r.rpcMethodName() + "Input",
-			Fields: RPCFields{
-				{
-					Index:    0,
-					Name:     "key",
-					TypeName: DataTypeMessage.String(),
-					Message:  keyFieldMessage,
+	r.planInfo.currentRequestMessage.Fields = []RPCField{
+		{
+			Name:     "inputs",
+			TypeName: DataTypeMessage.String(),
+			Repeated: true, // The inputs are always a list of objects
+			JSONPath: "variables.representations",
+			Index:    0,
+			Message: &RPCMessage{
+				Name: r.rpcMethodName() + "Input",
+				Fields: RPCFields{
+					{
+						Index:    0,
+						Name:     "key",
+						TypeName: DataTypeMessage.String(),
+						Message:  keyFieldMessage,
+					},
 				},
 			},
 		},
-	})
+	}
 
 	// r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, keyFieldMessage)
 	r.planInfo.currentRequestMessage = keyFieldMessage
 
 	resultMessage := &RPCMessage{
-		Name: strings.ToLower(r.planInfo.entityInfo.name), // TODO to snake_case
+		Name: r.planInfo.entityInfo.name,
 	}
 
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
@@ -314,7 +326,17 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 			TypeName: DataTypeMessage.String(),
 			JSONPath: "results",
 			Repeated: true,
-			Message:  resultMessage,
+			Message: &RPCMessage{
+				Name: r.rpcMethodName() + "Result",
+				Fields: RPCFields{
+					{
+						Index:    0,
+						Name:     strings.ToLower(r.planInfo.entityInfo.name),
+						TypeName: DataTypeMessage.String(),
+						Message:  resultMessage,
+					},
+				},
+			},
 		},
 	}
 
@@ -341,12 +363,8 @@ func (r *rpcPlanVisitor) rpcMethodName() string {
 
 func (r *rpcPlanVisitor) buildQueryMethodName() string {
 	if r.planInfo.isEntityLookup && r.planInfo.entityInfo.name != "" {
-		keyFields := make([]string, 0, len(r.planInfo.entityInfo.keyFields))
-		for _, key := range r.planInfo.entityInfo.keyFields {
-			keyFields = append(keyFields, key.fieldName)
-		}
 
-		return "Lookup" + r.planInfo.entityInfo.name + "By" + strings.Join(titleSlice(keyFields), "And")
+		return "Lookup" + r.planInfo.entityInfo.keyTypeName
 	}
 
 	return "Query" + strings.Title(r.planInfo.operationFieldName)
