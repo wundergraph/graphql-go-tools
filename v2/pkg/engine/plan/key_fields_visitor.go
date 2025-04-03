@@ -198,25 +198,32 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	hasRootNode := v.input.dataSource.HasRootNode(typeName, fieldName)
 	hasChildNode := v.input.dataSource.HasChildNode(typeName, fieldName)
 
-	isExternalRootNode := v.input.dataSource.HasExternalRootNode(typeName, fieldName)
-	isExternalChildNode := v.input.dataSource.HasExternalChildNode(typeName, fieldName)
+	hasExternalRootNode := v.input.dataSource.HasExternalRootNode(typeName, fieldName)
+	hasExternalChildNode := v.input.dataSource.HasExternalChildNode(typeName, fieldName)
 
-	hasNode := hasRootNode || hasChildNode || isExternalRootNode || isExternalChildNode
+	hasNode := hasRootNode || hasChildNode || hasExternalRootNode || hasExternalChildNode
 
 	if !hasNode {
 		// TODO: report an error
 		return
 	}
 
-	isExternal := isExternalRootNode || isExternalChildNode
-	if isExternal {
-		isProvided := slices.ContainsFunc(v.input.providesEntries, func(suggestion *NodeSuggestion) bool {
-			return suggestion.TypeName == typeName && suggestion.FieldName == fieldName && suggestion.Path == currentPath
-		})
+	isExternal := hasExternalRootNode || hasExternalChildNode
 
-		if isProvided {
+	if isExternal {
+		switch {
+		case hasRootNode:
+			// fallback for how we used to handle keys marked as external in the current composition version
+			// if the key field present in both external fields and regular fields it should not be marked as external
+			// this logic is parallel to what we have in collect fields visitor
+			isExternal = false
+		case slices.ContainsFunc(v.input.providesEntries, func(suggestion *NodeSuggestion) bool {
+			return suggestion.TypeName == typeName && suggestion.FieldName == fieldName && suggestion.Path == currentPath
+		}):
+			// if the field is provided, it should not be marked as external
 			isExternal = false
 		}
+
 	}
 
 	v.keyPaths = append(v.keyPaths, currentPath)
