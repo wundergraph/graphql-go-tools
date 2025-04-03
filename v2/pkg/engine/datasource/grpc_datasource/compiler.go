@@ -56,7 +56,7 @@ func (d DataType) IsValid() bool {
 
 func fromGraphQLType(s string) DataType {
 	switch s {
-	case "ID", "String", "Date", "DateTime", "Time", "Timestamp":
+	case "ID", "String":
 		return DataTypeString
 	case "Int":
 		return DataTypeInt32
@@ -65,7 +65,8 @@ func fromGraphQLType(s string) DataType {
 	case "Boolean":
 		return DataTypeBool
 	default:
-		return DataTypeUnknown
+		// Fallback to string for unknown types
+		return DataTypeString
 	}
 }
 

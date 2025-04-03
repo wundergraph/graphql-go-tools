@@ -30,11 +30,11 @@ type planningInfo struct {
 	isEntityLookup     bool
 	methodName         string
 
-	// requestMessageAncestors []*RPCMessage
-	currentRequestMessage *RPCMessage
+	requestMessageAncestors []*RPCMessage
+	currentRequestMessage   *RPCMessage
 
-	// responseMessageAncestors []*RPCMessage
-	currentResponseMessage *RPCMessage
+	responseMessageAncestors []*RPCMessage
+	currentResponseMessage   *RPCMessage
 
 	currentFieldIndex int
 	indexAncestors    []int
@@ -85,16 +85,28 @@ func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.
 }
 
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
+// This is called when we enter the operation definition node
+// We use this to retrieve the information about the operation
+// and to create a new group in the plan.
+//
+// We also use this to check if we are looking up an entity
+// as we require a special handling for this case
 func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	if r.operation == nil {
 		return
 	}
 
+	// We retrieve the fields from the root selection set.
+	// These fields determine the names for the RPC functions to call.
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
 	fieldNames := r.operation.SelectionSetFieldNames(selectionSetRef)
 
 	r.planInfo.operationFieldName = fieldNames[r.currentCallID]
 
+	// _entities is a special field that is used to look up entities
+	// Entity lookups are handled differently as we use special types for
+	// Providing variables (_Any) and the response type is a Union that needs to be
+	// determined from the first inline fragment.
 	if r.planInfo.operationFieldName == "_entities" {
 		r.planInfo.entityInfo = entityInfo{
 			entityRootFieldRef:      -1,
@@ -111,10 +123,10 @@ func (r *rpcPlanVisitor) LeaveOperationDefinition(ref int) {
 }
 
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
+// We check if we are in the root level below the operation definition.
+// If so, we create a new group and add a new call to it.
+// TODO handle nested selection sets
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
-	// r.planInfo.indexAncestors = append(r.planInfo.indexAncestors, r.planInfo.currentFieldIndex)
-	r.planInfo.currentFieldIndex = 0 // reset the field index for the current selection set
-
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
 		r.plan.Groups = append(r.plan.Groups, RPCCallGroup{
 			Calls: []RPCCall{},
@@ -134,6 +146,29 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		// We only scaffold the call here.
 		return
 	}
+
+	if len(r.planInfo.currentResponseMessage.Fields) == 0 {
+		return
+	}
+
+	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentFieldIndex].Message == nil {
+		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
+	}
+
+	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentFieldIndex].Message
+
+	r.planInfo.indexAncestors = append(r.planInfo.indexAncestors, r.planInfo.currentFieldIndex)
+	r.planInfo.currentFieldIndex = 0 // reset the field index for the current selection set
+}
+
+func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
+	message := &RPCMessage{
+		Name:   r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		Fields: make(RPCFields, 0, len(r.operation.SelectionSets[ref].SelectionRefs)),
+	}
+
+	return message
 }
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
@@ -143,10 +178,10 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		r.planInfo.indexAncestors = r.planInfo.indexAncestors[:len(r.planInfo.indexAncestors)-1]
 	}
 
-	// if len(r.planInfo.responseMessageAncestors) > 0 {
-	// 	r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
-	// 	r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
-	// }
+	if len(r.planInfo.responseMessageAncestors) > 0 {
+		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
+		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
+	}
 
 	anchestor := r.walker.Ancestor()
 	if anchestor.Kind == ast.NodeKindOperationDefinition {
@@ -202,6 +237,8 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
 		Index:    r.planInfo.currentFieldIndex,
+		Repeated: r.definition.TypeIsList(fdt),
+		// TODO check for list of lists
 	})
 }
 
@@ -347,8 +384,8 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 		},
 	}
 
-	// r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, resultMessage)
-	r.planInfo.currentResponseMessage = resultMessage
+	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[0].Message
 }
 
 func (r *rpcPlanVisitor) rpcMethodName() string {
@@ -387,6 +424,8 @@ func (r *rpcPlanVisitor) buildSubscriptionMethodName() string {
 	return "Subscription" + strings.Title(r.planInfo.operationFieldName)
 }
 
+// toDataType converts an ast.Type to a DataType
+// It handles the different type kinds and non-null types
 func (r *rpcPlanVisitor) toDataType(t *ast.Type) DataType {
 	switch t.TypeKind {
 	case ast.TypeKindNamed:
@@ -400,10 +439,30 @@ func (r *rpcPlanVisitor) toDataType(t *ast.Type) DataType {
 	return DataTypeUnknown
 }
 
+// parseGraphQLType parses an ast.Type and returns the corresponding DataType
+// It handles the different type kinds and non-null types
 func (r *rpcPlanVisitor) parseGraphQLType(t *ast.Type) DataType {
 	dt := r.definition.Input.ByteSliceString(t.Name)
 
-	return fromGraphQLType(dt)
+	// retrieve the node to check the kind
+	node, found := r.definition.NodeByNameStr(dt)
+	if !found {
+		return DataTypeUnknown
+	}
+
+	// For non-scalar types we return the corresponding DataType
+	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		fallthrough
+	case ast.NodeKindUnionTypeDefinition:
+		fallthrough
+	case ast.NodeKindObjectTypeDefinition:
+		return DataTypeMessage
+	case ast.NodeKindEnumTypeDefinition:
+		return DataTypeEnum
+	default:
+		return fromGraphQLType(dt)
+	}
 }
 
 func titleSlice(s []string) []string {
