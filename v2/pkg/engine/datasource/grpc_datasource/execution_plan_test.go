@@ -85,8 +85,11 @@ query EntityLookup($representations: [_Any!]!) {
 			t.Fatalf("failed to walk AST: %s", report.Error())
 		}
 
-		fmt.Println(rpcPlanVisitor.plan)
+		fmt.Println("--------------------------------")
 
+		fmt.Println(rpcPlanVisitor.plan.String())
+
+		fmt.Println("--------------------------------")
 	})
 
 }
