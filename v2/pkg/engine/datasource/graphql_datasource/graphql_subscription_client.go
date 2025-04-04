@@ -35,8 +35,6 @@ const (
 	readMessageTimeout = 1 * time.Second
 	// The time to wait for a connection ack message from the server before timing out
 	ackWaitTimeout = 30 * time.Second
-	// The time to wait for a pong message from the server after sending a ping message
-	pongWaitTimeout = 5 * time.Second
 )
 
 type netPollState struct {
@@ -75,6 +73,7 @@ type subscriptionClient struct {
 
 	readTimeout  time.Duration
 	pingInterval time.Duration
+	pingTimeout  time.Duration
 
 	netPoll       netpoll.Poller
 	netPollConfig NetPollConfiguration
@@ -138,6 +137,12 @@ func WithPingInterval(interval time.Duration) Options {
 	}
 }
 
+func WithPingTimeout(timeout time.Duration) Options {
+	return func(options *opts) {
+		options.pingTimeout = timeout
+	}
+}
+
 type NetPollConfiguration struct {
 	// Enable can be set to true to enable netPoll
 	Enable bool
@@ -178,6 +183,7 @@ func WithNetPollConfiguration(config NetPollConfiguration) Options {
 type opts struct {
 	readTimeout                time.Duration
 	pingInterval               time.Duration
+	pingTimeout                time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 	netPollConfiguration       NetPollConfiguration
@@ -206,6 +212,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 	op := &opts{
 		readTimeout:  time.Millisecond * 100,
 		pingInterval: 10 * time.Second,
+		pingTimeout:  5 * time.Second,
 		log:          abstractlogger.NoopLogger,
 	}
 
@@ -222,6 +229,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		log:             op.log,
 		readTimeout:     op.readTimeout,
 		pingInterval:    op.pingInterval,
+		pingTimeout:     op.pingTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -312,6 +320,7 @@ func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.
 func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
 	options.pingInterval = c.pingInterval
+	options.pingTimeout = c.pingTimeout
 
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
@@ -338,6 +347,7 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext context.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
 	options.pingInterval = c.pingInterval
+	options.pingTimeout = c.pingTimeout
 
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
@@ -631,6 +641,7 @@ type ConnectionHandler interface {
 	HandleMessage(data []byte) (done bool)
 	// Ping used to send a ping message to the upstream server to remain the connection alive
 	// It also keeps track of when the last ping was sent and pong was received to initiate a close
+	// if the connection is not alive anymore
 	Ping()
 	// ServerClose closes the connection from the server side
 	ServerClose()
@@ -693,6 +704,7 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 	// this would not be possible with unbuffered channels
 	handleConnCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
 	connResults := make(chan connResult, c.netPollConfig.WaitForNumEvents)
+	pingCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
 
 	// Start workers to handle connection events
 	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
@@ -701,6 +713,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		go func() {
 			for {
 				select {
+				case conn := <-pingCh:
+					conn.handler.Ping()
 				case conn := <-handleConnCh:
 					shouldClose := c.handleConnectionEvent(conn)
 					connResults <- connResult{fd: conn.fd, shouldClose: shouldClose}
@@ -722,11 +736,9 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		case <-done:
 			return
 		case <-pingTicker.C:
-			// Send a ping to all connections if we have any
-			if c.netPollState.hasConnections.Load() {
-				for _, conn := range c.netPollState.connections {
-					conn.handler.Ping()
-				}
+			// Send a ping to all connections
+			for _, conn := range c.netPollState.connections {
+				pingCh <- conn
 			}
 		case conn := <-c.netPollState.addConn:
 			c.handleAddConn(conn)

@@ -1838,6 +1838,7 @@ type GraphQLSubscriptionOptions struct {
 	WsSubProtocol                           string           `json:"ws_sub_protocol"`
 	readTimeout                             time.Duration    `json:"-"`
 	pingInterval                            time.Duration    `json:"-"`
+	pingTimeout                             time.Duration    `json:"-"`
 }
 
 type GraphQLBody struct {

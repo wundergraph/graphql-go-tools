@@ -3,13 +3,16 @@ package graphql_datasource
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/coder/websocket"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
@@ -1882,4 +1885,450 @@ func TestAsyncSubscribe(t *testing.T) {
 			serverCancel()
 		})
 	})
+}
+
+func TestClientToSubgraphPingPong(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows as it's not reliable")
+	}
+
+	t.Run("client sends ping message after configured interval", func(t *testing.T) {
+		t.Parallel()
+
+		// Create channel to signal server done
+		serverDone := make(chan struct{})
+		pingReceived := make(chan struct{}) // Add channel to signal ping received
+
+		// Create test server that will handle the WebSocket connection
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Sec-WebSocket-Protocol", ProtocolGraphQLTWS)
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{ProtocolGraphQLTWS},
+			})
+			assert.NoError(t, err)
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+				close(serverDone)
+			}()
+
+			ctx := context.Background()
+
+			// Handle connection initialization
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+
+			// Handle subscription start
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+			// Send initial data
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"initial data"}}}}`))
+			assert.NoError(t, err)
+
+			// Track what messages we've received
+			receivedPing := false
+			receivedComplete := false
+
+			// Create a context with timeout for reading messages
+			readCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+
+			// Process up to 5 messages or until we see both a ping and a complete
+			for i := 0; i < 5; i++ {
+				if receivedPing && receivedComplete {
+					break
+				}
+
+				msgType, data, err = conn.Read(readCtx)
+				if err != nil {
+					// Connection closed or timeout
+					t.Logf("Connection read ended: %v", err)
+					break
+				}
+
+				messageStr := string(data)
+				t.Logf("Received message: %s", messageStr)
+
+				if messageStr == `{"type":"ping"}` {
+					receivedPing = true
+					close(pingReceived) // Signal that we received the ping
+					// Respond with pong
+					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"pong"}`))
+					assert.NoError(t, err)
+
+					// Send another data message
+					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
+					assert.NoError(t, err)
+				} else if messageStr == `{"id":"1","type":"complete"}` {
+					receivedComplete = true
+				}
+			}
+
+			// Test is successful if we received a ping message
+			if !receivedPing {
+				t.Error("Did not receive ping message from client")
+			}
+		}))
+		defer server.Close()
+
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		// Create subscription client with a short ping interval for testing
+		pingInterval := 500 * time.Millisecond
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithLogger(logger()),
+			WithPingInterval(pingInterval),
+			WithNetPollConfiguration(NetPollConfiguration{
+				Enable:           true,
+				TickInterval:     100 * time.Millisecond,
+				BufferSize:       10,
+				MaxEventWorkers:  2,
+				WaitForNumEvents: 1,
+			}),
+		).(*subscriptionClient)
+
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 1, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
+		assert.NoError(t, err)
+
+		// Wait for ping to be received before unsubscribing
+		select {
+		case <-pingReceived:
+			t.Log("Ping received successfully")
+		case <-time.After(2 * time.Second):
+			t.Log("Timed out waiting for ping, will unsubscribe anyway")
+		}
+
+		// Cleanup
+		client.Unsubscribe(1)
+
+		// Wait for server to finish
+		select {
+		case <-serverDone:
+			// Server completed successfully
+		case <-time.After(5 * time.Second):
+			t.Fatal("Timed out waiting for server to complete")
+		}
+
+		clientCancel()
+		serverCancel()
+	})
+
+	t.Run("client responds with pong when server sends ping", func(t *testing.T) {
+		t.Parallel()
+
+		pongReceived := make(chan struct{})
+		serverDone := make(chan struct{})
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Sec-WebSocket-Protocol", ProtocolGraphQLTWS)
+			conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+				Subprotocols: []string{ProtocolGraphQLTWS},
+			})
+			assert.NoError(t, err)
+			defer func() {
+				_ = conn.Close(websocket.StatusNormalClosure, "done")
+			}()
+
+			ctx := context.Background()
+
+			// Handle connection initialization
+			msgType, data, err := conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"type":"connection_init"}`, string(data))
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+			assert.NoError(t, err)
+
+			// Handle subscription start
+			msgType, data, err = conn.Read(ctx)
+			assert.NoError(t, err)
+			assert.Equal(t, websocket.MessageText, msgType)
+			assert.Equal(t, `{"id":"1","type":"subscribe","payload":{"query":"subscription {messageAdded(roomName: \"room\"){text}}"}}`, string(data))
+
+			// Send initial data
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"initial data"}}}}`))
+			assert.NoError(t, err)
+
+			// Send ping message
+			err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"ping"}`))
+			assert.NoError(t, err)
+
+			// Wait for pong response from client
+			msgType, data, err = conn.Read(ctx)
+			if err != nil {
+				t.Errorf("Error reading pong: %v", err)
+				return
+			}
+
+			if string(data) == `{"type":"pong"}` {
+				assert.Equal(t, websocket.MessageText, msgType)
+				close(pongReceived)
+
+				// Send another data message
+				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
+				assert.NoError(t, err)
+			}
+
+			// Wait for client to unsubscribe (complete message)
+			readTimeout := time.NewTimer(3 * time.Second)
+			defer readTimeout.Stop()
+
+			readDone := make(chan struct{})
+			go func() {
+				msgType, data, _ = conn.Read(ctx)
+				close(readDone)
+			}()
+
+			select {
+			case <-readDone:
+				// Successfully read client message
+			case <-readTimeout.C:
+				// Timeout is fine, we're just waiting for unsubscribe
+			}
+
+			close(serverDone)
+		}))
+		defer server.Close()
+
+		ctx, clientCancel := context.WithCancel(context.Background())
+		defer clientCancel()
+		serverCtx, serverCancel := context.WithCancel(context.Background())
+		defer serverCancel()
+
+		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			WithLogger(logger()),
+			WithReadTimeout(100*time.Millisecond),
+			WithNetPollConfiguration(NetPollConfiguration{
+				Enable:           true,
+				TickInterval:     100 * time.Millisecond,
+				BufferSize:       10,
+				MaxEventWorkers:  2,
+				WaitForNumEvents: 1,
+			}),
+		).(*subscriptionClient)
+
+		updater := &testSubscriptionUpdater{}
+
+		err := client.SubscribeAsync(resolve.NewContext(ctx), 2, GraphQLSubscriptionOptions{
+			URL: server.URL,
+			Body: GraphQLBody{
+				Query: `subscription {messageAdded(roomName: "room"){text}}`,
+			},
+			WsSubProtocol: ProtocolGraphQLTWS,
+		}, updater)
+		assert.NoError(t, err)
+
+		// Wait some time to allow subscription processing
+		time.Sleep(2 * time.Second)
+
+		// Verify we receive at least the initial data
+		updater.mux.Lock()
+		updatesCount := len(updater.updates)
+		firstUpdate := ""
+		if updatesCount > 0 {
+			firstUpdate = updater.updates[0]
+		}
+		updater.mux.Unlock()
+
+		assert.GreaterOrEqual(t, updatesCount, 1)
+		if updatesCount > 0 {
+			assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
+		}
+
+		// Cleanup
+		client.Unsubscribe(2)
+
+		// Wait for server to finish
+		select {
+		case <-serverDone:
+			// Server completed successfully
+		case <-time.After(5 * time.Second):
+			t.Fatal("Timed out waiting for server to complete")
+		}
+
+		clientCancel()
+		serverCancel()
+	})
+}
+
+func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Skipping test on Windows as it's not reliable")
+	}
+
+	t.Parallel()
+
+	serverDone := make(chan struct{})
+	pingReceived := make(chan struct{}, 1) // Buffer 1 in case ping arrives slightly late
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Sec-WebSocket-Protocol", ProtocolGraphQLTWS)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
+			Subprotocols: []string{ProtocolGraphQLTWS},
+		})
+		assert.NoError(t, err)
+		defer func() {
+			_ = conn.Close(websocket.StatusNormalClosure, "server done")
+			close(serverDone)
+		}()
+
+		ctx := context.Background()
+
+		// Handle connection initialization
+		msgType, data, err := conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		assert.Equal(t, `{"type":"connection_init"}`, string(data))
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"connection_ack"}`))
+		assert.NoError(t, err)
+
+		// Handle subscription start
+		msgType, data, err = conn.Read(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, websocket.MessageText, msgType)
+		// Use regexp because client might generate different IDs
+		assert.Regexp(t, `{"id":".*","type":"subscribe","payload":{.*}}`, string(data))
+		// More specific check for query
+		payloadQuery, err := jsonparser.GetString(data, "payload", "query")
+		if assert.NoError(t, err) {
+			assert.Equal(t, `subscription {messageAdded(roomName: "room"){text}}`, payloadQuery)
+		}
+
+		// Send initial data
+		subID, err := jsonparser.GetString(data, "id") // Get the actual ID used by the client
+		if !assert.NoError(t, err) {
+			return
+		}
+		initialDataMsg := fmt.Sprintf(`{"id":"%s","type":"next","payload":{"data":{"messageAdded":{"text":"initial data"}}}}`, subID)
+		err = conn.Write(r.Context(), websocket.MessageText, []byte(initialDataMsg))
+		assert.NoError(t, err)
+
+		// Wait for ping, but DO NOT send pong
+		readCtx, cancelRead := context.WithTimeout(ctx, 5*time.Second) // Timeout for reading messages
+		defer cancelRead()
+
+		hasReceivedPing := false
+		for !hasReceivedPing {
+			msgType, data, err = conn.Read(readCtx)
+			if err != nil {
+				t.Logf("Server read error (expected after client closes): %v", err)
+				// Expecting an error here eventually as the client should close the connection
+				assert.Error(t, err, "Server should encounter read error when client closes connection due to ping timeout")
+				return // Exit handler goroutine
+			}
+
+			messageStr := string(data)
+			t.Logf("Server received: %s", messageStr)
+			if messageStr == `{"type":"ping"}` {
+				t.Log("Server received ping, NOT sending pong.")
+				hasReceivedPing = true
+				select {
+				case pingReceived <- struct{}{}:
+				default: // Avoid blocking if channel is full
+				}
+			} else if strings.Contains(messageStr, `"type":"complete"`) {
+				// Client might send complete before closing if test runs fast
+				t.Log("Server received complete from client.")
+			} else {
+				t.Logf("Server received unexpected message type: %s", messageStr)
+			}
+		}
+
+		// Keep reading until the connection is closed by the client
+		for {
+			_, _, err = conn.Read(ctx)
+			if err != nil {
+				t.Logf("Server read error after ping (expected): %v", err)
+				assert.Error(t, err, "Server should encounter read error after client closes connection")
+				return // Exit handler goroutine
+			}
+		}
+	}))
+	defer server.Close()
+
+	ctx, clientCancel := context.WithCancel(context.Background())
+	defer clientCancel()
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	// Configure client with short ping interval
+	pingInterval := 500 * time.Millisecond
+	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+		WithLogger(logger()),
+		WithPingInterval(pingInterval),
+		// Need netpoll enabled for ping/pong handling
+		WithNetPollConfiguration(NetPollConfiguration{
+			Enable:           true,
+			TickInterval:     100 * time.Millisecond,
+			BufferSize:       10,
+			MaxEventWorkers:  2,
+			WaitForNumEvents: 1,
+		}),
+	).(*subscriptionClient)
+
+	updater := &testSubscriptionUpdater{}
+
+	// Use a unique ID for async subscription
+	subscriptionID := uint64(42)
+
+	err := client.SubscribeAsync(resolve.NewContext(ctx), subscriptionID, GraphQLSubscriptionOptions{
+		URL: server.URL,
+		Body: GraphQLBody{
+			Query: `subscription {messageAdded(roomName: "room"){text}}`,
+		},
+		WsSubProtocol: ProtocolGraphQLTWS,
+	}, updater)
+	assert.NoError(t, err)
+
+	// Wait for initial data
+	updater.AwaitUpdates(t, 3*time.Second, 1)
+	updater.mux.Lock()
+	updatesCount := len(updater.updates)
+	firstUpdate := ""
+	if updatesCount > 0 {
+		firstUpdate = updater.updates[0]
+	}
+	updater.mux.Unlock()
+
+	require.Equal(t, 1, updatesCount, "Client should receive initial data")
+	assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
+
+	// Wait for the server to confirm it received a ping
+	select {
+	case <-pingReceived:
+		t.Log("Test confirmed server received ping.")
+	case <-time.After(3 * time.Second): // Should receive ping within ~pingInterval + read time
+		t.Fatal("Timed out waiting for server to receive ping")
+	}
+
+	// Wait for server to signal it's done (connection closed by client)
+	select {
+	case <-serverDone:
+		t.Log("Server confirmed connection closed.")
+		// Success: server detected connection closure
+	case <-time.After(5 * time.Second): // Should happen within ~2*pingInterval + processing time
+		t.Fatal("Timed out waiting for server to detect connection closure")
+	}
+
+	// Explicitly unsubscribe just in case, although it should be closed already
+	client.Unsubscribe(subscriptionID)
+	clientCancel() // Cancel client context
+	serverCancel() // Cancel server context (though serverDone should ensure it exited)
 }

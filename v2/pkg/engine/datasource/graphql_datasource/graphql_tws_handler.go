@@ -27,7 +27,7 @@ type gqlTWSConnectionHandler struct {
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
 	lastPingSentAt                time.Time
-	lastPongReceivedAt            time.Time
+	pingTimeout                   time.Duration
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
@@ -95,6 +95,12 @@ func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, c
 		log:            l,
 		updater:        updater,
 		options:        options,
+		pingTimeout:    options.pingTimeout,
+	}
+
+	// Default ping timeout if not set
+	if handler.pingTimeout == 0 {
+		handler.pingTimeout = 30 * time.Second
 	}
 
 	return &connection{
@@ -274,38 +280,26 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
-	h.lastPongReceivedAt = time.Now()
-}
-
-func (h *gqlTWSConnectionHandler) hasReceivedPongInTime() bool {
-	if h.lastPingSentAt.IsZero() {
-		return true
-	}
-
-	if h.lastPongReceivedAt.Sub(h.lastPingSentAt) > pongWaitTimeout {
-		h.log.Error("no pong received in time. Closing connection")
-		h.ServerClose()
-		return false
-	}
-
-	return true
+	h.lastPingSentAt = time.Time{} // Reset ping timestamp when pong received
 }
 
 func (h *gqlTWSConnectionHandler) Ping() {
-
-	if !h.hasReceivedPongInTime() {
+	// Check if we have a pending ping that has exceeded the timeout
+	if !h.lastPingSentAt.IsZero() && time.Since(h.lastPingSentAt) > h.pingTimeout {
+		h.log.Error("ping timeout exceeded. Closing connection")
+		h.ServerClose()
 		return
 	}
 
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
 
-	h.lastPingSentAt = time.Now()
-
 	if err != nil {
 		h.log.Error("failed to write ping message", abstractlogger.Error(err))
 		return
 	}
+
+	h.lastPingSentAt = time.Now() // Record the time when ping was sent
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
