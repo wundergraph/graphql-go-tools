@@ -291,12 +291,13 @@ func (h *gqlTWSConnectionHandler) Ping() {
 
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
+
+	h.lastPingSentAt = time.Now()
+
 	if err != nil {
 		h.log.Error("failed to write ping message", abstractlogger.Error(err))
 		return
 	}
-
-	h.lastPingSentAt = time.Now()
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {

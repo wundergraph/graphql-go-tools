@@ -35,7 +35,7 @@ const (
 	readMessageTimeout = 1 * time.Second
 	// The time to wait for a connection ack message from the server before timing out
 	ackWaitTimeout = 30 * time.Second
-	// The time to wait for a pong message from the server before timing out
+	// The time to wait for a pong message from the server after sending a ping message
 	pongWaitTimeout = 5 * time.Second
 )
 
