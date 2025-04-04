@@ -31,9 +31,11 @@ const (
 
 	subscribeMessage = `{"id":"%s","type":"subscribe","payload":%s}`
 	pongMessage      = `{"type":"pong"}`
+	pingMessage      = `{"type":"ping"}`
 	completeMessage  = `{"id":"%s","type":"complete"}`
 
 	messageTypePing = "ping"
+	messageTypePong = "pong"
 	messageTypeNext = "next"
 )
 

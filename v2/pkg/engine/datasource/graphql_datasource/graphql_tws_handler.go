@@ -26,6 +26,8 @@ type gqlTWSConnectionHandler struct {
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
+	lastPingSentAt                time.Time
+	lastPongReceivedAt            time.Time
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
@@ -72,6 +74,9 @@ func (h *gqlTWSConnectionHandler) HandleMessage(data []byte) (done bool) {
 	case messageTypeData, messageTypeConnectionError:
 		h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
 		return true
+	case messageTypePong:
+		h.handleMessageTypePong()
+		return false
 	default:
 		h.log.Error("unknown message type", abstractlogger.String("type", messageType))
 		return false
@@ -91,6 +96,7 @@ func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, c
 		updater:        updater,
 		options:        options,
 	}
+
 	return &connection{
 		handler: handler,
 		netConn: conn,
@@ -112,6 +118,9 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 		return err
 	}
 
+	pingTicker := time.NewTicker(h.options.pingInterval)
+	defer pingTicker.Stop()
+
 	go h.readBlocking(readCtx, h.options.readTimeout, dataCh, errCh)
 
 	for {
@@ -120,6 +129,8 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 			return h.engineContext.Err()
 		case <-readCtx.Done():
 			return readCtx.Err()
+		case <-pingTicker.C:
+			h.Ping()
 		case err := <-errCh:
 			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			h.broadcastErrorMessage(err)
@@ -131,6 +142,9 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 			}
 
 			switch messageType {
+			case messageTypePong:
+				h.handleMessageTypePong()
+				continue
 			case messageTypePing:
 				h.handleMessageTypePing()
 				continue
@@ -257,6 +271,32 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 	if err != nil {
 		h.log.Error("failed to write pong message", abstractlogger.Error(err))
 	}
+}
+
+func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
+	h.lastPongReceivedAt = time.Now()
+}
+
+func (h *gqlTWSConnectionHandler) Ping() {
+
+	// Check if we have received a pong message in the pongWaitTimeout
+	// If not we assume the connection is dead and close it
+	if !h.lastPingSentAt.IsZero() {
+		if h.lastPongReceivedAt.Sub(h.lastPingSentAt) > pongWaitTimeout {
+			h.log.Error("no pong received in time. Closing connection")
+			h.ServerClose()
+			return
+		}
+	}
+
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
+	if err != nil {
+		h.log.Error("failed to write ping message", abstractlogger.Error(err))
+		return
+	}
+
+	h.lastPingSentAt = time.Now()
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {

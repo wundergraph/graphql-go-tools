@@ -32,6 +32,7 @@ const (
 	writeTimeout       = 10 * time.Second
 	readMessageTimeout = 1 * time.Second
 	ackWaitTimeout     = 30 * time.Second
+	pongWaitTimeout    = 5 * time.Second
 )
 
 type netPollState struct {
@@ -68,7 +69,8 @@ type subscriptionClient struct {
 	hashPool                   sync.Pool
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
-	readTimeout time.Duration
+	readTimeout  time.Duration
+	pingInterval time.Duration
 
 	netPoll       netpoll.Poller
 	netPollConfig NetPollConfiguration
@@ -126,6 +128,12 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
+func WithPingInterval(interval time.Duration) Options {
+	return func(options *opts) {
+		options.pingInterval = interval
+	}
+}
+
 type NetPollConfiguration struct {
 	// Enable can be set to true to enable netPoll
 	Enable bool
@@ -165,6 +173,7 @@ func WithNetPollConfiguration(config NetPollConfiguration) Options {
 
 type opts struct {
 	readTimeout                time.Duration
+	pingInterval               time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 	netPollConfiguration       NetPollConfiguration
@@ -189,8 +198,9 @@ func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
 	op := &opts{
-		readTimeout: time.Millisecond * 100,
-		log:         abstractlogger.NoopLogger,
+		readTimeout:  time.Millisecond * 100,
+		pingInterval: 10 * time.Second,
+		log:          abstractlogger.NoopLogger,
 	}
 
 	op.netPollConfiguration.ApplyDefaults()
@@ -205,6 +215,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		engineCtx:       engineCtx,
 		log:             op.log,
 		readTimeout:     op.readTimeout,
+		pingInterval:    op.pingInterval,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -294,6 +305,8 @@ func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.
 
 func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
+	options.pingInterval = c.pingInterval
+
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -318,6 +331,8 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 
 func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext context.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
+	options.pingInterval = c.pingInterval
+
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -603,10 +618,19 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 }
 
 type ConnectionHandler interface {
+	// StartBlocking starts the connection handler and blocks until the connection is closed
+	// Only used as fallback when epoll is not available
 	StartBlocking() error
+	// HandleMessage handles the incoming message from the connection
 	HandleMessage(data []byte) (done bool)
+	// Ping used to send a ping message to the upstream server to remain the connection alive
+	// It also keeps track of when the last ping was sent and pong was received to early detect connection drops
+	Ping()
+	// ServerClose closes the connection from the server side
 	ServerClose()
+	// ClientClose closes the connection from the client side
 	ClientClose()
+	// Subscribe subscribes to the connection
 	Subscribe() error
 }
 
@@ -681,6 +705,9 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		}()
 	}
 
+	pingTicker := time.NewTicker(c.pingInterval)
+	defer pingTicker.Stop()
+
 	// This is the main netPoll run loop
 	// It's a single threaded event loop that reacts to several events, such as added connections, clients unsubscribing, etc.
 	for {
@@ -688,6 +715,13 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		// if the engine context is done, we close the netPoll loop
 		case <-done:
 			return
+		case <-pingTicker.C:
+			// Send a ping to all connections if we have any
+			if c.netPollState.hasConnections.Load() {
+				for _, conn := range c.netPollState.connections {
+					conn.handler.Ping()
+				}
+			}
 		case conn := <-c.netPollState.addConn:
 			c.handleAddConn(conn)
 		case id := <-c.netPollState.clientUnsubscribe:
@@ -895,6 +929,8 @@ func readMessage(conn net.Conn, frameReadTimeout time.Duration) ([]byte, error) 
 			return nil, err
 		}
 		if hdr.OpCode.IsControl() {
+			// Handles PING/PONG and CLOSE frames but only on the ws protocol level
+			// We still need to handle the PING/PONG frames on the application protocol level
 			if err := controlHandler(hdr, rd); err != nil {
 				return nil, err
 			}

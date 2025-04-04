@@ -1837,6 +1837,7 @@ type GraphQLSubscriptionOptions struct {
 	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
 	WsSubProtocol                           string           `json:"ws_sub_protocol"`
 	readTimeout                             time.Duration    `json:"-"`
+	pingInterval                            time.Duration    `json:"-"`
 }
 
 type GraphQLBody struct {
