@@ -277,16 +277,24 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
 	h.lastPongReceivedAt = time.Now()
 }
 
+func (h *gqlTWSConnectionHandler) hasReceivedPongInTime() bool {
+	if h.lastPingSentAt.IsZero() {
+		return true
+	}
+
+	if h.lastPongReceivedAt.Sub(h.lastPingSentAt) > pongWaitTimeout {
+		h.log.Error("no pong received in time. Closing connection")
+		h.ServerClose()
+		return false
+	}
+
+	return true
+}
+
 func (h *gqlTWSConnectionHandler) Ping() {
 
-	// Check if we have received a pong message in the pongWaitTimeout
-	// If not we assume the connection is dead and close it
-	if !h.lastPingSentAt.IsZero() {
-		if h.lastPongReceivedAt.Sub(h.lastPingSentAt) > pongWaitTimeout {
-			h.log.Error("no pong received in time. Closing connection")
-			h.ServerClose()
-			return
-		}
+	if !h.hasReceivedPongInTime() {
+		return
 	}
 
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
