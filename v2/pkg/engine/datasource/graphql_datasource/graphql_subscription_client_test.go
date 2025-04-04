@@ -1945,7 +1945,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 					break
 				}
 
-				msgType, data, err = conn.Read(readCtx)
+				_, data, err = conn.Read(readCtx)
 				if err != nil {
 					// Connection closed or timeout
 					t.Logf("Connection read ended: %v", err)
@@ -2227,7 +2227,7 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 
 		hasReceivedPing := false
 		for !hasReceivedPing {
-			msgType, data, err = conn.Read(readCtx)
+			_, data, err = conn.Read(readCtx)
 			if err != nil {
 				t.Logf("Server read error (expected after client closes): %v", err)
 				// Expecting an error here eventually as the client should close the connection
@@ -2258,7 +2258,7 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 		for {
 			// Use a timeout context to make sure we don't hang indefinitely
 			readCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
-			msgType, data, err = conn.Read(readCtx)
+			_, data, err = conn.Read(readCtx)
 			cancel()
 
 			if err != nil {
