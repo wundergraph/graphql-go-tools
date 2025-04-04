@@ -626,7 +626,7 @@ type ConnectionHandler interface {
 	// HandleMessage handles the incoming message from the connection
 	HandleMessage(data []byte) (done bool)
 	// Ping used to send a ping message to the upstream server to remain the connection alive
-	// It also keeps track of when the last ping was sent and pong was received to early detect connection drops
+	// It also keeps track of when the last ping was sent and pong was received to initiate a close
 	Ping()
 	// ServerClose closes the connection from the server side
 	ServerClose()
