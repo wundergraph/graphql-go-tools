@@ -31,7 +31,7 @@ import (
 const (
 	// The time to write a message to the server connection before timing out
 	writeTimeout = 10 * time.Second
-	// The time to read a message from the server connection before timing out
+	// The time to read the message payload from the server before timing out
 	readMessageTimeout = 1 * time.Second
 	// The time to wait for a connection ack message from the server before timing out
 	ackWaitTimeout = 30 * time.Second
