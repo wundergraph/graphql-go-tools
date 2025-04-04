@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gobwas/ws"
@@ -26,7 +27,7 @@ type gqlTWSConnectionHandler struct {
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
-	lastPingSentAt                time.Time
+	lastPingSentUnix              atomic.Int64 // Unix timestamp in nanoseconds, 0 means no ping in flight
 	pingTimeout                   time.Duration
 }
 
@@ -98,10 +99,8 @@ func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, c
 		pingTimeout:    options.pingTimeout,
 	}
 
-	// Default ping timeout if not set
-	if handler.pingTimeout == 0 {
-		handler.pingTimeout = 30 * time.Second
-	}
+	// Initialize atomic field to 0 (no ping in flight)
+	handler.lastPingSentUnix.Store(0)
 
 	return &connection{
 		handler: handler,
@@ -280,26 +279,40 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
-	h.lastPingSentAt = time.Time{} // Reset ping timestamp when pong received
+	// Reset timestamp to indicate no ping in flight
+	h.lastPingSentUnix.Store(0)
 }
 
 func (h *gqlTWSConnectionHandler) Ping() {
-	// Check if we have a pending ping that has exceeded the timeout
-	if !h.lastPingSentAt.IsZero() && time.Since(h.lastPingSentAt) > h.pingTimeout {
-		h.log.Error("ping timeout exceeded. Closing connection")
-		h.ServerClose()
-		return
+	// Get current timestamp of last ping
+	lastPingTimestamp := h.lastPingSentUnix.Load()
+
+	// If a ping is in flight, check if it has timed out
+	if lastPingTimestamp > 0 {
+		pingTime := time.Unix(0, lastPingTimestamp)
+		if time.Since(pingTime) > h.pingTimeout {
+			h.log.Error("ping timeout exceeded. Closing connection")
+			// Reset timestamp to avoid duplicate closes if Ping gets called again
+			h.lastPingSentUnix.Store(0)
+			h.ServerClose()
+			return
+		}
 	}
 
-	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
-	err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
+	// Only send a new ping if we haven't sent one yet, or if we received a pong for the previous one
+	// (indicated by lastPingSentUnix being 0)
+	if lastPingTimestamp == 0 {
+		_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+		err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
 
-	if err != nil {
-		h.log.Error("failed to write ping message", abstractlogger.Error(err))
-		return
+		if err != nil {
+			h.log.Error("failed to write ping message", abstractlogger.Error(err))
+			return
+		}
+
+		// Store current time as Unix timestamp in nanoseconds
+		h.lastPingSentUnix.Store(time.Now().UnixNano())
 	}
-
-	h.lastPingSentAt = time.Now() // Record the time when ping was sent
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {

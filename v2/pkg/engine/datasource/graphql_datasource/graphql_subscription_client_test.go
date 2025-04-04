@@ -1987,6 +1987,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 			WithPingInterval(pingInterval),
+			WithPingTimeout(1*time.Second),
 			WithNetPollConfiguration(NetPollConfiguration{
 				Enable:           true,
 				TickInterval:     100 * time.Millisecond,
@@ -2231,6 +2232,8 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 				t.Logf("Server read error (expected after client closes): %v", err)
 				// Expecting an error here eventually as the client should close the connection
 				assert.Error(t, err, "Server should encounter read error when client closes connection due to ping timeout")
+				// Signal that the server is done (connection closed)
+				close(serverDone)
 				return // Exit handler goroutine
 			}
 
@@ -2253,12 +2256,21 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 
 		// Keep reading until the connection is closed by the client
 		for {
-			_, _, err = conn.Read(ctx)
+			// Use a timeout context to make sure we don't hang indefinitely
+			readCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			msgType, data, err = conn.Read(readCtx)
+			cancel()
+
 			if err != nil {
 				t.Logf("Server read error after ping (expected): %v", err)
 				assert.Error(t, err, "Server should encounter read error after client closes connection")
+				// Signal that the server is done (connection closed)
+				close(serverDone)
 				return // Exit handler goroutine
 			}
+
+			// Log any messages received before connection close
+			t.Logf("Server still receiving messages: %s", string(data))
 		}
 	}))
 	defer server.Close()
@@ -2268,11 +2280,9 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 	serverCtx, serverCancel := context.WithCancel(context.Background())
 	defer serverCancel()
 
-	// Configure client with short ping interval
-	pingInterval := 500 * time.Millisecond
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithLogger(logger()),
-		WithPingInterval(pingInterval),
+		WithPingInterval(500*time.Millisecond),
 		// Need netpoll enabled for ping/pong handling
 		WithNetPollConfiguration(NetPollConfiguration{
 			Enable:           true,
