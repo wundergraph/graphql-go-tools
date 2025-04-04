@@ -296,6 +296,9 @@ func (h *gqlTWSConnectionHandler) Ping() {
 			h.log.Error("ping timeout exceeded. Closing connection")
 			// Reset timestamp to avoid duplicate closes if Ping gets called again
 			h.lastPingSentUnix.Store(0)
+			// We close the connection because the ping timeout has been exceeded,
+			// and we assume the connection is dead. ServerClose will send a done event to the client
+			// event loop to close all triggers and subscriptions
 			h.ServerClose()
 			return
 		}
