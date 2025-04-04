@@ -543,13 +543,17 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// 3 and 4 - are stages when choices are equal, and we should select first available node
 
 		// 3. we choose first available leaf node
-		// TODO: check when this is used
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
 			},
 			func(i int) bool {
 				if !f.nodes.isLeaf(i) {
+					return true
+				}
+
+				// we need to check if the node with enabled resolver could actually get a key from the parent node
+				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 					return true
 				}
 
@@ -563,11 +567,12 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// 4. if node is not a leaf we select a node which could provide more selections on the same source
-		currentItemIDx := itemIDs[0]
-		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(currentItemIDx))
+		currentChildNodeCount := -1
+		currentItemIDx := -1
 
-		for k, duplicateIdx := range itemIDs {
-			if k == 0 {
+		for _, duplicateIdx := range itemIDs {
+			// we need to check if the node with enabled resolver could actually get a key from the parent node
+			if !f.isSelectedParentCouldProvideKeysForCurrentNode(duplicateIdx) {
 				continue
 			}
 
@@ -581,21 +586,26 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if currentChildNodeCount > 0 {
 			// we can't select node if it doesn't have any child nodes to select
 			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+			continue
 		}
 
+		// 5. if we have not selected any node, we need to check if we have a parent node which could provide keys for the child nodes
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
-				if f.nodeCouldProvideKeysToChildNodes(i) {
-					f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
-
+				return f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
+			},
+			func(i int) (skip bool) {
+				// we need to check if the node with enabled resolver could actually get a key from the parent node
+				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 					return true
 				}
 
-				return false
-			},
-			func(i int) (skip bool) {
 				// do not evaluate childs for the leaf nodes
-				return f.nodes.items[i].IsLeaf
+				if f.nodes.items[i].IsLeaf {
+					return true
+				}
+
+				return !f.nodeCouldProvideKeysToChildNodes(i)
 			}) {
 			continue
 		}
@@ -655,14 +665,14 @@ func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
 }
 
 func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int) bool {
+	// possible type names are used for the union and interface types
+	// for the interface objects we need to check both the typename and the possible typenames
 	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
 		for _, typeName := range f.nodes.items[idx].possibleTypeNames {
 			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName) {
 				return true
 			}
 		}
-
-		return false
 	}
 
 	typeName := f.nodes.items[idx].TypeName
