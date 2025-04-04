@@ -196,6 +196,12 @@ func (h *gqlWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	_ = h.conn.Close()
 }
 
+func (h *gqlWSConnectionHandler) Ping() {
+	// This protocol has no client side ping/pong mechanism. The server send a ka message to understand
+	// if the connection is still alive. The client only acknowledges the retrieval of the ka message
+	// by consuming it in the readBlocking loop.
+}
+
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin
 func (h *gqlWSConnectionHandler) subscribe() error {
 	graphQLBody, err := json.Marshal(h.options.Body)

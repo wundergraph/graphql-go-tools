@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
 	"time"
 
 	"github.com/gobwas/ws"
@@ -26,6 +27,8 @@ type gqlTWSConnectionHandler struct {
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
+	lastPingSentUnix              atomic.Int64 // Unix timestamp in nanoseconds, 0 means no ping in flight
+	pingTimeout                   time.Duration
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
@@ -72,6 +75,9 @@ func (h *gqlTWSConnectionHandler) HandleMessage(data []byte) (done bool) {
 	case messageTypeData, messageTypeConnectionError:
 		h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
 		return true
+	case messageTypePong:
+		h.handleMessageTypePong()
+		return false
 	default:
 		h.log.Error("unknown message type", abstractlogger.String("type", messageType))
 		return false
@@ -90,7 +96,12 @@ func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, c
 		log:            l,
 		updater:        updater,
 		options:        options,
+		pingTimeout:    options.pingTimeout,
 	}
+
+	// Initialize atomic field to 0 (no ping in flight)
+	handler.lastPingSentUnix.Store(0)
+
 	return &connection{
 		handler: handler,
 		netConn: conn,
@@ -112,6 +123,9 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 		return err
 	}
 
+	pingTicker := time.NewTicker(h.options.pingInterval)
+	defer pingTicker.Stop()
+
 	go h.readBlocking(readCtx, h.options.readTimeout, dataCh, errCh)
 
 	for {
@@ -120,6 +134,8 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 			return h.engineContext.Err()
 		case <-readCtx.Done():
 			return readCtx.Err()
+		case <-pingTicker.C:
+			h.Ping()
 		case err := <-errCh:
 			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			h.broadcastErrorMessage(err)
@@ -131,6 +147,9 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 			}
 
 			switch messageType {
+			case messageTypePong:
+				h.handleMessageTypePong()
+				continue
 			case messageTypePing:
 				h.handleMessageTypePing()
 				continue
@@ -256,6 +275,48 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 	err := wsutil.WriteClientText(h.conn, []byte(pongMessage))
 	if err != nil {
 		h.log.Error("failed to write pong message", abstractlogger.Error(err))
+	}
+}
+
+func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
+	// Reset timestamp to indicate no ping in flight
+	// Can be called from different workers and must be protected
+	h.lastPingSentUnix.Store(0)
+}
+
+func (h *gqlTWSConnectionHandler) Ping() {
+	// Get current timestamp of last ping
+	// Can be called from different workers and must be protected
+	lastPingTimestamp := h.lastPingSentUnix.Load()
+
+	// If a ping is in flight, check if it has timed out
+	if lastPingTimestamp > 0 {
+		pingTime := time.Unix(0, lastPingTimestamp)
+		if time.Since(pingTime) > h.pingTimeout {
+			h.log.Error("ping timeout exceeded. Closing connection")
+			// Reset timestamp to avoid duplicate closes if Ping gets called again
+			h.lastPingSentUnix.Store(0)
+			// We close the connection because the ping timeout has been exceeded,
+			// and we assume the connection is dead. ServerClose will send a done event to the client
+			// event loop to close all triggers and subscriptions
+			h.ServerClose()
+			return
+		}
+	}
+
+	// Only send a new ping if we haven't sent one yet, or if we received a pong for the previous one
+	// (indicated by lastPingSentUnix being 0)
+	if lastPingTimestamp == 0 {
+		_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+		err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
+
+		if err != nil {
+			h.log.Error("failed to write ping message", abstractlogger.Error(err))
+			return
+		}
+
+		// Store current time as Unix timestamp in nanoseconds
+		h.lastPingSentUnix.Store(time.Now().UnixNano())
 	}
 }
 
