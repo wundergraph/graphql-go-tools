@@ -114,14 +114,14 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	// create node selections
-	nodeSelectionBuilder := NewNodeSelectionBuilder(&p.config, operationName)
+	nodeSelectionBuilder := NewNodeSelectionBuilder(&p.config, p.planningVisitor.OperationName)
 	selectionsConfig := nodeSelectionBuilder.SelectNodes(operation, definition, report)
 	if report.HasErrors() {
 		return nil
 	}
 
 	// create planning paths
-	planningPathBuilder := NewPathBuilder(&p.config, selectionsConfig, operationName)
+	planningPathBuilder := NewPathBuilder(&p.config, selectionsConfig, p.planningVisitor.OperationName)
 	plannersConfigurations := planningPathBuilder.CreatePlanningPaths(operation, definition, report)
 	if report.HasErrors() {
 		return nil
