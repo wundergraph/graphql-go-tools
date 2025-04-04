@@ -715,16 +715,6 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
-	parentIdx, hasParentOnSameSource := f.nodes.parentNodeOnSameSource(i)
-	if !hasParentOnSameSource {
-		return false
-	}
-
-	// we don't have to check for external if the item is selected
-	if !f.nodes.items[parentIdx].Selected {
-		return false
-	}
-
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
 
