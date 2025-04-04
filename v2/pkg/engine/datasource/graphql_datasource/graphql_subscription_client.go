@@ -29,10 +29,14 @@ import (
 )
 
 const (
-	writeTimeout       = 10 * time.Second
+	// The time to write a message to the server connection before timing out
+	writeTimeout = 10 * time.Second
+	// The time to read a message from the server connection before timing out
 	readMessageTimeout = 1 * time.Second
-	ackWaitTimeout     = 30 * time.Second
-	pongWaitTimeout    = 5 * time.Second
+	// The time to wait for a connection ack message from the server before timing out
+	ackWaitTimeout = 30 * time.Second
+	// The time to wait for a pong message from the server before timing out
+	pongWaitTimeout = 5 * time.Second
 )
 
 type netPollState struct {
