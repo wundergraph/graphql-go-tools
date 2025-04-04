@@ -197,6 +197,8 @@ func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
 }
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
+
+	// Defaults
 	op := &opts{
 		readTimeout:  time.Millisecond * 100,
 		pingInterval: 10 * time.Second,
