@@ -280,11 +280,13 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
 	// Reset timestamp to indicate no ping in flight
+	// Can be called from different workers and must be protected
 	h.lastPingSentUnix.Store(0)
 }
 
 func (h *gqlTWSConnectionHandler) Ping() {
 	// Get current timestamp of last ping
+	// Can be called from different workers and must be protected
 	lastPingTimestamp := h.lastPingSentUnix.Load()
 
 	// If a ping is in flight, check if it has timed out
