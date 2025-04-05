@@ -665,8 +665,15 @@ func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
 }
 
 func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int) bool {
+	// this check is widely used for all selection rules
+	// one thing to know, on the first iterations abstract selections are not rewritten, yet
+	// they could be rewritten when we see that on the given datasource some field is external
+	// This check could happen earlier when the type of the field on parent will be abstract,
+	// but the actual field on one of the concrete types, so there will be no match
+	// We handle this by adding possible keys for each possible type during nodes collecting
+
 	// possible type names are used for the union and interface types
-	// for the interface objects we need to check both the typename and the possible typenames
+	// for the interface objects could be used one of the possible types or the interface object type itself
 	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
 		for _, typeName := range f.nodes.items[idx].possibleTypeNames {
 			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName) {
