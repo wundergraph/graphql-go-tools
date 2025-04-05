@@ -672,6 +672,11 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 	// but the actual field on one of the concrete types, so there will be no match
 	// We handle this by adding possible keys for each possible type during nodes collecting
 
+	// first we need to check a concrete type, because it could be an entity interface type which is possible to use for jump
+	if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, f.nodes.items[idx].TypeName) {
+		return true
+	}
+
 	// possible type names are used for the union and interface types
 	// for the interface objects could be used one of the possible types or the interface object type itself
 	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
@@ -682,10 +687,12 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 		}
 	}
 
-	typeName := f.nodes.items[idx].TypeName
-	return f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName)
+	return false
 }
 
+// parentNodeCouldProvideKeysForCurrentNodeWithTypename - checks if the parent node could provide keys for the current node
+// e.g. if there is a jump path between the parent node and the current node
+// NOTE: method has side effects, it sets requiresKey for the current node
 func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string) bool {
 	jumpsForTypename, exists := f.jumpsForPathAndTypeName(f.nodes.items[idx].ParentPath, typeName)
 	if !exists {
