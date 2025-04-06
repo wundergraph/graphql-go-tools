@@ -101,9 +101,6 @@ func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, c
 		pingTimeout:    options.pingTimeout,
 	}
 
-	// Initialize atomic field to 0 (no ping in flight)
-	handler.lastPingSentUnix.Store(0)
-
 	return &connection{
 		handler: handler,
 		netConn: conn,
