@@ -396,7 +396,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	}
 
 	isProvided := slices.ContainsFunc(f.providesEntries, func(suggestion *NodeSuggestion) bool {
-		return suggestion.TypeName == info.typeName && suggestion.FieldName == info.fieldName && suggestion.Path == info.currentPathWithoutFragments
+		return suggestion.TypeName == info.typeName && suggestion.FieldName == info.fieldName && suggestion.Path == info.currentPath
 	})
 
 	if info.isTypeName && f.isInterfaceObject(info.typeName) {
