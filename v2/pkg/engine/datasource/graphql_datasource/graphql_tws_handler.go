@@ -27,8 +27,10 @@ type gqlTWSConnectionHandler struct {
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
-	lastPingSentUnix              atomic.Int64 // Unix timestamp in nanoseconds, 0 means no ping in flight
-	pingTimeout                   time.Duration
+	// Unix timestamp in nanoseconds, 0 means no ping in flight
+	// Needs to be atomic because it can be accessed from different goroutines
+	lastPingSentUnix atomic.Int64
+	pingTimeout      time.Duration
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
@@ -286,7 +288,6 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
 
 func (h *gqlTWSConnectionHandler) Ping() {
 	// Get current timestamp of last ping
-	// Can be called from different workers and must be protected
 	lastPingTimestamp := h.lastPingSentUnix.Load()
 
 	// If a ping is in flight, check if it has timed out
@@ -315,8 +316,8 @@ func (h *gqlTWSConnectionHandler) Ping() {
 			return
 		}
 
-		// Store current time as Unix timestamp in nanoseconds
-		h.lastPingSentUnix.Store(time.Now().UnixNano())
+		// Store current time as Unix timestamp in seconds
+		h.lastPingSentUnix.Store(time.Now().Unix())
 	}
 }
 

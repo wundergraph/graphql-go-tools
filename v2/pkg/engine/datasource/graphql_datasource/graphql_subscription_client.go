@@ -739,6 +739,7 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 			// Send a ping to all connections
 			// We distribute the ping to all workers to prevent single threaded bottlenecks
 			// However, this required state synchronization with the last ping time on the handler
+			// because PING and PONG can be handled on different go routines
 			for _, conn := range c.netPollState.connections {
 				pingCh <- conn
 			}
