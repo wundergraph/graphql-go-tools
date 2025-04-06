@@ -2257,15 +2257,13 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 		// Keep reading until the connection is closed by the client
 		for {
 			// Use a timeout context to make sure we don't hang indefinitely
-			readCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 			_, data, err = conn.Read(readCtx)
 			cancel()
 
 			if err != nil {
 				t.Logf("Server read error after ping (expected): %v", err)
 				assert.Error(t, err, "Server should encounter read error after client closes connection")
-				// Signal that the server is done (connection closed)
-				close(serverDone)
 				return // Exit handler goroutine
 			}
 
