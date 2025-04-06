@@ -717,22 +717,56 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 	return true
 }
 
-func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
-	for _, i := range duplicates {
-		if skip != nil && skip(i) {
-			continue
-		}
+type nodeJump struct {
+	// nodeIdx is the index of the node in the nodes slice
+	nodeIdx int
+	// jumpCount is the number of jumps to the node
+	jumpCount int
+}
 
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
+	allowedToSelect := make([]int, 0, len(duplicates))
+
+	for _, i := range duplicates {
 		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 			continue
 		}
 
-		if callback(i) {
-			nodeIsSelected = true
-			break
+		if skip != nil && skip(i) {
+			continue
+		}
+
+		allowedToSelect = append(allowedToSelect, i)
+	}
+
+	jumpsCounts := make([]nodeJump, 0, len(allowedToSelect))
+
+	for _, i := range allowedToSelect {
+		jumpCount := 0
+
+		if f.nodes.items[i].requiresKey != nil {
+			jumpCount = len(f.nodes.items[i].requiresKey.Jumps)
+		}
+
+		jumpsCounts = append(jumpsCounts, nodeJump{
+			nodeIdx:   i,
+			jumpCount: jumpCount,
+		})
+	}
+
+	// sort by the number of jumps
+	slices.SortFunc(jumpsCounts, func(a, b nodeJump) int {
+		// acs order from 0 to n
+		return a.jumpCount - b.jumpCount
+	})
+
+	for _, j := range jumpsCounts {
+		if callback(j.nodeIdx) {
+			return true
 		}
 	}
-	return
+
+	return false
 }
 
 func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
