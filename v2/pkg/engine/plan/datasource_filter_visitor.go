@@ -673,7 +673,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 	// We handle this by adding possible keys for each possible type during nodes collecting
 
 	// first we need to check a concrete type, because it could be an entity interface type which is possible to use for jump
-	if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, f.nodes.items[idx].TypeName) {
+	if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, f.nodes.items[idx].TypeName, true) {
 		return true
 	}
 
@@ -681,7 +681,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 	// for the interface objects could be used one of the possible types or the interface object type itself
 	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
 		for _, typeName := range f.nodes.items[idx].possibleTypeNames {
-			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName) {
+			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName, false) {
 				return true
 			}
 		}
@@ -693,7 +693,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 // parentNodeCouldProvideKeysForCurrentNodeWithTypename - checks if the parent node could provide keys for the current node
 // e.g. if there is a jump path between the parent node and the current node
 // NOTE: method has side effects, it sets requiresKey for the current node
-func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string) bool {
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string, setRequiresKey bool) bool {
 	jumpsForTypename, exists := f.jumpsForPathAndTypeName(f.nodes.items[idx].ParentPath, typeName)
 	if !exists {
 		return false
@@ -704,7 +704,10 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(
 		return false
 	}
 
-	f.nodes.items[idx].requiresKey = path
+	if setRequiresKey {
+		f.nodes.items[idx].requiresKey = path
+	}
+
 	return true
 }
 
