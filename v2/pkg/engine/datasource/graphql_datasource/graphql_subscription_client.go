@@ -639,9 +639,8 @@ type ConnectionHandler interface {
 	StartBlocking() error
 	// HandleMessage handles the incoming message from the connection
 	HandleMessage(data []byte) (done bool)
-	// Ping used to send a ping message to the upstream server to remain the connection alive
-	// It also keeps track of when the last ping was sent and pong was received to initiate a close
-	// if the connection is not alive anymore
+	// Ping used to send a ping message to the upstream server to remain the connection alive.
+	// It also keeps track of when the last ping to initiate a shutdown of the dead connection
 	Ping()
 	// ServerClose closes the connection from the server side
 	ServerClose()
