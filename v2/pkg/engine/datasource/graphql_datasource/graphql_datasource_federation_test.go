@@ -15694,9 +15694,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 				}
 
 				variant1 := expectedPlan("http://third.service")
-				variant2 := expectedPlan("http://second.service")
 
-				RunWithPermutationsVariants(
+				RunWithPermutations(
 					t,
 					definition,
 					`
@@ -15710,32 +15709,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							}
 						}`,
 					"User",
-					[]plan.Plan{
-						variant2,
-						variant2,
-						variant1,
-						variant1,
-						variant2,
-						variant1,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant2,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant1,
-						variant2,
-						variant1,
-						variant2,
-						variant2,
-						variant1,
-						variant1,
-					},
+					variant1,
 					planConfiguration,
 					WithDefaultPostProcessor(),
 				)
