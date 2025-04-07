@@ -451,7 +451,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// if sibling is selected on the same datasource, we could select current node
 		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) bool {
 			// we should not select a __typename field based on a siblings, unless it is on a root query type
-			return f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
+			return f.nodes.items[i].isTypeName && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
 		}) {
 			continue
 		}
@@ -491,15 +491,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return false
 				}
 
-				if f.couldProvideChildFields(i) {
-					return false
+				if !(f.couldProvideChildFields(i) || f.nodeCouldProvideKeysToChildNodes(i)) {
+					return true
 				}
 
-				if f.nodeCouldProvideKeysToChildNodes(i) {
-					return false
-				}
-
-				return true
+				return false
 			}) {
 			continue
 		}
@@ -649,7 +645,7 @@ func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx in
 }
 
 func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
-	childIds := f.nodes.childNodesIds(idx, false)
+	childIds := f.nodes.childNodesIdsOnOtherDS(idx)
 
 	for _, childId := range childIds {
 		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId, false) {
@@ -851,9 +847,13 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 
 	hasFields := false
 	for _, i := range nodesIds {
-		if f.nodes.items[i].FieldName == typeNameField {
+		if f.nodes.items[i].isTypeName {
 			// we have to omit __typename field
 			// to not be in a situation when all fields are external but __typename is selectable
+			continue
+		}
+
+		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 			continue
 		}
 

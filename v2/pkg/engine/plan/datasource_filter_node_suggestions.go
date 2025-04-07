@@ -184,17 +184,33 @@ func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
 }
 
 func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
-	return f.childNodesIds(idx, true)
-}
-
-func (f *NodeSuggestions) childNodesIds(idx int, onSameDataSource bool) (out []int) {
 	treeNode := f.treeNode(idx)
 	childIndexes := treeNodeChildren(treeNode)
 
 	out = make([]int, 0, len(childIndexes))
 
 	for _, childIdx := range childIndexes {
-		if onSameDataSource && f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
+		if f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
+			continue
+		}
+
+		if f.items[childIdx].IsExternal && !f.items[childIdx].IsProvided {
+			continue
+		}
+
+		out = append(out, childIdx)
+	}
+	return
+}
+
+func (f *NodeSuggestions) childNodesIdsOnOtherDS(idx int) (out []int) {
+	treeNode := f.treeNode(idx)
+	childIndexes := treeNodeChildren(treeNode)
+
+	out = make([]int, 0, len(childIndexes))
+
+	for _, childIdx := range childIndexes {
+		if f.items[childIdx].DataSourceHash == f.items[idx].DataSourceHash {
 			continue
 		}
 
