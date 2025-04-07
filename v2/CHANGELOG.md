@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.169](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.168...v2.0.0-rc.169) (2025-04-07)
+
+
+### Bug Fixes
+
+* **websocket:** handle ping/pong correctly ([#1122](https://github.com/wundergraph/graphql-go-tools/issues/1122)) ([8001f90](https://github.com/wundergraph/graphql-go-tools/commit/8001f90d29360e87e28450ad2c8af551efbecbff))
+
 ## [2.0.0-rc.168](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.167...v2.0.0-rc.168) (2025-04-01)
 
 
