@@ -589,15 +589,21 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 5. if we have not selected any node, we need to check if we have a parent node which could provide keys for the child nodes
+		// 5. We check here not leaf nodes which could provide keys to the child nodes
+		// this rule one of the rules responsible for the shareable nodes
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
 			},
 			func(i int) (skip bool) {
-				// we need to check if the node with enabled resolver could actually get a key from the parent node
-				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
-					return true
+
+				// when node is a root query node we will not have parent
+				// so we need to check if parent node id is not a root of a tree
+				if treeNode.GetParentID() != treeRootID {
+					// when node is not a root query node we also check if node could actually get a key from the parent node
+					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+						return true
+					}
 				}
 
 				// do not evaluate childs for the leaf nodes
