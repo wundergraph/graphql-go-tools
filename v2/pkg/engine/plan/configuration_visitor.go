@@ -12,6 +12,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/argument_templates"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // configurationVisitor - walks through the operation multiple times to collect plannings paths
@@ -35,6 +36,8 @@ type configurationVisitor struct {
 
 	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
 	nodeSuggestionHints []NodeSuggestionHint // nodeSuggestionHints holds information about suggested data sources for key fields
+
+	targetDefer *resolve.DeferInfo // deferPath directs the planning to the specified path.
 
 	parentTypeNodes               []ast.Node          // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
 	arrayFields                   []arrayField        // arrayFields is a stack of array fields - used to plan nested queries
@@ -110,6 +113,7 @@ type objectFetchConfiguration struct {
 	dependsOnFetchIDs  []int
 	rootFields         []resolve.GraphCoordinate
 	operationType      ast.OperationType
+	deferInfo          *resolve.DeferInfo
 }
 
 func (c *configurationVisitor) currentSelectionSet() int {
@@ -364,6 +368,43 @@ func (c *configurationVisitor) LeaveSelectionSet(ref int) {
 	c.parentTypeNodes = c.parentTypeNodes[:len(c.parentTypeNodes)-1]
 }
 
+func (c *configurationVisitor) EnterInlineFragment(ref int) {
+	c.deleteDeferAndSkipIfNeeded(ref)
+}
+
+func (c *configurationVisitor) EnterFragmentSpread(ref int) {
+	c.deleteDeferAndSkipIfNeeded(ref)
+}
+
+func (c *configurationVisitor) inDeferPath(item ast.PathItem) bool {
+	if c.targetDefer == nil {
+		return true
+	}
+	fullPath := append(make([]ast.PathItem, 0, len(c.walker.Path)+1), c.walker.Path...)
+	fullPath = append(fullPath, item)
+
+	return c.targetDefer.Overlaps(fullPath)
+}
+
+func (c *configurationVisitor) deleteDeferAndSkipIfNeeded(ref int) {
+	directives := c.operation.InlineFragments[ref].Directives.Refs
+	deferRef, found := c.operation.DirectiveWithNameBytes(directives, literal.DEFER)
+
+	if !found {
+		// No defer directive here.
+		return
+	}
+	// Don't pass the directive on in any case.
+	if idx := slices.Index(directives, deferRef); idx >= 0 {
+		c.operation.InlineFragments[ref].Directives.Refs = slices.Delete(directives, idx, idx+1)
+	}
+
+	// If target is nil or doesn't match, we skip the deferred fragment.
+	if c.targetDefer == nil || !c.targetDefer.Equals(&resolve.DeferInfo{Path: c.walker.Path}) {
+		c.walker.SkipNode()
+	}
+}
+
 func (c *configurationVisitor) EnterField(fieldRef int) {
 	fieldName := c.operation.FieldNameUnsafeString(fieldRef)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(fieldRef)
@@ -371,6 +412,11 @@ func (c *configurationVisitor) EnterField(fieldRef int) {
 
 	c.debugPrint("EnterField ref:", fieldRef, "fieldName:", fieldName, "typeName:", typeName)
 
+	if !c.inDeferPath(ast.PathItem{Kind: ast.FieldName, FieldName: c.operation.FieldAliasOrNameBytes(fieldRef)}) {
+		c.debugPrint("   ...", fieldName, "skipped")
+		c.walker.SkipNode()
+		return
+	}
 	parentPath := c.walker.Path.DotDelimitedString()
 	// we need to also check preceding path for inline fragments
 	// as for the field within inline fragment the parent path will include type condition in a path
@@ -835,6 +881,7 @@ func (c *configurationVisitor) addNewPlanner(fieldRef int, typeName, fieldName, 
 		sourceName:         dsConfig.Name(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
 		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
+		deferInfo:          c.targetDefer,
 	}
 
 	plannerPathConfig := newPlannerPathsConfiguration(

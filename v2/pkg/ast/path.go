@@ -54,6 +54,24 @@ func (p Path) Equals(another Path) bool {
 	return true
 }
 
+func (p Path) Overlaps(other Path) bool {
+	for i, el := range p {
+		switch {
+		case i >= len(other):
+			return true
+		case el.Kind != other[i].Kind:
+			return false
+		case el.FragmentRef != other[i].FragmentRef:
+			return false
+		case el.Kind == ArrayIndex && el.ArrayIndex != other[i].ArrayIndex:
+			return false
+		case !bytes.Equal(el.FieldName, other[i].FieldName):
+			return false
+		}
+	}
+	return true
+}
+
 func (p Path) EndsWithFragment() bool {
 	if len(p) == 0 {
 		return false
@@ -77,29 +95,35 @@ func (p Path) WithoutInlineFragmentNames() Path {
 	return out
 }
 
-func (p Path) String() string {
-	out := "["
-	for i := range p {
-		if i != 0 {
-			out += ","
-		}
-		switch p[i].Kind {
-		case ArrayIndex:
-			out += strconv.Itoa(p[i].ArrayIndex)
-		case FieldName:
-			if len(p[i].FieldName) == 0 {
-				out += "query"
-			} else {
-				out += unsafebytes.BytesToString(p[i].FieldName)
-			}
-		case InlineFragmentName:
-			out += InlineFragmentPathPrefix
-			out += strconv.Itoa(p[i].FragmentRef)
-			out += unsafebytes.BytesToString(p[i].FieldName)
-		}
+func (p Path) StringSlice() []string {
+	ret := make([]string, len(p))
+	for i, item := range p {
+		ret[i] = item.String()
 	}
-	out += "]"
-	return out
+	return ret
+}
+
+func (p Path) String() string {
+	return "[" + strings.Join(p.StringSlice(), ",") + "]"
+}
+
+func (p PathItem) String() string {
+	switch p.Kind {
+	case ArrayIndex:
+		return strconv.Itoa(p.ArrayIndex)
+	case FieldName:
+		out := "query"
+		if len(p.FieldName) != 0 {
+			out = unsafebytes.BytesToString(p.FieldName)
+		}
+		return out
+	case InlineFragmentName:
+		out := InlineFragmentPathPrefix
+		out += strconv.Itoa(p.FragmentRef)
+		out += unsafebytes.BytesToString(p.FieldName)
+		return out
+	}
+	return ""
 }
 
 func (p Path) DotDelimitedString() string {

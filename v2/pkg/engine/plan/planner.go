@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -17,6 +18,7 @@ type Planner struct {
 	config                Configuration
 	nodeSelectionsWalker  *astvisitor.Walker
 	nodeSelectionsVisitor *nodeSelectionVisitor
+	deferVisitor          *deferVisitor
 	configurationWalker   *astvisitor.Walker
 	configurationVisitor  *configurationVisitor
 	planningWalker        *astvisitor.Walker
@@ -65,6 +67,17 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	nodeSelection.RegisterEnterOperationVisitor(nodeSelectionVisitor)
 	nodeSelection.RegisterSelectionSetVisitor(nodeSelectionVisitor)
 
+	// Defer visitor.
+	deferVisitor := &deferVisitor{
+		walker: &nodeSelection,
+	}
+
+	// Piggy-back on node selection walker.
+	nodeSelection.RegisterEnterDocumentVisitor(deferVisitor)
+	nodeSelection.RegisterInlineFragmentVisitor(deferVisitor)
+	nodeSelection.RegisterFragmentSpreadVisitor(deferVisitor)
+	nodeSelection.RegisterEnterFieldVisitor(deferVisitor)
+
 	// configuration
 	configurationWalker := astvisitor.NewWalker(48)
 	configVisitor := &configurationVisitor{
@@ -76,6 +89,8 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	configurationWalker.RegisterFieldVisitor(configVisitor)
 	configurationWalker.RegisterEnterOperationVisitor(configVisitor)
 	configurationWalker.RegisterSelectionSetVisitor(configVisitor)
+	configurationWalker.RegisterEnterInlineFragmentVisitor(configVisitor)
+	configurationWalker.RegisterEnterFragmentSpreadVisitor(configVisitor)
 
 	// planning
 
@@ -92,6 +107,7 @@ func NewPlanner(config Configuration) (*Planner, error) {
 		configurationVisitor:   configVisitor,
 		nodeSelectionsWalker:   &nodeSelection,
 		nodeSelectionsVisitor:  nodeSelectionVisitor,
+		deferVisitor:           deferVisitor,
 		planningWalker:         &planningWalker,
 		planningVisitor:        planningVisitor,
 		prepareOperationWalker: &prepareOperationWalker,
@@ -159,6 +175,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.planners = p.configurationVisitor.planners
 	p.planningVisitor.Config = p.config
 	p.planningVisitor.skipFieldsRefs = p.nodeSelectionsVisitor.skipFieldsRefs
+	p.planningVisitor.deferredFragments = p.deferVisitor.deferredFragments
+	p.planningVisitor.deferredFields = p.deferVisitor.deferredFields
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -215,7 +233,20 @@ func (p *Planner) findPlanningPaths(operation, definition *ast.Document, report 
 		return
 	}
 
-	p.createPlanningPaths(operation, definition, report)
+	p.createPlanningPaths(operation, definition, nil, report)
+
+	if len(p.deferVisitor.deferredFragments) > 0 {
+		planners := p.configurationVisitor.planners
+
+		for _, targetDefer := range p.deferVisitor.deferredFragments {
+			p.createPlanningPaths(operation, definition, &targetDefer, report)
+			if report.HasErrors() {
+				return
+			}
+			planners = append(planners, p.configurationVisitor.planners...)
+		}
+		p.configurationVisitor.planners = planners
+	}
 }
 
 func (p *Planner) selectNodes(operation, definition *ast.Document, report *operationreport.Report) {
@@ -327,7 +358,7 @@ func (p *Planner) isResolvable(walker astvisitor.Walker, operation, definition *
 	return resolvableReport
 }
 
-func (p *Planner) createPlanningPaths(operation, definition *ast.Document, report *operationreport.Report) {
+func (p *Planner) createPlanningPaths(operation, definition *ast.Document, targetDefer *resolve.DeferInfo, report *operationreport.Report) {
 	if p.config.Debug.PrintPlanningPaths {
 		p.debugMessage("Create planning paths")
 	}
@@ -341,6 +372,9 @@ func (p *Planner) createPlanningPaths(operation, definition *ast.Document, repor
 	// set fields dependencies information
 	p.configurationVisitor.fieldDependsOn, p.configurationVisitor.fieldRequirementsConfigs =
 		p.nodeSelectionsVisitor.fieldDependsOn, p.nodeSelectionsVisitor.fieldRequirementsConfigs
+
+	p.configurationVisitor.targetDefer = targetDefer
+	p.configurationVisitor.planners = nil
 
 	p.configurationVisitor.secondaryRun = false
 	p.configurationWalker.Walk(operation, definition, report)

@@ -55,6 +55,9 @@ func (f *FetchItem) Equals(other *FetchItem) bool {
 	if !ok {
 		return false
 	}
+	if !l.DeferInfo.Equals(r.DeferInfo) {
+		return false
+	}
 	return l.FetchConfiguration.Equals(&r.FetchConfiguration)
 }
 
@@ -77,6 +80,7 @@ type SingleFetch struct {
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
 	Info                 *FetchInfo
+	DeferInfo            *DeferInfo
 }
 
 func (s *SingleFetch) Dependencies() FetchDependencies {
