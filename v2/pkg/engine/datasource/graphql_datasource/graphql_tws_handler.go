@@ -305,8 +305,10 @@ func (h *gqlTWSConnectionHandler) Ping() {
 			// and we assume the connection is dead. ServerClose will send a done event to the client
 			// event loop to close all triggers and subscriptions
 			h.ServerClose()
-			return
 		}
+
+		// We don't want to send another ping if one is already in flight
+		return
 	}
 
 	// Start measuring the time since to write the message to the connection, including the IO time
