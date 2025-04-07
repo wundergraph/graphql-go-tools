@@ -650,7 +650,7 @@ func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx in
 			continue
 		}
 
-		if f.parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx) {
+		if f.parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx, true) {
 			return true
 		}
 	}
@@ -662,7 +662,7 @@ func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
 	childIds := f.nodes.childNodesIds(idx, false)
 
 	for _, childId := range childIds {
-		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId) {
+		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId, false) {
 			return true
 		}
 	}
@@ -670,7 +670,7 @@ func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
 	return false
 }
 
-func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int) bool {
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int, withSetKey bool) bool {
 	// this check is widely used for all selection rules
 	// one thing to know, on the first iterations abstract selections are not rewritten, yet
 	// they could be rewritten when we see that on the given datasource some field is external
@@ -679,7 +679,7 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 	// We handle this by adding possible keys for each possible type during nodes collecting
 
 	// first we need to check a concrete type, because it could be an entity interface type which is possible to use for jump
-	if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, f.nodes.items[idx].TypeName, true) {
+	if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, f.nodes.items[idx].TypeName, withSetKey) {
 		return true
 	}
 
@@ -700,6 +700,10 @@ func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, i
 // e.g. if there is a jump path between the parent node and the current node
 // NOTE: method has side effects, it sets requiresKey for the current node
 func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string, setRequiresKey bool) bool {
+	if f.nodes.items[parentIdx].DataSourceHash == f.nodes.items[idx].DataSourceHash {
+		return true
+	}
+
 	jumpsForTypename, exists := f.jumpsForPathAndTypeName(f.nodes.items[idx].ParentPath, typeName)
 	if !exists {
 		return false
