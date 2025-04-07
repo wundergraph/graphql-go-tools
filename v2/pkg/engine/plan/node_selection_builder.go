@@ -57,7 +57,7 @@ func NewNodeSelectionBuilder(config *Configuration, operationName string) *NodeS
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
 	dsFilter := NewDataSourceFilter(operation, definition, report)
 
-	if p.config.Debug.NodeSuggestion.SelectionReasons {
+	if p.config.Debug.PrintNodeSuggestions {
 		dsFilter.EnableSelectionReasons()
 	}
 
@@ -76,7 +76,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	if p.config.Debug.PrintNodeSuggestions {
-		p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
+		p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nInitial node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 	}
 
 	p.nodeSelectionsVisitor.secondaryRun = false
@@ -116,7 +116,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		}
 
 		if p.config.Debug.PrintNodeSuggestions {
-			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.NodeSuggestion.FilterNotSelected)
+			p.nodeSelectionsVisitor.nodeSuggestions.printNodesWithFilter("\nRecalculated node suggestions:\n", p.config.Debug.PrintNodeSuggestionsFilterNotSelected)
 		}
 
 		p.nodeSelectionsWalker.Walk(operation, definition, report)

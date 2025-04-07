@@ -35,8 +35,8 @@ type DebugConfiguration struct {
 	PrintPlanningPaths            bool
 	PrintQueryPlans               bool
 
-	PrintNodeSuggestions bool
-	NodeSuggestion       NodeSuggestionDebugConfiguration
+	PrintNodeSuggestions                  bool
+	PrintNodeSuggestionsFilterNotSelected bool
 
 	NodeSelectionVisitor bool
 	ConfigurationVisitor bool
