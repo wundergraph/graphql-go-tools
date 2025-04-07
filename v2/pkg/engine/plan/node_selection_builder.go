@@ -26,11 +26,10 @@ type NodeSelectionResult struct {
 	skipFieldsRefs           []int                                            // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 }
 
-func NewNodeSelectionBuilder(config *Configuration, operationName string) *NodeSelectionBuilder {
+func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker := astvisitor.NewWalker(48)
 	nodeSelectionVisitor := &nodeSelectionVisitor{
-		walker:        &nodeSelectionsWalker,
-		operationName: operationName, // TODO: check should not be needed
+		walker: &nodeSelectionsWalker,
 	}
 
 	nodeSelectionsWalker.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
@@ -52,6 +51,14 @@ func NewNodeSelectionBuilder(config *Configuration, operationName string) *NodeS
 		nodeResolvableWalker:  &nodeResolvableWalker,
 		nodeResolvableVisitor: nodeResolvableVisitor,
 	}
+}
+
+func (p *NodeSelectionBuilder) SetOperationName(name string) {
+	p.nodeSelectionsVisitor.operationName = name
+}
+
+func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
+	p.nodeSelectionsVisitor.skipFieldsRefs = nil
 }
 
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
