@@ -18,6 +18,9 @@ type Planner struct {
 	planningWalker  *astvisitor.Walker
 	planningVisitor *Visitor
 
+	nodeSelectionBuilder *NodeSelectionBuilder
+	planningPathBuilder  *PathBuilder
+
 	prepareOperationWalker *astvisitor.Walker
 }
 
@@ -114,15 +117,25 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	}
 
 	// create node selections
-	nodeSelectionBuilder := NewNodeSelectionBuilder(&p.config, p.planningVisitor.OperationName)
-	selectionsConfig := nodeSelectionBuilder.SelectNodes(operation, definition, report)
+	if p.nodeSelectionBuilder == nil {
+		p.nodeSelectionBuilder = NewNodeSelectionBuilder(&p.config)
+	}
+	p.nodeSelectionBuilder.SetOperationName(p.planningVisitor.OperationName)
+	p.nodeSelectionBuilder.ResetSkipFieldRefs()
+
+	selectionsConfig := p.nodeSelectionBuilder.SelectNodes(operation, definition, report)
 	if report.HasErrors() {
 		return nil
 	}
 
 	// create planning paths
-	planningPathBuilder := NewPathBuilder(&p.config, selectionsConfig, p.planningVisitor.OperationName)
-	plannersConfigurations := planningPathBuilder.CreatePlanningPaths(operation, definition, report)
+	if p.planningPathBuilder == nil {
+		p.planningPathBuilder = NewPathBuilder(&p.config)
+	}
+	p.planningPathBuilder.SetOperationName(p.planningVisitor.OperationName)
+	p.planningPathBuilder.SetSelectionsConfig(selectionsConfig)
+
+	plannersConfigurations := p.planningPathBuilder.CreatePlanningPaths(operation, definition, report)
 	if report.HasErrors() {
 		return nil
 	}
