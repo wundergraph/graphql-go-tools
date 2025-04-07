@@ -294,7 +294,7 @@ func (h *gqlTWSConnectionHandler) Ping() {
 
 	lastPingTimestamp := h.lastPingSentUnix.Load()
 
-	// Only check the ping timeout if we have sent a ping before
+	// Only check the ping timeout if the last ping took longer than a ping interval.
 	if lastPingTimestamp > 0 {
 		pingTime := time.Unix(0, lastPingTimestamp)
 		duration := time.Since(pingTime)
@@ -307,8 +307,6 @@ func (h *gqlTWSConnectionHandler) Ping() {
 			h.ServerClose()
 			return
 		}
-
-		h.log.Debug("last ping succeeded", abstractlogger.String("duration", pingTime.String()))
 	}
 
 	// Start measuring the time since to write the message to the connection, including the IO time
