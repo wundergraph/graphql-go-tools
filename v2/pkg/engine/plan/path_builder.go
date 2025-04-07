@@ -16,12 +16,11 @@ type PathBuilder struct {
 	visitor *pathBuilderVisitor
 }
 
-func NewPathBuilder(config *Configuration, selectionsConfig *NodeSelectionResult, operationName string) *PathBuilder {
+func NewPathBuilder(config *Configuration) *PathBuilder {
 	walker := astvisitor.NewWalker(48)
 	visitor := &pathBuilderVisitor{
 		walker:              &walker,
 		fieldConfigurations: config.Fields,
-		operationName:       operationName, // TODO: check should not be needed
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -30,11 +29,18 @@ func NewPathBuilder(config *Configuration, selectionsConfig *NodeSelectionResult
 	walker.RegisterSelectionSetVisitor(visitor)
 
 	return &PathBuilder{
-		config:           config,
-		selectionsConfig: selectionsConfig,
-		walker:           &walker,
-		visitor:          visitor,
+		config:  config,
+		walker:  &walker,
+		visitor: visitor,
 	}
+}
+
+func (p *PathBuilder) SetSelectionsConfig(selectionsConfig *NodeSelectionResult) {
+	p.selectionsConfig = selectionsConfig
+}
+
+func (p *PathBuilder) SetOperationName(name string) {
+	p.visitor.operationName = name
 }
 
 func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, report *operationreport.Report) []PlannerConfiguration {
