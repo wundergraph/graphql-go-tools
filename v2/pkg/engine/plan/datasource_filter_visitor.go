@@ -540,7 +540,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 3 and 4 - are stages when choices are equal, and we should select first available node
+		// stages 3,4,5 - are stages when choices are equal, and we should select first available node
 
 		// 3. we choose first available leaf node
 		if f.checkNodes(itemIDs,
@@ -552,13 +552,13 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
-				// we need to check if the node with enabled resolver could actually get a key from the parent node
-				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
-					return true
-				}
-
-				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
-					return true
+				// when node is a root query node we will not have parent
+				// so we need to check if parent node id is not a root of a tree
+				if treeNode.GetParentID() != treeRootID {
+					// we need to check if the node with enabled resolver could actually get a key from the parent node
+					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+						return true
+					}
 				}
 
 				return false
@@ -596,6 +596,10 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
 			},
 			func(i int) (skip bool) {
+				// do not evaluate childs for the leaf nodes
+				if f.nodes.items[i].IsLeaf {
+					return true
+				}
 
 				// when node is a root query node we will not have parent
 				// so we need to check if parent node id is not a root of a tree
@@ -604,11 +608,6 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
 						return true
 					}
-				}
-
-				// do not evaluate childs for the leaf nodes
-				if f.nodes.items[i].IsLeaf {
-					return true
 				}
 
 				return !f.nodeCouldProvideKeysToChildNodes(i)
