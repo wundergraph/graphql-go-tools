@@ -25,6 +25,11 @@ var (
 	multipartHeartbeat = []byte("{}")
 )
 
+// ConnectionIDs is used to create unique connection IDs for each subscription
+// Whenever a new connection is created, use this to generate a new ID
+// It is public because it can be used in more high level packages to instantiate a new connection
+var ConnectionIDs = atomic.NewInt64(0)
+
 type Reporter interface {
 	// SubscriptionUpdateSent called when a new subscription update is sent
 	SubscriptionUpdateSent()
@@ -58,8 +63,6 @@ type Resolver struct {
 
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
-
-	connectionIDs atomic.Int64
 
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
@@ -776,6 +779,7 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 	}
 	removed := 0
 	for c, s := range trig.subscriptions {
+
 		if shutdownMatcher != nil && !shutdownMatcher(s.id) {
 			continue
 		}
@@ -887,7 +891,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 	uniqueID := xxh.Sum64()
 	id := SubscriptionIdentifier{
-		ConnectionID:   r.connectionIDs.Inc(),
+		ConnectionID:   ConnectionIDs.Inc(),
 		SubscriptionID: 0,
 	}
 	if r.options.Debug {
