@@ -15,8 +15,9 @@ type keyVisitorInput struct {
 	key, definition *ast.Document
 	report          *operationreport.Report
 
-	dataSource      DataSource
-	providesEntries []*NodeSuggestion
+	dataSource       DataSource
+	providesEntries  []*NodeSuggestion
+	keyIsConditional bool
 }
 
 func keyFieldPaths(input *keyVisitorInput) []string {
@@ -133,8 +134,9 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 			report:     report,
 			parentPath: parentPath,
 
-			dataSource:      f.dataSource,
-			providesEntries: f.providesEntries,
+			dataSource:       f.dataSource,
+			providesEntries:  f.providesEntries,
+			keyIsConditional: len(key.Conditions) > 0,
 		}
 
 		keyPaths, hasExternalFields := keyInfo(input)
@@ -211,17 +213,22 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 	isExternal := hasExternalRootNode || hasExternalChildNode
 
 	if isExternal {
-		switch {
-		case hasRootNode:
+		isProvided := slices.ContainsFunc(v.input.providesEntries, func(suggestion *NodeSuggestion) bool {
+			return suggestion.TypeName == typeName && suggestion.FieldName == fieldName && suggestion.Path == currentPath
+		})
+
+		if isProvided {
+			// if the field is provided, it should not be marked as external
+			isExternal = false
+		} else if hasRootNode {
 			// fallback for how we used to handle keys marked as external in the current composition version
 			// if the key field present in both external fields and regular fields it should not be marked as external
 			// this logic is parallel to what we have in collect fields visitor
-			isExternal = false
-		case slices.ContainsFunc(v.input.providesEntries, func(suggestion *NodeSuggestion) bool {
-			return suggestion.TypeName == typeName && suggestion.FieldName == fieldName && suggestion.Path == currentPath
-		}):
-			// if the field is provided, it should not be marked as external
-			isExternal = false
+			// but if key is implicit and conditional we do not apply such logic, as such keys should be provided
+
+			if !v.input.keyIsConditional {
+				isExternal = false
+			}
 		}
 
 	}
