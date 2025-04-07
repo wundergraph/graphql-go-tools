@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync/atomic"
+	"time"
 
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
@@ -25,20 +27,31 @@ type gqlTWSConnectionHandler struct {
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
+	lastPingSentUnix              atomic.Int64
+	pingTimeout                   time.Duration
+	shuttingDown                  atomic.Bool
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
-	// Because the server closes the connection, we need to send a close frame to event loop.
+	h.shuttingDown.Store(true)
+
+	// Because the server closes the connection, we need to send a close frame to the event loop.
 	h.updater.Done()
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
 
 // ClientClose is called when the client closes the connection. Is called when the trigger is shutdown with all subscriptions.
 func (h *gqlTWSConnectionHandler) ClientClose() {
+	h.shuttingDown.Store(true)
+
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = wsutil.WriteClientText(h.conn, []byte(`{"id":"1","type":"complete"}`))
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
+
 }
 
 func (h *gqlTWSConnectionHandler) Subscribe() error {
@@ -63,11 +76,12 @@ func (h *gqlTWSConnectionHandler) HandleMessage(data []byte) (done bool) {
 	case messageTypeError:
 		h.handleMessageTypeError(data)
 		return false
-	case messageTypeConnectionKeepAlive:
-		return false
 	case messageTypeData, messageTypeConnectionError:
 		h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
 		return true
+	case messageTypePong:
+		h.handleMessageTypePong()
+		return false
 	default:
 		h.log.Error("unknown message type", abstractlogger.String("type", messageType))
 		return false
@@ -86,7 +100,9 @@ func newGQLTWSConnectionHandler(requestContext, engineContext context.Context, c
 		log:            l,
 		updater:        updater,
 		options:        options,
+		pingTimeout:    options.pingTimeout,
 	}
+
 	return &connection{
 		handler: handler,
 		netConn: conn,
@@ -108,7 +124,10 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 		return err
 	}
 
-	go h.readBlocking(readCtx, dataCh, errCh)
+	pingTicker := time.NewTicker(h.options.pingInterval)
+	defer pingTicker.Stop()
+
+	go h.readBlocking(readCtx, h.options.readTimeout, dataCh, errCh)
 
 	for {
 		select {
@@ -116,6 +135,8 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 			return h.engineContext.Err()
 		case <-readCtx.Done():
 			return readCtx.Err()
+		case <-pingTicker.C:
+			h.Ping()
 		case err := <-errCh:
 			h.log.Error("gqlWSConnectionHandler.StartBlocking", abstractlogger.Error(err))
 			h.broadcastErrorMessage(err)
@@ -127,6 +148,9 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 			}
 
 			switch messageType {
+			case messageTypePong:
+				h.handleMessageTypePong()
+				continue
 			case messageTypePing:
 				h.handleMessageTypePing()
 				continue
@@ -154,6 +178,7 @@ func (h *gqlTWSConnectionHandler) StartBlocking() error {
 
 func (h *gqlTWSConnectionHandler) unsubscribeAllAndCloseConn() {
 	h.unsubscribe()
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
@@ -161,6 +186,7 @@ func (h *gqlTWSConnectionHandler) unsubscribeAllAndCloseConn() {
 func (h *gqlTWSConnectionHandler) unsubscribe() {
 	h.updater.Done()
 	req := fmt.Sprintf(completeMessage, "1")
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err := wsutil.WriteClientText(h.conn, []byte(req))
 	if err != nil {
 		h.log.Error("failed to write complete message", abstractlogger.Error(err))
@@ -174,8 +200,10 @@ func (h *gqlTWSConnectionHandler) subscribe() error {
 		return err
 	}
 	subscribeRequest := fmt.Sprintf(subscribeMessage, "1", string(graphQLBody))
-	err = wsutil.WriteClientText(h.conn, []byte(subscribeRequest))
-	if err != nil {
+	if err = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return err
+	}
+	if err = wsutil.WriteClientText(h.conn, []byte(subscribeRequest)); err != nil {
 		return err
 	}
 	return nil
@@ -244,9 +272,54 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err := wsutil.WriteClientText(h.conn, []byte(pongMessage))
 	if err != nil {
 		h.log.Error("failed to write pong message", abstractlogger.Error(err))
+	}
+}
+
+func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
+	// We received a pong message from the server. We can reset it.
+	h.lastPingSentUnix.Store(0)
+}
+
+func (h *gqlTWSConnectionHandler) Ping() {
+
+	// Do nothing if the connection is shutting down
+	if h.shuttingDown.Load() {
+		h.log.Debug("ping skipped. connection is shutting down")
+		return
+	}
+
+	lastPingTimestamp := h.lastPingSentUnix.Load()
+
+	// We will detect a dead connection not immediately but on the next ping interval.
+	if lastPingTimestamp > 0 {
+		pingTime := time.Unix(0, lastPingTimestamp)
+		duration := time.Since(pingTime)
+
+		if duration > h.pingTimeout {
+			h.log.Error("ping timeout exceeded. Closing connection")
+			// We close the connection because the ping timeout has been exceeded,
+			// and we assume the connection is dead. ServerClose will send a done event to the client
+			// event loop to close all triggers and subscriptions
+			h.ServerClose()
+		}
+
+		// We don't want to send another ping if one is already in flight
+		return
+	}
+
+	// Start measuring the time since to write the message to the connection, including the IO time
+	h.lastPingSentUnix.Store(time.Now().UnixNano())
+
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
+
+	if err != nil {
+		h.log.Error("failed to write ping message", abstractlogger.Error(err))
+		return
 	}
 }
 
@@ -274,9 +347,10 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeNext(data []byte) {
 // readBlocking is a dedicated loop running in a separate goroutine
 // because the library "github.com/coder/websocket" doesn't allow reading with a context with Timeout
 // we'll block forever on reading until the context of the gqlTWSConnectionHandler stops
-func (h *gqlTWSConnectionHandler) readBlocking(ctx context.Context, dataCh chan []byte, errCh chan error) {
+func (h *gqlTWSConnectionHandler) readBlocking(ctx context.Context, readTimeout time.Duration, dataCh chan []byte, errCh chan error) {
 	netOpErr := &net.OpError{}
 	for {
+		_ = h.conn.SetReadDeadline(time.Now().Add(readTimeout))
 		data, err := wsutil.ReadServerText(h.conn)
 		if err != nil {
 			if errors.As(err, &netOpErr) {

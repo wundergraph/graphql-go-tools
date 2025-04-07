@@ -13,6 +13,11 @@ we also offer Solution Architect positions.
 
 Check out the [currently open positions](https://wundergraph.com/jobs#open-positions).
 
+## The State of GraphQL Federation 2024
+
+Get insights from industry experts and Federation practicioners across all industries and learn how companies are using GraphQL Federation.
+Head over to the [State of GraphQL Federation 2024](https://wundergraph.com/state-of-graphql-federation/2024) page and download the full **48 page PDF report** for free!
+
 ## From the WunderGraph Blog
 
 Here's a selection of blog posts that focus on the technical aspects of GraphQL Federation,

@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.0.0-rc.169](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.168...v2.0.0-rc.169) (2025-04-07)
+
+
+### Bug Fixes
+
+* **websocket:** handle ping/pong correctly ([#1122](https://github.com/wundergraph/graphql-go-tools/issues/1122)) ([8001f90](https://github.com/wundergraph/graphql-go-tools/commit/8001f90d29360e87e28450ad2c8af551efbecbff))
+
+## [2.0.0-rc.168](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.167...v2.0.0-rc.168) (2025-04-01)
+
+
+### Bug Fixes
+
+* allow custom scalar values of any kind ([#1107](https://github.com/wundergraph/graphql-go-tools/issues/1107)) ([1a67689](https://github.com/wundergraph/graphql-go-tools/commit/1a67689322b86debee5aa9c8dd1dfc526a82a559))
+* get query for plan when input is not valid JSON yet ([#1120](https://github.com/wundergraph/graphql-go-tools/issues/1120)) ([69485df](https://github.com/wundergraph/graphql-go-tools/commit/69485dfe7a76f77902595512f8ce6578cdc073f5))
+* set proper write / read timeouts ([#1113](https://github.com/wundergraph/graphql-go-tools/issues/1113)) ([e717013](https://github.com/wundergraph/graphql-go-tools/commit/e717013750e65c4a8e513dfd6b5d4ae5e523dbf7))
+
+## [2.0.0-rc.167](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.166...v2.0.0-rc.167) (2025-03-26)
+
+
+### Features
+
+* reset skipFieldsRefs ([#1117](https://github.com/wundergraph/graphql-go-tools/issues/1117)) ([7527cff](https://github.com/wundergraph/graphql-go-tools/commit/7527cff29f41755ea341faa235e8f92781cea936))
+
+## [2.0.0-rc.166](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.165...v2.0.0-rc.166) (2025-03-25)
+
+
+### Bug Fixes
+
+* catch an error on provides with fragments ([#1115](https://github.com/wundergraph/graphql-go-tools/issues/1115)) ([f4bb0af](https://github.com/wundergraph/graphql-go-tools/commit/f4bb0afa4b0124eff279635f7a0dc7d65d2e8554))
+
+## [2.0.0-rc.165](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.164...v2.0.0-rc.165) (2025-03-14)
+
+
+### Features
+
+* add max concurrency for data source collectors ([#1111](https://github.com/wundergraph/graphql-go-tools/issues/1111)) ([bae36b2](https://github.com/wundergraph/graphql-go-tools/commit/bae36b241bcb72619af8b76f8410c7796e018a72))
+
+## [2.0.0-rc.164](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.163...v2.0.0-rc.164) (2025-03-13)
+
+
+### Features
+
+* add error code for authorization errors ([#1109](https://github.com/wundergraph/graphql-go-tools/issues/1109)) ([54e744e](https://github.com/wundergraph/graphql-go-tools/commit/54e744e9843b87e02c3251c8d5262e55c588e89a))
+
+## [2.0.0-rc.163](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.162...v2.0.0-rc.163) (2025-03-04)
+
+
+### Bug Fixes
+
+* invalid enum values with value completion flag ([#1104](https://github.com/wundergraph/graphql-go-tools/issues/1104)) ([714fb3e](https://github.com/wundergraph/graphql-go-tools/commit/714fb3e098c795f23ee6273b33af3524de67c4b0))
+
 ## [2.0.0-rc.162](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.161...v2.0.0-rc.162) (2025-03-03)
 
 

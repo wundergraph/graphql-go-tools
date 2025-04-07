@@ -25,6 +25,11 @@ var (
 	multipartHeartbeat = []byte("{}")
 )
 
+// ConnectionIDs is used to create unique connection IDs for each subscription
+// Whenever a new connection is created, use this to generate a new ID
+// It is public because it can be used in more high level packages to instantiate a new connection
+var ConnectionIDs = atomic.NewInt64(0)
+
 type Reporter interface {
 	// SubscriptionUpdateSent called when a new subscription update is sent
 	SubscriptionUpdateSent()
@@ -58,8 +63,6 @@ type Resolver struct {
 
 	allowedErrorExtensionFields map[string]struct{}
 	allowedErrorFields          map[string]struct{}
-
-	connectionIDs atomic.Int64
 
 	reporter         Reporter
 	asyncErrorWriter AsyncErrorWriter
@@ -306,7 +309,12 @@ func (s *sub) startWorkerWithHeartbeat() {
 
 	for {
 		select {
-		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
+		case <-s.ctx.ctx.Done():
+			// Complete when the client request context is done for synchronous subscriptions
+			s.complete()
+			return
+		case <-s.resolver.ctx.Done():
+			// Abort immediately if the resolver is shutting down
 			return
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
@@ -326,7 +334,12 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 
 	for {
 		select {
-		case <-s.resolver.ctx.Done(): // Skip sending events if the resolver is shutting down
+		case <-s.ctx.ctx.Done():
+			// Complete when the client request context is done for synchronous subscriptions
+			s.complete()
+			return
+		case <-s.resolver.ctx.Done():
+			// Abort immediately if the resolver is shutting down
 			return
 		case fn, ok := <-s.workChan:
 			if !ok {
@@ -344,11 +357,7 @@ func (s *sub) complete() {
 	// to a subscription that is already done.
 	defer close(s.completed)
 
-	// We put the complete handshake to the work channel of the subscription
-	// to ensure that it is the last message that is sent to the client.
-	if s.ctx.Context().Err() == nil {
-		s.writer.Complete()
-	}
+	s.writer.Complete()
 }
 
 func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, sharedInput []byte) {
@@ -421,6 +430,9 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 // processEvents maintains the single threaded event loop that processes all events
 func (r *Resolver) processEvents() {
 	done := r.ctx.Done()
+
+	// events channel can't be closed here because producers are
+	// sending events across multiple goroutines
 
 	for {
 		select {
@@ -767,6 +779,7 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, shutdownMatcher func(
 	}
 	removed := 0
 	for c, s := range trig.subscriptions {
+
 		if shutdownMatcher != nil && !shutdownMatcher(s.id) {
 			continue
 		}
@@ -878,7 +891,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 	uniqueID := xxh.Sum64()
 	id := SubscriptionIdentifier{
-		ConnectionID:   r.connectionIDs.Inc(),
+		ConnectionID:   ConnectionIDs.Inc(),
 		SubscriptionID: 0,
 	}
 	if r.options.Debug {
@@ -889,6 +902,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 
 	select {
 	case <-r.ctx.Done():
+		// Stop processing if the resolver is shutting down
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: uniqueID,
@@ -909,13 +923,20 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	case <-ctx.ctx.Done():
 		// Client disconnected, request context canceled.
 		// We will ignore the error and remove the subscription in the next step.
+
+		select {
+		case <-completed:
+			// Wait for the subscription to be completed to avoid race conditions
+			// with go sdk request shutdown.
+		case <-r.ctx.Done():
+			// Resolver shutdown, no way to gracefully shut down the subscription
+			return r.ctx.Err()
+		}
 	case <-r.ctx.Done():
 		// Resolver shutdown, no way to gracefully shut down the subscription
-		// because the event loop is not running anymore.
+		// because the event loop is not running anymore and shutdown all triggers + subscriptions
 		return r.ctx.Err()
 	case <-completed:
-		// Subscription completed and drained. No need to do anything.
-		return nil
 	}
 
 	if r.options.Debug {
@@ -993,6 +1014,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 
 	select {
 	case <-r.ctx.Done():
+		// Stop resolving if the resolver is shutting down
 		return r.ctx.Err()
 	case r.events <- event:
 	}
@@ -1036,8 +1058,10 @@ func (s *subscriptionUpdater) Update(data []byte) {
 
 	select {
 	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
 		return
-	case <-s.completed: // Fail fast if already completed
+	case <-s.completed:
+		// Fail fast if already trigger is completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
@@ -1054,8 +1078,10 @@ func (s *subscriptionUpdater) Done() {
 
 	select {
 	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
 		return
-	case <-s.completed: // Fail fast if already completed
+	case <-s.completed:
+		// Fail fast if already trigger is completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,

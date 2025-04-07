@@ -28,6 +28,8 @@ type DataSourceFilter struct {
 
 	jumpsForPathForTypename map[string]map[string]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
+
+	maxDataSourceCollectorsConcurrency uint
 }
 
 func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
@@ -40,6 +42,12 @@ func NewDataSourceFilter(operation, definition *ast.Document, report *operationr
 
 func (f *DataSourceFilter) EnableSelectionReasons() {
 	f.enableSelectionReasons = true
+}
+
+// WithMaxDataSourceCollectorsConcurrency sets the maximum number of concurrent data source collectors
+func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(maxConcurrency uint) *DataSourceFilter {
+	f.maxDataSourceCollectorsConcurrency = maxConcurrency
+	return f
 }
 
 func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash, fieldDependsOn map[int][]int) (used []DataSource, suggestions *NodeSuggestions) {
@@ -77,7 +85,7 @@ func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions,
 	}
 
 	// f.nodes.printNodes("initial nodes")
-	f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
+	f.applyLandedTo(landedTo)
 
 	f.selectUniqueNodes()
 	// f.nodes.printNodes("select unique nodes")
@@ -132,11 +140,12 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 	}
 
 	nodesCollector := &nodesCollector{
-		operation:   f.operation,
-		definition:  f.definition,
-		dataSources: dataSources,
-		nodes:       existingNodes,
-		report:      f.report,
+		operation:      f.operation,
+		definition:     f.definition,
+		dataSources:    dataSources,
+		nodes:          existingNodes,
+		report:         f.report,
+		maxConcurrency: f.maxDataSourceCollectorsConcurrency,
 	}
 
 	var keysInfo []DSKeyInfo

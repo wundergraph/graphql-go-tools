@@ -575,6 +575,96 @@ func TestPlanner_Plan(t *testing.T) {
 			))
 		})
 	})
+
+	t.Run("two different queries in different executions should not affect each other", func(t *testing.T) {
+		definition := `
+			type Account {
+				id: ID!
+				name: String
+			}
+			type Query {
+				account: Account
+			}
+		`
+		var accountDS = dsb().
+			WithBehavior(DataSourcePlanningBehavior{
+				MergeAliasedRootNodes: true,
+			}).
+			Schema(`type Account {
+				id: ID!
+			}
+			type Query {
+				account: Account
+			}`).
+			Id("accountDS").
+			Hash(1).
+			RootNode("Query", "account").
+			RootNode("Account", "id").
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+			}).
+			DS()
+		var addressDS = dsb().
+			WithBehavior(DataSourcePlanningBehavior{
+				MergeAliasedRootNodes: true,
+			}).
+			Schema(`type Account {
+				id: ID!
+				name: String
+			}`).
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "Account",
+					SelectionSet: "id",
+				},
+			}).
+			Id("addressDS").
+			Hash(2).
+			RootNode("Account", "id", "name").
+			DS()
+		planConfiguration := Configuration{
+			DataSources:                  []DataSource{accountDS, addressDS},
+			DisableResolveFieldPositions: true,
+			DisableIncludeInfo:           true,
+		}
+		report := &operationreport.Report{}
+		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definition)
+
+		operation1 := `
+			query MyHero {
+				account {
+					name
+				}
+			}`
+		operation2 := `
+			query MyHero {
+				account {
+					name
+					id
+				}
+			}`
+		op2Expected := unsafeparser.ParseGraphqlDocumentString(operation2)
+		planner1, err := NewPlanner(planConfiguration)
+		require.NoError(t, err)
+		plan2Expected := planner1.Plan(&op2Expected, &def, "", report)
+		require.False(t, report.HasErrors())
+
+		sharedPlanner, err := NewPlanner(planConfiguration)
+		require.NoError(t, err)
+
+		op1 := unsafeparser.ParseGraphqlDocumentString(operation1)
+		_ = sharedPlanner.Plan(&op1, &def, "", report)
+		require.False(t, report.HasErrors())
+
+		op2 := unsafeparser.ParseGraphqlDocumentString(operation2)
+		plan2 := sharedPlanner.Plan(&op2, &def, "", report)
+		require.False(t, report.HasErrors())
+
+		assert.Equal(t, plan2Expected, plan2)
+	})
 }
 
 var expectedMyHeroPlan = &SynchronousResponsePlan{
@@ -764,6 +854,7 @@ func (s *StatefulSource) Start() {
 
 type FakeFactory[T any] struct {
 	upstreamSchema *ast.Document
+	behavior       *DataSourcePlanningBehavior
 }
 
 func (f *FakeFactory[T]) UpstreamSchema(dataSourceConfig DataSourceConfiguration[T]) (*ast.Document, bool) {
@@ -776,6 +867,7 @@ func (f *FakeFactory[T]) Planner(logger abstractlogger.Logger) DataSourcePlanner
 	return &FakePlanner[T]{
 		source:         source,
 		upstreamSchema: f.upstreamSchema,
+		behavior:       f.behavior,
 	}
 }
 
@@ -787,6 +879,7 @@ type FakePlanner[T any] struct {
 	id             int
 	source         *StatefulSource
 	upstreamSchema *ast.Document
+	behavior       *DataSourcePlanningBehavior
 }
 
 func (f *FakePlanner[T]) ID() int {
@@ -819,10 +912,14 @@ func (f *FakePlanner[T]) ConfigureSubscription() SubscriptionConfiguration {
 }
 
 func (f *FakePlanner[T]) DataSourcePlanningBehavior() DataSourcePlanningBehavior {
-	return DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: false,
+	if f.behavior == nil {
+		return DataSourcePlanningBehavior{
+			MergeAliasedRootNodes:      false,
+			OverrideFieldPathFromAlias: false,
+		}
 	}
+
+	return *f.behavior
 }
 
 func (f *FakePlanner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias string, exists bool) {

@@ -9,4 +9,7 @@ const (
 
 	// Apollo Router Compatibility
 	ValidationInvalidTypeVariable = "VALIDATION_INVALID_TYPE_VARIABLE"
+
+	// Flag unrelated
+	UnauthorizedFieldOrType = "UNAUTHORIZED_FIELD_OR_TYPE"
 )
