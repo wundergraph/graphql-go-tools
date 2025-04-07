@@ -294,7 +294,8 @@ func (h *gqlTWSConnectionHandler) Ping() {
 
 	lastPingTimestamp := h.lastPingSentUnix.Load()
 
-	// Only check the ping timeout if the last ping took longer than a ping interval.
+	// This can only happen when the PONG took longer than a full ping interval.
+	// This also implies that we will detect not immediately but on the next ping interval.
 	if lastPingTimestamp > 0 {
 		pingTime := time.Unix(0, lastPingTimestamp)
 		duration := time.Since(pingTime)
