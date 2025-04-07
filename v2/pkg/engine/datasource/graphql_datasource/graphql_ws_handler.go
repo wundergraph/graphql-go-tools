@@ -200,6 +200,10 @@ func (h *gqlWSConnectionHandler) Ping() {
 	// This protocol has no client side ping/pong mechanism. The server send a ka message to understand
 	// if the connection is still alive. The client only acknowledges the retrieval of the ka message
 	// by consuming it in the readBlocking loop.
+
+	// TODO We could check if we receive a ka message in a certain time frame and if not, we could close the connection
+	// However, because we don't send something to the server, we can't verify if the connection is still healthy and
+	// responsive from both sides.
 }
 
 // subscribe adds a new Subscription to the gqlWSConnectionHandler and sends the startMessage to the origin

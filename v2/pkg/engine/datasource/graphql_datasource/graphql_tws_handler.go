@@ -27,13 +27,14 @@ type gqlTWSConnectionHandler struct {
 	log                           abstractlogger.Logger
 	options                       GraphQLSubscriptionOptions
 	updater                       resolve.SubscriptionUpdater
-	// Unix timestamp in nanoseconds, 0 means no ping in flight
-	// Needs to be atomic because it can be accessed from different goroutines
-	lastPingSentUnix atomic.Int64
-	pingTimeout      time.Duration
+	lastPingSentUnix              atomic.Int64
+	pingTimeout                   time.Duration
+	shuttingDown                  atomic.Bool
 }
 
 func (h *gqlTWSConnectionHandler) ServerClose() {
+	h.shuttingDown.Store(true)
+
 	// Because the server closes the connection, we need to send a close frame to the event loop.
 	h.updater.Done()
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
@@ -43,11 +44,14 @@ func (h *gqlTWSConnectionHandler) ServerClose() {
 
 // ClientClose is called when the client closes the connection. Is called when the trigger is shutdown with all subscriptions.
 func (h *gqlTWSConnectionHandler) ClientClose() {
+	h.shuttingDown.Store(true)
+
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = wsutil.WriteClientText(h.conn, []byte(`{"id":"1","type":"complete"}`))
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
+
 }
 
 func (h *gqlTWSConnectionHandler) Subscribe() error {
@@ -71,8 +75,6 @@ func (h *gqlTWSConnectionHandler) HandleMessage(data []byte) (done bool) {
 		return true
 	case messageTypeError:
 		h.handleMessageTypeError(data)
-		return false
-	case messageTypeConnectionKeepAlive:
 		return false
 	case messageTypeData, messageTypeConnectionError:
 		h.log.Error("Invalid subprotocol. The subprotocol should be set to graphql-transport-ws, but currently it is set to graphql-ws")
@@ -278,43 +280,46 @@ func (h *gqlTWSConnectionHandler) handleMessageTypePing() {
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypePong() {
-	// Reset timestamp to indicate no ping in flight
-	// Can be called from different workers and must be protected
+	// We received a pong message from the server. We can reset it.
 	h.lastPingSentUnix.Store(0)
 }
 
 func (h *gqlTWSConnectionHandler) Ping() {
-	// Get current timestamp of last ping
+
+	// Do nothing if the connection is shutting down
+	if h.shuttingDown.Load() {
+		h.log.Debug("ping skipped. connection is shutting down")
+		return
+	}
+
 	lastPingTimestamp := h.lastPingSentUnix.Load()
 
-	// If a ping is in flight, check if it has timed out
+	// Only check the ping timeout if we have sent a ping before
 	if lastPingTimestamp > 0 {
 		pingTime := time.Unix(0, lastPingTimestamp)
-		if time.Since(pingTime) > h.pingTimeout {
+		duration := time.Since(pingTime)
+
+		if duration > h.pingTimeout {
 			h.log.Error("ping timeout exceeded. Closing connection")
-			// Reset timestamp to avoid duplicate closes if Ping gets called again
-			h.lastPingSentUnix.Store(0)
 			// We close the connection because the ping timeout has been exceeded,
 			// and we assume the connection is dead. ServerClose will send a done event to the client
 			// event loop to close all triggers and subscriptions
 			h.ServerClose()
 			return
 		}
+
+		h.log.Debug("last ping succeeded", abstractlogger.String("duration", pingTime.String()))
 	}
 
-	// Only send a new ping if we haven't sent one yet, or if we received a pong for the previous one
-	// (indicated by lastPingSentUnix being 0)
-	if lastPingTimestamp == 0 {
-		_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
-		err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
+	// Start measuring the time since to write the message to the connection, including the IO time
+	h.lastPingSentUnix.Store(time.Now().UnixNano())
 
-		if err != nil {
-			h.log.Error("failed to write ping message", abstractlogger.Error(err))
-			return
-		}
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	err := wsutil.WriteClientText(h.conn, []byte(pingMessage))
 
-		// Store current time as Unix timestamp in seconds
-		h.lastPingSentUnix.Store(time.Now().Unix())
+	if err != nil {
+		h.log.Error("failed to write ping message", abstractlogger.Error(err))
+		return
 	}
 }
 

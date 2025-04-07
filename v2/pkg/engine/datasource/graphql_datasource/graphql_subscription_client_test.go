@@ -2281,6 +2281,7 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 		WithLogger(logger()),
 		WithPingInterval(500*time.Millisecond),
+		WithPingTimeout(100*time.Millisecond),
 		// Need netpoll enabled for ping/pong handling
 		WithNetPollConfiguration(NetPollConfiguration{
 			Enable:           true,

@@ -639,8 +639,9 @@ type ConnectionHandler interface {
 	StartBlocking() error
 	// HandleMessage handles the incoming message from the connection
 	HandleMessage(data []byte) (done bool)
-	// Ping used to send a ping message to the upstream server to remain the connection alive.
-	// It also keeps track of when the last ping to initiate a shutdown of the dead connection
+	// Ping sends a ping message to the upstream server to keep the connection alive.
+	// Implementers must keep track of the last ping time to initiate a connection shutdown
+	// if the upstream is not sending a pong.
 	Ping()
 	// ServerClose closes the connection from the server side
 	ServerClose()
@@ -669,7 +670,10 @@ func waitForAck(conn net.Conn, readTimeout, writeTimeout time.Duration) error {
 		if err != nil {
 			return err
 		}
+
 		switch respType {
+		// TODO this method mixes message types from different protocols. We should
+		//  move the specific protocol handling to the concrete implementation
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
