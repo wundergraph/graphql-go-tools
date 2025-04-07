@@ -12179,15 +12179,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			planConfiguration := plan.Configuration{
 				DataSources:                  dataSources,
 				DisableResolveFieldPositions: true,
-				Debug: plan.DebugConfiguration{
-					PrintOperationTransformations: true,
-					PrintNodeSuggestions:          true,
-					PrintPlanningPaths:            true,
-					PrintQueryPlans:               true,
-					NodeSuggestion: plan.NodeSuggestionDebugConfiguration{
-						SelectionReasons: true,
-					},
-				},
+				Debug:                        plan.DebugConfiguration{},
 			}
 
 			t.Run("only fields", func(t *testing.T) {
