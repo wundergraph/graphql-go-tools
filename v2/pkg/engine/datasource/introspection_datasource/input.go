@@ -12,6 +12,7 @@ const (
 	TypeRequestType
 	TypeFieldsRequestType
 	TypeEnumValuesRequestType
+	RootQueryTypeNameRequestType
 )
 
 const (
@@ -19,12 +20,14 @@ const (
 	typeFieldName       = "__type"
 	fieldsFieldName     = "fields"
 	enumValuesFieldName = "enumValues"
+	rootQueryTypeName   = "__typename"
 )
 
 type introspectionInput struct {
 	RequestType       requestType `json:"request_type"`
 	OnTypeName        *string     `json:"on_type_name"`
 	TypeName          *string     `json:"type_name"`
+	RootQueryTypeName *string     `json:"__typename"`
 	IncludeDeprecated bool        `json:"include_deprecated"`
 }
 
@@ -37,9 +40,11 @@ var (
 	typeNameField                  = []byte(`"type_name":"{{ .arguments.name }}"`)
 	includeDeprecatedFieldArgument = []byte(`"include_deprecated":{{ .arguments.includeDeprecated }}`)
 	includeDeprecatedFalse         = []byte(`"include_deprecated":false`)
+	quote                          = []byte(`"`)
+	rootQueryTypeNameField         = []byte(`,"__typename":"`)
 )
 
-func buildInput(fieldName string, hasIncludeDeprecatedArgument bool) string {
+func buildInput(fieldName string, hasIncludeDeprecatedArgument bool, enclosingTypeName string) string {
 	buf := &bytes.Buffer{}
 	buf.Write(lBrace)
 
@@ -54,6 +59,11 @@ func buildInput(fieldName string, hasIncludeDeprecatedArgument bool) string {
 	case enumValuesFieldName:
 		writeRequestTypeField(buf, TypeEnumValuesRequestType)
 		writeOnTypeFields(buf, hasIncludeDeprecatedArgument)
+	case rootQueryTypeName:
+		writeRequestTypeField(buf, RootQueryTypeNameRequestType)
+		buf.Write(rootQueryTypeNameField)
+		buf.Write([]byte(enclosingTypeName))
+		buf.Write(quote)
 	default:
 		writeRequestTypeField(buf, SchemaRequestType)
 	}

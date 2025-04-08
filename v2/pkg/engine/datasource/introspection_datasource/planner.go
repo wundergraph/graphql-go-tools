@@ -20,6 +20,7 @@ type Planner[T Configuration] struct {
 	rootField                    int
 	rootFieldName                string
 	rootFielPath                 string
+	rootFieldEnclosingTypeName   string
 	hasIncludeDeprecatedArgument bool
 	isArrayItem                  bool
 }
@@ -60,6 +61,9 @@ func (p *Planner[T]) EnterField(ref int) {
 	case fieldsFieldName, enumValuesFieldName:
 		p.hasIncludeDeprecatedArgument = p.v.Operation.FieldHasArguments(ref)
 		fallthrough
+	case rootQueryTypeName:
+		p.rootFieldEnclosingTypeName = p.v.Walker.EnclosingTypeDefinition.NameString(p.v.Definition)
+		fallthrough
 	case typeFieldName, schemaFieldName:
 		p.rootField = ref
 		p.rootFieldName = fieldName
@@ -68,7 +72,7 @@ func (p *Planner[T]) EnterField(ref int) {
 }
 
 func (p *Planner[T]) configureInput() string {
-	return buildInput(p.rootFieldName, p.hasIncludeDeprecatedArgument)
+	return buildInput(p.rootFieldName, p.hasIncludeDeprecatedArgument, p.rootFieldEnclosingTypeName)
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"net/http"
 	"net/http/httptrace"
 	"slices"
@@ -26,13 +25,16 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 const (
-	IntrospectionSchemaTypeDataSourceID     = "introspection__schema&__type"
-	IntrospectionTypeFieldsDataSourceID     = "introspection__type__fields"
-	IntrospectionTypeEnumValuesDataSourceID = "introspection__type__enumValues"
+	IntrospectionSchemaTypeDataSourceID       = "introspection__schema&__type"
+	IntrospectionTypeFieldsDataSourceID       = "introspection__type__fields"
+	IntrospectionTypeEnumValuesDataSourceID   = "introspection__type__enumValues"
+	IntrospectionQueryTypeNameDataSourceID    = "introspection__query_type_name"
+	IntrospectionMutationTypeNameDataSourceID = "introspection__mutation_type_name"
 )
 
 type LoaderHooks interface {
@@ -116,7 +118,11 @@ func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInf
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
-	return dataSourceID == IntrospectionSchemaTypeDataSourceID || dataSourceID == IntrospectionTypeFieldsDataSourceID || dataSourceID == IntrospectionTypeEnumValuesDataSourceID
+	return dataSourceID == IntrospectionSchemaTypeDataSourceID ||
+		dataSourceID == IntrospectionTypeFieldsDataSourceID ||
+		dataSourceID == IntrospectionTypeEnumValuesDataSourceID ||
+		dataSourceID == IntrospectionQueryTypeNameDataSourceID ||
+		dataSourceID == IntrospectionMutationTypeNameDataSourceID
 }
 
 type Loader struct {

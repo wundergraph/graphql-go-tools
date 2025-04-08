@@ -588,6 +588,54 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		))
 
+		t.Run("execute query typename", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "my",
+						Query: `query my {
+							__typename
+						}`,
+					}
+				},
+				expectedResponse: `{"data":{"__typename":"Query"}}`,
+			},
+		))
+
+		t.Run("execute query typename + hero", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "my",
+						Query: `query my {
+							__typename
+							hero {
+								name
+							}
+						}`,
+					}
+				},
+				expectedResponse: `{"data":{"__typename":"Query"}}`,
+			},
+		))
+
+		t.Run("execute mutation typename", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "my",
+						Query: `mutation my {
+							__typename
+						}`,
+					}
+				},
+				expectedResponse: `{"data":{"__typename":"Mutation"}}`,
+			},
+		))
+
 		t.Run("execute full introspection query", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
