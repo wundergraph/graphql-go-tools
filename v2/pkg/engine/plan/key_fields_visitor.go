@@ -220,11 +220,12 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 		if isProvided {
 			// if the field is provided, it should not be marked as external
 			isExternal = false
-		} else if hasRootNode {
+		} else if hasRootNode || hasChildNode {
 			// fallback for how we used to handle keys marked as external in the current composition version
 			// if the key field present in both external fields and regular fields it should not be marked as external
 			// this logic is parallel to what we have in collect fields visitor
 			// but if key is implicit and conditional we do not apply such logic, as such keys should be provided
+			// NOTE: edfs makes entity a child node so we need to have a child node check too
 
 			if !v.input.keyIsConditional {
 				isExternal = false

@@ -487,9 +487,13 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
-				// we need to check if the node with enabled resolver could actually get a key from the parent node
-				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
-					return true
+				// when node is a root query node we will not have parent
+				// so we need to check if parent node id is not a root of a tree
+				if treeNode.GetParentID() != treeRootID {
+					// we need to check if the node with enabled resolver could actually get a key from the parent node
+					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+						return true
+					}
 				}
 
 				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
