@@ -2846,6 +2846,35 @@ func TestExecutionValidation(t *testing.T) {
 				})
 			})
 
+			t.Run("valid custom scalar arguments", func(t *testing.T) {
+
+				const testSchema = `
+scalar BigInt
+
+schema {
+	query: Query
+}
+
+type Query {
+  add(a: BigInt!, b: BigInt!): BigInt!
+}
+
+`
+				t.Run("BigInt as arg given as integer", func(t *testing.T) {
+					runWithDefinition(t, testSchema, `{
+						add(a: 3000000000, b: 4000000000)
+					}`,
+						Values(), Valid)
+				})
+
+				t.Run("BigInt as arg given as string", func(t *testing.T) {
+					runWithDefinition(t, testSchema, `{
+						add(a: "3000000000", b: "4000000000")
+					}`,
+						Values(), Valid)
+				})
+			})
+
 			t.Run("145", func(t *testing.T) {
 				run(t, `
 							query goodComplexDefaultValue($search: ComplexInput = { name: "Fido" }) {

@@ -28,7 +28,14 @@ import (
 	"go.uber.org/atomic"
 )
 
-const ackWaitTimeout = 30 * time.Second
+const (
+	// The time to write a message to the server connection before timing out
+	writeTimeout = 10 * time.Second
+	// The time to read the message payload from the server before timing out
+	readMessageTimeout = 1 * time.Second
+	// The time to wait for a connection ack message from the server before timing out
+	ackWaitTimeout = 30 * time.Second
+)
 
 type netPollState struct {
 	// connections is a map of fd -> connection to keep track of all active connections
@@ -64,7 +71,9 @@ type subscriptionClient struct {
 	hashPool                   sync.Pool
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 
-	readTimeout time.Duration
+	readTimeout  time.Duration
+	pingInterval time.Duration
+	pingTimeout  time.Duration
 
 	netPoll       netpoll.Poller
 	netPollConfig NetPollConfiguration
@@ -122,6 +131,18 @@ func WithReadTimeout(timeout time.Duration) Options {
 	}
 }
 
+func WithPingInterval(interval time.Duration) Options {
+	return func(options *opts) {
+		options.pingInterval = interval
+	}
+}
+
+func WithPingTimeout(timeout time.Duration) Options {
+	return func(options *opts) {
+		options.pingTimeout = timeout
+	}
+}
+
 type NetPollConfiguration struct {
 	// Enable can be set to true to enable netPoll
 	Enable bool
@@ -161,6 +182,8 @@ func WithNetPollConfiguration(config NetPollConfiguration) Options {
 
 type opts struct {
 	readTimeout                time.Duration
+	pingInterval               time.Duration
+	pingTimeout                time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 	netPollConfiguration       NetPollConfiguration
@@ -184,9 +207,13 @@ func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
 }
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
+
+	// Defaults
 	op := &opts{
-		readTimeout: time.Millisecond * 100,
-		log:         abstractlogger.NoopLogger,
+		readTimeout:  time.Millisecond * 100,
+		pingInterval: 10 * time.Second,
+		pingTimeout:  5 * time.Second,
+		log:          abstractlogger.NoopLogger,
 	}
 
 	op.netPollConfiguration.ApplyDefaults()
@@ -201,6 +228,8 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		engineCtx:       engineCtx,
 		log:             op.log,
 		readTimeout:     op.readTimeout,
+		pingInterval:    op.pingInterval,
+		pingTimeout:     op.pingTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -290,6 +319,9 @@ func (c *subscriptionClient) subscribeSSE(requestContext, engineContext context.
 
 func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
+	options.pingInterval = c.pingInterval
+	options.pingTimeout = c.pingTimeout
+
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -314,6 +346,9 @@ func (c *subscriptionClient) subscribeWS(requestContext, engineContext context.C
 
 func (c *subscriptionClient) asyncSubscribeWS(requestContext, engineContext context.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
 	options.readTimeout = c.readTimeout
+	options.pingInterval = c.pingInterval
+	options.pingTimeout = c.pingTimeout
+
 	if c.httpClient == nil {
 		return fmt.Errorf("http client is nil")
 	}
@@ -468,12 +503,15 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	}
 
 	// init + ack
+	if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+		return nil, err
+	}
 	err = wsutil.WriteClientText(conn, connectionInitMessage)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := waitForAck(conn); err != nil {
+	if err := waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
 		return nil, err
 	}
 
@@ -596,20 +634,33 @@ func (c *subscriptionClient) getConnectionInitMessage(ctx context.Context, url s
 }
 
 type ConnectionHandler interface {
+	// StartBlocking starts the connection handler and blocks until the connection is closed
+	// Only used as fallback when epoll is not available
 	StartBlocking() error
+	// HandleMessage handles the incoming message from the connection
 	HandleMessage(data []byte) (done bool)
+	// Ping sends a ping message to the upstream server to keep the connection alive.
+	// Implementers must keep track of the last ping time to initiate a connection shutdown
+	// if the upstream is not sending a pong.
+	Ping()
+	// ServerClose closes the connection from the server side
 	ServerClose()
+	// ClientClose closes the connection from the client side
 	ClientClose()
+	// Subscribe subscribes to the connection
 	Subscribe() error
 }
 
-func waitForAck(conn net.Conn) error {
+func waitForAck(conn net.Conn, readTimeout, writeTimeout time.Duration) error {
 	timer := time.NewTimer(ackWaitTimeout)
 	for {
 		select {
 		case <-timer.C:
 			return fmt.Errorf("timeout while waiting for connection_ack")
 		default:
+		}
+		if err := conn.SetReadDeadline(time.Now().Add(readTimeout)); err != nil {
+			return fmt.Errorf("failed to set read deadline: %w", err)
 		}
 		msg, err := wsutil.ReadServerText(conn)
 		if err != nil {
@@ -619,10 +670,16 @@ func waitForAck(conn net.Conn) error {
 		if err != nil {
 			return err
 		}
+
 		switch respType {
+		// TODO this method mixes message types from different protocols. We should
+		//  move the specific protocol handling to the concrete implementation
 		case messageTypeConnectionKeepAlive:
 			continue
 		case messageTypePing:
+			if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+				return fmt.Errorf("failed to set write deadline: %w", err)
+			}
 			err = wsutil.WriteClientText(conn, []byte(pongMessage))
 			if err != nil {
 				return fmt.Errorf("failed to send pong message: %w", err)
@@ -650,6 +707,7 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 	// this would not be possible with unbuffered channels
 	handleConnCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
 	connResults := make(chan connResult, c.netPollConfig.WaitForNumEvents)
+	pingCh := make(chan *connection, c.netPollConfig.WaitForNumEvents)
 
 	// Start workers to handle connection events
 	// MaxEventWorkers defines the parallelism of how many connections can be handled at the same time
@@ -658,6 +716,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		go func() {
 			for {
 				select {
+				case conn := <-pingCh:
+					conn.handler.Ping()
 				case conn := <-handleConnCh:
 					shouldClose := c.handleConnectionEvent(conn)
 					connResults <- connResult{fd: conn.fd, shouldClose: shouldClose}
@@ -668,6 +728,9 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		}()
 	}
 
+	pingTicker := time.NewTicker(c.pingInterval)
+	defer pingTicker.Stop()
+
 	// This is the main netPoll run loop
 	// It's a single threaded event loop that reacts to several events, such as added connections, clients unsubscribing, etc.
 	for {
@@ -675,6 +738,14 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 		// if the engine context is done, we close the netPoll loop
 		case <-done:
 			return
+		case <-pingTicker.C:
+			// Send a ping to all connections
+			// We distribute the ping to all workers to prevent single threaded bottlenecks
+			// However, this required state synchronization with the last ping time on the handler
+			// because PING and PONG can be handled on different go routines
+			for _, conn := range c.netPollState.connections {
+				pingCh <- conn
+			}
 		case conn := <-c.netPollState.addConn:
 			c.handleAddConn(conn)
 		case id := <-c.netPollState.clientUnsubscribe:
@@ -863,7 +934,7 @@ func handleConnectionError(err error) (done bool) {
 	return false
 }
 
-func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
+func readMessage(conn net.Conn, frameReadTimeout time.Duration) ([]byte, error) {
 	controlHandler := wsutil.ControlFrameHandler(conn, ws.StateClientSide)
 	rd := &wsutil.Reader{
 		Source:          conn,
@@ -873,7 +944,7 @@ func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
 		OnIntermediate:  controlHandler,
 	}
 	for {
-		err := conn.SetReadDeadline(time.Now().Add(timeout))
+		err := conn.SetReadDeadline(time.Now().Add(frameReadTimeout))
 		if err != nil {
 			return nil, err
 		}
@@ -882,6 +953,8 @@ func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
 			return nil, err
 		}
 		if hdr.OpCode.IsControl() {
+			// Handles PING/PONG and CLOSE frames but only on the ws protocol level
+			// We still need to handle the PING/PONG frames on the application protocol level
 			if err := controlHandler(hdr, rd); err != nil {
 				return nil, err
 			}
@@ -893,7 +966,7 @@ func readMessage(conn net.Conn, timeout time.Duration) ([]byte, error) {
 			}
 			continue
 		}
-		err = conn.SetReadDeadline(time.Now().Add(time.Second))
+		err = conn.SetReadDeadline(time.Now().Add(readMessageTimeout))
 		if err != nil {
 			return nil, err
 		}
