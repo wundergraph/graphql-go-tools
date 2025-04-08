@@ -30,14 +30,17 @@ type planningInfo struct {
 	isEntityLookup     bool
 	methodName         string
 
-	requestMessageAncestors []*RPCMessage
-	currentRequestMessage   *RPCMessage
+	requestMessageAncestors  []*RPCMessage
+	currentRequestMessage    *RPCMessage
+	currentRequestFieldIndex int
 
-	responseMessageAncestors []*RPCMessage
-	currentResponseMessage   *RPCMessage
+	responseMessageAncestors  []*RPCMessage
+	currentResponseMessage    *RPCMessage
+	currentResponseFieldIndex int
 
-	currentFieldIndex int
-	indexAncestors    []int
+	// TODO variables
+
+	indexAncestors []int
 }
 
 var _ astvisitor.EnterDocumentVisitor = &rpcPlanVisitor{}
@@ -45,28 +48,166 @@ var _ astvisitor.FieldVisitor = &rpcPlanVisitor{}
 var _ astvisitor.EnterOperationDefinitionVisitor = &rpcPlanVisitor{}
 var _ astvisitor.EnterSelectionSetVisitor = &rpcPlanVisitor{}
 
-type rpcPlanVisitor struct {
-	planInfo planningInfo
+// var _ astvisitor.VariableDefinitionVisitor = &rpcPlanVisitor{}
+var _ astvisitor.ArgumentVisitor = &rpcPlanVisitor{}
 
-	subgraphName      string
-	plan              *RPCExecutionPlan
-	currentGroupIndex int
-	currentCall       *RPCCall
-	currentCallID     int
-	walker            *astvisitor.Walker
-	operation         *ast.Document
-	definition        *ast.Document
-	// currentRequestMessage  *RPCMessage
-	// currentResponseMessage *RPCMessage
+type rpcPlanVisitor struct {
+	walker     *astvisitor.Walker
+	operation  *ast.Document
+	definition *ast.Document
+	planInfo   planningInfo
+
+	subgraphName           string
+	plan                   *RPCExecutionPlan
+	operationDefinitionRef int
+	operationFieldRef      int
+	currentGroupIndex      int
+	currentCall            *RPCCall
+	currentCallID          int
+}
+
+// EnterArgument implements astvisitor.ArgumentVisitor.
+func (r *rpcPlanVisitor) EnterArgument(ref int) {
+	// query TypeFilterWithArgumentsQuery($filter: FilterTypeInput!) { typeFilterWithArguments(filter: $filter) { id name } }
+	if r.planInfo.isEntityLookup {
+		return
+	}
+
+	a := r.walker.Ancestor()
+	if a.Kind != ast.NodeKindField && a.Ref != r.operationFieldRef {
+		return
+	}
+
+	argumentInputValueDefinitionRef, exists := r.walker.ArgumentInputValueDefinition(ref)
+	if !exists {
+		return
+	}
+
+	inputValueDefinitionTypeRef := r.definition.InputValueDefinitionType(argumentInputValueDefinitionRef)
+	r.buildRequestMessageFromInputArgument(ref, inputValueDefinitionTypeRef)
+}
+
+func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef int) {
+	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
+	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
+	if !found {
+		return
+	}
+	switch underlyingTypeNode.Kind {
+	case ast.NodeKindInputObjectTypeDefinition:
+		msg := &RPCMessage{
+			Name:   underlyingTypeName,
+			Fields: RPCFields{},
+		}
+
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+			Name:     r.operation.ArgumentNameString(argRef),
+			TypeName: DataTypeMessage.String(),
+			JSONPath: r.operation.ArgumentNameString(argRef),
+			Index:    r.planInfo.currentRequestFieldIndex,
+			Message:  msg,
+		})
+
+		r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
+		r.planInfo.currentRequestMessage = msg
+
+		r.buildRequestMessageFromInputObject(underlyingTypeNode.Ref)
+
+		r.planInfo.currentRequestMessage = r.planInfo.requestMessageAncestors[len(r.planInfo.requestMessageAncestors)-1]
+		r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
+
+	case ast.NodeKindScalarTypeDefinition:
+		dt := r.toDataType(&r.definition.Types[underlyingTypeNode.Ref])
+		argName := r.operation.ArgumentNameString(argRef)
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+			Name:        argName,
+			TypeName:    dt.String(),
+			JSONPath:    argName,
+			Index:       r.planInfo.currentRequestFieldIndex,
+			Repeated:    r.definition.TypeIsList(underlyingTypeNode.Ref),
+			StaticValue: r.operation.ValueContentString(r.operation.ArgumentValue(argRef)),
+		})
+		r.planInfo.currentRequestFieldIndex++
+
+	case ast.NodeKindEnumTypeDefinition:
+		fmt.Println("enum")
+	}
+}
+
+func (r *rpcPlanVisitor) buildRequestMessageFromInputObject(typeRef int) {
+	inputObjectDefinition := r.definition.InputObjectTypeDefinitions[typeRef]
+	for i, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
+		inputValueDefinition := r.definition.InputValueDefinitions[inputFieldRef]
+
+		// TODO handle complex request types
+		inputValueDefinitionType := r.definition.Types[inputValueDefinition.Type]
+		// underlyingTypeName := r.definition.ResolveTypeNameString(inputValueDefinition.Type)
+		// underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
+		// if !found {
+		// 	continue
+		// }
+
+		// if underlyingTypeNode.Kind == ast.NodeKindInputObjectTypeDefinition {
+		// 	msg := &RPCMessage{
+		// 		Name: r.definition.Input.ByteSliceString(inputValueDefinition.Name),
+		// 	}
+
+		// 	r.buildRequestMessageFromInputObject(underlyingTypeNode.Ref)
+		// 	continue
+		// }
+
+		dt := r.toDataType(&inputValueDefinitionType)
+
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+			Name:     r.definition.Input.ByteSliceString(inputValueDefinition.Name),
+			TypeName: dt.String(),
+			JSONPath: r.definition.Input.ByteSliceString(inputValueDefinition.Name),
+			Index:    i,
+			Repeated: r.definition.TypeIsList(inputValueDefinition.Type),
+			Message:  nil,
+		})
+	}
+}
+
+// LeaveArgument implements astvisitor.ArgumentVisitor.
+func (r *rpcPlanVisitor) LeaveArgument(ref int) {
+}
+
+// EnterVariableDefinition implements astvisitor.VariableDefinitionVisitor.
+func (r *rpcPlanVisitor) EnterVariableDefinition(ref int) {
+	if r.planInfo.isEntityLookup {
+		return
+	}
+
+	variableName := r.operation.VariableDefinitionNameString(ref)
+	variableValueNameBytes := r.operation.VariableValueNameBytes(r.operation.VariableDefinitions[ref].VariableValue.Ref)
+
+	variableDefinition, exists := r.operation.VariableDefinitionByNameAndOperation(r.operationDefinitionRef, variableValueNameBytes)
+	if !exists {
+		return
+	}
+
+	vdtRef := r.operation.VariableDefinitionType(variableDefinition)
+	vdtName := r.operation.ResolveTypeNameString(vdtRef)
+
+	fmt.Println(vdtName)
+
+	fmt.Println(variableName, string(variableValueNameBytes), variableDefinition)
+}
+
+// LeaveVariableDefinition implements astvisitor.VariableDefinitionVisitor.
+func (r *rpcPlanVisitor) LeaveVariableDefinition(ref int) {
 }
 
 // NewRPCPlanVisitor creates a new RPCPlanVisitor
 // It registers the visitor with the walker and returns it
 func NewRPCPlanVisitor(walker *astvisitor.Walker, subgraphName string) *rpcPlanVisitor {
 	visitor := &rpcPlanVisitor{
-		walker:       walker,
-		plan:         &RPCExecutionPlan{},
-		subgraphName: strings.Title(subgraphName),
+		walker:                 walker,
+		plan:                   &RPCExecutionPlan{},
+		subgraphName:           strings.Title(subgraphName),
+		operationDefinitionRef: -1,
+		operationFieldRef:      -1,
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -74,6 +215,8 @@ func NewRPCPlanVisitor(walker *astvisitor.Walker, subgraphName string) *rpcPlanV
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterInlineFragmentVisitor(visitor)
+	// walker.RegisterVariableDefinitionVisitor(visitor)
+	walker.RegisterArgumentVisitor(visitor)
 
 	return visitor
 }
@@ -92,16 +235,20 @@ func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.
 // We also use this to check if we are looking up an entity
 // as we require a special handling for this case
 func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
-	if r.operation == nil {
-		return
+	if r.currentCallID < 0 {
+		r.currentCallID = 0
 	}
+
+	r.operationDefinitionRef = ref
 
 	// We retrieve the fields from the root selection set.
 	// These fields determine the names for the RPC functions to call.
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
-	fieldNames := r.operation.SelectionSetFieldNames(selectionSetRef)
+	fieldRefs := r.operation.SelectionSetFieldSelections(selectionSetRef)
+	operationFieldRef := r.operation.Selections[fieldRefs[r.currentCallID]].Ref
 
-	r.planInfo.operationFieldName = fieldNames[r.currentCallID]
+	r.operationFieldRef = operationFieldRef
+	r.planInfo.operationFieldName = r.operation.FieldNameString(r.operationFieldRef)
 
 	// _entities is a special field that is used to look up entities
 	// Entity lookups are handled differently as we use special types for
@@ -120,6 +267,7 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 
 // LeaveOperationDefinition implements astvisitor.OperationDefinitionVisitor.
 func (r *rpcPlanVisitor) LeaveOperationDefinition(ref int) {
+	r.currentCallID++
 }
 
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
@@ -142,6 +290,8 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		r.planInfo.currentRequestMessage = &r.currentCall.Request
 		r.planInfo.currentResponseMessage = &r.currentCall.Response
 
+		// r.buildRequestMessageFromSelectionSet(ref)
+
 		// we are in the root level below the operation definition.
 		// We only scaffold the call here.
 		return
@@ -151,16 +301,58 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
-	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentFieldIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
+	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
+		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
 	}
 
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentFieldIndex].Message
+	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
 
-	r.planInfo.indexAncestors = append(r.planInfo.indexAncestors, r.planInfo.currentFieldIndex)
-	r.planInfo.currentFieldIndex = 0 // reset the field index for the current selection set
+	r.planInfo.indexAncestors = append(r.planInfo.indexAncestors, r.planInfo.currentResponseFieldIndex)
+	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
+
+// func (r *rpcPlanVisitor) buildRequestMessageFromSelectionSet(ref int) {
+// 	fs := r.operation.SelectionSetFieldSelections(ref)
+// 	if len(fs)-1 < r.currentCallID {
+// 		return
+// 	}
+
+// 	operationField := r.operation.Fields[fs[r.currentCallID]]
+// 	if !operationField.HasArguments {
+// 		return
+// 	}
+
+// 	fd, ok := r.walker.FieldDefinition(fs[r.currentCallID])
+// 	if !ok {
+// 		return
+// 	}
+
+// 	for _, arg := range operationField.Arguments.Refs {
+// 		argumentDefs := r.definition.FieldDefinitions[fd].ArgumentsDefinition.Refs
+// 		fmt.Println(argumentDefs)
+
+// 		ivdRef, ok := r.definition.InputValueDefinitionRefByFieldDefinitionRefAndArgumentNameBytes(fd, r.operation.ArgumentNameBytes(arg))
+// 		if !ok {
+// 			continue
+// 		}
+
+// 		ivDef := r.definition.InputValueDefinitions[ivdRef]
+// 		value := r.operation.ArgumentValue(arg)
+
+// 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+// 			Repeated:    r.definition.TypeIsList(ivDef.Type),
+// 			Name:        r.operation.ArgumentNameString(arg),
+// 			TypeName:    string(r.toDataType(&r.definition.Types[ivDef.Type])),
+// 			StaticValue: r.operation.ValueContentString(value),
+// 			Index:       r.planInfo.currentRequestFieldIndex,
+// 			Message:     nil, // TODO add complex types
+// 			// JSONPath:    r.operation.ArgumentNameString(arg), // TODO read from variables
+// 		})
+
+// 		r.planInfo.currentRequestFieldIndex++
+// 	}
+// }
 
 func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
 	message := &RPCMessage{
@@ -174,7 +366,7 @@ func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
 func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 	if len(r.planInfo.indexAncestors) > 0 {
-		r.planInfo.currentFieldIndex = r.planInfo.indexAncestors[len(r.planInfo.indexAncestors)-1]
+		r.planInfo.currentResponseFieldIndex = r.planInfo.indexAncestors[len(r.planInfo.indexAncestors)-1]
 		r.planInfo.indexAncestors = r.planInfo.indexAncestors[:len(r.planInfo.indexAncestors)-1]
 	}
 
@@ -236,7 +428,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		Name:     fieldName, // TODO: this needs to be in snake_case
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
-		Index:    r.planInfo.currentFieldIndex,
+		Index:    r.planInfo.currentResponseFieldIndex,
 		Repeated: r.definition.TypeIsList(fdt),
 		// TODO check for list of lists
 	})
@@ -248,7 +440,7 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 		r.planInfo.entityInfo.entityRootFieldRef = -1
 	}
 
-	r.planInfo.currentFieldIndex++
+	r.planInfo.currentResponseFieldIndex++
 }
 
 func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
@@ -340,7 +532,7 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 			Name:     "inputs",
 			TypeName: DataTypeMessage.String(),
 			Repeated: true, // The inputs are always a list of objects
-			JSONPath: "variables.representations",
+			JSONPath: "representations",
 			Index:    0,
 			Message: &RPCMessage{
 				Name: r.rpcMethodName() + "Input",
@@ -456,7 +648,7 @@ func (r *rpcPlanVisitor) parseGraphQLType(t *ast.Type) DataType {
 		fallthrough
 	case ast.NodeKindUnionTypeDefinition:
 		fallthrough
-	case ast.NodeKindObjectTypeDefinition:
+	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInputObjectTypeDefinition:
 		return DataTypeMessage
 	case ast.NodeKindEnumTypeDefinition:
 		return DataTypeEnum

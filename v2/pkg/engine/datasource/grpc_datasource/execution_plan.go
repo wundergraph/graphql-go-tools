@@ -64,6 +64,8 @@ type RPCField struct {
 	JSONPath string
 	// Index is the index of the field in the message
 	Index int
+	// StaticValue is the static value of the field
+	StaticValue string
 	// Message is the message type if the field is a nested message type
 	// This allows for recursive construction of complex message types
 	Message *RPCMessage
