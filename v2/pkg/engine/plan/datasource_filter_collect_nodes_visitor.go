@@ -18,7 +18,8 @@ type nodesCollector struct {
 	nodes       *NodeSuggestions
 	report      *operationreport.Report
 	keys        []DSKeyInfo
-	maxConcurrency   uint
+
+	maxConcurrency uint
 }
 
 type DSKeyInfo struct {
