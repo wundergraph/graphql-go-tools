@@ -30,6 +30,10 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 	return plan.FieldConfigurations{
 		{
 			TypeName:  f.dataSourceConfigQueryTypeName(),
+			FieldName: "__schema",
+		},
+		{
+			TypeName:  f.dataSourceConfigQueryTypeName(),
 			FieldName: "__type",
 			Arguments: plan.ArgumentsConfigurations{
 				{
@@ -65,25 +69,11 @@ func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.Data
 	root, _ := f.buildRootDataSourceConfiguration()
 	fields, _ := f.buildFieldsConfiguration()
 	enums, _ := f.buildEnumsConfiguration()
-	queryTypeName, _ := f.buildQueryTypeNameConfiguration()
-	mutationTypeName, _ := f.buildMutationTypeNameConfiguration()
 
 	return []plan.DataSource{
 		root,
 		fields,
 		enums,
-		queryTypeName,
-		mutationTypeName,
-	}
-}
-
-func (f *IntrospectionConfigFactory) BuildTypeNameDataSourceConfigurations() []plan.DataSource {
-	queryTypeName, _ := f.buildQueryTypeNameConfiguration()
-	mutationTypeName, _ := f.buildMutationTypeNameConfiguration()
-
-	return []plan.DataSource{
-		queryTypeName,
-		mutationTypeName,
 	}
 }
 
@@ -174,38 +164,6 @@ func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceC
 			},
 		},
 		Configuration{"Introspection: __Type.enumValues"},
-	)
-}
-
-func (f *IntrospectionConfigFactory) buildQueryTypeNameConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
-	return plan.NewDataSourceConfiguration[Configuration](
-		resolve.IntrospectionQueryTypeNameDataSourceID,
-		NewFactory[Configuration](f.introspectionData),
-		&plan.DataSourceMetadata{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Query",
-					FieldNames: []string{"__typename"},
-				},
-			},
-		},
-		Configuration{"Introspection: Query.__typename"},
-	)
-}
-
-func (f *IntrospectionConfigFactory) buildMutationTypeNameConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
-	return plan.NewDataSourceConfiguration[Configuration](
-		resolve.IntrospectionMutationTypeNameDataSourceID,
-		NewFactory[Configuration](f.introspectionData),
-		&plan.DataSourceMetadata{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "Mutation",
-					FieldNames: []string{"__typename"},
-				},
-			},
-		},
-		Configuration{"Introspection: Mutation.__typename"},
 	)
 }
 

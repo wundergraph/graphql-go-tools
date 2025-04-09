@@ -19,10 +19,6 @@ const (
 		type Query {
 			friend: String
 		}
-
-		type Mutation {
-			addFriend: Boolean
-		}
 	`
 
 	schemaWithCustomRootOperationTypes = `
@@ -116,15 +112,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 			introspectionDataSources := cfgFactory.BuildDataSourceConfigurations()
 
 			planConfiguration := plan.Configuration{
-				DataSources:                  introspectionDataSources,
-				Fields:                       cfgFactory.BuildFieldConfigurations(),
-				DisableResolveFieldPositions: true,
-			}
-
-			planConfiguration.Debug = plan.DebugConfiguration{
-				PrintOperationTransformations: true,
-				PrintOperationEnableASTRefs:   true,
-				PrintNodeSuggestions:          true,
+				DataSources: introspectionDataSources,
+				Fields:      cfgFactory.BuildFieldConfigurations(),
 			}
 
 			datasourcetesting.RunTest(schema, introspectionQuery, "", expectedPlan, planConfiguration)(t)
@@ -158,6 +147,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__type"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Path:     []string{"__type"},
 								Nullable: true,
@@ -171,6 +164,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 										Value: &resolve.String{
 											Path:     []string{"name"},
 											Nullable: true,
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 									{
@@ -190,78 +187,12 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 											},
 											InaccessibleValues: []string{},
 										},
+										Position: resolve.Position{
+											Line:   5,
+											Column: 5,
+										},
 									},
 								},
-							},
-						},
-					},
-				},
-			},
-		},
-	))
-
-	t.Run("query typename", runTest(schema,
-		`
-		query typeIntrospection {
-			__typename
-		}`,
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
-							DataSourceIdentifier: dataSourceIdentifier,
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"request_type":5,"__typename":"Query"}`,
-								DataSource: &Source{},
-								PostProcessing: resolve.PostProcessingConfiguration{
-									MergePath: []string{"__typename"},
-								},
-							},
-						},
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("__typename"),
-							Value: &resolve.String{
-								Path:       []string{"__typename"},
-								Nullable:   false,
-								IsTypeName: true,
-							},
-						},
-					},
-				},
-			},
-		},
-	))
-
-	t.Run("mutation typename", runTest(schema,
-		`
-		mutation typeIntrospection {
-			__typename
-		}`,
-		&plan.SynchronousResponsePlan{
-			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
-							DataSourceIdentifier: dataSourceIdentifier,
-							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"request_type":5,"__typename":"Mutation"}`,
-								DataSource: &Source{},
-								PostProcessing: resolve.PostProcessingConfiguration{
-									MergePath: []string{"__typename"},
-								},
-							},
-						},
-					},
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("__typename"),
-							Value: &resolve.String{
-								Path:       []string{"__typename"},
-								Nullable:   false,
-								IsTypeName: true,
 							},
 						},
 					},
@@ -289,6 +220,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__schema"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Path: []string{"__schema"},
 								PossibleTypes: map[string]struct{}{
@@ -311,8 +246,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Path:     []string{"name"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   5,
+														Column: 6,
+													},
 												},
 											},
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 								},
@@ -343,6 +286,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__schema"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Path: []string{"__schema"},
 								PossibleTypes: map[string]struct{}{
@@ -365,8 +312,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Path:     []string{"name"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   5,
+														Column: 6,
+													},
 												},
 											},
+										},
+										Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 									{
@@ -385,8 +340,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Path:     []string{"name"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   8,
+														Column: 6,
+													},
 												},
 											},
+										},
+										Position: resolve.Position{
+											Line:   7,
+											Column: 5,
 										},
 									},
 									{
@@ -405,8 +368,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Path:     []string{"name"},
 														Nullable: true,
 													},
+													Position: resolve.Position{
+														Line:   11,
+														Column: 6,
+													},
 												},
 											},
+										},
+										Position: resolve.Position{
+											Line:   10,
+											Column: 5,
 										},
 									},
 								},
@@ -443,6 +414,10 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__type"),
+							Position: resolve.Position{
+								Line:   3,
+								Column: 4,
+							},
 							Value: &resolve.Object{
 								Path:     []string{"__type"},
 								Nullable: true,
@@ -515,9 +490,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
+														Position: resolve.Position{
+															Line:   5,
+															Column: 6,
+														},
 													},
 												},
 											},
+										}, Position: resolve.Position{
+											Line:   4,
+											Column: 5,
 										},
 									},
 									{
@@ -536,9 +518,16 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														Value: &resolve.String{
 															Path: []string{"name"},
 														},
+														Position: resolve.Position{
+															Line:   8,
+															Column: 6,
+														},
 													},
 												},
 											},
+										}, Position: resolve.Position{
+											Line:   7,
+											Column: 5,
 										},
 									},
 								},

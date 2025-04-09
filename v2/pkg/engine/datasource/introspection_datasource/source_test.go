@@ -57,12 +57,6 @@ func TestSource_Load(t *testing.T) {
 
 		t.Run("of not existing type", run(testSchema, `{"request_type":4,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
 	})
-
-	t.Run("root query type name", func(t *testing.T) {
-		t.Run("query", run(testSchema, `{"request_type":5,"__typename":"Query"}`, `query_type_name`))
-
-		t.Run("mutation", run(testSchema, `{"request_type":5,"__typename":"Mutation"}`, `mutation_type_name`))
-	})
 }
 
 const testSchema = `

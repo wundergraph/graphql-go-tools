@@ -9,12 +9,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
 )
 
-const (
-	implicitQueryTypeName        = "Query"
-	implicitMutationTypeName     = "Mutation"
-	implicitSubscriptionTypeName = "Subscription"
-)
-
 type Configuration struct {
 	SourceType string
 }
@@ -26,7 +20,6 @@ type Planner[T Configuration] struct {
 	rootField                    int
 	rootFieldName                string
 	rootFielPath                 string
-	rootFieldEnclosingTypeName   string
 	hasIncludeDeprecatedArgument bool
 	isArrayItem                  bool
 }
@@ -62,37 +55,20 @@ func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavio
 
 func (p *Planner[T]) EnterField(ref int) {
 	fieldName := p.v.Operation.FieldNameString(ref)
-
+	fieldAliasOrName := p.v.Operation.FieldAliasOrNameString(ref)
 	switch fieldName {
 	case fieldsFieldName, enumValuesFieldName:
 		p.hasIncludeDeprecatedArgument = p.v.Operation.FieldHasArguments(ref)
-		p.setRootField(ref, fieldName)
-	case rootQueryTypeName:
-		switch enclosingTypeName := p.v.Walker.EnclosingTypeDefinition.NameString(p.v.Definition); enclosingTypeName {
-		case implicitQueryTypeName,
-			implicitMutationTypeName,
-			implicitSubscriptionTypeName,
-			p.v.Definition.Index.QueryTypeName.String(),
-			p.v.Definition.Index.MutationTypeName.String(),
-			p.v.Definition.Index.SubscriptionTypeName.String():
-
-			p.rootFieldEnclosingTypeName = enclosingTypeName
-			p.setRootField(ref, fieldName)
-		}
-
+		fallthrough
 	case typeFieldName, schemaFieldName:
-		p.setRootField(ref, fieldName)
+		p.rootField = ref
+		p.rootFieldName = fieldName
+		p.rootFielPath = fieldAliasOrName
 	}
 }
 
-func (p *Planner[T]) setRootField(ref int, fieldName string) {
-	p.rootField = ref
-	p.rootFieldName = fieldName
-	p.rootFielPath = p.v.Operation.FieldAliasOrNameString(ref)
-}
-
 func (p *Planner[T]) configureInput() string {
-	return buildInput(p.rootFieldName, p.hasIncludeDeprecatedArgument, p.rootFieldEnclosingTypeName)
+	return buildInput(p.rootFieldName, p.hasIncludeDeprecatedArgument)
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {

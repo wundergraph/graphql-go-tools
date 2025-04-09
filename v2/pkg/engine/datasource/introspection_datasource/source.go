@@ -32,11 +32,9 @@ func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err
 		return s.enumValuesForType(out, req.OnTypeName, req.IncludeDeprecated)
 	case TypeFieldsRequestType:
 		return s.fieldsForType(out, req.OnTypeName, req.IncludeDeprecated)
-	case RootQueryTypeNameRequestType:
-		return json.NewEncoder(out).Encode(*req.RootQueryTypeName)
-	default:
-		return json.NewEncoder(out).Encode(s.schemaWithoutTypeInfo())
 	}
+
+	return json.NewEncoder(out).Encode(s.schemaWithoutTypeInfo())
 }
 
 func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
