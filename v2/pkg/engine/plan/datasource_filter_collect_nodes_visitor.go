@@ -419,8 +419,8 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	// hasRootNode is true when:
 	// - ds config has a root node for the field
 	// - we have a root node with typename and the field is a __typename field
-	// - the field is a root query type (query, mutation) and the field is a __typename field
-	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && (f.dataSource.HasRootNodeWithTypename(info.typeName) || IsMutationOrQueryRootType(info.typeName)))
+	// we no longer add a typename field for the root query nodes, as it is now handled by the planning visitor
+	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && f.dataSource.HasRootNodeWithTypename(info.typeName) && !IsMutationOrQueryRootType(info.typeName))
 
 	// hasChildNode is true when:
 	// - ds config has a child node for the field
