@@ -3729,8 +3729,7 @@ func TestGraphQLDataSource(t *testing.T) {
 		))
 	})
 
-	t.Run("mutation with union response", func(t *testing.T) {
-		t.Run("run", RunTestWithVariables(wgSchema, `
+	t.Run("mutation with union response", RunTestWithVariables(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
 			__typename
 			namespaceCreate(input: {name: $name, personal: $personal}){
@@ -3747,26 +3746,26 @@ func TestGraphQLDataSource(t *testing.T) {
 				}
 			}
 		}`, "CreateNamespace", `{"name":"namespace","personal":true}`,
-			&plan.SynchronousResponsePlan{
-				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){namespaceCreate(input: $a){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"a":$$0$$}}}`,
-									DataSource: &Source{},
-									Variables: resolve.NewVariables(
-										&resolve.ContextVariable{
-											Path:     []string{"a"},
-											Renderer: resolve.NewJSONVariableRenderer(),
-										},
-									),
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+		&plan.SynchronousResponsePlan{
+			Response: &resolve.GraphQLResponse{
+				Data: &resolve.Object{
+					Fetches: []resolve.Fetch{
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){namespaceCreate(input: $a){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"a":$$0$$}}}`,
+								DataSource: &Source{},
+								Variables: resolve.NewVariables(
+									&resolve.ContextVariable{
+										Path:     []string{"a"},
+										Renderer: resolve.NewJSONVariableRenderer(),
+									},
+								),
+								PostProcessing: DefaultPostProcessingConfiguration,
 							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
-						Fields: []*resolve.Field{
+					},
+					Fields: []*resolve.Field{
 							{
 								Name: []byte("__typename"),
 								Value: &resolve.StaticString{
@@ -3774,80 +3773,79 @@ func TestGraphQLDataSource(t *testing.T) {
 									Value: "Mutation",
 								},
 							},
-							{
-								Name: []byte("namespaceCreate"),
-								Value: &resolve.Object{
-									Path: []string{"namespaceCreate"},
-									PossibleTypes: map[string]struct{}{
-										"Error":            {},
-										"NamespaceCreated": {},
+						{
+							Name: []byte("namespaceCreate"),
+							Value: &resolve.Object{
+								Path: []string{"namespaceCreate"},
+								PossibleTypes: map[string]struct{}{
+									"Error":            {},
+									"NamespaceCreated": {},
+								},
+								TypeName: "CreateNamespaceResponse",
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
 									},
-									TypeName: "CreateNamespaceResponse",
-									Fields: []*resolve.Field{
-										{
-											Name: []byte("__typename"),
-											Value: &resolve.String{
-												Path:       []string{"__typename"},
-												Nullable:   false,
-												IsTypeName: true,
+									{
+										OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
+										Name:        []byte("namespace"),
+										Value: &resolve.Object{
+											Path: []string{"namespace"},
+											PossibleTypes: map[string]struct{}{
+												"Namespace": {},
 											},
-										},
-										{
-											OnTypeNames: [][]byte{[]byte("NamespaceCreated")},
-											Name:        []byte("namespace"),
-											Value: &resolve.Object{
-												Path: []string{"namespace"},
-												PossibleTypes: map[string]struct{}{
-													"Namespace": {},
-												},
-												TypeName: "Namespace",
-												Fields: []*resolve.Field{
-													{
-														Name: []byte("id"),
-														Value: &resolve.Scalar{
-															Path:     []string{"id"},
-															Nullable: false,
-														},
+											TypeName: "Namespace",
+											Fields: []*resolve.Field{
+												{
+													Name: []byte("id"),
+													Value: &resolve.Scalar{
+														Path:     []string{"id"},
+														Nullable: false,
 													},
-													{
-														Name: []byte("name"),
-														Value: &resolve.String{
-															Path:     []string{"name"},
-															Nullable: false,
-														},
+												},
+												{
+													Name: []byte("name"),
+													Value: &resolve.String{
+														Path:     []string{"name"},
+														Nullable: false,
 													},
 												},
 											},
 										},
-										{
-											OnTypeNames: [][]byte{[]byte("Error")},
-											Name:        []byte("code"),
-											Value: &resolve.Enum{
-												TypeName: "ErrorCode",
-												Path:     []string{"code"},
-												Values: []string{
-													"Internal",
-													"AuthenticationRequired",
-													"Unauthorized",
-													"NotFound",
-													"Conflict",
-													"UserAlreadyHasPersonalNamespace",
-													"TeamPlanInPersonalNamespace",
-													"InvalidName",
-													"UnableToDeployEnvironment",
-													"InvalidWunderGraphConfig",
-													"ApiEnvironmentNamespaceMismatch",
-													"UnableToUpdateEdgesOnPersonalEnvironment",
-												},
-												InaccessibleValues: []string{},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Error")},
+										Name:        []byte("code"),
+										Value: &resolve.Enum{
+											TypeName: "ErrorCode",
+											Path:     []string{"code"},
+											Values: []string{
+												"Internal",
+												"AuthenticationRequired",
+												"Unauthorized",
+												"NotFound",
+												"Conflict",
+												"UserAlreadyHasPersonalNamespace",
+												"TeamPlanInPersonalNamespace",
+												"InvalidName",
+												"UnableToDeployEnvironment",
+												"InvalidWunderGraphConfig",
+												"ApiEnvironmentNamespaceMismatch",
+												"UnableToUpdateEdgesOnPersonalEnvironment",
 											},
+											InaccessibleValues: []string{},
 										},
-										{
-											OnTypeNames: [][]byte{[]byte("Error")},
-											Name:        []byte("message"),
-											Value: &resolve.String{
-												Path: []string{"message"},
-											},
+									},
+									{
+										OnTypeNames: [][]byte{[]byte("Error")},
+										Name:        []byte("message"),
+										Value: &resolve.String{
+											Path: []string{"message"},
 										},
 									},
 								},
@@ -3855,68 +3853,68 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 				},
-			}, plan.Configuration{
-				DataSources: []plan.DataSource{
-					mustDataSourceConfiguration(
-						t,
-						"ds-id",
-						&plan.DataSourceMetadata{
-							RootNodes: []plan.TypeField{
-								{
-									TypeName: "Mutation",
-									FieldNames: []string{
-										"namespaceCreate",
-									},
-								},
-							},
-							ChildNodes: []plan.TypeField{
-								{
-									TypeName: "NamespaceCreated",
-									FieldNames: []string{
-										"namespace",
-									},
-								},
-								{
-									TypeName:   "Namespace",
-									FieldNames: []string{"id", "name"},
-								},
-								{
-									TypeName:   "Error",
-									FieldNames: []string{"code", "message"},
-								},
-							},
-						},
-						mustCustomConfiguration(t, ConfigurationInput{
-							Fetch: &FetchConfiguration{
-								URL:    "http://api.com",
-								Method: "POST",
-							},
-							Subscription: &SubscriptionConfiguration{
-								URL: "ws://api.com",
-							},
-							SchemaConfiguration: mustSchema(t, nil, wgSchema),
-						}),
-					),
-				},
-				Fields: []plan.FieldConfiguration{
-					{
-						TypeName:  "Mutation",
-						FieldName: "namespaceCreate",
-						Arguments: []plan.ArgumentConfiguration{
-							{
-								Name:       "input",
-								SourceType: plan.FieldArgumentSource,
-							},
-						},
-						DisableDefaultMapping: false,
-						Path:                  []string{},
-					},
-				},
-				DisableResolveFieldPositions: true,
-				DefaultFlushIntervalMillis:   500,
 			},
-		))
-	})
+		}, plan.Configuration{
+			DataSources: []plan.DataSource{
+				mustDataSourceConfiguration(
+					t,
+					"ds-id",
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName: "Mutation",
+								FieldNames: []string{
+									"namespaceCreate",
+								},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName: "NamespaceCreated",
+								FieldNames: []string{
+									"namespace",
+								},
+							},
+							{
+								TypeName:   "Namespace",
+								FieldNames: []string{"id", "name"},
+							},
+							{
+								TypeName:   "Error",
+								FieldNames: []string{"code", "message"},
+							},
+						},
+					},
+					mustCustomConfiguration(t, ConfigurationInput{
+						Fetch: &FetchConfiguration{
+							URL:    "http://api.com",
+							Method: "POST",
+						},
+						Subscription: &SubscriptionConfiguration{
+							URL: "ws://api.com",
+						},
+						SchemaConfiguration: mustSchema(t, nil, wgSchema),
+					}),
+				),
+			},
+			Fields: []plan.FieldConfiguration{
+				{
+					TypeName:  "Mutation",
+					FieldName: "namespaceCreate",
+					Arguments: []plan.ArgumentConfiguration{
+						{
+							Name:       "input",
+							SourceType: plan.FieldArgumentSource,
+						},
+					},
+					DisableDefaultMapping: false,
+					Path:                  []string{},
+				},
+			},
+			DisableResolveFieldPositions: true,
+			DefaultFlushIntervalMillis:   500,
+		},
+	))
 
 	t.Run("mutation with single __typename field on union", RunTestWithVariables(wgSchema, `
 		mutation CreateNamespace($name: String! $personal: Boolean!) {
