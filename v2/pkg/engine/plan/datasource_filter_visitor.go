@@ -504,11 +504,15 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return false
 				}
 
-				if !(f.couldProvideChildFields(i) || f.nodeCouldProvideKeysToChildNodes(i)) {
-					return true
+				if f.couldProvideChildFields(i) {
+					return false
 				}
 
-				return false
+				if f.nodeCouldProvideKeysToChildNodes(i) {
+					return false
+				}
+
+				return true
 			}) {
 			continue
 		}

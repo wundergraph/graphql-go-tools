@@ -77,6 +77,16 @@ func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.Data
 	}
 }
 
+func (f *IntrospectionConfigFactory) BuildTypeNameDataSourceConfigurations() []plan.DataSource {
+	queryTypeName, _ := f.buildQueryTypeNameConfiguration()
+	mutationTypeName, _ := f.buildMutationTypeNameConfiguration()
+
+	return []plan.DataSource{
+		queryTypeName,
+		mutationTypeName,
+	}
+}
+
 func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
 		resolve.IntrospectionSchemaTypeDataSourceID,

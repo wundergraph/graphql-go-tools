@@ -187,16 +187,17 @@ func TestWithAdditionalHttpHeaders(t *testing.T) {
 }
 
 type ExecutionEngineTestCase struct {
-	schema           *graphql.Schema
-	operation        func(t *testing.T) graphql.Request
-	dataSources      []plan.DataSource
-	fields           plan.FieldConfigurations
-	engineOptions    []ExecutionOptions
-	expectedResponse string
-	expectedFixture  string
-	customResolveMap map[string]resolve.CustomResolve
-	skipReason       string
-	indentJSON       bool
+	schema               *graphql.Schema
+	operation            func(t *testing.T) graphql.Request
+	dataSources          []plan.DataSource
+	fields               plan.FieldConfigurations
+	engineOptions        []ExecutionOptions
+	expectedResponse     string
+	expectedJSONResponse string
+	expectedFixture      string
+	customResolveMap     map[string]resolve.CustomResolve
+	skipReason           string
+	indentJSON           bool
 }
 
 type _executionTestOptions struct {
@@ -269,10 +270,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				return
 			}
 
-			if testCase.expectedResponse == "" {
+			if testCase.expectedJSONResponse != "" {
+				assert.JSONEq(t, testCase.expectedJSONResponse, actualResponse)
+			}
+
+			if testCase.expectedResponse != "" {
 				assert.Equal(t, testCase.expectedResponse, actualResponse)
-			} else {
-				assert.JSONEq(t, testCase.expectedResponse, actualResponse)
 			}
 
 			if withError {
@@ -337,7 +340,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}),
 				),
 			},
-			expectedResponse: `{
+			expectedJSONResponse: `{
 				"data": { "hero": null },
 				"errors": [
 					{
@@ -406,7 +409,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}),
 				),
 			},
-			expectedResponse: `{
+			expectedJSONResponse: `{
 				"errors": [
 					{
 						"message": "Failed to fetch from Subgraph 'id'."
@@ -465,7 +468,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}),
 				),
 			},
-			expectedResponse: `{
+			expectedJSONResponse: `{
 				"errors": [
 					{
 						"message": "Failed to fetch from Subgraph 'id'."
@@ -606,6 +609,43 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		t.Run("execute query typename + hero", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactory(t,
+							testNetHttpClient(t, roundTripperTestCase{
+								expectedHost:     "example.com",
+								expectedPath:     "/",
+								expectedBody:     "",
+								sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+								sendStatusCode:   200,
+							}),
+						),
+						&plan.DataSourceMetadata{
+							RootNodes: []plan.TypeField{
+								{
+									TypeName:   "Query",
+									FieldNames: []string{"hero"},
+								},
+								{
+									TypeName:   "Character",
+									FieldNames: []string{"name"},
+								},
+							},
+						},
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							Fetch: &graphql_datasource.FetchConfiguration{
+								URL:    "https://example.com/",
+								Method: "GET",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(schema.RawSchema()),
+							),
+						}),
+					),
+				},
 				operation: func(t *testing.T) graphql.Request {
 					return graphql.Request{
 						OperationName: "my",
@@ -617,7 +657,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						}`,
 					}
 				},
-				expectedResponse: `{"data":{"__typename":"Query"}}`,
+				expectedResponse: `{"data":{"__typename":"Query","hero":{"name":"Luke Skywalker"}}}`,
 			},
 		))
 
