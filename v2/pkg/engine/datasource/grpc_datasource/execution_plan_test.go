@@ -63,21 +63,19 @@ input FilterTypeInput {
 	filterField2: String!
 }
 
-type TypeWithComplexFilterField {
+type TypeWithComplexFilterInput {
 	id: ID!
 	name: String!
-	filterField1: String!
-	filterField2: String!
 }
 
-type FilterType {
+input FilterType {
 	name: String!
 	filterField1: String!
 	filterField2: String!
 	pagination: Pagination!
 }
 
-type Pagination {
+input Pagination {
 	page: Int!
 	perPage: Int!
 }
@@ -95,7 +93,7 @@ type Query {
 	recursiveType: RecursiveType!
 	typeFilterWithArguments(filterField1: String!, filterField2: String!): [TypeWithMultipleFilterFields!]!
 	typeWithMultipleFilterFields(filter: FilterTypeInput!): [TypeWithMultipleFilterFields!]!
-	complexFilterType(filter: ComplexFilterTypeInput!): [TypeWithComplexFilterField!]!
+	complexFilterType(filter: ComplexFilterTypeInput!): [TypeWithComplexFilterInput!]!
 }
 
 union _Entity = Product
@@ -247,10 +245,6 @@ query EntityLookup($representations: [_Any!]!) {
 		if diff != "" {
 			t.Fatalf("execution plan mismatch: %s", diff)
 		}
-
-		// fmt.Println(rpcPlanVisitor.plan.String())
-		// fmt.Println(expectedPlan.String())
-
 	})
 }
 
@@ -260,6 +254,293 @@ func TestQueryExecutionPlans(t *testing.T) {
 		query        string
 		expectedPlan *RPCExecutionPlan
 	}{
+		{
+			name:  "Should call query with two arguments and no variables",
+			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "Products",
+								MethodName:  "QueryTypeFilterWithArguments",
+								Request: RPCMessage{
+									Name: "QueryTypeFilterWithArgumentsRequest",
+									Fields: []RPCField{
+										{
+											Name:     "filterField1",
+											TypeName: string(DataTypeString),
+											JSONPath: "filterField1",
+											Index:    0,
+										},
+										{
+											Name:     "filterField2",
+											TypeName: string(DataTypeString),
+											JSONPath: "filterField2",
+											Index:    1,
+										},
+									},
+								},
+								Response: RPCMessage{
+									Name: "QueryTypeFilterWithArgumentsResponse",
+									Fields: []RPCField{
+										{
+											Name:     "typeFilterWithArguments",
+											TypeName: string(DataTypeMessage),
+											Repeated: true,
+											JSONPath: "typeFilterWithArguments",
+											Message: &RPCMessage{
+												Name: "TypeWithMultipleFilterFields",
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    0,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    1,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with a complex input type and no variables",
+			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "Products",
+								MethodName:  "QueryComplexFilterType",
+								Request: RPCMessage{
+									Name: "QueryComplexFilterTypeRequest",
+									Fields: []RPCField{
+										{
+											Name:     "filter",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "filter",
+											Index:    0,
+											Message: &RPCMessage{
+												Name: "ComplexFilterTypeInput",
+												Fields: []RPCField{
+													{
+														Name:     "filter",
+														TypeName: string(DataTypeMessage),
+														JSONPath: "filter",
+														Index:    0,
+														Message: &RPCMessage{
+															Name: "FilterType",
+															Fields: []RPCField{
+																{
+																	Name:     "name",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "name",
+																	Index:    0,
+																},
+																{
+																	Name:     "filterField1",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "filterField1",
+																	Index:    1,
+																},
+																{
+																	Name:     "filterField2",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "filterField2",
+																	Index:    2,
+																},
+																{
+																	Name:     "pagination",
+																	TypeName: string(DataTypeMessage),
+																	JSONPath: "pagination",
+																	Index:    3,
+																	Message: &RPCMessage{
+																		Name: "Pagination",
+																		Fields: []RPCField{
+																			{
+																				Name:     "page",
+																				TypeName: string(DataTypeInt32),
+																				JSONPath: "page",
+																				Index:    0,
+																			},
+																			{
+																				Name:     "perPage",
+																				TypeName: string(DataTypeInt32),
+																				JSONPath: "perPage",
+																				Index:    1,
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								Response: RPCMessage{
+									Name: "QueryComplexFilterTypeResponse",
+									Fields: []RPCField{
+										{
+											Repeated: true,
+											Name:     "complexFilterType",
+											Index:    0,
+											TypeName: string(DataTypeMessage),
+											JSONPath: "complexFilterType",
+											Message: &RPCMessage{
+												Name: "TypeWithComplexFilterInput",
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    0,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    1,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with a complex input type and variables",
+			query: `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "Products",
+								MethodName:  "QueryComplexFilterType",
+								Request: RPCMessage{
+									Name: "QueryComplexFilterTypeRequest",
+									Fields: []RPCField{
+										{
+											Name:     "filter",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "filter",
+											Index:    0,
+											Message: &RPCMessage{
+												Name: "ComplexFilterTypeInput",
+												Fields: []RPCField{
+													{
+														Name:     "filter",
+														TypeName: string(DataTypeMessage),
+														JSONPath: "filter",
+														Index:    0,
+														Message: &RPCMessage{
+															Name: "FilterType",
+															Fields: []RPCField{
+																{
+																	Name:     "name",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "name",
+																	Index:    0,
+																},
+																{
+																	Name:     "filterField1",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "filterField1",
+																	Index:    1,
+																},
+																{
+																	Name:     "filterField2",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "filterField2",
+																	Index:    2,
+																},
+																{
+																	Name:     "pagination",
+																	TypeName: string(DataTypeMessage),
+																	JSONPath: "pagination",
+																	Index:    3,
+																	Message: &RPCMessage{
+																		Name: "Pagination",
+																		Fields: []RPCField{
+																			{
+																				Name:     "page",
+																				TypeName: string(DataTypeInt32),
+																				JSONPath: "page",
+																				Index:    0,
+																			},
+																			{
+																				Name:     "perPage",
+																				TypeName: string(DataTypeInt32),
+																				JSONPath: "perPage",
+																				Index:    1,
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								Response: RPCMessage{
+									Name: "QueryComplexFilterTypeResponse",
+									Fields: []RPCField{
+										{
+											Repeated: true,
+											Name:     "complexFilterType",
+											Index:    0,
+											TypeName: string(DataTypeMessage),
+											JSONPath: "complexFilterType",
+											Message: &RPCMessage{
+												Name: "TypeWithComplexFilterInput",
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    0,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    1,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		{
 			name:  "Should create an execution plan for a query with a type filter with arguments and variables",
 			query: "query TypeWithMultipleFilterFieldsQuery($filter: FilterTypeInput!) { typeWithMultipleFilterFields(filter: $filter) { id name } }",
@@ -397,11 +678,10 @@ func TestQueryExecutionPlans(t *testing.T) {
 									Name: "QueryUserRequest",
 									Fields: []RPCField{
 										{
-											Name:        "id",
-											TypeName:    string(DataTypeString),
-											JSONPath:    "id",
-											StaticValue: "1",
-											Index:       0,
+											Name:     "id",
+											TypeName: string(DataTypeString),
+											JSONPath: "id",
+											Index:    0,
 										},
 									},
 								},
@@ -653,6 +933,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			report := &operationreport.Report{}
 
 			// Parse the GraphQL schema
