@@ -3,6 +3,8 @@ package plan
 import (
 	"encoding/json"
 	"slices"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 type FederationMetaData struct {
@@ -74,6 +76,8 @@ type FederationFieldConfiguration struct {
 	SelectionSet          string         `json:"selection_set"`        // SelectionSet is the selection set that is required for the given field (keys, requires, provides)
 	DisableEntityResolver bool           `json:"-"`                    // applicable only for the keys. If true it means that the given entity could not be resolved by this key.
 	Conditions            []KeyCondition `json:"conditions,omitempty"` // conditions stores coordinates under which we could use implicit key, while on other paths this key is not available
+
+	parsedSelectionSet *ast.Document
 }
 
 type KeyCondition struct {
@@ -86,7 +90,21 @@ type KeyConditionCoordinate struct {
 	FieldName string `json:"field_name"`
 }
 
-func (f FederationFieldConfiguration) String() string {
+func (f *FederationFieldConfiguration) parseSelectionSet() error {
+	if f.parsedSelectionSet != nil {
+		return nil
+	}
+
+	doc, report := RequiredFieldsFragment(f.TypeName, f.SelectionSet, false)
+	if report.HasErrors() {
+		return report
+	}
+
+	f.parsedSelectionSet = doc
+	return nil
+}
+
+func (f *FederationFieldConfiguration) String() string {
 	b, _ := json.Marshal(f)
 	return string(b)
 }
