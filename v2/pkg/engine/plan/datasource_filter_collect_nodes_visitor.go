@@ -20,6 +20,7 @@ type nodesCollector struct {
 	keys        []DSKeyInfo
 
 	maxConcurrency uint
+	seenKeys       map[SeenKeyPath]struct{}
 }
 
 type DSKeyInfo struct {
@@ -27,6 +28,17 @@ type DSKeyInfo struct {
 	TypeName string
 	Path     string
 	Keys     []KeyInfo
+}
+
+type KeyIndex struct {
+	Path     string
+	TypeName string
+}
+
+type SeenKeyPath struct {
+	Path     string
+	TypeName string
+	DSHash   DSHash
 }
 
 func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys []DSKeyInfo) {
@@ -61,12 +73,14 @@ func (c *nodesCollector) collectNodes() {
 	for i, dataSource := range c.dataSources {
 		walker := astvisitor.WalkerFromPool()
 		visitor := &collectNodesVisitor{
-			operation:  c.operation,
-			definition: c.definition,
-			walker:     walker,
-			nodes:      c.nodes,
-			info:       info,
-			keys:       make([]DSKeyInfo, 0, 2),
+			operation:      c.operation,
+			definition:     c.definition,
+			walker:         walker,
+			nodes:          c.nodes,
+			info:           info,
+			keys:           make([]DSKeyInfo, 0, 2),
+			localSeenKeys:  make(map[SeenKeyPath]struct{}),
+			globalSeenKeys: c.seenKeys,
 		}
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
@@ -113,12 +127,16 @@ func (c *nodesCollector) collectNodes() {
 
 	c.keys = make([]DSKeyInfo, 0, len(c.dataSources))
 
-	// NOTE: collect nodes should never modify the tree and nodes during the walk
+	// NOTE: collect nodes should never modify the tree, nodes or seen keys during the walk
 	// it will be a data race
 	for _, visitor := range visitors {
 		visitor.applySuggestions()
 
 		c.keys = append(c.keys, visitor.keys...)
+
+		for key := range visitor.localSeenKeys {
+			c.seenKeys[key] = struct{}{}
+		}
 	}
 }
 
@@ -192,6 +210,9 @@ type collectNodesVisitor struct {
 	info     map[int]fieldInfo
 
 	keys []DSKeyInfo
+
+	globalSeenKeys map[SeenKeyPath]struct{}
+	localSeenKeys  map[SeenKeyPath]struct{}
 }
 
 func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds []int, ref int) (itemID int, ok bool) {

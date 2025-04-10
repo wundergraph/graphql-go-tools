@@ -181,7 +181,7 @@ func TestKeyInfo(t *testing.T) {
 				providesEntries: c.providesEntries,
 			}
 
-			keyPaths, hasExternalFields := keyInfo(input)
+			keyPaths, hasExternalFields := getKeyPaths(input)
 			assert.False(t, report.HasErrors())
 			assert.Equal(t, c.expectPaths, keyPaths)
 			assert.Equal(t, c.expectExternalFields, hasExternalFields)
