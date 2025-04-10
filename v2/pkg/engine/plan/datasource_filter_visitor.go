@@ -26,8 +26,9 @@ type DataSourceFilter struct {
 	fieldDependsOn map[int][]int
 	dataSources    []DataSource
 
-	jumpsForPathForTypename map[string]map[string]*DataSourceJumpsGraph
+	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
+	seenKeys                map[SeenKeyPath]struct{}
 
 	maxDataSourceCollectorsConcurrency uint
 }
@@ -74,11 +75,6 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 }
 
 func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
-	// // TODO: remove me I'm just debugging
-	// for _, ds := range f.dataSources {
-	// 	fmt.Println("ds: ", ds.Hash(), "name: ", ds.Name())
-	// }
-
 	f.collectNodes(f.dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
@@ -88,12 +84,8 @@ func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions,
 	f.applyLandedTo(landedTo) // FAILING TEST IF REMOVE: single key - double key - double key - single key
 
 	f.selectUniqueNodes()
-	// f.nodes.printNodes("select unique nodes")
-
 	f.selectDuplicateNodes(false)
-	// f.nodes.printNodes("duplicate nodes")
 	f.selectDuplicateNodes(true)
-	// f.nodes.printNodes("duplicate nodes after second run")
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
 
@@ -139,6 +131,10 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		existingNodes = NewNodeSuggestions()
 	}
 
+	if f.seenKeys == nil {
+		f.seenKeys = make(map[SeenKeyPath]struct{})
+	}
+
 	nodesCollector := &nodesCollector{
 		operation:      f.operation,
 		definition:     f.definition,
@@ -146,47 +142,36 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		nodes:          existingNodes,
 		report:         f.report,
 		maxConcurrency: f.maxDataSourceCollectorsConcurrency,
+		seenKeys:       f.seenKeys,
 	}
 
 	var keysInfo []DSKeyInfo
 	f.nodes, keysInfo = nodesCollector.CollectNodes()
 
-	f.dsHashesHavingKeys = make(map[DSHash]struct{})
+	if f.dsHashesHavingKeys == nil {
+		f.dsHashesHavingKeys = make(map[DSHash]struct{})
+	}
 
-	keysForPathForTypename := make(map[string]map[string]map[DSHash][]KeyInfo)
-
+	keysForPathForTypename := make(map[KeyIndex]map[DSHash][]KeyInfo)
 	for _, keyInfo := range keysInfo {
-		path := keyInfo.Path
-
-		keysPerTypeName, ok := keysForPathForTypename[path]
-		if !ok {
-			keysPerTypeName = make(map[string]map[DSHash][]KeyInfo)
-		}
-
-		keysPerDS, ok := keysPerTypeName[keyInfo.TypeName]
+		keyIndex := KeyIndex{keyInfo.Path, keyInfo.TypeName}
+		keysPerDS, ok := keysForPathForTypename[keyIndex]
 		if !ok {
 			keysPerDS = make(map[DSHash][]KeyInfo)
 		}
 
-		_, ok = keysPerDS[keyInfo.DSHash]
-		if ok {
-			continue
-		}
-
 		keysPerDS[keyInfo.DSHash] = keyInfo.Keys
-		keysPerTypeName[keyInfo.TypeName] = keysPerDS
-		keysForPathForTypename[path] = keysPerTypeName
+		keysForPathForTypename[keyIndex] = keysPerDS
 
 		f.dsHashesHavingKeys[keyInfo.DSHash] = struct{}{}
 	}
 
-	f.jumpsForPathForTypename = make(map[string]map[string]*DataSourceJumpsGraph)
+	if f.jumpsForPathForTypename == nil {
+		f.jumpsForPathForTypename = make(map[KeyIndex]*DataSourceJumpsGraph)
+	}
 
-	for path, keysPerTypeName := range keysForPathForTypename {
-		f.jumpsForPathForTypename[path] = make(map[string]*DataSourceJumpsGraph)
-		for typeName, keysPerDS := range keysPerTypeName {
-			f.jumpsForPathForTypename[path][typeName] = NewDataSourceJumpsGraph(keysPerDS, typeName)
-		}
+	for keyIndex, keysPerDS := range keysForPathForTypename {
+		f.jumpsForPathForTypename[KeyIndex{Path: keyIndex.Path, TypeName: keyIndex.TypeName}] = NewDataSourceJumpsGraph(keysPerDS, keyIndex.TypeName)
 	}
 }
 
@@ -320,11 +305,7 @@ func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *S
 }
 
 func (f *DataSourceFilter) jumpsForPathAndTypeName(path string, typeName string) (*DataSourceJumpsGraph, bool) {
-	forPath, exists := f.jumpsForPathForTypename[path]
-	if !exists {
-		return nil, false
-	}
-	jumpsForTypename, exists := forPath[typeName]
+	jumpsForTypename, exists := f.jumpsForPathForTypename[KeyIndex{Path: path, TypeName: typeName}]
 	if !exists {
 		return nil, false
 	}
