@@ -112,6 +112,17 @@ type Entity {
 */
 
 func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
+	indexKey := SeenKeyPath{
+		TypeName: typeName,
+		Path:     parentPath,
+		DSHash:   f.dataSource.Hash(),
+	}
+	if _, ok := f.globalSeenKeys[indexKey]; ok {
+		return
+	}
+	// WARNING: we are not writing to global map from go routine
+	f.localSeenKeys[indexKey] = struct{}{}
+
 	allKeys := f.dataSource.FederationConfiguration().Keys
 	keys := allKeys.FilterByTypeAndResolvability(typeName, false)
 	if len(keys) == 0 {
@@ -139,7 +150,10 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 			keyIsConditional: len(key.Conditions) > 0,
 		}
 
-		keyPaths, hasExternalFields := keyInfo(input)
+		keyPaths, hasExternalFields := getKeyPaths(input)
+		if report.HasErrors() {
+
+		}
 
 		target := !key.DisableEntityResolver
 		source := !hasExternalFields // provided counted as not external
@@ -169,7 +183,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 	})
 }
 
-func keyInfo(input *keyVisitorInput) (keyPaths []string, hasExternalFields bool) {
+func getKeyPaths(input *keyVisitorInput) (keyPaths []string, hasExternalFields bool) {
 	walker := astvisitor.NewWalker(48)
 	visitor := &keyInfoVisitor{
 		walker: &walker,
