@@ -94,7 +94,7 @@ func TestKeyInfo(t *testing.T) {
 		dataSource      DataSource
 		providesEntries []*NodeSuggestion
 
-		expectPaths          []string
+		expectPaths          []KeyInfoFieldPath
 		expectExternalFields bool
 	}{
 		{
@@ -109,9 +109,9 @@ func TestKeyInfo(t *testing.T) {
 			keyFieldSet: "id name",
 			dataSource: dsb().Hash(22).
 				RootNode("User", "id", "name").DS(),
-			expectPaths: []string{
-				"query.me.id",
-				"query.me.name",
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.id"},
+				{Path: "query.me.name"},
 			},
 			expectExternalFields: false,
 		},
@@ -128,9 +128,9 @@ func TestKeyInfo(t *testing.T) {
 			dataSource: dsb().Hash(22).
 				RootNode("User").
 				AddRootNodeExternalFieldNames("User", "id", "name").DS(),
-			expectPaths: []string{
-				"query.me.id",
-				"query.me.name",
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.id", IsExternal: true},
+				{Path: "query.me.name", IsExternal: true},
 			},
 			expectExternalFields: true,
 		},
@@ -162,9 +162,9 @@ func TestKeyInfo(t *testing.T) {
 					Path:      "query.me.name",
 				},
 			},
-			expectPaths: []string{
-				"query.me.id",
-				"query.me.name",
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.id"},
+				{Path: "query.me.name"},
 			},
 			expectExternalFields: false,
 		},
@@ -280,8 +280,8 @@ func TestCollectKeysForPath(t *testing.T) {
 							TypeName:     "User",
 							SelectionSet: "id name",
 							FieldPaths: []KeyInfoFieldPath{
-								{Path: "query.me.id"},
-								{Path: "query.me.name"},
+								{Path: "query.me.id", IsExternal: true},
+								{Path: "query.me.name", IsExternal: true},
 							},
 						},
 					},
@@ -378,8 +378,8 @@ func TestCollectKeysForPath(t *testing.T) {
 							TypeName:     "User",
 							SelectionSet: "id name",
 							FieldPaths: []KeyInfoFieldPath{
-								{Path: "query.me.id"},
-								{Path: "query.me.name"},
+								{Path: "query.me.id", IsExternal: true},
+								{Path: "query.me.name", IsExternal: true},
 							},
 						},
 					},
@@ -468,9 +468,12 @@ func TestCollectKeysForPath(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
 
 			collectNodesVisitor := &collectNodesVisitor{
-				definition:      &definition,
-				dataSource:      c.dataSource,
-				providesEntries: c.providesEntries,
+				definition:          &definition,
+				dataSource:          c.dataSource,
+				providesEntries:     c.providesEntries,
+				keys:                make([]DSKeyInfo, 0, 2),
+				localSeenKeys:       make(map[SeenKeyPath]struct{}),
+				notExternalKeyPaths: make(map[string]struct{}),
 			}
 
 			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)

@@ -85,7 +85,9 @@ func (b *dsBuilder) Id(id string) *dsBuilder {
 }
 
 func (b *dsBuilder) DS() DataSource {
-	b.ds.DataSourceMetadata.InitNodesIndex()
+	if err := b.ds.DataSourceMetadata.Init(); err != nil {
+		panic(err)
+	}
 	return b.ds
 }
 
