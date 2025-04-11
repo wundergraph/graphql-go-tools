@@ -93,7 +93,13 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 		Path:     parentPath,
 		DSHash:   f.dataSource.Hash(),
 	}
+	// global seen keys is used when we recollect nodes
 	if _, ok := f.globalSeenKeys[indexKey]; ok {
+		return
+	}
+	// local seen fields is used when we have multipe fields on a path, and we visit it first time
+	if _, ok := f.localSeenKeys[indexKey]; ok {
+		// we already collected keys for this path
 		return
 	}
 	// WARNING: we are not writing to global map from go routine
