@@ -322,8 +322,6 @@ func TestProvidesSuggestionsWithFragments(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.providesSelectionSet, func(t *testing.T) {
-			report := &operationreport.Report{}
-
 			meta := &DataSourceMetadata{
 				RootNodes: []TypeField{
 					{

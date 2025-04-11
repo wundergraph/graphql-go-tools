@@ -3766,13 +3766,13 @@ func TestGraphQLDataSource(t *testing.T) {
 						},
 					},
 					Fields: []*resolve.Field{
-							{
-								Name: []byte("__typename"),
-								Value: &resolve.StaticString{
-									Path:  []string{"__typename"},
-									Value: "Mutation",
-								},
+						{
+							Name: []byte("__typename"),
+							Value: &resolve.StaticString{
+								Path:  []string{"__typename"},
+								Value: "Mutation",
 							},
+						},
 						{
 							Name: []byte("namespaceCreate"),
 							Value: &resolve.Object{
