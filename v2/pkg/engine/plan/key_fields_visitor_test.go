@@ -477,6 +477,8 @@ func TestCollectKeysForPath(t *testing.T) {
 			}
 
 			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
+			// call it again to test the deduplication
+			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
 
 			assert.Equal(t, len(c.expectKeys), len(collectNodesVisitor.keys))
 			assert.Equal(t, c.expectKeys, collectNodesVisitor.keys)
