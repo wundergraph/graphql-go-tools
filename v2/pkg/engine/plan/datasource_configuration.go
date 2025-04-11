@@ -70,6 +70,21 @@ type fieldsIndex struct {
 	externalFields map[string]struct{}
 }
 
+func (d *DataSourceMetadata) Init() error {
+	d.InitNodesIndex()
+	return d.InitKeys()
+}
+
+func (d *DataSourceMetadata) InitKeys() error {
+	for i := 0; i < len(d.FederationMetaData.Keys); i++ {
+		if err := d.FederationMetaData.Keys[i].parseSelectionSet(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (d *DataSourceMetadata) InitNodesIndex() {
 	if d == nil {
 		return
@@ -209,7 +224,11 @@ func NewDataSourceConfigurationWithName[T any](id string, name string, factory P
 		return nil, errors.New("data source id could not be empty")
 	}
 
-	metadata.InitNodesIndex()
+	if metadata != nil {
+		if err := metadata.Init(); err != nil {
+			return nil, err
+		}
+	}
 
 	return &dataSourceConfiguration[T]{
 		DataSourceMetadata: metadata,
