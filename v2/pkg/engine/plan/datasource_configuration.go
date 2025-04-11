@@ -224,7 +224,11 @@ func NewDataSourceConfigurationWithName[T any](id string, name string, factory P
 		return nil, errors.New("data source id could not be empty")
 	}
 
-	metadata.Init()
+	if metadata != nil {
+		if err := metadata.Init(); err != nil {
+			return nil, err
+		}
+	}
 
 	return &dataSourceConfiguration[T]{
 		DataSourceMetadata: metadata,
