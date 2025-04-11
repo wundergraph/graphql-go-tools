@@ -74,30 +74,19 @@ func providesSuggestions(input *providesInput) []*NodeSuggestion {
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterFragmentDefinitionVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
-	walker.RegisterSelectionSetVisitor(visitor)
+	walker.RegisterEnterFieldVisitor(visitor)
 
 	walker.Walk(input.providesFieldSet, input.definition, input.report)
 
 	return visitor.suggestions
 }
 
-type currentFiedInfo struct {
-	fieldRef                           int
-	fieldName                          string
-	hasSelections                      bool
-	hasSelectedNestedFieldsInOperation bool
-	suggestion                         *NodeSuggestion
-}
-
 type providesVisitor struct {
-	walker         *astvisitor.Walker
-	input          *providesInput
-	OperationNodes []ast.Node
+	walker *astvisitor.Walker
+	input  *providesInput
 
-	suggestions   []*NodeSuggestion
-	pathPrefix    string
-	currentFields []*currentFiedInfo
+	suggestions []*NodeSuggestion
+	pathPrefix  string
 }
 
 func (v *providesVisitor) EnterFragmentDefinition(ref int) {
@@ -105,67 +94,19 @@ func (v *providesVisitor) EnterFragmentDefinition(ref int) {
 }
 
 func (v *providesVisitor) EnterDocument(_, _ *ast.Document) {
-	v.OperationNodes = make([]ast.Node, 0, 3)
-	v.OperationNodes = append(v.OperationNodes,
-		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
-}
 
-func (v *providesVisitor) EnterSelectionSet(_ int) {
-	if v.walker.Depth == 2 {
-		return
-	}
-	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
-
-	if fieldSelectionSetRef, ok := v.input.operation.FieldSelectionSet(fieldNode.Ref); ok {
-		selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
-		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
-	}
-}
-
-func (v *providesVisitor) LeaveSelectionSet(ref int) {
-	if v.walker.Depth == 0 {
-		return
-	}
-
-	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 }
 
 func (v *providesVisitor) EnterField(ref int) {
-	fieldNameBytes := v.input.providesFieldSet.FieldNameBytes(ref)
 	fieldName := v.input.providesFieldSet.FieldNameUnsafeString(ref)
-
-	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
-	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldNameBytes)
-	if !operationHasField {
-		// we haven't selected this field in the operation,
-		// so we don't have to add node suggestions for it
-		// and we don't want to check nested fields for this field if any present in the fieldset
-		v.walker.SkipNode()
-		return
-	}
-	if v.input.providesFieldSet.FieldHasSelections(ref) {
-		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
-	}
-
 	typeName := v.walker.EnclosingTypeDefinition.NameString(v.input.definition)
-	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.pathPrefix)
+
+	currentPathWithoutFragments := v.walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+	parentPath := v.input.parentPath + strings.TrimPrefix(currentPathWithoutFragments, v.pathPrefix)
 	currentPath := parentPath + "." + fieldName
 
-	if len(v.currentFields) > 0 {
-		v.currentFields[len(v.currentFields)-1].hasSelectedNestedFieldsInOperation = true
-	}
-
-	// we need to check both as for nested fields in provides we could have some root nodes with external nested fields
-	// e.g. address {street} while street is an external field, address is a root node
-	isRootNode := v.input.dataSource.HasRootNode(typeName, fieldName)
-	isExternalRootNode := v.input.dataSource.HasExternalRootNode(typeName, fieldName)
-	isExternalChildNode := v.input.dataSource.HasExternalChildNode(typeName, fieldName)
-	isExternal := isExternalRootNode || isExternalChildNode
-	isTypeName := fieldName == typeNameField
-
-	hasSelections := v.input.operation.FieldHasSelections(operationFieldRef)
 	suggestion := &NodeSuggestion{
-		FieldRef:       operationFieldRef,
+		FieldRef:       ast.InvalidRef,
 		TypeName:       typeName,
 		FieldName:      fieldName,
 		DataSourceHash: v.input.dataSource.Hash(),
@@ -173,36 +114,11 @@ func (v *providesVisitor) EnterField(ref int) {
 		DataSourceName: v.input.dataSource.Name(),
 		Path:           currentPath,
 		ParentPath:     parentPath,
-		IsRootNode:     isRootNode || isExternalRootNode,
-		Selected:       false,
-		IsProvided:     true,
-		IsExternal:     isExternal,
-		IsLeaf:         !hasSelections,
-		isTypeName:     isTypeName,
-		treeNodeId:     TreeNodeID(operationFieldRef),
 	}
 
-	v.currentFields = append(v.currentFields, &currentFiedInfo{
-		fieldRef:      ref,
-		fieldName:     fieldName,
-		hasSelections: v.input.providesFieldSet.FieldHasSelections(ref),
-		suggestion:    suggestion,
-	})
+	v.suggestions = append(v.suggestions, suggestion)
 }
 
 func (v *providesVisitor) LeaveField(ref int) {
-	if v.input.providesFieldSet.FieldHasSelections(ref) {
-		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
-	}
 
-	currentField := v.currentFields[len(v.currentFields)-1]
-	v.currentFields = v.currentFields[:len(v.currentFields)-1]
-
-	if currentField.hasSelections && !currentField.hasSelectedNestedFieldsInOperation {
-		// we don't have to add node suggestions for this field
-		// if it has selections in the fieldset but no nested fields selected in the operation
-		return
-	}
-
-	v.suggestions = append(v.suggestions, currentField.suggestion)
 }

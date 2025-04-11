@@ -23,8 +23,13 @@ type DataSourceFilter struct {
 	enableSelectionReasons bool
 	secondaryRun           bool
 
-	fieldDependsOn                     map[int][]int
-	dataSources                        []DataSource
+	fieldDependsOn map[int][]int
+	dataSources    []DataSource
+
+	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
+	dsHashesHavingKeys      map[DSHash]struct{}
+	seenKeys                map[SeenKeyPath]struct{}
+
 	maxDataSourceCollectorsConcurrency uint
 }
 
@@ -70,7 +75,7 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 }
 
 func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
-	f.nodes = f.collectNodes(f.dataSources, existingNodes)
+	f.collectNodes(f.dataSources, existingNodes)
 	if f.report.HasErrors() {
 		return nil, nil
 	}
@@ -79,13 +84,16 @@ func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions,
 	f.applyLandedTo(landedTo)
 
 	f.selectUniqueNodes()
-	// f.nodes.printNodes("unique nodes")
 	f.selectDuplicateNodes(false)
-	// f.nodes.printNodes("duplicate nodes")
 	f.selectDuplicateNodes(true)
-	// f.nodes.printNodes("duplicate nodes after second run")
 
 	uniqueDataSourceHashes := f.nodes.populateHasSuggestions()
+
+	// add ds hashes from the keys
+	for dsHash := range f.dsHashesHavingKeys {
+		uniqueDataSourceHashes[dsHash] = struct{}{}
+	}
+
 	return f.nodes, uniqueDataSourceHashes
 }
 
@@ -118,9 +126,13 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) (nodes *NodeSuggestions) {
+func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) {
 	if existingNodes == nil {
 		existingNodes = NewNodeSuggestions()
+	}
+
+	if f.seenKeys == nil {
+		f.seenKeys = make(map[SeenKeyPath]struct{})
 	}
 
 	nodesCollector := &nodesCollector{
@@ -130,9 +142,37 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		nodes:          existingNodes,
 		report:         f.report,
 		maxConcurrency: f.maxDataSourceCollectorsConcurrency,
+		seenKeys:       f.seenKeys,
 	}
 
-	return nodesCollector.CollectNodes()
+	var keysInfo []DSKeyInfo
+	f.nodes, keysInfo = nodesCollector.CollectNodes()
+
+	if f.dsHashesHavingKeys == nil {
+		f.dsHashesHavingKeys = make(map[DSHash]struct{})
+	}
+
+	keysForPathForTypename := make(map[KeyIndex]map[DSHash][]KeyInfo)
+	for _, keyInfo := range keysInfo {
+		keyIndex := KeyIndex{keyInfo.Path, keyInfo.TypeName}
+		keysPerDS, ok := keysForPathForTypename[keyIndex]
+		if !ok {
+			keysPerDS = make(map[DSHash][]KeyInfo)
+		}
+
+		keysPerDS[keyInfo.DSHash] = keyInfo.Keys
+		keysForPathForTypename[keyIndex] = keysPerDS
+
+		f.dsHashesHavingKeys[keyInfo.DSHash] = struct{}{}
+	}
+
+	if f.jumpsForPathForTypename == nil {
+		f.jumpsForPathForTypename = make(map[KeyIndex]*DataSourceJumpsGraph)
+	}
+
+	for keyIndex, keysPerDS := range keysForPathForTypename {
+		f.jumpsForPathForTypename[KeyIndex{Path: keyIndex.Path, TypeName: keyIndex.TypeName}] = NewDataSourceJumpsGraph(keysPerDS, keyIndex.TypeName)
+	}
 }
 
 const (
@@ -227,6 +267,96 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 	}
 }
 
+func hasPathBetweenDs(jumps *DataSourceJumpsGraph, from, to DSHash) (bestPath *SourceConnection, exists bool) {
+	possiblePaths, exists := jumps.GetPaths(from, to)
+	if !exists {
+		return nil, false
+	}
+
+	var directs []SourceConnection
+	var indirects []SourceConnection
+
+	for _, path := range possiblePaths {
+		if path.Type == SourceConnectionTypeDirect {
+			directs = append(directs, path)
+			continue
+		}
+		indirects = append(indirects, path)
+	}
+
+	if len(directs) > 0 {
+		return &directs[0], true
+	}
+
+	// TODO: indirect path should take into consideration existing nodes?
+
+	for _, path := range indirects {
+		if bestPath == nil {
+			bestPath = &path
+			continue
+		}
+
+		if len(path.Jumps) < len(bestPath.Jumps) {
+			bestPath = &path
+		}
+	}
+
+	return bestPath, bestPath != nil
+}
+
+func (f *DataSourceFilter) jumpsForPathAndTypeName(path string, typeName string) (*DataSourceJumpsGraph, bool) {
+	jumpsForTypename, exists := f.jumpsForPathForTypename[KeyIndex{Path: path, TypeName: typeName}]
+	if !exists {
+		return nil, false
+	}
+
+	return jumpsForTypename, true
+}
+
+func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
+	currentNode := f.nodes.items[itemIdx]
+
+	if currentNode.requiresKey != nil {
+		return
+	}
+
+	currentNodeDsHash := currentNode.DataSourceHash
+	currentNodeTypeName := currentNode.TypeName
+
+	selectedParentHashes := make([]DSHash, 0, len(parentNodeIndexes))
+	hasSelectedParentOnSameDataSource := false
+
+	for _, parentIdx := range parentNodeIndexes {
+		if !f.nodes.items[parentIdx].Selected {
+			continue
+		}
+
+		if f.nodes.items[parentIdx].DataSourceHash == currentNodeDsHash {
+			hasSelectedParentOnSameDataSource = true
+			break
+		}
+
+		selectedParentHashes = append(selectedParentHashes, f.nodes.items[parentIdx].DataSourceHash)
+	}
+
+	if hasSelectedParentOnSameDataSource {
+		return
+	}
+
+	jumpsForTypename, exists := f.jumpsForPathAndTypeName(currentNode.ParentPath, currentNodeTypeName)
+	if !exists {
+		return
+	}
+
+	for _, selectedParentHash := range selectedParentHashes {
+		path, exists := hasPathBetweenDs(jumpsForTypename, selectedParentHash, currentNodeDsHash)
+		if exists {
+			currentNode.requiresKey = path
+			break
+		}
+	}
+}
+
 // selectDuplicateNodes - selects nodes (e.g. fields) which are not unique to a single datasource,
 // e.g. could be resolved by multiple datasources
 // This method checks only nodes not already selected on the other datasource
@@ -242,18 +372,25 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 	treeNodes := f.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
 
 	for treeNode := range treeNodes {
+		// f.nodes.printNodes("nodes")
+		// fmt.Println()
+
 		if treeNode.GetID() == treeRootID {
 			continue
 		}
 
 		itemIDs := treeNode.GetData()
-		if len(itemIDs) == 1 {
-			// such node already selected as unique
+		if len(itemIDs) == 0 {
+			// no available nodes to select
 			continue
 		}
 
-		if len(itemIDs) == 0 {
-			// no available nodes to select
+		if len(itemIDs) == 1 {
+			// such node already selected as unique
+
+			parentNodeIndexes := treeNode.GetParent().GetData()
+
+			f.assignKeys(itemIDs[0], parentNodeIndexes)
 			continue
 		}
 
@@ -263,9 +400,26 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// if any item on the given node is already selected, we could skip it
-		if slices.ContainsFunc(itemIDs, func(i int) bool {
-			return f.nodes.items[i].Selected
-		}) {
+		skip := false
+		for _, itemID := range itemIDs {
+			if !f.nodes.items[itemID].Selected {
+				continue
+			}
+
+			skip = true
+
+			currentNode := f.nodes.items[itemID]
+
+			if currentNode.requiresKey != nil {
+				continue
+			}
+
+			parentNodeIndexes := treeNode.GetParent().GetData()
+
+			f.assignKeys(itemID, parentNodeIndexes)
+		}
+
+		if skip {
 			continue
 		}
 
@@ -287,7 +441,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// if sibling is selected on the same datasource, we could select current node
 		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) bool {
 			// we should not select a __typename field based on a siblings, unless it is on a root query type
-			return f.nodes.items[i].FieldName == typeNameField && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
+			return f.nodes.items[i].isTypeName && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
 		}) {
 			continue
 		}
@@ -314,9 +468,13 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
-				// we need to check if the node with enabled resolver could actually get a key from the parent node
-				if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
-					return true
+				// when node is a root query node we will not have parent
+				// so we need to check if parent node id is not a root of a tree
+				if treeNode.GetParentID() != treeRootID {
+					// we need to check if the node with enabled resolver could actually get a key from the parent node
+					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+						return true
+					}
 				}
 
 				// if node is not a leaf we need to check if it is possible to get any fields (not counting __typename) from this datasource
@@ -367,7 +525,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 3 and 4 - are stages when choices are equal, and we should select first available node
+		// stages 3,4,5 - are stages when choices are equal, and we should select first available node
 
 		// 3. we choose first available leaf node
 		if f.checkNodes(itemIDs,
@@ -379,8 +537,13 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 					return true
 				}
 
-				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
-					return true
+				// when node is a root query node we will not have parent
+				// so we need to check if parent node id is not a root of a tree
+				if treeNode.GetParentID() != treeRootID {
+					// we need to check if the node with enabled resolver could actually get a key from the parent node
+					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+						return true
+					}
 				}
 
 				return false
@@ -389,11 +552,12 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		}
 
 		// 4. if node is not a leaf we select a node which could provide more selections on the same source
-		currentItemIDx := itemIDs[0]
-		currentChildNodeCount := len(f.nodes.childNodesOnSameSource(currentItemIDx))
+		currentChildNodeCount := -1
+		currentItemIDx := -1
 
-		for k, duplicateIdx := range itemIDs {
-			if k == 0 {
+		for _, duplicateIdx := range itemIDs {
+			// we need to check if the node with enabled resolver could actually get a key from the parent node
+			if !f.isSelectedParentCouldProvideKeysForCurrentNode(duplicateIdx) {
 				continue
 			}
 
@@ -407,21 +571,31 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		if currentChildNodeCount > 0 {
 			// we can't select node if it doesn't have any child nodes to select
 			f.selectWithExternalCheck(currentItemIDx, ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource)
+			continue
 		}
 
+		// 5. We check here not leaf nodes which could provide keys to the child nodes
+		// this rule one of the rules responsible for the shareable nodes
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
-				if f.nodeCouldProvideKeysToChildNodes(i) {
-					f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
-
-					return true
-				}
-
-				return false
+				return f.selectWithExternalCheck(i, ReasonStage3SelectParentNodeWhichCouldGiveKeys)
 			},
 			func(i int) (skip bool) {
 				// do not evaluate childs for the leaf nodes
-				return f.nodes.items[i].IsLeaf
+				if f.nodes.items[i].IsLeaf {
+					return true
+				}
+
+				// when node is a root query node we will not have parent
+				// so we need to check if parent node id is not a root of a tree
+				if treeNode.GetParentID() != treeRootID {
+					// when node is not a root query node we also check if node could actually get a key from the parent node
+					if !f.isSelectedParentCouldProvideKeysForCurrentNode(i) {
+						return true
+					}
+				}
+
+				return !f.nodeCouldProvideKeysToChildNodes(i)
 			}) {
 			continue
 		}
@@ -460,7 +634,7 @@ func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx in
 			continue
 		}
 
-		if f.parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx) {
+		if f.parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx, true) {
 			return true
 		}
 	}
@@ -469,10 +643,10 @@ func (f *DataSourceFilter) isSelectedParentCouldProvideKeysForCurrentNode(idx in
 }
 
 func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
-	childIds := f.nodes.childNodesIds(idx, false)
+	childIds := f.nodes.childNodesIdsOnOtherDS(idx)
 
 	for _, childId := range childIds {
-		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId) {
+		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId, false) {
 			return true
 		}
 	}
@@ -480,100 +654,107 @@ func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
 	return false
 }
 
-func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int) bool {
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNode(parentIdx, idx int, withSetKey bool) bool {
+	// this check is widely used for all selection rules
+	// one thing to know, on the first iterations abstract selections are not rewritten, yet
+	// they could be rewritten when we see that on the given datasource some field is external
+	// This check could happen earlier when the type of the field on parent will be abstract,
+	// but the actual field on one of the concrete types, so there will be no match
+	// We handle this by adding possible keys for each possible type during nodes collecting
+
+	// first we need to check a concrete type, because it could be an entity interface type which is possible to use for jump
+	if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, f.nodes.items[idx].TypeName, withSetKey) {
+		return true
+	}
+
+	// possible type names are used for the union and interface types
+	// for the interface objects could be used one of the possible types or the interface object type itself
 	if len(f.nodes.items[idx].possibleTypeNames) > 0 {
 		for _, typeName := range f.nodes.items[idx].possibleTypeNames {
-			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName) {
+			if f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName, false) {
 				return true
 			}
 		}
-
-		return false
-	}
-
-	typeName := f.nodes.items[idx].TypeName
-	return f.parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx, typeName)
-}
-
-func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string) bool {
-	currentDsHash := f.nodes.items[idx].DataSourceHash
-	currenDsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
-		return ds.Hash() == currentDsHash
-	})
-	if currenDsIdx == -1 {
-		return false
-	}
-	currentDs := f.dataSources[currenDsIdx]
-	currentDsKeys := currentDs.FederationConfiguration().Keys
-	possibleKeys := currentDsKeys.FilterByTypeAndResolvability(typeName, true)
-
-	dsHash := f.nodes.items[parentIdx].DataSourceHash
-	dsIdx := slices.IndexFunc(f.dataSources, func(ds DataSource) bool {
-		return ds.Hash() == dsHash
-	})
-	if dsIdx == -1 {
-		return false
-	}
-
-	ds := f.dataSources[dsIdx]
-	keys := ds.FederationConfiguration().Keys
-
-	keyConfigurations := keys.FilterByTypeAndResolvability(typeName, true)
-
-	for _, possibleKey := range possibleKeys {
-		if slices.ContainsFunc(keyConfigurations, func(keyCfg FederationFieldConfiguration) bool {
-			return keyCfg.SelectionSet == possibleKey.SelectionSet
-		}) {
-			return true
-		}
-	}
-
-	// second check is for the keys which do not have entity resolver
-	// e.g. resolvable: false or implicit keys
-	keyConfigurations = keys.FilterByTypeAndResolvability(typeName, false)
-
-	// NOTE: logic here is limited currently to only resolvable keys
-	// there also could be potential matches with implicit conditional keys
-	// if there will be a need to support such cases, we need to extend this logic
-
-	var (
-		implicitKeys []FederationFieldConfiguration
-	)
-
-	for _, keyCfg := range keyConfigurations {
-		if len(keyCfg.Conditions) == 0 {
-			implicitKeys = append(implicitKeys, keyCfg)
-			continue
-		}
-	}
-
-	for _, possibleKey := range possibleKeys {
-		if slices.ContainsFunc(implicitKeys, func(keyCfg FederationFieldConfiguration) bool {
-			return keyCfg.SelectionSet == possibleKey.SelectionSet
-		}) {
-			return true
-		}
 	}
 
 	return false
 }
 
-func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
-	for _, i := range duplicates {
-		if skip != nil && skip(i) {
-			continue
-		}
+// parentNodeCouldProvideKeysForCurrentNodeWithTypename - checks if the parent node could provide keys for the current node
+// e.g. if there is a jump path between the parent node and the current node
+// NOTE: method has side effects, it sets requiresKey for the current node
+func (f *DataSourceFilter) parentNodeCouldProvideKeysForCurrentNodeWithTypename(parentIdx, idx int, typeName string, setRequiresKey bool) bool {
+	if f.nodes.items[parentIdx].DataSourceHash == f.nodes.items[idx].DataSourceHash {
+		return true
+	}
 
+	jumpsForTypename, exists := f.jumpsForPathAndTypeName(f.nodes.items[idx].ParentPath, typeName)
+	if !exists {
+		return false
+	}
+
+	path, exists := hasPathBetweenDs(jumpsForTypename, f.nodes.items[parentIdx].DataSourceHash, f.nodes.items[idx].DataSourceHash)
+	if !exists {
+		return false
+	}
+
+	if setRequiresKey {
+		f.nodes.items[idx].requiresKey = path
+	}
+
+	return true
+}
+
+type nodeJump struct {
+	// nodeIdx is the index of the node in the nodes slice
+	nodeIdx int
+	// jumpCount is the number of jumps to the node
+	jumpCount int
+}
+
+func (f *DataSourceFilter) checkNodes(duplicates []int, callback func(nodeIdx int) (nodeIsSelected bool), skip func(nodeIdx int) (skip bool)) (nodeIsSelected bool) {
+	allowedToSelect := make([]int, 0, len(duplicates))
+
+	for _, i := range duplicates {
 		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 			continue
 		}
 
-		if callback(i) {
-			nodeIsSelected = true
-			break
+		if skip != nil && skip(i) {
+			continue
+		}
+
+		allowedToSelect = append(allowedToSelect, i)
+	}
+
+	jumpsCounts := make([]nodeJump, 0, len(allowedToSelect))
+
+	for _, i := range allowedToSelect {
+		jumpCount := 0
+
+		if f.nodes.items[i].requiresKey != nil {
+			jumpCount = len(f.nodes.items[i].requiresKey.Jumps)
+		}
+
+		jumpsCounts = append(jumpsCounts, nodeJump{
+			nodeIdx:   i,
+			jumpCount: jumpCount,
+		})
+	}
+
+	// sort by the number of jumps
+	slices.SortFunc(jumpsCounts, func(a, b nodeJump) int {
+		// acs order from 0 to n
+		return a.jumpCount - b.jumpCount
+	})
+
+	for _, j := range jumpsCounts {
+		if callback(j.nodeIdx) {
+			return true
 		}
 	}
-	return
+
+	return false
 }
 
 func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
@@ -589,11 +770,6 @@ func (f *DataSourceFilter) checkNodeChilds(i int) (nodeIsSelected bool) {
 }
 
 func (f *DataSourceFilter) checkNodeSiblings(i int) (nodeIsSelected bool) {
-	parentIdx, hasParentOnSameSource := f.nodes.parentNodeOnSameSource(i)
-	if hasParentOnSameSource && f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
-		return false
-	}
-
 	siblings := f.nodes.siblingNodesOnSameSource(i)
 	for _, sibling := range siblings {
 
@@ -669,9 +845,13 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 
 	hasFields := false
 	for _, i := range nodesIds {
-		if f.nodes.items[i].FieldName == typeNameField {
+		if f.nodes.items[i].isTypeName {
 			// we have to omit __typename field
 			// to not be in a situation when all fields are external but __typename is selectable
+			continue
+		}
+
+		if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
 			continue
 		}
 

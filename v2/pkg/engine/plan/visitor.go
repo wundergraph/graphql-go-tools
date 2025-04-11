@@ -336,12 +336,23 @@ func (v *Visitor) EnterField(ref int) {
 	}
 
 	if bytes.Equal(fieldName, literal.TYPENAME) {
-		str := &resolve.String{
-			Nullable:   false,
-			Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
-			IsTypeName: true,
+		typeName := v.Walker.EnclosingTypeDefinition.NameBytes(v.Definition)
+		isRootQueryType := v.Definition.Index.IsRootOperationTypeNameBytes(typeName)
+
+		if isRootQueryType {
+			str := &resolve.StaticString{
+				Path:  []string{v.Operation.FieldAliasOrNameString(ref)},
+				Value: string(typeName),
+			}
+			v.currentField.Value = str
+		} else {
+			str := &resolve.String{
+				Nullable:   false,
+				Path:       []string{v.Operation.FieldAliasOrNameString(ref)},
+				IsTypeName: true,
+			}
+			v.currentField.Value = str
 		}
-		v.currentField.Value = str
 	} else {
 		path := v.resolveFieldPath(ref)
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
