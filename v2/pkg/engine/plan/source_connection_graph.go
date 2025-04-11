@@ -5,7 +5,7 @@ type KeyJump struct {
 	From         DSHash
 	To           DSHash
 	SelectionSet string
-	FieldPaths   []string
+	FieldPaths   []KeyInfoFieldPath
 	TypeName     string
 }
 

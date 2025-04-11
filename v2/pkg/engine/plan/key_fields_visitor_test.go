@@ -11,7 +11,7 @@ import (
 
 func TestKeyFieldPaths(t *testing.T) {
 	definitionSDL := `
-		type User @key(fields: "id surname") @key(fields: "name info { age }") {
+		type User @key(fields: "name surname") @key(fields: "name info { age }") {
 			name: String!
 			surname: String!
 			info: Info!
@@ -29,28 +29,34 @@ func TestKeyFieldPaths(t *testing.T) {
 			zip: String!
 		}`
 
+	dataSource := dsb().Hash(22).
+		RootNode("User", "name", "surname", "info", "address").
+		ChildNode("Info", "age", "weight").
+		ChildNode("Address", "city", "street", "zip").
+		DS()
+
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
 	cases := []struct {
 		fieldSet      string
 		parentPath    string
-		expectedPaths []string
+		expectedPaths []KeyInfoFieldPath
 	}{
 		{
 			fieldSet:   "name surname",
 			parentPath: "query.me",
-			expectedPaths: []string{
-				"query.me.name",
-				"query.me.surname",
+			expectedPaths: []KeyInfoFieldPath{
+				{Path: "query.me.name"},
+				{Path: "query.me.surname"},
 			},
 		},
 		{
 			fieldSet:   "name info { age }",
 			parentPath: "query.me.admin",
-			expectedPaths: []string{
-				"query.me.admin.name",
-				"query.me.admin.info",
-				"query.me.admin.info.age",
+			expectedPaths: []KeyInfoFieldPath{
+				{Path: "query.me.admin.name"},
+				{Path: "query.me.admin.info"},
+				{Path: "query.me.admin.info.age"},
 			},
 		},
 	}
@@ -66,9 +72,10 @@ func TestKeyFieldPaths(t *testing.T) {
 				definition: &definition,
 				report:     report,
 				parentPath: c.parentPath,
+				dataSource: dataSource,
 			}
 
-			keyPaths := keyFieldPaths(input)
+			keyPaths, _ := getKeyPaths(input)
 			assert.False(t, report.HasErrors())
 			assert.Equal(t, c.expectedPaths, keyPaths)
 		})
@@ -232,9 +239,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -272,9 +279,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -327,9 +334,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -370,9 +377,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -413,9 +420,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       false,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
