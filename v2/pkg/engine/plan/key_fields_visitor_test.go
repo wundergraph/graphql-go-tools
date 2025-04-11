@@ -11,7 +11,7 @@ import (
 
 func TestKeyFieldPaths(t *testing.T) {
 	definitionSDL := `
-		type User @key(fields: "id surname") @key(fields: "name info { age }") {
+		type User @key(fields: "name surname") @key(fields: "name info { age }") {
 			name: String!
 			surname: String!
 			info: Info!
@@ -29,28 +29,34 @@ func TestKeyFieldPaths(t *testing.T) {
 			zip: String!
 		}`
 
+	dataSource := dsb().Hash(22).
+		RootNode("User", "name", "surname", "info", "address").
+		ChildNode("Info", "age", "weight").
+		ChildNode("Address", "city", "street", "zip").
+		DS()
+
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
 
 	cases := []struct {
 		fieldSet      string
 		parentPath    string
-		expectedPaths []string
+		expectedPaths []KeyInfoFieldPath
 	}{
 		{
 			fieldSet:   "name surname",
 			parentPath: "query.me",
-			expectedPaths: []string{
-				"query.me.name",
-				"query.me.surname",
+			expectedPaths: []KeyInfoFieldPath{
+				{Path: "query.me.name"},
+				{Path: "query.me.surname"},
 			},
 		},
 		{
 			fieldSet:   "name info { age }",
 			parentPath: "query.me.admin",
-			expectedPaths: []string{
-				"query.me.admin.name",
-				"query.me.admin.info",
-				"query.me.admin.info.age",
+			expectedPaths: []KeyInfoFieldPath{
+				{Path: "query.me.admin.name"},
+				{Path: "query.me.admin.info"},
+				{Path: "query.me.admin.info.age"},
 			},
 		},
 	}
@@ -66,9 +72,10 @@ func TestKeyFieldPaths(t *testing.T) {
 				definition: &definition,
 				report:     report,
 				parentPath: c.parentPath,
+				dataSource: dataSource,
 			}
 
-			keyPaths := keyFieldPaths(input)
+			keyPaths, _ := getKeyPaths(input)
 			assert.False(t, report.HasErrors())
 			assert.Equal(t, c.expectedPaths, keyPaths)
 		})
@@ -87,7 +94,7 @@ func TestKeyInfo(t *testing.T) {
 		dataSource      DataSource
 		providesEntries []*NodeSuggestion
 
-		expectPaths          []string
+		expectPaths          []KeyInfoFieldPath
 		expectExternalFields bool
 	}{
 		{
@@ -102,9 +109,9 @@ func TestKeyInfo(t *testing.T) {
 			keyFieldSet: "id name",
 			dataSource: dsb().Hash(22).
 				RootNode("User", "id", "name").DS(),
-			expectPaths: []string{
-				"query.me.id",
-				"query.me.name",
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.id"},
+				{Path: "query.me.name"},
 			},
 			expectExternalFields: false,
 		},
@@ -121,9 +128,9 @@ func TestKeyInfo(t *testing.T) {
 			dataSource: dsb().Hash(22).
 				RootNode("User").
 				AddRootNodeExternalFieldNames("User", "id", "name").DS(),
-			expectPaths: []string{
-				"query.me.id",
-				"query.me.name",
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.id", IsExternal: true},
+				{Path: "query.me.name", IsExternal: true},
 			},
 			expectExternalFields: true,
 		},
@@ -155,9 +162,9 @@ func TestKeyInfo(t *testing.T) {
 					Path:      "query.me.name",
 				},
 			},
-			expectPaths: []string{
-				"query.me.id",
-				"query.me.name",
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.id"},
+				{Path: "query.me.name"},
 			},
 			expectExternalFields: false,
 		},
@@ -232,9 +239,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -272,9 +279,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id", IsExternal: true},
+								{Path: "query.me.name", IsExternal: true},
 							},
 						},
 					},
@@ -327,9 +334,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -370,9 +377,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       true,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id", IsExternal: true},
+								{Path: "query.me.name", IsExternal: true},
 							},
 						},
 					},
@@ -413,9 +420,9 @@ func TestCollectKeysForPath(t *testing.T) {
 							Target:       false,
 							TypeName:     "User",
 							SelectionSet: "id name",
-							FieldPaths: []string{
-								"query.me.id",
-								"query.me.name",
+							FieldPaths: []KeyInfoFieldPath{
+								{Path: "query.me.id"},
+								{Path: "query.me.name"},
 							},
 						},
 					},
@@ -461,9 +468,12 @@ func TestCollectKeysForPath(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
 
 			collectNodesVisitor := &collectNodesVisitor{
-				definition:      &definition,
-				dataSource:      c.dataSource,
-				providesEntries: c.providesEntries,
+				definition:          &definition,
+				dataSource:          c.dataSource,
+				providesEntries:     c.providesEntries,
+				keys:                make([]DSKeyInfo, 0, 2),
+				localSeenKeys:       make(map[SeenKeyPath]struct{}),
+				notExternalKeyPaths: make(map[string]struct{}),
 			}
 
 			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)

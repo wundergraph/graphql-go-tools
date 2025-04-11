@@ -84,7 +84,7 @@ func (c *nodesCollector) collectNodes() {
 		}
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
-		visitor.keyPaths = make(map[string]struct{})
+		visitor.notExternalKeyPaths = make(map[string]struct{})
 		visitors[i] = visitor
 		report := operationreport.Report{}
 		reports[i] = &report
@@ -206,8 +206,8 @@ type collectNodesVisitor struct {
 
 	nodes *NodeSuggestions
 
-	keyPaths map[string]struct{}
-	info     map[int]fieldInfo
+	notExternalKeyPaths map[string]struct{}
+	info                map[int]fieldInfo
 
 	keys []DSKeyInfo
 
@@ -348,49 +348,8 @@ func (f *collectNodesVisitor) shouldAddUnionTypenameFieldSuggestion(info fieldIn
 	return node.Kind == ast.NodeKindUnionTypeDefinition
 }
 
-func (f *collectNodesVisitor) isFieldPartOfKey(typeName, currentPath, parentPath string) bool {
-	if _, ok := f.keyPaths[currentPath]; ok {
-		return true
-	}
-
-	keyFields := f.dataSource.RequiredFieldsByKey(typeName)
-	if len(keyFields) == 0 {
-		return false
-	}
-
-	for _, keyField := range keyFields {
-		// keys with disabled entity resolver can't be external
-		if keyField.DisableEntityResolver {
-			continue
-		}
-
-		// if key has conditions it is external and could only be provided
-		// on a certain path
-		if len(keyField.Conditions) > 0 {
-			continue
-		}
-
-		fieldSet, report := RequiredFieldsFragment(typeName, keyField.SelectionSet, false)
-		if report.HasErrors() {
-			return false
-		}
-
-		input := &keyVisitorInput{
-			typeName:   typeName,
-			key:        fieldSet,
-			definition: f.definition,
-			report:     report,
-			parentPath: parentPath,
-		}
-
-		keyPaths := keyFieldPaths(input)
-
-		for _, keyPath := range keyPaths {
-			f.keyPaths[keyPath] = struct{}{}
-		}
-	}
-
-	_, ok := f.keyPaths[currentPath]
+func (f *collectNodesVisitor) isNotExternalKeyField(currentPath string) bool {
+	_, ok := f.notExternalKeyPaths[currentPath]
 	return ok
 }
 
@@ -467,7 +426,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(info)
 	isLeaf := !f.operation.FieldHasSelections(fieldRef)
 
-	if isExternal && f.isFieldPartOfKey(info.typeName, info.currentPath, info.parentPath) {
+	if isExternal && f.isNotExternalKeyField(info.currentPath) {
 		// external fields which are part of the key should not be marked as external
 		isExternal = false
 	}

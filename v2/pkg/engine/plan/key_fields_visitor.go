@@ -20,42 +20,18 @@ type keyVisitorInput struct {
 	keyIsConditional bool
 }
 
-func keyFieldPaths(input *keyVisitorInput) []string {
-	walker := astvisitor.NewWalker(48)
-	visitor := &isKeyFieldVisitor{
-		walker: &walker,
-		input:  input,
-	}
-
-	walker.RegisterEnterFieldVisitor(visitor)
-	walker.Walk(input.key, input.definition, input.report)
-
-	return visitor.keyPaths
-}
-
-type isKeyFieldVisitor struct {
-	walker *astvisitor.Walker
-	input  *keyVisitorInput
-
-	keyPaths []string
-}
-
-func (v *isKeyFieldVisitor) EnterField(ref int) {
-	fieldName := v.input.key.FieldNameUnsafeString(ref)
-
-	parentPath := v.input.parentPath + strings.TrimPrefix(v.walker.Path.DotDelimitedString(), v.input.typeName)
-	currentPath := parentPath + "." + fieldName
-
-	v.keyPaths = append(v.keyPaths, currentPath)
-}
-
 type KeyInfo struct {
 	DSHash       DSHash
 	Source       bool
 	Target       bool
 	TypeName     string
 	SelectionSet string
-	FieldPaths   []string
+	FieldPaths   []KeyInfoFieldPath
+}
+
+type KeyInfoFieldPath struct {
+	Path       string
+	IsExternal bool
 }
 
 /*
@@ -131,16 +107,12 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 
 	typeNameKeys := make([]KeyInfo, 0, len(keys))
 
-	for _, key := range keys {
-		fieldSet, report := RequiredFieldsFragment(typeName, key.SelectionSet, false)
-		if report.HasErrors() {
-			// TODO: handle error
-			return
-		}
+	report := &operationreport.Report{}
 
+	for _, key := range keys {
 		input := &keyVisitorInput{
 			typeName:   typeName,
-			key:        fieldSet,
+			key:        key.parsedSelectionSet,
 			definition: f.definition,
 			report:     report,
 			parentPath: parentPath,
@@ -152,7 +124,8 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 
 		keyPaths, hasExternalFields := getKeyPaths(input)
 		if report.HasErrors() {
-
+			f.walker.StopWithInternalErr(report)
+			return
 		}
 
 		target := !key.DisableEntityResolver
@@ -172,6 +145,14 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 			FieldPaths:   keyPaths,
 		}
 
+		for _, path := range keyPaths {
+			if path.IsExternal {
+				continue
+			}
+
+			f.notExternalKeyPaths[path.Path] = struct{}{}
+		}
+
 		typeNameKeys = append(typeNameKeys, keyInfo)
 	}
 
@@ -183,7 +164,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 	})
 }
 
-func getKeyPaths(input *keyVisitorInput) (keyPaths []string, hasExternalFields bool) {
+func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExternalFields bool) {
 	walker := astvisitor.NewWalker(48)
 	visitor := &keyInfoVisitor{
 		walker: &walker,
@@ -200,7 +181,7 @@ type keyInfoVisitor struct {
 	walker *astvisitor.Walker
 	input  *keyVisitorInput
 
-	keyPaths          []string
+	keyPaths          []KeyInfoFieldPath
 	hasExternalFields bool
 }
 
@@ -248,7 +229,10 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 
 	}
 
-	v.keyPaths = append(v.keyPaths, currentPath)
+	v.keyPaths = append(v.keyPaths, KeyInfoFieldPath{
+		Path:       currentPath,
+		IsExternal: isExternal,
+	})
 
 	if isExternal {
 		v.hasExternalFields = true
