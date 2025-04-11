@@ -193,6 +193,36 @@ func TestCloneSchema(t *testing.T) {
 		assert.NotEqual(t, original.Required, clone.Required)
 		assert.Empty(t, original.Properties["string"].Description)
 	})
+
+	t.Run("clone preserves nullable field", func(t *testing.T) {
+		// Create schemas with different nullable settings
+		nullable := NewStringSchema().WithNullable(true)
+		nonNullable := NewStringSchema().WithNullable(false)
+
+		// Clone the schemas
+		nullableClone := CloneSchema(nullable)
+		nonNullableClone := CloneSchema(nonNullable)
+
+		// Verify nullable property is preserved
+		assert.True(t, nullableClone.Nullable)
+		assert.False(t, nonNullableClone.Nullable)
+
+		// Create a complex schema with different nullable settings
+		complex := NewObjectSchema()
+		complex.Properties["nullableString"] = NewStringSchema().WithNullable(true)
+		complex.Properties["nonNullableString"] = NewStringSchema().WithNullable(false)
+		complex.Properties["nullableArray"] = NewArraySchema(NewStringSchema()).WithNullable(true)
+		complex.Properties["nonNullableArray"] = NewArraySchema(NewStringSchema()).WithNullable(false)
+
+		// Clone the complex schema
+		complexClone := CloneSchema(complex)
+
+		// Verify nullable settings are preserved for all properties
+		assert.True(t, complexClone.Properties["nullableString"].Nullable)
+		assert.False(t, complexClone.Properties["nonNullableString"].Nullable)
+		assert.True(t, complexClone.Properties["nullableArray"].Nullable)
+		assert.False(t, complexClone.Properties["nonNullableArray"].Nullable)
+	})
 }
 
 func TestSchemaFeatures(t *testing.T) {
@@ -456,5 +486,67 @@ func TestSchemaFeatures(t *testing.T) {
 		addressProps := addressProp["properties"].(map[string]interface{})
 		assert.Len(t, addressProps, 2)
 		assert.Equal(t, []interface{}{"street"}, addressProp["required"])
+	})
+
+	t.Run("nullable schema property", func(t *testing.T) {
+		// Test creating schemas with different nullable settings
+
+		// Create a schema with nullable field
+		schema := NewObjectSchema()
+		schema.Properties["nullableString"] = NewStringSchema().WithNullable(true)
+		schema.Properties["nonNullableString"] = NewStringSchema().WithNullable(false)
+
+		// By default, all types should be nullable
+		schema.Properties["defaultString"] = NewStringSchema()
+
+		// Check that factory methods set nullable to true by default
+		intSchema := NewIntegerSchema()
+		assert.True(t, intSchema.Nullable)
+
+		numSchema := NewNumberSchema()
+		assert.True(t, numSchema.Nullable)
+
+		boolSchema := NewBooleanSchema()
+		assert.True(t, boolSchema.Nullable)
+
+		enumSchema := NewEnumSchema([]interface{}{"A", "B"})
+		assert.True(t, enumSchema.Nullable)
+
+		arraySchema := NewArraySchema(NewStringSchema())
+		assert.True(t, arraySchema.Nullable)
+
+		objSchema := NewObjectSchema()
+		assert.True(t, objSchema.Nullable)
+
+		// Test serialization
+		data, err := json.Marshal(schema)
+		require.NoError(t, err)
+
+		var parsed map[string]interface{}
+		err = json.Unmarshal(data, &parsed)
+		require.NoError(t, err)
+
+		properties := parsed["properties"].(map[string]interface{})
+
+		// Explicitly nullable property should have nullable=true
+		nullableProp := properties["nullableString"].(map[string]interface{})
+		assert.Equal(t, true, nullableProp["nullable"])
+
+		// Non-nullable property should not have nullable field (omitempty)
+		nonNullableProp := properties["nonNullableString"].(map[string]interface{})
+		_, hasNullable := nonNullableProp["nullable"]
+		assert.False(t, hasNullable)
+
+		// Default property should have nullable=true
+		defaultProp := properties["defaultString"].(map[string]interface{})
+		assert.Equal(t, true, defaultProp["nullable"])
+
+		// Test WithNullable method
+		schema = NewStringSchema()
+		schema.WithNullable(true)
+		assert.True(t, schema.Nullable)
+
+		schema.WithNullable(false)
+		assert.False(t, schema.Nullable)
 	})
 }

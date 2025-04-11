@@ -107,6 +107,11 @@ func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
 		v.processVariableDefinition(varDefRef)
 	}
 
+	// If we have required fields, the root schema cannot be nullable
+	if len(v.schema.Required) > 0 {
+		v.schema.Nullable = false
+	}
+
 	if v.report.HasErrors() {
 		return nil, fmt.Errorf("%s", v.report.Error())
 	}
@@ -151,6 +156,8 @@ func (v *VariablesSchemaBuilder) processOperationTypeRef(typeRef int) *JsonSchem
 		if schema == nil {
 			return nil
 		}
+		// Non-null types are not nullable
+		schema.Nullable = false
 		return schema
 
 	case ast.TypeKindList:
@@ -159,11 +166,19 @@ func (v *VariablesSchemaBuilder) processOperationTypeRef(typeRef int) *JsonSchem
 		if itemSchema == nil {
 			return nil
 		}
-		return NewArraySchema(itemSchema)
+		// If we're not in a non-null context, list is nullable
+		schema := NewArraySchema(itemSchema)
+		schema.Nullable = true
+		return schema
 
 	case ast.TypeKindNamed:
 		typeName := v.operationDocument.TypeNameString(typeRef)
-		return v.processTypeByName(typeName)
+		schema := v.processTypeByName(typeName)
+		if schema != nil {
+			// If we're not in a non-null context, named type is nullable
+			schema.Nullable = true
+		}
+		return schema
 	}
 
 	return nil
@@ -320,6 +335,8 @@ func (v *VariablesSchemaBuilder) processDefinitionTypeRef(typeRef int) *JsonSche
 		if schema == nil {
 			return nil
 		}
+		// Non-null types are not nullable
+		schema.Nullable = false
 		return schema
 
 	case ast.TypeKindList:
@@ -328,11 +345,19 @@ func (v *VariablesSchemaBuilder) processDefinitionTypeRef(typeRef int) *JsonSche
 		if itemSchema == nil {
 			return nil
 		}
-		return NewArraySchema(itemSchema)
+		// If we're not in a non-null context, list is nullable
+		schema := NewArraySchema(itemSchema)
+		schema.Nullable = true
+		return schema
 
 	case ast.TypeKindNamed:
 		typeName := v.definitionDocument.TypeNameString(typeRef)
-		return v.processTypeByName(typeName)
+		schema := v.processTypeByName(typeName)
+		if schema != nil {
+			// If we're not in a non-null context, named type is nullable
+			schema.Nullable = true
+		}
+		return schema
 	}
 
 	return nil

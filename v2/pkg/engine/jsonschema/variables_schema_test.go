@@ -973,4 +973,217 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.True(t, strings.Contains(jsonStr, `"a":`) || strings.Contains(jsonStr, `"b":`),
 			"Should have at least one reference to a recursive field")
 	})
+
+	t.Run("correctly handles nullable and non-nullable fields", func(t *testing.T) {
+		// Define schema with a mix of nullable and non-nullable fields
+		schemaSDL := `
+			type Query {
+				findUser(input: UserInput): User
+			}
+			
+			type User {
+				id: ID!
+				name: String
+			}
+			
+			input UserInput {
+				id: ID
+				name: String!
+				age: Int
+				tags: [String]
+				requiredTags: [String]!
+				nonNullTags: [String!]
+				requiredNonNullTags: [String!]!
+				nested: NestedInput
+				requiredNested: NestedInput!
+			}
+			
+			input NestedInput {
+				field: String
+				requiredField: String!
+			}
+		`
+
+		// Define operation
+		operationSDL := `
+			query FindUser($input: UserInput) {
+				findUser(input: $input) {
+					id
+					name
+				}
+			}
+		`
+
+		// Parse schema and operation
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		// Build JSON schema
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		// Serialize schema to JSON
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		// Verify schema structure
+		var parsed map[string]interface{}
+		err = json.Unmarshal(data, &parsed)
+		require.NoError(t, err)
+
+		// Get properties
+		properties := parsed["properties"].(map[string]interface{})
+		input := properties["input"].(map[string]interface{})
+		inputProps := input["properties"].(map[string]interface{})
+
+		// Verify nullable property is correctly set based on GraphQL nullability
+
+		// Nullable scalar
+		id := inputProps["id"].(map[string]interface{})
+		assert.Equal(t, "string", id["type"])
+		assert.Equal(t, true, id["nullable"])
+
+		// Non-nullable scalar
+		name := inputProps["name"].(map[string]interface{})
+		assert.Equal(t, "string", name["type"])
+		assert.NotContains(t, name, "nullable") // Default is not nullable for required fields
+
+		// Nullable scalar
+		age := inputProps["age"].(map[string]interface{})
+		assert.Equal(t, "integer", age["type"])
+		assert.Equal(t, true, age["nullable"])
+
+		// Nullable array
+		tags := inputProps["tags"].(map[string]interface{})
+		assert.Equal(t, "array", tags["type"])
+		assert.Equal(t, true, tags["nullable"])
+
+		// Non-nullable array with nullable items
+		requiredTags := inputProps["requiredTags"].(map[string]interface{})
+		assert.Equal(t, "array", requiredTags["type"])
+		assert.NotContains(t, requiredTags, "nullable")
+
+		// Nullable array with non-nullable items
+		nonNullTags := inputProps["nonNullTags"].(map[string]interface{})
+		assert.Equal(t, "array", nonNullTags["type"])
+		assert.Equal(t, true, nonNullTags["nullable"])
+		nonNullTagsItems := nonNullTags["items"].(map[string]interface{})
+		assert.Equal(t, "string", nonNullTagsItems["type"])
+		assert.NotContains(t, nonNullTagsItems, "nullable")
+
+		// Non-nullable array with non-nullable items
+		requiredNonNullTags := inputProps["requiredNonNullTags"].(map[string]interface{})
+		assert.Equal(t, "array", requiredNonNullTags["type"])
+		assert.NotContains(t, requiredNonNullTags, "nullable")
+		requiredNonNullTagsItems := requiredNonNullTags["items"].(map[string]interface{})
+		assert.Equal(t, "string", requiredNonNullTagsItems["type"])
+		assert.NotContains(t, requiredNonNullTagsItems, "nullable")
+
+		// Nullable object
+		nested := inputProps["nested"].(map[string]interface{})
+		assert.Equal(t, "object", nested["type"])
+		assert.Equal(t, true, nested["nullable"])
+
+		// Non-nullable object
+		requiredNested := inputProps["requiredNested"].(map[string]interface{})
+		assert.Equal(t, "object", requiredNested["type"])
+		assert.NotContains(t, requiredNested, "nullable")
+
+		// Check nested fields
+		nestedProps := nested["properties"].(map[string]interface{})
+
+		// Nullable nested field
+		nestedField := nestedProps["field"].(map[string]interface{})
+		assert.Equal(t, "string", nestedField["type"])
+		assert.Equal(t, true, nestedField["nullable"])
+
+		// Non-nullable nested field
+		requiredNestedField := nestedProps["requiredField"].(map[string]interface{})
+		assert.Equal(t, "string", requiredNestedField["type"])
+		assert.NotContains(t, requiredNestedField, "nullable")
+	})
+
+	t.Run("root schema nullable based on required arguments", func(t *testing.T) {
+		// Define schema with required and optional arguments
+		schemaSDL := `
+			type Query {
+				findUser(id: ID!, name: String): User
+			}
+			
+			type User {
+				id: ID!
+				name: String
+			}
+		`
+
+		// Test case 1: Operation with required argument
+		operationWithRequired := `
+			query GetUser($id: ID!) {
+				findUser(id: $id) {
+					id
+					name
+				}
+			}
+		`
+
+		// Test case 2: Operation with only optional arguments
+		operationOptionalOnly := `
+			query GetUserByName($name: String) {
+				findUser(id: "fixed-id", name: $name) {
+					id
+					name
+				}
+			}
+		`
+
+		// Parse schema
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		// Parse and test operation with required argument
+		operationDoc1, report := astparser.ParseGraphqlDocumentString(operationWithRequired)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema1, err := BuildJsonSchema(&operationDoc1, &definitionDoc)
+		require.NoError(t, err)
+
+		// Convert to JSON to check nullable field
+		data1, err := json.Marshal(schema1)
+		require.NoError(t, err)
+
+		var parsed1 map[string]interface{}
+		err = json.Unmarshal(data1, &parsed1)
+		require.NoError(t, err)
+
+		// Verify root schema is NOT nullable when there are required arguments
+		_, hasNullable1 := parsed1["nullable"]
+		assert.False(t, hasNullable1, "Root schema should not be nullable when there are required arguments")
+		// Verify required fields are present
+		required1, hasRequired1 := parsed1["required"].([]interface{})
+		assert.True(t, hasRequired1)
+		assert.Contains(t, required1, "id")
+
+		// Parse and test operation with only optional arguments
+		operationDoc2, report := astparser.ParseGraphqlDocumentString(operationOptionalOnly)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		schema2, err := BuildJsonSchema(&operationDoc2, &definitionDoc)
+		require.NoError(t, err)
+
+		// Convert to JSON to check nullable field
+		data2, err := json.Marshal(schema2)
+		require.NoError(t, err)
+
+		var parsed2 map[string]interface{}
+		err = json.Unmarshal(data2, &parsed2)
+		require.NoError(t, err)
+
+		// Verify root schema IS nullable when there are only optional arguments
+		nullable2, hasNullable2 := parsed2["nullable"].(bool)
+		assert.True(t, hasNullable2)
+		assert.True(t, nullable2, "Root schema should be nullable when all arguments are optional")
+	})
 }

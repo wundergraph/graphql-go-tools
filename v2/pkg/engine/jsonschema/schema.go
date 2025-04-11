@@ -25,6 +25,7 @@ type JsonSchema struct {
 	Required             []string               `json:"required,omitempty"`
 	AdditionalProperties *bool                  `json:"additionalProperties,omitempty"`
 	Description          string                 `json:"description,omitempty"`
+	Nullable             bool                   `json:"nullable,omitempty"`
 
 	// Array-specific fields
 	Items *JsonSchema `json:"items,omitempty"`
@@ -72,6 +73,11 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 		m["description"] = s.Description
 	}
 
+	// Only include nullable field when it's true, omit when false
+	if s.Nullable {
+		m["nullable"] = true
+	}
+
 	if s.Items != nil {
 		m["items"] = s.Items
 	}
@@ -112,50 +118,57 @@ func NewObjectSchema() *JsonSchema {
 		Properties:           make(map[string]*JsonSchema),
 		AdditionalProperties: &additionalProps,
 		Required:             []string{},
+		Nullable:             true, // Default to nullable
 	}
 }
 
 // NewArraySchema creates a new schema for an array type
 func NewArraySchema(items *JsonSchema) *JsonSchema {
 	return &JsonSchema{
-		Type:  TypeArray,
-		Items: items,
+		Type:     TypeArray,
+		Items:    items,
+		Nullable: true, // Default to nullable
 	}
 }
 
 // NewStringSchema creates a new schema for a string type
 func NewStringSchema() *JsonSchema {
 	return &JsonSchema{
-		Type: TypeString,
+		Type:     TypeString,
+		Nullable: true, // Default to nullable
 	}
 }
 
 // NewIntegerSchema creates a new schema for an integer type
 func NewIntegerSchema() *JsonSchema {
 	return &JsonSchema{
-		Type: TypeInteger,
+		Type:     TypeInteger,
+		Nullable: true, // Default to nullable
 	}
 }
 
 // NewNumberSchema creates a new schema for a number type
 func NewNumberSchema() *JsonSchema {
 	return &JsonSchema{
-		Type: TypeNumber,
+		Type:     TypeNumber,
+		Nullable: true, // Default to nullable
 	}
 }
 
 // NewBooleanSchema creates a new schema for a boolean type
 func NewBooleanSchema() *JsonSchema {
 	return &JsonSchema{
-		Type: TypeBoolean,
+		Type:     TypeBoolean,
+		Nullable: true, // Default to nullable
 	}
 }
 
 // NewEnumSchema creates a new schema for an enum type
 func NewEnumSchema(values []interface{}) *JsonSchema {
 	return &JsonSchema{
-		Type: TypeString,
-		Enum: values,
+		Type:     TypeString,
+		Enum:     values,
+		Nullable: true, // Default to nullable
 	}
 }
 
@@ -171,6 +184,7 @@ func CloneSchema(schema *JsonSchema) *JsonSchema {
 		Format:      schema.Format,
 		Pattern:     schema.Pattern,
 		Default:     schema.Default,
+		Nullable:    schema.Nullable,
 	}
 
 	if schema.Properties != nil {
@@ -225,5 +239,11 @@ func (s *JsonSchema) WithDefault(defaultValue interface{}) *JsonSchema {
 // WithFormat adds a format to a string schema
 func (s *JsonSchema) WithFormat(format string) *JsonSchema {
 	s.Format = format
+	return s
+}
+
+// WithNullable marks a schema as nullable
+func (s *JsonSchema) WithNullable(nullable bool) *JsonSchema {
+	s.Nullable = nullable
 	return s
 }
