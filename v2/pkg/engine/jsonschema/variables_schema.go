@@ -143,6 +143,15 @@ func (v *VariablesSchemaBuilder) processVariableDefinition(varDefRef int) {
 		varSchema.Default = v.convertOperationValueToNative(defaultValue)
 	}
 
+	// Force top-level object fields to be not nullable (Nullable=false) so they can't be null
+	// This ensures they appear as empty objects at minimum
+	if varSchema.Type == TypeObject {
+		// Setting Nullable to false means the field can't be null
+		// Since the nullable field is only included when true, this effectively removes it
+		// from the output JSON, which is what we want
+		varSchema.Nullable = false
+	}
+
 	// Add variable to schema
 	v.schema.Properties[varName] = varSchema
 }

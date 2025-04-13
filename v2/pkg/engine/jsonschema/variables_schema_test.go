@@ -1090,7 +1090,10 @@ func TestBuildJsonSchema(t *testing.T) {
 		// Non-nullable object
 		requiredNested := inputProps["requiredNested"].(map[string]interface{})
 		assert.Equal(t, "object", requiredNested["type"])
-		assert.NotContains(t, requiredNested, "nullable")
+		// For object types, nullable should be included and be false for required fields
+		nullable, hasNullable := requiredNested["nullable"]
+		assert.True(t, hasNullable, "Required nested object should have nullable field")
+		assert.False(t, nullable.(bool), "Required nested object should have nullable=false")
 
 		// Check nested fields
 		nestedProps := nested["properties"].(map[string]interface{})
@@ -1103,6 +1106,7 @@ func TestBuildJsonSchema(t *testing.T) {
 		// Non-nullable nested field
 		requiredNestedField := nestedProps["requiredField"].(map[string]interface{})
 		assert.Equal(t, "string", requiredNestedField["type"])
+		// Type string non-nullable still won't have nullable field
 		assert.NotContains(t, requiredNestedField, "nullable")
 	})
 
@@ -1159,8 +1163,10 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify root schema is NOT nullable when there are required arguments
-		_, hasNullable1 := parsed1["nullable"]
-		assert.False(t, hasNullable1, "Root schema should not be nullable when there are required arguments")
+		nullable1, hasNullable1 := parsed1["nullable"]
+		assert.True(t, hasNullable1, "Root schema should have nullable field when there are required arguments")
+		assert.False(t, nullable1.(bool), "Root schema should not be nullable when there are required arguments")
+
 		// Verify required fields are present
 		required1, hasRequired1 := parsed1["required"].([]interface{})
 		assert.True(t, hasRequired1)
@@ -1185,5 +1191,77 @@ func TestBuildJsonSchema(t *testing.T) {
 		nullable2, hasNullable2 := parsed2["nullable"].(bool)
 		assert.True(t, hasNullable2)
 		assert.True(t, nullable2, "Root schema should be nullable when all arguments are optional")
+	})
+
+	t.Run("top-level object fields are not nullable", func(t *testing.T) {
+		// Define schema
+		schemaSDL := `
+			type Query {
+				findEmployees(criteria: SearchInput): [Employee]
+			}
+			
+			type Employee {
+				id: ID!
+				isAvailable: Boolean
+				details: EmployeeDetails
+			}
+			
+			type EmployeeDetails {
+				forename: String
+				nationality: String
+			}
+			
+			input SearchInput {
+				name: String
+				department: String
+			}
+		`
+
+		// Define operation
+		operationSDL := `
+			query MyEmployees($criteria: SearchInput) {
+				findEmployees(criteria: $criteria) {
+					id
+					isAvailable
+					details {
+						forename
+						nationality
+					}
+				}
+			}
+		`
+
+		// Parse schema and operation
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		// Build JSON schema
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		// Serialize schema to JSON to check what's exported
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
+
+		// Verify schema structure
+		var parsed map[string]interface{}
+		err = json.Unmarshal(data, &parsed)
+		require.NoError(t, err)
+
+		// Verify properties
+		properties := parsed["properties"].(map[string]interface{})
+
+		// Check criteria object
+		criteria, ok := properties["criteria"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, "object", criteria["type"])
+
+		// Verify criteria is not nullable by checking the nullable field is explicitly false
+		nullable, hasNullable := criteria["nullable"]
+		assert.True(t, hasNullable, "Top-level object field should have nullable field")
+		assert.False(t, nullable.(bool), "Top-level object field should have nullable=false")
 	})
 }

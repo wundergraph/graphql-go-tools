@@ -73,9 +73,10 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 		m["description"] = s.Description
 	}
 
-	// Only include nullable field when it's true, omit when false
-	if s.Nullable {
-		m["nullable"] = true
+	// For object types, always include nullable field regardless of value
+	// For other types, only include nullable when it's true
+	if s.Type == TypeObject || s.Nullable {
+		m["nullable"] = s.Nullable
 	}
 
 	if s.Items != nil {
