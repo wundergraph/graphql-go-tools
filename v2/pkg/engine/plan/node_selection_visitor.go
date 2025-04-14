@@ -191,12 +191,6 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 
 	for _, suggestion := range suggestions {
-		if suggestion.IsRequiredKeyField {
-			// it was already selected as a key field
-			// no need to process required fields for it
-			continue
-		}
-
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
 			return d.Hash() == suggestion.DataSourceHash
 		})
@@ -482,12 +476,13 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	}
 
 	input := &addRequiredFieldsInput{
-		key:                          key,
-		operation:                    c.operation,
-		definition:                   c.definition,
-		report:                       report,
-		operationSelectionSet:        selectionSetRef,
-		isTypeNameForEntityInterface: requirements.isTypenameForEntityInterface,
+		key:                              key,
+		operation:                        c.operation,
+		definition:                       c.definition,
+		report:                           report,
+		operationSelectionSet:            selectionSetRef,
+		isTypeNameForEntityInterface:     requirements.isTypenameForEntityInterface,
+		recordOnlyTopLevelRequiredFields: true,
 	}
 
 	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
