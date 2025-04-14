@@ -104,7 +104,7 @@ func (f *FederationFieldConfiguration) parseSelectionSet() error {
 	return nil
 }
 
-func (f *FederationFieldConfiguration) String() string {
+func (f FederationFieldConfiguration) String() string {
 	b, _ := json.Marshal(f)
 	return string(b)
 }

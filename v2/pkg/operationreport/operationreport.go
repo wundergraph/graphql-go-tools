@@ -11,6 +11,10 @@ type Report struct {
 	ExternalErrors []ExternalError
 }
 
+func NewReport() *Report {
+	return &Report{}
+}
+
 func (r Report) Error() string {
 	out := ""
 	for i := range r.InternalErrors {
