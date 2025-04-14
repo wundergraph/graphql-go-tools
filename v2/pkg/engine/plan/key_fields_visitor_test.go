@@ -4,92 +4,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
-
-func TestKeyFieldPaths(t *testing.T) {
-	definitionSDL := `
-		type User @key(fields: "name surname") @key(fields: "name info { age }") {
-			name: String!
-			surname: String!
-			info: Info!
-			address: Address!
-		}
-
-		type Info {
-			age: Int!
-			weight: Int!
-		}
-
-		type Address {
-			city: String!
-			street: String!
-			zip: String!
-		}`
-
-	dataSource := dsb().Hash(22).
-		RootNode("User", "name", "surname", "info", "address").
-		ChildNode("Info", "age", "weight").
-		ChildNode("Address", "city", "street", "zip").
-		DS()
-
-	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(definitionSDL)
-
-	cases := []struct {
-		fieldSet      string
-		parentPath    string
-		expectedPaths []KeyInfoFieldPath
-	}{
-		{
-			fieldSet:   "name surname",
-			parentPath: "query.me",
-			expectedPaths: []KeyInfoFieldPath{
-				{Path: "query.me.name"},
-				{Path: "query.me.surname"},
-			},
-		},
-		{
-			fieldSet:   "name info { age }",
-			parentPath: "query.me.admin",
-			expectedPaths: []KeyInfoFieldPath{
-				{Path: "query.me.admin.name"},
-				{Path: "query.me.admin.info"},
-				{Path: "query.me.admin.info.age"},
-			},
-		},
-	}
-
-	for _, c := range cases {
-		t.Run(c.fieldSet, func(t *testing.T) {
-			fieldSet, report := RequiredFieldsFragment("User", c.fieldSet, false)
-			require.False(t, report.HasErrors())
-
-			input := &keyVisitorInput{
-				typeName:   "User",
-				key:        fieldSet,
-				definition: &definition,
-				report:     report,
-				parentPath: c.parentPath,
-				dataSource: dataSource,
-			}
-
-			keyPaths, _ := getKeyPaths(input)
-			assert.False(t, report.HasErrors())
-			assert.Equal(t, c.expectedPaths, keyPaths)
-		})
-	}
-}
 
 func TestKeyInfo(t *testing.T) {
 
 	cases := []struct {
-		name        string
-		definition  string
-		parentPath  string
-		typeName    string
-		keyFieldSet string
+		name       string
+		definition string
+		parentPath string
+		typeName   string
 
 		dataSource      DataSource
 		providesEntries []*NodeSuggestion
@@ -98,17 +24,97 @@ func TestKeyInfo(t *testing.T) {
 		expectExternalFields bool
 	}{
 		{
+			name:       "composite key with nested fields",
+			parentPath: "query.me.admin",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User", "name", "surname", "info").
+				ChildNode("Info", "age", "weight").
+				KeysMetadata(FederationFieldConfigurations{
+					FederationFieldConfiguration{
+						TypeName:     "User",
+						SelectionSet: "name info { age }",
+					},
+				}).DS(),
+			definition: `
+				type User @key(fields: "name info { age }") {
+					name: String!
+					surname: String!
+					info: Info!
+				}
+		
+				type Info {
+					age: Int!
+					weight: Int!
+				}`,
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.admin.name"},
+				{Path: "query.me.admin.info"},
+				{Path: "query.me.admin.info.age"},
+			},
+		},
+		{
+			name:       "composite key with nested childs fields are external",
+			parentPath: "query.me.admin",
+			typeName:   "User",
+			dataSource: dsb().Hash(22).
+				RootNode("User", "name", "surname", "info").
+				ChildNode("Info").
+				AddChildNodeExternalFieldNames("Info", "age", "nested").
+				ChildNode("NestedInfo").
+				AddChildNodeExternalFieldNames("NestedInfo", "weight").
+				KeysMetadata(FederationFieldConfigurations{
+					FederationFieldConfiguration{
+						TypeName:     "User",
+						SelectionSet: "name info { age nested {weight}}",
+					},
+				}).DS(),
+			definition: `
+				type User @key(fields: "name info { age nested {weight}}") {
+					name: String!
+					surname: String!
+					info: Info! @external
+				}
+		
+				type Info {
+					age: Int! @external
+					nested: NestedInfo! @external
+				}
+				
+				type NestedInfo {
+					weight: Int! @external
+				}
+				`,
+			/*
+				Composition will give us User.info - as not external because it is used in key
+				But at the same time we have info.age - which is external in configuration
+				For the given key path it should not be external
+			*/
+			expectPaths: []KeyInfoFieldPath{
+				{Path: "query.me.admin.name"},
+				{Path: "query.me.admin.info"},
+				{Path: "query.me.admin.info.age"},
+				{Path: "query.me.admin.info.nested"},
+				{Path: "query.me.admin.info.nested.weight"},
+			},
+		},
+		{
 			name: "regular key",
 			definition: `
 				type User @key(fields: "id name") {
 					id: ID!
 					name: String!
 				}`,
-			parentPath:  "query.me",
-			typeName:    "User",
-			keyFieldSet: "id name",
+			parentPath: "query.me",
+			typeName:   "User",
 			dataSource: dsb().Hash(22).
-				RootNode("User", "id", "name").DS(),
+				RootNode("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					FederationFieldConfiguration{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).DS(),
 			expectPaths: []KeyInfoFieldPath{
 				{Path: "query.me.id"},
 				{Path: "query.me.name"},
@@ -116,18 +122,23 @@ func TestKeyInfo(t *testing.T) {
 			expectExternalFields: false,
 		},
 		{
-			name: "regular key with all fields external",
+			name: "regular key with all fields - really external",
 			definition: `
 				type User @key(fields: "id name") {
 					id: ID! @external
 					name: String! @external
 				}`,
-			parentPath:  "query.me",
-			typeName:    "User",
-			keyFieldSet: "id name",
+			parentPath: "query.me",
+			typeName:   "User",
 			dataSource: dsb().Hash(22).
 				RootNode("User").
-				AddRootNodeExternalFieldNames("User", "id", "name").DS(),
+				AddRootNodeExternalFieldNames("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					FederationFieldConfiguration{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).DS(),
 			expectPaths: []KeyInfoFieldPath{
 				{Path: "query.me.id", IsExternal: true},
 				{Path: "query.me.name", IsExternal: true},
@@ -144,12 +155,17 @@ func TestKeyInfo(t *testing.T) {
 					id: ID! @external
 					name: String! @external
 				}`,
-			parentPath:  "query.me",
-			typeName:    "User",
-			keyFieldSet: "id name",
+			parentPath: "query.me",
+			typeName:   "User",
 			dataSource: dsb().Hash(22).
 				RootNode("User").
-				AddRootNodeExternalFieldNames("User", "id", "name").DS(),
+				AddRootNodeExternalFieldNames("User", "id", "name").
+				KeysMetadata(FederationFieldConfigurations{
+					FederationFieldConfiguration{
+						TypeName:     "User",
+						SelectionSet: "id name",
+					},
+				}).DS(),
 			providesEntries: []*NodeSuggestion{
 				{
 					TypeName:  "User",
@@ -170,28 +186,28 @@ func TestKeyInfo(t *testing.T) {
 		},
 	}
 
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			fieldSet, report := RequiredFieldsFragment(c.typeName, c.keyFieldSet, false)
-			require.False(t, report.HasErrors())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			key := tc.dataSource.FederationConfiguration().Keys[0]
+			report := operationreport.NewReport()
 
-			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
+			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(tc.definition)
 
 			input := &keyVisitorInput{
-				typeName:   c.typeName,
-				key:        fieldSet,
+				typeName:   tc.typeName,
+				key:        key.parsedSelectionSet,
 				definition: &definition,
 				report:     report,
-				parentPath: c.parentPath,
+				parentPath: tc.parentPath,
 
-				dataSource:      c.dataSource,
-				providesEntries: c.providesEntries,
+				dataSource:      tc.dataSource,
+				providesEntries: tc.providesEntries,
 			}
 
 			keyPaths, hasExternalFields := getKeyPaths(input)
 			assert.False(t, report.HasErrors())
-			assert.Equal(t, c.expectPaths, keyPaths)
-			assert.Equal(t, c.expectExternalFields, hasExternalFields)
+			assert.Equal(t, tc.expectPaths, keyPaths)
+			assert.Equal(t, tc.expectExternalFields, hasExternalFields)
 		})
 	}
 }

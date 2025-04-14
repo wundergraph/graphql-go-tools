@@ -189,6 +189,8 @@ type keyInfoVisitor struct {
 
 	keyPaths          []KeyInfoFieldPath
 	hasExternalFields bool
+
+	currentKeyPath []KeyInfoFieldPath
 }
 
 func (v *keyInfoVisitor) EnterField(ref int) {
@@ -231,16 +233,53 @@ func (v *keyInfoVisitor) EnterField(ref int) {
 			if !v.input.keyIsConditional {
 				isExternal = false
 			}
+		} else if !v.input.keyIsConditional && len(v.currentKeyPath) > 0 && !v.isRootKeyPathExternal() {
+
+			// handles edge case when we mark direct child node as not external
+			// but nested fields was external for implicit key
+			// e.g.
+			// type User @key(fields: "id info {name}") {
+			//   id: ID!
+			//   info: Info @external
+			// }
+			// type Info {
+			//   name: String! @external
+			// }
+			// In the configuration User.info - will not be marked as external
+			// But Info.name will be marked as external
+			// so we have to bypass this case
+
+			isExternal = false
 		}
 
 	}
 
-	v.keyPaths = append(v.keyPaths, KeyInfoFieldPath{
+	fieldKeyPath := KeyInfoFieldPath{
 		Path:       currentPath,
 		IsExternal: isExternal,
-	})
+	}
+
+	v.keyPaths = append(v.keyPaths, fieldKeyPath)
 
 	if isExternal {
 		v.hasExternalFields = true
 	}
+
+	v.currentKeyPath = append(v.keyPaths, fieldKeyPath)
+}
+
+func (v *keyInfoVisitor) LeaveField(ref int) {
+	if len(v.currentKeyPath) == 0 {
+		return
+	}
+
+	v.currentKeyPath = v.currentKeyPath[:len(v.currentKeyPath)-1]
+}
+
+func (v *keyInfoVisitor) isRootKeyPathExternal() bool {
+	if len(v.currentKeyPath) == 0 {
+		return false
+	}
+
+	return v.currentKeyPath[0].IsExternal
 }
