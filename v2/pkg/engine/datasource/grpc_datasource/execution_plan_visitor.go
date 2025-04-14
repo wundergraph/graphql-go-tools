@@ -64,9 +64,9 @@ type rpcPlanVisitor struct {
 	currentCallID          int
 }
 
-// NewRPCPlanVisitor creates a new RPCPlanVisitor.
+// newRPCPlanVisitor creates a new RPCPlanVisitor.
 // It registers the visitor with the walker and returns it.
-func NewRPCPlanVisitor(walker *astvisitor.Walker, subgraphName string) *rpcPlanVisitor {
+func newRPCPlanVisitor(walker *astvisitor.Walker, subgraphName string) *rpcPlanVisitor {
 	visitor := &rpcPlanVisitor{
 		walker:                 walker,
 		plan:                   &RPCExecutionPlan{},
@@ -102,6 +102,12 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	if r.currentCallID < 0 {
 		r.currentCallID = 0
 	}
+
+	r.plan.Groups = append(r.plan.Groups, RPCCallGroup{
+		Calls: []RPCCall{},
+	})
+
+	r.currentGroupIndex = len(r.plan.Groups) - 1
 
 	r.operationDefinitionRef = ref
 
@@ -161,12 +167,25 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 }
 
 // buildRequestMessageFromInputArgument constructs a request message from an input argument based on its type.
+// It retrieves the underlying type and builds the request message from the underlying type.
+// If the underlying type is an input object type, it creates a new message and adds it to the current request message.
+// Otherwise, it adds the field to the current request message.
 func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef int) {
 	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
 	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
 	if !found {
 		return
 	}
+
+	jsonPath := r.operation.ArgumentNameString(argRef)
+
+	argument := r.operation.Arguments[argRef]
+	switch argument.Value.Kind {
+	case ast.ValueKindVariable:
+		jsonPath = r.operation.Input.ByteSliceString(r.operation.VariableValues[argument.Value.Ref].Name)
+	}
+
+	// If the underlying type is an input object type, create a new message and add it to the current request message.
 	switch underlyingTypeNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition:
 		msg := &RPCMessage{
@@ -174,14 +193,16 @@ func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef in
 			Fields: RPCFields{},
 		}
 
+		// Add a field of type message to the current request message.
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
 			Name:     r.operation.ArgumentNameString(argRef),
 			TypeName: DataTypeMessage.String(),
-			JSONPath: r.operation.ArgumentNameString(argRef),
+			JSONPath: jsonPath,
 			Index:    r.planInfo.currentRequestFieldIndex,
 			Message:  msg,
 		})
 
+		// Add the current request message to the ancestors and set the current request message to the new message.
 		r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
 		r.planInfo.currentRequestMessage = msg
 
@@ -192,16 +213,15 @@ func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef in
 
 	case ast.NodeKindScalarTypeDefinition:
 		dt := r.toDataType(&r.definition.Types[underlyingTypeNode.Ref])
-		argName := r.operation.ArgumentNameString(argRef)
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     argName,
+			Name:     r.operation.ArgumentNameString(argRef),
 			TypeName: dt.String(),
-			JSONPath: argName,
+			JSONPath: jsonPath,
 			Index:    r.planInfo.currentRequestFieldIndex,
 			Repeated: r.definition.TypeIsList(underlyingTypeNode.Ref),
 		})
 
-	case ast.NodeKindEnumTypeDefinition:
+	case ast.NodeKindEnumTypeDefinition: // TODO handle enum types
 		fmt.Println("enum")
 	}
 
@@ -271,16 +291,11 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef int)
 
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
 // Checks if this is in the root level below the operation definition.
-// If so, creates a new group and adds a new call to it.
-// TODO handle nested selection sets
+//
+// TODO handle multiple entity lookups in a single query.
+// We need to create a new call for each entity lookup.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
-		r.plan.Groups = append(r.plan.Groups, RPCCallGroup{
-			Calls: []RPCCall{},
-		})
-
-		r.currentGroupIndex = len(r.plan.Groups) - 1
-
 		r.currentCall = &RPCCall{
 			CallID:      r.currentCallID,
 			ServiceName: r.subgraphName,
@@ -298,13 +313,18 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
+	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
 	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
 		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
 	}
 
+	// Add the current response message to the ancestors and set the current response message to the current field message
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
 
+	// Keep track of the field indices for the current response message.
+	// This is used to set the correct field index for the current response message
+	// when leaving the selection set.
 	r.planInfo.responseFieldIndexAncestors = append(r.planInfo.responseFieldIndexAncestors, r.planInfo.currentResponseFieldIndex)
 	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
@@ -320,7 +340,6 @@ func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
 }
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
-// This method is called when leaving a selection set.
 // It updates the current response field index and response message ancestors.
 // If the ancestor is an operation definition, it adds the current call to the group.
 func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
@@ -506,7 +525,6 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 		},
 	}
 
-	// r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, keyFieldMessage)
 	r.planInfo.currentRequestMessage = keyFieldMessage
 
 	resultMessage := &RPCMessage{

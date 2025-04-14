@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
 )
 
 // Complete valid protobuf definition with service and message definitions
@@ -64,6 +65,41 @@ message Product {
 } 
 `
 
+var invalidProtoMissingResponseDefintition = `
+syntax = "proto3";
+package product.v1;
+
+option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
+
+service ProductService {
+  rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
+}
+
+message LookupProductByIdRequest {
+  repeated LookupProductByIdInput inputs = 1;
+}
+
+message LookupProductByIdInput {
+  ProductByIdKey key = 1;
+}
+
+message ProductByIdKey {
+  string id = 1;
+}
+`
+
+var protoSchemaWithRecursiveType = `
+syntax = "proto3";
+package product.v1;
+
+option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
+
+message RecursiveMessage {
+  string id = 1;
+  RecursiveMessage nested = 2;
+}
+`
+
 // TestNewProtoCompiler tests the basic functionality of the Proto compiler
 // It verifies that the compiler can successfully parse a valid protobuf definition
 func TestNewProtoCompiler(t *testing.T) {
@@ -79,11 +115,83 @@ func TestNewProtoCompiler(t *testing.T) {
 	// defined in the protobuf definition
 }
 
+func TestNewProtoCompilerInvalid(t *testing.T) {
+	compiler, err := NewProtoCompiler(invalidProtoMissingResponseDefintition)
+	require.ErrorContains(t, err, "unknown response type LookupProductByIdResponse")
+	require.Nil(t, compiler)
+}
+
+func TestNewProtoCompilerRecursiveType(t *testing.T) {
+	compiler, err := NewProtoCompiler(protoSchemaWithRecursiveType)
+	require.NoError(t, err)
+	require.Equal(t, "product.v1", compiler.doc.Package)
+	require.Equal(t, 1, len(compiler.doc.Messages))
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Name)
+	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
+	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].Name)
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields))
+	require.Equal(t, "id", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[0].Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[1].Name)
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+}
+
+func TestNewProtoCompilerNestedRecursiveType(t *testing.T) {
+	protoSchemaWithNestedRecursiveType := `
+syntax = "proto3";
+package product.v1;
+
+option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
+
+message NestedRecursiveMessage {
+  string id = 1;
+  RecursiveMessage nested = 2;
+}
+
+message RecursiveMessage {
+  string id = 1;
+  NestedRecursiveMessage nested = 2;
+}
+`
+	compiler, err := NewProtoCompiler(protoSchemaWithNestedRecursiveType)
+
+	require.NoError(t, err)
+	require.Equal(t, "product.v1", compiler.doc.Package)
+	require.Equal(t, 2, len(compiler.doc.Messages))
+
+	require.Equal(t, "NestedRecursiveMessage", compiler.doc.Messages[0].Name)
+	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
+	require.Equal(t, "id", compiler.doc.Messages[0].Fields[0].Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].Name)
+
+	nested := compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	require.Equal(t, "RecursiveMessage", nested.Name)
+
+	require.Equal(t, 2, len(nested.Fields))
+	require.Equal(t, "id", nested.Fields[0].Name)
+	require.Equal(t, "nested", nested.Fields[1].Name)
+
+	nested = nested.Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	require.Equal(t, "NestedRecursiveMessage", nested.Name)
+
+	require.Equal(t, 2, len(nested.Fields))
+	require.Equal(t, "id", nested.Fields[0].Name)
+	require.Equal(t, "nested", nested.Fields[1].Name)
+
+	nested = nested.Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	require.Equal(t, "RecursiveMessage", nested.Name)
+
+	require.Equal(t, 2, len(nested.Fields))
+	require.Equal(t, "id", nested.Fields[0].Name)
+	require.Equal(t, "nested", nested.Fields[1].Name)
+	require.Equal(t, "NestedRecursiveMessage", nested.Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+}
+
 // TestBuildProtoMessage tests the ability to build a protobuf message
 // from an execution plan and JSON data
 func TestBuildProtoMessage(t *testing.T) {
 	// Create and parse the protobuf definition
-	compiler, err := NewProtoCompiler(validProto)
+	compiler, err := NewProtoCompiler(testdata.ProtoSchema(t))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -105,7 +213,7 @@ func TestBuildProtoMessage(t *testing.T) {
 									Name:     "inputs",
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
-									JSONPath: "variables.representations", // Path to extract data from GraphQL variables
+									JSONPath: "representations", // Path to extract data from GraphQL variables
 									Index:    0,
 									Message: &RPCMessage{
 										Name: "LookupProductByIdInput",
