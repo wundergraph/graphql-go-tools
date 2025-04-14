@@ -38,10 +38,11 @@ func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string)
 }
 
 type addRequiredFieldsInput struct {
-	key, operation, definition   *ast.Document
-	report                       *operationreport.Report
-	operationSelectionSet        int
-	isTypeNameForEntityInterface bool
+	key, operation, definition       *ast.Document
+	report                           *operationreport.Report
+	operationSelectionSet            int
+	isTypeNameForEntityInterface     bool
+	recordOnlyTopLevelRequiredFields bool
 }
 
 func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
@@ -141,7 +142,7 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 		// because we want to depend only on the regular key fields, not the __typename field
 		// for entity interface we need real typename, so we use this dependency
 		if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
-			v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+			v.storeRequiredFieldRef(operationFieldRef)
 		}
 
 		// do not add required field if the field is already present in the operation with the same name
@@ -172,6 +173,15 @@ func (v *requiredFieldsVisitor) LeaveField(ref int) {
 	}
 }
 
+func (v *requiredFieldsVisitor) storeRequiredFieldRef(fieldRef int) {
+	if v.input.recordOnlyTopLevelRequiredFields && len(v.Walker.Ancestors) != 2 {
+		return
+	}
+
+	// we have to store only field refs which are at the root of the fieldset fragment
+	v.requiredFieldRefs = append(v.requiredFieldRefs, fieldRef)
+}
+
 func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int) ast.Node {
 	field := ast.Field{
 		Name:         v.input.operation.Input.AppendInputBytes(fieldName),
@@ -198,7 +208,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	// we are skipping adding __typename field to the required fields,
 	// because we want to depend only on the regular key fields, not the __typename field
 	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
-		v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+		v.storeRequiredFieldRef(addedField.Ref)
 	}
 
 	return addedField
