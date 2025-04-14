@@ -2,6 +2,9 @@ package grpcdatasource
 
 import (
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"strings"
 )
 
@@ -53,6 +56,11 @@ type RPCMessage struct {
 // It contains all information required to extract data from GraphQL variables
 // and construct the appropriate protobuf field.
 type RPCField struct {
+	// Alias can be used to rename the field in the request message
+	// This is needed to make sure that during the json composition,
+	// the field names match the GraphQL request naming.
+	// TODO implement alias handling
+	Alias string
 	// Repeated indicates if the field is a repeated field (array/list)
 	Repeated bool
 	// Name is the name of the field as defined in the protobuf message
@@ -122,6 +130,35 @@ func (r *RPCExecutionPlan) String() string {
 	}
 
 	return result.String()
+}
+
+type Planner struct {
+	visitor *rpcPlanVisitor
+	walker  *astvisitor.Walker
+}
+
+// NewPlanner returns a new Planner instance.
+//
+// The planner is responsible for creating an RPCExecutionPlan from a given
+// GraphQL operation. It is used by the engine to execute operations against
+// gRPC services.
+func NewPlanner(subgraphName string) *Planner {
+	walker := astvisitor.NewWalker(48)
+
+	return &Planner{
+		visitor: newRPCPlanVisitor(&walker, subgraphName),
+		walker:  &walker,
+	}
+}
+
+func (p *Planner) PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error) {
+	report := &operationreport.Report{}
+	p.walker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return nil, fmt.Errorf("unable to plan operation: %w", report)
+	}
+
+	return p.visitor.plan, nil
 }
 
 // formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation

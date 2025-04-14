@@ -27,6 +27,7 @@ const (
 	DataTypeEnum    DataType = "enum"      // Enumeration type
 	DataTypeMessage DataType = "message"   // Nested message type
 	DataTypeUnknown DataType = "<unknown>" // Represents an unknown or unsupported type
+	DataTypeBytes   DataType = "bytes"     // Bytes type
 )
 
 // dataTypeMap maps string representation of protobuf types to DataType constants.
@@ -39,6 +40,7 @@ var dataTypeMap = map[string]DataType{
 	"float":   DataTypeFloat,
 	"double":  DataTypeDouble,
 	"bool":    DataTypeBool,
+	"bytes":   DataTypeBytes,
 	"enum":    DataTypeEnum,
 	"message": DataTypeMessage,
 }
@@ -59,14 +61,18 @@ func fromGraphQLType(s string) DataType {
 	case "ID", "String":
 		return DataTypeString
 	case "Int":
+		// https://spec.graphql.org/October2021/#sec-Int
+		// Fields returning the type Int expect to encounter 32-bit integer internal values.
 		return DataTypeInt32
 	case "Float":
-		return DataTypeFloat
+		// https://spec.graphql.org/October2021/#sec-Float
+		// Fields returning the type Float expect to encounter double-precision floating-point internal values.
+		return DataTypeDouble
 	case "Boolean":
 		return DataTypeBool
 	default:
-		// Fallback to string for unknown types
-		return DataTypeString
+		// Fallback to bytes for unknown types to handle raw data.
+		return DataTypeBytes
 	}
 }
 
@@ -113,13 +119,25 @@ type Message struct {
 
 // Field represents a field in a protobuf message.
 type Field struct {
-	Name     string   // The name of the field
-	Type     DataType // The data type of the field
-	Number   int32    // The field number in the protobuf message
-	Ref      int      // Reference to the field (used for complex types)
-	Repeated bool     // Whether the field is a repeated field (array/list)
-	Optional bool     // Whether the field is optional
-	Message  *Message // If the field is a message type, this points to the message definition
+	Name       string   // The name of the field
+	Type       DataType // The data type of the field
+	Number     int32    // The field number in the protobuf message
+	Ref        int      // Reference to the field (used for complex types)
+	Repeated   bool     // Whether the field is a repeated field (array/list)
+	Optional   bool     // Whether the field is optional
+	MessageRef int      // If the field is a message type, this points to the message definition
+}
+
+func (f *Field) IsMessage() bool {
+	return f.Type == DataTypeMessage
+}
+
+func (f *Field) ResolveUnderlyingMessage(doc *Document) *Message {
+	if f.MessageRef >= 0 {
+		return &doc.Messages[f.MessageRef]
+	}
+
+	return nil
 }
 
 // Enum represents a protobuf enum type with its values.
@@ -137,7 +155,8 @@ type EnumValue struct {
 // RPCCompiler compiles protobuf schema strings into a Document and can
 // build protobuf messages from JSON data based on the schema.
 type RPCCompiler struct {
-	doc *Document // The compiled Document
+	doc      *Document // The compiled Document
+	Ancestor []Message
 }
 
 // ServiceByName returns a Service by its name.
@@ -254,8 +273,9 @@ func NewProtoCompiler(schema string) (*RPCCompiler, error) {
 	}
 
 	// Process all messages in the schema
-	for i := 0; i < f.Messages().Len(); i++ {
-		pc.doc.Messages = append(pc.doc.Messages, pc.parseMessage(f.Messages().Get(i)))
+	pc.doc.Messages = pc.parseMessageDefinitions(f.Messages())
+	for ref, message := range pc.doc.Messages {
+		pc.enrichMessageData(ref, message.Desc)
 	}
 
 	// Process all services in the schema
@@ -289,12 +309,10 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 
 	for i, group := range executionPlan.Groups {
 		for _, call := range group.Calls {
-			// service := p.doc.ServiceByName(call.ServiceName)
-			// method := p.doc.MethodByName(call.MethodName)
 			inputMessage := p.doc.MessageByName(call.Request.Name)
 			outputMessage := p.doc.MessageByName(call.Response.Name)
 
-			request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
+			request := p.buildProtoMessage(inputMessage, &call.Request, inputData.Get("variables"))
 			response := p.newEmptyMessage(outputMessage)
 
 			invocations = append(invocations, Invocation{
@@ -348,7 +366,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 
 			// Process each element and append to the list
 			for _, element := range elements {
-				fieldMsg := p.buildProtoMessage(*field.Message, rpcField.Message, element)
+				fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
 				list.Append(protoref.ValueOfMessage(fieldMsg))
 			}
 
@@ -356,8 +374,8 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		}
 
 		// Handle nested message fields
-		if field.Message != nil {
-			fieldMsg := p.buildProtoMessage(*field.Message, rpcField.Message, data)
+		if field.MessageRef >= 0 {
+			fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data)
 			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
 
 			continue
@@ -455,13 +473,28 @@ func (p *RPCCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 	}
 }
 
-// parseMessage recursively extracts information from a protobuf message descriptor,
-// including all its fields and nested message types.
-func (p *RPCCompiler) parseMessage(m protoref.MessageDescriptor) Message {
-	name := string(m.Name())
+// parseMessageDefinitions extracts information from a protobuf message descriptor.
+// It returns a slice of Message objects with the name and descriptor.
+func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescriptors) []Message {
+	extractedMessage := make([]Message, 0, messages.Len())
 
+	for i := 0; i < messages.Len(); i++ {
+		protoMessage := messages.Get(i)
+
+		extractedMessage = append(extractedMessage, Message{
+			Name: string(protoMessage.Name()),
+			Desc: protoMessage,
+		})
+	}
+
+	return extractedMessage
+}
+
+// enrichMessageData enriches the message data with the field information.
+func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 	fields := []Field{}
 
+	msg := p.doc.Messages[ref]
 	// Process all fields in the message
 	for i := 0; i < m.Fields().Len(); i++ {
 		f := m.Fields().Get(i)
@@ -470,18 +503,16 @@ func (p *RPCCompiler) parseMessage(m protoref.MessageDescriptor) Message {
 
 		// If the field is a message type, recursively parse the nested message
 		if f.Kind() == protoref.MessageKind {
-			message := p.parseMessage(f.Message())
-			field.Message = &message
+			// Handle nested messages when they are recursive types
+			field.MessageRef = p.doc.MessageRefByName(string(f.Message().Name()))
 		}
 
 		fields = append(fields, field)
 	}
 
-	return Message{
-		Name:   name,
-		Fields: fields,
-		Desc:   m,
-	}
+	msg.Fields = fields
+
+	p.doc.Messages[ref] = msg
 }
 
 // parseField extracts information from a protobuf field descriptor.
@@ -490,10 +521,11 @@ func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 	typeName := f.Kind().String()
 
 	return Field{
-		Name:     name,
-		Type:     parseDataType(typeName),
-		Number:   int32(f.Number()),
-		Repeated: f.IsList(),
-		Optional: f.Cardinality() == protoref.Optional,
+		Name:       name,
+		Type:       parseDataType(typeName),
+		Number:     int32(f.Number()),
+		Repeated:   f.IsList(),
+		Optional:   f.Cardinality() == protoref.Optional,
+		MessageRef: -1,
 	}
 }

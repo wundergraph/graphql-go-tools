@@ -1,0 +1,206 @@
+syntax = "proto3";
+package product.v1;
+
+option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
+
+service ProductService {
+  // Entity Lookup operations
+  rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
+  rpc LookupProductByName(LookupProductByNameRequest) returns (LookupProductByNameResponse) {}
+  rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
+
+  // Normal Query operations
+  rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
+  rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
+  rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
+  rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
+  rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
+  rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
+}
+
+message LookupProductByNameRequest {
+  repeated LookupProductByNameInput inputs = 1;
+}
+
+message LookupProductByNameInput {
+  string name = 1;
+}
+
+message LookupProductByNameResponse {
+  repeated LookupProductByNameResult results = 1;
+}
+
+message LookupProductByNameResult {
+  Product product = 1;
+}
+
+message LookupProductByIdRequest {
+  repeated LookupProductByIdInput inputs = 1;
+}
+
+message LookupProductByIdInput {
+  ProductByIdKey key = 1;
+}
+
+message ProductByIdKey {
+  string id = 1;
+}
+
+message LookupProductByIdResponse {
+  repeated LookupProductByIdResult results = 1;
+}
+
+message LookupProductByIdResult {
+  Product product = 1;
+}
+
+message LookupStorageByIdRequest {
+  repeated LookupStorageByIdInput inputs = 1;
+}
+
+message LookupStorageByIdInput {
+  StorageByIdKey key = 1;
+}
+
+message StorageByIdKey {
+  string id = 1;
+}
+
+message LookupStorageByIdResponse {
+  repeated LookupStorageByIdResult results = 1;
+}
+
+message LookupStorageByIdResult {
+  Storage storage = 1;
+}
+
+// QueryUsers
+message QueryUsersRequest {}
+
+message QueryUsersResponse {
+  repeated QueryUsersResult results = 1;
+}
+
+message QueryUsersResult {
+  User user = 1;
+}
+
+// QueryUser
+message QueryUserRequest {
+  string id = 1;
+}
+
+message QueryUserResponse {
+  User user = 1;
+}
+
+message QueryNestedTypeRequest {}
+
+message QueryNestedTypeResponse {
+  repeated NestedTypeA nestedType = 1;
+}
+
+message QueryRecursiveTypeRequest {}
+
+message QueryRecursiveTypeResponse {
+  RecursiveType recursiveType = 1;
+}
+
+message QueryTypeFilterWithArgumentsRequest {
+  string filterField1 = 1;
+  string filterField2 = 2;
+}
+
+message QueryTypeFilterWithArgumentsResponse {
+  repeated TypeWithMultipleFilterFields typeWithMultipleFilterFields = 1;
+}
+
+message QueryTypeWithMultipleFilterFieldsRequest {
+  FilterTypeInput filter = 1;
+}
+
+message QueryTypeWithMultipleFilterFieldsResponse {
+  repeated TypeWithMultipleFilterFields typeWithMultipleFilterFields = 1;
+}
+
+message QueryComplexFilterTypeRequest {
+  ComplexFilterTypeInput filter = 1;
+}
+
+message QueryComplexFilterTypeResponse {
+  repeated TypeWithComplexFilterInput typeWithComplexFilterInput = 1;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+}
+
+message Storage {
+  string id = 1;
+  string name = 2;
+  string location = 3;
+}
+
+message Product {
+  string id = 1;
+  string name = 2;
+  double price = 3;
+} 
+
+message NestedTypeA {
+  string id = 1;
+  string name = 2;
+  NestedTypeB b = 3;
+}
+
+message NestedTypeB {
+  string id = 1;
+  string name = 2;
+  NestedTypeC c = 3;
+}
+
+message NestedTypeC {
+  string id = 1;
+  string name = 2;
+}
+
+message RecursiveType {
+  string id = 1;
+  string name = 2;
+  RecursiveType recursiveType = 3;
+}
+
+message TypeWithMultipleFilterFields {
+  string id = 1;
+  string name = 2;
+  string filterField1 = 3;
+  string filterField2 = 4;
+}
+
+message TypeWithComplexFilterInput {
+  string id = 1;
+  string name = 2;
+}
+
+message ComplexFilterTypeInput {
+  FilterType filter = 1;
+}
+
+message FilterTypeInput {
+  string name = 1;
+  string filterField1 = 2;
+  string filterField2 = 3;
+}
+
+message FilterType {
+  string name = 1;
+  string filterField1 = 2;
+  string filterField2 = 3;
+}
+
+message Pagination {
+  int32 page = 1;
+  int32 perPage = 2;
+}

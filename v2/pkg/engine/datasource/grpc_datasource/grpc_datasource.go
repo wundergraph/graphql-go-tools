@@ -10,9 +10,12 @@ import (
 	"bytes"
 	"context"
 
+	"github.com/tidwall/gjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -23,26 +26,39 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
-	Plan   *RPCExecutionPlan
-	client grpc.ClientConnInterface
-	rc     *RPCCompiler
+	Plan *RPCExecutionPlan
+	cc   grpc.ClientConnInterface
+	rc   *RPCCompiler
 }
 
 type ProtoConfig struct {
 	Schema string
 }
 
+type DataSourceConfig struct {
+	Operation    *ast.Document
+	Definition   *ast.Document
+	ProtoSchema  string
+	SubgraphName string
+}
+
 // NewDataSource creates a new gRPC datasource
-func NewDataSource(plan *RPCExecutionPlan, client grpc.ClientConnInterface, protoSchema string) (*DataSource, error) {
-	compiler, err := NewProtoCompiler(protoSchema)
+func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
+	compiler, err := NewProtoCompiler(config.ProtoSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	planner := NewPlanner(config.SubgraphName)
+	plan, err := planner.PlanOperation(config.Operation, config.Definition)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DataSource{
-		Plan:   plan,
-		client: client,
-		rc:     compiler,
+		Plan: plan,
+		cc:   client,
+		rc:   compiler,
 	}, nil
 }
 
@@ -54,6 +70,43 @@ func NewDataSource(plan *RPCExecutionPlan, client grpc.ClientConnInterface, prot
 // a gRPC call, including service name, method name, and request data.
 // TODO Implement this
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+	// get variables from input
+	variables := gjson.Parse(string(input)).Get("variables")
+
+	// get invocations from plan
+	invocations, err := d.rc.Compile(d.Plan, variables)
+	if err != nil {
+		return err
+	}
+
+	invocationGroups := make(map[int][]Invocation)
+
+	for _, invocation := range invocations {
+		invocationGroups[invocation.GroupIndex] = append(invocationGroups[invocation.GroupIndex], invocation)
+	}
+
+	for i := 0; i < len(invocationGroups); i++ {
+		group := invocationGroups[i]
+
+		// make gRPC calls
+		for _, invocation := range group {
+			// Invoke the gRPC method - this will populate invocation.Output
+			err := d.cc.Invoke(ctx, invocation.MethodName, invocation.Input, invocation.Output)
+			if err != nil {
+				return err
+			}
+
+			// Marshal the populated output message to JSON
+			outputBytes, err := protojson.Marshal(invocation.Output)
+			if err != nil {
+				return err
+			}
+
+			// write output to out
+			out.Write(outputBytes)
+		}
+	}
+
 	return nil
 }
 
