@@ -118,8 +118,21 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 				f.nodes.items[itemID].selectWithReason(ReasonKeyRequirementProvidedByPlanner, f.enableSelectionReasons)
 				f.nodes.items[itemID].IsRequiredKeyField = true
 			} else if f.nodes.items[itemID].Selected {
-				// we need to unselect this node
-				f.nodes.items[itemID].unselect()
+
+				// we need to unselect this node as we are changing initial node selection when we had less information
+				// but in case there are any selected child nodes - selection should be untouched
+				hasSelectedChildNodes := false
+				if childNodes := f.nodes.childNodesOnSameSource(itemID); childNodes != nil {
+					for _, childID := range childNodes {
+						if f.nodes.items[childID].Selected {
+							hasSelectedChildNodes = true
+						}
+					}
+				}
+				if !hasSelectedChildNodes {
+					f.nodes.items[itemID].unselect()
+				}
+
 			}
 		}
 	}
