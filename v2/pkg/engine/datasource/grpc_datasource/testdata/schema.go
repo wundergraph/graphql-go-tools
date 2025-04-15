@@ -113,11 +113,11 @@ var ProtoSchema = func(t *testing.T) string {
 
 	dir := filepath.Dir(filename)
 
-	content, err := os.ReadFile(filepath.Join(dir, "schema.proto"))
+	content, err := os.ReadFile(filepath.Join(dir, "product.proto"))
 	if err != nil {
-		t.Fatalf("failed to read schema.proto: %v", err)
+		t.Fatalf("failed to read product.proto: %v", err)
 	}
 
-	require.NotEmpty(t, content, "schema.proto is empty")
+	require.NotEmpty(t, content, "product.proto is empty")
 	return string(content)
 }

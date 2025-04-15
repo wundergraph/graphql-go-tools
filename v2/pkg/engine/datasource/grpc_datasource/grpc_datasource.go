@@ -9,6 +9,7 @@ package grpcdatasource
 import (
 	"bytes"
 	"context"
+	"fmt"
 
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -91,7 +92,8 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		// make gRPC calls
 		for _, invocation := range group {
 			// Invoke the gRPC method - this will populate invocation.Output
-			err := d.cc.Invoke(ctx, invocation.MethodName, invocation.Input, invocation.Output)
+			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
+			err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
 			if err != nil {
 				return err
 			}
