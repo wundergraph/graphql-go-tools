@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -184,7 +185,24 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 	var pp string
 
 	if p.config.Debug.PrintOperationEnableASTRefs {
-		pp, _ = astprinter.PrintStringIndentDebug(operation, "  ")
+		pp, _ = astprinter.PrintStringIndentDebug(operation, "  ", func(fieldRef int, out io.Writer) {
+			if p.nodeSelectionsVisitor.nodeSuggestions == nil {
+				return
+			}
+
+			treeNodeId := TreeNodeID(fieldRef)
+			node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
+			if !ok {
+				return
+			}
+
+			items := node.GetData()
+			for _, id := range items {
+				if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
+					fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())
+				}
+			}
+		})
 	} else {
 		pp, _ = astprinter.PrintStringIndent(operation, "  ")
 	}

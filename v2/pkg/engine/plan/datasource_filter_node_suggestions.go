@@ -69,6 +69,21 @@ func (n *NodeSuggestion) String() string {
 	return string(j)
 }
 
+func (n *NodeSuggestion) StringShort() string {
+	j, _ := json.Marshal(struct {
+		DsName           string   `json:"dsName"`
+		TypeName         string   `json:"typeName"`
+		Selected         bool     `json:"selected"`
+		SelectionReasons []string `json:"selectionReasons"`
+	}{
+		DsName:           n.DataSourceName,
+		TypeName:         n.TypeName,
+		Selected:         n.Selected,
+		SelectionReasons: n.SelectionReasons,
+	})
+	return string(j)
+}
+
 type NodeSuggestions struct {
 	items           []*NodeSuggestion
 	pathSuggestions map[string][]*NodeSuggestion
