@@ -1,8 +1,9 @@
 package grpcdatasource
 
 import (
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
 	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"

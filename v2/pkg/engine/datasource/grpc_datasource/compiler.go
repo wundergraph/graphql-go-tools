@@ -98,6 +98,7 @@ type Document struct {
 // Service represents a gRPC service with methods.
 type Service struct {
 	Name        string // The name of the service
+	FullName    string // The full name of the service
 	MethodsRefs []int  // References to methods in the Document.Methods slice
 }
 
@@ -317,7 +318,7 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 
 			invocations = append(invocations, Invocation{
 				GroupIndex:  i,
-				ServiceName: call.ServiceName,
+				ServiceName: p.resolveServiceName(call.MethodName),
 				MethodName:  call.MethodName,
 				Input:       request,
 				Output:      response,
@@ -327,6 +328,18 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 	}
 
 	return invocations, nil
+}
+
+func (p *RPCCompiler) resolveServiceName(methodName string) string {
+	for _, service := range p.doc.Services {
+		for _, methodRef := range service.MethodsRefs {
+			if p.doc.Methods[methodRef].Name == methodName {
+				return service.FullName
+			}
+		}
+	}
+
+	return ""
 }
 
 // newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.
@@ -375,7 +388,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 
 		// Handle nested message fields
 		if field.MessageRef >= 0 {
-			fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data)
+			fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
 			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
 
 			continue
@@ -454,6 +467,7 @@ func (p *RPCCompiler) parseService(s protoref.ServiceDescriptor) Service {
 
 	return Service{
 		Name:        name,
+		FullName:    string(s.FullName()),
 		MethodsRefs: methodsRefs,
 	}
 }
