@@ -12,6 +12,7 @@ import (
 	"fmt"
 
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -95,7 +96,17 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
 			err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
 			if err != nil {
-				return err
+				a := astjson.Arena{}
+				errorRoot := a.NewObject()
+				errorArray := a.NewArray()
+				errorRoot.Set("errors", errorArray)
+
+				errorItem := a.NewObject()
+				errorItem.Set("message", a.NewString(err.Error()))
+				errorArray.SetArrayItem(0, errorItem)
+
+				out.Write(errorRoot.MarshalTo(nil))
+				return nil
 			}
 
 			// Marshal the populated output message to JSON
@@ -104,8 +115,12 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return err
 			}
 
+			a := astjson.Arena{}
+			root := a.NewObject()
+			root.Set("data", astjson.MustParseBytes(outputBytes))
+
 			// write output to out
-			out.Write(outputBytes)
+			out.Write(root.MarshalTo(nil))
 		}
 	}
 

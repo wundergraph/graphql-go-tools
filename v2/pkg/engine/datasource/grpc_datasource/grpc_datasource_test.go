@@ -124,7 +124,10 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	// Clean up the server when the test completes
 	defer server.Stop()
 
-	conn, err := grpc.NewClient(serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(
+		serverAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -174,10 +177,12 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	fmt.Println(output.String())
 
 	type response struct {
-		TypeWithComplexFilterInput []struct {
-			Id   string `json:"id"`
-			Name string `json:"name"`
-		} `json:"typeWithComplexFilterInput"`
+		Data struct {
+			TypeWithComplexFilterInput []struct {
+				Id   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"typeWithComplexFilterInput"`
+		} `json:"data"`
 	}
 
 	var resp response
@@ -188,6 +193,95 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	err = json.Unmarshal(bytes, &resp)
 	require.NoError(t, err)
 
-	require.Equal(t, resp.TypeWithComplexFilterInput[0].Id, "test-id-123")
-	require.Equal(t, resp.TypeWithComplexFilterInput[0].Name, "Test Product")
+	require.Equal(t, resp.Data.TypeWithComplexFilterInput[0].Id, "test-id-123")
+	require.Equal(t, resp.Data.TypeWithComplexFilterInput[0].Name, "Test Product")
+}
+
+// Test_DataSource_Load_WithGrpcError tests how the datasource handles gRPC errors
+// and formats them as GraphQL errors in the response
+func Test_DataSource_Load_WithGrpcError(t *testing.T) {
+	// 1. Start a gRPC server with our mock implementation
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+
+	// Get the server address
+	serverAddr := fmt.Sprintf("localhost:%d", lis.Addr().(*net.TCPAddr).Port)
+
+	// Create and start the gRPC server
+	server := grpc.NewServer()
+	mockService := &testdata.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
+
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+	defer server.Stop()
+
+	// 2. Connect to the gRPC server
+	conn, err := grpc.NewClient(
+		serverAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// 3. Set up the GraphQL query that will trigger the error
+	query := `query UserQuery($id: ID!) { user(id: $id) { id name } }`
+	variables := `{"variables":{"id":"error-user"}}`
+
+	// 4. Parse the schema and query
+	report := &operationreport.Report{}
+	schemaDoc := ast.NewDocument()
+	schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+	astparser.NewParser().Parse(schemaDoc, report)
+	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
+
+	queryDoc := ast.NewDocument()
+	queryDoc.Input.ResetInputString(query)
+	astparser.NewParser().Parse(queryDoc, report)
+	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+	err = asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
+	require.NoError(t, err, "failed to merge schema with base")
+
+	// 5. Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    queryDoc,
+		Definition:   schemaDoc,
+		ProtoSchema:  testdata.ProtoSchema(t),
+		SubgraphName: "Products",
+	})
+	require.NoError(t, err)
+
+	// 6. Execute the query
+	output := new(bytes.Buffer)
+	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`), output)
+	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
+
+	// 7. Print response for debugging
+	responseJson := output.String()
+	t.Logf("Error Response: %s", responseJson)
+
+	// 8. Verify the response format according to GraphQL specification
+	// The response should have an "errors" array with the error message
+	require.Contains(t, responseJson, "errors")
+	require.Contains(t, responseJson, "user not found: error-user")
+
+	// 9. Parse the response JSON for more detailed validation
+	var response struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	err = json.Unmarshal(output.Bytes(), &response)
+	require.NoError(t, err, "Failed to parse response JSON")
+
+	// Verify there's at least one error
+	require.NotEmpty(t, response.Errors, "Expected errors array to not be empty")
+
+	// Verify the error message
+	require.Contains(t, response.Errors[0].Message, "user not found: error-user")
 }
