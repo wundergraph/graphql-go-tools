@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata/productv1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type MockService struct {
@@ -91,6 +93,11 @@ func (s *MockService) QueryUsers(ctx context.Context, in *productv1.QueryUsersRe
 
 func (s *MockService) QueryUser(ctx context.Context, in *productv1.QueryUserRequest) (*productv1.QueryUserResponse, error) {
 	userId := in.GetId()
+
+	// Return a gRPC status error for a specific test case
+	if userId == "error-user" {
+		return nil, status.Errorf(codes.NotFound, "user not found: %s", userId)
+	}
 
 	return &productv1.QueryUserResponse{
 		User: &productv1.User{
