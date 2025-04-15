@@ -485,18 +485,19 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		recordOnlyTopLevelRequiredFields: true,
 	}
 
-	skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
+	addFieldsResult := addRequiredFields(input)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", requirements.selectionSet, typeName, requirements.path))
 		return
 	}
+	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
-	c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
+	c.skipFieldsRefs = append(c.skipFieldsRefs, addFieldsResult.skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
-		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
+		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], addFieldsResult.requiredFieldRefs...)
+		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], addFieldsResult.requiredFieldRefs...)
 	}
 
 	c.hasNewFields = true
@@ -562,20 +563,21 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 			operationSelectionSet: selectionSetRef,
 		}
 
-		skipFieldRefs, requiredFieldRefs := addRequiredFields(input)
+		addFieldsResult := addRequiredFields(input)
 		if report.HasErrors() {
 			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s", jump.SelectionSet, jump.TypeName))
 			return
 		}
+		c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
 		// op, _ := astprinter.PrintStringIndentDebug(c.operation, " ")
 		// fmt.Println("operation: ", op)
 
-		c.skipFieldsRefs = append(c.skipFieldsRefs, skipFieldRefs...)
+		c.skipFieldsRefs = append(c.skipFieldsRefs, addFieldsResult.skipFieldRefs...)
 
 		// setup deps between key chain items
 		if currentFieldRefs != nil && previousJump != nil {
-			for _, requestedByFieldRef := range requiredFieldRefs {
+			for _, requestedByFieldRef := range addFieldsResult.requiredFieldRefs {
 				if slices.Contains(currentFieldRefs, requestedByFieldRef) {
 					// we should not add field ref to fieldDependsOn map if it is part of a key
 					continue
@@ -590,7 +592,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 				})
 			}
 		}
-		currentFieldRefs = requiredFieldRefs
+		currentFieldRefs = addFieldsResult.requiredFieldRefs
 
 		// setup deps for the field requested this chain
 		if lastJump {
@@ -602,8 +604,8 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 				}
 
 				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
-				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRefs...)
-				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRefs...)
+				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], addFieldsResult.requiredFieldRefs...)
+				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], addFieldsResult.requiredFieldRefs...)
 				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
 					TypeName:     jump.TypeName,
 					SelectionSet: jump.SelectionSet,
@@ -654,4 +656,10 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
 	c.walker.SkipNode()
+}
+
+func (c *nodeSelectionVisitor) resetVisitedAbstractChecksForModifiedFields(modifiedFields []int) {
+	for _, fieldRef := range modifiedFields {
+		delete(c.visitedFieldsAbstractChecks, fieldRef)
+	}
 }
