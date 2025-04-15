@@ -45,7 +45,13 @@ type addRequiredFieldsInput struct {
 	recordOnlyTopLevelRequiredFields bool
 }
 
-func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
+type AddRequiredFieldsResult struct {
+	skipFieldRefs     []int
+	requiredFieldRefs []int
+	modifiedFieldRefs []int
+}
+
+func addRequiredFields(input *addRequiredFieldsInput) (out AddRequiredFieldsResult) {
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
@@ -64,7 +70,11 @@ func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requ
 
 	walker.Walk(input.key, input.definition, input.report)
 
-	return visitor.skipFieldRefs, visitor.requiredFieldRefs
+	return AddRequiredFieldsResult{
+		skipFieldRefs:     visitor.skipFieldRefs,
+		requiredFieldRefs: visitor.requiredFieldRefs,
+		modifiedFieldRefs: visitor.modifiedFieldRefs,
+	}
 }
 
 func testRequiredFields(input *addRequiredFieldsInput) (allRequiredFieldsAddedToOperation bool, requiredFieldRefs []int) {
@@ -94,6 +104,7 @@ type requiredFieldsVisitor struct {
 	importer          *astimport.Importer
 	skipFieldRefs     []int
 	requiredFieldRefs []int
+	modifiedFieldRefs []int
 
 	testMode         bool
 	allFieldsPresent bool
@@ -151,6 +162,7 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 			return
 		}
 
+		v.modifiedFieldRefs = append(v.modifiedFieldRefs, operationFieldRef)
 		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
 		return
 	}
