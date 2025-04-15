@@ -57,11 +57,11 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 		m["type"] = string(s.Type)
 	}
 
-	if s.Properties != nil && len(s.Properties) > 0 {
+	if len(s.Properties) > 0 {
 		m["properties"] = s.Properties
 	}
 
-	if s.Required != nil && len(s.Required) > 0 {
+	if len(s.Required) > 0 {
 		m["required"] = s.Required
 	}
 
@@ -83,7 +83,7 @@ func (s *JsonSchema) MarshalJSON() ([]byte, error) {
 		m["items"] = s.Items
 	}
 
-	if s.Enum != nil && len(s.Enum) > 0 {
+	if len(s.Enum) > 0 {
 		m["enum"] = s.Enum
 	}
 

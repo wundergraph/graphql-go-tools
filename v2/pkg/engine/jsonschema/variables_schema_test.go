@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestBuildJsonSchema(t *testing.T) {
@@ -424,11 +423,11 @@ func TestBuildJsonSchema(t *testing.T) {
 		`
 
 		// Parse schema and operation
-		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
-		report = operationreport.Report{} // Reset report
+		definitionDoc, report1 := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report1.HasErrors(), "operation parsing failed")
 
-		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
-		require.False(t, report.HasErrors(), "operation parsing failed")
+		operationDoc, report2 := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report2.HasErrors(), "operation parsing failed")
 
 		// Build should return error because type is not defined
 		builder := NewVariablesSchemaBuilder(&operationDoc, &definitionDoc)
