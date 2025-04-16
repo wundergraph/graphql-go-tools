@@ -123,6 +123,14 @@ func NewObjectSchema() *JsonSchema {
 	}
 }
 
+// NewAnySchema creates a schema representing any value (serialized as {} in JSON)
+func NewAnySchema() *JsonSchema {
+	// This will represent as an empty object in JSON schema
+	return &JsonSchema{
+		Nullable: true, // Default to nullable
+	}
+}
+
 // NewArraySchema creates a new schema for an array type
 func NewArraySchema(items *JsonSchema) *JsonSchema {
 	return &JsonSchema{

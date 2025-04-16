@@ -289,11 +289,18 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return v.processInputObjectType(node)
 
 	case ast.NodeKindScalarTypeDefinition:
-		return NewObjectSchema()
+		schema := NewAnySchema()
+
+		// Add description if available
+		if v.definitionDocument.ScalarTypeDefinitions[node.Ref].Description.IsDefined {
+			schema.Description = v.definitionDocument.ScalarTypeDefinitionDescriptionString(node.Ref)
+		}
+
+		return schema
 
 	default:
-		// If we can't determine the type, default to object
-		return NewObjectSchema()
+		// If we can't determine the type, default to any
+		return NewAnySchema()
 	}
 }
 

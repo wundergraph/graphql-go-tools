@@ -1421,7 +1421,10 @@ func TestBuildJsonSchema(t *testing.T) {
 	t.Run("custom scalar types are represented as objects", func(t *testing.T) {
 		// Define schema with custom scalar types
 		schemaSDL := `
+			"""ISO-8601 date time format"""
 			scalar DateTime
+			
+			"""JSON object represented as string"""
 			scalar JSON
 			
 			type Query {
@@ -1466,14 +1469,12 @@ func TestBuildJsonSchema(t *testing.T) {
   "type": "object",
   "properties": {
     "from": {
-      "type": "object",
-      "additionalProperties": false,
-      "nullable": false
+      "nullable": true,
+      "description": "ISO-8601 date time format"
     },
     "filter": {
-      "type": "object",
-      "additionalProperties": false,
-      "nullable": false
+      "nullable": true,
+      "description": "JSON object represented as string"
     }
   },
   "additionalProperties": false,
