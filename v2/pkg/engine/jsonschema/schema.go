@@ -31,7 +31,7 @@ type JsonSchema struct {
 	Items *JsonSchema `json:"items,omitempty"`
 
 	// Enum values
-	Enum []interface{} `json:"enum,omitempty"`
+	Enum []string `json:"enum,omitempty"`
 
 	// Default value
 	Default interface{} `json:"default,omitempty"`
@@ -165,7 +165,7 @@ func NewBooleanSchema() *JsonSchema {
 }
 
 // NewEnumSchema creates a new schema for an enum type
-func NewEnumSchema(values []interface{}) *JsonSchema {
+func NewEnumSchema(values []string) *JsonSchema {
 	return &JsonSchema{
 		Type:     TypeString,
 		Enum:     values,
@@ -209,7 +209,7 @@ func CloneSchema(schema *JsonSchema) *JsonSchema {
 	}
 
 	if schema.Enum != nil {
-		clone.Enum = append([]interface{}{}, schema.Enum...)
+		clone.Enum = append([]string{}, schema.Enum...)
 	}
 
 	if schema.Minimum != nil {

@@ -299,7 +299,7 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 
 // processEnumType processes an enum type definition
 func (v *VariablesSchemaBuilder) processEnumType(node ast.Node) *JsonSchema {
-	values := make([]interface{}, 0)
+	values := make([]string, 0)
 	enumDef := v.definitionDocument.EnumTypeDefinitions[node.Ref]
 
 	for _, valueRef := range enumDef.EnumValuesDefinition.Refs {

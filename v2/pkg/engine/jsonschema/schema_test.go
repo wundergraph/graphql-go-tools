@@ -29,7 +29,7 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		schema.Required = append(schema.Required, "age")
 
 		// Add enum property
-		enumValues := []interface{}{"ONE", "TWO", "THREE"}
+		enumValues := []string{"ONE", "TWO", "THREE"}
 		enumProp := NewEnumSchema(enumValues)
 		schema.Properties["category"] = enumProp
 
@@ -152,7 +152,7 @@ func TestCloneSchema(t *testing.T) {
 		original.Properties["number"] = NewNumberSchema()
 
 		// Add enum
-		enumValues := []interface{}{"A", "B", "C"}
+		enumValues := []string{"A", "B", "C"}
 		original.Properties["enum"] = NewEnumSchema(enumValues)
 
 		// Add nested object
@@ -228,7 +228,7 @@ func TestCloneSchema(t *testing.T) {
 func TestSchemaFeatures(t *testing.T) {
 	t.Run("enum schema", func(t *testing.T) {
 		// Test creating and validating enum schema
-		values := []interface{}{"RED", "GREEN", "BLUE"}
+		values := []string{"RED", "GREEN", "BLUE"}
 		schema := NewEnumSchema(values)
 
 		// Check structure
@@ -383,7 +383,7 @@ func TestSchemaFeatures(t *testing.T) {
 			NewIntegerSchema(),
 			NewNumberSchema(),
 			NewBooleanSchema(),
-			NewEnumSchema([]interface{}{"A", "B"}),
+			NewEnumSchema([]string{"A", "B"}),
 		}
 
 		for _, schema := range schemas {
@@ -443,7 +443,7 @@ func TestSchemaFeatures(t *testing.T) {
 		userSchema.Properties["age"] = ageSchema
 
 		// Enum property
-		roleSchema := NewEnumSchema([]interface{}{"ADMIN", "USER", "GUEST"})
+		roleSchema := NewEnumSchema([]string{"ADMIN", "USER", "GUEST"})
 		roleSchema.Default = "USER"
 		userSchema.Properties["role"] = roleSchema
 
@@ -509,7 +509,7 @@ func TestSchemaFeatures(t *testing.T) {
 		boolSchema := NewBooleanSchema()
 		assert.True(t, boolSchema.Nullable)
 
-		enumSchema := NewEnumSchema([]interface{}{"A", "B"})
+		enumSchema := NewEnumSchema([]string{"A", "B"})
 		assert.True(t, enumSchema.Nullable)
 
 		arraySchema := NewArraySchema(NewStringSchema())
