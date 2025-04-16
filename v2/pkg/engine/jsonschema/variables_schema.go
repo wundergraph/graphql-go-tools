@@ -18,6 +18,17 @@ type VariablesSchemaBuilder struct {
 	maxRecursionDepth int
 }
 
+// Visitor interface for the GraphQL AST
+type Visitor interface {
+	VisitDocument(operation, definition *ast.Document)
+	VisitVariableDefinition(ref int)
+	GetSchema() *JsonSchema
+	GetReport() *operationreport.Report
+}
+
+// ensure VariablesSchemaBuilder implements Visitor
+var _ Visitor = (*VariablesSchemaBuilder)(nil)
+
 // NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder with default settings
 func NewVariablesSchemaBuilder(operationDocument, definitionDocument *ast.Document) *VariablesSchemaBuilder {
 	return NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument, 3)
@@ -35,52 +46,55 @@ func NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument 
 	}
 }
 
-// Build traverses the operation and builds a unified JSON schema for its variables
-func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
+// VisitDocument visits the operation and definition documents
+func (v *VariablesSchemaBuilder) VisitDocument(operation, definition *ast.Document) {
 	v.schema = NewObjectSchema()
 	v.recursionTracker = make(map[string]int) // Reset recursion tracker for each build
 
 	// Extract descriptions from root fields
 	var descriptions []string
-	operationDefinition := v.operationDocument.OperationDefinitions[0]
+	if len(operation.OperationDefinitions) > 0 {
+		operationDefinition := operation.OperationDefinitions[0]
 
-	// Process SelectionSet to extract field descriptions
-	if operationDefinition.HasSelections {
-		selectionSetRef := operationDefinition.SelectionSet
-		for _, selectionRef := range v.operationDocument.SelectionSets[selectionSetRef].SelectionRefs {
-			selection := v.operationDocument.Selections[selectionRef]
-			if selection.Kind == ast.SelectionKindField {
-				fieldName := v.operationDocument.FieldNameString(selection.Ref)
+		// Process SelectionSet to extract field descriptions
+		if operationDefinition.HasSelections {
+			selectionSetRef := operationDefinition.SelectionSet
+			for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
+				selection := operation.Selections[selectionRef]
+				if selection.Kind == ast.SelectionKindField {
+					fieldName := operation.FieldNameString(selection.Ref)
 
-				// Look up field in schema definition to get description
-				operationType := operationDefinition.OperationType
-				var rootTypeName string
+					// Look up field in schema definition to get description
+					operationType := operationDefinition.OperationType
+					var rootTypeName string
 
-				// Determine root type based on operation type
-				switch operationType {
-				case ast.OperationTypeQuery:
-					rootTypeName = "Query"
-				case ast.OperationTypeMutation:
-					rootTypeName = "Mutation"
-				case ast.OperationTypeSubscription:
-					rootTypeName = "Subscription"
-				default:
-					return nil, fmt.Errorf("unsupported operation type %q", operationType)
-				}
+					// Determine root type based on operation type
+					switch operationType {
+					case ast.OperationTypeQuery:
+						rootTypeName = "Query"
+					case ast.OperationTypeMutation:
+						rootTypeName = "Mutation"
+					case ast.OperationTypeSubscription:
+						rootTypeName = "Subscription"
+					default:
+						v.report.AddInternalError(fmt.Errorf("unsupported operation type %q", operationType))
+						return
+					}
 
-				rootType, exists := v.definitionDocument.Index.FirstNodeByNameStr(rootTypeName)
-				if exists && rootType.Kind == ast.NodeKindObjectTypeDefinition {
-					// Find the field in the root type
-					for _, fieldDefRef := range v.definitionDocument.ObjectTypeDefinitions[rootType.Ref].FieldsDefinition.Refs {
-						fieldDefName := v.definitionDocument.FieldDefinitionNameString(fieldDefRef)
+					rootType, exists := definition.Index.FirstNodeByNameStr(rootTypeName)
+					if exists && rootType.Kind == ast.NodeKindObjectTypeDefinition {
+						// Find the field in the root type
+						for _, fieldDefRef := range definition.ObjectTypeDefinitions[rootType.Ref].FieldsDefinition.Refs {
+							fieldDefName := definition.FieldDefinitionNameString(fieldDefRef)
 
-						// Match field name
-						if fieldDefName == fieldName && v.definitionDocument.FieldDefinitions[fieldDefRef].Description.IsDefined {
-							description := v.definitionDocument.FieldDefinitionDescriptionString(fieldDefRef)
-							if description != "" {
-								descriptions = append(descriptions, description)
+							// Match field name
+							if fieldDefName == fieldName && definition.FieldDefinitions[fieldDefRef].Description.IsDefined {
+								description := definition.FieldDefinitionDescriptionString(fieldDefRef)
+								if description != "" {
+									descriptions = append(descriptions, description)
+								}
+								break
 							}
-							break
 						}
 					}
 				}
@@ -98,29 +112,10 @@ func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
 			v.schema.Description += desc
 		}
 	}
-
-	if !v.operationDocument.OperationDefinitions[0].HasVariableDefinitions {
-		return v.schema, nil
-	}
-
-	for _, varDefRef := range v.operationDocument.OperationDefinitions[0].VariableDefinitions.Refs {
-		v.processVariableDefinition(varDefRef)
-	}
-
-	// If we have required fields, the root schema cannot be nullable
-	if len(v.schema.Required) > 0 {
-		v.schema.Nullable = false
-	}
-
-	if v.report.HasErrors() {
-		return nil, fmt.Errorf("%s", v.report.Error())
-	}
-
-	return v.schema, nil
 }
 
-// processVariableDefinition processes a single variable definition
-func (v *VariablesSchemaBuilder) processVariableDefinition(varDefRef int) {
+// VisitVariableDefinition visits a variable definition in the operation document
+func (v *VariablesSchemaBuilder) VisitVariableDefinition(varDefRef int) {
 	varName := v.operationDocument.VariableDefinitionNameString(varDefRef)
 	typeRef := v.operationDocument.VariableDefinitions[varDefRef].Type
 
@@ -154,6 +149,49 @@ func (v *VariablesSchemaBuilder) processVariableDefinition(varDefRef int) {
 
 	// Add variable to schema
 	v.schema.Properties[varName] = varSchema
+}
+
+// Walk traverses the documents AST according to the visitor pattern
+func Walk(v Visitor, operation, definition *ast.Document) {
+	// Visit the document first
+	v.VisitDocument(operation, definition)
+
+	// If there are no operations or no variable definitions, we're done
+	if len(operation.OperationDefinitions) == 0 ||
+		!operation.OperationDefinitions[0].HasVariableDefinitions {
+		return
+	}
+
+	// Visit each variable definition
+	for _, varDefRef := range operation.OperationDefinitions[0].VariableDefinitions.Refs {
+		v.VisitVariableDefinition(varDefRef)
+	}
+}
+
+// GetSchema returns the built schema
+func (v *VariablesSchemaBuilder) GetSchema() *JsonSchema {
+	// If we have required fields, the root schema cannot be nullable
+	if len(v.schema.Required) > 0 {
+		v.schema.Nullable = false
+	}
+	return v.schema
+}
+
+// GetReport returns the report containing any errors
+func (v *VariablesSchemaBuilder) GetReport() *operationreport.Report {
+	return v.report
+}
+
+// Build traverses the operation and builds a unified JSON schema for its variables
+func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
+	// Walk the AST using the visitor pattern
+	Walk(v, v.operationDocument, v.definitionDocument)
+
+	if v.report.HasErrors() {
+		return nil, fmt.Errorf("%s", v.report.Error())
+	}
+
+	return v.GetSchema(), nil
 }
 
 // processOperationTypeRef processes a type reference from the operation document
