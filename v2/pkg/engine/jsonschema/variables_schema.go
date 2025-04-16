@@ -289,7 +289,7 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return v.processInputObjectType(node)
 
 	case ast.NodeKindScalarTypeDefinition:
-		return NewStringSchema()
+		return NewObjectSchema()
 
 	default:
 		// If we can't determine the type, default to object

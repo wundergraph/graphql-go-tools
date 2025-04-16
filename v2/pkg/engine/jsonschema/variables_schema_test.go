@@ -1263,4 +1263,57 @@ func TestBuildJsonSchema(t *testing.T) {
 		assert.True(t, hasNullable, "Top-level object field should have nullable field")
 		assert.False(t, nullable.(bool), "Top-level object field should have nullable=false")
 	})
+
+	t.Run("custom scalar types are represented as objects", func(t *testing.T) {
+		// Define schema with custom scalar types
+		schemaSDL := `
+			scalar DateTime
+			scalar JSON
+			
+			type Query {
+				searchEvents(from: DateTime, filter: JSON): [Event]
+			}
+			
+			type Event {
+				id: ID!
+				timestamp: DateTime
+				data: JSON
+			}
+		`
+
+		// Define operation using custom scalar types
+		operationSDL := `
+			query SearchEvents($from: DateTime, $filter: JSON) {
+				searchEvents(from: $from, filter: $filter) {
+					id
+					timestamp
+					data
+				}
+			}
+		`
+
+		// Parse schema and operation
+		definitionDoc, report := astparser.ParseGraphqlDocumentString(schemaSDL)
+		require.False(t, report.HasErrors(), "schema parsing failed")
+
+		operationDoc, report := astparser.ParseGraphqlDocumentString(operationSDL)
+		require.False(t, report.HasErrors(), "operation parsing failed")
+
+		// Build JSON schema
+		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
+		require.NoError(t, err)
+
+		// Check the direct schema objects
+		fromSchema := schema.Properties["from"]
+		require.NotNil(t, fromSchema, "from property should exist")
+		assert.Equal(t, TypeObject, fromSchema.Type, "Custom scalar should be an object type")
+
+		filterSchema := schema.Properties["filter"]
+		require.NotNil(t, filterSchema, "filter property should exist")
+		assert.Equal(t, TypeObject, filterSchema.Type, "Custom scalar should be an object type")
+
+		// Verify Properties are initialized
+		assert.NotNil(t, fromSchema.Properties, "Properties map should be initialized")
+		assert.NotNil(t, filterSchema.Properties, "Properties map should be initialized")
+	})
 }
