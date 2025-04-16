@@ -45,54 +45,71 @@ func TestJsonSchema_MarshalJSON(t *testing.T) {
 		schema.Properties["tags"] = arrayProp
 
 		// Serialize to JSON
-		data, err := json.Marshal(schema)
+		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Parse it back to verify
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "A string property",
+      "default": "default value",
+      "nullable": true
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 0,
+      "nullable": true
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "ONE",
+        "TWO",
+        "THREE"
+      ],
+      "nullable": true
+    },
+    "address": {
+      "type": "object",
+      "properties": {
+        "street": {
+          "type": "string",
+          "nullable": true
+        },
+        "city": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "street"
+      ],
+      "additionalProperties": false,
+      "nullable": true
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "nullable": true
+      },
+      "nullable": true
+    }
+  },
+  "required": [
+    "name",
+    "age"
+  ],
+  "additionalProperties": false,
+  "description": "Test object schema",
+  "nullable": true
+}`
 
-		// Verify structure
-		assert.Equal(t, "object", parsed["type"])
-		assert.Equal(t, "Test object schema", parsed["description"])
-		assert.Equal(t, false, parsed["additionalProperties"])
-
-		properties := parsed["properties"].(map[string]interface{})
-		assert.Len(t, properties, 5)
-
-		// Check string property
-		nameProp := properties["name"].(map[string]interface{})
-		assert.Equal(t, "string", nameProp["type"])
-		assert.Equal(t, "A string property", nameProp["description"])
-		assert.Equal(t, "default value", nameProp["default"])
-
-		// Check integer property
-		ageProp := properties["age"].(map[string]interface{})
-		assert.Equal(t, "integer", ageProp["type"])
-		assert.Equal(t, float64(0), ageProp["minimum"])
-
-		// Check enum property
-		categoryProp := properties["category"].(map[string]interface{})
-		assert.Equal(t, "string", categoryProp["type"])
-		assert.Equal(t, []interface{}{"ONE", "TWO", "THREE"}, categoryProp["enum"])
-
-		// Check nested object
-		addressProp := properties["address"].(map[string]interface{})
-		assert.Equal(t, "object", addressProp["type"])
-		addressProps := addressProp["properties"].(map[string]interface{})
-		assert.Len(t, addressProps, 2)
-		assert.Contains(t, addressProps, "street")
-		assert.Contains(t, addressProps, "city")
-		assert.Equal(t, []interface{}{"street"}, addressProp["required"])
-
-		// Check array property
-		tagsProp := properties["tags"].(map[string]interface{})
-		assert.Equal(t, "array", tagsProp["type"])
-		assert.NotNil(t, tagsProp["items"])
-
-		// Check required fields
-		assert.Equal(t, []interface{}{"name", "age"}, parsed["required"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("nested schema", func(t *testing.T) {
@@ -147,20 +164,23 @@ func TestSchemaFeatures(t *testing.T) {
 		values := []string{"RED", "GREEN", "BLUE"}
 		schema := NewEnumSchema(values)
 
-		// Check structure
-		assert.Equal(t, TypeString, schema.Type)
-		assert.Equal(t, values, schema.Enum)
-
 		// Test serialization
-		data, err := json.Marshal(schema)
+		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "string",
+  "enum": [
+    "RED",
+    "GREEN",
+    "BLUE"
+  ],
+  "nullable": true
+}`
 
-		assert.Equal(t, "string", parsed["type"])
-		assert.Equal(t, []interface{}{"RED", "GREEN", "BLUE"}, parsed["enum"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("required fields", func(t *testing.T) {
@@ -174,18 +194,36 @@ func TestSchemaFeatures(t *testing.T) {
 		schema.Required = []string{"id", "age"}
 
 		// Serialize and check
-		data, err := json.Marshal(schema)
+		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "nullable": true
+    },
+    "name": {
+      "type": "string",
+      "nullable": true
+    },
+    "age": {
+      "type": "integer",
+      "nullable": true
+    }
+  },
+  "required": [
+    "id",
+    "age"
+  ],
+  "additionalProperties": false,
+  "nullable": true
+}`
 
-		required := parsed["required"].([]interface{})
-		assert.Len(t, required, 2)
-		assert.Contains(t, required, "id")
-		assert.Contains(t, required, "age")
-		assert.NotContains(t, required, "name")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("numeric constraints", func(t *testing.T) {
@@ -198,30 +236,38 @@ func TestSchemaFeatures(t *testing.T) {
 		intSchema.Minimum = &min
 		intSchema.Maximum = &max
 
-		data, err := json.Marshal(intSchema)
+		data, err := json.MarshalIndent(intSchema, "", "  ")
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema for integer
+		expectedIntJSON := `{
+  "type": "integer",
+  "minimum": 0,
+  "maximum": 100,
+  "nullable": true
+}`
 
-		assert.Equal(t, float64(0), parsed["minimum"])
-		assert.Equal(t, float64(100), parsed["maximum"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedIntJSON, string(data), "Integer schema does not match expected structure")
 
 		// Number schema
 		numSchema := NewNumberSchema()
 		numSchema.Minimum = &min
 		numSchema.Maximum = &max
 
-		data, err = json.Marshal(numSchema)
+		data, err = json.MarshalIndent(numSchema, "", "  ")
 		require.NoError(t, err)
 
-		parsed = map[string]interface{}{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema for number
+		expectedNumJSON := `{
+  "type": "number",
+  "minimum": 0,
+  "maximum": 100,
+  "nullable": true
+}`
 
-		assert.Equal(t, float64(0), parsed["minimum"])
-		assert.Equal(t, float64(100), parsed["maximum"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedNumJSON, string(data), "Number schema does not match expected structure")
 	})
 
 	t.Run("string format", func(t *testing.T) {
@@ -375,33 +421,76 @@ func TestSchemaFeatures(t *testing.T) {
 		userSchema.Properties["address"] = addressSchema
 
 		// Serialize the whole thing
-		data, err := json.Marshal(userSchema)
+		data, err := json.MarshalIndent(userSchema, "", "  ")
 		require.NoError(t, err)
 
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9]{8,}$",
+      "nullable": true
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "default": "user@example.com",
+      "nullable": true
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 13,
+      "nullable": true
+    },
+    "role": {
+      "type": "string",
+      "enum": [
+        "ADMIN",
+        "USER",
+        "GUEST"
+      ],
+      "default": "USER",
+      "nullable": true
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "nullable": true
+      },
+      "nullable": true
+    },
+    "address": {
+      "type": "object",
+      "properties": {
+        "street": {
+          "type": "string",
+          "nullable": true
+        },
+        "city": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "required": [
+        "street"
+      ],
+      "additionalProperties": false,
+      "nullable": true
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "description": "User schema with all features",
+  "nullable": true
+}`
 
-		// Verify just a few key aspects
-		assert.Equal(t, "User schema with all features", parsed["description"])
-		properties := parsed["properties"].(map[string]interface{})
-		assert.Len(t, properties, 6)
-		assert.Contains(t, parsed["required"], "id")
-
-		// Verify pattern on id
-		idProp := properties["id"].(map[string]interface{})
-		assert.Equal(t, "^[a-zA-Z0-9]{8,}$", idProp["pattern"])
-
-		// Verify enum values
-		roleProp := properties["role"].(map[string]interface{})
-		assert.Len(t, roleProp["enum"], 3)
-		assert.Equal(t, "USER", roleProp["default"])
-
-		// Verify nested object
-		addressProp := properties["address"].(map[string]interface{})
-		addressProps := addressProp["properties"].(map[string]interface{})
-		assert.Len(t, addressProps, 2)
-		assert.Equal(t, []interface{}{"street"}, addressProp["required"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("nullable schema property", func(t *testing.T) {

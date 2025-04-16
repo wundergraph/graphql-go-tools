@@ -2,7 +2,6 @@ package jsonschema
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -67,42 +66,45 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Verify schema structure
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "criteria": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string",
+          "nullable": true
+        },
+        "employmentStatus": {
+          "type": "string",
+          "enum": [
+            "FULL_TIME",
+            "PART_TIME",
+            "CONTRACTOR",
+            "INTERN"
+          ],
+          "nullable": true
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "Input criteria used to search for employees",
+      "nullable": false
+    }
+  },
+  "additionalProperties": false,
+  "nullable": true
+}`
 
-		// Verify top-level structure
-		assert.Equal(t, "object", parsed["type"])
-		properties := parsed["properties"].(map[string]interface{})
-
-		// Verify criteria property
-		criteria, ok := properties["criteria"].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, "object", criteria["type"])
-		assert.Equal(t, "Input criteria used to search for employees", criteria["description"])
-
-		// Verify criteria properties
-		criteriaProps := criteria["properties"].(map[string]interface{})
-		assert.Len(t, criteriaProps, 3)
-
-		name := criteriaProps["name"].(map[string]interface{})
-		assert.Equal(t, "string", name["type"])
-
-		department := criteriaProps["department"].(map[string]interface{})
-		assert.Equal(t, "string", department["type"])
-
-		status := criteriaProps["employmentStatus"].(map[string]interface{})
-		assert.Equal(t, "string", status["type"])
-		statusEnum := status["enum"].([]interface{})
-		assert.ElementsMatch(t, []interface{}{"FULL_TIME", "PART_TIME", "CONTRACTOR", "INTERN"}, statusEnum)
-
-		// Verify required fields
-		criteriaRequired := criteria["required"].([]interface{})
-		assert.ElementsMatch(t, []interface{}{"name"}, criteriaRequired)
-
-		// Verify additionalProperties is false
-		assert.Equal(t, false, criteria["additionalProperties"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("query with nested input objects", func(t *testing.T) {
@@ -163,45 +165,68 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Verify schema structure
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "criteria": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "nullable": true
+        },
+        "nested": {
+          "type": "object",
+          "properties": {
+            "hasChildren": {
+              "type": "boolean",
+              "nullable": true
+            },
+            "maritalStatus": {
+              "type": "string",
+              "enum": [
+                "MARRIED",
+                "ENGAGED"
+              ],
+              "nullable": true
+            },
+            "nationality": {
+              "type": "string",
+              "enum": [
+                "AMERICAN",
+                "DUTCH",
+                "ENGLISH",
+                "GERMAN",
+                "INDIAN",
+                "SPANISH",
+                "UKRAINIAN"
+              ]
+            }
+          },
+          "required": [
+            "nationality"
+          ],
+          "additionalProperties": false,
+          "nullable": false
+        }
+      },
+      "required": [
+        "nested"
+      ],
+      "additionalProperties": false,
+      "nullable": false
+    }
+  },
+  "required": [
+    "criteria"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
 
-		// Verify top-level required fields
-		assert.Contains(t, parsed["required"], "criteria")
-
-		// Verify criteria structure
-		properties := parsed["properties"].(map[string]interface{})
-		criteria := properties["criteria"].(map[string]interface{})
-		criteriaProps := criteria["properties"].(map[string]interface{})
-
-		// Verify nested structure
-		nested := criteriaProps["nested"].(map[string]interface{})
-		assert.Equal(t, "object", nested["type"])
-
-		// Verify nested is required
-		criteriaRequired := criteria["required"].([]interface{})
-		assert.Contains(t, criteriaRequired, "nested")
-
-		// Verify nested properties
-		nestedProps := nested["properties"].(map[string]interface{})
-		assert.Len(t, nestedProps, 3)
-
-		// Verify nationality is required in nested
-		nestedRequired := nested["required"].([]interface{})
-		assert.Contains(t, nestedRequired, "nationality")
-
-		// Verify enum in nested
-		nationality := nestedProps["nationality"].(map[string]interface{})
-		assert.Equal(t, "string", nationality["type"])
-		nationalityEnum := nationality["enum"].([]interface{})
-		assert.Len(t, nationalityEnum, 7)
-
-		maritalStatus := nestedProps["maritalStatus"].(map[string]interface{})
-		assert.Equal(t, "string", maritalStatus["type"])
-		maritalEnum := maritalStatus["enum"].([]interface{})
-		assert.ElementsMatch(t, []interface{}{"MARRIED", "ENGAGED"}, maritalEnum)
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("query with default values", func(t *testing.T) {
@@ -592,73 +617,136 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Verify schema structure
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "properties": {
+        "field1": {
+          "type": "string",
+          "nullable": true
+        },
+        "nested": {
+          "type": "object",
+          "properties": {
+            "field2": {
+              "type": "boolean",
+              "nullable": true
+            },
+            "deeper": {
+              "type": "object",
+              "properties": {
+                "field3": {
+                  "type": "number",
+                  "nullable": true
+                },
+                "enumField": {
+                  "type": "string",
+                  "enum": [
+                    "OPTION_1",
+                    "OPTION_2",
+                    "OPTION_3"
+                  ]
+                },
+                "arrayOfArrays": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "nullable": true
+                }
+              },
+              "required": [
+                "enumField"
+              ],
+              "additionalProperties": false,
+              "description": "Level 3 input description",
+              "nullable": false
+            },
+            "arrayOfObjects": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "field3": {
+                    "type": "number",
+                    "nullable": true
+                  },
+                  "enumField": {
+                    "type": "string",
+                    "enum": [
+                      "OPTION_1",
+                      "OPTION_2",
+                      "OPTION_3"
+                    ]
+                  },
+                  "arrayOfArrays": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "nullable": true
+                  }
+                },
+                "required": [
+                  "enumField"
+                ],
+                "additionalProperties": false,
+                "description": "Level 3 input description",
+                "nullable": true
+              },
+              "nullable": true
+            }
+          },
+          "required": [
+            "deeper"
+          ],
+          "additionalProperties": false,
+          "description": "Level 2 input description",
+          "nullable": false
+        },
+        "optionalArray": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "nullable": true
+          },
+          "nullable": true
+        },
+        "requiredArray": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "nullable": true
+          }
+        }
+      },
+      "required": [
+        "nested",
+        "requiredArray"
+      ],
+      "additionalProperties": false,
+      "description": "Level 1 input description",
+      "nullable": false
+    }
+  },
+  "required": [
+    "input"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
 
-		// Verify input is required
-		required := parsed["required"].([]interface{})
-		assert.Contains(t, required, "input")
-
-		// Get properties
-		properties := parsed["properties"].(map[string]interface{})
-		input := properties["input"].(map[string]interface{})
-
-		// Verify level 1 description
-		assert.Equal(t, "Level 1 input description", input["description"])
-
-		// Verify level 1 required fields
-		level1Required := input["required"].([]interface{})
-		assert.Contains(t, level1Required, "nested")
-		assert.Contains(t, level1Required, "requiredArray")
-
-		// Verify level 1 properties
-		level1Properties := input["properties"].(map[string]interface{})
-
-		// Check array types
-		requiredArray := level1Properties["requiredArray"].(map[string]interface{})
-		assert.Equal(t, "array", requiredArray["type"])
-		assert.Equal(t, "integer", requiredArray["items"].(map[string]interface{})["type"])
-
-		// Verify level 2
-		nested := level1Properties["nested"].(map[string]interface{})
-		assert.Equal(t, "Level 2 input description", nested["description"])
-
-		// Verify level 2 required fields
-		level2Required := nested["required"].([]interface{})
-		assert.Contains(t, level2Required, "deeper")
-
-		// Verify level 2 properties
-		level2Properties := nested["properties"].(map[string]interface{})
-
-		// Verify level 3
-		deeper := level2Properties["deeper"].(map[string]interface{})
-		assert.Equal(t, "Level 3 input description", deeper["description"])
-
-		// Verify level 3 required fields
-		level3Required := deeper["required"].([]interface{})
-		assert.Contains(t, level3Required, "enumField")
-
-		// Verify level 3 properties
-		level3Properties := deeper["properties"].(map[string]interface{})
-
-		// Verify enum
-		enumField := level3Properties["enumField"].(map[string]interface{})
-		assert.Equal(t, "string", enumField["type"])
-
-		enumValues := enumField["enum"].([]interface{})
-		assert.Contains(t, enumValues, "OPTION_1")
-		assert.Contains(t, enumValues, "OPTION_2")
-		assert.Contains(t, enumValues, "OPTION_3")
-
-		// Verify array of arrays
-		arrayOfArrays := level3Properties["arrayOfArrays"].(map[string]interface{})
-		assert.Equal(t, "array", arrayOfArrays["type"])
-
-		innerArray := arrayOfArrays["items"].(map[string]interface{})
-		assert.Equal(t, "array", innerArray["type"])
-		assert.Equal(t, "string", innerArray["items"].(map[string]interface{})["type"])
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("recursive types with default recursion depth", func(t *testing.T) {
@@ -950,27 +1038,55 @@ func TestBuildJsonSchema(t *testing.T) {
 		// Serialize schema to JSON
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
-		jsonStr := string(data)
 
-		// Check for base structure and non-recursive fields
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema - this may vary based on recursion depth setting
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "a": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "nullable": true
+        },
+        "b": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string",
+              "nullable": true
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false,
+          "nullable": true
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "nullable": false
+    }
+  },
+  "required": [
+    "a"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
 
-		// Verify required attribute a exists at the top level
-		properties, ok := parsed["properties"].(map[string]interface{})
-		require.True(t, ok)
-		_, ok = properties["a"].(map[string]interface{})
-		require.True(t, ok)
-
-		// Check non-recursive fields in both types are present
-		assert.Contains(t, jsonStr, `"id":`)
-		assert.Contains(t, jsonStr, `"name":`)
-		assert.Contains(t, jsonStr, `"description":`)
-
-		// Verify at least one a or b reference exists (showing some level of recursion was processed)
-		assert.True(t, strings.Contains(jsonStr, `"a":`) || strings.Contains(jsonStr, `"b":`),
-			"Should have at least one reference to a recursive field")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("correctly handles nullable and non-nullable fields", func(t *testing.T) {
@@ -1028,85 +1144,103 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Verify schema structure
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "input": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "nullable": true
+        },
+        "name": {
+          "type": "string"
+        },
+        "age": {
+          "type": "integer",
+          "nullable": true
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "nullable": true
+          },
+          "nullable": true
+        },
+        "requiredTags": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "nonNullTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "nullable": true
+        },
+        "requiredNonNullTags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "nested": {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "nullable": true
+            },
+            "requiredField": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requiredField"
+          ],
+          "additionalProperties": false,
+          "nullable": true
+        },
+        "requiredNested": {
+          "type": "object",
+          "properties": {
+            "field": {
+              "type": "string",
+              "nullable": true
+            },
+            "requiredField": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requiredField"
+          ],
+          "additionalProperties": false,
+          "nullable": false
+        }
+      },
+      "required": [
+        "name",
+        "requiredTags",
+        "requiredNonNullTags",
+        "requiredNested"
+      ],
+      "additionalProperties": false,
+      "nullable": false
+    }
+  },
+  "additionalProperties": false,
+  "nullable": true
+}`
 
-		// Get properties
-		properties := parsed["properties"].(map[string]interface{})
-		input := properties["input"].(map[string]interface{})
-		inputProps := input["properties"].(map[string]interface{})
-
-		// Verify nullable property is correctly set based on GraphQL nullability
-
-		// Nullable scalar
-		id := inputProps["id"].(map[string]interface{})
-		assert.Equal(t, "string", id["type"])
-		assert.Equal(t, true, id["nullable"])
-
-		// Non-nullable scalar
-		name := inputProps["name"].(map[string]interface{})
-		assert.Equal(t, "string", name["type"])
-		assert.NotContains(t, name, "nullable") // Default is not nullable for required fields
-
-		// Nullable scalar
-		age := inputProps["age"].(map[string]interface{})
-		assert.Equal(t, "integer", age["type"])
-		assert.Equal(t, true, age["nullable"])
-
-		// Nullable array
-		tags := inputProps["tags"].(map[string]interface{})
-		assert.Equal(t, "array", tags["type"])
-		assert.Equal(t, true, tags["nullable"])
-
-		// Non-nullable array with nullable items
-		requiredTags := inputProps["requiredTags"].(map[string]interface{})
-		assert.Equal(t, "array", requiredTags["type"])
-		assert.NotContains(t, requiredTags, "nullable")
-
-		// Nullable array with non-nullable items
-		nonNullTags := inputProps["nonNullTags"].(map[string]interface{})
-		assert.Equal(t, "array", nonNullTags["type"])
-		assert.Equal(t, true, nonNullTags["nullable"])
-		nonNullTagsItems := nonNullTags["items"].(map[string]interface{})
-		assert.Equal(t, "string", nonNullTagsItems["type"])
-		assert.NotContains(t, nonNullTagsItems, "nullable")
-
-		// Non-nullable array with non-nullable items
-		requiredNonNullTags := inputProps["requiredNonNullTags"].(map[string]interface{})
-		assert.Equal(t, "array", requiredNonNullTags["type"])
-		assert.NotContains(t, requiredNonNullTags, "nullable")
-		requiredNonNullTagsItems := requiredNonNullTags["items"].(map[string]interface{})
-		assert.Equal(t, "string", requiredNonNullTagsItems["type"])
-		assert.NotContains(t, requiredNonNullTagsItems, "nullable")
-
-		// Nullable object
-		nested := inputProps["nested"].(map[string]interface{})
-		assert.Equal(t, "object", nested["type"])
-		assert.Equal(t, true, nested["nullable"])
-
-		// Non-nullable object
-		requiredNested := inputProps["requiredNested"].(map[string]interface{})
-		assert.Equal(t, "object", requiredNested["type"])
-		// For object types, nullable should be included and be false for required fields
-		nullable, hasNullable := requiredNested["nullable"]
-		assert.True(t, hasNullable, "Required nested object should have nullable field")
-		assert.False(t, nullable.(bool), "Required nested object should have nullable=false")
-
-		// Check nested fields
-		nestedProps := nested["properties"].(map[string]interface{})
-
-		// Nullable nested field
-		nestedField := nestedProps["field"].(map[string]interface{})
-		assert.Equal(t, "string", nestedField["type"])
-		assert.Equal(t, true, nestedField["nullable"])
-
-		// Non-nullable nested field
-		requiredNestedField := nestedProps["requiredField"].(map[string]interface{})
-		assert.Equal(t, "string", requiredNestedField["type"])
-		// Type string non-nullable still won't have nullable field
-		assert.NotContains(t, requiredNestedField, "nullable")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("root schema nullable based on required arguments", func(t *testing.T) {
@@ -1154,22 +1288,26 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Convert to JSON to check nullable field
-		data1, err := json.Marshal(schema1)
+		data1, err := json.MarshalIndent(schema1, "", "  ")
 		require.NoError(t, err)
 
-		var parsed1 map[string]interface{}
-		err = json.Unmarshal(data1, &parsed1)
-		require.NoError(t, err)
+		// Define expected JSON schema for required argument case
+		expectedJSON1 := `{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "id"
+  ],
+  "additionalProperties": false,
+  "nullable": false
+}`
 
-		// Verify root schema is NOT nullable when there are required arguments
-		nullable1, hasNullable1 := parsed1["nullable"]
-		assert.True(t, hasNullable1, "Root schema should have nullable field when there are required arguments")
-		assert.False(t, nullable1.(bool), "Root schema should not be nullable when there are required arguments")
-
-		// Verify required fields are present
-		required1, hasRequired1 := parsed1["required"].([]interface{})
-		assert.True(t, hasRequired1)
-		assert.Contains(t, required1, "id")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON1, string(data1), "Required argument schema does not match expected structure")
 
 		// Parse and test operation with only optional arguments
 		operationDoc2, report := astparser.ParseGraphqlDocumentString(operationOptionalOnly)
@@ -1179,17 +1317,24 @@ func TestBuildJsonSchema(t *testing.T) {
 		require.NoError(t, err)
 
 		// Convert to JSON to check nullable field
-		data2, err := json.Marshal(schema2)
+		data2, err := json.MarshalIndent(schema2, "", "  ")
 		require.NoError(t, err)
 
-		var parsed2 map[string]interface{}
-		err = json.Unmarshal(data2, &parsed2)
-		require.NoError(t, err)
+		// Define expected JSON schema for optional argument case
+		expectedJSON2 := `{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "nullable": true
+    }
+  },
+  "additionalProperties": false,
+  "nullable": true
+}`
 
-		// Verify root schema IS nullable when there are only optional arguments
-		nullable2, hasNullable2 := parsed2["nullable"].(bool)
-		assert.True(t, hasNullable2)
-		assert.True(t, nullable2, "Root schema should be nullable when all arguments are optional")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON2, string(data2), "Optional argument schema does not match expected structure")
 	})
 
 	t.Run("top-level object fields are not nullable", func(t *testing.T) {
@@ -1245,23 +1390,32 @@ func TestBuildJsonSchema(t *testing.T) {
 		data, err := json.MarshalIndent(schema, "", "  ")
 		require.NoError(t, err)
 
-		// Verify schema structure
-		var parsed map[string]interface{}
-		err = json.Unmarshal(data, &parsed)
-		require.NoError(t, err)
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "criteria": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "nullable": true
+        },
+        "department": {
+          "type": "string",
+          "nullable": true
+        }
+      },
+      "additionalProperties": false,
+      "nullable": false
+    }
+  },
+  "additionalProperties": false,
+  "nullable": true
+}`
 
-		// Verify properties
-		properties := parsed["properties"].(map[string]interface{})
-
-		// Check criteria object
-		criteria, ok := properties["criteria"].(map[string]interface{})
-		require.True(t, ok)
-		assert.Equal(t, "object", criteria["type"])
-
-		// Verify criteria is not nullable by checking the nullable field is explicitly false
-		nullable, hasNullable := criteria["nullable"]
-		assert.True(t, hasNullable, "Top-level object field should have nullable field")
-		assert.False(t, nullable.(bool), "Top-level object field should have nullable=false")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 
 	t.Run("custom scalar types are represented as objects", func(t *testing.T) {
@@ -1303,17 +1457,30 @@ func TestBuildJsonSchema(t *testing.T) {
 		schema, err := BuildJsonSchema(&operationDoc, &definitionDoc)
 		require.NoError(t, err)
 
-		// Check the direct schema objects
-		fromSchema := schema.Properties["from"]
-		require.NotNil(t, fromSchema, "from property should exist")
-		assert.Equal(t, TypeObject, fromSchema.Type, "Custom scalar should be an object type")
+		// Serialize schema to JSON
+		data, err := json.MarshalIndent(schema, "", "  ")
+		require.NoError(t, err)
 
-		filterSchema := schema.Properties["filter"]
-		require.NotNil(t, filterSchema, "filter property should exist")
-		assert.Equal(t, TypeObject, filterSchema.Type, "Custom scalar should be an object type")
+		// Define expected JSON schema
+		expectedJSON := `{
+  "type": "object",
+  "properties": {
+    "from": {
+      "type": "object",
+      "additionalProperties": false,
+      "nullable": false
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "nullable": false
+    }
+  },
+  "additionalProperties": false,
+  "nullable": true
+}`
 
-		// Verify Properties are initialized
-		assert.NotNil(t, fromSchema.Properties, "Properties map should be initialized")
-		assert.NotNil(t, filterSchema.Properties, "Properties map should be initialized")
+		// Compare actual JSON with expected JSON
+		assert.JSONEq(t, expectedJSON, string(data), "JSON schema does not match expected structure")
 	})
 }
