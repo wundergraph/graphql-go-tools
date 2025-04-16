@@ -173,58 +173,6 @@ func NewEnumSchema(values []string) *JsonSchema {
 	}
 }
 
-// CloneSchema creates a deep copy of a schema
-func CloneSchema(schema *JsonSchema) *JsonSchema {
-	if schema == nil {
-		return nil
-	}
-
-	clone := &JsonSchema{
-		Type:        schema.Type,
-		Description: schema.Description,
-		Format:      schema.Format,
-		Pattern:     schema.Pattern,
-		Default:     schema.Default,
-		Nullable:    schema.Nullable,
-	}
-
-	if schema.Properties != nil {
-		clone.Properties = make(map[string]*JsonSchema)
-		for k, v := range schema.Properties {
-			clone.Properties[k] = CloneSchema(v)
-		}
-	}
-
-	if schema.Required != nil {
-		clone.Required = append([]string{}, schema.Required...)
-	}
-
-	if schema.AdditionalProperties != nil {
-		additionalProps := *schema.AdditionalProperties
-		clone.AdditionalProperties = &additionalProps
-	}
-
-	if schema.Items != nil {
-		clone.Items = CloneSchema(schema.Items)
-	}
-
-	if schema.Enum != nil {
-		clone.Enum = append([]string{}, schema.Enum...)
-	}
-
-	if schema.Minimum != nil {
-		min := *schema.Minimum
-		clone.Minimum = &min
-	}
-
-	if schema.Maximum != nil {
-		max := *schema.Maximum
-		clone.Maximum = &max
-	}
-
-	return clone
-}
-
 // WithDescription adds a description to the schema
 func (s *JsonSchema) WithDescription(description string) *JsonSchema {
 	s.Description = description
