@@ -223,7 +223,7 @@ func (v *VariablesSchemaBuilder) processOperationTypeRef(typeRef int) *JsonSchem
 func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema {
 	// Handle built-in scalars
 	switch typeName {
-	case "String":
+	case "String", "ID":
 		return NewStringSchema()
 	case "Int":
 		return NewIntegerSchema()
@@ -231,8 +231,6 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return NewNumberSchema()
 	case "Boolean":
 		return NewBooleanSchema()
-	case "ID":
-		return NewStringSchema()
 	}
 
 	// For custom types, look up in the definition document
@@ -242,6 +240,8 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		return NewObjectSchema()
 	}
 
+	var shouldCleanupTracker bool
+
 	// Check recursion depth for complex types that could be recursive
 	if node.Kind == ast.NodeKindEnumTypeDefinition || node.Kind == ast.NodeKindInputObjectTypeDefinition {
 		currentDepth, exists := v.recursionTracker[typeName]
@@ -249,6 +249,7 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 			// We've seen this type before
 			currentDepth++
 			v.recursionTracker[typeName] = currentDepth
+			shouldCleanupTracker = true
 
 			// If we've hit our recursion limit, return nil to signal field removal
 			if currentDepth > v.maxRecursionDepth {
@@ -257,39 +258,45 @@ func (v *VariablesSchemaBuilder) processTypeByName(typeName string) *JsonSchema 
 		} else {
 			// First time seeing this type
 			v.recursionTracker[typeName] = 1
+			shouldCleanupTracker = true
 		}
-
-		// Defer the cleanup of the recursion tracker
-		defer func() {
-			if depth, ok := v.recursionTracker[typeName]; ok && depth > 1 {
-				v.recursionTracker[typeName]--
-			} else {
-				delete(v.recursionTracker, typeName)
-			}
-		}()
 	}
 
+	// Process the type based on its kind
+	var schema *JsonSchema
 	switch node.Kind {
 	case ast.NodeKindEnumTypeDefinition:
-		return v.processEnumType(node)
+		schema = v.processEnumType(node)
 
 	case ast.NodeKindInputObjectTypeDefinition:
-		return v.processInputObjectType(node)
+		schema = v.processInputObjectType(node)
 
 	case ast.NodeKindScalarTypeDefinition:
-		schema := NewAnySchema()
+		schema = NewAnySchema()
 
 		// Add description if available
 		if v.definitionDocument.ScalarTypeDefinitions[node.Ref].Description.IsDefined {
 			schema.Description = v.definitionDocument.ScalarTypeDefinitionDescriptionString(node.Ref)
 		}
 
-		return schema
-
 	default:
 		// If we can't determine the type, default to any
-		return NewAnySchema()
+		schema = NewAnySchema()
 	}
+
+	// Clean up the recursion tracker before returning
+	if shouldCleanupTracker {
+		currentDepth := v.recursionTracker[typeName]
+		if currentDepth > 1 {
+			// Decrement the depth as we're exiting the recursion
+			v.recursionTracker[typeName]--
+		} else {
+			// Remove the type from the tracker if depth is 1
+			delete(v.recursionTracker, typeName)
+		}
+	}
+
+	return schema
 }
 
 // processEnumType processes an enum type definition
