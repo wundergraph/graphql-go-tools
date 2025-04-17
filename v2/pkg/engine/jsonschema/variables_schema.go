@@ -44,53 +44,56 @@ func NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument 
 
 // EnterDocument implements the astvisitor.EnterDocumentVisitor interface
 func (v *VariablesSchemaBuilder) EnterDocument(operation, definition *ast.Document) {
+	if len(operation.OperationDefinitions) == 0 {
+		return
+	}
+
 	v.schema = NewObjectSchema()
 	v.recursionTracker = make(map[string]int) // Reset recursion tracker for each build
 
 	// Extract descriptions from root fields
 	var descriptions []string
-	if len(operation.OperationDefinitions) > 0 {
-		operationDefinition := operation.OperationDefinitions[0]
 
-		// Process SelectionSet to extract field descriptions
-		if operationDefinition.HasSelections {
-			selectionSetRef := operationDefinition.SelectionSet
-			for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
-				selection := operation.Selections[selectionRef]
-				if selection.Kind == ast.SelectionKindField {
-					fieldName := operation.FieldNameString(selection.Ref)
+	operationDefinition := operation.OperationDefinitions[0]
 
-					// Look up field in schema definition to get description
-					operationType := operationDefinition.OperationType
-					var rootTypeName string
+	// Process SelectionSet to extract field descriptions
+	if operationDefinition.HasSelections {
+		selectionSetRef := operationDefinition.SelectionSet
+		for _, selectionRef := range operation.SelectionSets[selectionSetRef].SelectionRefs {
+			selection := operation.Selections[selectionRef]
+			if selection.Kind == ast.SelectionKindField {
+				fieldName := operation.FieldNameString(selection.Ref)
 
-					// Determine root type based on operation type
-					switch operationType {
-					case ast.OperationTypeQuery:
-						rootTypeName = "Query"
-					case ast.OperationTypeMutation:
-						rootTypeName = "Mutation"
-					case ast.OperationTypeSubscription:
-						rootTypeName = "Subscription"
-					default:
-						v.report.AddInternalError(fmt.Errorf("unsupported operation type %q", operationType))
-						return
-					}
+				// Look up field in schema definition to get description
+				operationType := operationDefinition.OperationType
+				var rootTypeName string
 
-					rootType, exists := definition.Index.FirstNodeByNameStr(rootTypeName)
-					if exists && rootType.Kind == ast.NodeKindObjectTypeDefinition {
-						// Find the field in the root type
-						for _, fieldDefRef := range definition.ObjectTypeDefinitions[rootType.Ref].FieldsDefinition.Refs {
-							fieldDefName := definition.FieldDefinitionNameString(fieldDefRef)
+				// Determine root type based on operation type
+				switch operationType {
+				case ast.OperationTypeQuery:
+					rootTypeName = "Query"
+				case ast.OperationTypeMutation:
+					rootTypeName = "Mutation"
+				case ast.OperationTypeSubscription:
+					rootTypeName = "Subscription"
+				default:
+					v.report.AddInternalError(fmt.Errorf("unsupported operation type %q", operationType))
+					return
+				}
 
-							// Match field name
-							if fieldDefName == fieldName && definition.FieldDefinitions[fieldDefRef].Description.IsDefined {
-								description := definition.FieldDefinitionDescriptionString(fieldDefRef)
-								if description != "" {
-									descriptions = append(descriptions, description)
-								}
-								break
+				rootType, exists := definition.Index.FirstNodeByNameStr(rootTypeName)
+				if exists && rootType.Kind == ast.NodeKindObjectTypeDefinition {
+					// Find the field in the root type
+					for _, fieldDefRef := range definition.ObjectTypeDefinitions[rootType.Ref].FieldsDefinition.Refs {
+						fieldDefName := definition.FieldDefinitionNameString(fieldDefRef)
+
+						// Match field name
+						if fieldDefName == fieldName && definition.FieldDefinitions[fieldDefRef].Description.IsDefined {
+							description := definition.FieldDefinitionDescriptionString(fieldDefRef)
+							if description != "" {
+								descriptions = append(descriptions, description)
 							}
+							break
 						}
 					}
 				}
