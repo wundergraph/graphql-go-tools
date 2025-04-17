@@ -9,10 +9,23 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 )
 
+// scalarDefinitions contains the basic scalar types that need to be defined for tests
+const scalarDefinitions = `
+scalar String
+scalar Int
+scalar Float
+scalar Boolean
+scalar ID
+`
+
 func TestBuildJsonSchema(t *testing.T) {
 	t.Run("simple query with input object", func(t *testing.T) {
 		// Define schema
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				findEmployees(criteria: SearchInput): EmployeeResult
 			}
@@ -109,9 +122,18 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("query with nested input objects", func(t *testing.T) {
 		// Define schema with nested inputs
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				findEmployees(criteria: SearchInput): [Employee]
+			}
+			
+			type Employee {
+				id: ID!
+				name: String
 			}
 			
 			input SearchInput {
@@ -231,9 +253,18 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("query with default values", func(t *testing.T) {
 		// Define schema with default values
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				getItems(filter: FilterInput): [Item]
+			}
+			
+			type Item {
+				id: ID
+				name: String
 			}
 			
 			input FilterInput {
@@ -301,7 +332,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("query with scalar arguments", func(t *testing.T) {
 		// Define schema with scalar arguments
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				getUser(id: ID!, includeProfile: Boolean): User
 			}
@@ -383,7 +418,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("operation with field descriptions", func(t *testing.T) {
 		// Define schema with field descriptions
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				"""Description for getUser field"""
 				getUser(id: ID!): User
@@ -434,7 +473,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("error handling for undefined types", func(t *testing.T) {
 		// Schema missing SearchInput definition
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				search(input: SearchInput): String
 			}
@@ -464,7 +507,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("comprehensive test for required arguments", func(t *testing.T) {
 		// Define schema with various required and optional fields
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				search(requiredArg: String!, optionalArg: Int): SearchResult
 			}
@@ -557,7 +604,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("deeply nested types with mixed requirements", func(t *testing.T) {
 		// Define schema with deeply nested types
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				complexSearch(input: Level1Input): SearchResult
 			}
@@ -751,7 +802,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("recursive types with default recursion depth", func(t *testing.T) {
 		// Define schema with recursive input type
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				processNode(node: RecursiveNode): Boolean
 			}
@@ -811,7 +866,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("recursive types with custom recursion depth", func(t *testing.T) {
 		// Define schema with recursive input type
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				processNode(node: RecursiveNode): Boolean
 			}
@@ -873,7 +932,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("query with two nested arguments", func(t *testing.T) {
 		// Define schema with two complex input types
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				searchUsers(userFilter: UserFilter, orderBy: OrderByInput): [User]
 			}
@@ -999,7 +1062,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("mutually recursive types", func(t *testing.T) {
 		// Define schema with mutually recursive input types
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				processA(a: TypeA): Boolean
 			}
@@ -1091,7 +1158,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("correctly handles nullable and non-nullable fields", func(t *testing.T) {
 		// Define schema with a mix of nullable and non-nullable fields
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				findUser(input: UserInput): User
 			}
@@ -1245,7 +1316,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("root schema nullable based on required arguments", func(t *testing.T) {
 		// Define schema with required and optional arguments
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				findUser(id: ID!, name: String): User
 			}
@@ -1339,7 +1414,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("top-level object fields are not nullable", func(t *testing.T) {
 		// Define schema
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			type Query {
 				findEmployees(criteria: SearchInput): [Employee]
 			}
@@ -1420,7 +1499,11 @@ func TestBuildJsonSchema(t *testing.T) {
 
 	t.Run("custom scalar types are represented as objects", func(t *testing.T) {
 		// Define schema with custom scalar types
-		schemaSDL := `
+		schemaSDL := scalarDefinitions + `
+			schema {
+				query: Query
+			}
+			
 			"""ISO-8601 date time format"""
 			scalar DateTime
 			

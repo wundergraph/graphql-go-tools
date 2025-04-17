@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -18,16 +19,11 @@ type VariablesSchemaBuilder struct {
 	maxRecursionDepth int
 }
 
-// Visitor interface for the GraphQL AST
-type Visitor interface {
-	VisitDocument(operation, definition *ast.Document)
-	VisitVariableDefinition(ref int)
-	GetSchema() *JsonSchema
-	GetReport() *operationreport.Report
-}
-
-// ensure VariablesSchemaBuilder implements Visitor
-var _ Visitor = (*VariablesSchemaBuilder)(nil)
+// Ensure VariablesSchemaBuilder implements the necessary astvisitor interfaces
+var (
+	_ astvisitor.EnterDocumentVisitor           = (*VariablesSchemaBuilder)(nil)
+	_ astvisitor.EnterVariableDefinitionVisitor = (*VariablesSchemaBuilder)(nil)
+)
 
 // NewVariablesSchemaBuilder creates a new VariablesSchemaBuilder with default settings
 func NewVariablesSchemaBuilder(operationDocument, definitionDocument *ast.Document) *VariablesSchemaBuilder {
@@ -46,8 +42,8 @@ func NewVariablesSchemaBuilderWithOptions(operationDocument, definitionDocument 
 	}
 }
 
-// VisitDocument visits the operation and definition documents
-func (v *VariablesSchemaBuilder) VisitDocument(operation, definition *ast.Document) {
+// EnterDocument implements the astvisitor.EnterDocumentVisitor interface
+func (v *VariablesSchemaBuilder) EnterDocument(operation, definition *ast.Document) {
 	v.schema = NewObjectSchema()
 	v.recursionTracker = make(map[string]int) // Reset recursion tracker for each build
 
@@ -114,10 +110,10 @@ func (v *VariablesSchemaBuilder) VisitDocument(operation, definition *ast.Docume
 	}
 }
 
-// VisitVariableDefinition visits a variable definition in the operation document
-func (v *VariablesSchemaBuilder) VisitVariableDefinition(varDefRef int) {
-	varName := v.operationDocument.VariableDefinitionNameString(varDefRef)
-	typeRef := v.operationDocument.VariableDefinitions[varDefRef].Type
+// EnterVariableDefinition implements the astvisitor.EnterVariableDefinitionVisitor interface
+func (v *VariablesSchemaBuilder) EnterVariableDefinition(ref int) {
+	varName := v.operationDocument.VariableDefinitionNameString(ref)
+	typeRef := v.operationDocument.VariableDefinitions[ref].Type
 
 	// Convert type to schema starting from the operation document
 	varSchema := v.processOperationTypeRef(typeRef)
@@ -133,8 +129,8 @@ func (v *VariablesSchemaBuilder) VisitVariableDefinition(varDefRef int) {
 	}
 
 	// Set default value if exists
-	if v.operationDocument.VariableDefinitionHasDefaultValue(varDefRef) {
-		defaultValue := v.operationDocument.VariableDefinitionDefaultValue(varDefRef)
+	if v.operationDocument.VariableDefinitionHasDefaultValue(ref) {
+		defaultValue := v.operationDocument.VariableDefinitionDefaultValue(ref)
 		varSchema.Default = v.convertOperationValueToNative(defaultValue)
 	}
 
@@ -149,23 +145,6 @@ func (v *VariablesSchemaBuilder) VisitVariableDefinition(varDefRef int) {
 
 	// Add variable to schema
 	v.schema.Properties[varName] = varSchema
-}
-
-// Walk traverses the documents AST according to the visitor pattern
-func Walk(v Visitor, operation, definition *ast.Document) {
-	// Visit the document first
-	v.VisitDocument(operation, definition)
-
-	// If there are no operations or no variable definitions, we're done
-	if len(operation.OperationDefinitions) == 0 ||
-		!operation.OperationDefinitions[0].HasVariableDefinitions {
-		return
-	}
-
-	// Visit each variable definition
-	for _, varDefRef := range operation.OperationDefinitions[0].VariableDefinitions.Refs {
-		v.VisitVariableDefinition(varDefRef)
-	}
 }
 
 // GetSchema returns the built schema
@@ -184,8 +163,15 @@ func (v *VariablesSchemaBuilder) GetReport() *operationreport.Report {
 
 // Build traverses the operation and builds a unified JSON schema for its variables
 func (v *VariablesSchemaBuilder) Build() (*JsonSchema, error) {
-	// Walk the AST using the visitor pattern
-	Walk(v, v.operationDocument, v.definitionDocument)
+	// Create a new walker for AST traversal
+	walker := astvisitor.NewDefaultWalker()
+
+	// Register this builder as a visitor
+	walker.RegisterEnterDocumentVisitor(v)
+	walker.RegisterEnterVariableDefinitionVisitor(v)
+
+	// Walk the AST
+	walker.Walk(v.operationDocument, v.definitionDocument, v.report)
 
 	if v.report.HasErrors() {
 		return nil, fmt.Errorf("%s", v.report.Error())
