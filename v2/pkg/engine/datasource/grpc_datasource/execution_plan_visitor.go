@@ -6,6 +6,7 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -56,6 +57,7 @@ type rpcPlanVisitor struct {
 	planInfo   planningInfo
 
 	subgraphName           string
+	mapping                *graphql_datasource.GRPCMapping
 	plan                   *RPCExecutionPlan
 	operationDefinitionRef int
 	operationFieldRef      int
@@ -64,13 +66,19 @@ type rpcPlanVisitor struct {
 	currentCallID          int
 }
 
+type rpcPlanVisitorConfig struct {
+	subgraphName string
+	mapping      *graphql_datasource.GRPCMapping
+}
+
 // newRPCPlanVisitor creates a new RPCPlanVisitor.
 // It registers the visitor with the walker and returns it.
-func newRPCPlanVisitor(walker *astvisitor.Walker, subgraphName string) *rpcPlanVisitor {
+func newRPCPlanVisitor(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	visitor := &rpcPlanVisitor{
 		walker:                 walker,
 		plan:                   &RPCExecutionPlan{},
-		subgraphName:           strings.Title(subgraphName),
+		subgraphName:           strings.Title(config.subgraphName),
+		mapping:                config.mapping,
 		operationDefinitionRef: -1,
 		operationFieldRef:      -1,
 	}
@@ -154,8 +162,6 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 	if a.Kind != ast.NodeKindField && a.Ref != r.operationFieldRef {
 		return
 	}
-
-	// Retrieve the input value definition for the argument
 	argumentInputValueDefinitionRef, exists := r.walker.ArgumentInputValueDefinition(ref)
 	if !exists {
 		return
@@ -177,11 +183,11 @@ func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef in
 		return
 	}
 
-	jsonPath := r.operation.ArgumentNameString(argRef)
-
+	fieldName := r.operation.ArgumentNameString(argRef)
+	jsonPath := fieldName
 	argument := r.operation.Arguments[argRef]
-	switch argument.Value.Kind {
-	case ast.ValueKindVariable:
+
+	if argument.Value.Kind == ast.ValueKindVariable {
 		jsonPath = r.operation.Input.ByteSliceString(r.operation.VariableValues[argument.Value.Ref].Name)
 	}
 
@@ -195,7 +201,7 @@ func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef in
 
 		// Add a field of type message to the current request message.
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     r.operation.ArgumentNameString(argRef),
+			Name:     r.resolveFieldMapping(underlyingTypeName, fieldName),
 			TypeName: DataTypeMessage.String(),
 			JSONPath: jsonPath,
 			Index:    r.planInfo.currentRequestFieldIndex,
@@ -214,7 +220,7 @@ func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef in
 	case ast.NodeKindScalarTypeDefinition:
 		dt := r.toDataType(&r.definition.Types[underlyingTypeNode.Ref])
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     r.operation.ArgumentNameString(argRef),
+			Name:     r.resolveInputArgument(r.walker.Ancestor().Ref, fieldName),
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
 			Index:    r.planInfo.currentRequestFieldIndex,
@@ -238,13 +244,13 @@ func (r *rpcPlanVisitor) buildMessageFromNode(node ast.Node) {
 		for fieldIndex, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
 			fieldDefinition := r.definition.InputValueDefinitions[inputFieldRef]
 			fieldName := r.definition.Input.ByteSliceString(fieldDefinition.Name)
-			r.buildMessageField(fieldName, fieldIndex, fieldDefinition.Type)
+			r.buildMessageField(fieldName, fieldIndex, fieldDefinition.Type, node.Ref)
 		}
 	}
 }
 
 // buildMessageField creates a field in the current request message based on the field type.
-func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef int) {
+func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef, parentTypeRef int) {
 	inputValueDefinitionType := r.definition.Types[typeRef]
 	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
 	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
@@ -252,13 +258,15 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef int)
 		return
 	}
 
+	parentTypeName := r.definition.InputObjectTypeDefinitionNameString(parentTypeRef)
+
 	// If the type is not an object, directly add the field to the request message
 	// TODO: check interfaces, unions, enums, etc.
 	if underlyingTypeNode.Kind != ast.NodeKindInputObjectTypeDefinition {
 		dt := r.toDataType(&inputValueDefinitionType)
 
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     fieldName,
+			Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 			TypeName: dt.String(),
 			JSONPath: fieldName,
 			Index:    index,
@@ -273,7 +281,7 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef int)
 	}
 
 	r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-		Name:     fieldName,
+		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 		TypeName: DataTypeMessage.String(),
 		JSONPath: fieldName,
 		Index:    index,
@@ -401,8 +409,10 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	fdt := r.definition.FieldDefinitionType(fd)
 	typeName := r.toDataType(&r.definition.Types[fdt])
 
+	parentTypeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
+
 	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, RPCField{
-		Name:     fieldName, // TODO: this needs to be in snake_case
+		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
 		Index:    r.planInfo.currentResponseFieldIndex,
@@ -554,6 +564,24 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[0].Message
+}
+
+func (r *rpcPlanVisitor) resolveFieldMapping(typeName, fieldName string) string {
+	grpcFieldName, ok := r.mapping.ResolveFieldMapping(typeName, fieldName)
+	if !ok {
+		return fieldName
+	}
+
+	return grpcFieldName
+}
+
+func (r *rpcPlanVisitor) resolveInputArgument(fieldRef int, argumentName string) string {
+	grpcFieldName, ok := r.mapping.ResolveInputArgumentMapping(r.operation.FieldNameString(fieldRef), argumentName)
+	if !ok {
+		return argumentName
+	}
+
+	return grpcFieldName
 }
 
 // rpcMethodName determines the appropriate method name based on operation type.

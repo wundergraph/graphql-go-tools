@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"testing"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
 
 	"github.com/google/go-cmp/cmp"
@@ -18,6 +19,7 @@ func TestEntityLookup(t *testing.T) {
 		name         string
 		query        string
 		expectedPlan *RPCExecutionPlan
+		mapping      *graphql_datasource.GRPCMapping
 	}{
 		{
 			name:  "Should create an execution plan for an entity lookup",
@@ -339,7 +341,10 @@ func TestEntityLookup(t *testing.T) {
 
 			walker := astvisitor.NewWalker(48)
 
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, "Products")
+			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+				subgraphName: "Products",
+				mapping:      tt.mapping,
+			})
 
 			walker.Walk(queryDoc, schemaDoc, report)
 
@@ -359,11 +364,26 @@ func TestQueryExecutionPlans(t *testing.T) {
 	tests := []struct {
 		name         string
 		query        string
+		mapping      *graphql_datasource.GRPCMapping
 		expectedPlan *RPCExecutionPlan
 	}{
 		{
-			name:  "Should call query with two arguments and no variables",
-			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name } }`,
+			name:  "Should call query with two arguments and no variables and mapping for field names",
+			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
+			mapping: &graphql_datasource.GRPCMapping{
+				InputArguments: map[string]graphql_datasource.FieldMapping{
+					"typeFilterWithArguments": {
+						"filterField1": "filter_field1",
+						"filterField2": "filter_field2",
+					},
+				},
+				Fields: map[string]graphql_datasource.FieldMapping{
+					"TypeWithMultipleFilterFields": {
+						"filterField1": "filter_field1",
+						"filterField2": "filter_field2",
+					},
+				},
+			},
 			expectedPlan: &RPCExecutionPlan{
 				Groups: []RPCCallGroup{
 					{
@@ -375,13 +395,13 @@ func TestQueryExecutionPlans(t *testing.T) {
 									Name: "QueryTypeFilterWithArgumentsRequest",
 									Fields: []RPCField{
 										{
-											Name:     "filterField1",
+											Name:     "filter_field1",
 											TypeName: string(DataTypeString),
 											JSONPath: "filterField1",
 											Index:    0,
 										},
 										{
-											Name:     "filterField2",
+											Name:     "filter_field2",
 											TypeName: string(DataTypeString),
 											JSONPath: "filterField2",
 											Index:    1,
@@ -411,6 +431,18 @@ func TestQueryExecutionPlans(t *testing.T) {
 														JSONPath: "name",
 														Index:    1,
 													},
+													{
+														Name:     "filter_field1",
+														TypeName: string(DataTypeString),
+														JSONPath: "filterField1",
+														Index:    2,
+													},
+													{
+														Name:     "filter_field2",
+														TypeName: string(DataTypeString),
+														JSONPath: "filterField2",
+														Index:    3,
+													},
 												},
 											},
 										},
@@ -423,8 +455,19 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a complex input type and no variables",
+			name:  "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
 			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
+			mapping: &graphql_datasource.GRPCMapping{
+				Fields: map[string]graphql_datasource.FieldMapping{
+					"FilterType": {
+						"filterField1": "filter_field1",
+						"filterField2": "filter_field2",
+					},
+					"Pagination": {
+						"perPage": "per_page",
+					},
+				},
+			},
 			expectedPlan: &RPCExecutionPlan{
 				Groups: []RPCCallGroup{
 					{
@@ -458,13 +501,13 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Index:    0,
 																},
 																{
-																	Name:     "filterField1",
+																	Name:     "filter_field1",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField1",
 																	Index:    1,
 																},
 																{
-																	Name:     "filterField2",
+																	Name:     "filter_field2",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField2",
 																	Index:    2,
@@ -484,7 +527,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 																				Index:    0,
 																			},
 																			{
-																				Name:     "perPage",
+																				Name:     "per_page",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "perPage",
 																				Index:    1,
@@ -1179,7 +1222,10 @@ func TestQueryExecutionPlans(t *testing.T) {
 
 			walker := astvisitor.NewWalker(48)
 
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, "Products")
+			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+				subgraphName: "Products",
+				mapping:      tt.mapping,
+			})
 
 			walker.Walk(queryDoc, schemaDoc, report)
 
