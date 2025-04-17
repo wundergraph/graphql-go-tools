@@ -371,16 +371,20 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
 			mapping: &graphql_datasource.GRPCMapping{
-				InputArguments: map[string]graphql_datasource.FieldMapping{
+				InputArguments: map[string]graphql_datasource.InputArgumentMap{
 					"typeFilterWithArguments": {
 						"filterField1": "filter_field1",
 						"filterField2": "filter_field2",
 					},
 				},
-				Fields: map[string]graphql_datasource.FieldMapping{
+				Fields: map[string]graphql_datasource.FieldMap{
 					"TypeWithMultipleFilterFields": {
-						"filterField1": "filter_field1",
-						"filterField2": "filter_field2",
+						"filterField1": {
+							TargetName: "filter_field1",
+						},
+						"filterField2": {
+							TargetName: "filter_field2",
+						},
 					},
 				},
 			},
@@ -458,13 +462,19 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
 			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
 			mapping: &graphql_datasource.GRPCMapping{
-				Fields: map[string]graphql_datasource.FieldMapping{
+				Fields: map[string]graphql_datasource.FieldMap{
 					"FilterType": {
-						"filterField1": "filter_field1",
-						"filterField2": "filter_field2",
+						"filterField1": {
+							TargetName: "filter_field1",
+						},
+						"filterField2": {
+							TargetName: "filter_field2",
+						},
 					},
 					"Pagination": {
-						"perPage": "per_page",
+						"perPage": {
+							TargetName: "per_page",
+						},
 					},
 				},
 			},
