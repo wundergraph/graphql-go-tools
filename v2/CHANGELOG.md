@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.170](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.169...v2.0.0-rc.170) (2025-04-17)
+
+
+### Features
+
+* operation input to MCP compatible json schema converter ([#1124](https://github.com/wundergraph/graphql-go-tools/issues/1124)) ([48cc99b](https://github.com/wundergraph/graphql-go-tools/commit/48cc99b441f851d1e0ecac2b5f4199a3e8eac94c))
+
 ## [2.0.0-rc.169](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.168...v2.0.0-rc.169) (2025-04-07)
 
 
