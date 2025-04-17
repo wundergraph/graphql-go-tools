@@ -16,6 +16,12 @@ type Cat struct {
 	Name string `json:"name"`
 }
 
+type Mutation struct {
+}
+
+type Query struct {
+}
+
 type Question struct {
 	Upc  string `json:"upc"`
 	Body string `json:"body"`

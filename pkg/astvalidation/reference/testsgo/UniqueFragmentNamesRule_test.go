@@ -5,7 +5,6 @@ import (
 )
 
 func TestUniqueFragmentNamesRule(t *testing.T) {
-	t.Skip()
 
 	ExpectErrors := func(t *testing.T, queryStr string) ResultCompare {
 		return ExpectValidationErrors(t, UniqueFragmentNamesRule, queryStr)
