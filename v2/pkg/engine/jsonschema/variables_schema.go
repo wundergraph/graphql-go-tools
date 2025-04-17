@@ -49,7 +49,9 @@ func (v *VariablesSchemaBuilder) EnterDocument(operation, definition *ast.Docume
 
 	// Extract descriptions from root fields
 	var descriptions []string
-	if len(operation.OperationDefinitions) > 0 {
+	if len(operation.OperationDefinitions) == 0 {
+	    return
+	}
 		operationDefinition := operation.OperationDefinitions[0]
 
 		// Process SelectionSet to extract field descriptions
