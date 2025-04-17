@@ -17,17 +17,29 @@ type nodesResolvableVisitor struct {
 	nodes *NodeSuggestions
 }
 
+func (f *nodesResolvableVisitor) EnterDocument(operation, definition *ast.Document) {
+	f.operation = operation
+	f.definition = definition
+}
+
 func (f *nodesResolvableVisitor) EnterField(ref int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 	fieldName := f.operation.FieldNameUnsafeString(ref)
 	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
 
 	isTypeName := fieldName == typeNameField
-	isUnionParent := f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
 
-	if isUnionParent && isTypeName {
-		// typename field on union parent is always resolvable
-		return
+	if isTypeName {
+		isUnionParent := f.walker.EnclosingTypeDefinition.Kind == ast.NodeKindUnionTypeDefinition
+		if isUnionParent {
+			// typename field on union parent is always resolvable
+			return
+		}
+
+		if f.definition.Index.IsRootOperationTypeNameString(typeName) {
+			// typename field on root query type is always resolvable
+			return
+		}
 	}
 
 	parentPath := f.walker.Path.DotDelimitedString()

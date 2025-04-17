@@ -3752,7 +3752,7 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fetches: []resolve.Fetch{
 						&resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
-								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){__typename namespaceCreate(input: $a){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"a":$$0$$}}}`,
+								Input:      `{"method":"POST","url":"http://api.com","body":{"query":"mutation($a: CreateNamespace!){namespaceCreate(input: $a){__typename ... on NamespaceCreated {namespace {id name}} ... on Error {code message}}}","variables":{"a":$$0$$}}}`,
 								DataSource: &Source{},
 								Variables: resolve.NewVariables(
 									&resolve.ContextVariable{
@@ -3768,10 +3768,9 @@ func TestGraphQLDataSource(t *testing.T) {
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__typename"),
-							Value: &resolve.String{
-								Path:       []string{"__typename"},
-								Nullable:   false,
-								IsTypeName: true,
+							Value: &resolve.StaticString{
+								Path:  []string{"__typename"},
+								Value: "Mutation",
 							},
 						},
 						{

@@ -26,10 +26,16 @@ func PrintIndent(document *ast.Document, indent []byte, out io.Writer) error {
 	return printer.Print(document, out)
 }
 
-func PrintIndentDebug(document *ast.Document, indent []byte, out io.Writer) error {
+func PrintIndentDebug(document *ast.Document, indent []byte, out io.Writer, callback ...func(fieldRef int, out io.Writer)) error {
+	var fieldCallback func(fieldRef int, out io.Writer)
+	if len(callback) > 0 {
+		fieldCallback = callback[0]
+	}
+
 	printer := Printer{
-		indent: indent,
-		debug:  true,
+		indent:        indent,
+		debug:         true,
+		fieldCallback: fieldCallback,
 	}
 	return printer.Print(document, out)
 }
@@ -51,9 +57,9 @@ func PrintStringIndent(document *ast.Document, indent string) (string, error) {
 }
 
 // PrintStringIndentDebug is the same as PrintStringIndent but prints debug information
-func PrintStringIndentDebug(document *ast.Document, indent string) (string, error) {
+func PrintStringIndentDebug(document *ast.Document, indent string, callback ...func(fieldRef int, out io.Writer)) (string, error) {
 	buff := &bytes.Buffer{}
-	err := PrintIndentDebug(document, []byte(indent), buff)
+	err := PrintIndentDebug(document, []byte(indent), buff, callback...)
 	out := buff.String()
 	return out, err
 }
@@ -66,11 +72,12 @@ func NewPrinter(indent []byte) *Printer {
 
 // Printer walks a GraphQL document and prints it as a string
 type Printer struct {
-	indent     []byte
-	visitor    printVisitor
-	walker     astvisitor.SimpleWalker
-	registered bool
-	debug      bool
+	indent        []byte
+	visitor       printVisitor
+	walker        astvisitor.SimpleWalker
+	registered    bool
+	debug         bool
+	fieldCallback func(fieldRef int, out io.Writer)
 }
 
 // Print starts the actual AST printing
@@ -78,6 +85,7 @@ type Printer struct {
 func (p *Printer) Print(document *ast.Document, out io.Writer) error {
 	p.visitor.indent = p.indent
 	p.visitor.debug = p.debug
+	p.visitor.fieldCallback = p.fieldCallback
 	p.visitor.err = nil
 	p.visitor.document = document
 	p.visitor.out = out
@@ -100,6 +108,7 @@ type printVisitor struct {
 	isFirstDirectiveLocation   bool
 	isDirectiveRepeatable      bool
 	debug                      bool
+	fieldCallback              func(fieldRef int, out io.Writer)
 }
 
 func (p *printVisitor) write(data []byte) {
@@ -328,6 +337,9 @@ func (p *printVisitor) EnterField(ref int) {
 	if p.debug {
 		p.writeIndented([]byte("# Field ref:"))
 		p.write([]byte(strconv.Itoa(ref)))
+		if p.fieldCallback != nil {
+			p.fieldCallback(ref, p.out)
+		}
 		p.write(literal.LINETERMINATOR)
 	}
 

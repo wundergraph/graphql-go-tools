@@ -27,12 +27,14 @@ type NodeSuggestion struct {
 	IsLeaf                    bool   `json:"isLeaf"`
 	isTypeName                bool
 
-	parentPathWithoutFragment *string
+	parentPathWithoutFragment string
 	onFragment                bool
 	Selected                  bool     `json:"isSelected"`
 	SelectionReasons          []string `json:"selectReason"`
 	treeNodeId                uint
 	possibleTypeNames         []string
+
+	requiresKey *SourceConnection
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -67,12 +69,19 @@ func (n *NodeSuggestion) String() string {
 	return string(j)
 }
 
-type NodeSuggestionHint struct {
-	fieldRef int
-	dsHash   DSHash
-
-	fieldName  string
-	parentPath string
+func (n *NodeSuggestion) StringShort() string {
+	j, _ := json.Marshal(struct {
+		DsName           string   `json:"dsName"`
+		TypeName         string   `json:"typeName"`
+		Selected         bool     `json:"selected"`
+		SelectionReasons []string `json:"selectionReasons"`
+	}{
+		DsName:           n.DataSourceName,
+		TypeName:         n.TypeName,
+		Selected:         n.Selected,
+		SelectionReasons: n.SelectionReasons,
+	})
+	return string(j)
 }
 
 type NodeSuggestions struct {
@@ -110,6 +119,16 @@ func (f *NodeSuggestions) IsFieldSeen(fieldRef int) bool {
 
 func (f *NodeSuggestions) AddSeenField(fieldRef int) {
 	f.seenFields[fieldRef] = struct{}{}
+}
+
+func (f *NodeSuggestions) RemoveTreeNodeChilds(fieldRef int) {
+	treeNodeId := TreeNodeID(fieldRef)
+	node, ok := f.responseTree.Find(treeNodeId)
+	if !ok {
+		return
+	}
+
+	node.ReplaceChildren()
 }
 
 func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
@@ -180,17 +199,33 @@ func (f *NodeSuggestions) duplicatesOf(idx int) (out []int) {
 }
 
 func (f *NodeSuggestions) childNodesOnSameSource(idx int) (out []int) {
-	return f.childNodesIds(idx, true)
-}
-
-func (f *NodeSuggestions) childNodesIds(idx int, onSameDataSource bool) (out []int) {
 	treeNode := f.treeNode(idx)
 	childIndexes := treeNodeChildren(treeNode)
 
 	out = make([]int, 0, len(childIndexes))
 
 	for _, childIdx := range childIndexes {
-		if onSameDataSource && f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
+		if f.items[childIdx].DataSourceHash != f.items[idx].DataSourceHash {
+			continue
+		}
+
+		if f.items[childIdx].IsExternal && !f.items[childIdx].IsProvided {
+			continue
+		}
+
+		out = append(out, childIdx)
+	}
+	return
+}
+
+func (f *NodeSuggestions) childNodesIdsOnOtherDS(idx int) (out []int) {
+	treeNode := f.treeNode(idx)
+	childIndexes := treeNodeChildren(treeNode)
+
+	out = make([]int, 0, len(childIndexes))
+
+	for _, childIdx := range childIndexes {
+		if f.items[childIdx].DataSourceHash == f.items[idx].DataSourceHash {
 			continue
 		}
 

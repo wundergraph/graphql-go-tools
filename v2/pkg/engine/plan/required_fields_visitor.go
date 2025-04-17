@@ -38,13 +38,20 @@ func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string)
 }
 
 type addRequiredFieldsInput struct {
-	key, operation, definition   *ast.Document
-	report                       *operationreport.Report
-	operationSelectionSet        int
-	isTypeNameForEntityInterface bool
+	key, operation, definition       *ast.Document
+	report                           *operationreport.Report
+	operationSelectionSet            int
+	isTypeNameForEntityInterface     bool
+	recordOnlyTopLevelRequiredFields bool
 }
 
-func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requiredFieldRefs []int) {
+type AddRequiredFieldsResult struct {
+	skipFieldRefs     []int
+	requiredFieldRefs []int
+	modifiedFieldRefs []int
+}
+
+func addRequiredFields(input *addRequiredFieldsInput) (out AddRequiredFieldsResult) {
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
@@ -60,30 +67,15 @@ func addRequiredFields(input *addRequiredFieldsInput) (skipFieldRefs []int, requ
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
+	walker.RegisterInlineFragmentVisitor(visitor)
 
 	walker.Walk(input.key, input.definition, input.report)
 
-	return visitor.skipFieldRefs, visitor.requiredFieldRefs
-}
-
-func testRequiredFields(input *addRequiredFieldsInput) (allRequiredFieldsAddedToOperation bool, requiredFieldRefs []int) {
-	walker := astvisitor.NewWalker(48)
-
-	visitor := &requiredFieldsVisitor{
-		Walker:            &walker,
-		input:             input,
-		skipFieldRefs:     make([]int, 0, 2),
-		requiredFieldRefs: make([]int, 0, 2),
-		testMode:          true,
-		allFieldsPresent:  true,
+	return AddRequiredFieldsResult{
+		skipFieldRefs:     visitor.skipFieldRefs,
+		requiredFieldRefs: visitor.requiredFieldRefs,
+		modifiedFieldRefs: visitor.modifiedFieldRefs,
 	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
-	walker.RegisterSelectionSetVisitor(visitor)
-
-	walker.Walk(input.key, input.definition, input.report)
-
-	return visitor.allFieldsPresent, visitor.requiredFieldRefs
 }
 
 type requiredFieldsVisitor struct {
@@ -93,6 +85,7 @@ type requiredFieldsVisitor struct {
 	importer          *astimport.Importer
 	skipFieldRefs     []int
 	requiredFieldRefs []int
+	modifiedFieldRefs []int
 
 	testMode         bool
 	allFieldsPresent bool
@@ -104,21 +97,57 @@ func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
 }
 
+func (v *requiredFieldsVisitor) EnterInlineFragment(ref int) {
+	typeName := v.input.key.InlineFragmentTypeConditionName(ref)
+
+	inlineFragmentRef := v.input.operation.AddInlineFragment(ast.InlineFragment{
+		TypeCondition: ast.TypeCondition{
+			Type: v.input.operation.AddNamedType(typeName),
+		},
+	})
+
+	operationNode := v.OperationNodes[len(v.OperationNodes)-1]
+	if operationNode.Kind != ast.NodeKindSelectionSet {
+		v.Walker.StopWithInternalErr(fmt.Errorf("expected operation node to be of kind selection set, got %s", operationNode.Kind))
+		return
+	}
+
+	v.input.operation.AddSelection(operationNode.Ref, ast.Selection{
+		Kind: ast.SelectionKindInlineFragment,
+		Ref:  inlineFragmentRef,
+	})
+
+	v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragmentRef})
+}
+
+func (v *requiredFieldsVisitor) LeaveInlineFragment(ref int) {
+	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
+}
+
 func (v *requiredFieldsVisitor) EnterSelectionSet(_ int) {
 	if v.Walker.Depth == 2 {
 		return
 	}
-	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
+	operationNode := v.OperationNodes[len(v.OperationNodes)-1]
 
-	if fieldSelectionSetRef, ok := v.input.operation.FieldSelectionSet(fieldNode.Ref); ok {
-		selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
+	if operationNode.Kind == ast.NodeKindField {
+		if fieldSelectionSetRef, ok := v.input.operation.FieldSelectionSet(operationNode.Ref); ok {
+			selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
+			v.OperationNodes = append(v.OperationNodes, selectionSetNode)
+			return
+		}
+
+		selectionSetNode := v.input.operation.AddSelectionSet()
+		v.input.operation.Fields[operationNode.Ref].HasSelections = true
+		v.input.operation.Fields[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 		return
 	}
 
+	// operation node kind InlineFragment
 	selectionSetNode := v.input.operation.AddSelectionSet()
-	v.input.operation.Fields[fieldNode.Ref].HasSelections = true
-	v.input.operation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
+	v.input.operation.InlineFragments[operationNode.Ref].HasSelections = true
+	v.input.operation.InlineFragments[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
 
@@ -141,7 +170,7 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 		// because we want to depend only on the regular key fields, not the __typename field
 		// for entity interface we need real typename, so we use this dependency
 		if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
-			v.requiredFieldRefs = append(v.requiredFieldRefs, operationFieldRef)
+			v.storeRequiredFieldRef(operationFieldRef)
 		}
 
 		// do not add required field if the field is already present in the operation with the same name
@@ -150,6 +179,7 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 			return
 		}
 
+		v.modifiedFieldRefs = append(v.modifiedFieldRefs, operationFieldRef)
 		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
 		return
 	}
@@ -170,6 +200,15 @@ func (v *requiredFieldsVisitor) LeaveField(ref int) {
 	if v.input.key.FieldHasSelections(ref) {
 		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 	}
+}
+
+func (v *requiredFieldsVisitor) storeRequiredFieldRef(fieldRef int) {
+	if v.input.recordOnlyTopLevelRequiredFields && len(v.Walker.Ancestors) != 2 {
+		return
+	}
+
+	// we have to store only field refs which are at the root of the fieldset fragment
+	v.requiredFieldRefs = append(v.requiredFieldRefs, fieldRef)
 }
 
 func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int) ast.Node {
@@ -198,7 +237,7 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	// we are skipping adding __typename field to the required fields,
 	// because we want to depend only on the regular key fields, not the __typename field
 	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
-		v.requiredFieldRefs = append(v.requiredFieldRefs, addedField.Ref)
+		v.storeRequiredFieldRef(addedField.Ref)
 	}
 
 	return addedField
