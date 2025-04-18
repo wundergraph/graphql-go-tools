@@ -37,12 +37,14 @@ func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string)
 	return &key, &report
 }
 
-type addRequiredFieldsInput struct {
-	key, operation, definition       *ast.Document
-	report                           *operationreport.Report
-	operationSelectionSet            int
-	isTypeNameForEntityInterface     bool
-	recordOnlyTopLevelRequiredFields bool
+type addRequiredFieldsConfiguration struct {
+	operation, definition        *ast.Document
+	operationSelectionSetRef     int
+	isTypeNameForEntityInterface bool
+	isKey                        bool
+	allowTypename                bool
+	typeName                     string
+	fieldSet                     string
 }
 
 type AddRequiredFieldsResult struct {
@@ -51,86 +53,106 @@ type AddRequiredFieldsResult struct {
 	modifiedFieldRefs []int
 }
 
-func addRequiredFields(input *addRequiredFieldsInput) (out AddRequiredFieldsResult) {
+func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredFieldsResult, report *operationreport.Report) {
+	key, report := RequiredFieldsFragment(config.typeName, config.fieldSet, config.allowTypename)
+	if report.HasErrors() {
+		return out, report
+	}
+
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 
-	importer := &astimport.Importer{}
-
 	visitor := &requiredFieldsVisitor{
 		Walker:            walker,
-		input:             input,
-		importer:          importer,
+		config:            config,
+		key:               key,
+		importer:          &astimport.Importer{},
 		skipFieldRefs:     make([]int, 0, 2),
 		requiredFieldRefs: make([]int, 0, 2),
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
+	walker.RegisterInlineFragmentVisitor(visitor)
 
-	walker.Walk(input.key, input.definition, input.report)
+	walker.Walk(key, config.definition, report)
 
 	return AddRequiredFieldsResult{
 		skipFieldRefs:     visitor.skipFieldRefs,
 		requiredFieldRefs: visitor.requiredFieldRefs,
 		modifiedFieldRefs: visitor.modifiedFieldRefs,
-	}
-}
-
-func testRequiredFields(input *addRequiredFieldsInput) (allRequiredFieldsAddedToOperation bool, requiredFieldRefs []int) {
-	walker := astvisitor.NewWalker(48)
-
-	visitor := &requiredFieldsVisitor{
-		Walker:            &walker,
-		input:             input,
-		skipFieldRefs:     make([]int, 0, 2),
-		requiredFieldRefs: make([]int, 0, 2),
-		testMode:          true,
-		allFieldsPresent:  true,
-	}
-	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterFieldVisitor(visitor)
-	walker.RegisterSelectionSetVisitor(visitor)
-
-	walker.Walk(input.key, input.definition, input.report)
-
-	return visitor.allFieldsPresent, visitor.requiredFieldRefs
+	}, report
 }
 
 type requiredFieldsVisitor struct {
 	*astvisitor.Walker
-	OperationNodes    []ast.Node
-	input             *addRequiredFieldsInput
-	importer          *astimport.Importer
+	OperationNodes []ast.Node
+	config         *addRequiredFieldsConfiguration
+	importer       *astimport.Importer
+	key            *ast.Document
+
 	skipFieldRefs     []int
 	requiredFieldRefs []int
 	modifiedFieldRefs []int
-
-	testMode         bool
-	allFieldsPresent bool
 }
 
 func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
 	v.OperationNodes = make([]ast.Node, 0, 3)
 	v.OperationNodes = append(v.OperationNodes,
-		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.input.operationSelectionSet})
+		ast.Node{Kind: ast.NodeKindSelectionSet, Ref: v.config.operationSelectionSetRef})
+}
+
+func (v *requiredFieldsVisitor) EnterInlineFragment(ref int) {
+	typeName := v.key.InlineFragmentTypeConditionName(ref)
+
+	inlineFragmentRef := v.config.operation.AddInlineFragment(ast.InlineFragment{
+		TypeCondition: ast.TypeCondition{
+			Type: v.config.operation.AddNamedType(typeName),
+		},
+	})
+
+	operationNode := v.OperationNodes[len(v.OperationNodes)-1]
+	if operationNode.Kind != ast.NodeKindSelectionSet {
+		v.Walker.StopWithInternalErr(fmt.Errorf("expected operation node to be of kind selection set, got %s", operationNode.Kind))
+		return
+	}
+
+	v.config.operation.AddSelection(operationNode.Ref, ast.Selection{
+		Kind: ast.SelectionKindInlineFragment,
+		Ref:  inlineFragmentRef,
+	})
+
+	v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindInlineFragment, Ref: inlineFragmentRef})
+}
+
+func (v *requiredFieldsVisitor) LeaveInlineFragment(ref int) {
+	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 }
 
 func (v *requiredFieldsVisitor) EnterSelectionSet(_ int) {
 	if v.Walker.Depth == 2 {
 		return
 	}
-	fieldNode := v.OperationNodes[len(v.OperationNodes)-1]
+	operationNode := v.OperationNodes[len(v.OperationNodes)-1]
 
-	if fieldSelectionSetRef, ok := v.input.operation.FieldSelectionSet(fieldNode.Ref); ok {
-		selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
+	if operationNode.Kind == ast.NodeKindField {
+		if fieldSelectionSetRef, ok := v.config.operation.FieldSelectionSet(operationNode.Ref); ok {
+			selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
+			v.OperationNodes = append(v.OperationNodes, selectionSetNode)
+			return
+		}
+
+		selectionSetNode := v.config.operation.AddSelectionSet()
+		v.config.operation.Fields[operationNode.Ref].HasSelections = true
+		v.config.operation.Fields[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 		return
 	}
 
-	selectionSetNode := v.input.operation.AddSelectionSet()
-	v.input.operation.Fields[fieldNode.Ref].HasSelections = true
-	v.input.operation.Fields[fieldNode.Ref].SelectionSet = selectionSetNode.Ref
+	// operation node kind InlineFragment
+	selectionSetNode := v.config.operation.AddSelectionSet()
+	v.config.operation.InlineFragments[operationNode.Ref].HasSelections = true
+	v.config.operation.InlineFragments[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 }
 
@@ -143,22 +165,38 @@ func (v *requiredFieldsVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (v *requiredFieldsVisitor) EnterField(ref int) {
-	fieldName := v.input.key.FieldNameBytes(ref)
+	if v.config.isKey {
+		v.handleKeyField(ref)
+		return
+	}
+
+	v.handleRequiredField(ref)
+}
+
+func (v *requiredFieldsVisitor) handleRequiredField(ref int) {
+	fieldName := v.key.FieldNameBytes(ref)
+	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
+
+	// we need to add alias if operation has such field and:
+	// - the field is not a leaf
+	// - the field has arguments
+	isLeafField := !v.key.FieldHasSelections(ref)
+	needAlias := v.key.FieldHasArguments(ref)
 
 	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
+	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
 
-	operationHasField, operationFieldRef := v.input.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
-	if operationHasField {
+	if operationHasField && !needAlias {
 		// we are skipping adding __typename field to the required fields,
 		// because we want to depend only on the regular key fields, not the __typename field
 		// for entity interface we need real typename, so we use this dependency
-		if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
+		if !isTypeName || v.config.isTypeNameForEntityInterface {
 			v.storeRequiredFieldRef(operationFieldRef)
 		}
 
 		// do not add required field if the field is already present in the operation with the same name
 		// but add an operation node from operation if the field has selections
-		if !v.input.operation.FieldHasSelections(operationFieldRef) {
+		if !v.config.operation.FieldHasSelections(operationFieldRef) {
 			return
 		}
 
@@ -167,45 +205,77 @@ func (v *requiredFieldsVisitor) EnterField(ref int) {
 		return
 	}
 
-	if v.testMode {
-		v.allFieldsPresent = false
-		v.Walker.Stop()
+	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef, operationHasField && needAlias)
+	if !isLeafField {
+		v.OperationNodes = append(v.OperationNodes, fieldNode)
+	}
+}
+
+func (v *requiredFieldsVisitor) handleKeyField(ref int) {
+	fieldName := v.key.FieldNameBytes(ref)
+	isTypeName := bytes.Equal(fieldName, typeNameFieldBytes)
+	isLeafField := !v.key.FieldHasSelections(ref)
+
+	selectionSetRef := v.OperationNodes[len(v.OperationNodes)-1].Ref
+	operationHasField, operationFieldRef := v.config.operation.SelectionSetHasFieldSelectionWithExactName(selectionSetRef, fieldName)
+	if operationHasField {
+		// we are skipping adding __typename field to the required fields,
+		// because we want to depend only on the regular key fields, not the __typename field
+		// for entity interface we need real typename, so we use this dependency
+		if !isTypeName {
+			v.storeRequiredFieldRef(operationFieldRef)
+		}
+
+		// do not add required field if the field is already present in the operation with the same name
+		// but add an operation node from operation if the field has selections
+		if isLeafField {
+			return
+		}
+
+		v.modifiedFieldRefs = append(v.modifiedFieldRefs, operationFieldRef)
+		v.OperationNodes = append(v.OperationNodes, ast.Node{Kind: ast.NodeKindField, Ref: operationFieldRef})
 		return
 	}
 
-	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef)
-	if v.input.key.FieldHasSelections(ref) {
+	fieldNode := v.addRequiredField(ref, fieldName, selectionSetRef, false)
+	if !isLeafField {
 		v.OperationNodes = append(v.OperationNodes, fieldNode)
 	}
 }
 
 func (v *requiredFieldsVisitor) LeaveField(ref int) {
-	if v.input.key.FieldHasSelections(ref) {
+	if v.key.FieldHasSelections(ref) {
 		v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 	}
 }
 
 func (v *requiredFieldsVisitor) storeRequiredFieldRef(fieldRef int) {
-	if v.input.recordOnlyTopLevelRequiredFields && len(v.Walker.Ancestors) != 2 {
-		return
-	}
-
-	// we have to store only field refs which are at the root of the fieldset fragment
 	v.requiredFieldRefs = append(v.requiredFieldRefs, fieldRef)
 }
 
-func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int) ast.Node {
+func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteSlice, selectionSet int, addAlias bool) ast.Node {
 	field := ast.Field{
-		Name:         v.input.operation.Input.AppendInputBytes(fieldName),
+		Name:         v.config.operation.Input.AppendInputBytes(fieldName),
 		SelectionSet: ast.InvalidRef,
 	}
-	addedField := v.input.operation.AddField(field)
 
-	if v.input.key.FieldHasArguments(keyRef) {
-		importedArgs := v.importer.ImportArguments(v.input.key.Fields[keyRef].Arguments.Refs, v.input.key, v.input.operation)
+	if addAlias {
+		aliasName := bytes.NewBuffer([]byte("__internal_"))
+		aliasName.Write(fieldName)
+
+		field.Alias = ast.Alias{
+			IsDefined: true,
+			Name:      v.config.operation.Input.AppendInputBytes(aliasName.Bytes()),
+		}
+	}
+
+	addedField := v.config.operation.AddField(field)
+
+	if v.key.FieldHasArguments(keyRef) {
+		importedArgs := v.importer.ImportArguments(v.key.Fields[keyRef].Arguments.Refs, v.key, v.config.operation)
 
 		for _, arg := range importedArgs {
-			v.input.operation.AddArgumentToField(addedField.Ref, arg)
+			v.config.operation.AddArgumentToField(addedField.Ref, arg)
 		}
 	}
 
@@ -213,13 +283,13 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 		Kind: ast.SelectionKindField,
 		Ref:  addedField.Ref,
 	}
-	v.input.operation.AddSelection(selectionSet, selection)
+	v.config.operation.AddSelection(selectionSet, selection)
 
 	v.skipFieldRefs = append(v.skipFieldRefs, addedField.Ref)
 
 	// we are skipping adding __typename field to the required fields,
 	// because we want to depend only on the regular key fields, not the __typename field
-	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.input.isTypeNameForEntityInterface) {
+	if !bytes.Equal(fieldName, typeNameFieldBytes) || (bytes.Equal(fieldName, typeNameFieldBytes) && v.config.isTypeNameForEntityInterface) {
 		v.storeRequiredFieldRef(addedField.Ref)
 	}
 
