@@ -469,23 +469,19 @@ func (c *nodeSelectionVisitor) processPendingFieldRequirements(selectionSetRef i
 
 func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef int, requirements fieldRequirements) {
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	key, report := RequiredFieldsFragment(typeName, requirements.selectionSet, false)
-	if report.HasErrors() {
-		c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s at path %s", requirements.selectionSet, typeName, requirements.path))
-		return
+
+	input := &addRequiredFieldsConfiguration{
+		operation:                    c.operation,
+		definition:                   c.definition,
+		operationSelectionSetRef:     selectionSetRef,
+		isTypeNameForEntityInterface: requirements.isTypenameForEntityInterface,
+		isKey:                        false,
+		allowTypename:                false,
+		typeName:                     typeName,
+		fieldSet:                     requirements.selectionSet,
 	}
 
-	input := &addRequiredFieldsInput{
-		key:                              key,
-		operation:                        c.operation,
-		definition:                       c.definition,
-		report:                           report,
-		operationSelectionSet:            selectionSetRef,
-		isTypeNameForEntityInterface:     requirements.isTypenameForEntityInterface,
-		recordOnlyTopLevelRequiredFields: true,
-	}
-
-	addFieldsResult := addRequiredFields(input)
+	addFieldsResult, report := addRequiredFields(input)
 	if report.HasErrors() {
 		c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s at path %s", requirements.selectionSet, typeName, requirements.path))
 		return
@@ -549,23 +545,19 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 		allowTypeName := !dissalowTypeName && i == 0
 		lastJump := i == len(pendingKey.sc.Jumps)-1
 
-		key, report := RequiredFieldsFragment(jump.TypeName, jump.SelectionSet, allowTypeName)
-		if report.HasErrors() {
-			c.walker.StopWithInternalErr(fmt.Errorf("failed to parse required fields %s for %s", jump.SelectionSet, jump.TypeName))
-			return
+		input := &addRequiredFieldsConfiguration{
+			operation:                c.operation,
+			definition:               c.definition,
+			operationSelectionSetRef: selectionSetRef,
+			isKey:                    true,
+			allowTypename:            allowTypeName,
+			typeName:                 jump.TypeName,
+			fieldSet:                 jump.SelectionSet,
 		}
 
-		input := &addRequiredFieldsInput{
-			key:                   key,
-			operation:             c.operation,
-			definition:            c.definition,
-			report:                report,
-			operationSelectionSet: selectionSetRef,
-		}
-
-		addFieldsResult := addRequiredFields(input)
+		addFieldsResult, report := addRequiredFields(input)
 		if report.HasErrors() {
-			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required fields %s for %s", jump.SelectionSet, jump.TypeName))
+			c.walker.StopWithInternalErr(fmt.Errorf("failed to add required key fields %s for %s", jump.SelectionSet, jump.TypeName))
 			return
 		}
 		c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
