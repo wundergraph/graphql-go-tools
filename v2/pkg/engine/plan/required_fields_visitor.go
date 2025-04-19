@@ -59,11 +59,10 @@ func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredF
 		return out, report
 	}
 
-	walker := astvisitor.WalkerFromPool()
-	defer walker.Release()
+	walker := astvisitor.NewWalker(4)
 
 	visitor := &requiredFieldsVisitor{
-		Walker:            walker,
+		Walker:            &walker,
 		config:            config,
 		key:               key,
 		importer:          &astimport.Importer{},

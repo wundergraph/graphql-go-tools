@@ -7,6 +7,8 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 var (
@@ -64,6 +66,13 @@ type fieldSelectionRewriter struct {
 	skipFieldRefs []int
 }
 
+type RewriteResult struct {
+	rewritten        bool
+	changedFieldRefs map[int][]int // map[fieldRef][]fieldRef - for each original fieldRef list of new fieldRefs
+}
+
+var resultNotRewritten = RewriteResult{}
+
 func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
 	return &fieldSelectionRewriter{
 		operation:  operation,
@@ -79,34 +88,34 @@ func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration Data
 	r.dsConfiguration = dsConfiguration
 }
 
-func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (res RewriteResult, err error) {
 	fieldName := r.operation.FieldNameBytes(fieldRef)
 	fieldTypeNode, ok := r.definition.FieldTypeNode(fieldName, enclosingNode)
 	if !ok {
-		return false, nil
+		return resultNotRewritten, nil
 	}
 
 	enclosingTypeName := r.definition.NodeNameBytes(enclosingNode)
 
 	switch fieldTypeNode.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		rewritten, err = r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		res, err = r.processInterfaceSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
 		if err != nil {
-			return false, fmt.Errorf("failed to rewrite field %s.%s with the interface return type: %w", enclosingTypeName, fieldName, err)
+			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the interface return type: %w", enclosingTypeName, fieldName, err)
 		}
 	case ast.NodeKindUnionTypeDefinition:
-		rewritten, err = r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
+		res, err = r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
 		if err != nil {
-			return false, fmt.Errorf("failed to rewrite field %s.%s with the union return type: %w", enclosingTypeName, fieldName, err)
+			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the union return type: %w", enclosingTypeName, fieldName, err)
 		}
 	default:
-		return false, nil
+		return resultNotRewritten, nil
 	}
 
-	return rewritten, nil
+	return res, nil
 }
 
-func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef int, enclosingTypeName ast.ByteSlice) (res RewriteResult, err error) {
 	/*
 		1) extract inline fragments selections with interface types
 		2) extract inline fragments selections with members of the union
@@ -117,27 +126,40 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 
 	unionTypeNames, err := r.getAllowedUnionMemberTypeNames(fieldRef, unionDefRef, enclosingTypeName)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
 	entityNames, _ := r.datasourceHasEntitiesWithName(unionTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
 	needRewrite := r.unionFieldSelectionNeedsRewrite(selectionSetInfo, unionTypeNames, entityNames)
 	if !needRewrite {
-		return false, nil
+		return resultNotRewritten, nil
+	}
+
+	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	if err != nil {
+		return resultNotRewritten, err
 	}
 
 	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, unionTypeNames, entityNames)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
-	return needRewrite, nil
+	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	return RewriteResult{
+		rewritten:        true,
+		changedFieldRefs: changedRefs,
+	}, nil
 }
 
 func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, unionTypeNames, entityNames []string) (needRewrite bool) {
@@ -235,7 +257,7 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	return nil
 }
 
-func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (rewritten bool, err error) {
+func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (res RewriteResult, err error) {
 	/*
 		1) extract selections which is not inline-fragments - e.g. shared selections
 		2) extract selections for each inline fragment
@@ -245,27 +267,40 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 
 	interfaceTypeNames, isInterfaceObject, err := r.getAllowedInterfaceMemberTypeNames(fieldRef, interfaceDefRef, enclosingTypeName)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 	entityNames, _ := r.datasourceHasEntitiesWithName(interfaceTypeNames)
 
 	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 	selectionSetInfo.isInterfaceObject = isInterfaceObject
 
 	needRewrite := r.interfaceFieldSelectionNeedsRewrite(selectionSetInfo, interfaceTypeNames, entityNames)
 	if !needRewrite {
-		return false, nil
+		return resultNotRewritten, nil
+	}
+
+	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	if err != nil {
+		return resultNotRewritten, err
 	}
 
 	err = r.rewriteInterfaceSelection(fieldRef, selectionSetInfo, interfaceTypeNames)
 	if err != nil {
-		return false, err
+		return resultNotRewritten, err
 	}
 
-	return true, nil
+	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	return RewriteResult{
+		rewritten:        true,
+		changedFieldRefs: changedRefs,
+	}, nil
 }
 
 func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
@@ -404,5 +439,123 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 		// and parent allowed types
 
 		r.flattenFragmentOnInterface(inlineFragmentInfo.selectionSetInfo, inlineFragmentInfo.typeNamesImplementingInterface, filteredImplementingTypes, selectionRefs)
+	}
+}
+
+func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, fieldRefsPaths map[int]string) (map[int][]int, error) {
+	_, pathsToRefs, err := collectPath(r.operation, r.definition, fieldRef, false)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(map[int][]int, len(fieldRefsPaths))
+
+	for fieldRef, path := range fieldRefsPaths {
+		newRefs, ok := pathsToRefs[path]
+		if !ok {
+			// TODO: some path actually could dissapear due to rewrite
+			continue
+		}
+
+		if len(newRefs) == 0 {
+			continue
+		}
+
+		if len(newRefs) == 1 && newRefs[0] == fieldRef {
+			continue
+		}
+
+		out[fieldRef] = newRefs
+	}
+
+	return out, nil
+}
+
+type AbstractFieldPathCollector struct {
+	*astvisitor.Walker
+
+	operation  *ast.Document
+	definition *ast.Document
+
+	targetFieldRef int
+	allow          bool
+	fieldRefPaths  map[int]string
+	pathFieldRefs  map[string][]int
+	fieldToPath    bool
+}
+
+func (v *AbstractFieldPathCollector) EnterField(ref int) {
+	parentPath := v.Walker.Path.WithoutInlineFragmentNames().DotDelimitedString()
+	currentFieldName := v.operation.FieldNameString(ref)
+	currentPath := parentPath + "." + currentFieldName
+
+	if v.fieldToPath {
+		v.fieldRefPaths[ref] = currentPath
+		return
+	}
+
+	if _, ok := v.pathFieldRefs[currentPath]; !ok {
+		v.pathFieldRefs[currentPath] = make([]int, 0, 1)
+	}
+	v.pathFieldRefs[currentPath] = append(v.pathFieldRefs[currentPath], ref)
+}
+
+func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
+	walker := astvisitor.NewWalker(4)
+
+	c := &AbstractFieldPathCollector{
+		Walker:         &walker,
+		operation:      operation,
+		definition:     definition,
+		targetFieldRef: fieldRef,
+		fieldRefPaths:  make(map[int]string),
+		pathFieldRefs:  make(map[string][]int),
+		fieldToPath:    fieldToPath,
+	}
+
+	filter := &FieldLimitedVisitor{
+		Walker:         &walker,
+		targetFieldRef: fieldRef,
+	}
+
+	walker.RegisterFieldVisitor(filter)
+	walker.SetVisitorFilter(filter)
+	walker.RegisterEnterFieldVisitor(c)
+
+	report := &operationreport.Report{}
+	walker.Walk(c.operation, c.definition, report)
+	if report.HasErrors() {
+		return nil, nil, report
+	}
+
+	return c.fieldRefPaths, c.pathFieldRefs, nil
+}
+
+type FieldLimitedVisitor struct {
+	*astvisitor.Walker
+
+	targetFieldRef int
+	allow          bool
+}
+
+func (v *FieldLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
+	if visitor == v {
+		return true
+	}
+
+	return v.allow
+}
+
+func (v *FieldLimitedVisitor) EnterField(ref int) {
+	if ref == v.targetFieldRef {
+		v.allow = true
+		return
+	}
+}
+
+func (v *FieldLimitedVisitor) LeaveField(ref int) {
+	if ref == v.targetFieldRef {
+		v.allow = false
+		v.Stop()
 	}
 }
