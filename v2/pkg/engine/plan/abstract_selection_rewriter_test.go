@@ -53,9 +53,9 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		rewriter.SetUpstreamDefinition(&upstreamDef)
 		rewriter.SetDatasourceConfiguration(testCase.dsConfiguration)
 
-		rewritten, err := rewriter.RewriteFieldSelection(fieldRef, node)
+		result, err := rewriter.RewriteFieldSelection(fieldRef, node)
 		require.NoError(t, err)
-		assert.Equal(t, testCase.shouldRewrite, rewritten)
+		assert.Equal(t, testCase.shouldRewrite, result.rewritten)
 
 		printedOp := unsafeprinter.PrettyPrint(&op)
 		expectedPretty := unsafeprinter.Prettify(testCase.expectedOperation)

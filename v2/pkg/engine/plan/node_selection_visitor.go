@@ -630,20 +630,21 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 	rewriter.SetUpstreamDefinition(upstreamSchema)
 	rewriter.SetDatasourceConfiguration(ds)
 
-	rewritten, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
+	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {
 		c.walker.StopWithInternalErr(err)
 		return
 	}
 
-	if !rewritten {
+	if !result.rewritten {
 		return
 	}
 
 	c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipFieldRefs...)
-
 	c.hasNewFields = true
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
+
+	c.updateFieldDependsOn(result.changedFieldRefs)
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
@@ -653,5 +654,33 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(field
 func (c *nodeSelectionVisitor) resetVisitedAbstractChecksForModifiedFields(modifiedFields []int) {
 	for _, fieldRef := range modifiedFields {
 		delete(c.visitedFieldsAbstractChecks, fieldRef)
+	}
+}
+
+func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]int) {
+	for key, fieldRefs := range c.fieldDependsOn {
+		updatedFieldRefs := make([]int, 0, len(fieldRefs))
+		for _, fieldRef := range fieldRefs {
+			if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
+				updatedFieldRefs = append(updatedFieldRefs, newRefs...)
+			} else {
+				updatedFieldRefs = append(updatedFieldRefs, fieldRef)
+			}
+		}
+
+		c.fieldDependsOn[key] = updatedFieldRefs
+	}
+
+	for key, fieldRefs := range c.fieldRefDependsOn {
+		updatedFieldRefs := make([]int, 0, len(fieldRefs))
+		for _, fieldRef := range fieldRefs {
+			if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
+				updatedFieldRefs = append(updatedFieldRefs, newRefs...)
+			} else {
+				updatedFieldRefs = append(updatedFieldRefs, fieldRef)
+			}
+		}
+
+		c.fieldRefDependsOn[key] = updatedFieldRefs
 	}
 }
