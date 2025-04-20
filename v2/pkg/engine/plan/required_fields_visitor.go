@@ -128,20 +128,29 @@ func (v *requiredFieldsVisitor) LeaveInlineFragment(ref int) {
 	v.OperationNodes = v.OperationNodes[:len(v.OperationNodes)-1]
 }
 
-func (v *requiredFieldsVisitor) EnterSelectionSet(_ int) {
+func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	if v.Walker.Depth == 2 {
 		return
 	}
 	operationNode := v.OperationNodes[len(v.OperationNodes)-1]
 
+	keySelectionSetHasFragments := len(v.key.SelectionSetInlineFragmentSelections(ref)) > 0
+
 	if operationNode.Kind == ast.NodeKindField {
 		if fieldSelectionSetRef, ok := v.config.operation.FieldSelectionSet(operationNode.Ref); ok {
 			selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
+			if keySelectionSetHasFragments && !v.selectionSetHasTypeNameSelection(fieldSelectionSetRef) {
+				v.addTypenameSelection(fieldSelectionSetRef)
+			}
 			v.OperationNodes = append(v.OperationNodes, selectionSetNode)
 			return
 		}
 
 		selectionSetNode := v.config.operation.AddSelectionSet()
+		if keySelectionSetHasFragments {
+			v.addTypenameSelection(selectionSetNode.Ref)
+		}
+
 		v.config.operation.Fields[operationNode.Ref].HasSelections = true
 		v.config.operation.Fields[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 		v.OperationNodes = append(v.OperationNodes, selectionSetNode)
@@ -153,6 +162,24 @@ func (v *requiredFieldsVisitor) EnterSelectionSet(_ int) {
 	v.config.operation.InlineFragments[operationNode.Ref].HasSelections = true
 	v.config.operation.InlineFragments[operationNode.Ref].SelectionSet = selectionSetNode.Ref
 	v.OperationNodes = append(v.OperationNodes, selectionSetNode)
+}
+
+func (v *requiredFieldsVisitor) selectionSetHasTypeNameSelection(operationSelectionSetRef int) bool {
+	exists, _ := v.config.operation.SelectionSetHasFieldSelectionWithExactName(operationSelectionSetRef, typeNameFieldBytes)
+	return exists
+}
+
+// addTypenameSelection adds __typename selection to the operation when the key/requires selection set has inline fragments
+func (v *requiredFieldsVisitor) addTypenameSelection(operationSelectionSetRef int) {
+	field := v.config.operation.AddField(ast.Field{
+		Name: v.config.operation.Input.AppendInputString("__typename"),
+	})
+	v.skipFieldRefs = append(v.skipFieldRefs, field.Ref)
+
+	v.config.operation.AddSelection(operationSelectionSetRef, ast.Selection{
+		Ref:  field.Ref,
+		Kind: ast.SelectionKindField,
+	})
 }
 
 func (v *requiredFieldsVisitor) LeaveSelectionSet(ref int) {

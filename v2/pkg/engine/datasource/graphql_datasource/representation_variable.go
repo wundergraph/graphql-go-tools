@@ -16,6 +16,8 @@ type objectFields struct {
 	fields     *[]*resolve.Field
 }
 
+// TODO: add support for remapping path
+
 func buildRepresentationVariableNode(definition *ast.Document, cfg plan.FederationFieldConfiguration, federationCfg plan.FederationMetaData) (*resolve.Object, error) {
 	key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, false)
 	if report.HasErrors() {
@@ -206,8 +208,9 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	fieldDefinitionType := v.definition.FieldDefinitionType(fieldDefinition)
 
 	currentField := &resolve.Field{
-		Name:  fieldName,
-		Value: v.resolveFieldValue(ref, fieldDefinitionType, true, []string{string(fieldName)}),
+		Name:        fieldName,
+		Value:       v.resolveFieldValue(ref, fieldDefinitionType, true, []string{string(fieldName)}),
+		OnTypeNames: v.resolveOnTypeNames(ref),
 	}
 
 	if v.addOnType && v.currentFields[len(v.currentFields)-1].isRoot {
@@ -234,6 +237,7 @@ func (v *representationVariableVisitor) LeaveField(ref int) {
 	}
 }
 
+// resolveFieldValue - simplified version of plan.Visitor.resolveFieldValue method
 func (v *representationVariableVisitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string) resolve.Node {
 	ofType := v.definition.Types[typeRef].OfType
 
@@ -306,4 +310,67 @@ func (v *representationVariableVisitor) resolveFieldValue(fieldRef, typeRef int,
 	default:
 		return &resolve.Null{}
 	}
+}
+
+// resolveOnTypeNames - simplified version of plan.Visitor.resolveOnTypeNames method
+func (v *representationVariableVisitor) resolveOnTypeNames(fieldRef int) [][]byte {
+	if len(v.Walker.Ancestors) < 2 {
+		return nil
+	}
+	inlineFragment := v.Walker.Ancestors[len(v.Walker.Ancestors)-2]
+	if inlineFragment.Kind != ast.NodeKindInlineFragment {
+		return nil
+	}
+	typeName := v.key.InlineFragmentTypeConditionName(inlineFragment.Ref)
+	if typeName == nil {
+		typeName = v.Walker.EnclosingTypeDefinition.NameBytes(v.definition)
+	}
+	node, exists := v.definition.NodeByName(typeName)
+	// If not an interface, return the concrete type
+	if !exists || !node.Kind.IsAbstractType() {
+		return [][]byte{typeName}
+	}
+	if node.Kind == ast.NodeKindUnionTypeDefinition {
+		// This should never be true. If it is, it's an error
+		panic("resolveOnTypeNames called with a union type")
+	}
+	// We're dealing with an interface, so add all objects that implement this interface to the slice
+	onTypeNames := make([][]byte, 0, 2)
+	for objectTypeDefinitionRef := range v.definition.ObjectTypeDefinitions {
+		if v.definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefinitionRef, typeName) {
+			onTypeNames = append(onTypeNames, v.definition.ObjectTypeDefinitionNameBytes(objectTypeDefinitionRef))
+		}
+	}
+	if len(onTypeNames) == 0 {
+		return nil
+	}
+
+	// NOTE: this is currently limited only to a grandparent
+	// in rare cases there could be more nested fragments
+	if len(v.Walker.TypeDefinitions) > 1 {
+		grandParent := v.Walker.TypeDefinitions[len(v.Walker.TypeDefinitions)-2]
+		if grandParent.Kind == ast.NodeKindUnionTypeDefinition {
+			for i := 0; i < len(onTypeNames); i++ {
+				possibleMember, exists := v.definition.Index.FirstNodeByNameStr(string(onTypeNames[i]))
+				if !exists {
+					continue
+				}
+				if !v.definition.NodeIsUnionMember(possibleMember, grandParent) {
+					onTypeNames = append(onTypeNames[:i], onTypeNames[i+1:]...)
+					i--
+				}
+			}
+		}
+		if grandParent.Kind == ast.NodeKindInterfaceTypeDefinition {
+			objectTypesImplementingGrandParent, _ := v.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(grandParent.Ref)
+			for i := 0; i < len(onTypeNames); i++ {
+				if !slices.Contains(objectTypesImplementingGrandParent, string(onTypeNames[i])) {
+					onTypeNames = append(onTypeNames[:i], onTypeNames[i+1:]...)
+					i--
+				}
+			}
+		}
+	}
+
+	return onTypeNames
 }
