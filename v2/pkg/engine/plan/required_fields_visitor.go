@@ -51,6 +51,7 @@ type AddRequiredFieldsResult struct {
 	skipFieldRefs     []int
 	requiredFieldRefs []int
 	modifiedFieldRefs []int
+	remappedPaths     map[string]string // path in a requirements to field name
 }
 
 func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredFieldsResult, report *operationreport.Report) {
@@ -68,6 +69,7 @@ func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredF
 		importer:          &astimport.Importer{},
 		skipFieldRefs:     make([]int, 0, 2),
 		requiredFieldRefs: make([]int, 0, 2),
+		mapping:           make(map[string]string),
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
@@ -80,6 +82,7 @@ func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredF
 		skipFieldRefs:     visitor.skipFieldRefs,
 		requiredFieldRefs: visitor.requiredFieldRefs,
 		modifiedFieldRefs: visitor.modifiedFieldRefs,
+		remappedPaths:     visitor.mapping,
 	}, report
 }
 
@@ -93,6 +96,7 @@ type requiredFieldsVisitor struct {
 	skipFieldRefs     []int
 	requiredFieldRefs []int
 	modifiedFieldRefs []int
+	mapping           map[string]string // path in a requirements to field name
 }
 
 func (v *requiredFieldsVisitor) EnterDocument(_, _ *ast.Document) {
@@ -288,11 +292,15 @@ func (v *requiredFieldsVisitor) addRequiredField(keyRef int, fieldName ast.ByteS
 	if addAlias {
 		aliasName := bytes.NewBuffer([]byte("__internal_"))
 		aliasName.Write(fieldName)
+		fullAliasName := aliasName.Bytes()
 
 		field.Alias = ast.Alias{
 			IsDefined: true,
-			Name:      v.config.operation.Input.AppendInputBytes(aliasName.Bytes()),
+			Name:      v.config.operation.Input.AppendInputBytes(fullAliasName),
 		}
+
+		currentPath := v.Walker.Path.DotDelimitedString() + "." + string(fieldName)
+		v.mapping[currentPath] = string(fullAliasName)
 	}
 
 	addedField := v.config.operation.AddField(field)

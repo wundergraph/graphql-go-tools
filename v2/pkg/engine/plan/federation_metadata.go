@@ -78,6 +78,7 @@ type FederationFieldConfiguration struct {
 	Conditions            []KeyCondition `json:"conditions,omitempty"` // conditions stores coordinates under which we could use implicit key, while on other paths this key is not available
 
 	parsedSelectionSet *ast.Document
+	RemappedPaths      map[string]string
 }
 
 type KeyCondition struct {
