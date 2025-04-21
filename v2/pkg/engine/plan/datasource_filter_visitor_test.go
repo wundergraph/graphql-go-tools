@@ -664,7 +664,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available node with enabled entity resolver"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available root node"}},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 11, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 11, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 					}),
@@ -672,7 +672,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{2, 1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available node with enabled entity resolver"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available root node"}},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 22, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 						{TypeName: "Details", FieldName: "forename", DataSourceHash: 22, Path: "query.me.details.forename", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 					}),
@@ -780,7 +780,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{2, 1, 0},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available node with enabled entity resolver"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 22, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available root node"}},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 					}),
@@ -788,7 +788,7 @@ func TestFindBestDataSourceSet(t *testing.T) {
 				{
 					dsOrder: []int{0, 1, 2},
 					suggestions: newNodeSuggestions([]NodeSuggestion{
-						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available node with enabled entity resolver"}},
+						{TypeName: "Query", FieldName: "me", DataSourceHash: 11, Path: "query.me", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage3: first available root node"}},
 						{TypeName: "User", FieldName: "details", DataSourceHash: 33, Path: "query.me.details", ParentPath: "query.me", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "Details", FieldName: "age", DataSourceHash: 33, Path: "query.me.details.age", ParentPath: "query.me.details", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 					}),
