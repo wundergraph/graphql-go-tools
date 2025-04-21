@@ -31,6 +31,8 @@ type TraceOptions struct {
 	IncludeTraceOutputInResponseExtensions bool
 	// Debug makes trace IDs of fetches predictable for debugging purposes
 	Debug bool
+
+	SkipPrintExtension bool
 }
 
 func (r *TraceOptions) EnableAll() {

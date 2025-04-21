@@ -27,8 +27,9 @@ type Context struct {
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
 
-	authorizer  Authorizer
-	rateLimiter RateLimiter
+	AuthorizerOptions AuthorizerOptions
+	authorizer        Authorizer
+	rateLimiter       RateLimiter
 
 	subgraphErrors error
 }
@@ -37,6 +38,8 @@ type ExecutionOptions struct {
 	SkipLoader                 bool
 	IncludeQueryPlanInResponse bool
 	SendHeartbeat              bool
+
+	SkipPrintQueryPlanInExtension bool
 }
 
 type AuthorizationDeny struct {
@@ -66,8 +69,16 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 	c.authorizer = authorizer
 }
 
+func (c *Context) SetAuthorizerOptions(authorizerOptions AuthorizerOptions) {
+	c.AuthorizerOptions = authorizerOptions
+}
+
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
+}
+
+type AuthorizerOptions struct {
+	SkipPrintExtension bool
 }
 
 type RateLimitOptions struct {
@@ -82,6 +93,7 @@ type RateLimitOptions struct {
 	RateLimitKey            string
 	RejectExceedingRequests bool
 
+	SkipPrintExtension bool
 	ErrorExtensionCode RateLimitErrorExtensionCode
 }
 
