@@ -198,12 +198,12 @@ const (
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
 	ReasonStage2SameSourceNodeOfSelectedSibling = "stage2: node on the same source as selected sibling"
 
-	ReasonStage3SelectAvailableLeafNode                               = "stage3: select first available leaf node"
-	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource        = "stage3: select non leaf node which have possible child selections on the same source"
-	ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver = "stage3: first available node with enabled entity resolver"
-	ReasonStage3SelectParentRootNodeWithEnabledEntityResolver         = "stage3: first available parent node with enabled entity resolver"
-	ReasonStage3SelectNodeUnderFirstParentRootNode                    = "stage3: node under first available parent node with enabled entity resolver"
-	ReasonStage3SelectParentNodeWhichCouldGiveKeys                    = "stage3: select parent node which could provide keys for the child node"
+	ReasonStage3SelectAvailableLeafNode                        = "stage3: select first available leaf node"
+	ReasonStage3SelectNodeHavingPossibleChildsOnSameDataSource = "stage3: select non leaf node which have possible child selections on the same source"
+	ReasonStage3SelectFirstAvailableRootNode                   = "stage3: first available root node"
+	ReasonStage3SelectParentRootNodeWithEnabledEntityResolver  = "stage3: first available parent node with enabled entity resolver"
+	ReasonStage3SelectNodeUnderFirstParentRootNode             = "stage3: node under first available parent node"
+	ReasonStage3SelectParentNodeWhichCouldGiveKeys             = "stage3: select parent node which could provide keys for the child node"
 
 	ReasonKeyRequirementProvidedByPlanner = "provided by planner as required by @key"
 	ReasonProvidesProvidedByPlanner       = "@provides"
@@ -453,6 +453,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 		// we are checking if we have selected any sibling fields on the same datasource
 		// if sibling is selected on the same datasource, we could select current node
 		if f.checkNodes(itemIDs, f.checkNodeSiblings, func(i int) bool {
+			// we skip non leaf nodes which could not provide any child selections
+			if !f.nodes.items[i].IsLeaf && !f.couldProvideChildFields(i) {
+				return true
+			}
+
 			// we should not select a __typename field based on a siblings, unless it is on a root query type
 			return f.nodes.items[i].isTypeName && !IsMutationOrQueryRootType(f.nodes.items[i].TypeName)
 		}) {
@@ -470,7 +475,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
-				return f.selectWithExternalCheck(i, ReasonStage3SelectFirstAvailableRootNodeWithEnabledEntityResolver)
+				return f.selectWithExternalCheck(i, ReasonStage3SelectFirstAvailableRootNode)
 			},
 			func(i int) (skip bool) {
 				if !f.nodes.items[i].IsRootNode {
@@ -495,6 +500,11 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 				// to the other datasources, so we check if parent could provide a key
 				// and that we could provide a key to the next childs
 				if f.nodes.items[i].IsLeaf {
+					return false
+				}
+
+				// if current query node has only typename child field, we could select it
+				if f.childsHasOnlyTypename(i) {
 					return false
 				}
 
@@ -659,6 +669,12 @@ func (f *DataSourceFilter) nodeCouldProvideKeysToChildNodes(idx int) bool {
 	childIds := f.nodes.childNodesIdsOnOtherDS(idx)
 
 	for _, childId := range childIds {
+		if f.nodes.items[childId].isTypeName {
+			// we have to omit __typename field
+			// to not be in a situation when all fields are external but __typename is selectable
+			continue
+		}
+
 		if f.parentNodeCouldProvideKeysForCurrentNode(idx, childId, false) {
 			return true
 		}
@@ -872,4 +888,30 @@ func (f *DataSourceFilter) couldProvideChildFields(i int) bool {
 	}
 
 	return hasFields
+}
+
+func (f *DataSourceFilter) childsHasOnlyTypename(i int) (hasOnlyTypename bool) {
+	treeNode := f.nodes.treeNode(i)
+	children := treeNode.GetChildren()
+
+	if len(children) == 0 {
+		return false
+	}
+
+	hasTypeName := false
+	hasFields := false
+
+	for _, child := range children {
+		itemIds := child.GetData()
+		firstItem := itemIds[0]
+
+		if f.nodes.items[firstItem].isTypeName {
+			hasTypeName = true
+			continue
+		}
+
+		hasFields = true
+	}
+
+	return !hasFields && hasTypeName
 }
