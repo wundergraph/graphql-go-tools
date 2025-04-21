@@ -413,8 +413,6 @@ func (c *nodeSelectionVisitor) addPendingFieldRequirements(requestedByFieldRef i
 	}
 
 	c.pendingFieldRequirements[currentSelectionSet] = requirements
-	fieldKey := fieldIndexKey{requestedByFieldRef, dsHash}
-	c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 }
 
 func (c *nodeSelectionVisitor) addPendingKeyRequirements(requestedByFieldRef int, dsHash DSHash, sc SourceConnection, isInterfaceObject bool, parentPath string, typeName string) {
@@ -494,6 +492,16 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
 		c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], addFieldsResult.requiredFieldRefs...)
 		c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], addFieldsResult.requiredFieldRefs...)
+
+		// TODO: actually we could probably build representations right away?
+		// e.g. build it here, pass to path visitor and down to datasource, without the need to parse it there?
+		fieldConfiguration := FederationFieldConfiguration{
+			TypeName:      typeName,
+			FieldName:     c.operation.FieldNameString(requestedByFieldRef),
+			SelectionSet:  requirements.selectionSet,
+			RemappedPaths: addFieldsResult.remappedPaths,
+		}
+		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
 	}
 
 	c.hasNewFields = true

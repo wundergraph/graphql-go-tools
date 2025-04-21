@@ -48,6 +48,7 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 		entityInterfaceTypeName: entityInterfaceTypeName,
 		addOnType:               true,
 		addTypeName:             true,
+		remapPaths:              cfg.RemappedPaths,
 		Walker:                  walker,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -156,6 +157,7 @@ type representationVariableVisitor struct {
 
 	addOnType   bool
 	addTypeName bool
+	remapPaths  map[string]string
 }
 
 func (v *representationVariableVisitor) EnterDocument(key, definition *ast.Document) {
@@ -207,9 +209,17 @@ func (v *representationVariableVisitor) EnterField(ref int) {
 	}
 	fieldDefinitionType := v.definition.FieldDefinitionType(fieldDefinition)
 
+	currentPath := v.Walker.Path.DotDelimitedString() + "." + string(fieldName)
+
+	// if path was remapped during the planning we update its path
+	fieldPath := string(fieldName)
+	if remapPath, ok := v.remapPaths[currentPath]; ok {
+		fieldPath = remapPath
+	}
+
 	currentField := &resolve.Field{
 		Name:        fieldName,
-		Value:       v.resolveFieldValue(ref, fieldDefinitionType, true, []string{string(fieldName)}),
+		Value:       v.resolveFieldValue(ref, fieldDefinitionType, true, []string{fieldPath}),
 		OnTypeNames: v.resolveOnTypeNames(ref),
 	}
 
