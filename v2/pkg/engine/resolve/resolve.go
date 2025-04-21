@@ -582,7 +582,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		triggerID: triggerID,
 		ch:        r.events,
 		ctx:       ctx,
-		completed: s.completed,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -1048,7 +1047,6 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
-	completed chan struct{}
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1059,9 +1057,6 @@ func (s *subscriptionUpdater) Update(data []byte) {
 	select {
 	case <-s.ctx.Done():
 		// Skip sending events if trigger is already done
-		return
-	case <-s.completed:
-		// Fail fast if already trigger is completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
@@ -1079,9 +1074,6 @@ func (s *subscriptionUpdater) Done() {
 	select {
 	case <-s.ctx.Done():
 		// Skip sending events if trigger is already done
-		return
-	case <-s.completed:
-		// Fail fast if already trigger is completed
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
