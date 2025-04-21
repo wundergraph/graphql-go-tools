@@ -730,7 +730,13 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			case ast.NodeKindInterfaceTypeDefinition:
 				objectTypesImplementingInterface, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeDefinitionNode.Ref)
 				for _, implementingTypeName := range objectTypesImplementingInterface {
+					// exlude inaccessible types from possible types
+					if v.isInaccesibleType(implementingTypeName) {
+						continue
+					}
+
 					object.PossibleTypes[implementingTypeName] = struct{}{}
+
 				}
 
 				if slices.Contains(v.Config.EntityInterfaceNames, typeName) {
@@ -740,6 +746,10 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 			case ast.NodeKindUnionTypeDefinition:
 				if unionMembers, ok := v.Definition.UnionTypeDefinitionMemberTypeNames(typeDefinitionNode.Ref); ok {
 					for _, unionMember := range unionMembers {
+						// exlude inaccessible types from possible types
+						if v.isInaccesibleType(unionMember) {
+							continue
+						}
 						object.PossibleTypes[unionMember] = struct{}{}
 					}
 				}
@@ -768,6 +778,23 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 	default:
 		return &resolve.Null{}
 	}
+}
+
+func (v *Visitor) isInaccesibleType(typeName string) bool {
+	typeDefinitionNode, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
+	if !ok {
+		return false
+	}
+
+	if typeDefinitionNode.Kind != ast.NodeKindObjectTypeDefinition {
+		return false
+	}
+
+	if !v.Definition.ObjectTypeDefinitions[typeDefinitionNode.Ref].HasDirectives {
+		return false
+	}
+
+	return v.Definition.ObjectTypeDefinitions[typeDefinitionNode.Ref].Directives.HasDirectiveByName(v.Definition, "inaccessible")
 }
 
 func (v *Visitor) resolveFieldExport(fieldRef int) *resolve.FieldExport {
