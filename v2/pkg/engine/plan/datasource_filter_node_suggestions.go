@@ -73,13 +73,17 @@ func (n *NodeSuggestion) StringShort() string {
 	j, _ := json.Marshal(struct {
 		DsName           string   `json:"dsName"`
 		TypeName         string   `json:"typeName"`
+		Path             string   `json:"path"`
+		IsExternal       bool     `json:"isExternal"`
 		Selected         bool     `json:"selected"`
 		SelectionReasons []string `json:"selectionReasons"`
 	}{
 		DsName:           n.DataSourceName,
 		TypeName:         n.TypeName,
+		Path:             n.Path,
 		Selected:         n.Selected,
 		SelectionReasons: n.SelectionReasons,
+		IsExternal:       n.IsExternal,
 	})
 	return string(j)
 }

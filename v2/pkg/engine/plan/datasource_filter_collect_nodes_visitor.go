@@ -268,7 +268,14 @@ func (f *collectNodesVisitor) allKeysHasDisabledEntityResolver(typeName string) 
 		return false
 	}
 
-	return !slices.ContainsFunc(keys.FilterByTypeAndResolvability(typeName, false), func(k FederationFieldConfiguration) bool {
+	keysForType := keys.FilterByTypeAndResolvability(typeName, false)
+
+	// for the root query nodes there will be no keys
+	if len(keysForType) == 0 {
+		return false
+	}
+
+	return !slices.ContainsFunc(keysForType, func(k FederationFieldConfiguration) bool {
 		return !k.DisableEntityResolver
 	})
 }
