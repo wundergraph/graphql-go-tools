@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.0.0-rc.172](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.171...v2.0.0-rc.172) (2025-04-22)
+
+
+### Features
+
+* add static resolver of root operation types __typename fields ([#1128](https://github.com/wundergraph/graphql-go-tools/issues/1128)) ([3dc79f1](https://github.com/wundergraph/graphql-go-tools/commit/3dc79f18694ff83782a200f7f59541038a29655c))
+* add support of fragments in the provides directive ([ca2e6c2](https://github.com/wundergraph/graphql-go-tools/commit/ca2e6c2e4fd6f601f9e72faefc922dba9a0fc01d))
+* add support of inline fragments to representation variables builder; add typename selection to requires selection set in case it has fragments ([40e3fd9](https://github.com/wundergraph/graphql-go-tools/commit/40e3fd95c35fa2a0a46eee58c7ebdc75595e41f1))
+
+
+### Bug Fixes
+
+* add support of inline fragments in requires directive, add an alias for required fields in case of conflict ([496b7da](https://github.com/wundergraph/graphql-go-tools/commit/496b7dacb44e2e8b3c2405c70b311b325b1237ea))
+* add support of remapping representation variables paths ([204e0b6](https://github.com/wundergraph/graphql-go-tools/commit/204e0b66889b8631196c3a6abd696f5213c2bc4b))
+* allow to recheck abstract fields if they were modified by adding required fields ([b4d5fd5](https://github.com/wundergraph/graphql-go-tools/commit/b4d5fd51ce9eb13b892efb368a3b19cef2a5fc51))
+* during abstract selection rewrite collect changed paths and after rewrite update field dependencies accordingly ([a6246fd](https://github.com/wundergraph/graphql-go-tools/commit/a6246fd1bb795a4c9092dea2b912193133479db1))
+* exclude inaccesible types from possible types for interface/union ([ae1adc1](https://github.com/wundergraph/graphql-go-tools/commit/ae1adc187c0263792fe089184181416bc485fb7c))
+* rework key matching logic to support chain leapfrogging jumps ([4f12691](https://github.com/wundergraph/graphql-go-tools/commit/4f1269166baf7ea4fcca8d67f87c38eab4ce179d))
+* tune selections for root query fields and typename only selection sets ([ea3b276](https://github.com/wundergraph/graphql-go-tools/commit/ea3b276190252f798e672cf9ce46a8f611b15924))
+
 ## [2.0.0-rc.171](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.170...v2.0.0-rc.171) (2025-04-22)
 
 
