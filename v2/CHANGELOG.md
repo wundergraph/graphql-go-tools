@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.171](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.170...v2.0.0-rc.171) (2025-04-22)
+
+
+### Bug Fixes
+
+* dont use completed channel in sub updater ([#1127](https://github.com/wundergraph/graphql-go-tools/issues/1127)) ([be7db2a](https://github.com/wundergraph/graphql-go-tools/commit/be7db2ae9597003c546ee5ee87e155714a9f8495))
+
 ## [2.0.0-rc.170](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.169...v2.0.0-rc.170) (2025-04-17)
 
 
