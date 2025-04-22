@@ -6,7 +6,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -57,7 +56,7 @@ type rpcPlanVisitor struct {
 	planInfo   planningInfo
 
 	subgraphName           string
-	mapping                *graphql_datasource.GRPCMapping
+	mapping                *GRPCMapping
 	plan                   *RPCExecutionPlan
 	operationDefinitionRef int
 	operationFieldRef      int
@@ -68,7 +67,7 @@ type rpcPlanVisitor struct {
 
 type rpcPlanVisitorConfig struct {
 	subgraphName string
-	mapping      *graphql_datasource.GRPCMapping
+	mapping      *GRPCMapping
 }
 
 // newRPCPlanVisitor creates a new RPCPlanVisitor.
@@ -306,7 +305,14 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
 		r.currentCall = &RPCCall{
 			CallID:      r.currentCallID,
-			ServiceName: r.subgraphName,
+			ServiceName: r.resolveServiceName(),
+		}
+
+		// attempt to resolve the name from the mapping
+		if err := r.resolveRPCMethodMapping(); err != nil {
+			r.walker.Report.AddInternalError(err)
+			r.walker.Stop()
+			return
 		}
 
 		r.planInfo.currentRequestMessage = &r.currentCall.Request
@@ -361,7 +367,9 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
 	}
 
-	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+	// Only scaffold the call if the method name is not set.
+	// This is a fallback for cases where the method name is not provided in the mapping.
+	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition && r.currentCall.MethodName == "" {
 		methodName := r.rpcMethodName()
 
 		r.currentCall.MethodName = methodName
@@ -566,6 +574,21 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[0].Message
 }
 
+func (r *rpcPlanVisitor) resolveServiceName() string {
+	if r.mapping == nil {
+		return r.subgraphName
+	}
+
+	serviceName, ok := r.mapping.Services[r.subgraphName]
+	if !ok {
+		return r.subgraphName
+	}
+
+	return serviceName
+}
+
+// resolveFieldMapping resolves the field mapping for a field.
+// This applies both for complex types in the input and for all fields in the response.
 func (r *rpcPlanVisitor) resolveFieldMapping(typeName, fieldName string) string {
 	grpcFieldName, ok := r.mapping.ResolveFieldMapping(typeName, fieldName)
 	if !ok {
@@ -575,6 +598,10 @@ func (r *rpcPlanVisitor) resolveFieldMapping(typeName, fieldName string) string 
 	return grpcFieldName
 }
 
+// resolveInputArgument resolves the input argument mapping for a field.
+// This only applies if the input arguments are scalar values.
+// If the input argument is a message, the mapping is resolved by the
+// resolveFieldMapping function.
 func (r *rpcPlanVisitor) resolveInputArgument(fieldRef int, argumentName string) string {
 	grpcFieldName, ok := r.mapping.ResolveInputArgumentMapping(r.operation.FieldNameString(fieldRef), argumentName)
 	if !ok {
@@ -582,6 +609,53 @@ func (r *rpcPlanVisitor) resolveInputArgument(fieldRef int, argumentName string)
 	}
 
 	return grpcFieldName
+}
+
+func (r *rpcPlanVisitor) resolveRPCMethodMapping() error {
+	if r.mapping == nil {
+		return nil
+	}
+
+	if r.planInfo.isEntityLookup && r.planInfo.entityInfo.name != "" {
+		// Resolving the entity lookup method name is done differently
+		return nil
+	}
+
+	var rpcConfig RPCConfig
+	var ok bool
+
+	switch r.planInfo.operationType {
+	case ast.OperationTypeQuery:
+		rpcConfig, ok = r.mapping.QueryRPCs[r.planInfo.operationFieldName]
+	case ast.OperationTypeMutation:
+		rpcConfig, ok = r.mapping.MutationRPCs[r.planInfo.operationFieldName]
+	case ast.OperationTypeSubscription:
+		rpcConfig, ok = r.mapping.SubscriptionRPCs[r.planInfo.operationFieldName]
+	}
+
+	// if we don't have a mapping, we can skip the operation
+	if !ok {
+		return nil
+	}
+
+	// We require all fields to be present when defining a mapping for the operation
+	if rpcConfig.RPC == "" {
+		return fmt.Errorf("no rpc method name mapping found for operation %s", r.planInfo.operationFieldName)
+	}
+
+	if rpcConfig.Request == "" {
+		return fmt.Errorf("no request message name mapping found for operation %s", r.planInfo.operationFieldName)
+	}
+
+	if rpcConfig.Response == "" {
+		return fmt.Errorf("no response message name mapping found for operation %s", r.planInfo.operationFieldName)
+	}
+
+	r.currentCall.MethodName = rpcConfig.RPC
+	r.currentCall.Request.Name = rpcConfig.Request
+	r.currentCall.Response.Name = rpcConfig.Response
+
+	return nil
 }
 
 // rpcMethodName determines the appropriate method name based on operation type.

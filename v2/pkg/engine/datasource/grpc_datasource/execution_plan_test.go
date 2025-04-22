@@ -3,7 +3,7 @@ package grpcdatasource
 import (
 	"testing"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
+	"github.com/stretchr/testify/require"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
 
 	"github.com/google/go-cmp/cmp"
@@ -19,7 +19,7 @@ func TestEntityLookup(t *testing.T) {
 		name         string
 		query        string
 		expectedPlan *RPCExecutionPlan
-		mapping      *graphql_datasource.GRPCMapping
+		mapping      *GRPCMapping
 	}{
 		{
 			name:  "Should create an execution plan for an entity lookup",
@@ -30,6 +30,107 @@ func TestEntityLookup(t *testing.T) {
 						Calls: []RPCCall{
 							{
 								ServiceName: "Products",
+								MethodName:  "LookupProductById",
+								// Define the structure of the request message
+								Request: RPCMessage{
+									Name: "LookupProductByIdRequest",
+									Fields: []RPCField{
+										{
+											Name:     "inputs",
+											TypeName: string(DataTypeMessage),
+											Repeated: true,
+											JSONPath: "representations",
+											Index:    0,
+											Message: &RPCMessage{
+												Name: "LookupProductByIdInput",
+												Fields: []RPCField{
+													{
+														Name:     "key",
+														TypeName: string(DataTypeMessage),
+														Index:    0,
+														Message: &RPCMessage{
+															Name: "ProductByIdKey",
+															Fields: []RPCField{
+																{
+																	Name:     "id",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "id", // Extract 'id' from each representation
+																	Index:    0,
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								// Define the structure of the response message
+								Response: RPCMessage{
+									Name: "LookupProductByIdResponse",
+									Fields: []RPCField{
+										{
+											Name:     "results",
+											TypeName: string(DataTypeMessage),
+											Repeated: true,
+											Index:    0,
+											JSONPath: "results",
+											Message: &RPCMessage{
+												Name: "LookupProductByIdResult",
+												Fields: []RPCField{
+													{
+														Name:     "product",
+														TypeName: string(DataTypeMessage),
+														Index:    0,
+														Message: &RPCMessage{
+															Name: "Product",
+															Fields: []RPCField{
+																{
+																	Name:     "id",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "id",
+																	Index:    0,
+																},
+																{
+																	Name:     "name",
+																	TypeName: string(DataTypeString),
+																	JSONPath: "name",
+																	Index:    1,
+																},
+																{
+																	Name:     "price",
+																	TypeName: string(DataTypeDouble),
+																	JSONPath: "price",
+																	Index:    2,
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for an entity lookup with a custom method name",
+			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { id name price } } }`,
+			mapping: &GRPCMapping{
+				Services: map[string]string{
+					"Products": "ProductsService",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "ProductsService",
 								MethodName:  "LookupProductById",
 								// Define the structure of the request message
 								Request: RPCMessage{
@@ -362,22 +463,23 @@ func TestEntityLookup(t *testing.T) {
 
 func TestQueryExecutionPlans(t *testing.T) {
 	tests := []struct {
-		name         string
-		query        string
-		mapping      *graphql_datasource.GRPCMapping
-		expectedPlan *RPCExecutionPlan
+		name          string
+		query         string
+		mapping       *GRPCMapping
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
 	}{
 		{
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
-			mapping: &graphql_datasource.GRPCMapping{
-				InputArguments: map[string]graphql_datasource.InputArgumentMap{
+			mapping: &GRPCMapping{
+				InputArguments: map[string]InputArgumentMap{
 					"typeFilterWithArguments": {
 						"filterField1": "filter_field1",
 						"filterField2": "filter_field2",
 					},
 				},
-				Fields: map[string]graphql_datasource.FieldMap{
+				Fields: map[string]FieldMap{
 					"TypeWithMultipleFilterFields": {
 						"filterField1": {
 							TargetName: "filter_field1",
@@ -461,8 +563,8 @@ func TestQueryExecutionPlans(t *testing.T) {
 		{
 			name:  "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
 			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
-			mapping: &graphql_datasource.GRPCMapping{
-				Fields: map[string]graphql_datasource.FieldMap{
+			mapping: &GRPCMapping{
+				Fields: map[string]FieldMap{
 					"FilterType": {
 						"filterField1": {
 							TargetName: "filter_field1",
@@ -938,6 +1040,20 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
+			name:  "Should stop when no mapping is found for the operation request",
+			query: `query UserQuery { user(id: "1") { id name } }`,
+			mapping: &GRPCMapping{
+				QueryRPCs: map[string]RPCConfig{
+					"user": {
+						RPC:      "QueryUser",
+						Request:  "",
+						Response: "QueryUserResponse",
+					},
+				},
+			},
+			expectedError: "no request message name mapping found for operation user",
+		},
+		{
 			name:  "Should create an execution plan for a query with a user",
 			query: `query UserQuery { user(id: "1") { id name } }`,
 			expectedPlan: &RPCExecutionPlan{
@@ -1240,9 +1356,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 			walker.Walk(queryDoc, schemaDoc, report)
 
 			if report.HasErrors() {
-				t.Fatalf("failed to walk AST: %s", report.Error())
+				require.NotEmpty(t, tt.expectedError)
+				require.Contains(t, report.Error(), tt.expectedError)
+				return
 			}
 
+			require.Empty(t, tt.expectedError)
 			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)

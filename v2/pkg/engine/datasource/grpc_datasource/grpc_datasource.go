@@ -14,7 +14,6 @@ import (
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"google.golang.org/grpc"
@@ -43,7 +42,7 @@ type DataSourceConfig struct {
 	Definition   *ast.Document
 	ProtoSchema  string
 	SubgraphName string
-	Mapping      *graphql_datasource.GRPCMapping
+	Mapping      *GRPCMapping
 }
 
 // NewDataSource creates a new gRPC datasource

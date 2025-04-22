@@ -6,7 +6,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -144,11 +143,11 @@ type Planner struct {
 // The planner is responsible for creating an RPCExecutionPlan from a given
 // GraphQL operation. It is used by the engine to execute operations against
 // gRPC services.
-func NewPlanner(subgraphName string, mapping *graphql_datasource.GRPCMapping) *Planner {
+func NewPlanner(subgraphName string, mapping *GRPCMapping) *Planner {
 	walker := astvisitor.NewWalker(48)
 
 	if mapping == nil {
-		mapping = new(graphql_datasource.GRPCMapping)
+		mapping = new(GRPCMapping)
 	}
 
 	return &Planner{
