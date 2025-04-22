@@ -100,7 +100,9 @@ func TestAnalyzePlanKind(t *testing.T) {
 					name
 				}
 				primaryFunction
-				favoriteEpisode @defer
+				... @defer {
+					favoriteEpisode
+				}
 			}
 		}`,
 		"MyQuery",
@@ -146,7 +148,9 @@ func TestAnalyzePlanKind(t *testing.T) {
 					name
 				}
 				primaryFunction
-				favoriteEpisode @defer
+				... @defer {
+					favoriteEpisode
+				}
 			}
 		}`,
 		"OperationNameNotExists",
@@ -167,7 +171,9 @@ func TestAnalyzePlanKind(t *testing.T) {
 		subscription NewReviews {
 			newReviews {
 				id
-				stars @defer
+				... @defer {
+					stars
+				}
 			}
 		}`,
 		"NewReviews",

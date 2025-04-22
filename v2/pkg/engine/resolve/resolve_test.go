@@ -8,6 +8,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -4765,6 +4766,127 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 			_, err := resolver.ResolveGraphQLResponse(ctx, res, nil, out)
 			assert.NoError(t, err)
 			assert.Equal(t, `{"data":{"bar":"baz"}}`, out.String())
+		})
+	}
+}
+
+func TestResolver_ResolveGraphQLIncrementalResponse(t *testing.T) {
+	cases := []struct {
+		name     string
+		response *GraphQLResponse
+		expected string
+	}{
+		{
+			name: "sunny day",
+			response: &GraphQLResponse{
+				Info: &GraphQLResponseInfo{
+					OperationType: ast.OperationTypeQuery,
+				},
+				Data: &Object{
+					Nullable: false,
+					Fields: []*Field{
+						{
+							Name: []byte("hero"),
+							Value: &Object{
+								Path:          []string{"hero"},
+								Nullable:      true,
+								TypeName:      "Character",
+								PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+								Fields: []*Field{
+									{
+										Name: []byte("name"),
+										Value: &String{
+											Path:     []string{"name"},
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Fetches: Single(&SingleFetch{
+					FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"name":"Luke"}}`)},
+				}),
+				DeferredResponses: []*GraphQLResponse{
+					{
+						Info: &GraphQLResponseInfo{
+							OperationType: ast.OperationTypeQuery,
+						},
+						Data: &Object{
+							Path:          []string{"hero"},
+							Nullable:      true,
+							TypeName:      "Character",
+							PossibleTypes: map[string]struct{}{"Droid": {}, "Human": {}},
+							Fields: []*Field{
+								{
+									Name: []byte("__typename"),
+									Value: &String{
+										Path: []string{"__typename"},
+									},
+								},
+								{
+									Name: []byte("primaryFunction"),
+									Value: &String{
+										Path:     []string{"primaryFunction"},
+										Nullable: false,
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									// Defer: &DeferField{
+									// 	Path: []string{"query", "hero", "$0Droid"},
+									// },
+								},
+								{
+									Name: []byte("favoriteEpisode"),
+									Value: &Enum{
+										Path:     []string{"favoriteEpisode"},
+										Nullable: true,
+										TypeName: "Episode",
+										Values: []string{
+											"NEWHOPE",
+											"EMPIRE",
+											"JEDI",
+										},
+									},
+									OnTypeNames: [][]byte{[]byte("Droid")},
+									// Defer: &DeferField{
+									// 	Path: []string{"query", "hero", "$0Droid"},
+									// },
+								},
+							},
+						},
+						Fetches: Single(&SingleFetch{
+							FetchConfiguration: FetchConfiguration{DataSource: FakeDataSource(`{"hero":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"}}`)},
+						}),
+					},
+				},
+			},
+			expected: strings.ReplaceAll(`--graphql-go-tools
+Content-Type: application/json; charset=utf-8
+
+{"hasNext":true,"data":{"hero":{"name":"Luke"}}}
+--graphql-go-tools
+Content-Type: application/json; charset=utf-8
+
+{"hasNext":false,"incremental":[{"data":{"__typename":"Droid","primaryFunction":"Astromech","favoriteEpisode":"NEWHOPE"},"path":["hero"]}]}
+--graphql-go-tools--
+`, "\n", "\r\n"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			r := newResolver(ctx)
+			var buf bytes.Buffer
+			w := &MultipartJSONWriter{
+				Writer:        &buf,
+				BoundaryToken: "graphql-go-tools",
+			}
+			info, err := r.ResolveGraphQLResponse(&Context{ctx: ctx}, tc.response, nil, w)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, buf.String())
+			require.NotNil(t, info)
 		})
 	}
 }

@@ -22,11 +22,12 @@ type GraphQLSubscriptionTrigger struct {
 }
 
 type GraphQLResponse struct {
-	Data            *Object
-	RenameTypeNames []RenameTypeName
-	Info            *GraphQLResponseInfo
-	Fetches         *FetchTreeNode
-	DataSources     []DataSourceInfo
+	Data              *Object
+	RenameTypeNames   []RenameTypeName
+	Info              *GraphQLResponseInfo
+	Fetches           *FetchTreeNode
+	DataSources       []DataSourceInfo
+	DeferredResponses []*GraphQLResponse
 }
 
 type GraphQLResponseInfo struct {
@@ -45,6 +46,12 @@ type SubscriptionResponseWriter interface {
 	ResponseWriter
 	Flush() error
 	Complete()
+}
+
+type IncrementalResponseWriter interface {
+	ResponseWriter
+	Flush(path []any, isFinal bool) error
+	Complete() error
 }
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
