@@ -172,26 +172,33 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 			def, `
 			query TypenameOnQuery {
 				__typename
+				alias: __typename
+				alias2: __typename
 			}`,
 			"TypenameOnQuery", &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Fetches: resolve.Sequence(
-						resolve.Single(&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource:     &Source{},
-								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{__typename}"}}`,
-								PostProcessing: DefaultPostProcessingConfiguration,
-							},
-							DataSourceIdentifier: []byte("graphql_datasource.Source"),
-						}),
-					),
+					Fetches: resolve.Sequence(),
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("__typename"),
-								Value: &resolve.String{
-									Path:       []string{"__typename"},
-									IsTypeName: true,
+								Value: &resolve.StaticString{
+									Path:  []string{"__typename"},
+									Value: "Query",
+								},
+							},
+							{
+								Name: []byte("alias"),
+								Value: &resolve.StaticString{
+									Path:  []string{"alias"},
+									Value: "Query",
+								},
+							},
+							{
+								Name: []byte("alias2"),
+								Value: &resolve.StaticString{
+									Path:  []string{"alias2"},
+									Value: "Query",
 								},
 							},
 						},
@@ -206,24 +213,14 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 			}`,
 			"TypenameOnMutation", &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Fetches: resolve.Sequence(
-						resolve.Single(
-							&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{__typename}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}),
-					),
+					Fetches: resolve.Sequence(),
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("__typename"),
-								Value: &resolve.String{
-									Path:       []string{"__typename"},
-									IsTypeName: true,
+								Value: &resolve.StaticString{
+									Path:  []string{"__typename"},
+									Value: "Mutation",
 								},
 							},
 						},
