@@ -388,7 +388,6 @@ func (r *Resolvable) printValueCompletionExtension() error {
 }
 
 func (r *Resolvable) hasExtensions() bool {
-	// TODO: Check if we actually need to skip the authorizer print extension
 	if !r.ctx.AuthorizerOptions.SkipPrintExtension && r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
 	}
