@@ -1485,13 +1485,10 @@ func TestResolvable_ExtensionsWhitelisting(t *testing.T) {
 			ctx.RateLimitOptions.SkipPrintExtension = true
 			ctx.RateLimitOptions.IncludeStatsInResponseExtension = true
 
-			usages := atomic.Int64{}
-			usages.Add(2)
-
 			ctx.rateLimiter = &testRateLimiter{
 				policy:                 "1 request per second",
 				allowed:                1,
-				rateLimitPreFetchCalls: usages,
+				rateLimitPreFetchCalls: atomic.Int64{},
 				allowFn: func(ctx *Context, info *FetchInfo, input json.RawMessage) (*RateLimitDeny, error) {
 					return &RateLimitDeny{Reason: "rate limit exceeded"}, nil
 				},
@@ -1523,13 +1520,10 @@ func TestResolvable_ExtensionsWhitelisting(t *testing.T) {
 			ctx.RateLimitOptions.SkipPrintExtension = false
 			ctx.RateLimitOptions.IncludeStatsInResponseExtension = true
 
-			usages := atomic.Int64{}
-			usages.Add(2)
-
 			ctx.rateLimiter = &testRateLimiter{
 				policy:                 "1 request per second",
 				allowed:                1,
-				rateLimitPreFetchCalls: usages,
+				rateLimitPreFetchCalls: atomic.Int64{},
 				allowFn: func(ctx *Context, info *FetchInfo, input json.RawMessage) (*RateLimitDeny, error) {
 					return &RateLimitDeny{Reason: "rate limit exceeded"}, nil
 				},
@@ -1552,7 +1546,7 @@ func TestResolvable_ExtensionsWhitelisting(t *testing.T) {
 			err = res.Resolve(ctx.ctx, object, fetchTree, out)
 
 			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"rateLimit":{"Policy":"1 request per second","Allowed":1,"Used":2}}}`, out.String())
+			assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"rateLimit":{"Policy":"1 request per second","Allowed":1,"Used":0}}}`, out.String())
 		})
 	})
 
