@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
 
@@ -383,4 +385,80 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 
 	// Verify the error message
 	require.Contains(t, response.Errors[0].Message, "user not found: error-user")
+}
+
+func TestMarshalResponseJSON(t *testing.T) {
+
+	// Create an execution plan that defines how to build the protobuf message
+	// This plan describes how to call the LookupProductById method
+	// Define the structure of the response message
+	response := RPCMessage{
+		Name: "LookupProductByIdResponse",
+		Fields: []RPCField{
+			{
+				Name:     "results",
+				TypeName: string(DataTypeMessage),
+				Repeated: true,
+				Index:    0,
+				JSONPath: "results",
+				Message: &RPCMessage{
+					Name: "LookupProductByIdResult",
+					Fields: []RPCField{
+						{
+							Name:     "product",
+							TypeName: string(DataTypeMessage),
+							Index:    0,
+							JSONPath: "product",
+							Message: &RPCMessage{
+								Name: "Product",
+								Fields: []RPCField{
+									{
+										Name:     "id",
+										TypeName: string(DataTypeString),
+										JSONPath: "id",
+										Index:    0,
+									},
+									{
+										Name:     "name",
+										TypeName: string(DataTypeString),
+										JSONPath: "name_different",
+										Index:    1,
+									},
+									{
+										Name:     "price",
+										TypeName: string(DataTypeDouble),
+										JSONPath: "price_different",
+										Index:    2,
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	compiler, err := NewProtoCompiler(testdata.ProtoSchema(t))
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
+	productMessageDesc := compiler.doc.MessageByName("Product").Desc
+	productMessage := dynamicpb.NewMessage(productMessageDesc)
+	productMessage.Set(productMessageDesc.Fields().ByName("id"), protoref.ValueOfString("123"))
+	productMessage.Set(productMessageDesc.Fields().ByName("name"), protoref.ValueOfString("test"))
+	productMessage.Set(productMessageDesc.Fields().ByName("price"), protoref.ValueOfFloat64(123.45))
+
+	resultMessageDesc := compiler.doc.MessageByName("LookupProductByIdResult").Desc
+	resultMessage := dynamicpb.NewMessage(resultMessageDesc)
+	resultMessage.Set(resultMessageDesc.Fields().ByName("product"), protoref.ValueOfMessage(productMessage))
+
+	responseMessageDesc := compiler.doc.MessageByName("LookupProductByIdResponse").Desc
+	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
+	responseMessage.Mutable(responseMessageDesc.Fields().ByName("results")).List().Append(protoref.ValueOfMessage(resultMessage))
+
+	arena := astjson.Arena{}
+	responseJSON := marshalResponseJSON(&arena, &response, responseMessage)
+	require.Equal(t, `{"results":[{"product":{"id":"123","name_different":"test","price_different":123.45}}]}`, responseJSON.String())
 }

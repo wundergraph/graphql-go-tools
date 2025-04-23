@@ -6,7 +6,6 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -401,74 +400,6 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 	}
 
 	return message
-}
-
-func (p *RPCCompiler) marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) *astjson.Value {
-	root := arena.NewObject()
-
-	for _, field := range structure.Fields {
-		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
-		if fd == nil {
-			continue
-		}
-
-		if fd.IsList() {
-			arr := arena.NewArray()
-			root.Set(field.JSONPath, arr)
-			list := data.Get(fd).List()
-			for i := 0; i < list.Len(); i++ {
-				message := list.Get(i).Message()
-				value := p.marshalResponseJSON(arena, field.Message, message)
-				arr.SetArrayItem(i, value)
-			}
-
-			continue
-		}
-
-		if fd.Kind() == protoref.MessageKind {
-			message := data.Get(fd).Message()
-			value := p.marshalResponseJSON(arena, field.Message, message)
-			root.Set(field.JSONPath, value)
-
-			continue
-		}
-
-		p.setJSONValue(arena, root, field.JSONPath, data, fd)
-	}
-
-	return root
-}
-
-func (p *RPCCompiler) setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {
-	switch fd.Kind() {
-	case protoref.BoolKind:
-		boolValue := data.Get(fd).Bool()
-		if boolValue {
-			root.Set(name, arena.NewTrue())
-		} else {
-			root.Set(name, arena.NewFalse())
-		}
-	case protoref.StringKind:
-		root.Set(name, arena.NewString(data.Get(fd).String()))
-	case protoref.Int32Kind, protoref.Int64Kind:
-		root.Set(name, arena.NewNumberInt(int(data.Get(fd).Int())))
-	case protoref.Uint32Kind, protoref.Uint64Kind:
-		root.Set(name, arena.NewNumberString(fmt.Sprintf("%d", data.Get(fd).Uint())))
-	case protoref.FloatKind, protoref.DoubleKind:
-		root.Set(name, arena.NewNumberFloat64(data.Get(fd).Float()))
-	case protoref.BytesKind:
-		root.Set(name, arena.NewStringBytes(data.Get(fd).Bytes()))
-	case protoref.EnumKind:
-		enumDesc := fd.Enum()
-		enumNumber := data.Get(fd).Enum()
-		enumValueDesc := enumDesc.Values().ByNumber(enumNumber)
-		if enumValueDesc == nil {
-			root.Set(name, arena.NewNull())
-			return
-		}
-
-		root.Set(name, arena.NewString(string(enumValueDesc.Name())))
-	}
 }
 
 // setValueForKind converts a gjson.Result value to the appropriate protobuf value

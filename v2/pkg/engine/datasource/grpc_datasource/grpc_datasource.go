@@ -17,6 +17,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"google.golang.org/grpc"
+	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -110,7 +111,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return nil
 			}
 
-			responseJSON := d.rc.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+			responseJSON := marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
 
 			// TODO we need to build the response based on the mapping rules
 			root := a.NewObject()
@@ -133,4 +134,72 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 // Currently unimplemented.
 func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
 	panic("unimplemented")
+}
+
+func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) *astjson.Value {
+	root := arena.NewObject()
+
+	for _, field := range structure.Fields {
+		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
+		if fd == nil {
+			continue
+		}
+
+		if fd.IsList() {
+			arr := arena.NewArray()
+			root.Set(field.JSONPath, arr)
+			list := data.Get(fd).List()
+			for i := 0; i < list.Len(); i++ {
+				message := list.Get(i).Message()
+				value := marshalResponseJSON(arena, field.Message, message)
+				arr.SetArrayItem(i, value)
+			}
+
+			continue
+		}
+
+		if fd.Kind() == protoref.MessageKind {
+			message := data.Get(fd).Message()
+			value := marshalResponseJSON(arena, field.Message, message)
+			root.Set(field.JSONPath, value)
+
+			continue
+		}
+
+		setJSONValue(arena, root, field.JSONPath, data, fd)
+	}
+
+	return root
+}
+
+func setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {
+	switch fd.Kind() {
+	case protoref.BoolKind:
+		boolValue := data.Get(fd).Bool()
+		if boolValue {
+			root.Set(name, arena.NewTrue())
+		} else {
+			root.Set(name, arena.NewFalse())
+		}
+	case protoref.StringKind:
+		root.Set(name, arena.NewString(data.Get(fd).String()))
+	case protoref.Int32Kind, protoref.Int64Kind:
+		root.Set(name, arena.NewNumberInt(int(data.Get(fd).Int())))
+	case protoref.Uint32Kind, protoref.Uint64Kind:
+		root.Set(name, arena.NewNumberString(fmt.Sprintf("%d", data.Get(fd).Uint())))
+	case protoref.FloatKind, protoref.DoubleKind:
+		root.Set(name, arena.NewNumberFloat64(data.Get(fd).Float()))
+	case protoref.BytesKind:
+		root.Set(name, arena.NewStringBytes(data.Get(fd).Bytes()))
+	case protoref.EnumKind:
+		enumDesc := fd.Enum()
+		enumNumber := data.Get(fd).Enum()
+		enumValueDesc := enumDesc.Values().ByNumber(enumNumber)
+		if enumValueDesc == nil {
+			root.Set(name, arena.NewNull())
+			return
+		}
+
+		root.Set(name, arena.NewString(string(enumValueDesc.Name())))
+	}
 }
