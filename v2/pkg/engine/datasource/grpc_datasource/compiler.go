@@ -403,7 +403,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 	return message
 }
 
-func (p *RPCCompiler) buildResponseStructure(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) *astjson.Value {
+func (p *RPCCompiler) marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) *astjson.Value {
 	root := arena.NewObject()
 
 	for _, field := range structure.Fields {
@@ -418,7 +418,7 @@ func (p *RPCCompiler) buildResponseStructure(arena *astjson.Arena, structure *RP
 			list := data.Get(fd).List()
 			for i := 0; i < list.Len(); i++ {
 				message := list.Get(i).Message()
-				value := p.buildResponseStructure(arena, field.Message, message)
+				value := p.marshalResponseJSON(arena, field.Message, message)
 				arr.SetArrayItem(i, value)
 			}
 
@@ -427,7 +427,7 @@ func (p *RPCCompiler) buildResponseStructure(arena *astjson.Arena, structure *RP
 
 		if fd.Kind() == protoref.MessageKind {
 			message := data.Get(fd).Message()
-			value := p.buildResponseStructure(arena, field.Message, message)
+			value := p.marshalResponseJSON(arena, field.Message, message)
 			root.Set(field.JSONPath, value)
 
 			continue

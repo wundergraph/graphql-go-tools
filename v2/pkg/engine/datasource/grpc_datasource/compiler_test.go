@@ -384,6 +384,6 @@ func TestBuildResponseStructure(t *testing.T) {
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("results")).List().Append(protoref.ValueOfMessage(resultMessage))
 
 	arena := astjson.Arena{}
-	responseJSON := compiler.buildResponseStructure(&arena, &response, responseMessage)
+	responseJSON := compiler.marshalResponseJSON(&arena, &response, responseMessage)
 	require.Equal(t, `{"results":[{"product":{"id":"123","name_different":"test","price_different":123.45}}]}`, responseJSON.String())
 }

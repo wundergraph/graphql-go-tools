@@ -110,7 +110,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return nil
 			}
 
-			responseJSON := d.rc.buildResponseStructure(&a, &invocation.Call.Response, invocation.Output)
+			responseJSON := d.rc.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
 
 			// TODO we need to build the response based on the mapping rules
 			root := a.NewObject()
