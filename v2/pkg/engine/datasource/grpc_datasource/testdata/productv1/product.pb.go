@@ -889,7 +889,7 @@ func (*QueryNestedTypeRequest) Descriptor() ([]byte, []int) {
 
 type QueryNestedTypeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	NestedType    []*NestedTypeA         `protobuf:"bytes,1,rep,name=nestedType,proto3" json:"nestedType,omitempty"`
+	NestedType    []*NestedTypeA         `protobuf:"bytes,1,rep,name=nested_type,json=nestedType,proto3" json:"nested_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -969,7 +969,7 @@ func (*QueryRecursiveTypeRequest) Descriptor() ([]byte, []int) {
 
 type QueryRecursiveTypeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RecursiveType *RecursiveType         `protobuf:"bytes,1,opt,name=recursiveType,proto3" json:"recursiveType,omitempty"`
+	RecursiveType *RecursiveType         `protobuf:"bytes,1,opt,name=recursive_type,json=recursiveType,proto3" json:"recursive_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1013,8 +1013,8 @@ func (x *QueryRecursiveTypeResponse) GetRecursiveType() *RecursiveType {
 
 type QueryTypeFilterWithArgumentsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	FilterField1  string                 `protobuf:"bytes,1,opt,name=filterField1,proto3" json:"filterField1,omitempty"`
-	FilterField2  string                 `protobuf:"bytes,2,opt,name=filterField2,proto3" json:"filterField2,omitempty"`
+	FilterField1  string                 `protobuf:"bytes,1,opt,name=filter_field1,json=filterField1,proto3" json:"filter_field1,omitempty"`
+	FilterField2  string                 `protobuf:"bytes,2,opt,name=filter_field2,json=filterField2,proto3" json:"filter_field2,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1065,7 +1065,7 @@ func (x *QueryTypeFilterWithArgumentsRequest) GetFilterField2() string {
 
 type QueryTypeFilterWithArgumentsResponse struct {
 	state                        protoimpl.MessageState          `protogen:"open.v1"`
-	TypeWithMultipleFilterFields []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=typeWithMultipleFilterFields,proto3" json:"typeWithMultipleFilterFields,omitempty"`
+	TypeWithMultipleFilterFields []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=type_with_multiple_filter_fields,json=typeWithMultipleFilterFields,proto3" json:"type_with_multiple_filter_fields,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -1153,7 +1153,7 @@ func (x *QueryTypeWithMultipleFilterFieldsRequest) GetFilter() *FilterTypeInput 
 
 type QueryTypeWithMultipleFilterFieldsResponse struct {
 	state                        protoimpl.MessageState          `protogen:"open.v1"`
-	TypeWithMultipleFilterFields []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=typeWithMultipleFilterFields,proto3" json:"typeWithMultipleFilterFields,omitempty"`
+	TypeWithMultipleFilterFields []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=type_with_multiple_filter_fields,json=typeWithMultipleFilterFields,proto3" json:"type_with_multiple_filter_fields,omitempty"`
 	unknownFields                protoimpl.UnknownFields
 	sizeCache                    protoimpl.SizeCache
 }
@@ -1241,7 +1241,7 @@ func (x *QueryComplexFilterTypeRequest) GetFilter() *ComplexFilterTypeInput {
 
 type QueryComplexFilterTypeResponse struct {
 	state                      protoimpl.MessageState        `protogen:"open.v1"`
-	TypeWithComplexFilterInput []*TypeWithComplexFilterInput `protobuf:"bytes,1,rep,name=typeWithComplexFilterInput,proto3" json:"typeWithComplexFilterInput,omitempty"`
+	TypeWithComplexFilterInput []*TypeWithComplexFilterInput `protobuf:"bytes,1,rep,name=type_with_complex_filter_input,json=typeWithComplexFilterInput,proto3" json:"type_with_complex_filter_input,omitempty"`
 	unknownFields              protoimpl.UnknownFields
 	sizeCache                  protoimpl.SizeCache
 }
@@ -1631,7 +1631,7 @@ type RecursiveType struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	RecursiveType *RecursiveType         `protobuf:"bytes,3,opt,name=recursiveType,proto3" json:"recursiveType,omitempty"`
+	RecursiveType *RecursiveType         `protobuf:"bytes,3,opt,name=recursive_type,json=recursiveType,proto3" json:"recursive_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1691,8 +1691,8 @@ type TypeWithMultipleFilterFields struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	FilterField1  string                 `protobuf:"bytes,3,opt,name=filterField1,proto3" json:"filterField1,omitempty"`
-	FilterField2  string                 `protobuf:"bytes,4,opt,name=filterField2,proto3" json:"filterField2,omitempty"`
+	FilterField1  string                 `protobuf:"bytes,3,opt,name=filter_field1,json=filterField1,proto3" json:"filter_field1,omitempty"`
+	FilterField2  string                 `protobuf:"bytes,4,opt,name=filter_field2,json=filterField2,proto3" json:"filter_field2,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1854,8 +1854,8 @@ func (x *ComplexFilterTypeInput) GetFilter() *FilterType {
 type FilterTypeInput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	FilterField1  string                 `protobuf:"bytes,2,opt,name=filterField1,proto3" json:"filterField1,omitempty"`
-	FilterField2  string                 `protobuf:"bytes,3,opt,name=filterField2,proto3" json:"filterField2,omitempty"`
+	FilterField1  string                 `protobuf:"bytes,2,opt,name=filter_field1,json=filterField1,proto3" json:"filter_field1,omitempty"`
+	FilterField2  string                 `protobuf:"bytes,3,opt,name=filter_field2,json=filterField2,proto3" json:"filter_field2,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1914,8 +1914,8 @@ func (x *FilterTypeInput) GetFilterField2() string {
 type FilterType struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	FilterField1  string                 `protobuf:"bytes,2,opt,name=filterField1,proto3" json:"filterField1,omitempty"`
-	FilterField2  string                 `protobuf:"bytes,3,opt,name=filterField2,proto3" json:"filterField2,omitempty"`
+	FilterField1  string                 `protobuf:"bytes,2,opt,name=filter_field1,json=filterField1,proto3" json:"filter_field1,omitempty"`
+	FilterField2  string                 `protobuf:"bytes,3,opt,name=filter_field2,json=filterField2,proto3" json:"filter_field2,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1974,7 +1974,7 @@ func (x *FilterType) GetFilterField2() string {
 type Pagination struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
-	PerPage       int32                  `protobuf:"varint,2,opt,name=perPage,proto3" json:"perPage,omitempty"`
+	PerPage       int32                  `protobuf:"varint,2,opt,name=per_page,json=perPage,proto3" json:"per_page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2066,27 +2066,26 @@ const file_product_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"9\n" +
 	"\x11QueryUserResponse\x12$\n" +
 	"\x04user\x18\x01 \x01(\v2\x10.product.v1.UserR\x04user\"\x18\n" +
-	"\x16QueryNestedTypeRequest\"R\n" +
-	"\x17QueryNestedTypeResponse\x127\n" +
-	"\n" +
-	"nestedType\x18\x01 \x03(\v2\x17.product.v1.NestedTypeAR\n" +
+	"\x16QueryNestedTypeRequest\"S\n" +
+	"\x17QueryNestedTypeResponse\x128\n" +
+	"\vnested_type\x18\x01 \x03(\v2\x17.product.v1.NestedTypeAR\n" +
 	"nestedType\"\x1b\n" +
-	"\x19QueryRecursiveTypeRequest\"]\n" +
-	"\x1aQueryRecursiveTypeResponse\x12?\n" +
-	"\rrecursiveType\x18\x01 \x01(\v2\x19.product.v1.RecursiveTypeR\rrecursiveType\"m\n" +
-	"#QueryTypeFilterWithArgumentsRequest\x12\"\n" +
-	"\ffilterField1\x18\x01 \x01(\tR\ffilterField1\x12\"\n" +
-	"\ffilterField2\x18\x02 \x01(\tR\ffilterField2\"\x94\x01\n" +
-	"$QueryTypeFilterWithArgumentsResponse\x12l\n" +
-	"\x1ctypeWithMultipleFilterFields\x18\x01 \x03(\v2(.product.v1.TypeWithMultipleFilterFieldsR\x1ctypeWithMultipleFilterFields\"_\n" +
+	"\x19QueryRecursiveTypeRequest\"^\n" +
+	"\x1aQueryRecursiveTypeResponse\x12@\n" +
+	"\x0erecursive_type\x18\x01 \x01(\v2\x19.product.v1.RecursiveTypeR\rrecursiveType\"o\n" +
+	"#QueryTypeFilterWithArgumentsRequest\x12#\n" +
+	"\rfilter_field1\x18\x01 \x01(\tR\ffilterField1\x12#\n" +
+	"\rfilter_field2\x18\x02 \x01(\tR\ffilterField2\"\x98\x01\n" +
+	"$QueryTypeFilterWithArgumentsResponse\x12p\n" +
+	" type_with_multiple_filter_fields\x18\x01 \x03(\v2(.product.v1.TypeWithMultipleFilterFieldsR\x1ctypeWithMultipleFilterFields\"_\n" +
 	"(QueryTypeWithMultipleFilterFieldsRequest\x123\n" +
-	"\x06filter\x18\x01 \x01(\v2\x1b.product.v1.FilterTypeInputR\x06filter\"\x99\x01\n" +
-	")QueryTypeWithMultipleFilterFieldsResponse\x12l\n" +
-	"\x1ctypeWithMultipleFilterFields\x18\x01 \x03(\v2(.product.v1.TypeWithMultipleFilterFieldsR\x1ctypeWithMultipleFilterFields\"[\n" +
+	"\x06filter\x18\x01 \x01(\v2\x1b.product.v1.FilterTypeInputR\x06filter\"\x9d\x01\n" +
+	")QueryTypeWithMultipleFilterFieldsResponse\x12p\n" +
+	" type_with_multiple_filter_fields\x18\x01 \x03(\v2(.product.v1.TypeWithMultipleFilterFieldsR\x1ctypeWithMultipleFilterFields\"[\n" +
 	"\x1dQueryComplexFilterTypeRequest\x12:\n" +
-	"\x06filter\x18\x01 \x01(\v2\".product.v1.ComplexFilterTypeInputR\x06filter\"\x88\x01\n" +
-	"\x1eQueryComplexFilterTypeResponse\x12f\n" +
-	"\x1atypeWithComplexFilterInput\x18\x01 \x03(\v2&.product.v1.TypeWithComplexFilterInputR\x1atypeWithComplexFilterInput\"*\n" +
+	"\x06filter\x18\x01 \x01(\v2\".product.v1.ComplexFilterTypeInputR\x06filter\"\x8c\x01\n" +
+	"\x1eQueryComplexFilterTypeResponse\x12j\n" +
+	"\x1etype_with_complex_filter_input\x18\x01 \x03(\v2&.product.v1.TypeWithComplexFilterInputR\x1atypeWithComplexFilterInput\"*\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"I\n" +
@@ -2108,34 +2107,34 @@ const file_product_proto_rawDesc = "" +
 	"\x01c\x18\x03 \x01(\v2\x17.product.v1.NestedTypeCR\x01c\"1\n" +
 	"\vNestedTypeC\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"t\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\"u\n" +
 	"\rRecursiveType\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12?\n" +
-	"\rrecursiveType\x18\x03 \x01(\v2\x19.product.v1.RecursiveTypeR\rrecursiveType\"\x8a\x01\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12@\n" +
+	"\x0erecursive_type\x18\x03 \x01(\v2\x19.product.v1.RecursiveTypeR\rrecursiveType\"\x8c\x01\n" +
 	"\x1cTypeWithMultipleFilterFields\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\x12\"\n" +
-	"\ffilterField1\x18\x03 \x01(\tR\ffilterField1\x12\"\n" +
-	"\ffilterField2\x18\x04 \x01(\tR\ffilterField2\"@\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
+	"\rfilter_field1\x18\x03 \x01(\tR\ffilterField1\x12#\n" +
+	"\rfilter_field2\x18\x04 \x01(\tR\ffilterField2\"@\n" +
 	"\x1aTypeWithComplexFilterInput\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"H\n" +
 	"\x16ComplexFilterTypeInput\x12.\n" +
-	"\x06filter\x18\x01 \x01(\v2\x16.product.v1.FilterTypeR\x06filter\"m\n" +
+	"\x06filter\x18\x01 \x01(\v2\x16.product.v1.FilterTypeR\x06filter\"o\n" +
 	"\x0fFilterTypeInput\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\"\n" +
-	"\ffilterField1\x18\x02 \x01(\tR\ffilterField1\x12\"\n" +
-	"\ffilterField2\x18\x03 \x01(\tR\ffilterField2\"h\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
+	"\rfilter_field1\x18\x02 \x01(\tR\ffilterField1\x12#\n" +
+	"\rfilter_field2\x18\x03 \x01(\tR\ffilterField2\"j\n" +
 	"\n" +
 	"FilterType\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\"\n" +
-	"\ffilterField1\x18\x02 \x01(\tR\ffilterField1\x12\"\n" +
-	"\ffilterField2\x18\x03 \x01(\tR\ffilterField2\":\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
+	"\rfilter_field1\x18\x02 \x01(\tR\ffilterField1\x12#\n" +
+	"\rfilter_field2\x18\x03 \x01(\tR\ffilterField2\";\n" +
 	"\n" +
 	"Pagination\x12\x12\n" +
-	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x18\n" +
-	"\aperPage\x18\x02 \x01(\x05R\aperPage2\xb0\b\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x19\n" +
+	"\bper_page\x18\x02 \x01(\x05R\aperPage2\xb0\b\n" +
 	"\x0eProductService\x12b\n" +
 	"\x11LookupProductById\x12$.product.v1.LookupProductByIdRequest\x1a%.product.v1.LookupProductByIdResponse\"\x00\x12h\n" +
 	"\x13LookupProductByName\x12&.product.v1.LookupProductByNameRequest\x1a'.product.v1.LookupProductByNameResponse\"\x00\x12b\n" +
@@ -2221,16 +2220,16 @@ var file_product_proto_depIdxs = []int32{
 	16, // 11: product.v1.QueryUsersResponse.results:type_name -> product.v1.QueryUsersResult
 	29, // 12: product.v1.QueryUsersResult.user:type_name -> product.v1.User
 	29, // 13: product.v1.QueryUserResponse.user:type_name -> product.v1.User
-	32, // 14: product.v1.QueryNestedTypeResponse.nestedType:type_name -> product.v1.NestedTypeA
-	35, // 15: product.v1.QueryRecursiveTypeResponse.recursiveType:type_name -> product.v1.RecursiveType
-	36, // 16: product.v1.QueryTypeFilterWithArgumentsResponse.typeWithMultipleFilterFields:type_name -> product.v1.TypeWithMultipleFilterFields
+	32, // 14: product.v1.QueryNestedTypeResponse.nested_type:type_name -> product.v1.NestedTypeA
+	35, // 15: product.v1.QueryRecursiveTypeResponse.recursive_type:type_name -> product.v1.RecursiveType
+	36, // 16: product.v1.QueryTypeFilterWithArgumentsResponse.type_with_multiple_filter_fields:type_name -> product.v1.TypeWithMultipleFilterFields
 	39, // 17: product.v1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> product.v1.FilterTypeInput
-	36, // 18: product.v1.QueryTypeWithMultipleFilterFieldsResponse.typeWithMultipleFilterFields:type_name -> product.v1.TypeWithMultipleFilterFields
+	36, // 18: product.v1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> product.v1.TypeWithMultipleFilterFields
 	38, // 19: product.v1.QueryComplexFilterTypeRequest.filter:type_name -> product.v1.ComplexFilterTypeInput
-	37, // 20: product.v1.QueryComplexFilterTypeResponse.typeWithComplexFilterInput:type_name -> product.v1.TypeWithComplexFilterInput
+	37, // 20: product.v1.QueryComplexFilterTypeResponse.type_with_complex_filter_input:type_name -> product.v1.TypeWithComplexFilterInput
 	33, // 21: product.v1.NestedTypeA.b:type_name -> product.v1.NestedTypeB
 	34, // 22: product.v1.NestedTypeB.c:type_name -> product.v1.NestedTypeC
-	35, // 23: product.v1.RecursiveType.recursiveType:type_name -> product.v1.RecursiveType
+	35, // 23: product.v1.RecursiveType.recursive_type:type_name -> product.v1.RecursiveType
 	40, // 24: product.v1.ComplexFilterTypeInput.filter:type_name -> product.v1.FilterType
 	4,  // 25: product.v1.ProductService.LookupProductById:input_type -> product.v1.LookupProductByIdRequest
 	0,  // 26: product.v1.ProductService.LookupProductByName:input_type -> product.v1.LookupProductByNameRequest

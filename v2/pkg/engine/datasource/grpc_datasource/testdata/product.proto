@@ -98,22 +98,22 @@ message QueryUserResponse {
 message QueryNestedTypeRequest {}
 
 message QueryNestedTypeResponse {
-  repeated NestedTypeA nestedType = 1;
+  repeated NestedTypeA nested_type = 1;
 }
 
 message QueryRecursiveTypeRequest {}
 
 message QueryRecursiveTypeResponse {
-  RecursiveType recursiveType = 1;
+  RecursiveType recursive_type = 1;
 }
 
 message QueryTypeFilterWithArgumentsRequest {
-  string filterField1 = 1;
-  string filterField2 = 2;
+  string filter_field1 = 1;
+  string filter_field2 = 2;
 }
 
 message QueryTypeFilterWithArgumentsResponse {
-  repeated TypeWithMultipleFilterFields typeWithMultipleFilterFields = 1;
+  repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
 }
 
 message QueryTypeWithMultipleFilterFieldsRequest {
@@ -121,7 +121,7 @@ message QueryTypeWithMultipleFilterFieldsRequest {
 }
 
 message QueryTypeWithMultipleFilterFieldsResponse {
-  repeated TypeWithMultipleFilterFields typeWithMultipleFilterFields = 1;
+  repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
 }
 
 message QueryComplexFilterTypeRequest {
@@ -129,7 +129,7 @@ message QueryComplexFilterTypeRequest {
 }
 
 message QueryComplexFilterTypeResponse {
-  repeated TypeWithComplexFilterInput typeWithComplexFilterInput = 1;
+  repeated TypeWithComplexFilterInput type_with_complex_filter_input = 1;
 }
 
 message User {
@@ -169,14 +169,14 @@ message NestedTypeC {
 message RecursiveType {
   string id = 1;
   string name = 2;
-  RecursiveType recursiveType = 3;
+  RecursiveType recursive_type = 3;
 }
 
 message TypeWithMultipleFilterFields {
   string id = 1;
   string name = 2;
-  string filterField1 = 3;
-  string filterField2 = 4;
+  string filter_field1 = 3;
+  string filter_field2 = 4;
 }
 
 message TypeWithComplexFilterInput {
@@ -190,17 +190,17 @@ message ComplexFilterTypeInput {
 
 message FilterTypeInput {
   string name = 1;
-  string filterField1 = 2;
-  string filterField2 = 3;
+  string filter_field1 = 2;
+  string filter_field2 = 3;
 }
 
 message FilterType {
   string name = 1;
-  string filterField1 = 2;
-  string filterField2 = 3;
+  string filter_field1 = 2;
+  string filter_field2 = 3;
 }
 
 message Pagination {
   int32 page = 1;
-  int32 perPage = 2;
+  int32 per_page = 2;
 }

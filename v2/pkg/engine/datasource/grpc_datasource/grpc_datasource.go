@@ -17,7 +17,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // Verify DataSource implements the resolve.DataSource interface
@@ -93,6 +92,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 		// make gRPC calls
 		for _, invocation := range group {
+			a := astjson.Arena{}
 			// Invoke the gRPC method - this will populate invocation.Output
 			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
 			err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
@@ -110,15 +110,11 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return nil
 			}
 
-			// Marshal the populated output message to JSON
-			outputBytes, err := protojson.Marshal(invocation.Output)
-			if err != nil {
-				return err
-			}
+			responseJSON := d.rc.buildResponseStructure(&a, &invocation.Call.Response, invocation.Output)
 
-			a := astjson.Arena{}
+			// TODO we need to build the response based on the mapping rules
 			root := a.NewObject()
-			root.Set("data", astjson.MustParseBytes(outputBytes))
+			root.Set("data", responseJSON)
 
 			// write output to out
 			out.Write(root.MarshalTo(nil))
