@@ -278,7 +278,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 
 	var writeComma bool
 
-	if !r.ctx.AuthorizerOptions.SkipPrintExtension && r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
+	if r.ctx.AuthorizerOptions.IncludeOutputInResponseExtension && r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		writeComma = true
 		err := r.printAuthorizerExtension()
 		if err != nil {
@@ -286,7 +286,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
-	if !r.ctx.RateLimitOptions.SkipPrintExtension && r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
+	if r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
 		if writeComma {
 			r.printBytes(comma)
 		}
@@ -297,7 +297,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
-	if !r.ctx.ExecutionOptions.SkipPrintQueryPlanInExtension && r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		if writeComma {
 			r.printBytes(comma)
 		}
@@ -308,7 +308,7 @@ func (r *Resolvable) printExtensions(ctx context.Context, fetchTree *FetchTreeNo
 		}
 	}
 
-	if !r.ctx.TracingOptions.SkipPrintExtension && r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		if writeComma {
 			r.printBytes(comma)
 		}
@@ -388,19 +388,19 @@ func (r *Resolvable) printValueCompletionExtension() error {
 }
 
 func (r *Resolvable) hasExtensions() bool {
-	if !r.ctx.AuthorizerOptions.SkipPrintExtension && r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
+	if r.ctx.AuthorizerOptions.IncludeOutputInResponseExtension && r.ctx.authorizer != nil && r.ctx.authorizer.HasResponseExtensionData(r.ctx) {
 		return true
 	}
-	if !r.ctx.RateLimitOptions.SkipPrintExtension && r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
+	if r.ctx.RateLimitOptions.Enable && r.ctx.RateLimitOptions.IncludeStatsInResponseExtension && r.ctx.rateLimiter != nil {
 		return true
 	}
-	if !r.ctx.TracingOptions.SkipPrintExtension && r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
+	if r.ctx.TracingOptions.Enable && r.ctx.TracingOptions.IncludeTraceOutputInResponseExtensions {
 		return true
 	}
-	if !r.ctx.ExecutionOptions.SkipPrintQueryPlanInExtension && r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
+	if r.ctx.ExecutionOptions.IncludeQueryPlanInResponse {
 		return true
 	}
-	// This is an apollo compatibility based value, thus we do not have an extension enable flag for this
+	// This is an apollo compatibility flag
 	if !r.skipValueCompletion && r.valueCompletion != nil {
 		return true
 	}

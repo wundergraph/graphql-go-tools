@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1423,138 +1422,12 @@ func TestResolvable_WithTracing(t *testing.T) {
 	assert.Equal(t, `{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]},"extensions":{"trace":{"version":"1","info":{"trace_start_time":"","trace_start_unix":0,"parse_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":5,"duration_since_start_pretty":"5ns"},"normalize_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":10,"duration_since_start_pretty":"10ns"},"validate_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":15,"duration_since_start_pretty":"15ns"},"planner_stats":{"duration_nanoseconds":5,"duration_pretty":"5ns","duration_since_start_nanoseconds":20,"duration_since_start_pretty":"20ns"}},"fetches":{"kind":"Sequence"}}}}`, out.String())
 }
 
-func TestResolvable_ExtensionsWhitelisting(t *testing.T) {
-	t.Run("tracing", func(t *testing.T) {
-		t.Run("when skip print extension is true", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{})
-			ctx := NewContext(context.Background())
-			ctx.TracingOptions.Enable = true
-			ctx.TracingOptions.SkipPrintExtension = true
-			ctx.TracingOptions.IncludeTraceOutputInResponseExtensions = true
-			err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
-			assert.NoError(t, err)
-			object := &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("hello"),
-						Value: &String{
-							Path: []string{"hello"},
-						},
-					},
-				},
-			}
-			out := &bytes.Buffer{}
-			fetchTree := Sequence()
-			err = res.Resolve(ctx.ctx, object, fetchTree, out)
-
-			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"}}`, out.String())
-		})
-		t.Run("when skip print extension is false", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{})
-			ctx := NewContext(context.Background())
-			ctx.TracingOptions.Enable = true
-			ctx.TracingOptions.SkipPrintExtension = false
-			ctx.TracingOptions.IncludeTraceOutputInResponseExtensions = true
-			err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
-			assert.NoError(t, err)
-			object := &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("hello"),
-						Value: &String{
-							Path: []string{"hello"},
-						},
-					},
-				},
-			}
-			out := &bytes.Buffer{}
-			fetchTree := Sequence()
-			err = res.Resolve(ctx.ctx, object, fetchTree, out)
-
-			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"trace":{"version":"1","info":null,"fetches":{"kind":"Sequence"}}}}`, out.String())
-		})
-	})
-
-	t.Run("rate limiting", func(t *testing.T) {
-		t.Run("when skip print rate limit is true", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{})
-			ctx := NewContext(context.Background())
-			ctx.RateLimitOptions.Enable = true
-			ctx.RateLimitOptions.SkipPrintExtension = true
-			ctx.RateLimitOptions.IncludeStatsInResponseExtension = true
-
-			ctx.rateLimiter = &testRateLimiter{
-				policy:                 "1 request per second",
-				allowed:                1,
-				rateLimitPreFetchCalls: atomic.Int64{},
-				allowFn: func(ctx *Context, info *FetchInfo, input json.RawMessage) (*RateLimitDeny, error) {
-					return &RateLimitDeny{Reason: "rate limit exceeded"}, nil
-				},
-			}
-
-			err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
-			assert.NoError(t, err)
-			object := &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("hello"),
-						Value: &String{
-							Path: []string{"hello"},
-						},
-					},
-				},
-			}
-			out := &bytes.Buffer{}
-			fetchTree := Sequence()
-			err = res.Resolve(ctx.ctx, object, fetchTree, out)
-
-			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"}}`, out.String())
-		})
-		t.Run("when skip print rate limit is false", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{})
-			ctx := NewContext(context.Background())
-			ctx.RateLimitOptions.Enable = true
-			ctx.RateLimitOptions.SkipPrintExtension = false
-			ctx.RateLimitOptions.IncludeStatsInResponseExtension = true
-
-			ctx.rateLimiter = &testRateLimiter{
-				policy:                 "1 request per second",
-				allowed:                1,
-				rateLimitPreFetchCalls: atomic.Int64{},
-				allowFn: func(ctx *Context, info *FetchInfo, input json.RawMessage) (*RateLimitDeny, error) {
-					return &RateLimitDeny{Reason: "rate limit exceeded"}, nil
-				},
-			}
-
-			err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
-			assert.NoError(t, err)
-			object := &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("hello"),
-						Value: &String{
-							Path: []string{"hello"},
-						},
-					},
-				},
-			}
-			out := &bytes.Buffer{}
-			fetchTree := Sequence()
-			err = res.Resolve(ctx.ctx, object, fetchTree, out)
-
-			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"rateLimit":{"Policy":"1 request per second","Allowed":1,"Used":0}}}`, out.String())
-		})
-	})
-
+func TestResolvable_ExtensionsForAuthrozier(t *testing.T) {
 	t.Run("authorizer", func(t *testing.T) {
 		t.Run("when skip print extension is true", func(t *testing.T) {
 			res := NewResolvable(ResolvableOptions{})
 			ctx := NewContext(context.Background())
-			ctx.AuthorizerOptions.SkipPrintExtension = true
+			ctx.AuthorizerOptions.IncludeOutputInResponseExtension = false
 
 			authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 				return &AuthorizationDeny{
@@ -1590,7 +1463,7 @@ func TestResolvable_ExtensionsWhitelisting(t *testing.T) {
 		t.Run("when skip print extension is false", func(t *testing.T) {
 			res := NewResolvable(ResolvableOptions{})
 			ctx := NewContext(context.Background())
-			ctx.AuthorizerOptions.SkipPrintExtension = false
+			ctx.AuthorizerOptions.IncludeOutputInResponseExtension = true
 
 			authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
 				return &AuthorizationDeny{
@@ -1625,56 +1498,4 @@ func TestResolvable_ExtensionsWhitelisting(t *testing.T) {
 		})
 	})
 
-	t.Run("query planner", func(t *testing.T) {
-		t.Run("when skip print extension is true", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{})
-			ctx := NewContext(context.Background())
-			ctx.ExecutionOptions.SkipPrintQueryPlanInExtension = true
-			ctx.ExecutionOptions.IncludeQueryPlanInResponse = true
-
-			err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
-			assert.NoError(t, err)
-			object := &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("hello"),
-						Value: &String{
-							Path: []string{"hello"},
-						},
-					},
-				},
-			}
-			out := &bytes.Buffer{}
-			fetchTree := Sequence()
-			err = res.Resolve(ctx.ctx, object, fetchTree, out)
-
-			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"}}`, out.String())
-		})
-		t.Run("when skip print extension is false", func(t *testing.T) {
-			res := NewResolvable(ResolvableOptions{})
-			ctx := NewContext(context.Background())
-			ctx.ExecutionOptions.SkipPrintQueryPlanInExtension = false
-			ctx.ExecutionOptions.IncludeQueryPlanInResponse = true
-
-			err := res.Init(ctx, []byte(`{"hello": "world"}`), ast.OperationTypeQuery)
-			assert.NoError(t, err)
-			object := &Object{
-				Fields: []*Field{
-					{
-						Name: []byte("hello"),
-						Value: &String{
-							Path: []string{"hello"},
-						},
-					},
-				},
-			}
-			out := &bytes.Buffer{}
-			fetchTree := Sequence()
-			err = res.Resolve(ctx.ctx, object, fetchTree, out)
-
-			assert.NoError(t, err)
-			assert.Equal(t, `{"data":{"hello":"world"},"extensions":{"queryPlan":{"version":"1","kind":"Sequence"}}}`, out.String())
-		})
-	})
 }

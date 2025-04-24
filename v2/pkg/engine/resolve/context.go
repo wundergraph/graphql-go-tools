@@ -78,7 +78,7 @@ func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 }
 
 type AuthorizerOptions struct {
-	SkipPrintExtension bool
+	IncludeOutputInResponseExtension bool
 }
 
 type RateLimitOptions struct {
