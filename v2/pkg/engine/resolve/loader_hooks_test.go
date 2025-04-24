@@ -105,7 +105,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
 				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
 
-				assert.NotNil(t, resolveCtx.SubgraphErrors())
+				assert.NotNil(t, resolveCtx.ExecutionError())
 			}
 	}))
 
@@ -185,7 +185,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 		assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
 		assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
 
-		assert.NotNil(t, resolveCtx.SubgraphErrors())
+		assert.NotNil(t, resolveCtx.ExecutionError())
 	})
 
 	t.Run("parallel fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
@@ -249,7 +249,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
 				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
 
-				assert.NotNil(t, resolveCtx.SubgraphErrors())
+				assert.NotNil(t, resolveCtx.ExecutionError())
 			}
 	}))
 
@@ -314,7 +314,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
 				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
 
-				assert.NotNil(t, resolveCtx.SubgraphErrors())
+				assert.NotNil(t, resolveCtx.ExecutionError())
 			}
 	}))
 
@@ -380,7 +380,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 				assert.Equal(t, "errorMessage2", subgraphError.DownstreamErrors[1].Message)
 				assert.Empty(t, subgraphError.DownstreamErrors[1].Extensions["code"])
 
-				assert.NotNil(t, resolveCtx.SubgraphErrors())
+				assert.NotNil(t, resolveCtx.ExecutionError())
 			}
 	}))
 

@@ -30,7 +30,7 @@ type Context struct {
 	authorizer  Authorizer
 	rateLimiter RateLimiter
 
-	subgraphErrors error
+	error error
 }
 
 type ExecutionOptions struct {
@@ -103,12 +103,15 @@ func (c *Context) SetRateLimiter(limiter RateLimiter) {
 	c.rateLimiter = limiter
 }
 
-func (c *Context) SubgraphErrors() error {
-	return c.subgraphErrors
+// ExecutionError returns the error that occurred during execution.
+// You can use appendError to append errors to the context e.g. from a subgraph
+func (c *Context) ExecutionError() error {
+	return c.error
 }
 
-func (c *Context) appendSubgraphError(err error) {
-	c.subgraphErrors = errors.Join(c.subgraphErrors, err)
+// appendError appends the error to the context's error field. Should only be used to make the error public
+func (c *Context) appendError(err error) {
+	c.error = errors.Join(c.error, err)
 }
 
 type Request struct {
@@ -168,7 +171,7 @@ func (c *Context) Free() {
 	c.RemapVariables = nil
 	c.TracingOptions.DisableAll()
 	c.Extensions = nil
-	c.subgraphErrors = nil
+	c.error = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
 }

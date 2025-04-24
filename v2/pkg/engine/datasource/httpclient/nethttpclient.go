@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-
+	pkgErrors "github.com/pkg/errors"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -204,7 +204,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 	response, err := client.Do(request)
 	if err != nil {
-		return err
+		return pkgErrors.WithStack(err)
 	}
 	defer response.Body.Close()
 
@@ -262,6 +262,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out *byte
 	pool.Hash64.Put(h)
 	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
 	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
+
 }
 
 func DoMultipartForm(
