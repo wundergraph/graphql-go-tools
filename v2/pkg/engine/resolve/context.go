@@ -38,8 +38,6 @@ type ExecutionOptions struct {
 	SkipLoader                 bool
 	IncludeQueryPlanInResponse bool
 	SendHeartbeat              bool
-
-	SkipPrintQueryPlanInExtension bool
 }
 
 type AuthorizationDeny struct {
@@ -93,7 +91,6 @@ type RateLimitOptions struct {
 	RateLimitKey            string
 	RejectExceedingRequests bool
 
-	SkipPrintExtension bool
 	ErrorExtensionCode RateLimitErrorExtensionCode
 }
 
