@@ -182,10 +182,10 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	type response struct {
 		Data struct {
-			TypeWithComplexFilterInput []struct {
+			ComplexFilterType []struct {
 				Id   string `json:"id"`
 				Name string `json:"name"`
-			} `json:"typeWithComplexFilterInput"`
+			} `json:"complexFilterType"`
 		} `json:"data"`
 	}
 
@@ -197,8 +197,8 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	err = json.Unmarshal(bytes, &resp)
 	require.NoError(t, err)
 
-	require.Equal(t, resp.Data.TypeWithComplexFilterInput[0].Id, "test-id-123")
-	require.Equal(t, resp.Data.TypeWithComplexFilterInput[0].Name, "Test Product")
+	require.Equal(t, resp.Data.ComplexFilterType[0].Id, "test-id-123")
+	require.Equal(t, resp.Data.ComplexFilterType[0].Name, "Test Product")
 }
 
 func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
@@ -222,12 +222,16 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	// Clean up the server when the test completes
 	defer server.Stop()
 
-	conn, err := grpc.NewClient(
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	conn, err := grpc.Dial(
 		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(func(ctx context.Context, s string) (net.Conn, error) {
-			return lis.Dial()
-		}),
+		grpc.WithContextDialer(bufDialer),
 	)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -279,10 +283,10 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	type response struct {
 		Data struct {
-			TypeWithComplexFilterInput []struct {
+			ComplexFilterType []struct {
 				Id   string `json:"id"`
 				Name string `json:"name"`
-			} `json:"typeWithComplexFilterInput"`
+			} `json:"complexFilterType"`
 		} `json:"data"`
 	}
 
@@ -294,8 +298,8 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	err = json.Unmarshal(bytes, &resp)
 	require.NoError(t, err)
 
-	require.Equal(t, resp.Data.TypeWithComplexFilterInput[0].Id, "test-id-123")
-	require.Equal(t, resp.Data.TypeWithComplexFilterInput[0].Name, "Test Product")
+	require.Equal(t, resp.Data.ComplexFilterType[0].Id, "test-id-123")
+	require.Equal(t, resp.Data.ComplexFilterType[0].Name, "Test Product")
 }
 
 // Test_DataSource_Load_WithGrpcError tests how the datasource handles gRPC errors

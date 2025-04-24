@@ -74,20 +74,18 @@ func (s *MockService) LookupStorageById(ctx context.Context, in *productv1.Looku
 }
 
 func (s *MockService) QueryUsers(ctx context.Context, in *productv1.QueryUsersRequest) (*productv1.QueryUsersResponse, error) {
-	var results []*productv1.QueryUsersResult
+	var results []*productv1.User
 
 	// Generate 3 random users
 	for i := 1; i <= 3; i++ {
-		results = append(results, &productv1.QueryUsersResult{
-			User: &productv1.User{
-				Id:   fmt.Sprintf("user-%d", i),
-				Name: fmt.Sprintf("User %d", i),
-			},
+		results = append(results, &productv1.User{
+			Id:   fmt.Sprintf("user-%d", i),
+			Name: fmt.Sprintf("User %d", i),
 		})
 	}
 
 	return &productv1.QueryUsersResponse{
-		Results: results,
+		Users: results,
 	}, nil
 }
 
@@ -203,7 +201,7 @@ func (s *MockService) QueryComplexFilterType(ctx context.Context, in *productv1.
 	}
 
 	return &productv1.QueryComplexFilterTypeResponse{
-		TypeWithComplexFilterInput: []*productv1.TypeWithComplexFilterInput{
+		ComplexFilterType: []*productv1.TypeWithComplexFilterInput{
 			{
 				Id:   "test-id-123",
 				Name: name,

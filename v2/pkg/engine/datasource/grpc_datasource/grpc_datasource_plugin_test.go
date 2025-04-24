@@ -118,10 +118,10 @@ func Test_GRPCDataSourcePlugin(t *testing.T) {
 	// 9. Verify response
 	type response struct {
 		Data struct {
-			TypeWithComplexFilterInput []struct {
+			ComplexFilterType []struct {
 				Id   string `json:"id"`
 				Name string `json:"name"`
-			} `json:"typeWithComplexFilterInput"`
+			} `json:"complexFilterType"`
 		} `json:"data"`
 	}
 
@@ -129,9 +129,9 @@ func Test_GRPCDataSourcePlugin(t *testing.T) {
 	err = json.Unmarshal(output.Bytes(), &resp)
 	require.NoError(t, err)
 
-	require.Len(t, resp.Data.TypeWithComplexFilterInput, 1)
-	require.Equal(t, "test-id-123", resp.Data.TypeWithComplexFilterInput[0].Id)
-	require.Equal(t, "Test Plugin Product", resp.Data.TypeWithComplexFilterInput[0].Name)
+	require.Len(t, resp.Data.ComplexFilterType, 1)
+	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
+	require.Equal(t, "Test Plugin Product", resp.Data.ComplexFilterType[0].Name)
 
 	// 10. Test with direct client
 	productClient := productv1.NewProductServiceClient(conn)
@@ -145,9 +145,9 @@ func Test_GRPCDataSourcePlugin(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	require.Len(t, productResp.TypeWithComplexFilterInput, 1)
-	require.Equal(t, "test-id-123", productResp.TypeWithComplexFilterInput[0].Id)
-	require.Equal(t, "Direct Client Test", productResp.TypeWithComplexFilterInput[0].Name)
+	require.Len(t, productResp.ComplexFilterType, 1)
+	require.Equal(t, "test-id-123", productResp.ComplexFilterType[0].Id)
+	require.Equal(t, "Direct Client Test", productResp.ComplexFilterType[0].Name)
 }
 
 // Helper function to find or build the plugin binary

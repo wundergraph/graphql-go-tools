@@ -79,11 +79,7 @@ message LookupStorageByIdResult {
 message QueryUsersRequest {}
 
 message QueryUsersResponse {
-  repeated QueryUsersResult results = 1;
-}
-
-message QueryUsersResult {
-  User user = 1;
+  repeated User users = 1;
 }
 
 // QueryUser
@@ -129,7 +125,7 @@ message QueryComplexFilterTypeRequest {
 }
 
 message QueryComplexFilterTypeResponse {
-  repeated TypeWithComplexFilterInput type_with_complex_filter_input = 1;
+  repeated TypeWithComplexFilterInput complex_filter_type = 1;
 }
 
 message User {

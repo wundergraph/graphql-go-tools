@@ -139,8 +139,10 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*h
 func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) *astjson.Value {
 	root := arena.NewObject()
 
+	fmt.Println("data", data)
+
 	for _, field := range structure.Fields {
-		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
+		fd := data.Descriptor().Fields().ByNumber(protoref.FieldNumber(field.Index + 1))
 		if fd == nil {
 			continue
 		}

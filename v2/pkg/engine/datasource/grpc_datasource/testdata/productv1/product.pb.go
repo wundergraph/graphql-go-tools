@@ -676,7 +676,7 @@ func (*QueryUsersRequest) Descriptor() ([]byte, []int) {
 
 type QueryUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Results       []*QueryUsersResult    `protobuf:"bytes,1,rep,name=results,proto3" json:"results,omitempty"`
+	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -711,53 +711,9 @@ func (*QueryUsersResponse) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *QueryUsersResponse) GetResults() []*QueryUsersResult {
+func (x *QueryUsersResponse) GetUsers() []*User {
 	if x != nil {
-		return x.Results
-	}
-	return nil
-}
-
-type QueryUsersResult struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *QueryUsersResult) Reset() {
-	*x = QueryUsersResult{}
-	mi := &file_product_proto_msgTypes[16]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *QueryUsersResult) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*QueryUsersResult) ProtoMessage() {}
-
-func (x *QueryUsersResult) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[16]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use QueryUsersResult.ProtoReflect.Descriptor instead.
-func (*QueryUsersResult) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{16}
-}
-
-func (x *QueryUsersResult) GetUser() *User {
-	if x != nil {
-		return x.User
+		return x.Users
 	}
 	return nil
 }
@@ -772,7 +728,7 @@ type QueryUserRequest struct {
 
 func (x *QueryUserRequest) Reset() {
 	*x = QueryUserRequest{}
-	mi := &file_product_proto_msgTypes[17]
+	mi := &file_product_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -784,7 +740,7 @@ func (x *QueryUserRequest) String() string {
 func (*QueryUserRequest) ProtoMessage() {}
 
 func (x *QueryUserRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[17]
+	mi := &file_product_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -797,7 +753,7 @@ func (x *QueryUserRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryUserRequest.ProtoReflect.Descriptor instead.
 func (*QueryUserRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{17}
+	return file_product_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *QueryUserRequest) GetId() string {
@@ -816,7 +772,7 @@ type QueryUserResponse struct {
 
 func (x *QueryUserResponse) Reset() {
 	*x = QueryUserResponse{}
-	mi := &file_product_proto_msgTypes[18]
+	mi := &file_product_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -828,7 +784,7 @@ func (x *QueryUserResponse) String() string {
 func (*QueryUserResponse) ProtoMessage() {}
 
 func (x *QueryUserResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[18]
+	mi := &file_product_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -841,7 +797,7 @@ func (x *QueryUserResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryUserResponse.ProtoReflect.Descriptor instead.
 func (*QueryUserResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{18}
+	return file_product_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *QueryUserResponse) GetUser() *User {
@@ -859,7 +815,7 @@ type QueryNestedTypeRequest struct {
 
 func (x *QueryNestedTypeRequest) Reset() {
 	*x = QueryNestedTypeRequest{}
-	mi := &file_product_proto_msgTypes[19]
+	mi := &file_product_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -871,7 +827,7 @@ func (x *QueryNestedTypeRequest) String() string {
 func (*QueryNestedTypeRequest) ProtoMessage() {}
 
 func (x *QueryNestedTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[19]
+	mi := &file_product_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -884,7 +840,7 @@ func (x *QueryNestedTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryNestedTypeRequest.ProtoReflect.Descriptor instead.
 func (*QueryNestedTypeRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{19}
+	return file_product_proto_rawDescGZIP(), []int{18}
 }
 
 type QueryNestedTypeResponse struct {
@@ -896,7 +852,7 @@ type QueryNestedTypeResponse struct {
 
 func (x *QueryNestedTypeResponse) Reset() {
 	*x = QueryNestedTypeResponse{}
-	mi := &file_product_proto_msgTypes[20]
+	mi := &file_product_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +864,7 @@ func (x *QueryNestedTypeResponse) String() string {
 func (*QueryNestedTypeResponse) ProtoMessage() {}
 
 func (x *QueryNestedTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[20]
+	mi := &file_product_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +877,7 @@ func (x *QueryNestedTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryNestedTypeResponse.ProtoReflect.Descriptor instead.
 func (*QueryNestedTypeResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{20}
+	return file_product_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *QueryNestedTypeResponse) GetNestedType() []*NestedTypeA {
@@ -939,7 +895,7 @@ type QueryRecursiveTypeRequest struct {
 
 func (x *QueryRecursiveTypeRequest) Reset() {
 	*x = QueryRecursiveTypeRequest{}
-	mi := &file_product_proto_msgTypes[21]
+	mi := &file_product_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -951,7 +907,7 @@ func (x *QueryRecursiveTypeRequest) String() string {
 func (*QueryRecursiveTypeRequest) ProtoMessage() {}
 
 func (x *QueryRecursiveTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[21]
+	mi := &file_product_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -964,7 +920,7 @@ func (x *QueryRecursiveTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRecursiveTypeRequest.ProtoReflect.Descriptor instead.
 func (*QueryRecursiveTypeRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{21}
+	return file_product_proto_rawDescGZIP(), []int{20}
 }
 
 type QueryRecursiveTypeResponse struct {
@@ -976,7 +932,7 @@ type QueryRecursiveTypeResponse struct {
 
 func (x *QueryRecursiveTypeResponse) Reset() {
 	*x = QueryRecursiveTypeResponse{}
-	mi := &file_product_proto_msgTypes[22]
+	mi := &file_product_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -988,7 +944,7 @@ func (x *QueryRecursiveTypeResponse) String() string {
 func (*QueryRecursiveTypeResponse) ProtoMessage() {}
 
 func (x *QueryRecursiveTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[22]
+	mi := &file_product_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1001,7 +957,7 @@ func (x *QueryRecursiveTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRecursiveTypeResponse.ProtoReflect.Descriptor instead.
 func (*QueryRecursiveTypeResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{22}
+	return file_product_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *QueryRecursiveTypeResponse) GetRecursiveType() *RecursiveType {
@@ -1021,7 +977,7 @@ type QueryTypeFilterWithArgumentsRequest struct {
 
 func (x *QueryTypeFilterWithArgumentsRequest) Reset() {
 	*x = QueryTypeFilterWithArgumentsRequest{}
-	mi := &file_product_proto_msgTypes[23]
+	mi := &file_product_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1033,7 +989,7 @@ func (x *QueryTypeFilterWithArgumentsRequest) String() string {
 func (*QueryTypeFilterWithArgumentsRequest) ProtoMessage() {}
 
 func (x *QueryTypeFilterWithArgumentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[23]
+	mi := &file_product_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1046,7 +1002,7 @@ func (x *QueryTypeFilterWithArgumentsRequest) ProtoReflect() protoreflect.Messag
 
 // Deprecated: Use QueryTypeFilterWithArgumentsRequest.ProtoReflect.Descriptor instead.
 func (*QueryTypeFilterWithArgumentsRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{23}
+	return file_product_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *QueryTypeFilterWithArgumentsRequest) GetFilterField1() string {
@@ -1072,7 +1028,7 @@ type QueryTypeFilterWithArgumentsResponse struct {
 
 func (x *QueryTypeFilterWithArgumentsResponse) Reset() {
 	*x = QueryTypeFilterWithArgumentsResponse{}
-	mi := &file_product_proto_msgTypes[24]
+	mi := &file_product_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1084,7 +1040,7 @@ func (x *QueryTypeFilterWithArgumentsResponse) String() string {
 func (*QueryTypeFilterWithArgumentsResponse) ProtoMessage() {}
 
 func (x *QueryTypeFilterWithArgumentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[24]
+	mi := &file_product_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1097,7 +1053,7 @@ func (x *QueryTypeFilterWithArgumentsResponse) ProtoReflect() protoreflect.Messa
 
 // Deprecated: Use QueryTypeFilterWithArgumentsResponse.ProtoReflect.Descriptor instead.
 func (*QueryTypeFilterWithArgumentsResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{24}
+	return file_product_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *QueryTypeFilterWithArgumentsResponse) GetTypeWithMultipleFilterFields() []*TypeWithMultipleFilterFields {
@@ -1116,7 +1072,7 @@ type QueryTypeWithMultipleFilterFieldsRequest struct {
 
 func (x *QueryTypeWithMultipleFilterFieldsRequest) Reset() {
 	*x = QueryTypeWithMultipleFilterFieldsRequest{}
-	mi := &file_product_proto_msgTypes[25]
+	mi := &file_product_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1128,7 +1084,7 @@ func (x *QueryTypeWithMultipleFilterFieldsRequest) String() string {
 func (*QueryTypeWithMultipleFilterFieldsRequest) ProtoMessage() {}
 
 func (x *QueryTypeWithMultipleFilterFieldsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[25]
+	mi := &file_product_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1141,7 +1097,7 @@ func (x *QueryTypeWithMultipleFilterFieldsRequest) ProtoReflect() protoreflect.M
 
 // Deprecated: Use QueryTypeWithMultipleFilterFieldsRequest.ProtoReflect.Descriptor instead.
 func (*QueryTypeWithMultipleFilterFieldsRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{25}
+	return file_product_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *QueryTypeWithMultipleFilterFieldsRequest) GetFilter() *FilterTypeInput {
@@ -1160,7 +1116,7 @@ type QueryTypeWithMultipleFilterFieldsResponse struct {
 
 func (x *QueryTypeWithMultipleFilterFieldsResponse) Reset() {
 	*x = QueryTypeWithMultipleFilterFieldsResponse{}
-	mi := &file_product_proto_msgTypes[26]
+	mi := &file_product_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1172,7 +1128,7 @@ func (x *QueryTypeWithMultipleFilterFieldsResponse) String() string {
 func (*QueryTypeWithMultipleFilterFieldsResponse) ProtoMessage() {}
 
 func (x *QueryTypeWithMultipleFilterFieldsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[26]
+	mi := &file_product_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1185,7 +1141,7 @@ func (x *QueryTypeWithMultipleFilterFieldsResponse) ProtoReflect() protoreflect.
 
 // Deprecated: Use QueryTypeWithMultipleFilterFieldsResponse.ProtoReflect.Descriptor instead.
 func (*QueryTypeWithMultipleFilterFieldsResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{26}
+	return file_product_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *QueryTypeWithMultipleFilterFieldsResponse) GetTypeWithMultipleFilterFields() []*TypeWithMultipleFilterFields {
@@ -1204,7 +1160,7 @@ type QueryComplexFilterTypeRequest struct {
 
 func (x *QueryComplexFilterTypeRequest) Reset() {
 	*x = QueryComplexFilterTypeRequest{}
-	mi := &file_product_proto_msgTypes[27]
+	mi := &file_product_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1216,7 +1172,7 @@ func (x *QueryComplexFilterTypeRequest) String() string {
 func (*QueryComplexFilterTypeRequest) ProtoMessage() {}
 
 func (x *QueryComplexFilterTypeRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[27]
+	mi := &file_product_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1229,7 +1185,7 @@ func (x *QueryComplexFilterTypeRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryComplexFilterTypeRequest.ProtoReflect.Descriptor instead.
 func (*QueryComplexFilterTypeRequest) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{27}
+	return file_product_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *QueryComplexFilterTypeRequest) GetFilter() *ComplexFilterTypeInput {
@@ -1240,15 +1196,15 @@ func (x *QueryComplexFilterTypeRequest) GetFilter() *ComplexFilterTypeInput {
 }
 
 type QueryComplexFilterTypeResponse struct {
-	state                      protoimpl.MessageState        `protogen:"open.v1"`
-	TypeWithComplexFilterInput []*TypeWithComplexFilterInput `protobuf:"bytes,1,rep,name=type_with_complex_filter_input,json=typeWithComplexFilterInput,proto3" json:"type_with_complex_filter_input,omitempty"`
-	unknownFields              protoimpl.UnknownFields
-	sizeCache                  protoimpl.SizeCache
+	state             protoimpl.MessageState        `protogen:"open.v1"`
+	ComplexFilterType []*TypeWithComplexFilterInput `protobuf:"bytes,1,rep,name=complex_filter_type,json=complexFilterType,proto3" json:"complex_filter_type,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *QueryComplexFilterTypeResponse) Reset() {
 	*x = QueryComplexFilterTypeResponse{}
-	mi := &file_product_proto_msgTypes[28]
+	mi := &file_product_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1260,7 +1216,7 @@ func (x *QueryComplexFilterTypeResponse) String() string {
 func (*QueryComplexFilterTypeResponse) ProtoMessage() {}
 
 func (x *QueryComplexFilterTypeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[28]
+	mi := &file_product_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1273,12 +1229,12 @@ func (x *QueryComplexFilterTypeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryComplexFilterTypeResponse.ProtoReflect.Descriptor instead.
 func (*QueryComplexFilterTypeResponse) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{28}
+	return file_product_proto_rawDescGZIP(), []int{27}
 }
 
-func (x *QueryComplexFilterTypeResponse) GetTypeWithComplexFilterInput() []*TypeWithComplexFilterInput {
+func (x *QueryComplexFilterTypeResponse) GetComplexFilterType() []*TypeWithComplexFilterInput {
 	if x != nil {
-		return x.TypeWithComplexFilterInput
+		return x.ComplexFilterType
 	}
 	return nil
 }
@@ -1293,7 +1249,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_product_proto_msgTypes[29]
+	mi := &file_product_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1305,7 +1261,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[29]
+	mi := &file_product_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1318,7 +1274,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{29}
+	return file_product_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *User) GetId() string {
@@ -1346,7 +1302,7 @@ type Storage struct {
 
 func (x *Storage) Reset() {
 	*x = Storage{}
-	mi := &file_product_proto_msgTypes[30]
+	mi := &file_product_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1358,7 +1314,7 @@ func (x *Storage) String() string {
 func (*Storage) ProtoMessage() {}
 
 func (x *Storage) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[30]
+	mi := &file_product_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1371,7 +1327,7 @@ func (x *Storage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Storage.ProtoReflect.Descriptor instead.
 func (*Storage) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{30}
+	return file_product_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *Storage) GetId() string {
@@ -1406,7 +1362,7 @@ type Product struct {
 
 func (x *Product) Reset() {
 	*x = Product{}
-	mi := &file_product_proto_msgTypes[31]
+	mi := &file_product_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1418,7 +1374,7 @@ func (x *Product) String() string {
 func (*Product) ProtoMessage() {}
 
 func (x *Product) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[31]
+	mi := &file_product_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1431,7 +1387,7 @@ func (x *Product) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Product.ProtoReflect.Descriptor instead.
 func (*Product) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{31}
+	return file_product_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *Product) GetId() string {
@@ -1466,7 +1422,7 @@ type NestedTypeA struct {
 
 func (x *NestedTypeA) Reset() {
 	*x = NestedTypeA{}
-	mi := &file_product_proto_msgTypes[32]
+	mi := &file_product_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1478,7 +1434,7 @@ func (x *NestedTypeA) String() string {
 func (*NestedTypeA) ProtoMessage() {}
 
 func (x *NestedTypeA) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[32]
+	mi := &file_product_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1491,7 +1447,7 @@ func (x *NestedTypeA) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedTypeA.ProtoReflect.Descriptor instead.
 func (*NestedTypeA) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{32}
+	return file_product_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *NestedTypeA) GetId() string {
@@ -1526,7 +1482,7 @@ type NestedTypeB struct {
 
 func (x *NestedTypeB) Reset() {
 	*x = NestedTypeB{}
-	mi := &file_product_proto_msgTypes[33]
+	mi := &file_product_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1538,7 +1494,7 @@ func (x *NestedTypeB) String() string {
 func (*NestedTypeB) ProtoMessage() {}
 
 func (x *NestedTypeB) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[33]
+	mi := &file_product_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1551,7 +1507,7 @@ func (x *NestedTypeB) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedTypeB.ProtoReflect.Descriptor instead.
 func (*NestedTypeB) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{33}
+	return file_product_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *NestedTypeB) GetId() string {
@@ -1585,7 +1541,7 @@ type NestedTypeC struct {
 
 func (x *NestedTypeC) Reset() {
 	*x = NestedTypeC{}
-	mi := &file_product_proto_msgTypes[34]
+	mi := &file_product_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1597,7 +1553,7 @@ func (x *NestedTypeC) String() string {
 func (*NestedTypeC) ProtoMessage() {}
 
 func (x *NestedTypeC) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[34]
+	mi := &file_product_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1610,7 +1566,7 @@ func (x *NestedTypeC) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NestedTypeC.ProtoReflect.Descriptor instead.
 func (*NestedTypeC) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{34}
+	return file_product_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *NestedTypeC) GetId() string {
@@ -1638,7 +1594,7 @@ type RecursiveType struct {
 
 func (x *RecursiveType) Reset() {
 	*x = RecursiveType{}
-	mi := &file_product_proto_msgTypes[35]
+	mi := &file_product_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1650,7 +1606,7 @@ func (x *RecursiveType) String() string {
 func (*RecursiveType) ProtoMessage() {}
 
 func (x *RecursiveType) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[35]
+	mi := &file_product_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1663,7 +1619,7 @@ func (x *RecursiveType) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RecursiveType.ProtoReflect.Descriptor instead.
 func (*RecursiveType) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{35}
+	return file_product_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *RecursiveType) GetId() string {
@@ -1699,7 +1655,7 @@ type TypeWithMultipleFilterFields struct {
 
 func (x *TypeWithMultipleFilterFields) Reset() {
 	*x = TypeWithMultipleFilterFields{}
-	mi := &file_product_proto_msgTypes[36]
+	mi := &file_product_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1711,7 +1667,7 @@ func (x *TypeWithMultipleFilterFields) String() string {
 func (*TypeWithMultipleFilterFields) ProtoMessage() {}
 
 func (x *TypeWithMultipleFilterFields) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[36]
+	mi := &file_product_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1724,7 +1680,7 @@ func (x *TypeWithMultipleFilterFields) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeWithMultipleFilterFields.ProtoReflect.Descriptor instead.
 func (*TypeWithMultipleFilterFields) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{36}
+	return file_product_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *TypeWithMultipleFilterFields) GetId() string {
@@ -1765,7 +1721,7 @@ type TypeWithComplexFilterInput struct {
 
 func (x *TypeWithComplexFilterInput) Reset() {
 	*x = TypeWithComplexFilterInput{}
-	mi := &file_product_proto_msgTypes[37]
+	mi := &file_product_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1777,7 +1733,7 @@ func (x *TypeWithComplexFilterInput) String() string {
 func (*TypeWithComplexFilterInput) ProtoMessage() {}
 
 func (x *TypeWithComplexFilterInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[37]
+	mi := &file_product_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1790,7 +1746,7 @@ func (x *TypeWithComplexFilterInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TypeWithComplexFilterInput.ProtoReflect.Descriptor instead.
 func (*TypeWithComplexFilterInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{37}
+	return file_product_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *TypeWithComplexFilterInput) GetId() string {
@@ -1816,7 +1772,7 @@ type ComplexFilterTypeInput struct {
 
 func (x *ComplexFilterTypeInput) Reset() {
 	*x = ComplexFilterTypeInput{}
-	mi := &file_product_proto_msgTypes[38]
+	mi := &file_product_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1828,7 +1784,7 @@ func (x *ComplexFilterTypeInput) String() string {
 func (*ComplexFilterTypeInput) ProtoMessage() {}
 
 func (x *ComplexFilterTypeInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[38]
+	mi := &file_product_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1841,7 +1797,7 @@ func (x *ComplexFilterTypeInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ComplexFilterTypeInput.ProtoReflect.Descriptor instead.
 func (*ComplexFilterTypeInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{38}
+	return file_product_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *ComplexFilterTypeInput) GetFilter() *FilterType {
@@ -1862,7 +1818,7 @@ type FilterTypeInput struct {
 
 func (x *FilterTypeInput) Reset() {
 	*x = FilterTypeInput{}
-	mi := &file_product_proto_msgTypes[39]
+	mi := &file_product_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1874,7 +1830,7 @@ func (x *FilterTypeInput) String() string {
 func (*FilterTypeInput) ProtoMessage() {}
 
 func (x *FilterTypeInput) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[39]
+	mi := &file_product_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1887,7 +1843,7 @@ func (x *FilterTypeInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterTypeInput.ProtoReflect.Descriptor instead.
 func (*FilterTypeInput) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{39}
+	return file_product_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *FilterTypeInput) GetName() string {
@@ -1922,7 +1878,7 @@ type FilterType struct {
 
 func (x *FilterType) Reset() {
 	*x = FilterType{}
-	mi := &file_product_proto_msgTypes[40]
+	mi := &file_product_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1934,7 +1890,7 @@ func (x *FilterType) String() string {
 func (*FilterType) ProtoMessage() {}
 
 func (x *FilterType) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[40]
+	mi := &file_product_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1947,7 +1903,7 @@ func (x *FilterType) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FilterType.ProtoReflect.Descriptor instead.
 func (*FilterType) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{40}
+	return file_product_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *FilterType) GetName() string {
@@ -1981,7 +1937,7 @@ type Pagination struct {
 
 func (x *Pagination) Reset() {
 	*x = Pagination{}
-	mi := &file_product_proto_msgTypes[41]
+	mi := &file_product_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1993,7 +1949,7 @@ func (x *Pagination) String() string {
 func (*Pagination) ProtoMessage() {}
 
 func (x *Pagination) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[41]
+	mi := &file_product_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2006,7 +1962,7 @@ func (x *Pagination) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pagination.ProtoReflect.Descriptor instead.
 func (*Pagination) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{41}
+	return file_product_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *Pagination) GetPage() int32 {
@@ -2057,11 +2013,9 @@ const file_product_proto_rawDesc = "" +
 	"\aresults\x18\x01 \x03(\v2#.product.v1.LookupStorageByIdResultR\aresults\"H\n" +
 	"\x17LookupStorageByIdResult\x12-\n" +
 	"\astorage\x18\x01 \x01(\v2\x13.product.v1.StorageR\astorage\"\x13\n" +
-	"\x11QueryUsersRequest\"L\n" +
-	"\x12QueryUsersResponse\x126\n" +
-	"\aresults\x18\x01 \x03(\v2\x1c.product.v1.QueryUsersResultR\aresults\"8\n" +
-	"\x10QueryUsersResult\x12$\n" +
-	"\x04user\x18\x01 \x01(\v2\x10.product.v1.UserR\x04user\"\"\n" +
+	"\x11QueryUsersRequest\"<\n" +
+	"\x12QueryUsersResponse\x12&\n" +
+	"\x05users\x18\x01 \x03(\v2\x10.product.v1.UserR\x05users\"\"\n" +
 	"\x10QueryUserRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"9\n" +
 	"\x11QueryUserResponse\x12$\n" +
@@ -2083,9 +2037,9 @@ const file_product_proto_rawDesc = "" +
 	")QueryTypeWithMultipleFilterFieldsResponse\x12p\n" +
 	" type_with_multiple_filter_fields\x18\x01 \x03(\v2(.product.v1.TypeWithMultipleFilterFieldsR\x1ctypeWithMultipleFilterFields\"[\n" +
 	"\x1dQueryComplexFilterTypeRequest\x12:\n" +
-	"\x06filter\x18\x01 \x01(\v2\".product.v1.ComplexFilterTypeInputR\x06filter\"\x8c\x01\n" +
-	"\x1eQueryComplexFilterTypeResponse\x12j\n" +
-	"\x1etype_with_complex_filter_input\x18\x01 \x03(\v2&.product.v1.TypeWithComplexFilterInputR\x1atypeWithComplexFilterInput\"*\n" +
+	"\x06filter\x18\x01 \x01(\v2\".product.v1.ComplexFilterTypeInputR\x06filter\"x\n" +
+	"\x1eQueryComplexFilterTypeResponse\x12V\n" +
+	"\x13complex_filter_type\x18\x01 \x03(\v2&.product.v1.TypeWithComplexFilterInputR\x11complexFilterType\"*\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"I\n" +
@@ -2160,7 +2114,7 @@ func file_product_proto_rawDescGZIP() []byte {
 	return file_product_proto_rawDescData
 }
 
-var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 41)
 var file_product_proto_goTypes = []any{
 	(*LookupProductByNameRequest)(nil),                // 0: product.v1.LookupProductByNameRequest
 	(*LookupProductByNameInput)(nil),                  // 1: product.v1.LookupProductByNameInput
@@ -2178,84 +2132,82 @@ var file_product_proto_goTypes = []any{
 	(*LookupStorageByIdResult)(nil),                   // 13: product.v1.LookupStorageByIdResult
 	(*QueryUsersRequest)(nil),                         // 14: product.v1.QueryUsersRequest
 	(*QueryUsersResponse)(nil),                        // 15: product.v1.QueryUsersResponse
-	(*QueryUsersResult)(nil),                          // 16: product.v1.QueryUsersResult
-	(*QueryUserRequest)(nil),                          // 17: product.v1.QueryUserRequest
-	(*QueryUserResponse)(nil),                         // 18: product.v1.QueryUserResponse
-	(*QueryNestedTypeRequest)(nil),                    // 19: product.v1.QueryNestedTypeRequest
-	(*QueryNestedTypeResponse)(nil),                   // 20: product.v1.QueryNestedTypeResponse
-	(*QueryRecursiveTypeRequest)(nil),                 // 21: product.v1.QueryRecursiveTypeRequest
-	(*QueryRecursiveTypeResponse)(nil),                // 22: product.v1.QueryRecursiveTypeResponse
-	(*QueryTypeFilterWithArgumentsRequest)(nil),       // 23: product.v1.QueryTypeFilterWithArgumentsRequest
-	(*QueryTypeFilterWithArgumentsResponse)(nil),      // 24: product.v1.QueryTypeFilterWithArgumentsResponse
-	(*QueryTypeWithMultipleFilterFieldsRequest)(nil),  // 25: product.v1.QueryTypeWithMultipleFilterFieldsRequest
-	(*QueryTypeWithMultipleFilterFieldsResponse)(nil), // 26: product.v1.QueryTypeWithMultipleFilterFieldsResponse
-	(*QueryComplexFilterTypeRequest)(nil),             // 27: product.v1.QueryComplexFilterTypeRequest
-	(*QueryComplexFilterTypeResponse)(nil),            // 28: product.v1.QueryComplexFilterTypeResponse
-	(*User)(nil),                                      // 29: product.v1.User
-	(*Storage)(nil),                                   // 30: product.v1.Storage
-	(*Product)(nil),                                   // 31: product.v1.Product
-	(*NestedTypeA)(nil),                               // 32: product.v1.NestedTypeA
-	(*NestedTypeB)(nil),                               // 33: product.v1.NestedTypeB
-	(*NestedTypeC)(nil),                               // 34: product.v1.NestedTypeC
-	(*RecursiveType)(nil),                             // 35: product.v1.RecursiveType
-	(*TypeWithMultipleFilterFields)(nil),              // 36: product.v1.TypeWithMultipleFilterFields
-	(*TypeWithComplexFilterInput)(nil),                // 37: product.v1.TypeWithComplexFilterInput
-	(*ComplexFilterTypeInput)(nil),                    // 38: product.v1.ComplexFilterTypeInput
-	(*FilterTypeInput)(nil),                           // 39: product.v1.FilterTypeInput
-	(*FilterType)(nil),                                // 40: product.v1.FilterType
-	(*Pagination)(nil),                                // 41: product.v1.Pagination
+	(*QueryUserRequest)(nil),                          // 16: product.v1.QueryUserRequest
+	(*QueryUserResponse)(nil),                         // 17: product.v1.QueryUserResponse
+	(*QueryNestedTypeRequest)(nil),                    // 18: product.v1.QueryNestedTypeRequest
+	(*QueryNestedTypeResponse)(nil),                   // 19: product.v1.QueryNestedTypeResponse
+	(*QueryRecursiveTypeRequest)(nil),                 // 20: product.v1.QueryRecursiveTypeRequest
+	(*QueryRecursiveTypeResponse)(nil),                // 21: product.v1.QueryRecursiveTypeResponse
+	(*QueryTypeFilterWithArgumentsRequest)(nil),       // 22: product.v1.QueryTypeFilterWithArgumentsRequest
+	(*QueryTypeFilterWithArgumentsResponse)(nil),      // 23: product.v1.QueryTypeFilterWithArgumentsResponse
+	(*QueryTypeWithMultipleFilterFieldsRequest)(nil),  // 24: product.v1.QueryTypeWithMultipleFilterFieldsRequest
+	(*QueryTypeWithMultipleFilterFieldsResponse)(nil), // 25: product.v1.QueryTypeWithMultipleFilterFieldsResponse
+	(*QueryComplexFilterTypeRequest)(nil),             // 26: product.v1.QueryComplexFilterTypeRequest
+	(*QueryComplexFilterTypeResponse)(nil),            // 27: product.v1.QueryComplexFilterTypeResponse
+	(*User)(nil),                                      // 28: product.v1.User
+	(*Storage)(nil),                                   // 29: product.v1.Storage
+	(*Product)(nil),                                   // 30: product.v1.Product
+	(*NestedTypeA)(nil),                               // 31: product.v1.NestedTypeA
+	(*NestedTypeB)(nil),                               // 32: product.v1.NestedTypeB
+	(*NestedTypeC)(nil),                               // 33: product.v1.NestedTypeC
+	(*RecursiveType)(nil),                             // 34: product.v1.RecursiveType
+	(*TypeWithMultipleFilterFields)(nil),              // 35: product.v1.TypeWithMultipleFilterFields
+	(*TypeWithComplexFilterInput)(nil),                // 36: product.v1.TypeWithComplexFilterInput
+	(*ComplexFilterTypeInput)(nil),                    // 37: product.v1.ComplexFilterTypeInput
+	(*FilterTypeInput)(nil),                           // 38: product.v1.FilterTypeInput
+	(*FilterType)(nil),                                // 39: product.v1.FilterType
+	(*Pagination)(nil),                                // 40: product.v1.Pagination
 }
 var file_product_proto_depIdxs = []int32{
 	1,  // 0: product.v1.LookupProductByNameRequest.inputs:type_name -> product.v1.LookupProductByNameInput
 	3,  // 1: product.v1.LookupProductByNameResponse.results:type_name -> product.v1.LookupProductByNameResult
-	31, // 2: product.v1.LookupProductByNameResult.product:type_name -> product.v1.Product
+	30, // 2: product.v1.LookupProductByNameResult.product:type_name -> product.v1.Product
 	5,  // 3: product.v1.LookupProductByIdRequest.inputs:type_name -> product.v1.LookupProductByIdInput
 	6,  // 4: product.v1.LookupProductByIdInput.key:type_name -> product.v1.ProductByIdKey
 	8,  // 5: product.v1.LookupProductByIdResponse.results:type_name -> product.v1.LookupProductByIdResult
-	31, // 6: product.v1.LookupProductByIdResult.product:type_name -> product.v1.Product
+	30, // 6: product.v1.LookupProductByIdResult.product:type_name -> product.v1.Product
 	10, // 7: product.v1.LookupStorageByIdRequest.inputs:type_name -> product.v1.LookupStorageByIdInput
 	11, // 8: product.v1.LookupStorageByIdInput.key:type_name -> product.v1.StorageByIdKey
 	13, // 9: product.v1.LookupStorageByIdResponse.results:type_name -> product.v1.LookupStorageByIdResult
-	30, // 10: product.v1.LookupStorageByIdResult.storage:type_name -> product.v1.Storage
-	16, // 11: product.v1.QueryUsersResponse.results:type_name -> product.v1.QueryUsersResult
-	29, // 12: product.v1.QueryUsersResult.user:type_name -> product.v1.User
-	29, // 13: product.v1.QueryUserResponse.user:type_name -> product.v1.User
-	32, // 14: product.v1.QueryNestedTypeResponse.nested_type:type_name -> product.v1.NestedTypeA
-	35, // 15: product.v1.QueryRecursiveTypeResponse.recursive_type:type_name -> product.v1.RecursiveType
-	36, // 16: product.v1.QueryTypeFilterWithArgumentsResponse.type_with_multiple_filter_fields:type_name -> product.v1.TypeWithMultipleFilterFields
-	39, // 17: product.v1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> product.v1.FilterTypeInput
-	36, // 18: product.v1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> product.v1.TypeWithMultipleFilterFields
-	38, // 19: product.v1.QueryComplexFilterTypeRequest.filter:type_name -> product.v1.ComplexFilterTypeInput
-	37, // 20: product.v1.QueryComplexFilterTypeResponse.type_with_complex_filter_input:type_name -> product.v1.TypeWithComplexFilterInput
-	33, // 21: product.v1.NestedTypeA.b:type_name -> product.v1.NestedTypeB
-	34, // 22: product.v1.NestedTypeB.c:type_name -> product.v1.NestedTypeC
-	35, // 23: product.v1.RecursiveType.recursive_type:type_name -> product.v1.RecursiveType
-	40, // 24: product.v1.ComplexFilterTypeInput.filter:type_name -> product.v1.FilterType
-	4,  // 25: product.v1.ProductService.LookupProductById:input_type -> product.v1.LookupProductByIdRequest
-	0,  // 26: product.v1.ProductService.LookupProductByName:input_type -> product.v1.LookupProductByNameRequest
-	9,  // 27: product.v1.ProductService.LookupStorageById:input_type -> product.v1.LookupStorageByIdRequest
-	14, // 28: product.v1.ProductService.QueryUsers:input_type -> product.v1.QueryUsersRequest
-	17, // 29: product.v1.ProductService.QueryUser:input_type -> product.v1.QueryUserRequest
-	19, // 30: product.v1.ProductService.QueryNestedType:input_type -> product.v1.QueryNestedTypeRequest
-	21, // 31: product.v1.ProductService.QueryRecursiveType:input_type -> product.v1.QueryRecursiveTypeRequest
-	23, // 32: product.v1.ProductService.QueryTypeFilterWithArguments:input_type -> product.v1.QueryTypeFilterWithArgumentsRequest
-	25, // 33: product.v1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> product.v1.QueryTypeWithMultipleFilterFieldsRequest
-	27, // 34: product.v1.ProductService.QueryComplexFilterType:input_type -> product.v1.QueryComplexFilterTypeRequest
-	7,  // 35: product.v1.ProductService.LookupProductById:output_type -> product.v1.LookupProductByIdResponse
-	2,  // 36: product.v1.ProductService.LookupProductByName:output_type -> product.v1.LookupProductByNameResponse
-	12, // 37: product.v1.ProductService.LookupStorageById:output_type -> product.v1.LookupStorageByIdResponse
-	15, // 38: product.v1.ProductService.QueryUsers:output_type -> product.v1.QueryUsersResponse
-	18, // 39: product.v1.ProductService.QueryUser:output_type -> product.v1.QueryUserResponse
-	20, // 40: product.v1.ProductService.QueryNestedType:output_type -> product.v1.QueryNestedTypeResponse
-	22, // 41: product.v1.ProductService.QueryRecursiveType:output_type -> product.v1.QueryRecursiveTypeResponse
-	24, // 42: product.v1.ProductService.QueryTypeFilterWithArguments:output_type -> product.v1.QueryTypeFilterWithArgumentsResponse
-	26, // 43: product.v1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> product.v1.QueryTypeWithMultipleFilterFieldsResponse
-	28, // 44: product.v1.ProductService.QueryComplexFilterType:output_type -> product.v1.QueryComplexFilterTypeResponse
-	35, // [35:45] is the sub-list for method output_type
-	25, // [25:35] is the sub-list for method input_type
-	25, // [25:25] is the sub-list for extension type_name
-	25, // [25:25] is the sub-list for extension extendee
-	0,  // [0:25] is the sub-list for field type_name
+	29, // 10: product.v1.LookupStorageByIdResult.storage:type_name -> product.v1.Storage
+	28, // 11: product.v1.QueryUsersResponse.users:type_name -> product.v1.User
+	28, // 12: product.v1.QueryUserResponse.user:type_name -> product.v1.User
+	31, // 13: product.v1.QueryNestedTypeResponse.nested_type:type_name -> product.v1.NestedTypeA
+	34, // 14: product.v1.QueryRecursiveTypeResponse.recursive_type:type_name -> product.v1.RecursiveType
+	35, // 15: product.v1.QueryTypeFilterWithArgumentsResponse.type_with_multiple_filter_fields:type_name -> product.v1.TypeWithMultipleFilterFields
+	38, // 16: product.v1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> product.v1.FilterTypeInput
+	35, // 17: product.v1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> product.v1.TypeWithMultipleFilterFields
+	37, // 18: product.v1.QueryComplexFilterTypeRequest.filter:type_name -> product.v1.ComplexFilterTypeInput
+	36, // 19: product.v1.QueryComplexFilterTypeResponse.complex_filter_type:type_name -> product.v1.TypeWithComplexFilterInput
+	32, // 20: product.v1.NestedTypeA.b:type_name -> product.v1.NestedTypeB
+	33, // 21: product.v1.NestedTypeB.c:type_name -> product.v1.NestedTypeC
+	34, // 22: product.v1.RecursiveType.recursive_type:type_name -> product.v1.RecursiveType
+	39, // 23: product.v1.ComplexFilterTypeInput.filter:type_name -> product.v1.FilterType
+	4,  // 24: product.v1.ProductService.LookupProductById:input_type -> product.v1.LookupProductByIdRequest
+	0,  // 25: product.v1.ProductService.LookupProductByName:input_type -> product.v1.LookupProductByNameRequest
+	9,  // 26: product.v1.ProductService.LookupStorageById:input_type -> product.v1.LookupStorageByIdRequest
+	14, // 27: product.v1.ProductService.QueryUsers:input_type -> product.v1.QueryUsersRequest
+	16, // 28: product.v1.ProductService.QueryUser:input_type -> product.v1.QueryUserRequest
+	18, // 29: product.v1.ProductService.QueryNestedType:input_type -> product.v1.QueryNestedTypeRequest
+	20, // 30: product.v1.ProductService.QueryRecursiveType:input_type -> product.v1.QueryRecursiveTypeRequest
+	22, // 31: product.v1.ProductService.QueryTypeFilterWithArguments:input_type -> product.v1.QueryTypeFilterWithArgumentsRequest
+	24, // 32: product.v1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> product.v1.QueryTypeWithMultipleFilterFieldsRequest
+	26, // 33: product.v1.ProductService.QueryComplexFilterType:input_type -> product.v1.QueryComplexFilterTypeRequest
+	7,  // 34: product.v1.ProductService.LookupProductById:output_type -> product.v1.LookupProductByIdResponse
+	2,  // 35: product.v1.ProductService.LookupProductByName:output_type -> product.v1.LookupProductByNameResponse
+	12, // 36: product.v1.ProductService.LookupStorageById:output_type -> product.v1.LookupStorageByIdResponse
+	15, // 37: product.v1.ProductService.QueryUsers:output_type -> product.v1.QueryUsersResponse
+	17, // 38: product.v1.ProductService.QueryUser:output_type -> product.v1.QueryUserResponse
+	19, // 39: product.v1.ProductService.QueryNestedType:output_type -> product.v1.QueryNestedTypeResponse
+	21, // 40: product.v1.ProductService.QueryRecursiveType:output_type -> product.v1.QueryRecursiveTypeResponse
+	23, // 41: product.v1.ProductService.QueryTypeFilterWithArguments:output_type -> product.v1.QueryTypeFilterWithArgumentsResponse
+	25, // 42: product.v1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> product.v1.QueryTypeWithMultipleFilterFieldsResponse
+	27, // 43: product.v1.ProductService.QueryComplexFilterType:output_type -> product.v1.QueryComplexFilterTypeResponse
+	34, // [34:44] is the sub-list for method output_type
+	24, // [24:34] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_product_proto_init() }
@@ -2269,7 +2221,7 @@ func file_product_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_product_proto_rawDesc), len(file_product_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   42,
+			NumMessages:   41,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
