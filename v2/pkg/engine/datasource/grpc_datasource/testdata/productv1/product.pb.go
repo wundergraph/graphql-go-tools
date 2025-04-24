@@ -1872,6 +1872,7 @@ type FilterType struct {
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	FilterField1  string                 `protobuf:"bytes,2,opt,name=filter_field1,json=filterField1,proto3" json:"filter_field1,omitempty"`
 	FilterField2  string                 `protobuf:"bytes,3,opt,name=filter_field2,json=filterField2,proto3" json:"filter_field2,omitempty"`
+	Pagination    *Pagination            `protobuf:"bytes,4,opt,name=pagination,proto3" json:"pagination,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1925,6 +1926,13 @@ func (x *FilterType) GetFilterField2() string {
 		return x.FilterField2
 	}
 	return ""
+}
+
+func (x *FilterType) GetPagination() *Pagination {
+	if x != nil {
+		return x.Pagination
+	}
+	return nil
 }
 
 type Pagination struct {
@@ -2079,12 +2087,15 @@ const file_product_proto_rawDesc = "" +
 	"\x0fFilterTypeInput\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
 	"\rfilter_field1\x18\x02 \x01(\tR\ffilterField1\x12#\n" +
-	"\rfilter_field2\x18\x03 \x01(\tR\ffilterField2\"j\n" +
+	"\rfilter_field2\x18\x03 \x01(\tR\ffilterField2\"\xa2\x01\n" +
 	"\n" +
 	"FilterType\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
 	"\rfilter_field1\x18\x02 \x01(\tR\ffilterField1\x12#\n" +
-	"\rfilter_field2\x18\x03 \x01(\tR\ffilterField2\";\n" +
+	"\rfilter_field2\x18\x03 \x01(\tR\ffilterField2\x126\n" +
+	"\n" +
+	"pagination\x18\x04 \x01(\v2\x16.product.v1.PaginationR\n" +
+	"pagination\";\n" +
 	"\n" +
 	"Pagination\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x19\n" +
@@ -2183,31 +2194,32 @@ var file_product_proto_depIdxs = []int32{
 	33, // 21: product.v1.NestedTypeB.c:type_name -> product.v1.NestedTypeC
 	34, // 22: product.v1.RecursiveType.recursive_type:type_name -> product.v1.RecursiveType
 	39, // 23: product.v1.ComplexFilterTypeInput.filter:type_name -> product.v1.FilterType
-	4,  // 24: product.v1.ProductService.LookupProductById:input_type -> product.v1.LookupProductByIdRequest
-	0,  // 25: product.v1.ProductService.LookupProductByName:input_type -> product.v1.LookupProductByNameRequest
-	9,  // 26: product.v1.ProductService.LookupStorageById:input_type -> product.v1.LookupStorageByIdRequest
-	14, // 27: product.v1.ProductService.QueryUsers:input_type -> product.v1.QueryUsersRequest
-	16, // 28: product.v1.ProductService.QueryUser:input_type -> product.v1.QueryUserRequest
-	18, // 29: product.v1.ProductService.QueryNestedType:input_type -> product.v1.QueryNestedTypeRequest
-	20, // 30: product.v1.ProductService.QueryRecursiveType:input_type -> product.v1.QueryRecursiveTypeRequest
-	22, // 31: product.v1.ProductService.QueryTypeFilterWithArguments:input_type -> product.v1.QueryTypeFilterWithArgumentsRequest
-	24, // 32: product.v1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> product.v1.QueryTypeWithMultipleFilterFieldsRequest
-	26, // 33: product.v1.ProductService.QueryComplexFilterType:input_type -> product.v1.QueryComplexFilterTypeRequest
-	7,  // 34: product.v1.ProductService.LookupProductById:output_type -> product.v1.LookupProductByIdResponse
-	2,  // 35: product.v1.ProductService.LookupProductByName:output_type -> product.v1.LookupProductByNameResponse
-	12, // 36: product.v1.ProductService.LookupStorageById:output_type -> product.v1.LookupStorageByIdResponse
-	15, // 37: product.v1.ProductService.QueryUsers:output_type -> product.v1.QueryUsersResponse
-	17, // 38: product.v1.ProductService.QueryUser:output_type -> product.v1.QueryUserResponse
-	19, // 39: product.v1.ProductService.QueryNestedType:output_type -> product.v1.QueryNestedTypeResponse
-	21, // 40: product.v1.ProductService.QueryRecursiveType:output_type -> product.v1.QueryRecursiveTypeResponse
-	23, // 41: product.v1.ProductService.QueryTypeFilterWithArguments:output_type -> product.v1.QueryTypeFilterWithArgumentsResponse
-	25, // 42: product.v1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> product.v1.QueryTypeWithMultipleFilterFieldsResponse
-	27, // 43: product.v1.ProductService.QueryComplexFilterType:output_type -> product.v1.QueryComplexFilterTypeResponse
-	34, // [34:44] is the sub-list for method output_type
-	24, // [24:34] is the sub-list for method input_type
-	24, // [24:24] is the sub-list for extension type_name
-	24, // [24:24] is the sub-list for extension extendee
-	0,  // [0:24] is the sub-list for field type_name
+	40, // 24: product.v1.FilterType.pagination:type_name -> product.v1.Pagination
+	4,  // 25: product.v1.ProductService.LookupProductById:input_type -> product.v1.LookupProductByIdRequest
+	0,  // 26: product.v1.ProductService.LookupProductByName:input_type -> product.v1.LookupProductByNameRequest
+	9,  // 27: product.v1.ProductService.LookupStorageById:input_type -> product.v1.LookupStorageByIdRequest
+	14, // 28: product.v1.ProductService.QueryUsers:input_type -> product.v1.QueryUsersRequest
+	16, // 29: product.v1.ProductService.QueryUser:input_type -> product.v1.QueryUserRequest
+	18, // 30: product.v1.ProductService.QueryNestedType:input_type -> product.v1.QueryNestedTypeRequest
+	20, // 31: product.v1.ProductService.QueryRecursiveType:input_type -> product.v1.QueryRecursiveTypeRequest
+	22, // 32: product.v1.ProductService.QueryTypeFilterWithArguments:input_type -> product.v1.QueryTypeFilterWithArgumentsRequest
+	24, // 33: product.v1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> product.v1.QueryTypeWithMultipleFilterFieldsRequest
+	26, // 34: product.v1.ProductService.QueryComplexFilterType:input_type -> product.v1.QueryComplexFilterTypeRequest
+	7,  // 35: product.v1.ProductService.LookupProductById:output_type -> product.v1.LookupProductByIdResponse
+	2,  // 36: product.v1.ProductService.LookupProductByName:output_type -> product.v1.LookupProductByNameResponse
+	12, // 37: product.v1.ProductService.LookupStorageById:output_type -> product.v1.LookupStorageByIdResponse
+	15, // 38: product.v1.ProductService.QueryUsers:output_type -> product.v1.QueryUsersResponse
+	17, // 39: product.v1.ProductService.QueryUser:output_type -> product.v1.QueryUserResponse
+	19, // 40: product.v1.ProductService.QueryNestedType:output_type -> product.v1.QueryNestedTypeResponse
+	21, // 41: product.v1.ProductService.QueryRecursiveType:output_type -> product.v1.QueryRecursiveTypeResponse
+	23, // 42: product.v1.ProductService.QueryTypeFilterWithArguments:output_type -> product.v1.QueryTypeFilterWithArgumentsResponse
+	25, // 43: product.v1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> product.v1.QueryTypeWithMultipleFilterFieldsResponse
+	27, // 44: product.v1.ProductService.QueryComplexFilterType:output_type -> product.v1.QueryComplexFilterTypeResponse
+	35, // [35:45] is the sub-list for method output_type
+	25, // [25:35] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_product_proto_init() }

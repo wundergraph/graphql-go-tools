@@ -197,8 +197,8 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	err = json.Unmarshal(bytes, &resp)
 	require.NoError(t, err)
 
-	require.Equal(t, resp.Data.ComplexFilterType[0].Id, "test-id-123")
-	require.Equal(t, resp.Data.ComplexFilterType[0].Name, "Test Product")
+	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
+	require.Equal(t, "Test Product", resp.Data.ComplexFilterType[0].Name)
 }
 
 func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
@@ -238,7 +238,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	// 3. Set up GraphQL query and schema
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
-	variables := `{"variables":{"filter":{"filter":{"name":"Test Product","filterField1":"filterField1","filterField2":"filterField2"}}}}`
+	variables := `{"variables":{"filter":{"filter":{"name":"HARDCODED_NAME_TEST","filterField1":"value1","filterField2":"value2"}}}}`
 
 	report := &operationreport.Report{}
 
@@ -275,12 +275,19 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	// 5. Execute the query through our datasource
 	output := new(bytes.Buffer)
-	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`), output)
+
+	// Format the input with query and variables
+	inputJSON := fmt.Sprintf(`{"query":%q,"variables":%s}`, query, variables)
+	t.Logf("Input JSON: %s", inputJSON)
+
+	err = ds.Load(context.Background(), []byte(inputJSON), output)
 	require.NoError(t, err)
 
 	// Print the response for debugging
-	fmt.Println(output.String())
+	responseData := output.String()
+	t.Logf("Response: %s", responseData)
 
+	// Set up the correct response structure based on your GraphQL schema
 	type response struct {
 		Data struct {
 			ComplexFilterType []struct {
@@ -288,18 +295,27 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 				Name string `json:"name"`
 			} `json:"complexFilterType"`
 		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors,omitempty"`
 	}
 
 	var resp response
+	err = json.Unmarshal(output.Bytes(), &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
 
-	bytes := output.Bytes()
-	fmt.Println(string(bytes))
+	// Check if there are any errors in the response
+	if len(resp.Errors) > 0 {
+		t.Fatalf("GraphQL errors: %s", resp.Errors[0].Message)
+	}
 
-	err = json.Unmarshal(bytes, &resp)
-	require.NoError(t, err)
+	// Check if we have the expected data
+	require.NotNil(t, resp.Data.ComplexFilterType, "ComplexFilterType should not be nil")
+	require.NotEmpty(t, resp.Data.ComplexFilterType, "ComplexFilterType should not be empty")
 
-	require.Equal(t, resp.Data.ComplexFilterType[0].Id, "test-id-123")
-	require.Equal(t, resp.Data.ComplexFilterType[0].Name, "Test Product")
+	// Now we can safely access the first element and verify the hardcoded name
+	require.Equal(t, "test-id-123", resp.Data.ComplexFilterType[0].Id)
+	require.Equal(t, "HARDCODED_NAME_TEST", resp.Data.ComplexFilterType[0].Name)
 }
 
 // Test_DataSource_Load_WithGrpcError tests how the datasource handles gRPC errors

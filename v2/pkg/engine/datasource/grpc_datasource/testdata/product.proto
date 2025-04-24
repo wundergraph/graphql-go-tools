@@ -194,6 +194,7 @@ message FilterType {
   string name = 1;
   string filter_field1 = 2;
   string filter_field2 = 3;
+  Pagination pagination = 4;
 }
 
 message Pagination {
