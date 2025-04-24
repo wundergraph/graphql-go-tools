@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -421,7 +421,7 @@ func TestEntityLookup(t *testing.T) {
 
 			// Parse the GraphQL schema
 			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+			schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
 			astparser.NewParser().Parse(schemaDoc, report)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse schema: %s", report.Error())
@@ -1327,7 +1327,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 
 			// Parse the GraphQL schema
 			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+			schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
 			astparser.NewParser().Parse(schemaDoc, report)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse schema: %s", report.Error())

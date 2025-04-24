@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 )
 
 // Complete valid protobuf definition with service and message definitions
@@ -62,7 +62,7 @@ message Product {
   string id = 1;
   string name = 2;
   double price = 3;
-} 
+}
 `
 
 var invalidProtoMissingResponseDefintition = `
@@ -191,7 +191,7 @@ message RecursiveMessage {
 // from an execution plan and JSON data
 func TestBuildProtoMessage(t *testing.T) {
 	// Create and parse the protobuf definition
-	compiler, err := NewProtoCompiler(testdata.ProtoSchema(t))
+	compiler, err := NewProtoCompiler(grpctest.ProtoSchema(t))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}

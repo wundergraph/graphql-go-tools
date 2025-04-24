@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-plugin"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata/productv1"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc"
 )
 
@@ -20,7 +20,7 @@ type GRPCDataSourcePlugin struct {
 }
 
 func (p *GRPCDataSourcePlugin) GRPCServer(broker *plugin.GRPCBroker, server *grpc.Server) error {
-	productv1.RegisterProductServiceServer(server, &testdata.MockService{})
+	productv1.RegisterProductServiceServer(server, &grpctest.MockService{})
 	return nil
 }
 

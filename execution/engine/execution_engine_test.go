@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"testing"
 
@@ -18,15 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
-	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/staticdatasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
@@ -230,37 +224,6 @@ func withValueCompletion() executionTestOptions {
 	}
 }
 
-// mockInterface provides a simple implementation of grpc.ClientConnInterface for testing
-type mockInterface struct {
-}
-
-func (m mockInterface) Invoke(ctx context.Context, method string, args any, reply any, opts ...grpc.CallOption) error {
-	fmt.Println(method, args, reply)
-
-	msg, ok := reply.(*dynamicpb.Message)
-	if !ok {
-		return fmt.Errorf("reply is not a dynamicpb.Message")
-	}
-
-	// Based on the method name, populate the response with appropriate test data
-	if strings.HasSuffix(method, "QueryUsers") {
-		// Populate the response with test data using protojson.Unmarshal
-		responseJSON := []byte(`{"users":[{"id":"test-id-123", "name":"Test Product"}]}`)
-		err := protojson.Unmarshal(responseJSON, msg)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (m mockInterface) NewStream(ctx context.Context, desc *grpc.StreamDesc, method string, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-	panic("implement me")
-}
-
-var _ grpc.ClientConnInterface = (*mockInterface)(nil)
-
 func TestExecutionEngine_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
@@ -347,183 +310,6 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 		return run(testCase, false, "", options...)
 	}
-
-	t.Run("grpc thing bad invocation compile mismatch schema", func(t *testing.T) {
-		grpcClient, err := grpc.NewClient("lalala", grpc.WithTransportCredentials(insecure.NewCredentials()))
-		require.NoError(t, err)
-
-		protoSchema := testdata.ProtoSchema(t)
-
-		engineConf := NewConfiguration(graphql.StarwarsSchema(t))
-		engineConf.SetDataSources([]plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id",
-				mustFactoryGRPC(t,
-					grpcClient,
-				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"hero"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"name"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					GRPC: &grpcdatasource.GRPCConfiguration{
-						ProtoSchema:  protoSchema,
-						Mapping:      &grpcdatasource.GRPCMapping{},
-						SubgraphName: "Starwars",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						nil,
-						string(graphql.StarwarsSchema(t).RawSchema()),
-					),
-				}),
-			),
-		})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		var opts _executionTestOptions
-		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-			MaxConcurrency:               1024,
-			ResolvableOptions:            opts.resolvableOptions,
-			PropagateSubgraphErrors:      true,
-			SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
-		})
-		require.NoError(t, err)
-
-		operation := graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
-
-		resultWriter := graphql.NewEngineResultWriter()
-
-		execCtx, execCtxCancel := context.WithCancel(context.Background())
-		defer execCtxCancel()
-
-		err = engine.Execute(execCtx, &operation, &resultWriter)
-
-		actualResponse := resultWriter.String()
-
-		assert.JSONEq(t, `{
-			"errors": [
-				{
-					"message": "lalalala"
-				}
-			],
-			"data": {
-				"hero": null
-			}
-		}`, actualResponse)
-	})
-
-	t.Run("grpc thing 2", func(t *testing.T) {
-		// grpcClient, err := grpc.NewClient("lalala", grpc.WithTransportCredentials(insecure.NewCredentials()))
-		// require.NoError(t, err)
-
-		grpcClient := mockInterface{}
-
-		protoSchema := testdata.ProtoSchema(t)
-		graphqlSchema := testdata.UpstreamSchema
-
-		schema, err := graphql.NewSchemaFromString(testdata.UpstreamSchema)
-		require.NoError(t, err)
-
-		engineConf := NewConfiguration(schema)
-		engineConf.SetDataSources([]plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id",
-				mustFactoryGRPC(t,
-					grpcClient,
-				),
-				&plan.DataSourceMetadata{
-					// query UserQuery { users { id name } }
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"users"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "name"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					GRPC: &grpcdatasource.GRPCConfiguration{
-						ProtoSchema:  protoSchema,
-						Mapping:      &grpcdatasource.GRPCMapping{},
-						SubgraphName: "Products",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						nil,
-						string(graphqlSchema),
-					),
-				}),
-			),
-		})
-
-		engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-			// PrintOperationTransformations: true,
-			// PrintPlanningPaths:            true,
-			// PrintQueryPlans:               true,
-			// ConfigurationVisitor:          true,
-			// PlanningVisitor:               true,
-			// DatasourceVisitor:             true,
-		}
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		var opts _executionTestOptions
-		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-			MaxConcurrency:               1024,
-			ResolvableOptions:            opts.resolvableOptions,
-			PropagateSubgraphErrors:      true,
-			SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
-		})
-		require.NoError(t, err)
-
-		// operation := graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
-
-		query := "query UserQuery { users { id name } }"
-		operation := graphql.Request{
-			OperationName: "UserQuery",
-			Variables:     nil,
-			Query:         query,
-		}
-
-		resultWriter := graphql.NewEngineResultWriter()
-
-		execCtx, execCtxCancel := context.WithCancel(context.Background())
-		defer execCtxCancel()
-
-		err = engine.Execute(execCtx, &operation, &resultWriter)
-
-		actualResponse := resultWriter.String()
-
-		assert.JSONEq(t, `{
-			"errors": [
-				{
-					"message": "lalalala"
-				}
-			],
-			"data": {
-				"hero": null
-			}
-		}`, actualResponse)
-	})
 
 	t.Run("apollo router compatibility subrequest HTTP error enabled", runWithoutError(
 		ExecutionEngineTestCase{

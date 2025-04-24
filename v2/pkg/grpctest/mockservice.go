@@ -1,4 +1,4 @@
-package testdata
+package grpctest
 
 import (
 	context "context"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata/productv1"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

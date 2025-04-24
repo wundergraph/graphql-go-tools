@@ -14,8 +14,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource/testdata/productv1"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -64,7 +64,7 @@ func Test_DataSource_Load(t *testing.T) {
 	report := &operationreport.Report{}
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -87,7 +87,7 @@ func Test_DataSource_Load(t *testing.T) {
 	ds, err := NewDataSource(mi, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  testdata.ProtoSchema(t),
+		ProtoSchema:  grpctest.ProtoSchema(t),
 		SubgraphName: "Products",
 	})
 
@@ -115,7 +115,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	server := grpc.NewServer()
 
 	// Register our mock service implementation
-	mockService := &testdata.MockService{}
+	mockService := &grpctest.MockService{}
 	productv1.RegisterProductServiceServer(server, mockService)
 
 	// Start the server in a goroutine
@@ -143,7 +143,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -167,7 +167,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  testdata.ProtoSchema(t),
+		ProtoSchema:  grpctest.ProtoSchema(t),
 		SubgraphName: "Products",
 	})
 	require.NoError(t, err)
@@ -209,7 +209,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	server := grpc.NewServer()
 
 	// Register our mock service implementation
-	mockService := &testdata.MockService{}
+	mockService := &grpctest.MockService{}
 	productv1.RegisterProductServiceServer(server, mockService)
 
 	// Start the server in a goroutine
@@ -244,7 +244,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -268,7 +268,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  testdata.ProtoSchema(t),
+		ProtoSchema:  grpctest.ProtoSchema(t),
 		SubgraphName: "Products",
 	})
 	require.NoError(t, err)
@@ -330,7 +330,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 
 	// Create and start the gRPC server
 	server := grpc.NewServer()
-	mockService := &testdata.MockService{}
+	mockService := &grpctest.MockService{}
 	productv1.RegisterProductServiceServer(server, mockService)
 
 	go func() {
@@ -355,7 +355,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	// 4. Parse the schema and query
 	report := &operationreport.Report{}
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(testdata.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
 	astparser.NewParser().Parse(schemaDoc, report)
 	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
 
@@ -371,7 +371,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  testdata.ProtoSchema(t),
+		ProtoSchema:  grpctest.ProtoSchema(t),
 		SubgraphName: "Products",
 	})
 	require.NoError(t, err)
@@ -459,7 +459,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 		},
 	}
 
-	compiler, err := NewProtoCompiler(testdata.ProtoSchema(t))
+	compiler, err := NewProtoCompiler(grpctest.ProtoSchema(t))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
