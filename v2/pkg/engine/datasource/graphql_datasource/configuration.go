@@ -19,6 +19,8 @@ type ConfigurationInput struct {
 	Subscription           *SubscriptionConfiguration
 	SchemaConfiguration    *SchemaConfiguration
 	CustomScalarTypeFields []SingleTypeField
+
+	GRPC *grpcdatasource.GRPCConfiguration
 }
 
 type Configuration struct {
@@ -26,7 +28,8 @@ type Configuration struct {
 	subscription           *SubscriptionConfiguration
 	schemaConfiguration    SchemaConfiguration
 	customScalarTypeFields []SingleTypeField
-	grpcMapping            *grpcdatasource.GRPCMapping
+
+	grpc *grpcdatasource.GRPCConfiguration
 }
 
 func NewConfiguration(input ConfigurationInput) (Configuration, error) {
@@ -43,8 +46,8 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
-	if input.Fetch == nil && input.Subscription == nil {
-		return Configuration{}, errors.New("fetch or subscription configuration is required")
+	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil {
+		return Configuration{}, errors.New("fetch or subscription or grpc configuration is required")
 	}
 
 	if input.Fetch != nil {
@@ -69,6 +72,10 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 		}
 	}
 
+	if input.GRPC != nil {
+		cfg.grpc = input.GRPC
+	}
+
 	return cfg, nil
 }
 
@@ -86,6 +93,10 @@ func (c *Configuration) IsFederationEnabled() bool {
 
 func (c *Configuration) FederationConfiguration() *FederationConfiguration {
 	return c.schemaConfiguration.federation
+}
+
+func (c *Configuration) IsGRPC() bool {
+	return c.grpc != nil
 }
 
 type SingleTypeField struct {

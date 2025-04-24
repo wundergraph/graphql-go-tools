@@ -104,8 +104,8 @@ message QueryRecursiveTypeResponse {
 }
 
 message QueryTypeFilterWithArgumentsRequest {
-  string filter_field1 = 1;
-  string filter_field2 = 2;
+  string filter_field_1 = 1;
+  string filter_field_2 = 2;
 }
 
 message QueryTypeFilterWithArgumentsResponse {
@@ -171,8 +171,8 @@ message RecursiveType {
 message TypeWithMultipleFilterFields {
   string id = 1;
   string name = 2;
-  string filter_field1 = 3;
-  string filter_field2 = 4;
+  string filter_field_1 = 3;
+  string filter_field_2 = 4;
 }
 
 message TypeWithComplexFilterInput {
@@ -186,14 +186,14 @@ message ComplexFilterTypeInput {
 
 message FilterTypeInput {
   string name = 1;
-  string filter_field1 = 2;
-  string filter_field2 = 3;
+  string filter_field_1 = 2;
+  string filter_field_2 = 3;
 }
 
 message FilterType {
   string name = 1;
-  string filter_field1 = 2;
-  string filter_field2 = 3;
+  string filter_field_1 = 2;
+  string filter_field_2 = 3;
   Pagination pagination = 4;
 }
 

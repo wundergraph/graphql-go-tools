@@ -40,7 +40,7 @@ func (m mockInterface) Invoke(ctx context.Context, method string, args any, repl
 	// Based on the method name, populate the response with appropriate test data
 	if strings.HasSuffix(method, "QueryComplexFilterType") {
 		// Populate the response with test data using protojson.Unmarshal
-		responseJSON := []byte(`{"typeWithComplexFilterInput":[{"id":"test-id-123", "name":"Test Product"}]}`)
+		responseJSON := []byte(`{"complexFilterType":[{"id":"test-id-123", "name":"Test Product"}]}`)
 		err := protojson.Unmarshal(responseJSON, msg)
 		if err != nil {
 			return err

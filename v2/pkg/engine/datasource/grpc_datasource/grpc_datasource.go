@@ -79,7 +79,17 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	// get invocations from plan
 	invocations, err := d.rc.Compile(d.Plan, variables)
 	if err != nil {
-		return err
+		a := astjson.Arena{}
+		errorRoot := a.NewObject()
+		errorArray := a.NewArray()
+		errorRoot.Set("errors", errorArray)
+
+		errorItem := a.NewObject()
+		errorItem.Set("message", a.NewString(err.Error()))
+		errorArray.SetArrayItem(0, errorItem)
+
+		out.Write(errorRoot.MarshalTo(nil))
+		return nil
 	}
 
 	invocationGroups := make(map[int][]Invocation)

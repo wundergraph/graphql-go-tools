@@ -26,6 +26,12 @@ type GRPCMapping struct {
 	Fields map[string]FieldMap
 }
 
+type GRPCConfiguration struct {
+	Mapping      *GRPCMapping
+	ProtoSchema  string
+	SubgraphName string
+}
+
 // RPCConfig defines the configuration for a specific RPC operation
 type RPCConfig struct {
 	// RPC is the name of the RPC method to call

@@ -7,6 +7,7 @@ import (
 	"github.com/bufbuild/protocompile"
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 )
@@ -158,6 +159,7 @@ type EnumValue struct {
 type RPCCompiler struct {
 	doc      *Document // The compiled Document
 	Ancestor []Message
+	report   operationreport.Report
 }
 
 // ServiceByName returns a Service by its name.
@@ -263,6 +265,7 @@ func NewProtoCompiler(schema string) (*RPCCompiler, error) {
 		doc: &Document{
 			Package: string(f.Package()),
 		},
+		report: operationreport.Report{},
 	}
 
 	// Extract information from the compiled file descriptor
@@ -316,6 +319,10 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 			request := p.buildProtoMessage(inputMessage, &call.Request, inputData.Get("variables"))
 			response := p.newEmptyMessage(outputMessage)
 
+			if p.report.HasErrors() {
+				return nil, fmt.Errorf("failed to compile invocation: %w", p.report)
+			}
+
 			invocations = append(invocations, Invocation{
 				GroupIndex:  i,
 				ServiceName: p.resolveServiceName(call.MethodName),
@@ -344,6 +351,11 @@ func (p *RPCCompiler) resolveServiceName(methodName string) string {
 
 // newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.
 func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
+	if p.doc.MessageRefByName(message.Name) == -1 {
+		p.report.AddInternalError(fmt.Errorf("message %s not found in document", message.Name))
+		return nil
+	}
+
 	return dynamicpb.NewMessage(message.Desc)
 }
 
@@ -352,6 +364,11 @@ func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
 // TODO provide a way to have data
 func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) *dynamicpb.Message {
 	if rpcMessage == nil {
+		return nil
+	}
+
+	if p.doc.MessageRefByName(inputMessage.Name) == -1 {
+		p.report.AddInternalError(fmt.Errorf("message %s not found in document", inputMessage.Name))
 		return nil
 	}
 
