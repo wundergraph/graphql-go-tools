@@ -14,22 +14,22 @@ import (
 )
 
 type Context struct {
-	ctx              context.Context
-	Variables        *astjson.Value
-	Files            []*httpclient.FileUpload
-	Request          Request
-	RenameTypeNames  []RenameTypeName
-	RemapVariables   map[string]string
-	TracingOptions   TraceOptions
-	RateLimitOptions RateLimitOptions
-	ExecutionOptions ExecutionOptions
-	InitialPayload   []byte
-	Extensions       []byte
-	LoaderHooks      LoaderHooks
-
+	ctx               context.Context
+	Variables         *astjson.Value
+	Files             []*httpclient.FileUpload
+	Request           Request
+	RenameTypeNames   []RenameTypeName
+	RemapVariables    map[string]string
 	AuthorizerOptions AuthorizerOptions
-	authorizer        Authorizer
-	rateLimiter       RateLimiter
+	TracingOptions    TraceOptions
+	RateLimitOptions  RateLimitOptions
+	ExecutionOptions  ExecutionOptions
+	InitialPayload    []byte
+	Extensions        []byte
+	LoaderHooks       LoaderHooks
+
+	authorizer  Authorizer
+	rateLimiter RateLimiter
 
 	subgraphErrors error
 }

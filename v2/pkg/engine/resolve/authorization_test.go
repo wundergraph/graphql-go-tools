@@ -170,7 +170,6 @@ func TestAuthorization(t *testing.T) {
 				require.Nil(t, resolveCtx.subgraphErrors)
 			}
 	}))
-
 	t.Run("no authorization rules/checks", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 
 		authorizer := createTestAuthorizer(func(ctx *Context, dataSourceID string, input json.RawMessage, coordinate GraphCoordinate) (result *AuthorizationDeny, err error) {
@@ -506,7 +505,6 @@ func TestAuthorization(t *testing.T) {
 		return res, Context{ctx: context.Background(), Variables: nil, authorizer: authorizer},
 			`{"errors":[{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",0,"product","data","name"]},{"message":"Unauthorized to load field 'Query.me.reviews.product.data.name', Reason: Not allowed to fetch name on Product.","path":["me","reviews",1,"product","data","name"]}],"data":{"me":{"id":"1234","username":"Me","reviews":[null,null]}}}`
 	}))
-
 }
 
 func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller) *GraphQLResponse {
