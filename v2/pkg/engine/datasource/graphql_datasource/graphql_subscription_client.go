@@ -208,7 +208,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 
 	// Defaults
 	op := &opts{
-		readTimeout:  time.Second * 1,
+		readTimeout:  1 * time.Second,
 		pingInterval: 10 * time.Second,
 		pingTimeout:  5 * time.Second,
 		log:          abstractlogger.NoopLogger,
