@@ -47,6 +47,53 @@ func ProtoSchema(t *testing.T) string {
 	return string(protoBytes)
 }
 
+var FieldConfigurations plan.FieldConfigurations = plan.FieldConfigurations{
+	{
+		TypeName:  "Query",
+		FieldName: "user",
+		Arguments: []plan.ArgumentConfiguration{
+			{
+				Name:       "id",
+				SourceType: plan.FieldArgumentSource,
+			},
+		},
+	},
+	{
+		TypeName:  "Query",
+		FieldName: "typeFilterWithArguments",
+		Arguments: []plan.ArgumentConfiguration{
+			{
+				Name:       "filterField1",
+				SourceType: plan.FieldArgumentSource,
+			},
+			{
+				Name:       "filterField2",
+				SourceType: plan.FieldArgumentSource,
+			},
+		},
+	},
+	{
+		TypeName:  "Query",
+		FieldName: "typeWithMultipleFilterFields",
+		Arguments: []plan.ArgumentConfiguration{
+			{
+				Name:       "filter",
+				SourceType: plan.FieldArgumentSource,
+			},
+		},
+	},
+	{
+		TypeName:  "Query",
+		FieldName: "complexFilterType",
+		Arguments: []plan.ArgumentConfiguration{
+			{
+				Name:       "filter",
+				SourceType: plan.FieldArgumentSource,
+			},
+		},
+	},
+}
+
 var DataSourceMetadata = &plan.DataSourceMetadata{
 	RootNodes: plan.TypeFields{
 		{
