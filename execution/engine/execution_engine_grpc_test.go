@@ -126,7 +126,7 @@ func withGRPCMapping(mapping *grpcdatasource.GRPCMapping) func(*executeOpts) {
 	}
 }
 
-func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operation graphql.Request, execOpts ...func(*executeOpts)) string {
+func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operation graphql.Request, execOpts ...func(*executeOpts)) (string, error) {
 	t.Helper()
 
 	executeOpts := &executeOpts{
@@ -136,28 +136,50 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 		opt(executeOpts)
 	}
 
-	schema := grpctest.GraphQLSchema(t)
-	engineConf := NewConfiguration(schema)
-	engineConf.SetDataSources([]plan.DataSource{
-		mustGraphqlDataSourceConfiguration(t,
-			"id",
-			mustFactoryGRPC(t, grpcClient),
-			grpctest.DataSourceMetadata,
-			mustConfiguration(t, graphql_datasource.ConfigurationInput{
-				GRPC: &grpcdatasource.GRPCConfiguration{
-					ProtoSchema:  grpctest.ProtoSchema(t),
-					Mapping:      executeOpts.grpcMapping,
-					SubgraphName: "Products",
-				},
-				SchemaConfiguration: mustSchemaConfig(
-					t,
-					nil,
-					string(schema.RawSchema()),
-				),
-			}),
+	factory, err := graphql_datasource.NewFactoryGRPC(context.Background(), grpcClient)
+	if err != nil {
+		return "", fmt.Errorf("failed to create factory: %w", err)
+	}
+
+	schema, err := grpctest.GraphQLSchema()
+	if err != nil {
+		return "", fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	protoSchema, err := grpctest.ProtoSchema()
+	if err != nil {
+		return "", fmt.Errorf("failed to create proto schema: %w", err)
+	}
+
+	cfg, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
+		GRPC: &grpcdatasource.GRPCConfiguration{
+			ProtoSchema:  protoSchema,
+			Mapping:      executeOpts.grpcMapping,
+			SubgraphName: "Products",
+		},
+		SchemaConfiguration: mustSchemaConfig(
+			t,
+			nil,
+			string(schema.RawSchema()),
 		),
 	})
-	engineConf.SetFieldConfigurations(grpctest.FieldConfigurations)
+	if err != nil {
+		return "", fmt.Errorf("failed to create configuration: %w", err)
+	}
+
+	dsCfg, err := plan.NewDataSourceConfiguration(
+		"id",
+		factory,
+		grpctest.GetDataSourceMetadata(),
+		cfg,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to create data source configuration: %w", err)
+	}
+
+	engineConf := NewConfiguration(schema)
+	engineConf.SetDataSources([]plan.DataSource{dsCfg})
+	engineConf.SetFieldConfigurations(grpctest.GetFieldConfigurations())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -169,7 +191,9 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 		PropagateSubgraphErrors:      true,
 		SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		return "", fmt.Errorf("failed to create execution engine: %w", err)
+	}
 
 	resultWriter := graphql.NewEngineResultWriter()
 
@@ -177,9 +201,13 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 	defer execCtxCancel()
 
 	err = engine.Execute(execCtx, &operation, &resultWriter)
-	require.NoError(t, err)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute operation: %w", err)
+	}
 
-	return resultWriter.String()
+	response := resultWriter.String()
+
+	return response, nil
 }
 
 func TestGRPCSubgraphExecution(t *testing.T) {
@@ -192,7 +220,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         "query UserQuery { users { id name } }",
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`, response)
 	})
 
@@ -212,7 +241,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			`,
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"user":{"id":"1","name":"User 1"}}}`, response)
 	})
 
@@ -238,7 +268,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			`,
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"test"}]}}`, response)
 	})
 
@@ -248,7 +279,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
 		}
 
-		response := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
 			InputArguments: map[string]grpcdatasource.InputArgumentMap{
 				"typeFilterWithArguments": {
 					"filterField1": "filter_field1",
@@ -266,6 +297,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 				},
 			},
 		}))
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"typeFilterWithArguments":[{"id":"multi-filter-1","name":"MultiFilter 1","filterField1":"","filterField2":""},{"id":"multi-filter-2","name":"MultiFilter 2","filterField1":"","filterField2":""}]}}`, response)
 	})
 
@@ -275,7 +307,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query ComplexFilterTypeQuery { complexFilterType(filter: { filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } } }) { id name } }`,
 		}
 
-		response := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
 			Fields: map[string]grpcdatasource.FieldMap{
 				"FilterType": {
 					"filterField1": {
@@ -292,6 +324,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 				},
 			},
 		}))
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"test"}]}}`, response)
 	})
 
@@ -310,7 +343,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query: `query ComplexFilterTypeQuery($foobar: ComplexFilterTypeInput!) { complexFilterType(filter: $foobar) { id name } }`,
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"test"}]}}`, response)
 	})
 
@@ -326,7 +360,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query: `query TypeWithMultipleFilterFieldsQuery($filter: FilterTypeInput!) { typeWithMultipleFilterFields(filter: $filter) { id name } }`,
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"typeWithMultipleFilterFields":[{"id":"filtered-1","name":" 1"},{"id":"filtered-2","name":" 2"}]}}`, response)
 	})
 
@@ -336,7 +371,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query NestedTypeQuery { nestedType { id name b { id name c { id name } } } }`,
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"nestedType":[{"id":"nested-a-1","name":"Nested A 1","b":{"id":"nested-b-1","name":"Nested B 1","c":{"id":"nested-c-1","name":"Nested C 1"}}},{"id":"nested-a-2","name":"Nested A 2","b":{"id":"nested-b-2","name":"Nested B 2","c":{"id":"nested-c-2","name":"Nested C 2"}}}]}}`, response)
 	})
 
@@ -346,7 +382,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name recursiveType { id name } } name } } }`,
 		}
 
-		response := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation)
+		require.NoError(t, err)
 		require.Equal(t, `{"data":{"nestedType":[{"id":"nested-a-1","name":"Nested A 1","b":{"id":"nested-b-1","name":"Nested B 1","c":{"id":"nested-c-1","name":"Nested C 1"}}},{"id":"nested-a-2","name":"Nested A 2","b":{"id":"nested-b-2","name":"Nested B 2","c":{"id":"nested-c-2","name":"Nested C 2"}}}]}}`, response)
 	})
 
@@ -358,7 +395,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query UserQuery { user(id: "1") { id name } }`,
 		}
 
-		executeOperation(t, conn, operation, withGRPCMapping(
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(
 			&grpcdatasource.GRPCMapping{
 				QueryRPCs: map[string]grpcdatasource.RPCConfig{
 					"user": {
@@ -369,5 +406,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 				},
 			},
 		))
+
+		require.Nil(t, response)
+		require.NoError(t, err)
 	})
 }
