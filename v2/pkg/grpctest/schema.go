@@ -1,123 +1,137 @@
 package grpctest
 
 import (
-	"os"
-	"path/filepath"
-	"runtime"
+	"embed"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
-var UpstreamSchema = `
-	scalar ID
-	scalar String
-	scalar Float
+//go:embed testdata product.proto
+var grpcTestData embed.FS
 
-type Product @key(fields: "id") {
-	id: ID!
-	name: String!
-	price: Float!
-	shippingEstimate(input: ShippingEstimateInput!): Float!
-}
-
-type Storage @key(fields: "id") {
-	id: ID!
-	name: String!
-	location: String!
-}
-
-type User {
-	id: ID!
-	name: String!
-}
-
-type NestedTypeA {
-	id: ID!
-	name: String!
-	b: NestedTypeB!
-}
-
-type NestedTypeB {
-	id: ID!
-	name: String!
-	c: NestedTypeC!
-}
-
-type NestedTypeC {
-	id: ID!
-	name: String!
-}
-
-type RecursiveType {
-	id: ID!
-	name: String!
-	recursiveType: RecursiveType!
-}
-
-type TypeWithMultipleFilterFields {
-	id: ID!
-	name: String!
-	filterField1: String!
-	filterField2: String!
-}
-
-input FilterTypeInput {
-	filterField1: String!
-	filterField2: String!
-}
-
-type TypeWithComplexFilterInput {
-	id: ID!
-	name: String!
-}
-
-input FilterType {
-	name: String!
-	filterField1: String!
-	filterField2: String!
-	pagination: Pagination!
-}
-
-input Pagination {
-	page: Int!
-	perPage: Int!
-}
-
-input ComplexFilterTypeInput {
-	filter: FilterType!
-}
-
-
-type Query {
-	_entities(representations: [_Any!]!): [_Entity!]!
-	users: [User!]!
-	user(id: ID!): User
-	nestedType: [NestedTypeA!]!
-	recursiveType: RecursiveType!
-	typeFilterWithArguments(filterField1: String!, filterField2: String!): [TypeWithMultipleFilterFields!]!
-	typeWithMultipleFilterFields(filter: FilterTypeInput!): [TypeWithMultipleFilterFields!]!
-	complexFilterType(filter: ComplexFilterTypeInput!): [TypeWithComplexFilterInput!]!
-}
-
-union _Entity = Product | Storage
-scalar _Any
-`
-
-var ProtoSchema = func(t *testing.T) string {
-	// get current directory with runtime.Caller
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatalf("failed to get current directory")
-	}
-
-	dir := filepath.Dir(filename)
-
-	content, err := os.ReadFile(filepath.Join(dir, "product.proto"))
+func getSchemaBytes() ([]byte, error) {
+	graphqlBytes, err := grpcTestData.ReadFile("testdata/products.graphqls")
 	if err != nil {
-		t.Fatalf("failed to read product.proto: %v", err)
+		return nil, fmt.Errorf("failed to read schema file: %w", err)
 	}
+	return graphqlBytes, nil
+}
 
-	require.NotEmpty(t, content, "product.proto is empty")
-	return string(content)
+func getProtoBytes() ([]byte, error) {
+	protoBytes, err := grpcTestData.ReadFile("product.proto")
+	if err != nil {
+		return nil, fmt.Errorf("failed to read proto file: %w", err)
+	}
+	return protoBytes, nil
+}
+
+func GraphQLSchema(t *testing.T) *graphql.Schema {
+	schemaBytes, err := getSchemaBytes()
+	require.NoError(t, err)
+	require.NotEmpty(t, schemaBytes, "graphql schema is empty")
+
+	schema, err := graphql.NewSchemaFromBytes(schemaBytes)
+	require.NoError(t, err)
+
+	return schema
+}
+
+func ProtoSchema(t *testing.T) string {
+	protoBytes, err := getProtoBytes()
+	require.NoError(t, err)
+
+	return string(protoBytes)
+}
+
+var DataSourceMetadata = &plan.DataSourceMetadata{
+	RootNodes: plan.TypeFields{
+		{
+			TypeName: "Product",
+			FieldNames: []string{
+				"id",
+				"name",
+				"price",
+			},
+		},
+		{
+			TypeName: "Storage",
+			FieldNames: []string{
+				"id",
+				"name",
+				"location",
+			},
+		},
+		{
+			TypeName: "Query",
+			FieldNames: []string{
+				"users",
+				"user",
+				"nestedType",
+				"recursiveType",
+				"typeFilterWithArguments",
+				"typeWithMultipleFilterFields",
+				"complexFilterType",
+			},
+		},
+	},
+	ChildNodes: plan.TypeFields{
+		{
+			TypeName: "User",
+			FieldNames: []string{
+				"id",
+				"name",
+			},
+		},
+		{
+			TypeName: "NestedTypeA",
+			FieldNames: []string{
+				"id",
+				"name",
+				"b",
+			},
+		},
+		{
+			TypeName: "NestedTypeB",
+			FieldNames: []string{
+				"id",
+				"name",
+				"c",
+			},
+		},
+		{
+			TypeName: "NestedTypeC",
+			FieldNames: []string{
+				"id",
+				"name",
+			},
+		},
+		{
+			TypeName: "RecursiveType",
+			FieldNames: []string{
+				"id",
+				"name",
+				"recursiveType",
+			},
+		},
+		{
+			TypeName: "TypeWithMultipleFilterFields",
+			FieldNames: []string{
+				"id",
+				"name",
+				"filterField1",
+				"filterField2",
+			},
+		},
+		{
+			TypeName: "TypeWithComplexFilterInput",
+			FieldNames: []string{
+				"id",
+				"name",
+			},
+		},
+	},
 }

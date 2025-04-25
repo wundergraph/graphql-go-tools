@@ -78,7 +78,6 @@ func (p *mockPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, 
 
 type GRPCTestCase struct {
 	dataSources      []plan.DataSource
-	protoSchema      string
 	operation        graphql.Request
 	schema           *graphql.Schema
 	expectedResponse string
@@ -158,7 +157,6 @@ func TestExecutionEngineGRPC(t *testing.T) {
 					}),
 				),
 			},
-			protoSchema:      protoSchema,
 			operation:        graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t),
 			expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph 'id'.","extensions":{"errors":[{"message":"failed to compile invocation: internal: message  not found in document\ninternal: message  not found in document"}]}}],"data":{"hero":null}}`,
 		}
@@ -168,10 +166,7 @@ func TestExecutionEngineGRPC(t *testing.T) {
 
 	t.Run("grpc working with mocked grpc client", func(t *testing.T) {
 		protoSchema := grpctest.ProtoSchema(t)
-		graphqlSchema := grpctest.UpstreamSchema
-
-		schema, err := graphql.NewSchemaFromString(grpctest.UpstreamSchema)
-		require.NoError(t, err)
+		graphqlSchema := grpctest.GraphQLSchema(t)
 
 		operation := graphql.Request{
 			OperationName: "UserQuery",
@@ -180,29 +175,14 @@ func TestExecutionEngineGRPC(t *testing.T) {
 		}
 
 		tc := GRPCTestCase{
-			schema:           schema,
-			protoSchema:      protoSchema,
+			schema:           graphqlSchema,
 			operation:        operation,
 			expectedResponse: `{"data":{"users":[{"id":"test-id-123","name":"Test Product"}]}}`,
 			dataSources: []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
 					"id",
 					mustFactoryGRPC(t, newTestGRPCClient(t)),
-					&plan.DataSourceMetadata{
-						// query UserQuery { users { id name } }
-						RootNodes: []plan.TypeField{
-							{
-								TypeName:   "Query",
-								FieldNames: []string{"users"},
-							},
-						},
-						ChildNodes: []plan.TypeField{
-							{
-								TypeName:   "User",
-								FieldNames: []string{"id", "name"},
-							},
-						},
-					},
+					grpctest.DataSourceMetadata,
 					mustConfiguration(t, graphql_datasource.ConfigurationInput{
 						GRPC: &grpcdatasource.GRPCConfiguration{
 							ProtoSchema:  protoSchema,
@@ -212,7 +192,7 @@ func TestExecutionEngineGRPC(t *testing.T) {
 						SchemaConfiguration: mustSchemaConfig(
 							t,
 							nil,
-							string(graphqlSchema),
+							string(graphqlSchema.RawSchema()),
 						),
 					}),
 				),
@@ -221,103 +201,85 @@ func TestExecutionEngineGRPC(t *testing.T) {
 
 		runGRPCTestCase(t, tc)
 	})
-}
 
-func TestGRPCPlugin(t *testing.T) {
-	// Skip if not in CI environment to avoid plugin compilation issues
-	if os.Getenv("CI") == "" && testing.Short() {
-		t.Skip("Skipping plugin test in short mode and non-CI environment")
-	}
+	t.Run("with real plugin", func(t *testing.T) {
+		// Skip if not in CI environment to avoid plugin compilation issues
+		if os.Getenv("CI") == "" && testing.Short() {
+			t.Skip("Skipping plugin test in short mode and non-CI environment")
+		}
 
-	// Find the plugin binary path
-	pluginPath, err := findOrBuildPluginBinary(t)
-	if err != nil {
-		t.Fatalf("failed to find or build plugin binary: %v", err)
-	}
+		// Find the plugin binary path
+		pluginPath, err := findOrBuildPluginBinary(t)
+		if err != nil {
+			t.Fatalf("failed to find or build plugin binary: %v", err)
+		}
 
-	t.Logf("Using plugin binary: %s", pluginPath)
+		t.Logf("Using plugin binary: %s", pluginPath)
 
-	// Start the plugin
-	handshakeConfig := plugin.HandshakeConfig{
-		ProtocolVersion:  1,
-		MagicCookieKey:   "GRPC_DATASOURCE_PLUGIN",
-		MagicCookieValue: "Foobar",
-	}
+		// Start the plugin
+		handshakeConfig := plugin.HandshakeConfig{
+			ProtocolVersion:  1,
+			MagicCookieKey:   "GRPC_DATASOURCE_PLUGIN",
+			MagicCookieValue: "Foobar",
+		}
 
-	// Create the client
-	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig:  handshakeConfig,
-		Plugins:          map[string]plugin.Plugin{"grpc_datasource": &mockPlugin{}},
-		Cmd:              exec.Command(pluginPath),
-		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+		// Create the client
+		client := plugin.NewClient(&plugin.ClientConfig{
+			HandshakeConfig:  handshakeConfig,
+			Plugins:          map[string]plugin.Plugin{"grpc_datasource": &mockPlugin{}},
+			Cmd:              exec.Command(pluginPath),
+			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+		})
+		defer client.Kill()
+
+		// Connect to the plugin
+		rpcClient, err := client.Client()
+		require.NoError(t, err)
+
+		// Request the plugin
+		raw, err := rpcClient.Dispense("grpc_datasource")
+		require.NoError(t, err)
+
+		// Convert to gRPC client connection
+		conn, ok := raw.(grpc.ClientConnInterface)
+		require.True(t, ok, "expected grpc.ClientConnInterface")
+
+		protoSchema := grpctest.ProtoSchema(t)
+		graphqlSchema := grpctest.GraphQLSchema(t)
+
+		operation := graphql.Request{
+			OperationName: "UserQuery",
+			Variables:     nil,
+			Query:         "query UserQuery { users { id name } }",
+		}
+
+		tc := GRPCTestCase{
+			schema:           graphqlSchema,
+			operation:        operation,
+			expectedResponse: `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`,
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactoryGRPC(t, conn),
+					grpctest.DataSourceMetadata,
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						GRPC: &grpcdatasource.GRPCConfiguration{
+							ProtoSchema:  protoSchema,
+							Mapping:      &grpcdatasource.GRPCMapping{},
+							SubgraphName: "Products",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphqlSchema.RawSchema()),
+						),
+					}),
+				),
+			},
+		}
+
+		runGRPCTestCase(t, tc)
 	})
-	defer client.Kill()
-
-	// Connect to the plugin
-	rpcClient, err := client.Client()
-	require.NoError(t, err)
-
-	// Request the plugin
-	raw, err := rpcClient.Dispense("grpc_datasource")
-	require.NoError(t, err)
-
-	// Convert to gRPC client connection
-	conn, ok := raw.(grpc.ClientConnInterface)
-	require.True(t, ok, "expected grpc.ClientConnInterface")
-
-	protoSchema := grpctest.ProtoSchema(t)
-	graphqlSchema := grpctest.UpstreamSchema
-
-	schema, err := graphql.NewSchemaFromString(grpctest.UpstreamSchema)
-	require.NoError(t, err)
-
-	operation := graphql.Request{
-		OperationName: "UserQuery",
-		Variables:     nil,
-		Query:         "query UserQuery { users { id name } }",
-	}
-
-	tc := GRPCTestCase{
-		schema:           schema,
-		protoSchema:      protoSchema,
-		operation:        operation,
-		expectedResponse: `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`,
-		dataSources: []plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id",
-				mustFactoryGRPC(t, conn),
-				&plan.DataSourceMetadata{
-					// query UserQuery { users { id name } }
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"users"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "name"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					GRPC: &grpcdatasource.GRPCConfiguration{
-						ProtoSchema:  protoSchema,
-						Mapping:      &grpcdatasource.GRPCMapping{},
-						SubgraphName: "Products",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						nil,
-						string(graphqlSchema),
-					),
-				}),
-			),
-		},
-	}
-
-	runGRPCTestCase(t, tc)
 }
 
 // Helper function to find or build the plugin binary
