@@ -64,7 +64,7 @@ func Test_DataSource_Load(t *testing.T) {
 	report := &operationreport.Report{}
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -143,7 +143,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -244,7 +244,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -355,7 +355,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	// 4. Parse the schema and query
 	report := &operationreport.Report{}
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
+	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
 

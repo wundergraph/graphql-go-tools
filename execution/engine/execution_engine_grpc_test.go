@@ -247,38 +247,75 @@ func TestExecutionEngineGRPC(t *testing.T) {
 		protoSchema := grpctest.ProtoSchema(t)
 		graphqlSchema := grpctest.GraphQLSchema(t)
 
-		operation := graphql.Request{
-			OperationName: "UserQuery",
-			Variables:     nil,
-			Query:         "query UserQuery { users { id name } }",
-		}
+		t.Run("running simple query", func(t *testing.T) {
+			operation := graphql.Request{
+				OperationName: "UserQuery",
+				Variables:     nil,
+				Query:         "query UserQuery { users { id name } }",
+			}
 
-		tc := GRPCTestCase{
-			schema:           graphqlSchema,
-			operation:        operation,
-			expectedResponse: `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`,
-			dataSources: []plan.DataSource{
-				mustGraphqlDataSourceConfiguration(t,
-					"id",
-					mustFactoryGRPC(t, conn),
-					grpctest.DataSourceMetadata,
-					mustConfiguration(t, graphql_datasource.ConfigurationInput{
-						GRPC: &grpcdatasource.GRPCConfiguration{
-							ProtoSchema:  protoSchema,
-							Mapping:      &grpcdatasource.GRPCMapping{},
-							SubgraphName: "Products",
-						},
-						SchemaConfiguration: mustSchemaConfig(
-							t,
-							nil,
-							string(graphqlSchema.RawSchema()),
-						),
-					}),
-				),
-			},
-		}
+			tc := GRPCTestCase{
+				schema:           graphqlSchema,
+				operation:        operation,
+				expectedResponse: `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`,
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactoryGRPC(t, conn),
+						grpctest.DataSourceMetadata,
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							GRPC: &grpcdatasource.GRPCConfiguration{
+								ProtoSchema:  protoSchema,
+								Mapping:      &grpcdatasource.GRPCMapping{},
+								SubgraphName: "Products",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(graphqlSchema.RawSchema()),
+							),
+						}),
+					),
+				},
+			}
 
-		runGRPCTestCase(t, tc)
+			runGRPCTestCase(t, tc)
+		})
+
+		t.Run("running complex query", func(t *testing.T) {
+			operation := graphql.Request{
+				OperationName: "UserQuery",
+				Variables:     nil,
+				Query:         "query UserQuery { users { id name } }",
+			}
+
+			tc := GRPCTestCase{
+				schema:           graphqlSchema,
+				operation:        operation,
+				expectedResponse: `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`,
+				dataSources: []plan.DataSource{
+					mustGraphqlDataSourceConfiguration(t,
+						"id",
+						mustFactoryGRPC(t, conn),
+						grpctest.DataSourceMetadata,
+						mustConfiguration(t, graphql_datasource.ConfigurationInput{
+							GRPC: &grpcdatasource.GRPCConfiguration{
+								ProtoSchema:  protoSchema,
+								Mapping:      &grpcdatasource.GRPCMapping{},
+								SubgraphName: "Products",
+							},
+							SchemaConfiguration: mustSchemaConfig(
+								t,
+								nil,
+								string(graphqlSchema.RawSchema()),
+							),
+						}),
+					),
+				},
+			}
+
+			runGRPCTestCase(t, tc)
+		})
 	})
 }
 

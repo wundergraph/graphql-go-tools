@@ -421,7 +421,7 @@ func TestEntityLookup(t *testing.T) {
 
 			// Parse the GraphQL schema
 			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
+			schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
 			astparser.NewParser().Parse(schemaDoc, report)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse schema: %s", report.Error())
@@ -1327,7 +1327,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 
 			// Parse the GraphQL schema
 			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(grpctest.UpstreamSchema)
+			schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
 			astparser.NewParser().Parse(schemaDoc, report)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse schema: %s", report.Error())
