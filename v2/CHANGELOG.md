@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.173](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.172...v2.0.0-rc.173) (2025-04-25)
+
+
+### Bug Fixes
+
+* use proper read timeout ([#1133](https://github.com/wundergraph/graphql-go-tools/issues/1133)) ([9a8f4aa](https://github.com/wundergraph/graphql-go-tools/commit/9a8f4aa99b007cfc69022992b8cf9aa150047a54))
+
 ## [2.0.0-rc.172](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.171...v2.0.0-rc.172) (2025-04-22)
 
 
