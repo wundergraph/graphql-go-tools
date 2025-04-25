@@ -316,7 +316,7 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 			inputMessage := p.doc.MessageByName(call.Request.Name)
 			outputMessage := p.doc.MessageByName(call.Response.Name)
 
-			request := p.buildProtoMessage(inputMessage, &call.Request, inputData.Get("variables"))
+			request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
 			response := p.newEmptyMessage(outputMessage)
 
 			if p.report.HasErrors() {

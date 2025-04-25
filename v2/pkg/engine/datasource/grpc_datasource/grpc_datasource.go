@@ -74,7 +74,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // TODO Implement this
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	// get variables from input
-	variables := gjson.Parse(string(input)).Get("variables")
+	variables := gjson.Parse(string(input)).Get("body.variables")
 
 	// get invocations from plan
 	invocations, err := d.rc.Compile(d.Plan, variables)
