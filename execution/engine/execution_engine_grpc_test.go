@@ -29,10 +29,11 @@ import (
 
 // mockGRPCProductsClient provides a simple implementation of grpc.ClientConnInterface for testing
 type mockGRPCProductsClient struct {
+	t *testing.T
 }
 
 func (m mockGRPCProductsClient) Invoke(ctx context.Context, method string, args any, reply any, opts ...grpc.CallOption) error {
-	fmt.Println(method, args, reply)
+	m.t.Log(method, args, reply)
 
 	msg, ok := reply.(*dynamicpb.Message)
 	if !ok {
@@ -56,6 +57,10 @@ func (m mockGRPCProductsClient) NewStream(ctx context.Context, desc *grpc.Stream
 	panic("implement me")
 }
 
+func newTestGRPCClient(t *testing.T) *mockGRPCProductsClient {
+	return &mockGRPCProductsClient{t: t}
+}
+
 var _ grpc.ClientConnInterface = (*mockGRPCProductsClient)(nil)
 
 // mockPlugin is the plugin implementation for the test
@@ -67,8 +72,46 @@ func (p *mockPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error
 	return nil
 }
 
-func (p *mockPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+func (p *mockPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (any, error) {
 	return c, nil
+}
+
+type GRPCTestCase struct {
+	dataSources      []plan.DataSource
+	protoSchema      string
+	operation        graphql.Request
+	schema           *graphql.Schema
+	expectedResponse string
+}
+
+func runGRPCTestCase(t *testing.T, tc GRPCTestCase) {
+	t.Helper()
+
+	engineConf := NewConfiguration(tc.schema)
+	engineConf.SetDataSources(tc.dataSources)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var opts _executionTestOptions
+	engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
+		MaxConcurrency:               1024,
+		ResolvableOptions:            opts.resolvableOptions,
+		PropagateSubgraphErrors:      true,
+		SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
+	})
+	require.NoError(t, err)
+
+	resultWriter := graphql.NewEngineResultWriter()
+
+	execCtx, execCtxCancel := context.WithCancel(context.Background())
+	defer execCtxCancel()
+
+	err = engine.Execute(execCtx, &tc.operation, &resultWriter)
+
+	actualResponse := resultWriter.String()
+
+	assert.Equal(t, tc.expectedResponse, actualResponse)
 }
 
 func TestExecutionEngineGRPC(t *testing.T) {
@@ -77,67 +120,50 @@ func TestExecutionEngineGRPC(t *testing.T) {
 		require.NoError(t, err)
 
 		protoSchema := grpctest.ProtoSchema(t)
+		graphqlSchema := graphql.StarwarsSchema(t)
 
-		engineConf := NewConfiguration(graphql.StarwarsSchema(t))
-		engineConf.SetDataSources([]plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id",
-				mustFactoryGRPC(t,
-					grpcClient,
-				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"hero"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Character",
-							FieldNames: []string{"name"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					GRPC: &grpcdatasource.GRPCConfiguration{
-						ProtoSchema:  protoSchema,
-						Mapping:      &grpcdatasource.GRPCMapping{},
-						SubgraphName: "Starwars",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						nil,
-						string(graphql.StarwarsSchema(t).RawSchema()),
+		tc := GRPCTestCase{
+			schema: graphqlSchema,
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactoryGRPC(t,
+						grpcClient,
 					),
-				}),
-			),
-		})
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						GRPC: &grpcdatasource.GRPCConfiguration{
+							ProtoSchema:  protoSchema,
+							Mapping:      &grpcdatasource.GRPCMapping{},
+							SubgraphName: "Starwars",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphqlSchema.RawSchema()),
+						),
+					}),
+				),
+			},
+			protoSchema:      protoSchema,
+			operation:        graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t),
+			expectedResponse: `{"errors":[{"message":"Failed to fetch from Subgraph 'id'.","extensions":{"errors":[{"message":"failed to compile invocation: internal: message  not found in document\ninternal: message  not found in document"}]}}],"data":{"hero":null}}`,
+		}
 
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		var opts _executionTestOptions
-		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-			MaxConcurrency:               1024,
-			ResolvableOptions:            opts.resolvableOptions,
-			PropagateSubgraphErrors:      true,
-			SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
-		})
-		require.NoError(t, err)
-
-		operation := graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil)(t)
-
-		resultWriter := graphql.NewEngineResultWriter()
-
-		execCtx, execCtxCancel := context.WithCancel(context.Background())
-		defer execCtxCancel()
-
-		err = engine.Execute(execCtx, &operation, &resultWriter)
-
-		actualResponse := resultWriter.String()
-
-		assert.Equal(t, `{"errors":[{"message":"Failed to fetch from Subgraph 'id'.","extensions":{"errors":[{"message":"failed to compile invocation: internal: message  not found in document\ninternal: message  not found in document"}]}}],"data":{"hero":null}}`, actualResponse)
+		runGRPCTestCase(t, tc)
 	})
 
 	t.Run("grpc working with mocked grpc client", func(t *testing.T) {
@@ -147,69 +173,53 @@ func TestExecutionEngineGRPC(t *testing.T) {
 		schema, err := graphql.NewSchemaFromString(grpctest.UpstreamSchema)
 		require.NoError(t, err)
 
-		engineConf := NewConfiguration(schema)
-		engineConf.SetDataSources([]plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id",
-				mustFactoryGRPC(t, mockGRPCProductsClient{}),
-				&plan.DataSourceMetadata{
-					// query UserQuery { users { id name } }
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"users"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "name"},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					GRPC: &grpcdatasource.GRPCConfiguration{
-						ProtoSchema:  protoSchema,
-						Mapping:      &grpcdatasource.GRPCMapping{},
-						SubgraphName: "Products",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						nil,
-						string(graphqlSchema),
-					),
-				}),
-			),
-		})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		var opts _executionTestOptions
-		engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-			MaxConcurrency:               1024,
-			ResolvableOptions:            opts.resolvableOptions,
-			PropagateSubgraphErrors:      true,
-			SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
-		})
-		require.NoError(t, err)
-
 		operation := graphql.Request{
 			OperationName: "UserQuery",
 			Variables:     nil,
 			Query:         "query UserQuery { users { id name } }",
 		}
 
-		resultWriter := graphql.NewEngineResultWriter()
+		tc := GRPCTestCase{
+			schema:           schema,
+			protoSchema:      protoSchema,
+			operation:        operation,
+			expectedResponse: `{"data":{"users":[{"id":"test-id-123","name":"Test Product"}]}}`,
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactoryGRPC(t, newTestGRPCClient(t)),
+					&plan.DataSourceMetadata{
+						// query UserQuery { users { id name } }
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"users"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						GRPC: &grpcdatasource.GRPCConfiguration{
+							ProtoSchema:  protoSchema,
+							Mapping:      &grpcdatasource.GRPCMapping{},
+							SubgraphName: "Products",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphqlSchema),
+						),
+					}),
+				),
+			},
+		}
 
-		execCtx, execCtxCancel := context.WithCancel(context.Background())
-		defer execCtxCancel()
-
-		err = engine.Execute(execCtx, &operation, &resultWriter)
-
-		actualResponse := resultWriter.String()
-
-		assert.Equal(t, `{"data":{"users":[{"id":"test-id-123","name":"Test Product"}]}}`, actualResponse)
+		runGRPCTestCase(t, tc)
 	})
 }
 
@@ -255,56 +265,10 @@ func TestGRPCPlugin(t *testing.T) {
 	conn, ok := raw.(grpc.ClientConnInterface)
 	require.True(t, ok, "expected grpc.ClientConnInterface")
 
+	protoSchema := grpctest.ProtoSchema(t)
+	graphqlSchema := grpctest.UpstreamSchema
+
 	schema, err := graphql.NewSchemaFromString(grpctest.UpstreamSchema)
-	require.NoError(t, err)
-
-	engineConf := NewConfiguration(schema)
-
-	engineConf.SetDataSources([]plan.DataSource{
-		mustGraphqlDataSourceConfiguration(t,
-			"id",
-			mustFactoryGRPC(t, conn),
-			// mustFactoryGRPC(t, mockGRPCProductsClient{}),
-			&plan.DataSourceMetadata{
-				// query UserQuery { users { id name } }
-				RootNodes: []plan.TypeField{
-					{
-						TypeName:   "Query",
-						FieldNames: []string{"users"},
-					},
-				},
-				ChildNodes: []plan.TypeField{
-					{
-						TypeName:   "User",
-						FieldNames: []string{"id", "name"},
-					},
-				},
-			},
-			mustConfiguration(t, graphql_datasource.ConfigurationInput{
-				GRPC: &grpcdatasource.GRPCConfiguration{
-					ProtoSchema:  grpctest.ProtoSchema(t),
-					Mapping:      &grpcdatasource.GRPCMapping{},
-					SubgraphName: "Products",
-				},
-				SchemaConfiguration: mustSchemaConfig(
-					t,
-					nil,
-					string(grpctest.UpstreamSchema),
-				),
-			}),
-		),
-	})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	var opts _executionTestOptions
-	engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
-		MaxConcurrency:               1024,
-		ResolvableOptions:            opts.resolvableOptions,
-		PropagateSubgraphErrors:      true,
-		SubgraphErrorPropagationMode: resolve.SubgraphErrorPropagationModeWrapped,
-	})
 	require.NoError(t, err)
 
 	operation := graphql.Request{
@@ -313,16 +277,47 @@ func TestGRPCPlugin(t *testing.T) {
 		Query:         "query UserQuery { users { id name } }",
 	}
 
-	resultWriter := graphql.NewEngineResultWriter()
+	tc := GRPCTestCase{
+		schema:           schema,
+		protoSchema:      protoSchema,
+		operation:        operation,
+		expectedResponse: `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`,
+		dataSources: []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id",
+				mustFactoryGRPC(t, conn),
+				&plan.DataSourceMetadata{
+					// query UserQuery { users { id name } }
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"users"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name"},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					GRPC: &grpcdatasource.GRPCConfiguration{
+						ProtoSchema:  protoSchema,
+						Mapping:      &grpcdatasource.GRPCMapping{},
+						SubgraphName: "Products",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						nil,
+						string(graphqlSchema),
+					),
+				}),
+			),
+		},
+	}
 
-	execCtx, execCtxCancel := context.WithCancel(context.Background())
-	defer execCtxCancel()
-
-	err = engine.Execute(execCtx, &operation, &resultWriter)
-
-	actualResponse := resultWriter.String()
-
-	assert.Equal(t, `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`, actualResponse)
+	runGRPCTestCase(t, tc)
 }
 
 // Helper function to find or build the plugin binary
