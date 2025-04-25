@@ -31,8 +31,6 @@ import (
 const (
 	// The time to write a message to the server connection before timing out
 	writeTimeout = 10 * time.Second
-	// The time to read the message payload from the server before timing out
-	readMessageTimeout = 1 * time.Second
 	// The time to wait for a connection ack message from the server before timing out
 	ackWaitTimeout = 30 * time.Second
 )
@@ -210,7 +208,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 
 	// Defaults
 	op := &opts{
-		readTimeout:  time.Millisecond * 100,
+		readTimeout:  1 * time.Second,
 		pingInterval: 10 * time.Second,
 		pingTimeout:  5 * time.Second,
 		log:          abstractlogger.NoopLogger,
@@ -934,7 +932,7 @@ func handleConnectionError(err error) (done bool) {
 	return false
 }
 
-func readMessage(conn net.Conn, frameReadTimeout time.Duration) ([]byte, error) {
+func readMessage(conn net.Conn, readTimeout time.Duration) ([]byte, error) {
 	controlHandler := wsutil.ControlFrameHandler(conn, ws.StateClientSide)
 	rd := &wsutil.Reader{
 		Source:          conn,
@@ -944,7 +942,7 @@ func readMessage(conn net.Conn, frameReadTimeout time.Duration) ([]byte, error) 
 		OnIntermediate:  controlHandler,
 	}
 	for {
-		err := conn.SetReadDeadline(time.Now().Add(frameReadTimeout))
+		err := conn.SetReadDeadline(time.Now().Add(readTimeout))
 		if err != nil {
 			return nil, err
 		}
@@ -966,7 +964,7 @@ func readMessage(conn net.Conn, frameReadTimeout time.Duration) ([]byte, error) 
 			}
 			continue
 		}
-		err = conn.SetReadDeadline(time.Now().Add(readMessageTimeout))
+		err = conn.SetReadDeadline(time.Now().Add(readTimeout))
 		if err != nil {
 			return nil, err
 		}
