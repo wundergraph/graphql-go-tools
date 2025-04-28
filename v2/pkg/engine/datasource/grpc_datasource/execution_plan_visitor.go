@@ -369,12 +369,13 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 
 	// Only scaffold the call if the method name is not set.
 	// This is a fallback for cases where the method name is not provided in the mapping.
-	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition && r.currentCall.MethodName == "" {
-		methodName := r.rpcMethodName()
-
-		r.currentCall.MethodName = methodName
-		r.currentCall.Request.Name = methodName + "Request"
-		r.currentCall.Response.Name = methodName + "Response"
+	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		if r.currentCall.MethodName == "" {
+			methodName := r.rpcMethodName()
+			r.currentCall.MethodName = methodName
+			r.currentCall.Request.Name = methodName + "Request"
+			r.currentCall.Response.Name = methodName + "Response"
+		}
 
 		r.plan.Groups[r.currentGroupIndex].Calls = append(r.plan.Groups[r.currentGroupIndex].Calls, *r.currentCall)
 		r.currentCall = nil

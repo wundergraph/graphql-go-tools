@@ -191,7 +191,7 @@ message RecursiveMessage {
 // from an execution plan and JSON data
 func TestBuildProtoMessage(t *testing.T) {
 	// Create and parse the protobuf definition
-	compiler, err := NewProtoCompiler(grpctest.ProtoSchema(t))
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}

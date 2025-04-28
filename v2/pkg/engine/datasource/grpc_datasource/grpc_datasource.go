@@ -121,7 +121,10 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return nil
 			}
 
-			responseJSON := marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+			responseJSON, err := marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+			if err != nil {
+				return err
+			}
 
 			// TODO we need to build the response based on the mapping rules
 			root := a.NewObject()
@@ -146,15 +149,17 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*h
 	panic("unimplemented")
 }
 
-func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) *astjson.Value {
+func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) (*astjson.Value, error) {
+	if structure == nil {
+		return nil, nil
+	}
+
 	root := arena.NewObject()
 
-	fmt.Println("data", data)
-
 	for _, field := range structure.Fields {
-		fd := data.Descriptor().Fields().ByNumber(protoref.FieldNumber(field.Index + 1))
+		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
 		if fd == nil {
-			continue
+			return nil, fmt.Errorf("unable to build response JSON: field %s not found in message %s", field.Name, structure.Name)
 		}
 
 		if fd.IsList() {
@@ -163,7 +168,11 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 			list := data.Get(fd).List()
 			for i := 0; i < list.Len(); i++ {
 				message := list.Get(i).Message()
-				value := marshalResponseJSON(arena, field.Message, message)
+				value, err := marshalResponseJSON(arena, field.Message, message)
+				if err != nil {
+					return nil, err
+				}
+
 				arr.SetArrayItem(i, value)
 			}
 
@@ -172,7 +181,11 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 
 		if fd.Kind() == protoref.MessageKind {
 			message := data.Get(fd).Message()
-			value := marshalResponseJSON(arena, field.Message, message)
+			value, err := marshalResponseJSON(arena, field.Message, message)
+			if err != nil {
+				return nil, err
+			}
+
 			root.Set(field.JSONPath, value)
 
 			continue
@@ -181,7 +194,7 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 		setJSONValue(arena, root, field.JSONPath, data, fd)
 	}
 
-	return root
+	return root, nil
 }
 
 func setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {

@@ -109,7 +109,7 @@ message QueryTypeFilterWithArgumentsRequest {
 }
 
 message QueryTypeFilterWithArgumentsResponse {
-  repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
+  repeated TypeWithMultipleFilterFields type_filter_with_arguments = 1;
 }
 
 message QueryTypeWithMultipleFilterFieldsRequest {

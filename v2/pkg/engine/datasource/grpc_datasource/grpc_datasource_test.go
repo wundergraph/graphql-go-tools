@@ -64,7 +64,7 @@ func Test_DataSource_Load(t *testing.T) {
 	report := &operationreport.Report{}
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
+	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -87,8 +87,17 @@ func Test_DataSource_Load(t *testing.T) {
 	ds, err := NewDataSource(mi, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  grpctest.ProtoSchema(t),
+		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Mapping: &GRPCMapping{
+			Fields: map[string]FieldMap{
+				"Query": {
+					"complexFilterType": {
+						TargetName: "complex_filter_type",
+					},
+				},
+			},
+		},
 	})
 
 	require.NoError(t, err)
@@ -102,6 +111,7 @@ func Test_DataSource_Load(t *testing.T) {
 }
 
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
+// TODO update this test to not use mappings anc expect no response
 func Test_DataSource_Load_WithMockService(t *testing.T) {
 	// 1. Start a real gRPC server with our mock implementation
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -143,7 +153,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
+	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -167,18 +177,38 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  grpctest.ProtoSchema(t),
+		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Mapping: &GRPCMapping{
+			Fields: map[string]FieldMap{
+				"Query": {
+					"complexFilterType": {
+						TargetName: "complex_filter_type",
+					},
+				},
+				"FilterType": {
+					"name": {
+						TargetName: "name",
+					},
+					"filterField1": {
+						TargetName: "filter_field_1",
+					},
+					"filterField2": {
+						TargetName: "filter_field_2",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
 	// 5. Execute the query through our datasource
 	output := new(bytes.Buffer)
-	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`), output)
+	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
 	require.NoError(t, err)
 
 	// Print the response for debugging
-	fmt.Println(output.String())
+	// fmt.Println(output.String())
 
 	type response struct {
 		Data struct {
@@ -244,7 +274,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	// Parse the GraphQL schema
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
+	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	if report.HasErrors() {
 		t.Fatalf("failed to parse schema: %s", report.Error())
@@ -268,8 +298,28 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  grpctest.ProtoSchema(t),
+		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Mapping: &GRPCMapping{
+			Fields: map[string]FieldMap{
+				"Query": {
+					"complexFilterType": {
+						TargetName: "complex_filter_type",
+					},
+				},
+				"FilterType": {
+					"name": {
+						TargetName: "name",
+					},
+					"filterField1": {
+						TargetName: "filter_field_1",
+					},
+					"filterField2": {
+						TargetName: "filter_field_2",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -277,7 +327,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	output := new(bytes.Buffer)
 
 	// Format the input with query and variables
-	inputJSON := fmt.Sprintf(`{"query":%q,"variables":%s}`, query, variables)
+	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
 	t.Logf("Input JSON: %s", inputJSON)
 
 	err = ds.Load(context.Background(), []byte(inputJSON), output)
@@ -355,7 +405,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	// 4. Parse the schema and query
 	report := &operationreport.Report{}
 	schemaDoc := ast.NewDocument()
-	schemaDoc.Input.ResetInputString(string(grpctest.GraphQLSchema(t).RawSchema()))
+	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
 	astparser.NewParser().Parse(schemaDoc, report)
 	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
 
@@ -371,14 +421,14 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    queryDoc,
 		Definition:   schemaDoc,
-		ProtoSchema:  grpctest.ProtoSchema(t),
+		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
 	})
 	require.NoError(t, err)
 
 	// 6. Execute the query
 	output := new(bytes.Buffer)
-	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`), output)
+	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
 	// 7. Print response for debugging
@@ -459,7 +509,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 		},
 	}
 
-	compiler, err := NewProtoCompiler(grpctest.ProtoSchema(t))
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -479,6 +529,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("results")).List().Append(protoref.ValueOfMessage(resultMessage))
 
 	arena := astjson.Arena{}
-	responseJSON := marshalResponseJSON(&arena, &response, responseMessage)
+	responseJSON, err := marshalResponseJSON(&arena, &response, responseMessage)
+	require.NoError(t, err)
 	require.Equal(t, `{"results":[{"product":{"id":"123","name_different":"test","price_different":123.45}}]}`, responseJSON.String())
 }
