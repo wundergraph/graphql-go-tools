@@ -1,8 +1,6 @@
 package grpcdatasource
 
 type (
-	// InputArgumentMap is a map of GraphQL input arguments to the corresponding gRPC input arguments
-	InputArgumentMap map[string]string
 	// RPCConfigMap is a map of RPC names to RPC configurations
 	RPCConfigMap map[string]RPCConfig
 	// FieldMap defines the mapping between a GraphQL field and a gRPC field
@@ -10,10 +8,8 @@ type (
 )
 
 type GRPCMapping struct {
-	// Services maps user-friendly service names to the actual gRPC service names
-	Services map[string]string
-	// InputArguments maps GraphQL input arguments to the corresponding gRPC input arguments
-	InputArguments map[string]InputArgumentMap
+	// Service is the name of the gRPC service to use
+	Service string
 	// QueryRPCs maps GraphQL query fields to the corresponding gRPC RPC configurations
 	QueryRPCs RPCConfigMap
 	// MutationRPCs maps GraphQL mutation fields to the corresponding gRPC RPC configurations
@@ -57,20 +53,6 @@ type FieldMapData struct {
 
 // FieldArgumentMap defines the mapping between a GraphQL field argument and a gRPC field
 type FieldArgumentMap map[string]string
-
-func (g *GRPCMapping) ResolveInputArgumentMapping(fieldName string, argumentName string) (string, bool) {
-	if g == nil || g.InputArguments == nil {
-		return "", false
-	}
-
-	inputArgMap, ok := g.InputArguments[fieldName]
-	if !ok || inputArgMap == nil {
-		return "", false
-	}
-
-	grpcFieldName, ok := inputArgMap[argumentName]
-	return grpcFieldName, ok
-}
 
 // ResolveFieldMapping resolves the gRPC field name for a given GraphQL field name and type
 func (g *GRPCMapping) ResolveFieldMapping(typeName string, fieldName string) (string, bool) {

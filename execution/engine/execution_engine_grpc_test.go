@@ -281,16 +281,14 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		}
 
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
-			InputArguments: map[string]grpcdatasource.InputArgumentMap{
-				"typeFilterWithArguments": {
-					"filterField1": "filter_field_1",
-					"filterField2": "filter_field_2",
-				},
-			},
 			Fields: map[string]grpcdatasource.FieldMap{
 				"Query": {
 					"typeFilterWithArguments": {
 						TargetName: "type_filter_with_arguments",
+						ArgumentMappings: map[string]string{
+							"filterField1": "filter_field_1",
+							"filterField2": "filter_field_2",
+						},
 					},
 				},
 				"TypeWithMultipleFilterFields": {

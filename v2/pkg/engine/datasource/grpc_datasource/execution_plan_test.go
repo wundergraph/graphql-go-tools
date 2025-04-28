@@ -121,16 +121,14 @@ func TestEntityLookup(t *testing.T) {
 			name:  "Should create an execution plan for an entity lookup with a custom method name",
 			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { id name price } } }`,
 			mapping: &GRPCMapping{
-				Services: map[string]string{
-					"Products": "ProductsService",
-				},
+				Service: "ProductService",
 			},
 			expectedPlan: &RPCExecutionPlan{
 				Groups: []RPCCallGroup{
 					{
 						Calls: []RPCCall{
 							{
-								ServiceName: "ProductsService",
+								ServiceName: "ProductService",
 								MethodName:  "LookupProductById",
 								// Define the structure of the request message
 								Request: RPCMessage{
@@ -473,19 +471,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
 			mapping: &GRPCMapping{
-				InputArguments: map[string]InputArgumentMap{
-					"typeFilterWithArguments": {
-						"filterField1": "filter_field1",
-						"filterField2": "filter_field2",
-					},
-				},
 				Fields: map[string]FieldMap{
+					"Query": {
+						"typeFilterWithArguments": {
+							TargetName: "type_filter_with_arguments",
+							ArgumentMappings: map[string]string{
+								"filterField1": "filter_field_1",
+								"filterField2": "filter_field_2",
+							},
+						},
+					},
 					"TypeWithMultipleFilterFields": {
 						"filterField1": {
-							TargetName: "filter_field1",
+							TargetName: "filter_field_1",
 						},
 						"filterField2": {
-							TargetName: "filter_field2",
+							TargetName: "filter_field_2",
 						},
 					},
 				},
@@ -501,13 +502,13 @@ func TestQueryExecutionPlans(t *testing.T) {
 									Name: "QueryTypeFilterWithArgumentsRequest",
 									Fields: []RPCField{
 										{
-											Name:     "filter_field1",
+											Name:     "filter_field_1",
 											TypeName: string(DataTypeString),
 											JSONPath: "filterField1",
 											Index:    0,
 										},
 										{
-											Name:     "filter_field2",
+											Name:     "filter_field_2",
 											TypeName: string(DataTypeString),
 											JSONPath: "filterField2",
 											Index:    1,
@@ -518,7 +519,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 									Name: "QueryTypeFilterWithArgumentsResponse",
 									Fields: []RPCField{
 										{
-											Name:     "typeFilterWithArguments",
+											Name:     "type_filter_with_arguments",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											JSONPath: "typeFilterWithArguments",
@@ -538,13 +539,13 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Index:    1,
 													},
 													{
-														Name:     "filter_field1",
+														Name:     "filter_field_1",
 														TypeName: string(DataTypeString),
 														JSONPath: "filterField1",
 														Index:    2,
 													},
 													{
-														Name:     "filter_field2",
+														Name:     "filter_field_2",
 														TypeName: string(DataTypeString),
 														JSONPath: "filterField2",
 														Index:    3,

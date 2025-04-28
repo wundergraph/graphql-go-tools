@@ -168,14 +168,14 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 
 	// Retrieve the type of the input value definition, and build the request message
 	inputValueDefinitionTypeRef := r.definition.InputValueDefinitionType(argumentInputValueDefinitionRef)
-	r.buildRequestMessageFromInputArgument(ref, inputValueDefinitionTypeRef)
+	r.enrichRequestMessageFromInputArgument(ref, inputValueDefinitionTypeRef)
 }
 
-// buildRequestMessageFromInputArgument constructs a request message from an input argument based on its type.
+// enrichRequestMessageFromInputArgument constructs a request message from an input argument based on its type.
 // It retrieves the underlying type and builds the request message from the underlying type.
 // If the underlying type is an input object type, it creates a new message and adds it to the current request message.
 // Otherwise, it adds the field to the current request message.
-func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef int) {
+func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef int) {
 	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
 	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
 	if !found {
@@ -217,9 +217,12 @@ func (r *rpcPlanVisitor) buildRequestMessageFromInputArgument(argRef, typeRef in
 		r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
 
 	case ast.NodeKindScalarTypeDefinition:
+		rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
+		baseType := r.definition.NodeNameString(rootNode)
+
 		dt := r.toDataType(&r.definition.Types[underlyingTypeNode.Ref])
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     r.resolveInputArgument(r.walker.Ancestor().Ref, fieldName),
+			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
 			Index:    r.planInfo.currentRequestFieldIndex,
@@ -576,16 +579,11 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 }
 
 func (r *rpcPlanVisitor) resolveServiceName() string {
-	if r.mapping == nil {
+	if r.mapping == nil || r.mapping.Service == "" {
 		return r.subgraphName
 	}
 
-	serviceName, ok := r.mapping.Services[r.subgraphName]
-	if !ok {
-		return r.subgraphName
-	}
-
-	return serviceName
+	return r.mapping.Service
 }
 
 // resolveFieldMapping resolves the field mapping for a field.
@@ -603,8 +601,8 @@ func (r *rpcPlanVisitor) resolveFieldMapping(typeName, fieldName string) string 
 // This only applies if the input arguments are scalar values.
 // If the input argument is a message, the mapping is resolved by the
 // resolveFieldMapping function.
-func (r *rpcPlanVisitor) resolveInputArgument(fieldRef int, argumentName string) string {
-	grpcFieldName, ok := r.mapping.ResolveInputArgumentMapping(r.operation.FieldNameString(fieldRef), argumentName)
+func (r *rpcPlanVisitor) resolveInputArgument(baseType string, fieldRef int, argumentName string) string {
+	grpcFieldName, ok := r.mapping.ResolveFieldArgumentMapping(baseType, r.operation.FieldNameString(fieldRef), argumentName)
 	if !ok {
 		return argumentName
 	}

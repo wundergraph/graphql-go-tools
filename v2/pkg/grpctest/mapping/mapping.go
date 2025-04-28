@@ -9,24 +9,7 @@ import (
 // DefaultGRPCMapping returns a hardcoded default mapping between GraphQL and Protobuf
 func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 	return &grpcdatasource.GRPCMapping{
-		Services: map[string]string{
-			"Products": "ProductService",
-		},
-		InputArguments: map[string]grpcdatasource.InputArgumentMap{
-			"typeFilterWithArguments": {
-				"filterField1": "filter_field_1",
-				"filterField2": "filter_field_2",
-			},
-			"user": {
-				"id": "id",
-			},
-			"typeWithMultipleFilterFields": {
-				"filter": "filter",
-			},
-			"complexFilterType": {
-				"filter": "filter",
-			},
-		},
+		Service: "ProductService",
 		QueryRPCs: map[string]grpcdatasource.RPCConfig{
 			"users": {
 				RPC:      "QueryUsers",
@@ -86,8 +69,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		},
 		Fields: map[string]grpcdatasource.FieldMap{
 			"Query": {
+				"user": {
+					TargetName: "user",
+					ArgumentMappings: map[string]string{
+						"id": "id",
+					},
+				},
 				"complexFilterType": {
 					TargetName: "complex_filter_type",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
 				},
 				"nestedType": {
 					TargetName: "nested_type",
@@ -97,9 +89,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"typeFilterWithArguments": {
 					TargetName: "type_filter_with_arguments",
+					ArgumentMappings: map[string]string{
+						"filterField1": "filter_field_1",
+						"filterField2": "filter_field_2",
+					},
 				},
 				"typeWithMultipleFilterFields": {
 					TargetName: "type_with_multiple_filter_fields",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
 				},
 			},
 			"Product": {
