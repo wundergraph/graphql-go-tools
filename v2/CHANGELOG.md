@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.175](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.174...v2.0.0-rc.175) (2025-04-29)
+
+
+### Features
+
+* remove intermediate buffer from ResolveGraphQLResponse ([#1137](https://github.com/wundergraph/graphql-go-tools/issues/1137)) ([9f25e6f](https://github.com/wundergraph/graphql-go-tools/commit/9f25e6fccd15fa0a847d453ebd05276c2b250721))
+
 ## [2.0.0-rc.174](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.173...v2.0.0-rc.174) (2025-04-29)
 
 
