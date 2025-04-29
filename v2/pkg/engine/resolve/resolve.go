@@ -259,13 +259,11 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		}
 	}
 
-	buf := &bytes.Buffer{}
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = buf.WriteTo(writer)
 	return resp, err
 }
 
