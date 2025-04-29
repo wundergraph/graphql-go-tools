@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.174](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.173...v2.0.0-rc.174) (2025-04-29)
+
+
+### Features
+
+* **subscriptions:** user proper frame timeout ([#1135](https://github.com/wundergraph/graphql-go-tools/issues/1135)) ([d1fbd62](https://github.com/wundergraph/graphql-go-tools/commit/d1fbd624f7af19802f736e191ba4079abbdd0a37))
+
 ## [2.0.0-rc.173](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.172...v2.0.0-rc.173) (2025-04-25)
 
 
