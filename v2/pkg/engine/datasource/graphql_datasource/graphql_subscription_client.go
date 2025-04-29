@@ -71,6 +71,7 @@ type subscriptionClient struct {
 
 	readTimeout  time.Duration
 	pingInterval time.Duration
+	frameTimeout time.Duration
 	pingTimeout  time.Duration
 
 	netPoll       netpoll.Poller
@@ -135,6 +136,12 @@ func WithPingInterval(interval time.Duration) Options {
 	}
 }
 
+func WithFrameTimeout(timeout time.Duration) Options {
+	return func(options *opts) {
+		options.frameTimeout = timeout
+	}
+}
+
 func WithPingTimeout(timeout time.Duration) Options {
 	return func(options *opts) {
 		options.pingTimeout = timeout
@@ -182,6 +189,7 @@ type opts struct {
 	readTimeout                time.Duration
 	pingInterval               time.Duration
 	pingTimeout                time.Duration
+	frameTimeout               time.Duration
 	log                        abstractlogger.Logger
 	onWsConnectionInitCallback *OnWsConnectionInitCallback
 	netPollConfiguration       NetPollConfiguration
@@ -208,9 +216,10 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 
 	// Defaults
 	op := &opts{
-		readTimeout:  1 * time.Second,
-		pingInterval: 10 * time.Second,
-		pingTimeout:  5 * time.Second,
+		readTimeout:  5 * time.Second,
+		pingInterval: 15 * time.Second,
+		pingTimeout:  30 * time.Second,
+		frameTimeout: 100 * time.Millisecond,
 		log:          abstractlogger.NoopLogger,
 	}
 
@@ -228,6 +237,7 @@ func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engi
 		readTimeout:     op.readTimeout,
 		pingInterval:    op.pingInterval,
 		pingTimeout:     op.pingTimeout,
+		frameTimeout:    op.frameTimeout,
 		hashPool: sync.Pool{
 			New: func() interface{} {
 				return xxhash.New()
@@ -887,7 +897,7 @@ func (c *subscriptionClient) handleServerUnsubscribe(fd int) {
 }
 
 func (c *subscriptionClient) handleConnectionEvent(conn *connection) bool {
-	data, err := readMessage(conn.netConn, c.readTimeout)
+	data, err := readMessage(conn.netConn, c.frameTimeout, c.readTimeout)
 	if err != nil {
 		return handleConnectionError(err)
 	}
@@ -932,7 +942,8 @@ func handleConnectionError(err error) (done bool) {
 	return false
 }
 
-func readMessage(conn net.Conn, readTimeout time.Duration) ([]byte, error) {
+// readMessage reads a message from the connection
+func readMessage(conn net.Conn, frameTimeout time.Duration, readTimeout time.Duration) ([]byte, error) {
 	controlHandler := wsutil.ControlFrameHandler(conn, ws.StateClientSide)
 	rd := &wsutil.Reader{
 		Source:          conn,
@@ -941,29 +952,48 @@ func readMessage(conn net.Conn, readTimeout time.Duration) ([]byte, error) {
 		SkipHeaderCheck: false,
 		OnIntermediate:  controlHandler,
 	}
+
 	for {
-		err := conn.SetReadDeadline(time.Now().Add(readTimeout))
+		// This method is used to check if we have data on the connection. The timeout needs to be much smaller
+		// than the readTimeout to ensure we don't block the connection for too long. If we have no data, we move
+		// on to the next connection.
+		err := conn.SetReadDeadline(time.Now().Add(frameTimeout))
 		if err != nil {
 			return nil, err
 		}
+
+		// If we have data, we can read it. Otherwise, it will timeout and we wait for the next epoll tick
 		hdr, err := rd.NextFrame()
 		if err != nil {
+			// A timeout will not close the connection but return an error
 			return nil, err
 		}
 		if hdr.OpCode.IsControl() {
-			// Handles PING/PONG and CLOSE frames but only on the ws protocol level
+			// The controlHandler writes the control frames.
+			// We need to work with a proper timeout to ensure we don't block forever.
+			err := conn.SetWriteDeadline(time.Now().Add(frameTimeout))
+			if err != nil {
+				return nil, err
+			}
+			// Handles PING/PONG and CLOSE frames, but only on the ws protocol level
 			// We still need to handle the PING/PONG frames on the application protocol level
 			if err := controlHandler(hdr, rd); err != nil {
 				return nil, err
 			}
 			continue
 		}
+
+		// We are only interested in text frames
 		if hdr.OpCode&ws.OpText == 0 {
+			// If we see anything else than a text frame, we need to discard the frame
 			if err := rd.Discard(); err != nil {
 				return nil, err
 			}
 			continue
 		}
+
+		// We limit the amount of time we wait for a message to be read from the connection
+		// This is important to ensure we don't block the connection for too long
 		err = conn.SetReadDeadline(time.Now().Add(readTimeout))
 		if err != nil {
 			return nil, err
