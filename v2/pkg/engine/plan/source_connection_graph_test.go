@@ -39,7 +39,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path, exists := graph.GetPaths(1, 2)
 			assert.True(t, exists, "Should have a connection")
 
@@ -94,7 +94,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path1, exists := graph.GetPaths(1, 2)
 			assert.True(t, exists, "Should have a connection")
 
@@ -179,7 +179,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path, exists := graph.GetPaths(1, 2)
 			assert.True(t, exists, "Should have a connection")
 
@@ -269,7 +269,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 			},
 		}
 
-		graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+		graph := NewDataSourceJumpsGraph([]DSHash{1, 2, 3, 4}, keysPerPath, "User")
 		path, exists := graph.GetPaths(1, 4)
 		assert.True(t, exists, "Should have a connection")
 
@@ -325,7 +325,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path, exists := graph.GetPaths(1, 2)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
@@ -353,7 +353,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path, exists := graph.GetPaths(1, 2)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
@@ -381,7 +381,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path, exists := graph.GetPaths(1, 2)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
@@ -409,7 +409,7 @@ func TestSourceConnectionGraph(t *testing.T) {
 				},
 			}
 
-			graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+			graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 			path, exists := graph.GetPaths(1, 2)
 			assert.False(t, exists, "Should not have a connection")
 			assert.Nil(t, path, "Path should be nil")
@@ -439,7 +439,7 @@ func TestSourceConnectionGraphCache(t *testing.T) {
 		},
 	}
 
-	graph := NewDataSourceJumpsGraph(keysPerPath, "User")
+	graph := NewDataSourceJumpsGraph([]DSHash{1, 2}, keysPerPath, "User")
 
 	// First call to GetPaths should compute the path
 	path, exists := graph.GetPaths(1, 2)

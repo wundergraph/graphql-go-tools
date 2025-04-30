@@ -100,30 +100,49 @@ func (g *DataSourceJumpsGraph) GetPaths(source DSHash, target DSHash) ([]SourceC
 	return paths, found
 }
 
-func NewDataSourceJumpsGraph(keysPerPath map[DSHash][]KeyInfo, typeName string) *DataSourceJumpsGraph {
+func NewDataSourceJumpsGraph(dataSources []DSHash, keysPerPath map[DSHash][]KeyInfo, typeName string) *DataSourceJumpsGraph {
 	graph := &DataSourceJumpsGraph{
 		Jumps: make(map[DSHash][]KeyJump),
 		Cache: make(map[JumpCacheKey][]SourceConnection),
 	}
 
-	for dsHash, keyInfos := range keysPerPath {
-		for _, keyInfo := range keyInfos {
-			if keyInfo.Source {
-				for targetDSHash, targetKeyInfos := range keysPerPath {
-					if targetDSHash != dsHash {
-						for _, targetKeyInfo := range targetKeyInfos {
-							if targetKeyInfo.Target && keyInfo.SelectionSet == targetKeyInfo.SelectionSet {
-								jump := KeyJump{
-									From:         dsHash,
-									To:           targetDSHash,
-									SelectionSet: keyInfo.SelectionSet,
-									FieldPaths:   keyInfo.FieldPaths,
-									TypeName:     typeName,
-								}
-								graph.Jumps[dsHash] = append(graph.Jumps[dsHash], jump)
-							}
-						}
+	// NOTE: we have to record jumps in order of key appearance on the target data source
+	// NOTE: we iterate over dataSource hashes instead of a map to preserve the order of data sources
+
+	for _, targetDSHash := range dataSources {
+		targetKeyInfos, exists := keysPerPath[targetDSHash]
+		if !exists {
+			continue
+		}
+
+		for _, targetKeyInfo := range targetKeyInfos {
+			if !targetKeyInfo.Target {
+				continue
+			}
+
+			for _, sourceDsHash := range dataSources {
+				if targetDSHash == sourceDsHash {
+					continue
+				}
+
+				sourceKeyInfos, exists := keysPerPath[sourceDsHash]
+				if !exists {
+					continue
+				}
+
+				for _, keyInfo := range sourceKeyInfos {
+					if !keyInfo.Source || keyInfo.SelectionSet != targetKeyInfo.SelectionSet {
+						continue
 					}
+
+					jump := KeyJump{
+						From:         sourceDsHash,
+						To:           targetDSHash,
+						SelectionSet: keyInfo.SelectionSet,
+						FieldPaths:   keyInfo.FieldPaths,
+						TypeName:     typeName,
+					}
+					graph.Jumps[sourceDsHash] = append(graph.Jumps[sourceDsHash], jump)
 				}
 			}
 		}
