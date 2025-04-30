@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.176](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.175...v2.0.0-rc.176) (2025-04-30)
+
+
+### Bug Fixes
+
+* evaluate keys using order of target subgraph ([#1139](https://github.com/wundergraph/graphql-go-tools/issues/1139)) ([f358e9e](https://github.com/wundergraph/graphql-go-tools/commit/f358e9e74c16f0c372170d9cde82decbf4991289))
+
 ## [2.0.0-rc.175](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.174...v2.0.0-rc.175) (2025-04-29)
 
 
