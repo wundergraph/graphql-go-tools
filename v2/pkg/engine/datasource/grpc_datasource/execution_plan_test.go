@@ -471,6 +471,13 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
 			mapping: &GRPCMapping{
+				QueryRPCs: map[string]RPCConfig{
+					"Query": {
+						RPC:      "QueryTypeFilterWithArguments",
+						Request:  "QueryTypeFilterWithArgumentsRequest",
+						Response: "QueryTypeFilterWithArgumentsResponse",
+					},
+				},
 				Fields: map[string]FieldMap{
 					"Query": {
 						"typeFilterWithArguments": {
@@ -1341,6 +1348,67 @@ func TestQueryExecutionPlans(t *testing.T) {
 			if report.HasErrors() {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
+			// Transform the GraphQL ASTs
+			err := asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to merge schema with base: %s", err)
+			}
+
+			walker := astvisitor.NewWalker(48)
+
+			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+				subgraphName: "Products",
+				mapping:      tt.mapping,
+			})
+
+			walker.Walk(queryDoc, schemaDoc, report)
+
+			if report.HasErrors() {
+				require.NotEmpty(t, tt.expectedError)
+				require.Contains(t, report.Error(), tt.expectedError)
+				return
+			}
+
+			require.Empty(t, tt.expectedError)
+			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
+
+// TODO: Define test cases for interface execution plans
+func TestInterfaceExecutionPlan(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		mapping       *GRPCMapping
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			report := &operationreport.Report{}
+
+			// Parse the GraphQL schema
+			schemaDoc := ast.NewDocument()
+			schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
+			astparser.NewParser().Parse(schemaDoc, report)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse schema: %s", report.Error())
+			}
+
+			// Parse the GraphQL query
+			queryDoc := ast.NewDocument()
+			queryDoc.Input.ResetInputString(tt.query)
+			astparser.NewParser().Parse(queryDoc, report)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
 			// Transform the GraphQL ASTs
 			err := asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
 			if err != nil {

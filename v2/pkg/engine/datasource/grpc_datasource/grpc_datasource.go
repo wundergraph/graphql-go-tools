@@ -28,7 +28,7 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
-	Plan *RPCExecutionPlan
+	plan *RPCExecutionPlan
 	cc   grpc.ClientConnInterface
 	rc   *RPCCompiler
 }
@@ -59,7 +59,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	}
 
 	return &DataSource{
-		Plan: plan,
+		plan: plan,
 		cc:   client,
 		rc:   compiler,
 	}, nil
@@ -77,7 +77,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	variables := gjson.Parse(string(input)).Get("body.variables")
 
 	// get invocations from plan
-	invocations, err := d.rc.Compile(d.Plan, variables)
+	invocations, err := d.rc.Compile(d.plan, variables)
 	if err != nil {
 		a := astjson.Arena{}
 		errorRoot := a.NewObject()
@@ -126,7 +126,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return err
 			}
 
-			// TODO we need to build the response based on the mapping rules
 			root := a.NewObject()
 			root.Set("data", responseJSON)
 

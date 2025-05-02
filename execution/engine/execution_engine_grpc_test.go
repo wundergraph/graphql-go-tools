@@ -154,9 +154,8 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 
 	cfg, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		GRPC: &grpcdatasource.GRPCConfiguration{
-			ProtoSchema:  protoSchema,
-			Mapping:      executeOpts.grpcMapping,
-			SubgraphName: "Products",
+			ProtoSchema: protoSchema,
+			Mapping:     executeOpts.grpcMapping,
 		},
 		SchemaConfiguration: mustSchemaConfig(
 			t,

@@ -23,9 +23,8 @@ type GRPCMapping struct {
 }
 
 type GRPCConfiguration struct {
-	Mapping      *GRPCMapping
-	ProtoSchema  string
-	SubgraphName string
+	Mapping     *GRPCMapping
+	ProtoSchema string
 }
 
 // RPCConfig defines the configuration for a specific RPC operation

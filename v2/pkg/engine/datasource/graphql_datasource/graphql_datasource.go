@@ -358,11 +358,10 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		var err error
 
 		dataSource, err = grpcdatasource.NewDataSource(p.grpcClient, grpcdatasource.DataSourceConfig{
-			Operation:    p.visitor.Operation,
-			Definition:   p.visitor.Definition,
-			ProtoSchema:  p.config.grpc.ProtoSchema,
-			SubgraphName: p.config.grpc.SubgraphName,
-			Mapping:      p.config.grpc.Mapping,
+			Operation:   p.visitor.Operation,
+			Definition:  p.visitor.Definition,
+			ProtoSchema: p.config.grpc.ProtoSchema,
+			Mapping:     p.config.grpc.Mapping,
 		})
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create gRPC datasource: %w", err)))
