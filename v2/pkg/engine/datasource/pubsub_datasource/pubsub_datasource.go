@@ -329,7 +329,7 @@ func buildEventDataBytes(ref int, visitor *plan.Visitor, variables *resolve.Vari
 		variableName := visitor.Operation.VariableValueNameBytes(argValue.Ref)
 		contextVariable := &resolve.ContextVariable{
 			Path:     []string{string(variableName)},
-			Renderer: resolve.NewPlainVariableRenderer(),
+			Renderer: resolve.NewJSONVariableRenderer(),
 		}
 		variablePlaceHolder, _ := variables.AddVariable(contextVariable)
 		argumentName := visitor.Operation.ArgumentNameString(arg)
