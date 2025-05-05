@@ -31,6 +31,9 @@ const (
 	ProductService_QueryComplexFilterType_FullMethodName            = "/product.v1.ProductService/QueryComplexFilterType"
 	ProductService_QueryRandomPet_FullMethodName                    = "/product.v1.ProductService/QueryRandomPet"
 	ProductService_QueryAllPets_FullMethodName                      = "/product.v1.ProductService/QueryAllPets"
+	ProductService_QueryCategories_FullMethodName                   = "/product.v1.ProductService/QueryCategories"
+	ProductService_QueryCategoriesByKind_FullMethodName             = "/product.v1.ProductService/QueryCategoriesByKind"
+	ProductService_QueryFilterCategories_FullMethodName             = "/product.v1.ProductService/QueryFilterCategories"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -51,6 +54,10 @@ type ProductServiceClient interface {
 	QueryComplexFilterType(ctx context.Context, in *QueryComplexFilterTypeRequest, opts ...grpc.CallOption) (*QueryComplexFilterTypeResponse, error)
 	QueryRandomPet(ctx context.Context, in *QueryRandomPetRequest, opts ...grpc.CallOption) (*QueryRandomPetResponse, error)
 	QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error)
+	// Category query operations
+	QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error)
+	QueryCategoriesByKind(ctx context.Context, in *QueryCategoriesByKindRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindResponse, error)
+	QueryFilterCategories(ctx context.Context, in *QueryFilterCategoriesRequest, opts ...grpc.CallOption) (*QueryFilterCategoriesResponse, error)
 }
 
 type productServiceClient struct {
@@ -181,6 +188,36 @@ func (c *productServiceClient) QueryAllPets(ctx context.Context, in *QueryAllPet
 	return out, nil
 }
 
+func (c *productServiceClient) QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryCategoriesResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryCategoriesByKind(ctx context.Context, in *QueryCategoriesByKindRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryCategoriesByKindResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryCategoriesByKind_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryFilterCategories(ctx context.Context, in *QueryFilterCategoriesRequest, opts ...grpc.CallOption) (*QueryFilterCategoriesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryFilterCategoriesResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryFilterCategories_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -199,6 +236,10 @@ type ProductServiceServer interface {
 	QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error)
 	QueryRandomPet(context.Context, *QueryRandomPetRequest) (*QueryRandomPetResponse, error)
 	QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error)
+	// Category query operations
+	QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error)
+	QueryCategoriesByKind(context.Context, *QueryCategoriesByKindRequest) (*QueryCategoriesByKindResponse, error)
+	QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -244,6 +285,15 @@ func (UnimplementedProductServiceServer) QueryRandomPet(context.Context, *QueryR
 }
 func (UnimplementedProductServiceServer) QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryAllPets not implemented")
+}
+func (UnimplementedProductServiceServer) QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryCategories not implemented")
+}
+func (UnimplementedProductServiceServer) QueryCategoriesByKind(context.Context, *QueryCategoriesByKindRequest) (*QueryCategoriesByKindResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryCategoriesByKind not implemented")
+}
+func (UnimplementedProductServiceServer) QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryFilterCategories not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -482,6 +532,60 @@ func _ProductService_QueryAllPets_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryCategories(ctx, req.(*QueryCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryCategoriesByKind_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryCategoriesByKindRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryCategoriesByKind(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryCategoriesByKind_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryCategoriesByKind(ctx, req.(*QueryCategoriesByKindRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryFilterCategories_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryFilterCategoriesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryFilterCategories(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryFilterCategories_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryFilterCategories(ctx, req.(*QueryFilterCategoriesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -536,6 +640,18 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryAllPets",
 			Handler:    _ProductService_QueryAllPets_Handler,
+		},
+		{
+			MethodName: "QueryCategories",
+			Handler:    _ProductService_QueryCategories_Handler,
+		},
+		{
+			MethodName: "QueryCategoriesByKind",
+			Handler:    _ProductService_QueryCategoriesByKind_Handler,
+		},
+		{
+			MethodName: "QueryFilterCategories",
+			Handler:    _ProductService_QueryFilterCategories_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

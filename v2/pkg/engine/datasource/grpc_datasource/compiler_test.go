@@ -104,7 +104,7 @@ message RecursiveMessage {
 // It verifies that the compiler can successfully parse a valid protobuf definition
 func TestNewProtoCompiler(t *testing.T) {
 	// Create a new compiler with the valid protobuf definition
-	compiler, err := NewProtoCompiler(validProto)
+	compiler, err := NewProtoCompiler(validProto, nil)
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -116,13 +116,13 @@ func TestNewProtoCompiler(t *testing.T) {
 }
 
 func TestNewProtoCompilerInvalid(t *testing.T) {
-	compiler, err := NewProtoCompiler(invalidProtoMissingResponseDefintition)
+	compiler, err := NewProtoCompiler(invalidProtoMissingResponseDefintition, nil)
 	require.ErrorContains(t, err, "unknown response type LookupProductByIdResponse")
 	require.Nil(t, compiler)
 }
 
 func TestNewProtoCompilerRecursiveType(t *testing.T) {
-	compiler, err := NewProtoCompiler(protoSchemaWithRecursiveType)
+	compiler, err := NewProtoCompiler(protoSchemaWithRecursiveType, nil)
 	require.NoError(t, err)
 	require.Equal(t, "product.v1", compiler.doc.Package)
 	require.Equal(t, 1, len(compiler.doc.Messages))
@@ -153,7 +153,7 @@ message RecursiveMessage {
   NestedRecursiveMessage nested = 2;
 }
 `
-	compiler, err := NewProtoCompiler(protoSchemaWithNestedRecursiveType)
+	compiler, err := NewProtoCompiler(protoSchemaWithNestedRecursiveType, nil)
 
 	require.NoError(t, err)
 	require.Equal(t, "product.v1", compiler.doc.Package)
@@ -191,7 +191,7 @@ message RecursiveMessage {
 // from an execution plan and JSON data
 func TestBuildProtoMessage(t *testing.T) {
 	// Create and parse the protobuf definition
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t))
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}

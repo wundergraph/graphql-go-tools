@@ -28,9 +28,10 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
-	plan *RPCExecutionPlan
-	cc   grpc.ClientConnInterface
-	rc   *RPCCompiler
+	plan    *RPCExecutionPlan
+	cc      grpc.ClientConnInterface
+	rc      *RPCCompiler
+	mapping *GRPCMapping
 }
 
 type ProtoConfig struct {
@@ -47,7 +48,7 @@ type DataSourceConfig struct {
 
 // NewDataSource creates a new gRPC datasource
 func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-	compiler, err := NewProtoCompiler(config.ProtoSchema)
+	compiler, err := NewProtoCompiler(config.ProtoSchema, config.Mapping)
 	if err != nil {
 		return nil, err
 	}
@@ -59,9 +60,10 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	}
 
 	return &DataSource{
-		plan: plan,
-		cc:   client,
-		rc:   compiler,
+		plan:    plan,
+		cc:      client,
+		rc:      compiler,
+		mapping: config.Mapping,
 	}, nil
 }
 
@@ -121,7 +123,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return nil
 			}
 
-			responseJSON, err := marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+			responseJSON, err := d.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
 			if err != nil {
 				return err
 			}
@@ -148,7 +150,7 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*h
 	panic("unimplemented")
 }
 
-func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) (*astjson.Value, error) {
+func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) (*astjson.Value, error) {
 	if structure == nil {
 		return nil, nil
 	}
@@ -185,7 +187,7 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 			list := data.Get(fd).List()
 			for i := 0; i < list.Len(); i++ {
 				message := list.Get(i).Message()
-				value, err := marshalResponseJSON(arena, field.Message, message)
+				value, err := d.marshalResponseJSON(arena, field.Message, message)
 				if err != nil {
 					return nil, err
 				}
@@ -198,7 +200,7 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 
 		if fd.Kind() == protoref.MessageKind {
 			message := data.Get(fd).Message()
-			value, err := marshalResponseJSON(arena, field.Message, message)
+			value, err := d.marshalResponseJSON(arena, field.Message, message)
 			if err != nil {
 				return nil, err
 			}
@@ -208,13 +210,13 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 			continue
 		}
 
-		setJSONValue(arena, root, field.JSONPath, data, fd)
+		d.setJSONValue(arena, root, field.JSONPath, data, fd)
 	}
 
 	return root, nil
 }
 
-func setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {
+func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {
 	switch fd.Kind() {
 	case protoref.BoolKind:
 		boolValue := data.Get(fd).Bool()
@@ -235,13 +237,18 @@ func setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data p
 		root.Set(name, arena.NewStringBytes(data.Get(fd).Bytes()))
 	case protoref.EnumKind:
 		enumDesc := fd.Enum()
-		enumNumber := data.Get(fd).Enum()
-		enumValueDesc := enumDesc.Values().ByNumber(enumNumber)
+		enumValueDesc := enumDesc.Values().ByNumber(data.Get(fd).Enum())
 		if enumValueDesc == nil {
 			root.Set(name, arena.NewNull())
 			return
 		}
 
-		root.Set(name, arena.NewString(string(enumValueDesc.Name())))
+		graphqlValue, ok := d.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
+		if !ok {
+			root.Set(name, arena.NewNull())
+			return
+		}
+
+		root.Set(name, arena.NewString(graphqlValue))
 	}
 }

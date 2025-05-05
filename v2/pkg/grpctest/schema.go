@@ -6,8 +6,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 //go:embed testdata product.proto
@@ -29,24 +34,55 @@ func getProtoBytes() ([]byte, error) {
 	return protoBytes, nil
 }
 
-func GraphQLSchema() (*graphql.Schema, error) {
+func GraphQLSchema() (ast.Document, error) {
 	schemaBytes, err := getSchemaBytes()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get schema bytes: %w", err)
+		return ast.Document{}, fmt.Errorf("failed to get schema bytes: %w", err)
 	}
 
-	schema, err := graphql.NewSchemaFromBytes(schemaBytes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create schema: %w", err)
+	doc, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
+	if report.HasErrors() {
+		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", report)
 	}
 
-	return schema, nil
+	if err := asttransform.MergeDefinitionWithBaseSchema(&doc); err != nil {
+		return ast.Document{}, fmt.Errorf("failed to merge schema: %w", err)
+	}
+
+	astvalidation.DefaultDefinitionValidator().Validate(&doc, &report)
+	if report.HasErrors() {
+		return ast.Document{}, fmt.Errorf("failed to validate schema: %w", report)
+	}
+
+	return doc, nil
 }
 
-func MustGraphQLSchema(t *testing.T) *graphql.Schema {
-	schema, err := GraphQLSchema()
+func GraphQLSchemaWithoutBaseDefinitions() (ast.Document, error) {
+	schemaBytes, err := getSchemaBytes()
+	if err != nil {
+		return ast.Document{}, fmt.Errorf("failed to get schema bytes: %w", err)
+	}
+
+	doc, report := astparser.ParseGraphqlDocumentBytes(schemaBytes)
+	if report.HasErrors() {
+		return ast.Document{}, fmt.Errorf("failed to parse schema: %w", report)
+	}
+
+	return doc, nil
+}
+
+func MustGraphQLSchema(t *testing.T) ast.Document {
+	schemaBytes, err := getSchemaBytes()
 	require.NoError(t, err)
-	return schema
+	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(string(schemaBytes))
+
+	report := &operationreport.Report{}
+	astvalidation.DefaultDefinitionValidator().Validate(&doc, report)
+	if report.HasErrors() {
+		t.Fatalf("failed to validate schema: %s", report.Error())
+	}
+
+	return doc
 }
 
 func ProtoSchema() (string, error) {

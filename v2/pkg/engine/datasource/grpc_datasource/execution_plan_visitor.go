@@ -310,14 +310,19 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 	parentTypeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
 
-	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, RPCField{
+	field := RPCField{
 		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
 		Index:    r.planInfo.currentResponseFieldIndex,
 		Repeated: r.definition.TypeIsList(fdt),
-		// TODO check for list of lists
-	})
+	}
+
+	if typeName == DataTypeEnum {
+		field.EnumName = r.definition.FieldDefinitionTypeNameString(fd)
+	}
+
+	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, field)
 }
 
 // LeaveField implements astvisitor.FieldVisitor.
@@ -387,8 +392,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 	case ast.NodeKindScalarTypeDefinition:
 		rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
 		baseType := r.definition.NodeNameString(rootNode)
-
-		dt := r.toDataType(&r.definition.Types[underlyingTypeNode.Ref])
+		dt := r.toDataType(&r.definition.Types[typeRef])
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
 			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
 			TypeName: dt.String(),
@@ -396,9 +400,23 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			Index:    r.planInfo.currentRequestFieldIndex,
 			Repeated: r.definition.TypeIsList(underlyingTypeNode.Ref),
 		})
+	case ast.NodeKindEnumTypeDefinition:
+		rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
+		baseType := r.definition.NodeNameString(rootNode)
+		dt := r.toDataType(&r.definition.Types[typeRef])
 
-	case ast.NodeKindEnumTypeDefinition: // TODO handle enum types
-		fmt.Println("enum")
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
+			TypeName: dt.String(),
+			JSONPath: jsonPath,
+			EnumName: underlyingTypeName,
+			Index:    r.planInfo.currentRequestFieldIndex,
+		})
+	default:
+		// TODO unions, interfaces, etc.
+		r.walker.Report.AddInternalError(fmt.Errorf("unsupported type: %s", underlyingTypeNode.Kind))
+		r.walker.Stop()
+		return
 	}
 
 	r.planInfo.currentRequestFieldIndex++
@@ -431,17 +449,23 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef, par
 	parentTypeName := r.definition.InputObjectTypeDefinitionNameString(parentTypeRef)
 
 	// If the type is not an object, directly add the field to the request message
-	// TODO: check interfaces, unions, enums, etc.
+	// TODO: check interfaces, unions, etc.
 	if underlyingTypeNode.Kind != ast.NodeKindInputObjectTypeDefinition {
 		dt := r.toDataType(&inputValueDefinitionType)
 
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+		field := RPCField{
 			Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 			TypeName: dt.String(),
 			JSONPath: fieldName,
 			Index:    index,
 			Repeated: r.definition.TypeIsList(typeRef),
-		})
+		}
+
+		if dt == DataTypeEnum {
+			field.EnumName = underlyingTypeName
+		}
+
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
 
 		return
 	}

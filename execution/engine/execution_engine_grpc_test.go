@@ -142,7 +142,7 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 		return "", fmt.Errorf("failed to create factory: %w", err)
 	}
 
-	schema, err := grpctest.GraphQLSchema()
+	schema, err := grpctest.GraphQLSchemaWithoutBaseDefinitions()
 	if err != nil {
 		return "", fmt.Errorf("failed to create schema: %w", err)
 	}
@@ -160,7 +160,7 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 		SchemaConfiguration: mustSchemaConfig(
 			t,
 			nil,
-			string(schema.RawSchema()),
+			string(schema.Input.RawBytes),
 		),
 	})
 	if err != nil {
@@ -177,7 +177,12 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 		return "", fmt.Errorf("failed to create data source configuration: %w", err)
 	}
 
-	engineConf := NewConfiguration(schema)
+	inputSchema, err := graphql.NewSchemaFromBytes(schema.Input.RawBytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to create schema: %w", err)
+	}
+
+	engineConf := NewConfiguration(inputSchema)
 	engineConf.SetDataSources([]plan.DataSource{dsCfg})
 	engineConf.SetFieldConfigurations(grpctest.GetFieldConfigurations())
 

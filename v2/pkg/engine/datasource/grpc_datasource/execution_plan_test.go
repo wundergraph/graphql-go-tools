@@ -1,17 +1,17 @@
 package grpcdatasource
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestEntityLookup(t *testing.T) {
@@ -415,27 +415,13 @@ func TestEntityLookup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			report := &operationreport.Report{}
-
 			// Parse the GraphQL schema
-			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
-			astparser.NewParser().Parse(schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to parse schema: %s", report.Error())
-			}
+			schemaDoc := grpctest.MustGraphQLSchema(t)
 
 			// Parse the GraphQL query
-			queryDoc := ast.NewDocument()
-			queryDoc.Input.ResetInputString(tt.query)
-			astparser.NewParser().Parse(queryDoc, report)
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse query: %s", report.Error())
-			}
-			// Transform the GraphQL ASTs
-			err := asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
-			if err != nil {
-				t.Fatalf("failed to merge schema with base: %s", err)
 			}
 
 			walker := astvisitor.NewWalker(48)
@@ -445,7 +431,7 @@ func TestEntityLookup(t *testing.T) {
 				mapping:      tt.mapping,
 			})
 
-			walker.Walk(queryDoc, schemaDoc, report)
+			walker.Walk(&queryDoc, &schemaDoc, &report)
 
 			if report.HasErrors() {
 				t.Fatalf("failed to walk AST: %s", report.Error())
@@ -1063,7 +1049,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 		},
 		{
 			name:  "Should create an execution plan for a query with a user",
-			query: `query UserQuery { user(id: "1") { id name } }`,
+			query: `query UserQuery { user(id: "abc123") { id name } }`,
 			expectedPlan: &RPCExecutionPlan{
 				Groups: []RPCCallGroup{
 					{
@@ -1331,27 +1317,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			report := &operationreport.Report{}
-
 			// Parse the GraphQL schema
-			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
-			astparser.NewParser().Parse(schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to parse schema: %s", report.Error())
-			}
-
+			schemaDoc := grpctest.MustGraphQLSchema(t)
 			// Parse the GraphQL query
-			queryDoc := ast.NewDocument()
-			queryDoc.Input.ResetInputString(tt.query)
-			astparser.NewParser().Parse(queryDoc, report)
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse query: %s", report.Error())
-			}
-			// Transform the GraphQL ASTs
-			err := asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
-			if err != nil {
-				t.Fatalf("failed to merge schema with base: %s", err)
 			}
 
 			walker := astvisitor.NewWalker(48)
@@ -1361,7 +1332,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 				mapping:      tt.mapping,
 			})
 
-			walker.Walk(queryDoc, schemaDoc, report)
+			walker.Walk(&queryDoc, &schemaDoc, &report)
 
 			if report.HasErrors() {
 				require.NotEmpty(t, tt.expectedError)
@@ -1473,28 +1444,13 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			report := &operationreport.Report{}
-
 			// Parse the GraphQL schema
-			schemaDoc := ast.NewDocument()
-			schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
-			astparser.NewParser().Parse(schemaDoc, report)
-			if report.HasErrors() {
-				t.Fatalf("failed to parse schema: %s", report.Error())
-			}
+			schemaDoc := grpctest.MustGraphQLSchema(t)
 
 			// Parse the GraphQL query
-			queryDoc := ast.NewDocument()
-			queryDoc.Input.ResetInputString(tt.query)
-			astparser.NewParser().Parse(queryDoc, report)
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
 			if report.HasErrors() {
 				t.Fatalf("failed to parse query: %s", report.Error())
-			}
-
-			// Transform the GraphQL ASTs
-			err := asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
-			if err != nil {
-				t.Fatalf("failed to merge schema with base: %s", err)
 			}
 
 			walker := astvisitor.NewWalker(48)
@@ -1504,7 +1460,7 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 				mapping:      tt.mapping,
 			})
 
-			walker.Walk(queryDoc, schemaDoc, report)
+			walker.Walk(&queryDoc, &schemaDoc, &report)
 
 			if report.HasErrors() {
 				require.NotEmpty(t, tt.expectedError)
@@ -1514,6 +1470,305 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 
 			require.Empty(t, tt.expectedError)
 			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
+
+// TODO: Define test cases for product execution plans
+func TestProductExecutionPlan(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		mapping       *GRPCMapping
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with categories by kind",
+			query: "query CategoriesQuery($kind: CategoryKind!) { categoriesByKind(kind: $kind) { id name kind } }",
+			mapping: &GRPCMapping{
+				Service: "ProductService",
+				QueryRPCs: map[string]RPCConfig{
+					"categoriesByKind": {
+						RPC:      "QueryCategoriesByKind",
+						Request:  "QueryCategoriesByKindRequest",
+						Response: "QueryCategoriesByKindResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"categoriesByKind": {
+							TargetName: "categories_by_kind",
+							ArgumentMappings: map[string]string{
+								"kind": "kind",
+							},
+						},
+					},
+					"Category": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+						"kind": {
+							TargetName: "kind",
+						},
+					},
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "ProductService",
+								MethodName:  "QueryCategoriesByKind",
+								Request: RPCMessage{
+									Name: "QueryCategoriesByKindRequest",
+									Fields: []RPCField{
+										{
+											Name:     "kind",
+											TypeName: string(DataTypeEnum),
+											JSONPath: "kind",
+											EnumName: "CategoryKind",
+											Index:    0,
+										},
+									},
+								},
+								Response: RPCMessage{
+									Name: "QueryCategoriesByKindResponse",
+									Fields: []RPCField{
+										{
+											Name:     "categories_by_kind",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "categoriesByKind",
+											Index:    0,
+											Repeated: true,
+											Message: &RPCMessage{
+												Name: "Category",
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    0,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    1,
+													},
+													{
+														Name:     "kind",
+														TypeName: string(DataTypeEnum),
+														JSONPath: "kind",
+														EnumName: "CategoryKind",
+														Index:    2,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with filtered categories",
+			query: "query FilterCategoriesQuery($filter: CategoryFilter!) { filterCategories(filter: $filter) { id name kind } }",
+			mapping: &GRPCMapping{
+				Service: "ProductService",
+				QueryRPCs: map[string]RPCConfig{
+					"filterCategories": {
+						RPC:      "QueryFilterCategories",
+						Request:  "QueryFilterCategoriesRequest",
+						Response: "QueryFilterCategoriesResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"filterCategories": {
+							TargetName: "filter_categories",
+							ArgumentMappings: map[string]string{
+								"filter": "filter",
+							},
+						},
+					},
+					"Category": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+						"kind": {
+							TargetName: "kind",
+						},
+					},
+					"CategoryFilter": {
+						"category": {
+							TargetName: "category",
+						},
+						"pagination": {
+							TargetName: "pagination",
+						},
+					},
+					"Pagination": {
+						"page": {
+							TargetName: "page",
+						},
+						"perPage": {
+							TargetName: "per_page",
+						},
+					},
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "ProductService",
+								MethodName:  "QueryFilterCategories",
+								Request: RPCMessage{
+									Name: "QueryFilterCategoriesRequest",
+									Fields: []RPCField{
+										{
+											Name:     "filter",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "filter",
+											Index:    0,
+											Message: &RPCMessage{
+												Name: "CategoryFilter",
+												Fields: []RPCField{
+													{
+														Name:     "category",
+														TypeName: string(DataTypeEnum),
+														JSONPath: "category",
+														EnumName: "CategoryKind",
+														Index:    0,
+													},
+													{
+														Name:     "pagination",
+														TypeName: string(DataTypeMessage),
+														JSONPath: "pagination",
+														Index:    1,
+														Message: &RPCMessage{
+															Name: "Pagination",
+															Fields: []RPCField{
+																{
+																	Name:     "page",
+																	TypeName: string(DataTypeInt32),
+																	JSONPath: "page",
+																	Index:    0,
+																},
+																{
+																	Name:     "per_page",
+																	TypeName: string(DataTypeInt32),
+																	JSONPath: "perPage",
+																	Index:    1,
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+								Response: RPCMessage{
+									Name: "QueryFilterCategoriesResponse",
+									Fields: []RPCField{
+										{
+											Name:     "filter_categories",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "filterCategories",
+											Index:    0,
+											Repeated: true,
+											Message: &RPCMessage{
+												Name: "Category",
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    0,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    1,
+													},
+													{
+														Name:     "kind",
+														TypeName: string(DataTypeEnum),
+														JSONPath: "kind",
+														EnumName: "CategoryKind",
+														Index:    2,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			report := &operationreport.Report{}
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			astvalidation.DefaultDefinitionValidator().Validate(&schemaDoc, report)
+			if report.HasErrors() {
+				t.Fatalf("failed to validate schema: %s", report.Error())
+			}
+
+			// Parse the GraphQL query
+			queryDoc, queryReport := astparser.ParseGraphqlDocumentString(tt.query)
+			if queryReport.HasErrors() {
+				t.Fatalf("failed to parse query: %s", queryReport.Error())
+			}
+
+			astvalidation.DefaultOperationValidator().Validate(&queryDoc, &schemaDoc, report)
+			if report.HasErrors() {
+				t.Fatalf("failed to validate query: %s", report.Error())
+			}
+
+			planner := NewPlanner("Products", tt.mapping)
+			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+
+			if tt.expectedError != "" {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.expectedError) {
+					t.Fatalf("expected error to contain %q, got %q", tt.expectedError, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			diff := cmp.Diff(tt.expectedPlan, outPlan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}

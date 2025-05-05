@@ -1,7 +1,3 @@
-scalar ID
-scalar String
-scalar Float
-
 type Product @key(fields: "id") {
   id: ID!
   name: String!
@@ -76,6 +72,24 @@ input ComplexFilterTypeInput {
   filter: FilterType!
 }
 
+input CategoryFilter {
+  category: CategoryKind!
+  pagination: Pagination
+}
+
+type Category {
+  id: ID!
+  name: String!
+  kind: CategoryKind!
+}
+
+enum CategoryKind {
+  BOOK
+  ELECTRONICS
+  FURNITURE
+  OTHER
+}
+
 interface Animal {
   id: ID!
   name: String!
@@ -112,6 +126,9 @@ type Query {
   complexFilterType(
     filter: ComplexFilterTypeInput!
   ): [TypeWithComplexFilterInput!]!
+  categories: [Category!]!
+  categoriesByKind(kind: CategoryKind!): [Category!]!
+  filterCategories(filter: CategoryFilter!): [Category!]!
   randomPet: Animal!
   allPets: [Animal!]!
 }

@@ -19,6 +19,11 @@ service ProductService {
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
   rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
+
+  // Category query operations
+  rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
+  rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
+  rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
 }
 
 message LookupProductByNameRequest {
@@ -178,7 +183,7 @@ message Product {
   string id = 1;
   string name = 2;
   double price = 3;
-} 
+}
 
 message NestedTypeA {
   string id = 1;
@@ -235,4 +240,48 @@ message FilterType {
 message Pagination {
   int32 page = 1;
   int32 per_page = 2;
+}
+
+// CategoryKind enum for product categories
+enum CategoryKind {
+  CATEGORY_KIND_BOOK = 0;
+  CATEGORY_KIND_ELECTRONICS = 1;
+  CATEGORY_KIND_FURNITURE = 2;
+  CATEGORY_KIND_OTHER = 3;
+}
+
+// Category message
+message Category {
+  string id = 1;
+  string name = 2;
+  CategoryKind kind = 3;
+}
+
+// Category query messages
+message QueryCategoriesRequest {}
+
+message QueryCategoriesResponse {
+  repeated Category categories = 1;
+}
+
+message QueryCategoriesByKindRequest {
+  CategoryKind kind = 1;
+}
+
+message QueryCategoriesByKindResponse {
+  repeated Category categories_by_kind = 1;
+}
+
+message QueryFilterCategoriesRequest {
+  CategoryFilter filter = 1;
+}
+
+message QueryFilterCategoriesResponse {
+  repeated Category filter_categories = 1;
+}
+
+// CategoryFilter for filtering categories
+message CategoryFilter {
+  CategoryKind category = 1;
+  Pagination pagination = 2;
 }

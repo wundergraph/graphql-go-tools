@@ -56,6 +56,21 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryAllPetsRequest",
 				Response: "QueryAllPetsResponse",
 			},
+			"categories": {
+				RPC:      "QueryCategories",
+				Request:  "QueryCategoriesRequest",
+				Response: "QueryCategoriesResponse",
+			},
+			"categoriesByKind": {
+				RPC:      "QueryCategoriesByKind",
+				Request:  "QueryCategoriesByKindRequest",
+				Response: "QueryCategoriesByKindResponse",
+			},
+			"filterCategories": {
+				RPC:      "QueryFilterCategories",
+				Request:  "QueryFilterCategoriesRequest",
+				Response: "QueryFilterCategoriesResponse",
+			},
 		},
 		MutationRPCs:     grpcdatasource.RPCConfigMap{},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
@@ -75,6 +90,14 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "LookupStorageByIdRequest",
 					Response: "LookupStorageByIdResponse",
 				},
+			},
+		},
+		EnumValues: map[string][]grpcdatasource.EnumValueMapping{
+			"CategoryKind": {
+				{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
+				{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
+				{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
+				{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
 			},
 		},
 		Fields: map[string]grpcdatasource.FieldMap{
@@ -103,6 +126,21 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"allPets": {
 					TargetName: "all_pets",
 				},
+				"categories": {
+					TargetName: "categories",
+				},
+				"categoriesByKind": {
+					TargetName: "categories_by_kind",
+					ArgumentMappings: map[string]string{
+						"kind": "kind",
+					},
+				},
+				"filterCategories": {
+					TargetName: "filter_categories",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
 				"typeFilterWithArguments": {
 					TargetName: "type_filter_with_arguments",
 					ArgumentMappings: map[string]string{
@@ -127,6 +165,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"price": {
 					TargetName: "price",
 				},
+				"kind": {
+					TargetName: "kind",
+				},
 			},
 			"Storage": {
 				"id": {
@@ -137,6 +178,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"location": {
 					TargetName: "location",
+				},
+				"pagination": {
+					TargetName: "pagination",
 				},
 			},
 			"User": {
@@ -266,6 +310,25 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"perPage": {
 					TargetName: "per_page",
+				},
+			},
+			"Category": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+			},
+			"CategoryFilter": {
+				"category": {
+					TargetName: "category",
+				},
+				"pagination": {
+					TargetName: "pagination",
 				},
 			},
 		},

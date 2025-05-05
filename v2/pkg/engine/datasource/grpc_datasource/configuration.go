@@ -20,6 +20,13 @@ type GRPCMapping struct {
 	EntityRPCs map[string]EntityRPCConfig
 	// Fields defines the field mappings between GraphQL types and gRPC messages
 	Fields map[string]FieldMap
+	// EnumValues defines the enum values for each enum type
+	EnumValues map[string][]EnumValueMapping
+}
+
+type EnumValueMapping struct {
+	Value       string
+	TargetValue string
 }
 
 type GRPCConfiguration struct {
@@ -89,4 +96,27 @@ func (g *GRPCMapping) ResolveFieldArgumentMapping(typeName, fieldName, argumentN
 
 	grpcFieldName, ok := args.ArgumentMappings[argumentName]
 	return grpcFieldName, ok
+}
+
+func (g *GRPCMapping) ResolveEnumValue(enumName, enumValue string) (string, bool) {
+	if g == nil || g.EnumValues == nil {
+		return "", false
+	}
+
+	enumValues, ok := g.EnumValues[enumName]
+	if !ok {
+		return "", false
+	}
+
+	for _, ev := range enumValues {
+		if ev.Value == enumValue {
+			return ev.TargetValue, true
+		}
+
+		if ev.TargetValue == enumValue {
+			return ev.Value, true
+		}
+	}
+
+	return "", false
 }

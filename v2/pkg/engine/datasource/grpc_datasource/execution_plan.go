@@ -74,7 +74,10 @@ type RPCField struct {
 	// This is used to extract data from the GraphQL variables
 	JSONPath string
 	// Index is the index of the field in the message
+	// TODO remove this as it is not needed
 	Index int
+	// EnumName is the name of the enum if the field is an enum type
+	EnumName string
 	// Message is the message type if the field is a nested message type
 	// This allows for recursive construction of complex message types
 	Message *RPCMessage

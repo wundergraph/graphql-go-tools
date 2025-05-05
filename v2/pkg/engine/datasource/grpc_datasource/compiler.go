@@ -150,8 +150,9 @@ type Enum struct {
 
 // EnumValue represents a single value in a protobuf enum.
 type EnumValue struct {
-	Name   string // The name of the enum value
-	Number int32  // The numeric value of the enum value
+	Name         string // The name of the enum value
+	GraphqlValue string // The target value of the enum value
+	Number       int32  // The numeric value of the enum value
 }
 
 // RPCCompiler compiles protobuf schema strings into a Document and can
@@ -237,10 +238,20 @@ func (d *Document) MessageByRef(ref int) Message {
 	return d.Messages[ref]
 }
 
+func (d *Document) EnumByName(name string) (Enum, bool) {
+	for _, e := range d.Enums {
+		if e.Name == name {
+			return e, true
+		}
+	}
+
+	return Enum{}, false
+}
+
 // NewProtoCompiler compiles the protobuf schema into a Document structure.
 // It extracts information about services, methods, messages, and enums
 // from the protobuf schema.
-func NewProtoCompiler(schema string) (*RPCCompiler, error) {
+func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error) {
 	// Create a protocompile compiler with standard imports
 	c := protocompile.Compiler{
 		Resolver: protocompile.WithStandardImports(&protocompile.SourceResolver{
@@ -273,7 +284,7 @@ func NewProtoCompiler(schema string) (*RPCCompiler, error) {
 
 	// Process all enums in the schema
 	for i := 0; i < f.Enums().Len(); i++ {
-		pc.doc.Enums = append(pc.doc.Enums, pc.parseEnum(f.Enums().Get(i)))
+		pc.doc.Enums = append(pc.doc.Enums, pc.parseEnum(f.Enums().Get(i), mapping))
 	}
 
 	// Process all messages in the schema
@@ -411,6 +422,27 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 			continue
 		}
 
+		if field.Type == DataTypeEnum {
+			enum, ok := p.doc.EnumByName(rpcField.EnumName)
+			if !ok {
+				p.report.AddInternalError(fmt.Errorf("enum %s not found in document", rpcField.EnumName))
+				continue
+			}
+
+			for _, enumValue := range enum.Values {
+				if enumValue.GraphqlValue == data.Get(rpcField.JSONPath).String() {
+					message.Set(
+						fd.ByName(protoref.Name(field.Name)),
+						protoref.ValueOfEnum(protoref.EnumNumber(enumValue.Number)),
+					)
+
+					break
+				}
+			}
+
+			continue
+		}
+
 		// Handle scalar fields
 		value := data.Get(rpcField.JSONPath)
 		message.Set(fd.ByName(protoref.Name(field.Name)), p.setValueForKind(field.Type, value))
@@ -445,24 +477,38 @@ func (p *RPCCompiler) setValueForKind(kind DataType, data gjson.Result) protoref
 }
 
 // parseEnum extracts information from a protobuf enum descriptor.
-func (p *RPCCompiler) parseEnum(e protoref.EnumDescriptor) Enum {
+func (p *RPCCompiler) parseEnum(e protoref.EnumDescriptor, mapping *GRPCMapping) Enum {
+	var enumValueMappings []EnumValueMapping
 	name := string(e.Name())
+
+	if mapping != nil && mapping.EnumValues != nil {
+		enumValueMappings = mapping.EnumValues[name]
+	}
 
 	values := make([]EnumValue, 0, e.Values().Len())
 
 	for j := 0; j < e.Values().Len(); j++ {
-		values = append(values, p.parseEnumValue(e.Values().Get(j)))
+		values = append(values, p.parseEnumValue(e.Values().Get(j), enumValueMappings))
 	}
 
 	return Enum{Name: name, Values: values}
 }
 
 // parseEnumValue extracts information from a protobuf enum value descriptor.
-func (p *RPCCompiler) parseEnumValue(v protoref.EnumValueDescriptor) EnumValue {
+func (p *RPCCompiler) parseEnumValue(v protoref.EnumValueDescriptor, enumValueMappings []EnumValueMapping) EnumValue {
 	name := string(v.Name())
 	number := int32(v.Number())
 
-	return EnumValue{Name: name, Number: number}
+	enumValue := EnumValue{Name: name, Number: number}
+
+	for _, mapping := range enumValueMappings {
+		if mapping.TargetValue == name {
+			enumValue.GraphqlValue = mapping.Value
+			break
+		}
+	}
+
+	return enumValue
 }
 
 // parseService extracts information from a protobuf service descriptor,

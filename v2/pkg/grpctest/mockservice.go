@@ -282,3 +282,100 @@ func (s *MockService) QueryAllPets(ctx context.Context, in *productv1.QueryAllPe
 		AllPets: pets,
 	}, nil
 }
+
+// Implementation for QueryCategories
+func (s *MockService) QueryCategories(ctx context.Context, in *productv1.QueryCategoriesRequest) (*productv1.QueryCategoriesResponse, error) {
+	// Generate a list of categories
+	var categories []*productv1.Category
+
+	// Create sample categories for each CategoryKind
+	categoryKinds := []productv1.CategoryKind{
+		productv1.CategoryKind_CATEGORY_KIND_BOOK,
+		productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
+		productv1.CategoryKind_CATEGORY_KIND_FURNITURE,
+		productv1.CategoryKind_CATEGORY_KIND_OTHER,
+	}
+
+	for i, kind := range categoryKinds {
+		categories = append(categories, &productv1.Category{
+			Id:   fmt.Sprintf("category-%d", i+1),
+			Name: fmt.Sprintf("%s Category", kind.String()),
+			Kind: kind,
+		})
+	}
+
+	return &productv1.QueryCategoriesResponse{
+		Categories: categories,
+	}, nil
+}
+
+// Implementation for QueryCategoriesByKind
+func (s *MockService) QueryCategoriesByKind(ctx context.Context, in *productv1.QueryCategoriesByKindRequest) (*productv1.QueryCategoriesByKindResponse, error) {
+	kind := in.GetKind()
+
+	// Generate categories for the specified kind
+	var categories []*productv1.Category
+
+	// Create 3 categories of the requested kind
+	for i := 1; i <= 3; i++ {
+		categories = append(categories, &productv1.Category{
+			Id:   fmt.Sprintf("%s-category-%d", kind.String(), i),
+			Name: fmt.Sprintf("%s Category %d", kind.String(), i),
+			Kind: kind,
+		})
+	}
+
+	return &productv1.QueryCategoriesByKindResponse{
+		CategoriesByKind: categories,
+	}, nil
+}
+
+// Implementation for QueryFilterCategories
+func (s *MockService) QueryFilterCategories(ctx context.Context, in *productv1.QueryFilterCategoriesRequest) (*productv1.QueryFilterCategoriesResponse, error) {
+	filter := in.GetFilter()
+
+	if filter == nil {
+		return &productv1.QueryFilterCategoriesResponse{
+			FilterCategories: []*productv1.Category{},
+		}, nil
+	}
+
+	kind := filter.GetCategory()
+
+	// Generate filtered categories
+	var categories []*productv1.Category
+
+	// Create categories that match the filter
+	for i := 1; i <= 5; i++ {
+		categories = append(categories, &productv1.Category{
+			Id:   fmt.Sprintf("filtered-%s-category-%d", kind.String(), i),
+			Name: fmt.Sprintf("Filtered %s Category %d", kind.String(), i),
+			Kind: kind,
+		})
+	}
+
+	// Apply pagination if provided
+	pagination := filter.GetPagination()
+	if pagination != nil {
+		page := int(pagination.GetPage())
+		perPage := int(pagination.GetPerPage())
+
+		if page > 0 && perPage > 0 && len(categories) > perPage {
+			startIdx := (page - 1) * perPage
+			endIdx := startIdx + perPage
+
+			if startIdx < len(categories) {
+				if endIdx > len(categories) {
+					endIdx = len(categories)
+				}
+				categories = categories[startIdx:endIdx]
+			} else {
+				categories = []*productv1.Category{}
+			}
+		}
+	}
+
+	return &productv1.QueryFilterCategoriesResponse{
+		FilterCategories: categories,
+	}, nil
+}
