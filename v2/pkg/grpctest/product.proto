@@ -17,6 +17,8 @@ service ProductService {
   rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
+  rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
+  rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
 }
 
 message LookupProductByNameRequest {
@@ -126,6 +128,39 @@ message QueryComplexFilterTypeRequest {
 
 message QueryComplexFilterTypeResponse {
   repeated TypeWithComplexFilterInput complex_filter_type = 1;
+}
+
+message QueryRandomPetRequest {}
+
+message QueryRandomPetResponse {
+  Animal random_pet = 1;
+}
+
+message QueryAllPetsRequest {}
+
+message QueryAllPetsResponse {
+  repeated Animal all_pets = 1;
+}
+
+message Animal {
+  oneof animal {
+    Cat cat = 1;
+    Dog dog = 2;
+  }
+}
+
+message Cat {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  int32 meow_volume = 4;
+}
+
+message Dog {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  int32 bark_volume = 4;
 }
 
 message User {

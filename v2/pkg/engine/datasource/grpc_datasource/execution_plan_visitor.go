@@ -171,6 +171,174 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 	r.enrichRequestMessageFromInputArgument(ref, inputValueDefinitionTypeRef)
 }
 
+// EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
+// Checks if this is in the root level below the operation definition.
+//
+// TODO handle multiple entity lookups in a single query.
+// We need to create a new call for each entity lookup.
+func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
+	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		r.currentCall = &RPCCall{
+			CallID:      r.currentCallID,
+			ServiceName: r.resolveServiceName(),
+		}
+
+		// attempt to resolve the name from the mapping
+		if err := r.resolveRPCMethodMapping(); err != nil {
+			r.walker.Report.AddInternalError(err)
+			r.walker.Stop()
+			return
+		}
+
+		r.planInfo.currentRequestMessage = &r.currentCall.Request
+		r.planInfo.currentResponseMessage = &r.currentCall.Response
+
+		// The operation is in the root level below the operation definition.
+		// Only scaffolding the call here.
+		return
+	}
+
+	if len(r.planInfo.currentResponseMessage.Fields) == 0 || len(r.planInfo.currentResponseMessage.Fields) <= r.planInfo.currentResponseFieldIndex {
+		return
+	}
+
+	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
+	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
+		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
+	}
+
+	// Add the current response message to the ancestors and set the current response message to the current field message
+	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
+	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
+
+	r.planInfo.currentResponseMessage.OneOf = r.isInterface(r.walker.Ancestor())
+
+	// Keep track of the field indices for the current response message.
+	// This is used to set the correct field index for the current response message
+	// when leaving the selection set.
+	r.planInfo.responseFieldIndexAncestors = append(r.planInfo.responseFieldIndexAncestors, r.planInfo.currentResponseFieldIndex)
+
+	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
+}
+
+func (r *rpcPlanVisitor) isInterface(node ast.Node) bool {
+	if node.Kind == ast.NodeKindInterfaceTypeDefinition {
+		return true
+	}
+
+	switch node.Kind {
+	case ast.NodeKindField:
+		if r.walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
+			return true
+		}
+	}
+
+	return false
+}
+
+// LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
+// It updates the current response field index and response message ancestors.
+// If the ancestor is an operation definition, it adds the current call to the group.
+func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
+	if len(r.planInfo.responseFieldIndexAncestors) > 0 {
+		r.planInfo.currentResponseFieldIndex = r.planInfo.responseFieldIndexAncestors[len(r.planInfo.responseFieldIndexAncestors)-1]
+		r.planInfo.responseFieldIndexAncestors = r.planInfo.responseFieldIndexAncestors[:len(r.planInfo.responseFieldIndexAncestors)-1]
+	}
+
+	if len(r.planInfo.responseMessageAncestors) > 0 {
+		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
+		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
+	}
+
+	// Only scaffold the call if the method name is not set.
+	// This is a fallback for cases where the method name is not provided in the mapping.
+	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		if r.currentCall.MethodName == "" {
+			methodName := r.rpcMethodName()
+			r.currentCall.MethodName = methodName
+			r.currentCall.Request.Name = methodName + "Request"
+			r.currentCall.Response.Name = methodName + "Response"
+		}
+
+		r.plan.Groups[r.currentGroupIndex].Calls = append(r.plan.Groups[r.currentGroupIndex].Calls, *r.currentCall)
+		r.currentCall = nil
+	}
+}
+
+// EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
+func (r *rpcPlanVisitor) EnterInlineFragment(ref int) {
+	entityInfo := &r.planInfo.entityInfo
+	if entityInfo.entityRootFieldRef != -1 && entityInfo.entityInlineFragmentRef == -1 {
+		entityInfo.entityInlineFragmentRef = ref
+		r.resolveEntityInformation(ref)
+		r.scaffoldEntityLookup()
+
+		return
+	}
+}
+
+// LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
+func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
+	if ref == r.planInfo.entityInfo.entityInlineFragmentRef {
+		r.planInfo.entityInfo.entityInlineFragmentRef = -1
+	}
+}
+
+// EnterField implements astvisitor.EnterFieldVisitor.
+func (r *rpcPlanVisitor) EnterField(ref int) {
+	fieldName := r.operation.FieldNameString(ref)
+	if fieldName == "_entities" {
+		r.planInfo.entityInfo.entityRootFieldRef = ref
+		return
+	}
+
+	// prevent duplicate fields
+	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName) {
+		return
+	}
+
+	fd, ok := r.walker.FieldDefinition(ref)
+	if !ok {
+		r.walker.Report.AddExternalError(operationreport.ExternalError{
+			Message: fmt.Sprintf("Field %s not found in definition", r.operation.FieldNameString(ref)),
+		})
+		return
+	}
+
+	fdt := r.definition.FieldDefinitionType(fd)
+	typeName := r.toDataType(&r.definition.Types[fdt])
+
+	parentTypeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
+
+	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, RPCField{
+		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
+		TypeName: typeName.String(),
+		JSONPath: fieldName,
+		Index:    r.planInfo.currentResponseFieldIndex,
+		Repeated: r.definition.TypeIsList(fdt),
+		// TODO check for list of lists
+	})
+}
+
+// LeaveField implements astvisitor.FieldVisitor.
+func (r *rpcPlanVisitor) LeaveField(ref int) {
+	if ref == r.planInfo.entityInfo.entityRootFieldRef {
+		r.planInfo.entityInfo.entityRootFieldRef = -1
+	}
+
+	r.planInfo.currentResponseFieldIndex++
+}
+
+// newMessgeFromSelectionSet creates a new message from a selection set.
+func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
+	message := &RPCMessage{
+		Name:   r.walker.EnclosingTypeDefinition.NameString(r.definition),
+		Fields: make(RPCFields, 0, len(r.operation.SelectionSets[ref].SelectionRefs)),
+	}
+
+	return message
+}
+
 // enrichRequestMessageFromInputArgument constructs a request message from an input argument based on its type.
 // It retrieves the underlying type and builds the request message from the underlying type.
 // If the underlying type is an input object type, it creates a new message and adds it to the current request message.
@@ -297,149 +465,6 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef, par
 
 	r.planInfo.currentRequestMessage = r.planInfo.requestMessageAncestors[len(r.planInfo.requestMessageAncestors)-1]
 	r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
-}
-
-// EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
-// Checks if this is in the root level below the operation definition.
-//
-// TODO handle multiple entity lookups in a single query.
-// We need to create a new call for each entity lookup.
-func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
-	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
-		r.currentCall = &RPCCall{
-			CallID:      r.currentCallID,
-			ServiceName: r.resolveServiceName(),
-		}
-
-		// attempt to resolve the name from the mapping
-		if err := r.resolveRPCMethodMapping(); err != nil {
-			r.walker.Report.AddInternalError(err)
-			r.walker.Stop()
-			return
-		}
-
-		r.planInfo.currentRequestMessage = &r.currentCall.Request
-		r.planInfo.currentResponseMessage = &r.currentCall.Response
-
-		// The operation is in the root level below the operation definition.
-		// Only scaffolding the call here.
-		return
-	}
-
-	if len(r.planInfo.currentResponseMessage.Fields) == 0 {
-		return
-	}
-
-	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
-	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
-	}
-
-	// Add the current response message to the ancestors and set the current response message to the current field message
-	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
-
-	// Keep track of the field indices for the current response message.
-	// This is used to set the correct field index for the current response message
-	// when leaving the selection set.
-	r.planInfo.responseFieldIndexAncestors = append(r.planInfo.responseFieldIndexAncestors, r.planInfo.currentResponseFieldIndex)
-	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
-}
-
-// newMessgeFromSelectionSet creates a new message from a selection set.
-func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
-	message := &RPCMessage{
-		Name:   r.walker.EnclosingTypeDefinition.NameString(r.definition),
-		Fields: make(RPCFields, 0, len(r.operation.SelectionSets[ref].SelectionRefs)),
-	}
-
-	return message
-}
-
-// LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
-// It updates the current response field index and response message ancestors.
-// If the ancestor is an operation definition, it adds the current call to the group.
-func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
-	if len(r.planInfo.responseFieldIndexAncestors) > 0 {
-		r.planInfo.currentResponseFieldIndex = r.planInfo.responseFieldIndexAncestors[len(r.planInfo.responseFieldIndexAncestors)-1]
-		r.planInfo.responseFieldIndexAncestors = r.planInfo.responseFieldIndexAncestors[:len(r.planInfo.responseFieldIndexAncestors)-1]
-	}
-
-	if len(r.planInfo.responseMessageAncestors) > 0 {
-		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
-		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
-	}
-
-	// Only scaffold the call if the method name is not set.
-	// This is a fallback for cases where the method name is not provided in the mapping.
-	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
-		if r.currentCall.MethodName == "" {
-			methodName := r.rpcMethodName()
-			r.currentCall.MethodName = methodName
-			r.currentCall.Request.Name = methodName + "Request"
-			r.currentCall.Response.Name = methodName + "Response"
-		}
-
-		r.plan.Groups[r.currentGroupIndex].Calls = append(r.plan.Groups[r.currentGroupIndex].Calls, *r.currentCall)
-		r.currentCall = nil
-	}
-}
-
-// EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
-func (r *rpcPlanVisitor) EnterInlineFragment(ref int) {
-	entityInfo := &r.planInfo.entityInfo
-	if entityInfo.entityRootFieldRef != -1 && entityInfo.entityInlineFragmentRef == -1 {
-		entityInfo.entityInlineFragmentRef = ref
-		r.resolveEntityInformation(ref)
-		r.scaffoldEntityLookup()
-	}
-}
-
-// LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
-func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
-	if ref == r.planInfo.entityInfo.entityInlineFragmentRef {
-		r.planInfo.entityInfo.entityInlineFragmentRef = -1
-	}
-}
-
-// EnterField implements astvisitor.EnterFieldVisitor.
-func (r *rpcPlanVisitor) EnterField(ref int) {
-	fieldName := r.operation.FieldNameString(ref)
-	if fieldName == "_entities" {
-		r.planInfo.entityInfo.entityRootFieldRef = ref
-		return
-	}
-
-	fd, ok := r.walker.FieldDefinition(ref)
-	if !ok {
-		r.walker.Report.AddExternalError(operationreport.ExternalError{
-			Message: fmt.Sprintf("Field %s not found in definition", r.operation.FieldNameString(ref)),
-		})
-		return
-	}
-
-	fdt := r.definition.FieldDefinitionType(fd)
-	typeName := r.toDataType(&r.definition.Types[fdt])
-
-	parentTypeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
-
-	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, RPCField{
-		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
-		TypeName: typeName.String(),
-		JSONPath: fieldName,
-		Index:    r.planInfo.currentResponseFieldIndex,
-		Repeated: r.definition.TypeIsList(fdt),
-		// TODO check for list of lists
-	})
-}
-
-// LeaveField implements astvisitor.FieldVisitor.
-func (r *rpcPlanVisitor) LeaveField(ref int) {
-	if ref == r.planInfo.entityInfo.entityRootFieldRef {
-		r.planInfo.entityInfo.entityRootFieldRef = -1
-	}
-
-	r.planInfo.currentResponseFieldIndex++
 }
 
 func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {

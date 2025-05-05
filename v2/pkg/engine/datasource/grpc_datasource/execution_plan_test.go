@@ -1386,7 +1386,89 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 		mapping       *GRPCMapping
 		expectedPlan  *RPCExecutionPlan
 		expectedError string
-	}{}
+	}{
+		{
+			name:  "Should create an execution plan for a query with a random cat",
+			query: "query RandomCatQuery { randomPet { id name kind ... on Cat { meowVolume } } }",
+			mapping: &GRPCMapping{
+				QueryRPCs: map[string]RPCConfig{
+					"Query": {
+						RPC:      "QueryRandomPet",
+						Request:  "QueryRandomPetRequest",
+						Response: "QueryRandomPetResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"randomPet": {
+							TargetName: "random_pet",
+						},
+					},
+					"Cat": {
+						"meowVolume": {
+							TargetName: "meow_volume",
+						},
+					},
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "Products",
+								MethodName:  "QueryRandomPet",
+								Request: RPCMessage{
+									Name: "QueryRandomPetRequest",
+								},
+								Response: RPCMessage{
+									Name: "QueryRandomPetResponse",
+									Fields: []RPCField{
+										{
+											Name:     "random_pet",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "randomPet",
+											Index:    0,
+											Message: &RPCMessage{
+												Name:  "Animal",
+												OneOf: true,
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    0,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    1,
+													},
+													{
+														Name:     "kind",
+														TypeName: string(DataTypeString),
+														JSONPath: "kind",
+														Index:    2,
+													},
+													{
+														Name:     "meow_volume",
+														TypeName: string(DataTypeInt32),
+														JSONPath: "meowVolume",
+														Index:    3,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

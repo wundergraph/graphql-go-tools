@@ -533,3 +533,180 @@ func TestMarshalResponseJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, `{"results":[{"product":{"id":"123","name_different":"test","price_different":123.45}}]}`, responseJSON.String())
 }
+
+// TODO test interface types
+// Test_DataSource_Load_WithAnimalInterface tests the datasource with Animal interface types (Cat/Dog)
+// using a bufconn connection to the mock service
+// func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
+// 	// Set up the bufconn listener
+// 	lis := bufconn.Listen(1024 * 1024)
+
+// 	// Create a new gRPC server
+// 	server := grpc.NewServer()
+
+// 	// Register our mock service implementation
+// 	mockService := &grpctest.MockService{}
+// 	productv1.RegisterProductServiceServer(server, mockService)
+
+// 	// Start the server in a goroutine
+// 	go func() {
+// 		if err := server.Serve(lis); err != nil {
+// 			t.Errorf("failed to serve: %v", err)
+// 		}
+// 	}()
+
+// 	// Clean up the server when the test completes
+// 	defer server.Stop()
+
+// 	// Create a buffer-based dialer
+// 	bufDialer := func(context.Context, string) (net.Conn, error) {
+// 		return lis.Dial()
+// 	}
+
+// 	// Connect using bufconn dialer
+// 	conn, err := grpc.Dial(
+// 		"bufnet",
+// 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+// 		grpc.WithContextDialer(bufDialer),
+// 	)
+// 	require.NoError(t, err)
+// 	defer conn.Close()
+
+// 	// Define the GraphQL query for the Animal interface
+// 	query := `query RandomPetQuery {
+// 		randomPet {
+// 			... on Cat {
+// 				id
+// 				name
+// 				kind
+// 				meowVolume
+// 			}
+// 			... on Dog {
+// 				id
+// 				name
+// 				kind
+// 				barkVolume
+// 			}
+// 		}
+// 	}`
+
+// 	report := &operationreport.Report{}
+
+// 	// Parse the GraphQL schema
+// 	schemaDoc := ast.NewDocument()
+// 	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
+// 	astparser.NewParser().Parse(schemaDoc, report)
+// 	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
+
+// 	// Parse the GraphQL query
+// 	queryDoc := ast.NewDocument()
+// 	queryDoc.Input.ResetInputString(query)
+// 	astparser.NewParser().Parse(queryDoc, report)
+// 	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+
+// 	// Transform the GraphQL ASTs
+// 	err = asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
+// 	require.NoError(t, err, "failed to merge schema with base")
+
+// 	// Create mapping configuration based on the mapping.go
+// 	mapping := &GRPCMapping{
+// 		QueryRPCs: map[string]RPCConfig{
+// 			"randomPet": {
+// 				RPC:      "QueryRandomPet",
+// 				Request:  "QueryRandomPetRequest",
+// 				Response: "QueryRandomPetResponse",
+// 			},
+// 		},
+// 		Fields: map[string]FieldMap{
+// 			"Query": {
+// 				"randomPet": {
+// 					TargetName: "random_pet",
+// 				},
+// 			},
+// 			"Cat": {
+// 				"id": {
+// 					TargetName: "id",
+// 				},
+// 				"name": {
+// 					TargetName: "name",
+// 				},
+// 				"kind": {
+// 					TargetName: "kind",
+// 				},
+// 				"meowVolume": {
+// 					TargetName: "meow_volume",
+// 				},
+// 			},
+// 			"Dog": {
+// 				"id": {
+// 					TargetName: "id",
+// 				},
+// 				"name": {
+// 					TargetName: "name",
+// 				},
+// 				"kind": {
+// 					TargetName: "kind",
+// 				},
+// 				"barkVolume": {
+// 					TargetName: "bark_volume",
+// 				},
+// 			},
+// 		},
+// 	}
+
+// 	// Create the datasource
+// 	ds, err := NewDataSource(conn, DataSourceConfig{
+// 		Operation:    queryDoc,
+// 		Definition:   schemaDoc,
+// 		ProtoSchema:  grpctest.MustProtoSchema(t),
+// 		SubgraphName: "Products",
+// 		Mapping:      mapping,
+// 	})
+// 	require.NoError(t, err)
+
+// 	// Execute the query through our datasource
+// 	output := new(bytes.Buffer)
+// 	err = ds.Load(context.Background(), []byte(`{"query":`+fmt.Sprintf("%q", query)+`}`), output)
+// 	require.NoError(t, err)
+
+// 	// Print the response for debugging
+// 	responseData := output.String()
+// 	t.Logf("Response: %s", responseData)
+
+// 	// Define a response structure that can handle both Cat and Dog types
+// 	type response struct {
+// 		Data struct {
+// 			RandomPet map[string]interface{} `json:"randomPet"`
+// 		} `json:"data"`
+// 		Errors []struct {
+// 			Message string `json:"message"`
+// 		} `json:"errors,omitempty"`
+// 	}
+
+// 	var resp response
+// 	err = json.Unmarshal(output.Bytes(), &resp)
+// 	require.NoError(t, err, "Failed to unmarshal response")
+
+// 	// Verify there are no errors
+// 	require.Empty(t, resp.Errors, "Response should not contain errors")
+
+// 	// Verify we have data
+// 	require.NotNil(t, resp.Data.RandomPet, "RandomPet should not be nil")
+
+// 	// Check if we got either a cat or dog by checking for their specific fields
+// 	if _, hasCat := resp.Data.RandomPet["meowVolume"]; hasCat {
+// 		// We got a Cat response
+// 		require.Contains(t, resp.Data.RandomPet, "id")
+// 		require.Contains(t, resp.Data.RandomPet, "name")
+// 		require.Contains(t, resp.Data.RandomPet, "kind")
+// 		require.Contains(t, resp.Data.RandomPet, "meowVolume")
+// 	} else if _, hasDog := resp.Data.RandomPet["barkVolume"]; hasDog {
+// 		// We got a Dog response
+// 		require.Contains(t, resp.Data.RandomPet, "id")
+// 		require.Contains(t, resp.Data.RandomPet, "name")
+// 		require.Contains(t, resp.Data.RandomPet, "kind")
+// 		require.Contains(t, resp.Data.RandomPet, "barkVolume")
+// 	} else {
+// 		t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", resp.Data.RandomPet)
+// 	}
+// }

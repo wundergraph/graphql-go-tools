@@ -76,6 +76,26 @@ input ComplexFilterTypeInput {
   filter: FilterType!
 }
 
+interface Animal {
+  id: ID!
+  name: String!
+  kind: String!
+}
+
+type Cat implements Animal {
+  id: ID!
+  name: String!
+  kind: String!
+  meowVolume: Int!
+}
+
+type Dog implements Animal {
+  id: ID!
+  name: String!
+  kind: String!
+  barkVolume: Int!
+}
+
 type Query {
   _entities(representations: [_Any!]!): [_Entity!]!
   users: [User!]!
@@ -92,6 +112,8 @@ type Query {
   complexFilterType(
     filter: ComplexFilterTypeInput!
   ): [TypeWithComplexFilterInput!]!
+  randomPet: Animal!
+  allPets: [Animal!]!
 }
 
 union _Entity = Product | Storage

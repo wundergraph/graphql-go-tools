@@ -150,23 +150,23 @@ func (s *MockService) QueryRecursiveType(ctx context.Context, in *productv1.Quer
 }
 
 func (s *MockService) QueryTypeFilterWithArguments(ctx context.Context, in *productv1.QueryTypeFilterWithArgumentsRequest) (*productv1.QueryTypeFilterWithArgumentsResponse, error) {
-	filterField1 := in.GetFilterField1()
-	filterField2 := in.GetFilterField2()
+	filterField1 := in.GetFilterField_1()
+	filterField2 := in.GetFilterField_2()
 
 	var fields []*productv1.TypeWithMultipleFilterFields
 
 	// Create results that echo the filter values
 	for i := 1; i <= 2; i++ {
 		fields = append(fields, &productv1.TypeWithMultipleFilterFields{
-			Id:           fmt.Sprintf("multi-filter-%d", i),
-			Name:         fmt.Sprintf("MultiFilter %d", i),
-			FilterField1: filterField1,
-			FilterField2: filterField2,
+			Id:            fmt.Sprintf("multi-filter-%d", i),
+			Name:          fmt.Sprintf("MultiFilter %d", i),
+			FilterField_1: filterField1,
+			FilterField_2: filterField2,
 		})
 	}
 
 	return &productv1.QueryTypeFilterWithArgumentsResponse{
-		TypeWithMultipleFilterFields: fields,
+		TypeFilterWithArguments: fields,
 	}, nil
 }
 
@@ -178,10 +178,10 @@ func (s *MockService) QueryTypeWithMultipleFilterFields(ctx context.Context, in 
 	// Echo the filter values in the results
 	for i := 1; i <= 2; i++ {
 		fields = append(fields, &productv1.TypeWithMultipleFilterFields{
-			Id:           fmt.Sprintf("filtered-%d", i),
-			Name:         filter.GetName() + " " + strconv.Itoa(i),
-			FilterField1: filter.GetFilterField1(),
-			FilterField2: filter.GetFilterField2(),
+			Id:            fmt.Sprintf("filtered-%d", i),
+			Name:          filter.GetName() + " " + strconv.Itoa(i),
+			FilterField_1: filter.GetFilterField_1(),
+			FilterField_2: filter.GetFilterField_2(),
 		})
 	}
 
@@ -207,5 +207,78 @@ func (s *MockService) QueryComplexFilterType(ctx context.Context, in *productv1.
 				Name: name,
 			},
 		},
+	}, nil
+}
+
+func (s *MockService) QueryRandomPet(ctx context.Context, in *productv1.QueryRandomPetRequest) (*productv1.QueryRandomPetResponse, error) {
+	// Create either a cat or dog randomly
+	var pet *productv1.Animal
+
+	// Random choice between cat and dog
+	if rand.Intn(2) == 0 {
+		// Create a cat
+		pet = &productv1.Animal{
+			Animal: &productv1.Animal_Cat{
+				Cat: &productv1.Cat{
+					Id:         "cat-1",
+					Name:       "Whiskers",
+					Kind:       "Siamese",
+					MeowVolume: int32(rand.Intn(10) + 1), // Random volume between 1-10
+				},
+			},
+		}
+	} else {
+		// Create a dog
+		pet = &productv1.Animal{
+			Animal: &productv1.Animal_Dog{
+				Dog: &productv1.Dog{
+					Id:         "dog-1",
+					Name:       "Spot",
+					Kind:       "Dalmatian",
+					BarkVolume: int32(rand.Intn(10) + 1), // Random volume between 1-10
+				},
+			},
+		}
+	}
+
+	return &productv1.QueryRandomPetResponse{
+		RandomPet: pet,
+	}, nil
+}
+
+func (s *MockService) QueryAllPets(ctx context.Context, in *productv1.QueryAllPetsRequest) (*productv1.QueryAllPetsResponse, error) {
+	// Create a mix of cats and dogs
+	var pets []*productv1.Animal
+
+	// Add 2 cats
+	for i := 1; i <= 2; i++ {
+		pets = append(pets, &productv1.Animal{
+			Animal: &productv1.Animal_Cat{
+				Cat: &productv1.Cat{
+					Id:         fmt.Sprintf("cat-%d", i),
+					Name:       fmt.Sprintf("Cat %d", i),
+					Kind:       fmt.Sprintf("Breed %d", i),
+					MeowVolume: int32(i + 3), // Different volumes
+				},
+			},
+		})
+	}
+
+	// Add 2 dogs
+	for i := 1; i <= 2; i++ {
+		pets = append(pets, &productv1.Animal{
+			Animal: &productv1.Animal_Dog{
+				Dog: &productv1.Dog{
+					Id:         fmt.Sprintf("dog-%d", i),
+					Name:       fmt.Sprintf("Dog %d", i),
+					Kind:       fmt.Sprintf("Breed %d", i),
+					BarkVolume: int32(i + 5), // Different volumes
+				},
+			},
+		})
+	}
+
+	return &productv1.QueryAllPetsResponse{
+		AllPets: pets,
 	}, nil
 }

@@ -155,10 +155,28 @@ func marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data proto
 
 	root := arena.NewObject()
 
+	// TODO implement oneof
+	// if structure.OneOf {
+	// 	name := strings.ToLower(structure.Name)
+	// 	oneof := data.Descriptor().Oneofs().ByName(protoref.Name(name))
+	// 	if oneof == nil {
+	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", structure.Name, structure.Name)
+	// 	}
+
+	// 	oneofDescriptor := data.WhichOneof(oneof)
+	// 	if oneofDescriptor == nil {
+	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", structure.Name, structure.Name)
+	// 	}
+
+	// 	if oneofDescriptor.Kind() == protoref.MessageKind {
+	// 		data = data.Get(oneofDescriptor).Message()
+	// 	}
+	// }
+
 	for _, field := range structure.Fields {
 		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
 		if fd == nil {
-			return nil, fmt.Errorf("unable to build response JSON: field %s not found in message %s", field.Name, structure.Name)
+			continue
 		}
 
 		if fd.IsList() {

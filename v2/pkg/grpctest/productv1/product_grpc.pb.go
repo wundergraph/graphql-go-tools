@@ -29,6 +29,8 @@ const (
 	ProductService_QueryTypeFilterWithArguments_FullMethodName      = "/product.v1.ProductService/QueryTypeFilterWithArguments"
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName = "/product.v1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryComplexFilterType_FullMethodName            = "/product.v1.ProductService/QueryComplexFilterType"
+	ProductService_QueryRandomPet_FullMethodName                    = "/product.v1.ProductService/QueryRandomPet"
+	ProductService_QueryAllPets_FullMethodName                      = "/product.v1.ProductService/QueryAllPets"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -47,6 +49,8 @@ type ProductServiceClient interface {
 	QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryComplexFilterType(ctx context.Context, in *QueryComplexFilterTypeRequest, opts ...grpc.CallOption) (*QueryComplexFilterTypeResponse, error)
+	QueryRandomPet(ctx context.Context, in *QueryRandomPetRequest, opts ...grpc.CallOption) (*QueryRandomPetResponse, error)
+	QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error)
 }
 
 type productServiceClient struct {
@@ -157,6 +161,26 @@ func (c *productServiceClient) QueryComplexFilterType(ctx context.Context, in *Q
 	return out, nil
 }
 
+func (c *productServiceClient) QueryRandomPet(ctx context.Context, in *QueryRandomPetRequest, opts ...grpc.CallOption) (*QueryRandomPetResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryRandomPetResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryRandomPet_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryAllPetsResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryAllPets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -173,6 +197,8 @@ type ProductServiceServer interface {
 	QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error)
+	QueryRandomPet(context.Context, *QueryRandomPetRequest) (*QueryRandomPetResponse, error)
+	QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -212,6 +238,12 @@ func (UnimplementedProductServiceServer) QueryTypeWithMultipleFilterFields(conte
 }
 func (UnimplementedProductServiceServer) QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryComplexFilterType not implemented")
+}
+func (UnimplementedProductServiceServer) QueryRandomPet(context.Context, *QueryRandomPetRequest) (*QueryRandomPetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryRandomPet not implemented")
+}
+func (UnimplementedProductServiceServer) QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryAllPets not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -414,6 +446,42 @@ func _ProductService_QueryComplexFilterType_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryRandomPet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRandomPetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryRandomPet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryRandomPet_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryRandomPet(ctx, req.(*QueryRandomPetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryAllPets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryAllPetsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryAllPets(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryAllPets_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryAllPets(ctx, req.(*QueryAllPetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -460,6 +528,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryComplexFilterType",
 			Handler:    _ProductService_QueryComplexFilterType_Handler,
+		},
+		{
+			MethodName: "QueryRandomPet",
+			Handler:    _ProductService_QueryRandomPet_Handler,
+		},
+		{
+			MethodName: "QueryAllPets",
+			Handler:    _ProductService_QueryAllPets_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

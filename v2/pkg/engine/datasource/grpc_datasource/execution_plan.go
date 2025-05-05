@@ -51,6 +51,8 @@ type RPCMessage struct {
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
+	// OneOf indicates if the message is an interface
+	OneOf bool
 }
 
 // RPCField represents a single field in a gRPC message.
@@ -92,6 +94,16 @@ func (r RPCFields) ByName(name string) *RPCField {
 	}
 
 	return nil
+}
+
+func (r RPCFields) Exists(name string) bool {
+	for _, field := range r {
+		if field.Name == name {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (r *RPCExecutionPlan) String() string {

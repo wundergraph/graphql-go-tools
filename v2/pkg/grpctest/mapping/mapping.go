@@ -46,6 +46,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryComplexFilterTypeRequest",
 				Response: "QueryComplexFilterTypeResponse",
 			},
+			"randomPet": {
+				RPC:      "QueryRandomPet",
+				Request:  "QueryRandomPetRequest",
+				Response: "QueryRandomPetResponse",
+			},
+			"allPets": {
+				RPC:      "QueryAllPets",
+				Request:  "QueryAllPetsRequest",
+				Response: "QueryAllPetsResponse",
+			},
 		},
 		MutationRPCs:     grpcdatasource.RPCConfigMap{},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
@@ -86,6 +96,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"recursiveType": {
 					TargetName: "recursive_type",
+				},
+				"randomPet": {
+					TargetName: "random_pet",
+				},
+				"allPets": {
+					TargetName: "all_pets",
 				},
 				"typeFilterWithArguments": {
 					TargetName: "type_filter_with_arguments",
@@ -192,6 +208,42 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"name": {
 					TargetName: "name",
+				},
+			},
+			"Cat": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"meowVolume": {
+					TargetName: "meow_volume",
+				},
+			},
+			"Dog": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"barkVolume": {
+					TargetName: "bark_volume",
+				},
+			},
+			"Animal": {
+				"cat": {
+					TargetName: "cat",
+				},
+				"dog": {
+					TargetName: "dog",
 				},
 			},
 			"FilterType": {
