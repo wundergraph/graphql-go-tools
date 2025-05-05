@@ -42,20 +42,7 @@ func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpc
 }
 
 func (s *Source) schemaWithoutTypeInfo() introspection.Schema {
-	types := make([]*introspection.FullType, 0, len(s.introspectionData.Schema.Types))
-
-	for i := range s.introspectionData.Schema.Types {
-		types = append(types, s.typeWithoutFieldAndEnumValues(s.introspectionData.Schema.Types[i]))
-	}
-
-	return introspection.Schema{
-		QueryType:        s.introspectionData.Schema.QueryType,
-		MutationType:     s.introspectionData.Schema.MutationType,
-		SubscriptionType: s.introspectionData.Schema.SubscriptionType,
-		Types:            types,
-		Directives:       s.introspectionData.Schema.Directives,
-		TypeName:         s.introspectionData.Schema.TypeName,
-	}
+	return s.introspectionData.Schema
 }
 
 func (s *Source) typeInfo(typeName *string) *introspection.FullType {
@@ -77,7 +64,7 @@ func (s *Source) singleType(w io.Writer, typeName *string) error {
 		return s.writeNull(w)
 	}
 
-	return json.NewEncoder(w).Encode(s.typeWithoutFieldAndEnumValues(typeInfo))
+	return json.NewEncoder(w).Encode(typeInfo)
 }
 
 func (s *Source) typeWithoutFieldAndEnumValues(typeInfo *introspection.FullType) *introspection.FullType {
@@ -88,6 +75,7 @@ func (s *Source) typeWithoutFieldAndEnumValues(typeInfo *introspection.FullType)
 	return &typeInfoCopy
 }
 
+// __Type.fields
 func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
 	if typeInfo == nil || len(typeInfo.Fields) == 0 {
@@ -108,6 +96,7 @@ func (s *Source) fieldsForType(w io.Writer, typeName *string, includeDeprecated 
 	return json.NewEncoder(w).Encode(fields)
 }
 
+// __Type.enumValues
 func (s *Source) enumValuesForType(w io.Writer, typeName *string, includeDeprecated bool) error {
 	typeInfo := s.typeInfo(typeName)
 	if typeInfo == nil || len(typeInfo.EnumValues) == 0 {
@@ -127,3 +116,7 @@ func (s *Source) enumValuesForType(w io.Writer, typeName *string, includeDepreca
 
 	return json.NewEncoder(w).Encode(enumValues)
 }
+
+//  __Directive.args
+// __Field.args
+// __Type.inputFields

@@ -793,7 +793,9 @@
           "description": "Marks an element of a GraphQL schema as no longer supported.",
           "locations": [
             "FIELD_DEFINITION",
-            "ENUM_VALUE"
+            "ARGUMENT_DEFINITION",
+            "ENUM_VALUE",
+            "INPUT_FIELD_DEFINITION"
           ],
           "args": [
             {
@@ -807,6 +809,32 @@
                 "ofType": null
               },
               "defaultValue": "\"No longer supported\""
+            }
+          ]
+        },
+        {
+          "__typename": "__Directive",
+          "name": "specifiedBy",
+          "description": "",
+          "locations": [
+            "SCALAR"
+          ],
+          "args": [
+            {
+              "__typename": "__InputValue",
+              "name": "url",
+              "description": "",
+              "type": {
+                "__typename": "__Type",
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "String",
+                  "ofType": null
+                }
+              },
+              "defaultValue": null
             }
           ]
         }

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -607,6 +609,60 @@ func (v *Visitor) skipField(ref int) bool {
 	return false
 }
 
+func (v *Visitor) introspectionShouldEvaluateIncludeDeprecated(fieldName string, enclosingTypeName string) bool {
+	var introspectionEvaluateIncludeDeprecated bool
+
+	switch enclosingTypeName {
+	case "__Directive", "__Field":
+		introspectionEvaluateIncludeDeprecated = fieldName == "args"
+	case "__Type":
+		switch fieldName {
+		case "fields", "enumValues", "inputFields":
+			introspectionEvaluateIncludeDeprecated = true
+		}
+	}
+
+	return introspectionEvaluateIncludeDeprecated
+}
+
+func (v *Visitor) includeDeprecatedVariableName(fieldRef int) (name string) {
+	if !v.Operation.FieldHasArguments(fieldRef) {
+		return
+	}
+
+	argRef, ok := v.Operation.FieldArgument(fieldRef, []byte("includeDeprecated"))
+	if !ok {
+		return
+	}
+
+	argValue := v.Operation.ArgumentValue(argRef)
+	if argValue.Kind != ast.ValueKindVariable {
+		return
+	}
+
+	return string(v.Operation.VariableValueNameBytes(argValue.Ref))
+}
+
+func (v *Visitor) resolveSkipArrayItem(fieldRef int, fieldName string, enclosingTypeName string) resolve.SkipArrayItem {
+	if !v.introspectionShouldEvaluateIncludeDeprecated(fieldName, enclosingTypeName) {
+		return nil
+	}
+
+	return func(includeDeprecatedVariableName string) resolve.SkipArrayItem {
+		return func(ctx *resolve.Context, itemValue *astjson.Value) bool {
+			shouldIncludeDeprecated := false
+
+			if includeDeprecatedVariableName != "" {
+				shouldIncludeDeprecated = ctx.Variables.GetBool(includeDeprecatedVariableName)
+			}
+
+			isDeprecated := itemValue.GetBool("isDeprecated")
+
+			return isDeprecated && !shouldIncludeDeprecated
+		}
+	}(v.includeDeprecatedVariableName(fieldRef))
+}
+
 func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path []string) resolve.Node {
 	ofType := v.Definition.Types[typeRef].OfType
 
@@ -623,10 +679,12 @@ func (v *Visitor) resolveFieldValue(fieldRef, typeRef int, nullable bool, path [
 		return v.resolveFieldValue(fieldRef, ofType, false, path)
 	case ast.TypeKindList:
 		listItem := v.resolveFieldValue(fieldRef, ofType, true, nil)
+
 		return &resolve.Array{
 			Nullable: nullable,
 			Path:     path,
 			Item:     listItem,
+			SkipItem: v.resolveSkipArrayItem(fieldRef, fieldName, enclosingTypeName),
 		}
 	case ast.TypeKindNamed:
 		typeName := v.Definition.ResolveTypeNameString(typeRef)

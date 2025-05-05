@@ -67,13 +67,13 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 
 func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSource {
 	root, _ := f.buildRootDataSourceConfiguration()
-	fields, _ := f.buildFieldsConfiguration()
-	enums, _ := f.buildEnumsConfiguration()
+	// fields, _ := f.buildTypeFieldsConfiguration()
+	// enums, _ := f.buildTypeEnumValuesConfiguration()
 
 	return []plan.DataSource{
 		root,
-		fields,
-		enums,
+		// fields,
+		// enums,
 	}
 }
 
@@ -91,11 +91,11 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "__Schema",
-					FieldNames: []string{"queryType", "mutationType", "subscriptionType", "types", "directives", "__typename"},
+					FieldNames: []string{"description", "queryType", "mutationType", "subscriptionType", "types", "directives", "__typename"},
 				},
 				{
 					TypeName:   "__Type",
-					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType", "__typename"},
+					FieldNames: []string{"kind", "name", "description", "fields", "interfaces", "possibleTypes", "enumValues", "inputFields", "ofType", "specifiedByURL", "__typename"},
 				},
 				{
 					TypeName:   "__Field",
@@ -103,11 +103,15 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 				},
 				{
 					TypeName:   "__InputValue",
-					FieldNames: []string{"name", "description", "type", "defaultValue", "__typename"},
+					FieldNames: []string{"name", "description", "type", "defaultValue", "isDeprecated", "deprecationReason", "__typename"},
 				},
 				{
 					TypeName:   "__Directive",
 					FieldNames: []string{"name", "description", "locations", "args", "isRepeatable", "__typename"},
+				},
+				{
+					TypeName:   "__EnumValue",
+					FieldNames: []string{"name", "description", "isDeprecated", "deprecationReason", "__typename"},
 				},
 			},
 		},
@@ -115,7 +119,7 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 	)
 }
 
-func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
+func (f *IntrospectionConfigFactory) buildTypeFieldsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
 		resolve.IntrospectionTypeFieldsDataSourceID,
 		NewFactory[Configuration](f.introspectionData),
@@ -137,7 +141,7 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSource
 				},
 				{
 					TypeName:   "__InputValue",
-					FieldNames: []string{"name", "description", "type", "defaultValue", "__typename"},
+					FieldNames: []string{"name", "description", "type", "defaultValue", "isDeprecated", "deprecationReason", "__typename"},
 				},
 			},
 		},
@@ -145,7 +149,7 @@ func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSource
 	)
 }
 
-func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
+func (f *IntrospectionConfigFactory) buildTypeEnumValuesConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
 	return plan.NewDataSourceConfiguration[Configuration](
 		resolve.IntrospectionTypeEnumValuesDataSourceID,
 		NewFactory[Configuration](f.introspectionData),
