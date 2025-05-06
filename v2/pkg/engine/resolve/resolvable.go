@@ -647,10 +647,9 @@ func (r *Resolvable) authorizeField(value *astjson.Value, field *Field) (skipFie
 	dataSourceID := field.Info.Source.IDs[0]
 	dataSourceName := field.Info.Source.Names[0]
 	typeName := r.objectFieldTypeName(value, field)
-	fieldName := unsafebytes.BytesToString(field.Name)
 	gc := GraphCoordinate{
 		TypeName:  typeName,
-		FieldName: fieldName,
+		FieldName: field.Info.Name,
 	}
 	result, authErr := r.authorize(value, dataSourceID, gc)
 	if authErr != nil {
