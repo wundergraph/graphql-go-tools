@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
@@ -425,54 +426,6 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 									"__Type": {},
 								},
 								TypeName: "__Type",
-								Fetches: []resolve.Fetch{
-									&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 1,
-										},
-										DataSourceIdentifier: dataSourceIdentifier,
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:      `{"request_type":3,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-											DataSource: &Source{},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"name"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-												&resolve.ContextVariable{
-													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-											),
-											PostProcessing: resolve.PostProcessingConfiguration{
-												MergePath: []string{"fields"},
-											},
-										},
-									},
-									&resolve.SingleFetch{
-										FetchDependencies: resolve.FetchDependencies{
-											FetchID: 2,
-										},
-										DataSourceIdentifier: dataSourceIdentifier,
-										FetchConfiguration: resolve.FetchConfiguration{
-											Input:      `{"request_type":4,"on_type_name":"$$0$$","include_deprecated":$$1$$}`,
-											DataSource: &Source{},
-											Variables: resolve.NewVariables(
-												&resolve.ObjectVariable{
-													Path:     []string{"name"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-												&resolve.ContextVariable{
-													Path:     []string{"b"},
-													Renderer: resolve.NewPlainVariableRenderer(),
-												},
-											),
-											PostProcessing: resolve.PostProcessingConfiguration{
-												MergePath: []string{"enumValues"},
-											},
-										},
-									},
-								},
 								Fields: []*resolve.Field{
 									{
 										Name: []byte("fields"),
@@ -496,6 +449,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														},
 													},
 												},
+											},
+											SkipItem: func(ctx *resolve.Context, arrayItem *astjson.Value) bool {
+												return false
 											},
 										}, Position: resolve.Position{
 											Line:   4,
@@ -524,6 +480,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 														},
 													},
 												},
+											},
+											SkipItem: func(ctx *resolve.Context, arrayItem *astjson.Value) bool {
+												return false
 											},
 										}, Position: resolve.Position{
 											Line:   7,

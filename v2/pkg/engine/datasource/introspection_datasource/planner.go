@@ -77,15 +77,8 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		MergePath: []string{p.rootFielPath},
 	}
 
-	requiresParallelListItemFetch := false
-	switch p.rootFieldName {
-	case fieldsFieldName, enumValuesFieldName:
-		requiresParallelListItemFetch = p.isArrayItem
-	}
-
 	return resolve.FetchConfiguration{
-		Input:                         p.configureInput(),
-		RequiresParallelListItemFetch: requiresParallelListItemFetch,
+		Input: p.configureInput(),
 		DataSource: &Source{
 			introspectionData: p.introspectionData,
 		},
