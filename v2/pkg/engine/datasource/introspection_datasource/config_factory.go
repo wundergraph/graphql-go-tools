@@ -50,8 +50,6 @@ func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.Data
 
 	return []plan.DataSource{
 		root,
-		// fields,
-		// enums,
 	}
 }
 
