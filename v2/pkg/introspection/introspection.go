@@ -18,6 +18,7 @@ type Schema struct {
 	Types            []*FullType `json:"types"`
 	Directives       []Directive `json:"directives"`
 	TypeName         string      `json:"__typename"`
+	Description      *string     `json:"description,omitempty"`
 	fullTypeMap      map[string]*FullType
 }
 
@@ -67,6 +68,8 @@ type FullType struct {
 	// not empty for __TypeKind INTERFACE and UNION only
 	PossibleTypes []TypeRef `json:"possibleTypes"`
 	TypeName      string    `json:"__typename"`
+	// may be non-null for custom SCALAR, otherwise null.
+	SpecifiedByURL *string `json:"specifiedByURL,omitempty"`
 }
 
 func NewFullType() *FullType {
@@ -148,11 +151,13 @@ type EnumValue struct {
 }
 
 type InputValue struct {
-	Name         string  `json:"name"`
-	Description  string  `json:"description"`
-	Type         TypeRef `json:"type"`
-	DefaultValue *string `json:"defaultValue"`
-	TypeName     string  `json:"__typename"`
+	Name              string  `json:"name"`
+	Description       string  `json:"description"`
+	Type              TypeRef `json:"type"`
+	DefaultValue      *string `json:"defaultValue"`
+	IsDeprecated      bool    `json:"isDeprecated"`
+	DeprecationReason *string `json:"deprecationReason"`
+	TypeName          string  `json:"__typename"`
 }
 
 type Directive struct {

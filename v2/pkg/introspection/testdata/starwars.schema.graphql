@@ -1,3 +1,4 @@
+"awesome starwars schema"
 schema {
     query: Query
     mutation: Mutation
@@ -88,7 +89,7 @@ type Droid implements Character {
     "This droid's friends, or an empty list if they have none"
     friends: [Character]
     "The friends of the droid exposed as a connection with edges"
-    friendsConnection(first: Int, after: ID): FriendsConnection!
+    friendsConnection(first: Int, after: ID  @deprecated(reason: "use before")): FriendsConnection!
     "The movies this droid appears in"
     appearsIn: [Episode]!
     "This droid's primary function"
@@ -145,7 +146,7 @@ input ReviewInput {
 "The input object sent when passing in a color"
 input ColorInput {
     red: Int!
-    green: Int!
+    green: Int! @deprecated(reason: "don't like green")
     blue: Int!
 }
 
@@ -162,6 +163,8 @@ type Starship {
 
 "The union represents combined return result which could be on of the types: Human, Droid, Starship"
 union SearchResult = Human | Droid | Starship
+
+scalar DateTime @specifiedBy(url: "https://scalars.graphql.org/andimarek/date-time")
 
 "The `Int` scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1."
 scalar Int
@@ -190,8 +193,8 @@ directive @deprecated(
     for how to access supported similar data. Formatted in
     [Markdown](https://daringfireball.net/projects/markdown/).
     """
-    reason: String = "No longer supported"
-) on FIELD_DEFINITION | ENUM_VALUE
+    reason: String = "No longer supported" @deprecated
+) on FIELD_DEFINITION | ARGUMENT_DEFINITION | INPUT_FIELD_DEFINITION | ENUM_VALUE
 directive @delegateField(
     name: String!
 ) repeatable on OBJECT | INTERFACE

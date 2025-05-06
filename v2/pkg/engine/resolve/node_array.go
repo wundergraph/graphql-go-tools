@@ -1,11 +1,23 @@
 package resolve
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/wundergraph/astjson"
+)
 
 type Array struct {
 	Path     []string
 	Nullable bool
 	Item     Node
+
+	SkipItem SkipArrayItem
+}
+
+type SkipArrayItem func(ctx *Context, arrayItem *astjson.Value) bool
+
+type IntrospectionData struct {
+	IncludeDeprecatedVariableName string
 }
 
 func (_ *Array) NodeKind() NodeKind {

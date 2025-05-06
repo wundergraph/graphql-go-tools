@@ -774,10 +774,24 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.printBytes(lBrack)
 	}
 	values := value.GetArray()
+
+	hasPrintedValue := false
 	for i, arrayValue := range values {
-		if r.print && i != 0 {
+		skip := false
+		if r.print && arr.SkipItem != nil {
+			skip = arr.SkipItem(r.ctx, arrayValue)
+		}
+
+		if skip {
+			continue
+		}
+
+		if r.print && i != 0 && hasPrintedValue {
 			r.printBytes(comma)
 		}
+
+		hasPrintedValue = true
+
 		r.pushArrayPathElement(i)
 		err := r.walkNode(arr.Item, arrayValue)
 		r.popArrayPathElement()

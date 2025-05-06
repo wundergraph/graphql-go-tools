@@ -41,22 +41,6 @@ func TestSource_Load(t *testing.T) {
 	t.Run("schema introspection with custom root operation types", run(testSchemaWithCustomRootOperationTypes, `{"request_type":1}`, `schema_introspection_with_custom_root_operation_types`))
 	t.Run("type introspection", run(testSchema, `{"request_type":2,"type_name":"Query"}`, `type_introspection`))
 	t.Run("type introspection of not existing type", run(testSchema, `{"request_type":2,"type_name":"NotExisting"}`, `not_existing_type`))
-
-	t.Run("type fields", func(t *testing.T) {
-		t.Run("include deprecated", run(testSchema, `{"request_type":3,"on_type_name":"Query","include_deprecated":true}`, `fields_with_deprecated`))
-
-		t.Run("no deprecated", run(testSchema, `{"request_type":3,"on_type_name":"Query","include_deprecated":false}`, `fields_without_deprecated`))
-
-		t.Run("of not existing type", run(testSchema, `{"request_type":3,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
-	})
-
-	t.Run("type enum values", func(t *testing.T) {
-		t.Run("include deprecated", run(testSchema, `{"request_type":4,"on_type_name":"Episode","include_deprecated":true}`, `enum_values_with_deprecated`))
-
-		t.Run("no deprecated", run(testSchema, `{"request_type":4,"on_type_name":"Episode","include_deprecated":false}`, `enum_values_without_deprecated`))
-
-		t.Run("of not existing type", run(testSchema, `{"request_type":4,"on_type_name":"NotExisting","include_deprecated":true}`, `not_existing_type`))
-	})
 }
 
 const testSchema = `

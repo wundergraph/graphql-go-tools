@@ -427,6 +427,16 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				ArgumentNames: []string{"lvl", "number"},
 			},
 			{
+				TypeName:      "__Directive",
+				FieldName:     "args",
+				ArgumentNames: []string{"includeDeprecated"},
+			},
+			{
+				TypeName:      "__Field",
+				FieldName:     "args",
+				ArgumentNames: []string{"includeDeprecated"},
+			},
+			{
 				TypeName:      "__Type",
 				FieldName:     "fields",
 				ArgumentNames: []string{"includeDeprecated"},
@@ -434,6 +444,11 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 			{
 				TypeName:      "__Type",
 				FieldName:     "enumValues",
+				ArgumentNames: []string{"includeDeprecated"},
+			},
+			{
+				TypeName:      "__Type",
+				FieldName:     "inputFields",
 				ArgumentNames: []string{"includeDeprecated"},
 			},
 		}
