@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -101,8 +100,6 @@ func (p *ProxyEngineConfigFactory) EngineConfiguration() (Configuration, error) 
 	if err != nil {
 		return Configuration{}, err
 	}
-
-	fmt.Println(string(p.schema.RawSchema()))
 
 	dataSourceConfig, err := graphqlDataSource.NewConfiguration(graphqlDataSource.ConfigurationInput{
 		Fetch: &graphqlDataSource.FetchConfiguration{
