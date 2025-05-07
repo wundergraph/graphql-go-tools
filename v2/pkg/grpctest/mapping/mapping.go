@@ -72,7 +72,13 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Response: "QueryFilterCategoriesResponse",
 			},
 		},
-		MutationRPCs:     grpcdatasource.RPCConfigMap{},
+		MutationRPCs: grpcdatasource.RPCConfigMap{
+			"createProduct": {
+				RPC:      "CreateProduct",
+				Request:  "CreateProductRequest",
+				Response: "CreateProductResponse",
+			},
+		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
 		EntityRPCs: map[string]grpcdatasource.EntityRPCConfig{
 			"Product": {
@@ -106,12 +112,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "user",
 					ArgumentMappings: map[string]string{
 						"id": "id",
-					},
-				},
-				"complexFilterType": {
-					TargetName: "complex_filter_type",
-					ArgumentMappings: map[string]string{
-						"filter": "filter",
 					},
 				},
 				"nestedType": {
@@ -154,6 +154,28 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"filter": "filter",
 					},
 				},
+				"complexFilterType": {
+					TargetName: "complex_filter_type",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+			},
+			"Mutation": {
+				"createProduct": {
+					TargetName: "create_product",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+			},
+			"ProductInput": {
+				"name": {
+					TargetName: "name",
+				},
+				"price": {
+					TargetName: "price",
+				},
 			},
 			"Product": {
 				"id": {
@@ -165,9 +187,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"price": {
 					TargetName: "price",
 				},
-				"kind": {
-					TargetName: "kind",
-				},
 			},
 			"Storage": {
 				"id": {
@@ -178,9 +197,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"location": {
 					TargetName: "location",
-				},
-				"pagination": {
-					TargetName: "pagination",
 				},
 			},
 			"User": {
@@ -310,6 +326,11 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"perPage": {
 					TargetName: "per_page",
+				},
+			},
+			"ComplexFilterTypeInput": {
+				"filter": {
+					TargetName: "filter",
 				},
 			},
 			"Category": {

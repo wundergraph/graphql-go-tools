@@ -18,6 +18,8 @@ const (
 type RPCExecutionPlan struct {
 	// Groups is a list of groups of gRPC calls that are executed in the same group
 	Groups []RPCCallGroup
+	// TODO add mapping to the execution plan
+	// instead of the planner and the compiler?
 }
 
 // RPCCallGroup represents a group of gRPC calls that are executed in the same group

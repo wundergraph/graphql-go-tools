@@ -17,14 +17,28 @@ service ProductService {
   rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
+
+  // Pet query operations to test interface types
   rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
 
-  // Category query operations
+  // Category query operations to test enum mapping
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
   rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
+
+  // Mutation operations to test input type mapping
+  rpc MutationCreateProduct(MutationCreateProductRequest) returns (MutationCreateProductResponse) {}
 }
+
+message MutationCreateProductRequest {
+  ProductInput input = 1;
+}
+
+message MutationCreateProductResponse {
+  Product create_product = 1;
+}
+
 
 message LookupProductByNameRequest {
   repeated LookupProductByNameInput inputs = 1;
@@ -244,10 +258,11 @@ message Pagination {
 
 // CategoryKind enum for product categories
 enum CategoryKind {
-  CATEGORY_KIND_BOOK = 0;
-  CATEGORY_KIND_ELECTRONICS = 1;
-  CATEGORY_KIND_FURNITURE = 2;
-  CATEGORY_KIND_OTHER = 3;
+  CATEGORY_KIND_UNSPECIFIED = 0;
+  CATEGORY_KIND_BOOK = 1;
+  CATEGORY_KIND_ELECTRONICS = 2;
+  CATEGORY_KIND_FURNITURE = 3;
+  CATEGORY_KIND_OTHER = 4;
 }
 
 // Category message

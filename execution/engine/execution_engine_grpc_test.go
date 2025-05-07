@@ -284,27 +284,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
 		}
 
-		response, err := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
-			Fields: map[string]grpcdatasource.FieldMap{
-				"Query": {
-					"typeFilterWithArguments": {
-						TargetName: "type_filter_with_arguments",
-						ArgumentMappings: map[string]string{
-							"filterField1": "filter_field_1",
-							"filterField2": "filter_field_2",
-						},
-					},
-				},
-				"TypeWithMultipleFilterFields": {
-					"filterField1": {
-						TargetName: "filter_field_1",
-					},
-					"filterField2": {
-						TargetName: "filter_field_2",
-					},
-				},
-			},
-		}))
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"typeFilterWithArguments":[{"id":"multi-filter-1","name":"MultiFilter 1","filterField1":"test1","filterField2":"test2"},{"id":"multi-filter-2","name":"MultiFilter 2","filterField1":"test1","filterField2":"test2"}]}}`, response)
 	})
@@ -315,28 +295,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query ComplexFilterTypeQuery { complexFilterType(filter: { filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } } }) { id name } }`,
 		}
 
-		response, err := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
-			Fields: map[string]grpcdatasource.FieldMap{
-				"Query": {
-					"complexFilterType": {
-						TargetName: "complex_filter_type",
-					},
-				},
-				"FilterType": {
-					"filterField1": {
-						TargetName: "filter_field1",
-					},
-					"filterField2": {
-						TargetName: "filter_field2",
-					},
-				},
-				"Pagination": {
-					"perPage": {
-						TargetName: "per_page",
-					},
-				},
-			},
-		}))
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"complexFilterType":[{"id":"test-id-123","name":"test"}]}}`, response)
 	})
@@ -395,20 +354,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         `query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name recursiveType { id name } } name } } }`,
 		}
 
-		response, err := executeOperation(t, conn, operation, withGRPCMapping(&grpcdatasource.GRPCMapping{
-			Fields: map[string]grpcdatasource.FieldMap{
-				"Query": {
-					"recursiveType": {
-						TargetName: "recursive_type",
-					},
-				},
-				"RecursiveType": {
-					"recursiveType": {
-						TargetName: "recursive_type",
-					},
-				},
-			},
-		}))
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"recursiveType":{"id":"recursive-1","name":"Level 1","recursiveType":{"id":"recursive-2","recursiveType":{"id":"recursive-3","name":"Level 3","recursiveType":{"id":"","name":""}},"name":"Level 2"}}}}`, response)
@@ -436,5 +382,114 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 
 		require.Empty(t, response)
 		require.Error(t, err)
+	})
+
+	// Category tests to verify enum handling
+	t.Run("should correctly handle query for all categories with enum values", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "CategoriesQuery",
+			Query:         `query CategoriesQuery { categories { id name kind } }`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		// Verify response contains category data with enum values properly mapped
+		require.Contains(t, response, `"kind":"BOOK"`)
+		require.Contains(t, response, `"kind":"ELECTRONICS"`)
+		require.Contains(t, response, `"kind":"FURNITURE"`)
+		require.Contains(t, response, `"kind":"OTHER"`)
+	})
+
+	t.Run("should correctly handle query for categories by specific enum kind", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "CategoriesByKindQuery",
+			Variables: stringify(map[string]any{
+				"kind": "BOOK",
+			}),
+			Query: `query CategoriesByKindQuery($kind: CategoryKind!) { 
+				categoriesByKind(kind: $kind) { 
+					id 
+					name 
+					kind 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		// Verify all returned categories have the requested kind
+		require.NotContains(t, response, `"kind":"ELECTRONICS"`)
+		require.NotContains(t, response, `"kind":"FURNITURE"`)
+		require.NotContains(t, response, `"kind":"OTHER"`)
+		require.Contains(t, response, `"kind":"BOOK"`)
+	})
+
+	t.Run("should correctly handle filter categories with enum and pagination", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "FilterCategoriesQuery",
+			Variables: stringify(map[string]any{
+				"filter": map[string]any{
+					"category": "ELECTRONICS",
+					"pagination": map[string]any{
+						"page":    1,
+						"perPage": 2,
+					},
+				},
+			}),
+			Query: `query FilterCategoriesQuery($filter: CategoryFilter!) { 
+				filterCategories(filter: $filter) { 
+					id 
+					name 
+					kind 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		// Verify only ELECTRONICS categories are returned
+		require.NotContains(t, response, `"kind":"BOOK"`)
+		require.NotContains(t, response, `"kind":"FURNITURE"`)
+		require.NotContains(t, response, `"kind":"OTHER"`)
+		require.Contains(t, response, `"kind":"ELECTRONICS"`)
+	})
+
+	t.Run("should handle all enum values with explicit mapping", func(t *testing.T) {
+		// Test each enum value explicitly
+		enumValues := []string{"BOOK", "ELECTRONICS", "FURNITURE", "OTHER"}
+
+		for _, enumValue := range enumValues {
+			t.Run(fmt.Sprintf("Test with enum value %s", enumValue), func(t *testing.T) {
+				operation := graphql.Request{
+					OperationName: "CategoriesByKindQuery",
+					Variables: stringify(map[string]any{
+						"kind": enumValue,
+					}),
+					Query: `query CategoriesByKindQuery($kind: CategoryKind!) { 
+						categoriesByKind(kind: $kind) { 
+							id 
+							name 
+							kind 
+						} 
+					}`,
+				}
+
+				response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+				require.NoError(t, err)
+				// Verify all returned categories have the requested kind
+				require.Contains(t, response, fmt.Sprintf(`"kind":"%s"`, enumValue))
+
+				// Verify no other enum values are present
+				for _, otherEnum := range enumValues {
+					if otherEnum != enumValue {
+						require.NotContains(t, response, fmt.Sprintf(`"kind":"%s"`, otherEnum))
+					}
+				}
+			})
+		}
 	})
 }

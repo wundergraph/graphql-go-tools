@@ -146,6 +146,36 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 				},
 			},
 		},
+		{
+			TypeName:  "Query",
+			FieldName: "categoriesByKind",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "kind",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "filterCategories",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filter",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "createProduct",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
 	}
 }
 
@@ -178,6 +208,17 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"typeFilterWithArguments",
 					"typeWithMultipleFilterFields",
 					"complexFilterType",
+					"categories",
+					"categoriesByKind",
+					"filterCategories",
+					"randomPet",
+					"allPets",
+				},
+			},
+			{
+				TypeName: "Mutation",
+				FieldNames: []string{
+					"createProduct",
 				},
 			},
 		},
@@ -234,6 +275,63 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				FieldNames: []string{
 					"id",
 					"name",
+				},
+			},
+			{
+				TypeName: "Category",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+				},
+			},
+			{
+				TypeName: "CategoryFilter",
+				FieldNames: []string{
+					"category",
+					"pagination",
+				},
+			},
+			{
+				TypeName: "CategoryKind",
+				FieldNames: []string{
+					"BOOK",
+					"ELECTRONICS",
+					"FURNITURE",
+					"OTHER",
+				},
+			},
+			{
+				TypeName: "Animal",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+				},
+			},
+			{
+				TypeName: "Cat",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+					"meowVolume",
+				},
+			},
+			{
+				TypeName: "Dog",
+				FieldNames: []string{
+					"id",
+					"name",
+					"kind",
+					"barkVolume",
+				},
+			},
+			{
+				TypeName: "ProductInput",
+				FieldNames: []string{
+					"name",
+					"price",
 				},
 			},
 		},

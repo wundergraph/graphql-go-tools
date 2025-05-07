@@ -42,6 +42,7 @@ func main() {
 	)
 	productv1.RegisterProductServiceServer(s, &grpctest.MockService{})
 
+	log.Printf("Starting gRPC server on port 9009")
 	if err := s.Serve(l); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}

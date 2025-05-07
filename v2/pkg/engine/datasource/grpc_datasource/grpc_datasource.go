@@ -150,24 +150,24 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*h
 	panic("unimplemented")
 }
 
-func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, structure *RPCMessage, data protoref.Message) (*astjson.Value, error) {
-	if structure == nil {
+func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessage, data protoref.Message) (*astjson.Value, error) {
+	if message == nil {
 		return nil, nil
 	}
 
 	root := arena.NewObject()
 
 	// TODO implement oneof
-	// if structure.OneOf {
-	// 	name := strings.ToLower(structure.Name)
+	// if message.OneOf {
+	// 	name := strings.ToLower(message.Name)
 	// 	oneof := data.Descriptor().Oneofs().ByName(protoref.Name(name))
 	// 	if oneof == nil {
-	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", structure.Name, structure.Name)
+	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
 	// 	}
 
 	// 	oneofDescriptor := data.WhichOneof(oneof)
 	// 	if oneofDescriptor == nil {
-	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", structure.Name, structure.Name)
+	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
 	// 	}
 
 	// 	if oneofDescriptor.Kind() == protoref.MessageKind {
@@ -175,7 +175,7 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, structure *RPCMes
 	// 	}
 	// }
 
-	for _, field := range structure.Fields {
+	for _, field := range message.Fields {
 		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
 		if fd == nil {
 			continue
