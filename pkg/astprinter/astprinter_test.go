@@ -516,7 +516,7 @@ func TestPrintSchemaDefinition(t *testing.T) {
 	doc := unsafeparser.ParseGraphqlDocumentFile("./testdata/starwars.schema.graphql")
 
 	buff := bytes.Buffer{}
-	err := PrintIndent(&doc, nil, []byte("  "), &buff)
+	err := PrintIndent(&doc, nil, []byte("    "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -540,7 +540,7 @@ func TestPrintOperationDefinition(t *testing.T) {
 	operation := unsafeparser.ParseGraphqlDocumentFile("./testdata/introspectionquery.graphql")
 
 	buff := bytes.Buffer{}
-	err := PrintIndent(&operation, &schema, []byte("  "), &buff)
+	err := PrintIndent(&operation, &schema, []byte("    "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}

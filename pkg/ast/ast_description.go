@@ -45,7 +45,6 @@ func (d *Document) PrintDescription(description Description, indent []byte, dept
 				skippedWhitespace += 1
 				continue
 			case runes.SPACE:
-				skippedWhitespace += 0.5
 				continue
 			}
 		}
