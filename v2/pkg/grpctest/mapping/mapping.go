@@ -73,10 +73,10 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap{
-			"createProduct": {
-				RPC:      "CreateProduct",
-				Request:  "CreateProductRequest",
-				Response: "CreateProductResponse",
+			"createUser": {
+				RPC:      "CreateUser",
+				Request:  "CreateUserRequest",
+				Response: "CreateUserResponse",
 			},
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
@@ -162,19 +162,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 			},
 			"Mutation": {
-				"createProduct": {
-					TargetName: "create_product",
+				"createUser": {
+					TargetName: "create_user",
 					ArgumentMappings: map[string]string{
 						"input": "input",
 					},
 				},
 			},
-			"ProductInput": {
+			"UserInput": {
 				"name": {
 					TargetName: "name",
-				},
-				"price": {
-					TargetName: "price",
 				},
 			},
 			"Product": {

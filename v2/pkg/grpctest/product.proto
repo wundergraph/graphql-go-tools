@@ -28,17 +28,16 @@ service ProductService {
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
 
   // Mutation operations to test input type mapping
-  rpc MutationCreateProduct(MutationCreateProductRequest) returns (MutationCreateProductResponse) {}
+  rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
 }
 
-message MutationCreateProductRequest {
-  ProductInput input = 1;
+message MutationCreateUserRequest {
+  UserInput input = 1;
 }
 
-message MutationCreateProductResponse {
-  Product create_product = 1;
+message MutationCreateUserResponse {
+  User create_user = 1;
 }
-
 
 message LookupProductByNameRequest {
   repeated LookupProductByNameInput inputs = 1;
@@ -185,6 +184,10 @@ message Dog {
 message User {
   string id = 1;
   string name = 2;
+}
+
+message UserInput {
+  string name = 1;
 }
 
 message Storage {

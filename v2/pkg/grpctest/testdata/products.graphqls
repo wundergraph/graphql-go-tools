@@ -133,13 +133,12 @@ type Query {
   allPets: [Animal!]!
 }
 
-input ProductInput {
+input UserInput {
   name: String!
-  price: Float!
 }
 
 type Mutation {
-  createProduct(input: ProductInput!): Product!
+  createUser(input: UserInput!): User!
 }
 
 union _Entity = Product | Storage

@@ -34,6 +34,7 @@ const (
 	ProductService_QueryCategories_FullMethodName                   = "/product.v1.ProductService/QueryCategories"
 	ProductService_QueryCategoriesByKind_FullMethodName             = "/product.v1.ProductService/QueryCategoriesByKind"
 	ProductService_QueryFilterCategories_FullMethodName             = "/product.v1.ProductService/QueryFilterCategories"
+	ProductService_MutationCreateUser_FullMethodName                = "/product.v1.ProductService/MutationCreateUser"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -52,12 +53,15 @@ type ProductServiceClient interface {
 	QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryComplexFilterType(ctx context.Context, in *QueryComplexFilterTypeRequest, opts ...grpc.CallOption) (*QueryComplexFilterTypeResponse, error)
+	// Pet query operations to test interface types
 	QueryRandomPet(ctx context.Context, in *QueryRandomPetRequest, opts ...grpc.CallOption) (*QueryRandomPetResponse, error)
 	QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error)
-	// Category query operations
+	// Category query operations to test enum mapping
 	QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(ctx context.Context, in *QueryCategoriesByKindRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindResponse, error)
 	QueryFilterCategories(ctx context.Context, in *QueryFilterCategoriesRequest, opts ...grpc.CallOption) (*QueryFilterCategoriesResponse, error)
+	// Mutation operations to test input type mapping
+	MutationCreateUser(ctx context.Context, in *MutationCreateUserRequest, opts ...grpc.CallOption) (*MutationCreateUserResponse, error)
 }
 
 type productServiceClient struct {
@@ -218,6 +222,16 @@ func (c *productServiceClient) QueryFilterCategories(ctx context.Context, in *Qu
 	return out, nil
 }
 
+func (c *productServiceClient) MutationCreateUser(ctx context.Context, in *MutationCreateUserRequest, opts ...grpc.CallOption) (*MutationCreateUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationCreateUserResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationCreateUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -234,12 +248,15 @@ type ProductServiceServer interface {
 	QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryComplexFilterType(context.Context, *QueryComplexFilterTypeRequest) (*QueryComplexFilterTypeResponse, error)
+	// Pet query operations to test interface types
 	QueryRandomPet(context.Context, *QueryRandomPetRequest) (*QueryRandomPetResponse, error)
 	QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error)
-	// Category query operations
+	// Category query operations to test enum mapping
 	QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(context.Context, *QueryCategoriesByKindRequest) (*QueryCategoriesByKindResponse, error)
 	QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error)
+	// Mutation operations to test input type mapping
+	MutationCreateUser(context.Context, *MutationCreateUserRequest) (*MutationCreateUserResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -294,6 +311,9 @@ func (UnimplementedProductServiceServer) QueryCategoriesByKind(context.Context, 
 }
 func (UnimplementedProductServiceServer) QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryFilterCategories not implemented")
+}
+func (UnimplementedProductServiceServer) MutationCreateUser(context.Context, *MutationCreateUserRequest) (*MutationCreateUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationCreateUser not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -586,6 +606,24 @@ func _ProductService_QueryFilterCategories_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_MutationCreateUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationCreateUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationCreateUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationCreateUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationCreateUser(ctx, req.(*MutationCreateUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -652,6 +690,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryFilterCategories",
 			Handler:    _ProductService_QueryFilterCategories_Handler,
+		},
+		{
+			MethodName: "MutationCreateUser",
+			Handler:    _ProductService_MutationCreateUser_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -168,7 +168,7 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 		},
 		{
 			TypeName:  "Mutation",
-			FieldName: "createProduct",
+			FieldName: "createUser",
 			Arguments: []plan.ArgumentConfiguration{
 				{
 					Name:       "input",
@@ -218,7 +218,7 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 			{
 				TypeName: "Mutation",
 				FieldNames: []string{
-					"createProduct",
+					"createUser",
 				},
 			},
 		},
@@ -328,10 +328,9 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
-				TypeName: "ProductInput",
+				TypeName: "UserInput",
 				FieldNames: []string{
 					"name",
-					"price",
 				},
 			},
 		},

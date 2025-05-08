@@ -379,3 +379,18 @@ func (s *MockService) QueryFilterCategories(ctx context.Context, in *productv1.Q
 		FilterCategories: categories,
 	}, nil
 }
+
+// Implementation for CreateUser mutation
+func (s *MockService) MutationCreateUser(ctx context.Context, in *productv1.MutationCreateUserRequest) (*productv1.MutationCreateUserResponse, error) {
+	input := in.GetInput()
+
+	// Create a new user with the input name and a random ID
+	user := &productv1.User{
+		Id:   fmt.Sprintf("user-%d", rand.Intn(1000)),
+		Name: input.GetName(),
+	}
+
+	return &productv1.MutationCreateUserResponse{
+		CreateUser: user,
+	}, nil
+}
