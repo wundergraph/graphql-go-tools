@@ -312,7 +312,7 @@ func TestPubSub(t *testing.T) {
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewPlainVariableRenderer(),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								},
 								DataSource: &NatsRequestDataSource{
@@ -374,7 +374,7 @@ func TestPubSub(t *testing.T) {
 									},
 									&resolve.ContextVariable{
 										Path:     []string{"a"},
-										Renderer: resolve.NewPlainVariableRenderer(),
+										Renderer: resolve.NewJSONVariableRenderer(),
 									},
 								},
 								DataSource: &NatsPublishDataSource{
