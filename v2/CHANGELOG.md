@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.0-rc.178](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.177...v2.0.0-rc.178) (2025-05-06)
+
+
+### Features
+
+* add deprecated arguments support to introspection ([#1142](https://github.com/wundergraph/graphql-go-tools/issues/1142)) ([1ac2908](https://github.com/wundergraph/graphql-go-tools/commit/1ac2908ec5ab5cfb5aed17c1fee127aef098c7fc))
+
+## [2.0.0-rc.177](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.176...v2.0.0-rc.177) (2025-05-06)
+
+
+### Bug Fixes
+
+* use non aliased field name for graph coordinate ([#1143](https://github.com/wundergraph/graphql-go-tools/issues/1143)) ([a2ef742](https://github.com/wundergraph/graphql-go-tools/commit/a2ef742e9336f942702ec0cfd6d7fff32a270221))
+
 ## [2.0.0-rc.176](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.175...v2.0.0-rc.176) (2025-04-30)
 
 

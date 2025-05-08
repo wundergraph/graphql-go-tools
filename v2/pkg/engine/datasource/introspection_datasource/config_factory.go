@@ -42,38 +42,14 @@ func (f *IntrospectionConfigFactory) BuildFieldConfigurations() (planFields plan
 				},
 			},
 		},
-		{
-			TypeName:  "__Type",
-			FieldName: "fields",
-			Arguments: plan.ArgumentsConfigurations{
-				{
-					Name:       "includeDeprecated",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
-		{
-			TypeName:  "__Type",
-			FieldName: "enumValues",
-			Arguments: plan.ArgumentsConfigurations{
-				{
-					Name:       "includeDeprecated",
-					SourceType: plan.FieldArgumentSource,
-				},
-			},
-		},
 	}
 }
 
 func (f *IntrospectionConfigFactory) BuildDataSourceConfigurations() []plan.DataSource {
 	root, _ := f.buildRootDataSourceConfiguration()
-	fields, _ := f.buildFieldsConfiguration()
-	enums, _ := f.buildEnumsConfiguration()
 
 	return []plan.DataSource{
 		root,
-		fields,
-		enums,
 	}
 }
 
@@ -91,11 +67,11 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "__Schema",
-					FieldNames: []string{"queryType", "mutationType", "subscriptionType", "types", "directives", "__typename"},
+					FieldNames: []string{"description", "queryType", "mutationType", "subscriptionType", "types", "directives", "__typename"},
 				},
 				{
 					TypeName:   "__Type",
-					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType", "__typename"},
+					FieldNames: []string{"kind", "name", "description", "fields", "interfaces", "possibleTypes", "enumValues", "inputFields", "ofType", "specifiedByURL", "__typename"},
 				},
 				{
 					TypeName:   "__Field",
@@ -103,67 +79,19 @@ func (f *IntrospectionConfigFactory) buildRootDataSourceConfiguration() (plan.Da
 				},
 				{
 					TypeName:   "__InputValue",
-					FieldNames: []string{"name", "description", "type", "defaultValue", "__typename"},
+					FieldNames: []string{"name", "description", "type", "defaultValue", "isDeprecated", "deprecationReason", "__typename"},
 				},
 				{
 					TypeName:   "__Directive",
 					FieldNames: []string{"name", "description", "locations", "args", "isRepeatable", "__typename"},
 				},
-			},
-		},
-		Configuration{"Introspection: __schema __type"},
-	)
-}
-
-func (f *IntrospectionConfigFactory) buildFieldsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
-	return plan.NewDataSourceConfiguration[Configuration](
-		resolve.IntrospectionTypeFieldsDataSourceID,
-		NewFactory[Configuration](f.introspectionData),
-		&plan.DataSourceMetadata{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "__Type",
-					FieldNames: []string{"fields"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
-				{
-					TypeName:   "__Type",
-					FieldNames: []string{"kind", "name", "description", "interfaces", "possibleTypes", "inputFields", "ofType", "__typename"},
-				},
-				{
-					TypeName:   "__Field",
-					FieldNames: []string{"name", "description", "args", "type", "isDeprecated", "deprecationReason", "__typename"},
-				},
-				{
-					TypeName:   "__InputValue",
-					FieldNames: []string{"name", "description", "type", "defaultValue", "__typename"},
-				},
-			},
-		},
-		Configuration{"Introspection: __Type.fields"},
-	)
-}
-
-func (f *IntrospectionConfigFactory) buildEnumsConfiguration() (plan.DataSourceConfiguration[Configuration], error) {
-	return plan.NewDataSourceConfiguration[Configuration](
-		resolve.IntrospectionTypeEnumValuesDataSourceID,
-		NewFactory[Configuration](f.introspectionData),
-		&plan.DataSourceMetadata{
-			RootNodes: []plan.TypeField{
-				{
-					TypeName:   "__Type",
-					FieldNames: []string{"enumValues"},
-				},
-			},
-			ChildNodes: []plan.TypeField{
 				{
 					TypeName:   "__EnumValue",
 					FieldNames: []string{"name", "description", "isDeprecated", "deprecationReason", "__typename"},
 				},
 			},
 		},
-		Configuration{"Introspection: __Type.enumValues"},
+		Configuration{"Introspection: __schema __type"},
 	)
 }
 

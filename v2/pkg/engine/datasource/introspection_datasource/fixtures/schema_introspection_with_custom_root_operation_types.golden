@@ -37,6 +37,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -80,6 +82,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -134,6 +138,56 @@
       "kind": "OBJECT",
       "name": "CustomQuery",
       "description": "",
+      "fields": [
+        {
+          "name": "me",
+          "description": "",
+          "args": [],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Droid",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": true,
+          "deprecationReason": "No longer supported",
+          "__typename": "__Field"
+        },
+        {
+          "name": "droid",
+          "description": "",
+          "args": [
+            {
+              "name": "id",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Droid",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
       "inputFields": [],
       "interfaces": [],
       "possibleTypes": [],
@@ -143,6 +197,47 @@
       "kind": "OBJECT",
       "name": "CustomMutation",
       "description": "",
+      "fields": [
+        {
+          "name": "destroyDroid",
+          "description": "",
+          "args": [
+            {
+              "name": "id",
+              "description": "",
+              "type": {
+                "kind": "NON_NULL",
+                "name": null,
+                "ofType": {
+                  "kind": "SCALAR",
+                  "name": "ID",
+                  "ofType": null,
+                  "__typename": "__Type"
+                },
+                "__typename": "__Type"
+              },
+              "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
+              "__typename": "__InputValue"
+            }
+          ],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "Boolean",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
       "inputFields": [],
       "interfaces": [],
       "possibleTypes": [],
@@ -152,6 +247,22 @@
       "kind": "OBJECT",
       "name": "CustomSubscription",
       "description": "",
+      "fields": [
+        {
+          "name": "destroyedDroid",
+          "description": "",
+          "args": [],
+          "type": {
+            "kind": "OBJECT",
+            "name": "Droid",
+            "ofType": null,
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
       "inputFields": [],
       "interfaces": [],
       "possibleTypes": [],
@@ -163,6 +274,29 @@
       "description": "",
       "inputFields": [],
       "interfaces": [],
+      "enumValues": [
+        {
+          "name": "NEWHOPE",
+          "description": "",
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__EnumValue"
+        },
+        {
+          "name": "EMPIRE",
+          "description": "",
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__EnumValue"
+        },
+        {
+          "name": "JEDI",
+          "description": "",
+          "isDeprecated": true,
+          "deprecationReason": "No longer supported",
+          "__typename": "__EnumValue"
+        }
+      ],
       "possibleTypes": [],
       "__typename": "__Type"
     },
@@ -170,6 +304,27 @@
       "kind": "OBJECT",
       "name": "Droid",
       "description": "",
+      "fields": [
+        {
+          "name": "name",
+          "description": "",
+          "args": [],
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "__typename": "__Type"
+          },
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__Field"
+        }
+      ],
       "inputFields": [],
       "interfaces": [],
       "possibleTypes": [],
@@ -246,6 +401,8 @@
             "__typename": "__Type"
           },
           "defaultValue": null,
+          "isDeprecated": false,
+          "deprecationReason": null,
           "__typename": "__InputValue"
         }
       ],
@@ -276,6 +433,8 @@
             "__typename": "__Type"
           },
           "defaultValue": null,
+          "isDeprecated": false,
+          "deprecationReason": null,
           "__typename": "__InputValue"
         }
       ],
@@ -287,7 +446,9 @@
       "description": "Marks an element of a GraphQL schema as no longer supported.",
       "locations": [
         "FIELD_DEFINITION",
-        "ENUM_VALUE"
+        "ARGUMENT_DEFINITION",
+        "ENUM_VALUE",
+        "INPUT_FIELD_DEFINITION"
       ],
       "args": [
         {
@@ -300,6 +461,38 @@
             "__typename": "__Type"
           },
           "defaultValue": "\"No longer supported\"",
+          "isDeprecated": false,
+          "deprecationReason": null,
+          "__typename": "__InputValue"
+        }
+      ],
+      "isRepeatable": false,
+      "__typename": "__Directive"
+    },
+    {
+      "name": "specifiedBy",
+      "description": "",
+      "locations": [
+        "SCALAR"
+      ],
+      "args": [
+        {
+          "name": "url",
+          "description": "",
+          "type": {
+            "kind": "NON_NULL",
+            "name": null,
+            "ofType": {
+              "kind": "SCALAR",
+              "name": "String",
+              "ofType": null,
+              "__typename": "__Type"
+            },
+            "__typename": "__Type"
+          },
+          "defaultValue": null,
+          "isDeprecated": false,
+          "deprecationReason": null,
           "__typename": "__InputValue"
         }
       ],

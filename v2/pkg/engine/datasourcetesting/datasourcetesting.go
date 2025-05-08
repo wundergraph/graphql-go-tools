@@ -11,7 +11,9 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wundergraph/astjson"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/permutations"
 
@@ -201,6 +203,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 				keysPrinted, _ := json.Marshal(keys)
 				return string(keysPrinted)
 			},
+			reflect.TypeOf(resolve.SkipArrayItem(func(ctx *resolve.Context, arrayItem *astjson.Value) bool { return false })): func(resolve.SkipArrayItem) string { return "skip_function" },
 		}
 
 		prettyCfg := &pretty.Config{

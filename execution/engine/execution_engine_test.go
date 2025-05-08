@@ -231,12 +231,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engineConf.SetCustomResolveMap(testCase.customResolveMap)
 
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
-				// PrintOperationTransformations:    true,
-				// PrintPlanningPaths:               true,
-				// PrintQueryPlans:                  true,
-				// ConfigurationVisitor:             true,
-				// PlanningVisitor:                  true,
-				// DatasourceVisitor:                true,
+				// PrintOperationTransformations: true,
+				// PrintPlanningPaths:            true,
+				// PrintQueryPlans:               true,
+				// ConfigurationVisitor:          true,
+				// PlanningVisitor:               true,
+				// DatasourceVisitor:             true,
 			}
 
 			ctx, cancel := context.WithCancel(context.Background())
@@ -516,6 +516,52 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 		))
 
+		t.Run("execute type introspection query for input - without deprecated inputFields", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "myIntrospection",
+						Query: `
+							query myIntrospection(){
+								__type(name: "ReviewInput") {
+									name
+									kind
+									inputFields {
+										name
+									}
+								}
+							}
+						`,
+					}
+				},
+				expectedResponse: `{"data":{"__type":{"name":"ReviewInput","kind":"INPUT_OBJECT","inputFields":[{"name":"stars"}]}}}`,
+			},
+		))
+
+		t.Run("execute type introspection query for input - include deprecated inputFields", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "myIntrospection",
+						Query: `
+							query myIntrospection(){
+								__type(name: "ReviewInput") {
+									name
+									kind
+									inputFields(includeDeprecated: true) {
+										name
+									}
+								}
+							}
+						`,
+					}
+				},
+				expectedResponse: `{"data":{"__type":{"name":"ReviewInput","kind":"INPUT_OBJECT","inputFields":[{"name":"stars"},{"name":"commentary"}]}}}`,
+			},
+		))
+
 		t.Run("execute type introspection query with typenames", runWithoutError(
 			ExecutionEngineTestCase{
 				schema: schema,
@@ -683,6 +729,17 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQuery)
 				},
 				expectedFixture: "full_introspection",
+				indentJSON:      true,
+			},
+		))
+
+		t.Run("execute full introspection query include deprecated: true", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: schema,
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.StarwarsRequestForQuery(t, starwars.FileIntrospectionQueryIncludeDeprecated)
+				},
+				expectedFixture: "full_introspection_with_deprecated",
 				indentJSON:      true,
 			},
 		))
