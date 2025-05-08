@@ -19,6 +19,7 @@ func Print(document *ast.Document, out io.Writer) error {
 }
 
 // PrintIndent is the same as Print but accepts an additional indent parameter to set indentation.
+// Indent is written once for every depth level.
 func PrintIndent(document *ast.Document, indent []byte, out io.Writer) error {
 	printer := Printer{
 		indent: indent,
@@ -26,6 +27,7 @@ func PrintIndent(document *ast.Document, indent []byte, out io.Writer) error {
 	return printer.Print(document, out)
 }
 
+// PrintIndentDebug is the same as PrintIndent but calls the function for every field.
 func PrintIndentDebug(document *ast.Document, indent []byte, out io.Writer, callback ...func(fieldRef int, out io.Writer)) error {
 	var fieldCallback func(fieldRef int, out io.Writer)
 	if len(callback) > 0 {
@@ -128,12 +130,12 @@ func (p *printVisitor) indentationDepth() (depth int) {
 	case ast.NodeKindOperationDefinition,
 		ast.NodeKindFragmentDefinition:
 	default:
-		return 2
+		return 1
 	}
 
 	for i := range p.Ancestors {
 		if p.Ancestors[i].Kind == ast.NodeKindSelectionSet {
-			depth += 2
+			depth += 1
 		}
 	}
 

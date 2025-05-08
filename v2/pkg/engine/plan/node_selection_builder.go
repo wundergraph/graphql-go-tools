@@ -204,7 +204,7 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 			}
 		})
 	} else {
-		pp, _ = astprinter.PrintStringIndent(operation, "  ")
+		pp, _ = astprinter.PrintStringIndent(operation, "    ")
 	}
 
 	fmt.Println(pp)

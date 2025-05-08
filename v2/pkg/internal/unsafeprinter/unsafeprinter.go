@@ -15,7 +15,7 @@ func Print(document *ast.Document) string {
 }
 
 func PrettyPrint(document *ast.Document) string {
-	str, err := astprinter.PrintStringIndent(document, "  ")
+	str, err := astprinter.PrintStringIndent(document, "    ")
 	if err != nil {
 		panic(err)
 	}

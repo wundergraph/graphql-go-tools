@@ -20,7 +20,7 @@ func runTestMerge(definition, fixtureName string) func(t *testing.T) {
 			panic(err)
 		}
 		buf := bytes.Buffer{}
-		err = astprinter.PrintIndent(&doc, nil, []byte("  "), &buf)
+		err = astprinter.PrintIndent(&doc, nil, []byte("    "), &buf)
 		if err != nil {
 			panic(err)
 		}
