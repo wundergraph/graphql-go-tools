@@ -3,7 +3,7 @@ module github.com/wundergraph/graphql-go-tools/execution
 go 1.23
 
 require (
-	github.com/99designs/gqlgen v0.17.45
+	github.com/99designs/gqlgen v0.17.66
 	github.com/gobwas/ws v1.4.0
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
@@ -11,8 +11,8 @@ require (
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/sebdah/goldie/v2 v2.5.3
-	github.com/stretchr/testify v1.9.0
-	github.com/vektah/gqlparser/v2 v2.5.14
+	github.com/stretchr/testify v1.10.0
+	github.com/vektah/gqlparser/v2 v2.5.22
 	github.com/wundergraph/astjson v0.0.0-20241210135722-15ca0ac078f8
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6
@@ -22,7 +22,7 @@ require (
 )
 
 require (
-	github.com/agnivade/levenshtein v1.1.1 // indirect
+	github.com/agnivade/levenshtein v1.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
