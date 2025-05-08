@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.179](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.178...v2.0.0-rc.179) (2025-05-08)
+
+
+### Bug Fixes
+
+* print indent once per level by default ([#1147](https://github.com/wundergraph/graphql-go-tools/issues/1147)) ([0f022e5](https://github.com/wundergraph/graphql-go-tools/commit/0f022e5a7443d71fa5c458485876dfaac4cf060b)), closes [#405](https://github.com/wundergraph/graphql-go-tools/issues/405)
+
 ## [2.0.0-rc.178](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.177...v2.0.0-rc.178) (2025-05-06)
 
 
