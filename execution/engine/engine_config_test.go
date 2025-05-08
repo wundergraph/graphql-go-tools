@@ -393,7 +393,11 @@ directive @deprecated(
     [Markdown](https://daringfireball.net/projects/markdown/).
     """
     reason: String = "No longer supported"
-) on FIELD_DEFINITION | ENUM_VALUE
+) on FIELD_DEFINITION | ARGUMENT_DEFINITION | ENUM_VALUE | INPUT_FIELD_DEFINITION
+
+directive @specifiedBy(
+    url: String!
+) on SCALAR
 
 """
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
@@ -406,7 +410,7 @@ type __Directive {
     name: String!
     description: String
     locations: [__DirectiveLocation!]!
-    args: [__InputValue!]!
+    args(includeDeprecated: Boolean = false): [__InputValue!]!
     isRepeatable: Boolean!
     __typename: String!
 }
@@ -430,6 +434,8 @@ enum __DirectiveLocation {
     FRAGMENT_SPREAD
     "Location adjacent to an inline fragment."
     INLINE_FRAGMENT
+    "Location adjacent to a variable definition"
+    VARIABLE_DEFINITION
     "Location adjacent to a schema definition."
     SCHEMA
     "Location adjacent to a scalar definition."
@@ -474,7 +480,7 @@ a name, potentially a list of arguments, and a return type.
 type __Field {
     name: String!
     description: String
-    args: [__InputValue!]!
+    args(includeDeprecated: Boolean = false): [__InputValue!]!
     type: __Type!
     isDeprecated: Boolean!
     deprecationReason: String
@@ -490,8 +496,9 @@ type __InputValue {
     name: String!
     description: String
     type: __Type!
-    "A GraphQL-formatted string representing the default value for this input value."
     defaultValue: String
+    isDeprecated: Boolean!
+    deprecationReason: String
     __typename: String!
 }
 
@@ -501,6 +508,7 @@ available types and directives on the server, as well as the entry points for
 query, mutation, and subscription operations.
 """
 type __Schema {
+    description: String
     "A list of all types supported by this server."
     types: [__Type!]!
     "The type that query operations will be rooted at."
@@ -532,8 +540,9 @@ type __Type {
     interfaces: [__Type!]
     possibleTypes: [__Type!]
     enumValues(includeDeprecated: Boolean = false): [__EnumValue!]
-    inputFields: [__InputValue!]
+    inputFields(includeDeprecated: Boolean = false): [__InputValue!]
     ofType: __Type
+    specifiedByURL: String
     __typename: String!
 }
 

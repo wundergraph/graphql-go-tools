@@ -19,6 +19,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -51,6 +53,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -83,6 +87,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -120,6 +126,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -152,6 +160,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -184,6 +194,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -216,6 +228,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -254,6 +268,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             },
             {
@@ -271,6 +287,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -309,6 +327,8 @@
                 "__typename": "__Type"
               },
               "defaultValue": null,
+              "isDeprecated": false,
+              "deprecationReason": null,
               "__typename": "__InputValue"
             }
           ],
@@ -348,6 +368,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -380,6 +402,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -412,6 +436,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -449,6 +475,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -481,6 +509,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -513,6 +543,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -545,6 +577,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -583,6 +617,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               },
               {
@@ -600,6 +636,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -638,6 +676,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -765,6 +805,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               },
               {
@@ -777,6 +819,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -934,6 +978,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": "METER",
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -994,6 +1040,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               },
               {
@@ -1006,6 +1054,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -1156,6 +1206,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               },
               {
@@ -1168,6 +1220,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": null,
+                "isDeprecated": true,
+                "deprecationReason": "use before",
                 "__typename": "__InputValue"
               }
             ],
@@ -1499,6 +1553,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           },
           {
@@ -1511,6 +1567,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           },
           {
@@ -1523,6 +1581,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -1550,6 +1610,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           },
           {
@@ -1567,6 +1629,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": true,
+            "deprecationReason": "don't like green",
             "__typename": "__InputValue"
           },
           {
@@ -1584,6 +1648,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -1662,6 +1728,8 @@
                   "__typename": "__Type"
                 },
                 "defaultValue": "METER",
+                "isDeprecated": false,
+                "deprecationReason": null,
                 "__typename": "__InputValue"
               }
             ],
@@ -1708,6 +1776,16 @@
           }
         ],
         "__typename": "__Type"
+      },
+      {
+        "kind": "SCALAR",
+        "name": "DateTime",
+        "description": "",
+        "inputFields": [],
+        "interfaces": [],
+        "possibleTypes": [],
+        "__typename": "__Type",
+        "specifiedByURL": "https://scalars.graphql.org/andimarek/date-time"
       },
       {
         "kind": "SCALAR",
@@ -1780,6 +1858,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -1810,6 +1890,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -1821,7 +1903,9 @@
         "description": "Marks an element of a GraphQL schema as no longer supported.",
         "locations": [
           "FIELD_DEFINITION",
-          "ENUM_VALUE"
+          "ARGUMENT_DEFINITION",
+          "ENUM_VALUE",
+          "INPUT_FIELD_DEFINITION"
         ],
         "args": [
           {
@@ -1834,6 +1918,8 @@
               "__typename": "__Type"
             },
             "defaultValue": "\"No longer supported\"",
+            "isDeprecated": true,
+            "deprecationReason": "No longer supported",
             "__typename": "__InputValue"
           }
         ],
@@ -1863,6 +1949,8 @@
               "__typename": "__Type"
             },
             "defaultValue": null,
+            "isDeprecated": false,
+            "deprecationReason": null,
             "__typename": "__InputValue"
           }
         ],
@@ -1870,6 +1958,7 @@
         "__typename": "__Directive"
       }
     ],
-    "__typename": "__Schema"
+    "__typename": "__Schema",
+    "description": "awesome starwars schema"
   }
 }

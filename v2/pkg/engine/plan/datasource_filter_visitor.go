@@ -183,8 +183,16 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 		f.jumpsForPathForTypename = make(map[KeyIndex]*DataSourceJumpsGraph)
 	}
 
+	usedDsHashes := make([]DSHash, 0, len(f.dsHashesHavingKeys))
+	// iterate over datasources to have deterministic order
+	for _, ds := range dataSources {
+		if _, ok := f.dsHashesHavingKeys[ds.Hash()]; ok {
+			usedDsHashes = append(usedDsHashes, ds.Hash())
+		}
+	}
+
 	for keyIndex, keysPerDS := range keysForPathForTypename {
-		f.jumpsForPathForTypename[KeyIndex{Path: keyIndex.Path, TypeName: keyIndex.TypeName}] = NewDataSourceJumpsGraph(keysPerDS, keyIndex.TypeName)
+		f.jumpsForPathForTypename[KeyIndex{Path: keyIndex.Path, TypeName: keyIndex.TypeName}] = NewDataSourceJumpsGraph(usedDsHashes, keysPerDS, keyIndex.TypeName)
 	}
 }
 

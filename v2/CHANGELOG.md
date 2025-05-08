@@ -1,5 +1,47 @@
 # Changelog
 
+## [2.0.0-rc.178](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.177...v2.0.0-rc.178) (2025-05-06)
+
+
+### Features
+
+* add deprecated arguments support to introspection ([#1142](https://github.com/wundergraph/graphql-go-tools/issues/1142)) ([1ac2908](https://github.com/wundergraph/graphql-go-tools/commit/1ac2908ec5ab5cfb5aed17c1fee127aef098c7fc))
+
+## [2.0.0-rc.177](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.176...v2.0.0-rc.177) (2025-05-06)
+
+
+### Bug Fixes
+
+* use non aliased field name for graph coordinate ([#1143](https://github.com/wundergraph/graphql-go-tools/issues/1143)) ([a2ef742](https://github.com/wundergraph/graphql-go-tools/commit/a2ef742e9336f942702ec0cfd6d7fff32a270221))
+
+## [2.0.0-rc.176](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.175...v2.0.0-rc.176) (2025-04-30)
+
+
+### Bug Fixes
+
+* evaluate keys using order of target subgraph ([#1139](https://github.com/wundergraph/graphql-go-tools/issues/1139)) ([f358e9e](https://github.com/wundergraph/graphql-go-tools/commit/f358e9e74c16f0c372170d9cde82decbf4991289))
+
+## [2.0.0-rc.175](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.174...v2.0.0-rc.175) (2025-04-29)
+
+
+### Features
+
+* remove intermediate buffer from ResolveGraphQLResponse ([#1137](https://github.com/wundergraph/graphql-go-tools/issues/1137)) ([9f25e6f](https://github.com/wundergraph/graphql-go-tools/commit/9f25e6fccd15fa0a847d453ebd05276c2b250721))
+
+## [2.0.0-rc.174](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.173...v2.0.0-rc.174) (2025-04-29)
+
+
+### Features
+
+* **subscriptions:** user proper frame timeout ([#1135](https://github.com/wundergraph/graphql-go-tools/issues/1135)) ([d1fbd62](https://github.com/wundergraph/graphql-go-tools/commit/d1fbd624f7af19802f736e191ba4079abbdd0a37))
+
+## [2.0.0-rc.173](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.172...v2.0.0-rc.173) (2025-04-25)
+
+
+### Bug Fixes
+
+* use proper read timeout ([#1133](https://github.com/wundergraph/graphql-go-tools/issues/1133)) ([9a8f4aa](https://github.com/wundergraph/graphql-go-tools/commit/9a8f4aa99b007cfc69022992b8cf9aa150047a54))
+
 ## [2.0.0-rc.172](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.171...v2.0.0-rc.172) (2025-04-22)
 
 

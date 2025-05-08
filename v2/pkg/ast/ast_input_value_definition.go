@@ -52,6 +52,10 @@ func (d *Document) InputValueDefinitionType(ref int) int {
 	return d.InputValueDefinitions[ref].Type
 }
 
+func (d *Document) InputValueDefinitionHasDirectives(ref int) bool {
+	return d.InputValueDefinitions[ref].HasDirectives
+}
+
 func (d *Document) InputValueDefinitionHasDefaultValue(ref int) bool {
 	return d.InputValueDefinitions[ref].DefaultValue.IsDefined
 }
@@ -76,6 +80,15 @@ func (d *Document) InputValueDefinitionHasDirective(ref int, directiveName ByteS
 		}
 	}
 	return false
+}
+
+func (d *Document) InputValueDefinitionDirectiveByName(definitionRef int, directiveName ByteSlice) (ref int, exists bool) {
+	for _, i := range d.InputValueDefinitions[definitionRef].Directives.Refs {
+		if bytes.Equal(directiveName, d.DirectiveNameBytes(i)) {
+			return i, true
+		}
+	}
+	return
 }
 
 func (d *Document) AddInputValueDefinition(inputValueDefinition InputValueDefinition) (ref int) {

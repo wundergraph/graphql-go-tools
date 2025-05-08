@@ -1,22 +1,17 @@
 {
   "data": {
     "__schema": {
-      "__typename": "__Schema",
       "queryType": {
-        "__typename": "__Type",
         "name": "Query"
       },
       "mutationType": {
-        "__typename": "__Type",
         "name": "Mutation"
       },
       "subscriptionType": {
-        "__typename": "__Type",
         "name": "Subscription"
       },
       "types": [
         {
-          "__typename": "__Type",
           "kind": "UNION",
           "name": "SearchResult",
           "description": "",
@@ -26,19 +21,16 @@
           "enumValues": null,
           "possibleTypes": [
             {
-              "__typename": "__Type",
               "kind": "OBJECT",
               "name": "Human",
               "ofType": null
             },
             {
-              "__typename": "__Type",
               "kind": "OBJECT",
               "name": "Droid",
               "ofType": null
             },
             {
-              "__typename": "__Type",
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
@@ -46,18 +38,15 @@
           ]
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Query",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "hero",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "INTERFACE",
                 "name": "Character",
                 "ofType": null
@@ -66,16 +55,13 @@
               "deprecationReason": "No longer supported"
             },
             {
-              "__typename": "__Field",
               "name": "droid",
               "description": "",
               "args": [
                 {
-                  "__typename": "__InputValue",
                   "name": "id",
                   "description": "",
                   "type": {
-                    "__typename": "__Type",
                     "kind": "NON_NULL",
                     "name": null,
                     "ofType": {
@@ -88,7 +74,6 @@
                 }
               ],
               "type": {
-                "__typename": "__Type",
                 "kind": "OBJECT",
                 "name": "Droid",
                 "ofType": null
@@ -97,16 +82,13 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "search",
               "description": "",
               "args": [
                 {
-                  "__typename": "__InputValue",
                   "name": "name",
                   "description": "",
                   "type": {
-                    "__typename": "__Type",
                     "kind": "NON_NULL",
                     "name": null,
                     "ofType": {
@@ -119,7 +101,6 @@
                 }
               ],
               "type": {
-                "__typename": "__Type",
                 "kind": "UNION",
                 "name": "SearchResult",
                 "ofType": null
@@ -128,12 +109,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "searchResults",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "LIST",
                 "name": null,
                 "ofType": {
@@ -152,22 +131,18 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Mutation",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "createReview",
               "description": "",
               "args": [
                 {
-                  "__typename": "__InputValue",
                   "name": "episode",
                   "description": "",
                   "type": {
-                    "__typename": "__Type",
                     "kind": "NON_NULL",
                     "name": null,
                     "ofType": {
@@ -177,10 +152,23 @@
                     }
                   },
                   "defaultValue": null
+                },
+                {
+                  "name": "review",
+                  "description": "",
+                  "type": {
+                    "kind": "NON_NULL",
+                    "name": null,
+                    "ofType": {
+                      "kind": "INPUT_OBJECT",
+                      "name": "ReviewInput",
+                      "ofType": null
+                    }
+                  },
+                  "defaultValue": null
                 }
               ],
               "type": {
-                "__typename": "__Type",
                 "kind": "OBJECT",
                 "name": "Review",
                 "ofType": null
@@ -195,18 +183,15 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Subscription",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "remainingJedis",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -225,18 +210,15 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "INPUT_OBJECT",
           "name": "ReviewInput",
           "description": "",
           "fields": null,
           "inputFields": [
             {
-              "__typename": "__InputValue",
               "name": "stars",
               "description": "",
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -246,6 +228,16 @@
                 }
               },
               "defaultValue": null
+            },
+            {
+              "name": "commentary",
+              "description": "",
+              "type": {
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
             }
           ],
           "interfaces": [],
@@ -253,18 +245,15 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Review",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "id",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -277,12 +266,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "stars",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -295,12 +282,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "commentary",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "SCALAR",
                 "name": "String",
                 "ofType": null
@@ -315,7 +300,6 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "ENUM",
           "name": "Episode",
           "description": "",
@@ -324,21 +308,18 @@
           "interfaces": [],
           "enumValues": [
             {
-              "__typename": "__EnumValue",
               "name": "NEWHOPE",
               "description": "",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
-              "__typename": "__EnumValue",
               "name": "EMPIRE",
               "description": "",
               "isDeprecated": false,
               "deprecationReason": null
             },
             {
-              "__typename": "__EnumValue",
               "name": "JEDI",
               "description": "",
               "isDeprecated": true,
@@ -348,18 +329,15 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "INTERFACE",
           "name": "Character",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "name",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -372,12 +350,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "friends",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "LIST",
                 "name": null,
                 "ofType": {
@@ -395,13 +371,11 @@
           "enumValues": null,
           "possibleTypes": [
             {
-              "__typename": "__Type",
               "kind": "OBJECT",
               "name": "Human",
               "ofType": null
             },
             {
-              "__typename": "__Type",
               "kind": "OBJECT",
               "name": "Droid",
               "ofType": null
@@ -409,18 +383,15 @@
           ]
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Human",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "name",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -433,12 +404,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "height",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -451,12 +420,10 @@
               "deprecationReason": "No longer supported"
             },
             {
-              "__typename": "__Field",
               "name": "friends",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "LIST",
                 "name": null,
                 "ofType": {
@@ -472,7 +439,6 @@
           "inputFields": [],
           "interfaces": [
             {
-              "__typename": "__Type",
               "kind": "INTERFACE",
               "name": "Character",
               "ofType": null
@@ -482,18 +448,15 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Droid",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "name",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -506,12 +469,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "primaryFunction",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -524,12 +485,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "friends",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "LIST",
                 "name": null,
                 "ofType": {
@@ -545,7 +504,6 @@
           "inputFields": [],
           "interfaces": [
             {
-              "__typename": "__Type",
               "kind": "INTERFACE",
               "name": "Character",
               "ofType": null
@@ -555,18 +513,15 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "INTERFACE",
           "name": "Vehicle",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "length",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -584,7 +539,6 @@
           "enumValues": null,
           "possibleTypes": [
             {
-              "__typename": "__Type",
               "kind": "OBJECT",
               "name": "Starship",
               "ofType": null
@@ -592,18 +546,15 @@
           ]
         },
         {
-          "__typename": "__Type",
           "kind": "OBJECT",
           "name": "Starship",
           "description": "",
           "fields": [
             {
-              "__typename": "__Field",
               "name": "name",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -616,12 +567,10 @@
               "deprecationReason": null
             },
             {
-              "__typename": "__Field",
               "name": "length",
               "description": "",
               "args": [],
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -637,7 +586,6 @@
           "inputFields": [],
           "interfaces": [
             {
-              "__typename": "__Type",
               "kind": "INTERFACE",
               "name": "Vehicle",
               "ofType": null
@@ -647,7 +595,6 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "SCALAR",
           "name": "Int",
           "description": "The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.",
@@ -658,7 +605,6 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "SCALAR",
           "name": "Float",
           "description": "The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).",
@@ -669,7 +615,6 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "SCALAR",
           "name": "String",
           "description": "The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.",
@@ -680,7 +625,6 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "SCALAR",
           "name": "Boolean",
           "description": "The 'Boolean' scalar type represents 'true' or 'false' .",
@@ -691,7 +635,6 @@
           "possibleTypes": []
         },
         {
-          "__typename": "__Type",
           "kind": "SCALAR",
           "name": "ID",
           "description": "The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.",
@@ -704,7 +647,6 @@
       ],
       "directives": [
         {
-          "__typename": "__Directive",
           "name": "testDeprecated",
           "description": "",
           "locations": [
@@ -712,11 +654,19 @@
           ],
           "args": [
             {
-              "__typename": "__InputValue",
               "name": "okArg",
               "description": "",
               "type": {
-                "__typename": "__Type",
+                "kind": "SCALAR",
+                "name": "String",
+                "ofType": null
+              },
+              "defaultValue": null
+            },
+            {
+              "name": "deprecatedArg",
+              "description": "",
+              "type": {
                 "kind": "SCALAR",
                 "name": "String",
                 "ofType": null
@@ -726,7 +676,6 @@
           ]
         },
         {
-          "__typename": "__Directive",
           "name": "include",
           "description": "Directs the executor to include this field or fragment only when the argument is true.",
           "locations": [
@@ -736,11 +685,9 @@
           ],
           "args": [
             {
-              "__typename": "__InputValue",
               "name": "if",
               "description": "Included when true.",
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -754,7 +701,6 @@
           ]
         },
         {
-          "__typename": "__Directive",
           "name": "skip",
           "description": "Directs the executor to skip this field or fragment when the argument is true.",
           "locations": [
@@ -764,11 +710,9 @@
           ],
           "args": [
             {
-              "__typename": "__InputValue",
               "name": "if",
               "description": "Skipped when true.",
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {
@@ -782,7 +726,6 @@
           ]
         },
         {
-          "__typename": "__Directive",
           "name": "deprecated",
           "description": "Marks an element of a GraphQL schema as no longer supported.",
           "locations": [
@@ -793,11 +736,9 @@
           ],
           "args": [
             {
-              "__typename": "__InputValue",
               "name": "reason",
               "description": "Explains why this element was deprecated, usually also including a suggestion\n    for how to access supported similar data. Formatted in\n    [Markdown](https://daringfireball.net/projects/markdown/).",
               "type": {
-                "__typename": "__Type",
                 "kind": "SCALAR",
                 "name": "String",
                 "ofType": null
@@ -807,7 +748,6 @@
           ]
         },
         {
-          "__typename": "__Directive",
           "name": "specifiedBy",
           "description": "",
           "locations": [
@@ -815,11 +755,9 @@
           ],
           "args": [
             {
-              "__typename": "__InputValue",
               "name": "url",
               "description": "",
               "type": {
-                "__typename": "__Type",
                 "kind": "NON_NULL",
                 "name": null,
                 "ofType": {

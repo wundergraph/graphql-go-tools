@@ -12,6 +12,7 @@ import (
 const (
 	DeprecatedDirectiveName  = "deprecated"
 	DeprecationReasonArgName = "reason"
+	SpecifiedByDirectiveName = "specifiedBy"
 )
 
 type Generator struct {
@@ -32,6 +33,7 @@ func NewGenerator() *Generator {
 	walker.RegisterEnterRootOperationTypeDefinitionVisitor(&visitor)
 	walker.RegisterEnterScalarTypeDefinitionVisitor(&visitor)
 	walker.RegisterEnterUnionMemberTypeVisitor(&visitor)
+	walker.RegisterEnterSchemaDefinitionVisitor(&visitor)
 
 	walker.RegisterDirectiveDefinitionVisitor(&visitor)
 	walker.RegisterEnumTypeDefinitionVisitor(&visitor)
@@ -84,6 +86,15 @@ func (i *introspectionVisitor) LeaveDocument(operation, definition *ast.Document
 	if i.subscriptionTypeName != "" {
 		i.data.Schema.SubscriptionType = i.data.Schema.TypeByName(i.subscriptionTypeName)
 	}
+}
+
+func (i *introspectionVisitor) EnterSchemaDefinition(ref int) {
+	if !i.definition.SchemaDefinitions[ref].Description.IsDefined {
+		return
+	}
+
+	description := unsafebytes.BytesToString(i.definition.Input.ByteSlice(i.definition.SchemaDefinitions[ref].Description.Content))
+	i.data.Schema.Description = &description
 }
 
 func (i *introspectionVisitor) EnterObjectTypeDefinition(ref int) {
@@ -151,6 +162,14 @@ func (i *introspectionVisitor) EnterInputValueDefinition(ref int) {
 		TypeName:     "__InputValue",
 	}
 
+	if i.definition.InputValueDefinitionHasDirectives(ref) {
+		directiveRef, exists := i.definition.InputValueDefinitionDirectiveByName(ref, []byte(DeprecatedDirectiveName))
+		if exists {
+			inputValue.IsDeprecated = true
+			inputValue.DeprecationReason = i.deprecationReason(directiveRef)
+		}
+	}
+
 	switch i.Ancestors[len(i.Ancestors)-1].Kind {
 	case ast.NodeKindInputObjectTypeDefinition:
 		i.currentType.InputFields = append(i.currentType.InputFields, inputValue)
@@ -216,6 +235,23 @@ func (i *introspectionVisitor) EnterScalarTypeDefinition(ref int) {
 	typeDefinition.Name = i.definition.ScalarTypeDefinitionNameString(ref)
 	typeDefinition.Description = i.definition.ScalarTypeDefinitionDescriptionString(ref)
 	i.data.Schema.AddType(typeDefinition)
+
+	if !i.definition.ScalarTypeDefinitionHasDirectives(ref) {
+		return
+	}
+
+	directiveRef, exists := i.definition.ScalarTypeDefinitionDirectiveByName(ref, []byte(SpecifiedByDirectiveName))
+	if !exists {
+		return
+	}
+
+	argValue, exists := i.definition.DirectiveArgumentValueByName(directiveRef, []byte("url"))
+	if !exists {
+		return
+	}
+
+	url := i.definition.ValueContentString(argValue)
+	typeDefinition.SpecifiedByURL = &url
 }
 
 func (i *introspectionVisitor) EnterUnionTypeDefinition(ref int) {

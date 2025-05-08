@@ -19,10 +19,6 @@ func TestBuildInput(t *testing.T) {
 
 	t.Run("schema introspection", run(schemaFieldName, `{"request_type":1}`, false))
 	t.Run("type introspection", run(typeFieldName, `{"request_type":2,"type_name":"{{ .arguments.name }}"}`, false))
-	t.Run("type fields", run(fieldsFieldName, `{"request_type":3,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`, true))
-	t.Run("type enum values", run(enumValuesFieldName, `{"request_type":4,"on_type_name":"{{ .object.name }}","include_deprecated":{{ .arguments.includeDeprecated }}}`, true))
-	t.Run("type fields default for include deprecated", run(fieldsFieldName, `{"request_type":3,"on_type_name":"{{ .object.name }}","include_deprecated":false}`, false))
-	t.Run("type enum values for include deprecated", run(enumValuesFieldName, `{"request_type":4,"on_type_name":"{{ .object.name }}","include_deprecated":false}`, false))
 }
 
 func TestUnmarshalIntrospectionInput(t *testing.T) {
@@ -39,6 +35,4 @@ func TestUnmarshalIntrospectionInput(t *testing.T) {
 
 	t.Run("schema introspection", run(`{"request_type":1}`, introspectionInput{RequestType: SchemaRequestType}))
 	t.Run("type introspection", run(`{"request_type":2,"type_name":"Foo"}`, introspectionInput{RequestType: TypeRequestType, TypeName: &foo}))
-	t.Run("type fields", run(`{"request_type":3,"on_type_name":"Foo","include_deprecated":true}`, introspectionInput{RequestType: TypeFieldsRequestType, OnTypeName: &foo, IncludeDeprecated: true}))
-	t.Run("type enum values", run(`{"request_type":4,"on_type_name":"Foo","include_deprecated":false}`, introspectionInput{RequestType: TypeEnumValuesRequestType, OnTypeName: &foo, IncludeDeprecated: false}))
 }
