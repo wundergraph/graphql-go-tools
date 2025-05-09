@@ -1,7 +1,6 @@
 package grpcdatasource
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -302,9 +301,5 @@ func TestBuildProtoMessage(t *testing.T) {
 	}
 
 	require.Equal(t, 1, len(invocations))
-
-	for _, invocation := range invocations {
-		fmt.Println(invocation)
-	}
 
 }

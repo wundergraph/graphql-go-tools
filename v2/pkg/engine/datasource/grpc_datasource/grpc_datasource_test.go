@@ -98,12 +98,7 @@ func Test_DataSource_Load(t *testing.T) {
 // TODO update this test to not use mappings anc expect no response
 func Test_DataSource_Load_WithMockService(t *testing.T) {
 	// 1. Start a real gRPC server with our mock implementation
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
-
-	// Get the assigned port
-	port := lis.Addr().(*net.TCPAddr).Port
-	serverAddr := fmt.Sprintf("localhost:%d", port)
+	lis := bufconn.Listen(1024 * 1024)
 
 	// Create a new gRPC server
 	server := grpc.NewServer()
@@ -122,10 +117,20 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	// Clean up the server when the test completes
 	defer server.Stop()
 
-	conn, err := grpc.NewClient(
-		serverAddr,
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
 	)
+
 	require.NoError(t, err)
 	defer conn.Close()
 
@@ -227,10 +232,13 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	}
 
 	// Connect using bufconn dialer
-	conn, err := grpc.NewClient(
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
 		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
 	)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -345,9 +353,12 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	defer server.Stop()
 
 	// 2. Connect to the gRPC server
-	conn, err := grpc.NewClient(
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
 		serverAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithLocalDNSResolution(),
 	)
 	require.NoError(t, err)
 	defer conn.Close()
@@ -686,10 +697,13 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 	}
 
 	// Connect using bufconn dialer
-	conn, err := grpc.NewClient(
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
 		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
 	)
 	require.NoError(t, err)
 	defer conn.Close()
