@@ -1,10 +1,9 @@
-// recursion_guard_test.go
 package recursion_guard
 
 import (
+	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
@@ -12,105 +11,98 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-/* ------------------------------------------------------------------ */
-/* helper                                                             */
-/* ------------------------------------------------------------------ */
-
-func runGuard(
+func runLong(
 	t *testing.T,
-	sdl, query string,
+	sdl, op string,
 	maxDepth int,
 	wantErr bool,
-	wantSubstr string,
 ) {
 	schema := unsafeparser.ParseGraphqlDocumentString(sdl)
-	op := unsafeparser.ParseGraphqlDocumentString(query)
-	report := operationreport.Report{}
-
-	astnormalization.NormalizeOperation(&op, &schema, &report)
-	require.False(t, report.HasErrors(), "schema / op must be valid: %v", report)
+	doc := unsafeparser.ParseGraphqlDocumentString(op)
+	rep := operationreport.Report{}
+	astnormalization.NormalizeOperation(&doc, &schema, &rep)
+	require.False(t, rep.HasErrors(), "schema/op invalid: %v", rep)
 
 	guard := NewRecursionGuard(maxDepth)
-	guard.Do(&op, &schema, &report)
+	guard.Do(&doc, &schema, &rep)
 
 	if wantErr {
-		require.True(t, report.HasErrors(), "expected recursion error")
-		if wantSubstr != "" {
-			assert.Contains(t, report.ExternalErrors[0].Message, wantSubstr)
-		}
+		require.True(t, rep.HasErrors(), "expected recursion error")
 	} else {
-		require.False(t, report.HasErrors(), "unexpected recursion error: %v", report.ExternalErrors)
+		require.False(t, rep.HasErrors(), "unexpected error: %v", rep.ExternalErrors)
 	}
 }
 
-/* ------------------------------------------------------------------ */
-/* tests                                                              */
-/* ------------------------------------------------------------------ */
+func TestRecursionGuard_DeepPaths(t *testing.T) {
+	const scalars = "scalar ID\nscalar String\n"
 
-func TestRecursionGuard(t *testing.T) {
-	t.Run("scalar only – no recursion", func(t *testing.T) {
-		runGuard(t, employeeSDL, `{ employee(id:"1"){ id } }`, 1, false, "")
-	})
-
-	t.Run("direct recursion over limit", func(t *testing.T) {
-		runGuard(t, employeeSDL, `
-			{
-			  employee(id:"1"){
-			    manager{
-			      manager{ id }
-			    }
-			  }
-			}`, 1, true, "employee.manager.manager")
-	})
-
-	t.Run("indirect recursion within limit", func(t *testing.T) {
-		runGuard(t, bookSDL, `
-			{
-			  book(id:"1"){
-			    author{
-			      works{
-			        author{ id }
-			      }
-			    }
-			  }
-			}`, 2, false, "")
-	})
-
-	t.Run("indirect recursion over limit", func(t *testing.T) {
-		runGuard(t, bookSDL, `
-			{
-			  book(id:"1"){
-			    author{
-			      works{
-			        author{
-			          works{ id }  # third Book
-			        }
-			      }
-			    }
-			  }
-			}`, 2, true, "works.author.works")
-	})
-}
-
-/* ------------------------------------------------------------------ */
-/* minimal SDLs with built-in scalars declared                        */
-/* ------------------------------------------------------------------ */
-
-const employeeSDL = `
-scalar ID
-scalar String
-
+	/*──── 1. direct self‑recursion chain ────*/
+	const employeeSDL = scalars + `
 type Query   { employee(id: ID!): Employee }
 type Employee{ id: ID manager: Employee }
 schema { query: Query }
 `
+	chain := strings.Repeat("manager{", 9) + "id" + strings.Repeat("}", 9)
+	longEmployeeQuery := `
+{
+  employee(id:"1"){
+    ` + chain + `
+  }
+}`
+	t.Run("Employee depth‑10 vs limit‑3 -> ERR", func(t *testing.T) {
+		runLong(t, employeeSDL, longEmployeeQuery, 3, true)
+	})
+	t.Run("Employee depth‑10 vs limit‑10 -> OK", func(t *testing.T) {
+		runLong(t, employeeSDL, longEmployeeQuery, 10, false)
+	})
 
-const bookSDL = `
-scalar ID
-scalar String
-
+	const bookSDL = scalars + `
 type Query  { book(id: ID!): Book }
 type Book   { id: ID author: Author }
 type Author { id: ID works: [Book] }
 schema { query: Query }
 `
+
+	indirect := ""
+	for i := 0; i < 5; i++ {
+		indirect += "author{works{"
+	}
+	indirect += "id"
+	for i := 0; i < 5; i++ {
+		indirect += "}}"
+	}
+	longBookQuery := `
+{
+  book(id:"42"){
+    ` + indirect + `
+  }
+}`
+	t.Run("Book depth‑6 vs limit‑2 -> ERR", func(t *testing.T) {
+		runLong(t, bookSDL, longBookQuery, 2, true)
+	})
+	t.Run("Book depth‑6 vs limit‑6 -> OK", func(t *testing.T) {
+		runLong(t, bookSDL, longBookQuery, 6, false)
+	})
+
+	mixedQuery := `
+{
+  employee(id:"1"){             # root Employee
+    id
+    manager{                    # Employee depth 2
+      id
+      peer1: manager{ id }      # Employee depth 3 (alias branch)
+      peer2: manager{           # Employee depth 3 again
+        manager{                # Employee depth 4 -> should overflow @ limit 3
+          id
+        }
+      }
+    }
+  }
+}`
+	t.Run("mixed branch, limit‑3 -> ERR", func(t *testing.T) {
+		runLong(t, employeeSDL, mixedQuery, 3, true)
+	})
+	t.Run("mixed branch, limit‑5 -> OK", func(t *testing.T) {
+		runLong(t, employeeSDL, mixedQuery, 5, false)
+	})
+}

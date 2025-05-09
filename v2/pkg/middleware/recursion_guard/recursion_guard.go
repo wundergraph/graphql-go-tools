@@ -54,6 +54,10 @@ type visitor struct {
 }
 
 func named(doc *ast.Document, ref int) int {
+	// We need this bit to get to the true named type, because in certain cases the name type is deeply embedded
+	// into a NOT-NULL or LIST type
+	// For eg: Employee!, [Employee], [[Employee!]!]!).
+	// The outer wrappers have kinds NON_NULL or LIST; only the innermost node has kind NAMED.
 	for doc.Types[ref].TypeKind != ast.TypeKindNamed {
 		ref = doc.Types[ref].OfType
 	}
@@ -74,8 +78,7 @@ func (v *visitor) LeaveSelectionSet(ref int) {
 		return
 	}
 
-	fr := v.frameStack[len(v.frameStack)-1]
-
+	// Here we are computing recursions spotted during this current selection
 	for typ, n := range v.typeCount {
 		if n > v.maxDepth {
 			v.report.AddExternalError(operationreport.ExternalError{
@@ -88,6 +91,9 @@ func (v *visitor) LeaveSelectionSet(ref int) {
 			break
 		}
 	}
+
+	// Now we start un-doing the new types we added to the typeCount due to this current selection
+	fr := v.frameStack[len(v.frameStack)-1]
 
 	for _, t := range fr.bumped {
 		if v.typeCount[t]--; v.typeCount[t] == 0 {
@@ -113,14 +119,18 @@ func (v *visitor) EnterField(ref int) {
 	nt := named(v.schema, v.schema.FieldDefinitionType(def))
 	typeName := v.schema.TypeNameString(nt)
 
+	// We don't track scalars, enums, unions because they cant contribute to recursions
 	node, exists := v.schema.Index.FirstNodeByNameStr(typeName)
 	if !exists ||
 		(node.Kind != ast.NodeKindObjectTypeDefinition && node.Kind != ast.NodeKindInterfaceTypeDefinition) {
 		return // scalar / enum / union
 	}
 
+	// We are only interested in the named types that are objects or interfaces
 	v.typeCount[typeName]++
 
+	// We save the effects of the current selection as it helps us back track the effects when we are done analysing
+	// the current selection
 	if len(v.frameStack) > 0 {
 		top := &v.frameStack[len(v.frameStack)-1]
 		top.bumped = append(top.bumped, typeName)
