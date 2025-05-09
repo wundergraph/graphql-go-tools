@@ -40,11 +40,11 @@ func RunTest(definition, operation, operationName string, expectedPlan plan.Plan
 		p := plan.NewPlanner(ctx, config)
 		actualPlan := p.Plan(&op, &def, operationName, &report)
 		if report.HasErrors() {
-			_, err := astprinter.PrintStringIndent(&def, nil, "  ")
+			_, err := astprinter.PrintStringIndent(&def, nil, "    ")
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = astprinter.PrintStringIndent(&op, &def, "  ")
+			_, err = astprinter.PrintStringIndent(&op, &def, "    ")
 			if err != nil {
 				t.Fatal(err)
 			}

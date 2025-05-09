@@ -1341,7 +1341,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 		return
 	}
 
-	printedOperation, err := astprinter.PrintStringIndent(operation, "  ")
+	printedOperation, err := astprinter.PrintStringIndent(operation, "    ")
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("debugPrintQueryPlan: failed to print operation: %w", err)))
 		return
@@ -1368,7 +1368,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 			if report.HasErrors() {
 				continue
 			}
-			printedKey, err := astprinter.PrintStringIndent(key, "  ")
+			printedKey, err := astprinter.PrintStringIndent(key, "    ")
 			if err != nil {
 				p.stopWithError(errors.WithStack(fmt.Errorf("debugPrintQueryPlan: failed to print fragment for required fields: %w", err)))
 				return
@@ -1388,7 +1388,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	if !p.includeQueryPlanInFetchConfiguration {
 		return
 	}
-	query, err := astprinter.PrintStringIndent(operation, "  ")
+	query, err := astprinter.PrintStringIndent(operation, "    ")
 	if err != nil {
 		p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print operation: %w", err)))
 		return
@@ -1404,7 +1404,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to build fragment for required fields: %w", report)))
 				return
 			}
-			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, "  ")
+			printedFragment, err := astprinter.PrintStringIndent(fragmentAst, "    ")
 			if err != nil {
 				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to print fragment for required fields: %w", err)))
 				return
