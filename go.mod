@@ -2,8 +2,6 @@ module github.com/wundergraph/graphql-go-tools
 
 go 1.22
 
-toolchain go1.24.1
-
 require (
 	github.com/99designs/gqlgen v0.17.45
 	github.com/buger/jsonparser v1.1.1
