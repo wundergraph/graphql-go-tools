@@ -227,7 +227,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	}
 
 	// Connect using bufconn dialer
-	conn, err := grpc.Dial(
+	conn, err := grpc.NewClient(
 		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(bufDialer),
@@ -686,7 +686,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 	}
 
 	// Connect using bufconn dialer
-	conn, err := grpc.Dial(
+	conn, err := grpc.NewClient(
 		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(bufDialer),

@@ -7,6 +7,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type keyField struct {
@@ -76,7 +78,7 @@ func newRPCPlanVisitor(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *
 	visitor := &rpcPlanVisitor{
 		walker:                 walker,
 		plan:                   &RPCExecutionPlan{},
-		subgraphName:           strings.Title(config.subgraphName),
+		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:                config.mapping,
 		operationDefinitionRef: -1,
 		operationFieldRef:      -1,
@@ -730,19 +732,19 @@ func (r *rpcPlanVisitor) buildQueryMethodName() string {
 		return "Lookup" + r.planInfo.entityInfo.keyTypeName
 	}
 
-	return "Query" + strings.Title(r.planInfo.operationFieldName)
+	return "Query" + cases.Title(language.Und, cases.NoLower).String(r.planInfo.operationFieldName)
 }
 
 // buildMutationMethodName constructs a method name for mutation operations.
 func (r *rpcPlanVisitor) buildMutationMethodName() string {
 	// TODO implement mutation method name handling
-	return "Mutation" + strings.Title(r.planInfo.operationFieldName)
+	return "Mutation" + cases.Title(language.Und, cases.NoLower).String(r.planInfo.operationFieldName)
 }
 
 // buildSubscriptionMethodName constructs a method name for subscription operations.
 func (r *rpcPlanVisitor) buildSubscriptionMethodName() string {
 	// TODO implement subscription method name handling
-	return "Subscription" + strings.Title(r.planInfo.operationFieldName)
+	return "Subscription" + cases.Title(language.Und, cases.NoLower).String(r.planInfo.operationFieldName)
 }
 
 // toDataType converts an ast.Type to a DataType.
@@ -789,7 +791,7 @@ func (r *rpcPlanVisitor) parseGraphQLType(t *ast.Type) DataType {
 // titleSlice capitalizes the first letter of each string in a slice.
 func titleSlice(s []string) []string {
 	for i, v := range s {
-		s[i] = strings.Title(v)
+		s[i] = cases.Title(language.Und, cases.NoLower).String(v)
 	}
 	return s
 }
