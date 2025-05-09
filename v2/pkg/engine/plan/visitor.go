@@ -1254,6 +1254,11 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 		return
 	}
 	fetchConfig := config.planner.ConfigureFetch()
+	// If the datasource is missing, we can anticipate that configure fetch failed
+	if fetchConfig.DataSource == nil {
+		return
+	}
+
 	if v.includeQueryPlans && fetchConfig.QueryPlan == nil {
 		fetchConfig.QueryPlan = &resolve.QueryPlan{}
 	}

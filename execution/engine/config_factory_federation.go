@@ -9,6 +9,7 @@ import (
 
 	"github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/common"
 	nodev1 "github.com/wundergraph/cosmo/router/gen/proto/wg/cosmo/node/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
 	"github.com/wundergraph/cosmo/composition-go"
@@ -42,6 +43,8 @@ type federationEngineConfigFactoryOptions struct {
 	subscriptionClientFactory graphql_datasource.GraphQLSubscriptionClientFactory
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
+
+	grpcClient grpc.ClientConnInterface
 }
 
 type FederationEngineConfigFactoryOption func(options *federationEngineConfigFactoryOptions)
@@ -85,6 +88,8 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfig
 				TLSHandshakeTimeout: 0 * time.Second,
 			},
 		},
+		// TODO
+		grpcClient: nil,
 		streamingClient: &http.Client{
 			Timeout: 0,
 		},
@@ -99,6 +104,7 @@ func NewFederationEngineConfigFactory(engineCtx context.Context, subgraphsConfig
 	return &FederationEngineConfigFactory{
 		engineCtx:                 engineCtx,
 		httpClient:                options.httpClient,
+		grpcClient:                options.grpcClient,
 		streamingClient:           options.streamingClient,
 		subscriptionClientFactory: options.subscriptionClientFactory,
 		subscriptionType:          options.subscriptionType,
@@ -117,6 +123,8 @@ type FederationEngineConfigFactory struct {
 	subscriptionType          SubscriptionType
 	customResolveMap          map[string]resolve.CustomResolve
 	subgraphsConfigs          []SubgraphConfiguration
+
+	grpcClient grpc.ClientConnInterface
 }
 
 func (f *FederationEngineConfigFactory) BuildEngineConfiguration() (Configuration, error) {

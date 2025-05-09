@@ -76,6 +76,10 @@ func NewSchemaFromString(schema string) (*Schema, error) {
 	return createSchema(schemaContent, true)
 }
 
+func NewSchemaFromBytes(schema []byte) (*Schema, error) {
+	return createSchema(schema, true)
+}
+
 func ValidateSchemaString(schema string) (result ValidationResult, err error) {
 	parsedSchema, err := NewSchemaFromString(schema)
 	if err != nil {

@@ -124,6 +124,7 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 			"test",
 			dataSourceConfig,
 			client,
+			nil,
 			WithDataSourceGeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
 		require.NoError(t, err)
@@ -157,6 +158,7 @@ func TestGraphQLDataSourceGenerator_Generate(t *testing.T) {
 			"test",
 			dataSourceConfig,
 			client,
+			nil,
 			WithDataSourceGeneratorSubscriptionConfiguration(streamingClient, SubscriptionTypeSSE),
 			WithDataSourceGeneratorSubscriptionClientFactory(&MockSubscriptionClientFactory{}),
 		)
