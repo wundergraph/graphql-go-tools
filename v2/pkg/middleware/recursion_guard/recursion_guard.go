@@ -1,0 +1,128 @@
+// Package recursion_guard detects excessive recursion depth in GraphQL queries.
+package recursion_guard
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+)
+
+type RecursionGuard struct{ MaxDepth int }
+
+func NewRecursionGuard(maxDepth int) *RecursionGuard { return &RecursionGuard{maxDepth} }
+
+func (g *RecursionGuard) Do(op, schema *ast.Document, rep *operationreport.Report) {
+	if g.MaxDepth <= 0 {
+		return
+	}
+
+	v := &visitor{
+		maxDepth:   g.MaxDepth,
+		op:         op,
+		schema:     schema,
+		report:     rep,
+		typeCount:  map[string]int{},
+		path:       []string{},
+		frameStack: []frame{},
+	}
+	w := astvisitor.NewWalker(48)
+	w.RegisterEnterSelectionSetVisitor(v)
+	w.RegisterLeaveSelectionSetVisitor(v)
+	w.RegisterEnterFieldVisitor(v)
+	v.Walker = &w
+	w.Walk(op, schema, rep)
+}
+
+type frame struct {
+	startPath int
+	bumped    []string
+}
+
+type visitor struct {
+	*astvisitor.Walker
+	op, schema *ast.Document
+	report     *operationreport.Report
+	maxDepth   int
+
+	typeCount  map[string]int
+	path       []string
+	frameStack []frame
+	errHit     bool
+}
+
+func named(doc *ast.Document, ref int) int {
+	for doc.Types[ref].TypeKind != ast.TypeKindNamed {
+		ref = doc.Types[ref].OfType
+	}
+	return ref
+}
+
+func (v *visitor) EnterSelectionSet(ref int) {
+	if len(v.Ancestors) == 0 || v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindField {
+		return
+	}
+	v.frameStack = append(v.frameStack, frame{startPath: len(v.path)})
+}
+
+func (v *visitor) LeaveSelectionSet(ref int) {
+	if len(v.frameStack) == 0 ||
+		len(v.Ancestors) == 0 ||
+		v.Ancestors[len(v.Ancestors)-1].Kind != ast.NodeKindField {
+		return
+	}
+
+	fr := v.frameStack[len(v.frameStack)-1]
+
+	for typ, n := range v.typeCount {
+		if n > v.maxDepth {
+			v.report.AddExternalError(operationreport.ExternalError{
+				Message: fmt.Sprintf(
+					"Recursion detected: type %q exceeds depth %d at path %q",
+					typ, v.maxDepth, strings.Join(v.path, "."),
+				),
+			})
+			v.errHit = true
+			break
+		}
+	}
+
+	for _, t := range fr.bumped {
+		if v.typeCount[t]--; v.typeCount[t] == 0 {
+			delete(v.typeCount, t)
+		}
+	}
+
+	v.path = v.path[:fr.startPath]
+	v.frameStack = v.frameStack[:len(v.frameStack)-1]
+}
+
+func (v *visitor) EnterField(ref int) {
+	if v.errHit {
+		return
+	}
+
+	v.path = append(v.path, v.op.FieldAliasOrNameString(ref))
+
+	def, ok := v.FieldDefinition(ref)
+	if !ok {
+		return
+	}
+	nt := named(v.schema, v.schema.FieldDefinitionType(def))
+	typeName := v.schema.TypeNameString(nt)
+
+	node, exists := v.schema.Index.FirstNodeByNameStr(typeName)
+	if !exists ||
+		(node.Kind != ast.NodeKindObjectTypeDefinition && node.Kind != ast.NodeKindInterfaceTypeDefinition) {
+		return // scalar / enum / union
+	}
+
+	v.typeCount[typeName]++
+
+	if len(v.frameStack) > 0 {
+		top := &v.frameStack[len(v.frameStack)-1]
+		top.bumped = append(top.bumped, typeName)
+	}
+}
