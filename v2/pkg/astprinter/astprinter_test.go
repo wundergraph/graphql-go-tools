@@ -33,7 +33,7 @@ func runWithIndent(t *testing.T, raw string, expected string, indent bool) {
 	printer := Printer{}
 
 	if indent {
-		printer.indent = []byte("  ")
+		printer.indent = []byte("    ")
 	}
 
 	must(t, printer.Print(&doc, buff))
@@ -685,7 +685,7 @@ func TestPrintSchemaDefinition(t *testing.T) {
 	doc := unsafeparser.ParseGraphqlDocumentFile("./testdata/starwars.schema.graphql")
 
 	buff := bytes.Buffer{}
-	err := PrintIndent(&doc, []byte("  "), &buff)
+	err := PrintIndent(&doc, []byte("    "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -708,7 +708,7 @@ func TestPrintOperationDefinition(t *testing.T) {
 	operation := unsafeparser.ParseGraphqlDocumentFile("./testdata/introspectionquery.graphql")
 
 	buff := bytes.Buffer{}
-	err := PrintIndent(&operation, []byte("  "), &buff)
+	err := PrintIndent(&operation, []byte("    "), &buff)
 	if err != nil {
 		t.Fatal(err)
 	}

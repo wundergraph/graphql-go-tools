@@ -182,7 +182,7 @@ func TestCopying(t *testing.T) {
 		}
 	}
 
-	out, err := astprinter.PrintStringIndent(&doc, nil, "  ")
+	out, err := astprinter.PrintStringIndent(&doc, nil, "    ")
 
 	assert.NoError(t, err)
 
