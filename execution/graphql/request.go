@@ -84,6 +84,24 @@ func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator,
 	return complexityCalculator.Calculate(&r.document, &schema.document)
 }
 
+func (r *Request) CheckRecursion(
+	recursionCalc RecursionCalculator,
+	schema *Schema,
+) (RecursionResult, error) {
+
+	if schema == nil {
+		return RecursionResult{}, ErrNilSchema
+	}
+
+	report := r.parseQueryOnce()
+	if report.HasErrors() {
+		res, _ := recursionResult(report)
+		return res, report
+	}
+
+	return recursionCalc.Calculate(&r.document, &schema.document)
+}
+
 func (r *Request) Document() *ast.Document {
 	return &r.document
 }
