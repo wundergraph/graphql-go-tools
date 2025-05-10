@@ -3,6 +3,7 @@ package recursion_guard
 
 import (
 	"fmt"
+	"github.com/wundergraph/graphql-go-tools/pkg/graphql"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -13,6 +14,20 @@ import (
 type RecursionGuard struct{ MaxDepth int }
 
 func NewRecursionGuard(maxDepth int) *RecursionGuard { return &RecursionGuard{maxDepth} }
+
+func ValidateRecursion(maxDepth int, op, schema *ast.Document, rep *operationreport.Report) graphql.Errors {
+	recursionGuard := NewRecursionGuard(maxDepth)
+	if maxDepth <= 0 {
+		return graphql.RequestErrors{
+			{
+				Message: "Recursion guard max depth must be greater than 0",
+			},
+		}
+	}
+
+	recursionGuard.Do(op, schema, rep)
+	return nil
+}
 
 func (g *RecursionGuard) Do(op, schema *ast.Document, rep *operationreport.Report) {
 	if g.MaxDepth <= 0 {

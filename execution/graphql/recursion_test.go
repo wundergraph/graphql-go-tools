@@ -10,8 +10,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-/*──────── helper ────────*/
-
 func runRecursion(
 	t *testing.T,
 	sdl, query string,
@@ -36,8 +34,6 @@ func runRecursion(
 		require.Empty(t, res.Errors, "unexpected recursion error: %v", res.Errors)
 	}
 }
-
-/*──────── tests ─────────*/
 
 func TestRecursionCalculator(t *testing.T) {
 	const scalars = "scalar ID\nscalar String\n"

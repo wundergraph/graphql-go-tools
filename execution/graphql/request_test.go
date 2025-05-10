@@ -2,6 +2,7 @@ package graphql
 
 import (
 	"bytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"strings"
 	"testing"
 
@@ -148,6 +149,86 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 			}}, result.PerRootField, "unexpected per root field results")
 	})
 }
+
+func TestRequest_CheckRecursion(t *testing.T) {
+
+	nilSchemaRequest := Request{
+		OperationName: "",
+		Query:         `{ employee(id:"1"){ id } }`,
+	}
+
+	t.Run("nil schema returns ErrNilSchema", func(t *testing.T) {
+		calc := NewRecursionCalculator(2)
+		res, err := nilSchemaRequest.CheckRecursion(calc, nil)
+		assert.ErrorIs(t, err, ErrNilSchema)
+		assert.Empty(t, res.Errors)
+	})
+
+	schema := parseSchema(t, employeeSDL)
+
+	t.Run("no recursion – ok", func(t *testing.T) {
+		req := Request{
+			Query: `{ employee(id:"1"){ id } }`,
+		}
+		calc := NewRecursionCalculator(1)
+
+		res, err := req.CheckRecursion(calc, schema)
+		assert.NoError(t, err)
+		assert.Empty(t, res.Errors)
+	})
+
+	t.Run("depth-3 vs limit-1 – error", func(t *testing.T) {
+		req := Request{
+			Query: `
+			{
+			  employee(id:"1"){
+			    manager{
+			      manager{ id }
+			    }
+			  }
+			}`,
+		}
+		calc := NewRecursionCalculator(1)
+
+		res, err := req.CheckRecursion(calc, schema)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, res.Errors)
+		assert.Contains(t, res.Errors.Error(), "manager.manager")
+	})
+
+	t.Run("depth-3 vs limit-3 – ok", func(t *testing.T) {
+		req := Request{
+			Query: `
+			{
+			  employee(id:"1"){
+			    manager{
+			      manager{ id }
+			    }
+			  }
+			}`,
+		}
+		calc := NewRecursionCalculator(3)
+
+		res, err := req.CheckRecursion(calc, schema)
+		assert.NoError(t, err)
+		assert.Empty(t, res.Errors)
+	})
+}
+
+func parseSchema(tb testing.TB, sdl string) *Schema {
+	tb.Helper()
+	doc, rep := astparser.ParseGraphqlDocumentString(sdl)
+	if rep.HasErrors() {
+		tb.Fatalf("schema parse error: %v", rep)
+	}
+	return &Schema{document: doc}
+}
+
+const employeeSDL = `
+scalar ID
+type Query   { employee(id: ID!): Employee }
+type Employee{ id: ID manager: Employee }
+schema { query: Query }`
 
 func TestRequest_IsIntrospectionQuery(t *testing.T) {
 	run := func(queryPayload string, expectedIsIntrospection bool) func(t *testing.T) {

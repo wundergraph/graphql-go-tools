@@ -1,10 +1,3 @@
-// pkg/graphql/recursion.go
-//
-// Thin adapter that plugs the middleware/recursion_guard visitor into the
-// public “calculator” pattern used elsewhere in the wundergraph code-base.
-// It mirrors complexity.go: the walker does the work, this file turns the
-// operation-report into a friendly result struct.
-
 package graphql
 
 import (
@@ -23,9 +16,6 @@ type RecursionCalculator interface {
 
 type defaultRecursionCalculator struct{ maxDepth int }
 
-// NewRecursionCalculator returns a calculator that flags a recursion
-// error when any object / interface type appears more than maxDepth
-// times along a single selection path.
 func NewRecursionCalculator(maxDepth int) RecursionCalculator {
 	if maxDepth <= 0 {
 		maxDepth = DefaultMaxDepth
