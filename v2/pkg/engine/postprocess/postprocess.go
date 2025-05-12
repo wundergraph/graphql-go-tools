@@ -1,8 +1,9 @@
 package postprocess
 
 import (
-	"github.com/buger/jsonparser"
 	"slices"
+
+	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -74,12 +75,6 @@ func DisableResolveInputTemplates() ProcessorOption {
 func CollectDataSourceInfo() ProcessorOption {
 	return func(o *processorOptions) {
 		o.collectDataSourceInfo = true
-	}
-}
-
-func DisableExtractFetches() ProcessorOption {
-	return func(o *processorOptions) {
-		o.disableExtractFetches = true
 	}
 }
 

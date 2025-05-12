@@ -402,17 +402,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 			name: "Collect all service names",
 			pre: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("field1"),
-								Value: &resolve.String{
-									Path: []string{"field1"},
-								},
-							},
-						},
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "user-service",
 									DataSourceName: "user-service",
@@ -426,7 +418,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 								},
 								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
 							},
-							&resolve.SingleFetch{
+						},
+						{
+							Fetch: &resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "product-service",
 									DataSourceName: "product-service",
@@ -440,7 +434,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 								},
 								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
 							},
-							&resolve.SingleFetch{
+						},
+						{
+							Fetch: &resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "review-service",
 									DataSourceName: "review-service",
@@ -452,7 +448,18 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 										},
 									},
 								},
-								FetchDependencies: resolve.FetchDependencies{FetchID: 3}},
+								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("field1"),
+								Value: &resolve.String{
+									Path: []string{"field1"},
+								},
+							},
 						},
 					},
 				},
@@ -529,17 +536,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 			name: "Deduplicate the same service names",
 			pre: &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fields: []*resolve.Field{
-							{
-								Name: []byte("field1"),
-								Value: &resolve.String{
-									Path: []string{"field1"},
-								},
-							},
-						},
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
+					RawFetches: []*resolve.FetchItem{
+						{
+							Fetch: &resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "product-service-1",
 									DataSourceName: "product-service-1",
@@ -553,7 +552,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 								},
 								FetchDependencies: resolve.FetchDependencies{FetchID: 1},
 							},
-							&resolve.SingleFetch{
+						},
+						{
+							Fetch: &resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "product-service",
 									DataSourceName: "product-service",
@@ -567,7 +568,9 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 								},
 								FetchDependencies: resolve.FetchDependencies{FetchID: 2},
 							},
-							&resolve.SingleFetch{
+						},
+						{
+							Fetch: &resolve.SingleFetch{
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "product-service-1",
 									DataSourceName: "product-service-1",
@@ -580,6 +583,16 @@ func TestProcess_ExtractServiceNames(t *testing.T) {
 									},
 								},
 								FetchDependencies: resolve.FetchDependencies{FetchID: 3},
+							},
+						},
+					},
+					Data: &resolve.Object{
+						Fields: []*resolve.Field{
+							{
+								Name: []byte("field1"),
+								Value: &resolve.String{
+									Path: []string{"field1"},
+								},
 							},
 						},
 					},
