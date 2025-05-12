@@ -267,7 +267,7 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 
 func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      true,
+		MergeAliasedRootNodes:      !p.config.IsGRPC(),
 		OverrideFieldPathFromAlias: true,
 		IncludeTypeNameFields:      true,
 	}

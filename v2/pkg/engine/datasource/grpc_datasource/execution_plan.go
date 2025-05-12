@@ -80,6 +80,9 @@ type RPCField struct {
 	Index int
 	// EnumName is the name of the enum if the field is an enum type
 	EnumName string
+	// StaticValue is the static value of the field
+	StaticValue string
+
 	// Message is the message type if the field is a nested message type
 	// This allows for recursive construction of complex message types
 	Message *RPCMessage

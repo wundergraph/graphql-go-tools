@@ -23,7 +23,7 @@ func TestEntityLookup(t *testing.T) {
 	}{
 		{
 			name:  "Should create an execution plan for an entity lookup",
-			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { id name price } } }`,
+			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { __typename id name price } } }`,
 			expectedPlan: &RPCExecutionPlan{
 				Groups: []RPCCallGroup{
 					{
@@ -86,22 +86,29 @@ func TestEntityLookup(t *testing.T) {
 															Name: "Product",
 															Fields: []RPCField{
 																{
+																	Name:        "__typename",
+																	TypeName:    string(DataTypeString),
+																	JSONPath:    "__typename",
+																	StaticValue: "Product",
+																	Index:       0,
+																},
+																{
 																	Name:     "id",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "id",
-																	Index:    0,
+																	Index:    1,
 																},
 																{
 																	Name:     "name",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "name",
-																	Index:    1,
+																	Index:    2,
 																},
 																{
 																	Name:     "price",
 																	TypeName: string(DataTypeDouble),
 																	JSONPath: "price",
-																	Index:    2,
+																	Index:    3,
 																},
 															},
 														},
@@ -453,6 +460,61 @@ func TestQueryExecutionPlans(t *testing.T) {
 		expectedPlan  *RPCExecutionPlan
 		expectedError string
 	}{
+		{
+			name:  "Should include typename when requested",
+			query: `query UsersWithTypename { users { __typename id name } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "Products",
+								MethodName:  "QueryUsers",
+								Request: RPCMessage{
+									Name: "QueryUsersRequest",
+								},
+								Response: RPCMessage{
+									Name: "QueryUsersResponse",
+									Fields: []RPCField{
+										{
+											Name:     "users",
+											TypeName: string(DataTypeMessage),
+											Repeated: true,
+											Index:    0,
+											JSONPath: "users",
+											Message: &RPCMessage{
+												Name: "User",
+												Fields: []RPCField{
+													{
+														Name:        "__typename",
+														TypeName:    string(DataTypeString),
+														JSONPath:    "__typename",
+														StaticValue: "User",
+														Index:       0,
+													},
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    1,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    2,
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		{
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,

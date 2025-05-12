@@ -176,6 +176,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	// }
 
 	for _, field := range message.Fields {
+		if field.StaticValue != "" {
+			root.Set(field.JSONPath, arena.NewString(field.StaticValue))
+			continue
+		}
+
 		fd := data.Descriptor().Fields().ByName(protoref.Name(field.Name))
 		if fd == nil {
 			continue

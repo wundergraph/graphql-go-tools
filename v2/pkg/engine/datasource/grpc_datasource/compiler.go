@@ -334,9 +334,14 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 				return nil, fmt.Errorf("failed to compile invocation: %w", p.report)
 			}
 
+			serviceName, ok := p.resolveServiceName(call.MethodName)
+			if !ok {
+				return nil, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
+			}
+
 			invocations = append(invocations, Invocation{
 				GroupIndex:  i,
-				ServiceName: p.resolveServiceName(call.MethodName),
+				ServiceName: serviceName,
 				MethodName:  call.MethodName,
 				Input:       request,
 				Output:      response,
@@ -348,16 +353,16 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 	return invocations, nil
 }
 
-func (p *RPCCompiler) resolveServiceName(methodName string) string {
+func (p *RPCCompiler) resolveServiceName(methodName string) (string, bool) {
 	for _, service := range p.doc.Services {
 		for _, methodRef := range service.MethodsRefs {
 			if p.doc.Methods[methodRef].Name == methodName {
-				return service.FullName
+				return service.FullName, true
 			}
 		}
 	}
 
-	return ""
+	return "", false
 }
 
 // newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.

@@ -909,3 +909,130 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 		})
 	}
 }
+
+// Test_DataSource_Load_WithTypename tests that __typename fields are correctly included
+// in the response with their static values
+func Test_DataSource_Load_WithTypename(t *testing.T) {
+	// Set up the bufconn listener
+	lis := bufconn.Listen(1024 * 1024)
+
+	// Create a new gRPC server
+	server := grpc.NewServer()
+
+	// Register our mock service implementation
+	mockService := &grpctest.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
+
+	// Start the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	// Clean up the server when the test completes
+	defer server.Stop()
+
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		"bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Define GraphQL query that requests __typename
+	query := `query UsersWithTypename { users { __typename id name } }`
+
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	// Create a new GRPCMapping configuration
+	mapping := &GRPCMapping{
+		Service: "ProductService",
+		QueryRPCs: map[string]RPCConfig{
+			"users": {
+				RPC:      "QueryUsers",
+				Request:  "QueryUsersRequest",
+				Response: "QueryUsersResponse",
+			},
+		},
+		Fields: map[string]FieldMap{
+			"Query": {
+				"users": {
+					TargetName: "users",
+				},
+			},
+			"User": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+			},
+		},
+	}
+
+	// Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		ProtoSchema:  grpctest.MustProtoSchema(t),
+		SubgraphName: "Products",
+		Mapping:      mapping,
+	})
+	require.NoError(t, err)
+
+	// Execute the query through our datasource
+	output := new(bytes.Buffer)
+	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
+	err = ds.Load(context.Background(), []byte(input), output)
+	require.NoError(t, err)
+
+	// Log the response for debugging
+	t.Logf("Response: %s", output.String())
+
+	// Parse the response
+	var resp struct {
+		Data struct {
+			Users []struct {
+				Typename string `json:"__typename"`
+				ID       string `json:"id"`
+				Name     string `json:"name"`
+			} `json:"users"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors,omitempty"`
+	}
+
+	err = json.Unmarshal(output.Bytes(), &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
+	require.Empty(t, resp.Errors, "Response should not contain errors")
+
+	// Verify response data
+	require.NotEmpty(t, resp.Data.Users, "Users array should not be empty")
+
+	// Check that each user has the correct __typename
+	for _, user := range resp.Data.Users {
+		require.Equal(t, "User", user.Typename, "Each user should have __typename set to 'User'")
+		require.NotEmpty(t, user.ID, "User ID should not be empty")
+		require.NotEmpty(t, user.Name, "User name should not be empty")
+	}
+}

@@ -324,6 +324,10 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		field.EnumName = r.definition.FieldDefinitionTypeNameString(fd)
 	}
 
+	if fieldName == "__typename" {
+		field.StaticValue = parentTypeName
+	}
+
 	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, field)
 }
 
