@@ -22,8 +22,21 @@ func TestEntityLookup(t *testing.T) {
 		mapping      *GRPCMapping
 	}{
 		{
-			name:  "Should create an execution plan for an entity lookup",
+			name:  "Should create an execution plan for an entity lookup with one key field",
 			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { __typename id name price } } }`,
+			mapping: &GRPCMapping{
+				Service: "Products",
+				EntityRPCs: map[string]EntityRPCConfig{
+					"Product": {
+						Key: "id",
+						RPCConfig: RPCConfig{
+							RPC:      "LookupProductById",
+							Request:  "LookupProductByIdRequest",
+							Response: "LookupProductByIdResponse",
+						},
+					},
+				},
+			},
 			expectedPlan: &RPCExecutionPlan{
 				Groups: []RPCCallGroup{
 					{
@@ -36,29 +49,19 @@ func TestEntityLookup(t *testing.T) {
 									Name: "LookupProductByIdRequest",
 									Fields: []RPCField{
 										{
-											Name:     "inputs",
+											Name:     "input",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											JSONPath: "representations",
 											Index:    0,
 											Message: &RPCMessage{
-												Name: "LookupProductByIdInput",
+												Name: "LookupProductByIdKey",
 												Fields: []RPCField{
 													{
-														Name:     "key",
-														TypeName: string(DataTypeMessage),
+														Name:     "id",
+														TypeName: string(DataTypeString),
 														Index:    0,
-														Message: &RPCMessage{
-															Name: "ProductByIdKey",
-															Fields: []RPCField{
-																{
-																	Name:     "id",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "id", // Extract 'id' from each representation
-																	Index:    0,
-																},
-															},
-														},
+														JSONPath: "id",
 													},
 												},
 											},
@@ -70,48 +73,38 @@ func TestEntityLookup(t *testing.T) {
 									Name: "LookupProductByIdResponse",
 									Fields: []RPCField{
 										{
-											Name:     "results",
+											Name:     "result",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											Index:    0,
-											JSONPath: "results",
+											JSONPath: "_entities",
 											Message: &RPCMessage{
-												Name: "LookupProductByIdResult",
+												Name: "Product",
 												Fields: []RPCField{
 													{
-														Name:     "product",
-														TypeName: string(DataTypeMessage),
-														Index:    0,
-														Message: &RPCMessage{
-															Name: "Product",
-															Fields: []RPCField{
-																{
-																	Name:        "__typename",
-																	TypeName:    string(DataTypeString),
-																	JSONPath:    "__typename",
-																	StaticValue: "Product",
-																	Index:       0,
-																},
-																{
-																	Name:     "id",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "id",
-																	Index:    1,
-																},
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																	Index:    2,
-																},
-																{
-																	Name:     "price",
-																	TypeName: string(DataTypeDouble),
-																	JSONPath: "price",
-																	Index:    3,
-																},
-															},
-														},
+														Name:        "__typename",
+														TypeName:    string(DataTypeString),
+														JSONPath:    "__typename",
+														StaticValue: "Product",
+														Index:       0,
+													},
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+														Index:    1,
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+														Index:    2,
+													},
+													{
+														Name:     "price",
+														TypeName: string(DataTypeDouble),
+														JSONPath: "price",
+														Index:    3,
 													},
 												},
 											},
@@ -124,105 +117,7 @@ func TestEntityLookup(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:  "Should create an execution plan for an entity lookup with a custom method name",
-			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { id name price } } }`,
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-			},
-			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
-					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "ProductService",
-								MethodName:  "LookupProductById",
-								// Define the structure of the request message
-								Request: RPCMessage{
-									Name: "LookupProductByIdRequest",
-									Fields: []RPCField{
-										{
-											Name:     "inputs",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "representations",
-											Index:    0,
-											Message: &RPCMessage{
-												Name: "LookupProductByIdInput",
-												Fields: []RPCField{
-													{
-														Name:     "key",
-														TypeName: string(DataTypeMessage),
-														Index:    0,
-														Message: &RPCMessage{
-															Name: "ProductByIdKey",
-															Fields: []RPCField{
-																{
-																	Name:     "id",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "id", // Extract 'id' from each representation
-																	Index:    0,
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-								// Define the structure of the response message
-								Response: RPCMessage{
-									Name: "LookupProductByIdResponse",
-									Fields: []RPCField{
-										{
-											Name:     "results",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											Index:    0,
-											JSONPath: "results",
-											Message: &RPCMessage{
-												Name: "LookupProductByIdResult",
-												Fields: []RPCField{
-													{
-														Name:     "product",
-														TypeName: string(DataTypeMessage),
-														Index:    0,
-														Message: &RPCMessage{
-															Name: "Product",
-															Fields: []RPCField{
-																{
-																	Name:     "id",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "id",
-																	Index:    0,
-																},
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																	Index:    1,
-																},
-																{
-																	Name:     "price",
-																	TypeName: string(DataTypeDouble),
-																	JSONPath: "price",
-																	Index:    2,
-																},
-															},
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
+
 		// TODO implement multiple entity lookup types
 		// 		{
 		// 			name: "Should create an execution plan for an entity lookup multiple types",

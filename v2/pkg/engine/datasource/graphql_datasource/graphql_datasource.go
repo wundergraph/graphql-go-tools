@@ -292,7 +292,7 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 	return nil
 }
 
-func (p *Planner[T]) createInputForQuery() (input []byte) {
+func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 	opBytes, opVarsBytes := p.printOperation()
 	upstreamVariables := p.upstreamVariables
 
@@ -307,14 +307,14 @@ func (p *Planner[T]) createInputForQuery() (input []byte) {
 		})
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("createInputForQuery: failed to copy additional variables: %w", err)))
-			return nil
+			return nil, nil
 		}
 	}
 
 	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
 
-	return input
+	return input, opBytes
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
@@ -323,7 +323,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		return resolve.FetchConfiguration{}
 	}
 
-	input := p.createInputForQuery()
+	input, operation := p.createInputForQuery()
 
 	if p.config.fetch != nil {
 		header, err := json.Marshal(p.config.fetch.Header)
@@ -357,9 +357,15 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 	if p.config.grpc != nil {
 		var err error
 
+		opDocument, opReport := astparser.ParseGraphqlDocumentBytes(operation)
+		if opReport.HasErrors() {
+			p.stopWithError(errors.WithStack(fmt.Errorf("failed to parse operation: %w", opReport)))
+			return resolve.FetchConfiguration{}
+		}
+
 		dataSource, err = grpcdatasource.NewDataSource(p.grpcClient, grpcdatasource.DataSourceConfig{
-			Operation:   p.visitor.Operation,
-			Definition:  p.visitor.Definition,
+			Operation:   &opDocument,
+			Definition:  p.config.schemaConfiguration.upstreamSchemaAst,
 			ProtoSchema: p.config.grpc.ProtoSchema,
 			Mapping:     p.config.grpc.Mapping,
 		})
@@ -400,7 +406,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		return plan.SubscriptionConfiguration{}
 	}
 
-	input := p.createInputForQuery()
+	input, _ := p.createInputForQuery()
 
 	input = httpclient.SetInputURL(input, []byte(p.config.subscription.URL))
 	if p.config.subscription.UseSSE {

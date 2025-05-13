@@ -73,7 +73,6 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 //
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
-// TODO Implement this
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	// get variables from input
 	variables := gjson.Parse(string(input)).Get("body.variables")
@@ -81,17 +80,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	// get invocations from plan
 	invocations, err := d.rc.Compile(d.plan, variables)
 	if err != nil {
-		a := astjson.Arena{}
-		errorRoot := a.NewObject()
-		errorArray := a.NewArray()
-		errorRoot.Set("errors", errorArray)
-
-		errorItem := a.NewObject()
-		errorItem.Set("message", a.NewString(err.Error()))
-		errorArray.SetArrayItem(0, errorItem)
-
-		out.Write(errorRoot.MarshalTo(nil))
-		return nil
+		return err
 	}
 
 	invocationGroups := make(map[int][]Invocation)
@@ -105,24 +94,15 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 		// make gRPC calls
 		for _, invocation := range group {
-			a := astjson.Arena{}
 			// Invoke the gRPC method - this will populate invocation.Output
 			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
 			err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
 			if err != nil {
-				a := astjson.Arena{}
-				errorRoot := a.NewObject()
-				errorArray := a.NewArray()
-				errorRoot.Set("errors", errorArray)
-
-				errorItem := a.NewObject()
-				errorItem.Set("message", a.NewString(err.Error()))
-				errorArray.SetArrayItem(0, errorItem)
-
-				out.Write(errorRoot.MarshalTo(nil))
+				out.Write(writeErrorBytes(err))
 				return nil
 			}
 
+			a := astjson.Arena{}
 			responseJSON, err := d.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
 			if err != nil {
 				return err
@@ -204,13 +184,20 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		}
 
 		if fd.Kind() == protoref.MessageKind {
-			message := data.Get(fd).Message()
-			value, err := d.marshalResponseJSON(arena, field.Message, message)
+			msg := data.Get(fd).Message()
+			value, err := d.marshalResponseJSON(arena, field.Message, msg)
 			if err != nil {
 				return nil, err
 			}
 
-			root.Set(field.JSONPath, value)
+			if field.JSONPath == "" {
+				root, _, err = astjson.MergeValues(root, value)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				root.Set(field.JSONPath, value)
+			}
 
 			continue
 		}
@@ -256,4 +243,17 @@ func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, nam
 
 		root.Set(name, arena.NewString(graphqlValue))
 	}
+}
+
+func writeErrorBytes(err error) []byte {
+	a := astjson.Arena{}
+	errorRoot := a.NewObject()
+	errorArray := a.NewArray()
+	errorRoot.Set("errors", errorArray)
+
+	errorItem := a.NewObject()
+	errorItem.Set("message", a.NewString(err.Error()))
+	errorArray.SetArrayItem(0, errorItem)
+
+	return errorRoot.MarshalTo(nil)
 }

@@ -40,8 +40,6 @@ type planningInfo struct {
 	currentResponseMessage    *RPCMessage
 	currentResponseFieldIndex int
 
-	// TODO variables
-
 	responseFieldIndexAncestors []int
 }
 
@@ -550,11 +548,19 @@ func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
 					fieldType: r.toDataType(&ft).String(),
 				})
 		}
+
+		break
 	}
 
 	keyFields := make([]string, 0, len(r.planInfo.entityInfo.keyFields))
 	for _, key := range r.planInfo.entityInfo.keyFields {
 		keyFields = append(keyFields, key.fieldName)
+	}
+
+	if ei, exists := r.mapping.EntityRPCs[r.planInfo.entityInfo.name]; exists {
+		r.currentCall.Request.Name = ei.RPCConfig.Request
+		r.currentCall.Response.Name = ei.RPCConfig.Response
+		r.planInfo.methodName = ei.RPCConfig.RPC
 	}
 
 	r.planInfo.entityInfo.keyTypeName = r.planInfo.entityInfo.name + "By" + strings.Join(titleSlice(keyFields), "And")
@@ -570,7 +576,7 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 
 	entityInfo := &r.planInfo.entityInfo
 	keyFieldMessage := &RPCMessage{
-		Name: entityInfo.keyTypeName + "Key",
+		Name: r.rpcMethodName() + "Key",
 	}
 	for i, key := range entityInfo.keyFields {
 		keyFieldMessage.Fields = append(keyFieldMessage.Fields, RPCField{
@@ -583,54 +589,24 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 
 	r.planInfo.currentRequestMessage.Fields = []RPCField{
 		{
-			Name:     "inputs",
+			Name:     "input",
 			TypeName: DataTypeMessage.String(),
 			Repeated: true, // The inputs are always a list of objects
 			JSONPath: "representations",
 			Index:    0,
-			Message: &RPCMessage{
-				Name: r.rpcMethodName() + "Input",
-				Fields: RPCFields{
-					{
-						Index:    0,
-						Name:     "key",
-						TypeName: DataTypeMessage.String(),
-						Message:  keyFieldMessage,
-					},
-				},
-			},
+			Message:  keyFieldMessage,
 		},
-	}
-
-	r.planInfo.currentRequestMessage = keyFieldMessage
-
-	resultMessage := &RPCMessage{
-		Name: r.planInfo.entityInfo.name,
 	}
 
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
 		{
 			Index:    0,
-			Name:     "results",
+			Name:     "result",
 			TypeName: DataTypeMessage.String(),
-			JSONPath: "results",
+			JSONPath: "_entities",
 			Repeated: true,
-			Message: &RPCMessage{
-				Name: r.rpcMethodName() + "Result",
-				Fields: RPCFields{
-					{
-						Index:    0,
-						Name:     strings.ToLower(r.planInfo.entityInfo.name),
-						TypeName: DataTypeMessage.String(),
-						Message:  resultMessage,
-					},
-				},
-			},
 		},
 	}
-
-	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
-	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[0].Message
 }
 
 func (r *rpcPlanVisitor) resolveServiceName() string {
