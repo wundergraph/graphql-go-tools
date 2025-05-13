@@ -36,17 +36,17 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 			}`,
 			"TypenameOnUnion", &plan.SynchronousResponsePlan{
 				Response: &resolve.GraphQLResponse{
-					Data: &resolve.Object{
-						Fetches: []resolve.Fetch{
-							&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+					Fetches: resolve.Sequence(resolve.Single(
+						&resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource:     &Source{},
+								Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"{u {__typename}}"}}`,
+								PostProcessing: DefaultPostProcessingConfiguration,
 							},
+							DataSourceIdentifier: []byte("graphql_datasource.Source"),
 						},
+					)),
+					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
 								Name: []byte("u"),
@@ -93,7 +93,7 @@ func TestGraphQLDataSourceFederation_Typenames(t *testing.T) {
 					),
 				},
 				DisableResolveFieldPositions: true,
-			}))
+			}, WithDefaultPostProcessor()))
 	})
 
 	t.Run("__typename on root query types", func(t *testing.T) {
