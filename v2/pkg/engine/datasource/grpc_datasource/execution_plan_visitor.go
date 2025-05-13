@@ -589,7 +589,7 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 
 	r.planInfo.currentRequestMessage.Fields = []RPCField{
 		{
-			Name:     "input",
+			Name:     "keys",
 			TypeName: DataTypeMessage.String(),
 			Repeated: true, // The inputs are always a list of objects
 			JSONPath: "representations",
