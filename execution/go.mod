@@ -19,7 +19,7 @@ require (
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6
 	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.172
 	go.uber.org/atomic v1.11.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.36.4
 )
 
@@ -50,7 +50,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/r3labs/sse/v2 v2.8.1 // indirect
-	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/tidwall/gjson v1.17.0 // indirect

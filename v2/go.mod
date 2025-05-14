@@ -34,8 +34,9 @@ require (
 	go.uber.org/zap v1.26.0
 	golang.org/x/sync v0.10.0
 	golang.org/x/sys v0.29.0
+	golang.org/x/text v0.21.0
 	gonum.org/v1/gonum v0.14.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.36.4
 	gopkg.in/yaml.v2 v2.4.0
 )
@@ -64,7 +65,6 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
