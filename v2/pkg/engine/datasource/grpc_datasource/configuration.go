@@ -30,8 +30,8 @@ type EnumValueMapping struct {
 }
 
 type GRPCConfiguration struct {
-	Mapping     *GRPCMapping
-	ProtoSchema string
+	Mapping  *GRPCMapping
+	Compiler *RPCCompiler
 }
 
 // RPCConfig defines the configuration for a specific RPC operation

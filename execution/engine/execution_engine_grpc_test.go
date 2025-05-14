@@ -155,10 +155,15 @@ func executeOperation(t *testing.T, grpcClient grpc.ClientConnInterface, operati
 		return "", fmt.Errorf("failed to create proto schema: %w", err)
 	}
 
+	compiler, err := grpcdatasource.NewProtoCompiler(protoSchema, executeOpts.grpcMapping)
+	if err != nil {
+		return "", fmt.Errorf("failed to create proto compiler: %w", err)
+	}
+
 	cfg, err := graphql_datasource.NewConfiguration(graphql_datasource.ConfigurationInput{
 		GRPC: &grpcdatasource.GRPCConfiguration{
-			ProtoSchema: protoSchema,
-			Mapping:     executeOpts.grpcMapping,
+			Mapping:  executeOpts.grpcMapping,
+			Compiler: compiler,
 		},
 		SchemaConfiguration: mustSchemaConfig(
 			t,

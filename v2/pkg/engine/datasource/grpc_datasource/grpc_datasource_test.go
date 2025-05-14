@@ -67,12 +67,17 @@ func Test_DataSource_Load(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", queryReport.Error())
 	}
 
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
 	mi := mockInterface{}
 	ds, err := NewDataSource(mi, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
-		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Fields: map[string]FieldMap{
 				"Query": {
@@ -147,12 +152,17 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
 	// 4. Create a datasource with the real gRPC client connection
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
-		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Fields: map[string]FieldMap{
 				"Query": {
@@ -255,13 +265,17 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	if report.HasErrors() {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
 
 	// 4. Create a datasource with the real gRPC client connection
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
-		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Fields: map[string]FieldMap{
 				"Query": {
@@ -375,12 +389,17 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
 	// 5. Create the datasource
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
-		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
+		Compiler:     compiler,
 	})
 	require.NoError(t, err)
 
@@ -875,13 +894,18 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				},
 			}
 
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
 			// Create the datasource
 			ds, err := NewDataSource(conn, DataSourceConfig{
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
-				ProtoSchema:  grpctest.MustProtoSchema(t),
 				SubgraphName: "Products",
 				Mapping:      mapping,
+				Compiler:     compiler,
 			})
 			require.NoError(t, err)
 
@@ -989,13 +1013,18 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		},
 	}
 
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
 	// Create the datasource
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
-		ProtoSchema:  grpctest.MustProtoSchema(t),
 		SubgraphName: "Products",
 		Mapping:      mapping,
+		Compiler:     compiler,
 	})
 	require.NoError(t, err)
 

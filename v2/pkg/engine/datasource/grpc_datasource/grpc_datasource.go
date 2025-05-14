@@ -41,17 +41,13 @@ type ProtoConfig struct {
 type DataSourceConfig struct {
 	Operation    *ast.Document
 	Definition   *ast.Document
-	ProtoSchema  string
+	Compiler     *RPCCompiler
 	SubgraphName string
 	Mapping      *GRPCMapping
 }
 
 // NewDataSource creates a new gRPC datasource
 func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-	compiler, err := NewProtoCompiler(config.ProtoSchema, config.Mapping)
-	if err != nil {
-		return nil, err
-	}
 
 	planner := NewPlanner(config.SubgraphName, config.Mapping)
 	plan, err := planner.PlanOperation(config.Operation, config.Definition)
@@ -62,7 +58,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	return &DataSource{
 		plan:    plan,
 		cc:      client,
-		rc:      compiler,
+		rc:      config.Compiler,
 		mapping: config.Mapping,
 	}, nil
 }
