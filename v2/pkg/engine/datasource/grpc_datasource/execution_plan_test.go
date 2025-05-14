@@ -49,7 +49,7 @@ func TestEntityLookup(t *testing.T) {
 									Name: "LookupProductByIdRequest",
 									Fields: []RPCField{
 										{
-											Name:     "input",
+											Name:     "keys",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											JSONPath: "representations",
