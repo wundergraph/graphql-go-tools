@@ -53,14 +53,12 @@ func TestEntityLookup(t *testing.T) {
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											JSONPath: "representations",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "LookupProductByIdKey",
 												Fields: []RPCField{
 													{
 														Name:     "id",
 														TypeName: string(DataTypeString),
-														Index:    0,
 														JSONPath: "id",
 													},
 												},
@@ -76,7 +74,6 @@ func TestEntityLookup(t *testing.T) {
 											Name:     "result",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
-											Index:    0,
 											JSONPath: "_entities",
 											Message: &RPCMessage{
 												Name: "Product",
@@ -86,25 +83,21 @@ func TestEntityLookup(t *testing.T) {
 														TypeName:    string(DataTypeString),
 														JSONPath:    "__typename",
 														StaticValue: "Product",
-														Index:       0,
 													},
 													{
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    1,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    2,
 													},
 													{
 														Name:     "price",
 														TypeName: string(DataTypeDouble),
 														JSONPath: "price",
-														Index:    3,
 													},
 												},
 											},
@@ -153,14 +146,16 @@ func TestEntityLookup(t *testing.T) {
 		// 											TypeName: string(DataTypeMessage),
 		// 											Repeated: true,
 		// 											JSONPath: "representations", // Path to extract data from GraphQL variables
-		// 											Index:    0,
+		//
+
 		// 											Message: &RPCMessage{
 		// 												Name: "LookupProductByIdInput",
 		// 												Fields: []RPCField{
 		// 													{
 		// 														Name:     "key",
 		// 														TypeName: string(DataTypeMessage),
-		// 														Index:    0,
+		//
+
 		// 														Message: &RPCMessage{
 		// 															Name: "ProductByIdKey",
 		// 															Fields: []RPCField{
@@ -168,7 +163,8 @@ func TestEntityLookup(t *testing.T) {
 		// 																	Name:     "id",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "id", // Extract 'id' from each representation
-		// 																	Index:    0,
+		//
+
 		// 																},
 		// 															},
 		// 														},
@@ -186,7 +182,8 @@ func TestEntityLookup(t *testing.T) {
 		// 											Name:     "results",
 		// 											TypeName: string(DataTypeMessage),
 		// 											Repeated: true,
-		// 											Index:    0,
+		//
+
 		// 											JSONPath: "results",
 		// 											Message: &RPCMessage{
 		// 												Name: "LookupProductByIdResult",
@@ -194,7 +191,8 @@ func TestEntityLookup(t *testing.T) {
 		// 													{
 		// 														Name:     "product",
 		// 														TypeName: string(DataTypeMessage),
-		// 														Index:    0,
+		//
+
 		// 														Message: &RPCMessage{
 		// 															Name: "Product",
 		// 															Fields: []RPCField{
@@ -202,19 +200,16 @@ func TestEntityLookup(t *testing.T) {
 		// 																	Name:     "id",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "id",
-		// 																	Index:    0,
 		// 																},
 		// 																{
 		// 																	Name:     "name",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "name",
-		// 																	Index:    1,
 		// 																},
 		// 																{
 		// 																	Name:     "price",
 		// 																	TypeName: string(DataTypeFloat),
 		// 																	JSONPath: "price",
-		// 																	Index:    2,
 		// 																},
 		// 															},
 		// 														},
@@ -236,14 +231,12 @@ func TestEntityLookup(t *testing.T) {
 		// 											TypeName: string(DataTypeMessage),
 		// 											Repeated: true,
 		// 											JSONPath: "representations",
-		// 											Index:    1,
 		// 											Message: &RPCMessage{
 		// 												Name: "LookupStorageByIdInput",
 		// 												Fields: []RPCField{
 		// 													{
 		// 														Name:     "key",
 		// 														TypeName: string(DataTypeMessage),
-		// 														Index:    0,
 		// 														Message: &RPCMessage{
 		// 															Name: "StorageByIdKey",
 		// 															Fields: []RPCField{
@@ -251,7 +244,6 @@ func TestEntityLookup(t *testing.T) {
 		// 																	Name:     "id",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "id",
-		// 																	Index:    0,
 		// 																},
 		// 															},
 		// 														},
@@ -268,7 +260,6 @@ func TestEntityLookup(t *testing.T) {
 		// 											Name:     "results",
 		// 											TypeName: string(DataTypeMessage),
 		// 											Repeated: true,
-		// 											Index:    0,
 		// 											JSONPath: "results",
 		// 											Message: &RPCMessage{
 		// 												Name: "LookupStorageByIdResult",
@@ -276,7 +267,6 @@ func TestEntityLookup(t *testing.T) {
 		// 													{
 		// 														Name:     "storage",
 		// 														TypeName: string(DataTypeMessage),
-		// 														Index:    0,
 		// 														Message: &RPCMessage{
 		// 															Name: "Storage",
 		// 															Fields: []RPCField{
@@ -284,19 +274,16 @@ func TestEntityLookup(t *testing.T) {
 		// 																	Name:     "id",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "id",
-		// 																	Index:    0,
 		// 																},
 		// 																{
 		// 																	Name:     "name",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "name",
-		// 																	Index:    1,
 		// 																},
 		// 																{
 		// 																	Name:     "location",
 		// 																	TypeName: string(DataTypeString),
 		// 																	JSONPath: "location",
-		// 																	Index:    2,
 		// 																},
 		// 															},
 		// 														},
@@ -375,7 +362,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "users",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
-											Index:    0,
 											JSONPath: "users",
 											Message: &RPCMessage{
 												Name: "User",
@@ -385,19 +371,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 														TypeName:    string(DataTypeString),
 														JSONPath:    "__typename",
 														StaticValue: "User",
-														Index:       0,
 													},
 													{
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    1,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    2,
 													},
 												},
 											},
@@ -455,13 +438,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "filter_field_1",
 											TypeName: string(DataTypeString),
 											JSONPath: "filterField1",
-											Index:    0,
 										},
 										{
 											Name:     "filter_field_2",
 											TypeName: string(DataTypeString),
 											JSONPath: "filterField2",
-											Index:    1,
 										},
 									},
 								},
@@ -480,25 +461,21 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 													{
 														Name:     "filter_field_1",
 														TypeName: string(DataTypeString),
 														JSONPath: "filterField1",
-														Index:    2,
 													},
 													{
 														Name:     "filter_field_2",
 														TypeName: string(DataTypeString),
 														JSONPath: "filterField2",
-														Index:    3,
 													},
 												},
 											},
@@ -545,7 +522,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "filter",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "filter",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "ComplexFilterTypeInput",
 												Fields: []RPCField{
@@ -553,7 +529,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "filter",
 														TypeName: string(DataTypeMessage),
 														JSONPath: "filter",
-														Index:    0,
 														Message: &RPCMessage{
 															Name: "FilterType",
 															Fields: []RPCField{
@@ -561,25 +536,21 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Name:     "name",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "name",
-																	Index:    0,
 																},
 																{
 																	Name:     "filter_field1",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField1",
-																	Index:    1,
 																},
 																{
 																	Name:     "filter_field2",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField2",
-																	Index:    2,
 																},
 																{
 																	Name:     "pagination",
 																	TypeName: string(DataTypeMessage),
 																	JSONPath: "pagination",
-																	Index:    3,
 																	Message: &RPCMessage{
 																		Name: "Pagination",
 																		Fields: []RPCField{
@@ -587,13 +558,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 																				Name:     "page",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "page",
-																				Index:    0,
 																			},
 																			{
 																				Name:     "per_page",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "perPage",
-																				Index:    1,
 																			},
 																		},
 																	},
@@ -612,7 +581,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 										{
 											Repeated: true,
 											Name:     "complexFilterType",
-											Index:    0,
 											TypeName: string(DataTypeMessage),
 											JSONPath: "complexFilterType",
 											Message: &RPCMessage{
@@ -622,13 +590,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 												},
 											},
@@ -658,7 +624,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "filter",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "filter",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "ComplexFilterTypeInput",
 												Fields: []RPCField{
@@ -666,7 +631,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "filter",
 														TypeName: string(DataTypeMessage),
 														JSONPath: "filter",
-														Index:    0,
 														Message: &RPCMessage{
 															Name: "FilterType",
 															Fields: []RPCField{
@@ -674,25 +638,21 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Name:     "name",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "name",
-																	Index:    0,
 																},
 																{
 																	Name:     "filterField1",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField1",
-																	Index:    1,
 																},
 																{
 																	Name:     "filterField2",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField2",
-																	Index:    2,
 																},
 																{
 																	Name:     "pagination",
 																	TypeName: string(DataTypeMessage),
 																	JSONPath: "pagination",
-																	Index:    3,
 																	Message: &RPCMessage{
 																		Name: "Pagination",
 																		Fields: []RPCField{
@@ -700,13 +660,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 																				Name:     "page",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "page",
-																				Index:    0,
 																			},
 																			{
 																				Name:     "perPage",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "perPage",
-																				Index:    1,
 																			},
 																		},
 																	},
@@ -725,7 +683,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 										{
 											Repeated: true,
 											Name:     "complexFilterType",
-											Index:    0,
 											TypeName: string(DataTypeMessage),
 											JSONPath: "complexFilterType",
 											Message: &RPCMessage{
@@ -735,13 +692,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 												},
 											},
@@ -771,7 +726,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "filter",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "foobar",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "ComplexFilterTypeInput",
 												Fields: []RPCField{
@@ -779,7 +733,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "filter",
 														TypeName: string(DataTypeMessage),
 														JSONPath: "filter",
-														Index:    0,
 														Message: &RPCMessage{
 															Name: "FilterType",
 															Fields: []RPCField{
@@ -787,25 +740,21 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Name:     "name",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "name",
-																	Index:    0,
 																},
 																{
 																	Name:     "filterField1",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField1",
-																	Index:    1,
 																},
 																{
 																	Name:     "filterField2",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "filterField2",
-																	Index:    2,
 																},
 																{
 																	Name:     "pagination",
 																	TypeName: string(DataTypeMessage),
 																	JSONPath: "pagination",
-																	Index:    3,
 																	Message: &RPCMessage{
 																		Name: "Pagination",
 																		Fields: []RPCField{
@@ -813,13 +762,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 																				Name:     "page",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "page",
-																				Index:    0,
 																			},
 																			{
 																				Name:     "perPage",
 																				TypeName: string(DataTypeInt32),
 																				JSONPath: "perPage",
-																				Index:    1,
 																			},
 																		},
 																	},
@@ -838,7 +785,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 										{
 											Repeated: true,
 											Name:     "complexFilterType",
-											Index:    0,
 											TypeName: string(DataTypeMessage),
 											JSONPath: "complexFilterType",
 											Message: &RPCMessage{
@@ -848,13 +794,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 												},
 											},
@@ -884,7 +828,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "filter",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "filter",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "FilterTypeInput",
 												Fields: []RPCField{
@@ -893,14 +836,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "filterField1",
 														TypeName: string(DataTypeString),
 														JSONPath: "filterField1",
-														Index:    0,
 													},
 													{
 														Repeated: false,
 														Name:     "filterField2",
 														TypeName: string(DataTypeString),
 														JSONPath: "filterField2",
-														Index:    1,
 													},
 												},
 											},
@@ -914,7 +855,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "typeWithMultipleFilterFields",
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
-											Index:    0,
 											JSONPath: "typeWithMultipleFilterFields",
 											Message: &RPCMessage{
 												Name: "TypeWithMultipleFilterFields",
@@ -923,13 +863,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 												},
 											},
@@ -963,7 +901,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											JSONPath: "users",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "User",
 												Fields: []RPCField{
@@ -971,13 +908,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 												},
 											},
@@ -1021,7 +956,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "id",
 											TypeName: string(DataTypeString),
 											JSONPath: "id",
-											Index:    0,
 										},
 									},
 								},
@@ -1031,7 +965,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 										{
 											Name:     "user",
 											TypeName: string(DataTypeMessage),
-											Index:    0,
 											JSONPath: "user",
 											Message: &RPCMessage{
 												Name: "User",
@@ -1040,13 +973,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 												},
 											},
@@ -1080,7 +1011,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											TypeName: string(DataTypeMessage),
 											Repeated: true,
 											JSONPath: "nestedType",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "NestedTypeA",
 												Fields: []RPCField{
@@ -1088,19 +1018,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 													{
 														Name:     "b",
 														TypeName: string(DataTypeMessage),
 														JSONPath: "b",
-														Index:    2,
 														Message: &RPCMessage{
 															Name: "NestedTypeB",
 															Fields: []RPCField{
@@ -1108,19 +1035,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Name:     "id",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "id",
-																	Index:    0,
 																},
 																{
 																	Name:     "name",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "name",
-																	Index:    1,
 																},
 																{
 																	Name:     "c",
 																	TypeName: string(DataTypeMessage),
 																	JSONPath: "c",
-																	Index:    2,
 																	Message: &RPCMessage{
 																		Name: "NestedTypeC",
 																		Fields: []RPCField{
@@ -1128,13 +1052,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 																				Name:     "id",
 																				TypeName: string(DataTypeString),
 																				JSONPath: "id",
-																				Index:    0,
 																			},
 																			{
 																				Name:     "name",
 																				TypeName: string(DataTypeString),
 																				JSONPath: "name",
-																				Index:    1,
 																			},
 																		},
 																	},
@@ -1173,7 +1095,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 											Name:     "recursiveType",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "recursiveType",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "RecursiveType",
 												Fields: []RPCField{
@@ -1181,19 +1102,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 													{
 														Name:     "recursiveType",
 														TypeName: string(DataTypeMessage),
 														JSONPath: "recursiveType",
-														Index:    2,
 														Message: &RPCMessage{
 															Name: "RecursiveType",
 															Fields: []RPCField{
@@ -1201,13 +1119,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Name:     "id",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "id",
-																	Index:    0,
 																},
 																{
 																	Name:     "recursiveType",
 																	TypeName: string(DataTypeMessage),
 																	JSONPath: "recursiveType",
-																	Index:    1,
 																	Message: &RPCMessage{
 																		Name: "RecursiveType",
 																		Fields: []RPCField{
@@ -1215,19 +1131,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 																				Name:     "id",
 																				TypeName: string(DataTypeString),
 																				JSONPath: "id",
-																				Index:    0,
 																			},
 																			{
 																				Name:     "name",
 																				TypeName: string(DataTypeString),
 																				JSONPath: "name",
-																				Index:    1,
 																			},
 																			{
 																				Name:     "recursiveType",
 																				TypeName: string(DataTypeMessage),
 																				JSONPath: "recursiveType",
-																				Index:    2,
 																				Message: &RPCMessage{
 																					Name: "RecursiveType",
 																					Fields: []RPCField{
@@ -1235,13 +1148,11 @@ func TestQueryExecutionPlans(t *testing.T) {
 																							Name:     "id",
 																							TypeName: string(DataTypeString),
 																							JSONPath: "id",
-																							Index:    0,
 																						},
 																						{
 																							Name:     "name",
 																							TypeName: string(DataTypeString),
 																							JSONPath: "name",
-																							Index:    1,
 																						},
 																					},
 																				},
@@ -1253,7 +1164,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 																	Name:     "name",
 																	TypeName: string(DataTypeString),
 																	JSONPath: "name",
-																	Index:    2,
 																},
 															},
 														},
@@ -1356,7 +1266,6 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 											Name:     "random_pet",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "randomPet",
-											Index:    0,
 											Message: &RPCMessage{
 												Name:  "Animal",
 												OneOf: true,
@@ -1365,25 +1274,21 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 													{
 														Name:     "kind",
 														TypeName: string(DataTypeString),
 														JSONPath: "kind",
-														Index:    2,
 													},
 													{
 														Name:     "meow_volume",
 														TypeName: string(DataTypeInt32),
 														JSONPath: "meowVolume",
-														Index:    3,
 													},
 												},
 											},
@@ -1492,7 +1397,6 @@ func TestProductExecutionPlan(t *testing.T) {
 											TypeName: string(DataTypeEnum),
 											JSONPath: "kind",
 											EnumName: "CategoryKind",
-											Index:    0,
 										},
 									},
 								},
@@ -1503,7 +1407,6 @@ func TestProductExecutionPlan(t *testing.T) {
 											Name:     "categories_by_kind",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "categoriesByKind",
-											Index:    0,
 											Repeated: true,
 											Message: &RPCMessage{
 												Name: "Category",
@@ -1512,20 +1415,17 @@ func TestProductExecutionPlan(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 													{
 														Name:     "kind",
 														TypeName: string(DataTypeEnum),
 														JSONPath: "kind",
 														EnumName: "CategoryKind",
-														Index:    2,
 													},
 												},
 											},
@@ -1602,7 +1502,6 @@ func TestProductExecutionPlan(t *testing.T) {
 											Name:     "filter",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "filter",
-											Index:    0,
 											Message: &RPCMessage{
 												Name: "CategoryFilter",
 												Fields: []RPCField{
@@ -1611,13 +1510,11 @@ func TestProductExecutionPlan(t *testing.T) {
 														TypeName: string(DataTypeEnum),
 														JSONPath: "category",
 														EnumName: "CategoryKind",
-														Index:    0,
 													},
 													{
 														Name:     "pagination",
 														TypeName: string(DataTypeMessage),
 														JSONPath: "pagination",
-														Index:    1,
 														Message: &RPCMessage{
 															Name: "Pagination",
 															Fields: []RPCField{
@@ -1625,13 +1522,11 @@ func TestProductExecutionPlan(t *testing.T) {
 																	Name:     "page",
 																	TypeName: string(DataTypeInt32),
 																	JSONPath: "page",
-																	Index:    0,
 																},
 																{
 																	Name:     "per_page",
 																	TypeName: string(DataTypeInt32),
 																	JSONPath: "perPage",
-																	Index:    1,
 																},
 															},
 														},
@@ -1648,7 +1543,6 @@ func TestProductExecutionPlan(t *testing.T) {
 											Name:     "filter_categories",
 											TypeName: string(DataTypeMessage),
 											JSONPath: "filterCategories",
-											Index:    0,
 											Repeated: true,
 											Message: &RPCMessage{
 												Name: "Category",
@@ -1657,20 +1551,17 @@ func TestProductExecutionPlan(t *testing.T) {
 														Name:     "id",
 														TypeName: string(DataTypeString),
 														JSONPath: "id",
-														Index:    0,
 													},
 													{
 														Name:     "name",
 														TypeName: string(DataTypeString),
 														JSONPath: "name",
-														Index:    1,
 													},
 													{
 														Name:     "kind",
 														TypeName: string(DataTypeEnum),
 														JSONPath: "kind",
 														EnumName: "CategoryKind",
-														Index:    2,
 													},
 												},
 											},

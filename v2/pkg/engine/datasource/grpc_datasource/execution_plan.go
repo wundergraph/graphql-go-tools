@@ -75,9 +75,6 @@ type RPCField struct {
 	// JSONPath defines the path within the variables to provide the value for the field
 	// This is used to extract data from the GraphQL variables
 	JSONPath string
-	// Index is the index of the field in the message
-	// TODO remove this as it is not needed
-	Index int
 	// EnumName is the name of the enum if the field is an enum type
 	EnumName string
 	// StaticValue is the static value of the field
@@ -201,7 +198,6 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 		sb.WriteString(fmt.Sprintf("%s    TypeName: %s\n", indentStr, field.TypeName))
 		sb.WriteString(fmt.Sprintf("%s    Repeated: %v\n", indentStr, field.Repeated))
 		sb.WriteString(fmt.Sprintf("%s    JSONPath: %s\n", indentStr, field.JSONPath))
-		sb.WriteString(fmt.Sprintf("%s    Index: %d\n", indentStr, field.Index))
 
 		if field.Message != nil {
 			sb.WriteString(fmt.Sprintf("%s    Message:\n", indentStr))

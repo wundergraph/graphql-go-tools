@@ -213,14 +213,12 @@ func TestBuildProtoMessage(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
 									JSONPath: "representations", // Path to extract data from GraphQL variables
-									Index:    0,
 									Message: &RPCMessage{
 										Name: "LookupProductByIdInput",
 										Fields: []RPCField{
 											{
 												Name:     "key",
 												TypeName: string(DataTypeMessage),
-												Index:    0,
 												Message: &RPCMessage{
 													Name: "ProductByIdKey",
 													Fields: []RPCField{
@@ -228,7 +226,6 @@ func TestBuildProtoMessage(t *testing.T) {
 															Name:     "id",
 															TypeName: string(DataTypeString),
 															JSONPath: "id", // Extract 'id' from each representation
-															Index:    0,
 														},
 													},
 												},
@@ -246,7 +243,6 @@ func TestBuildProtoMessage(t *testing.T) {
 									Name:     "results",
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
-									Index:    0,
 									JSONPath: "results",
 									Message: &RPCMessage{
 										Name: "LookupProductByIdResult",
@@ -254,7 +250,6 @@ func TestBuildProtoMessage(t *testing.T) {
 											{
 												Name:     "product",
 												TypeName: string(DataTypeMessage),
-												Index:    0,
 												Message: &RPCMessage{
 													Name: "Product",
 													Fields: []RPCField{
@@ -262,19 +257,16 @@ func TestBuildProtoMessage(t *testing.T) {
 															Name:     "id",
 															TypeName: string(DataTypeString),
 															JSONPath: "id",
-															Index:    0,
 														},
 														{
 															Name:     "name",
 															TypeName: string(DataTypeString),
 															JSONPath: "name",
-															Index:    1,
 														},
 														{
 															Name:     "price",
 															TypeName: string(DataTypeDouble),
 															JSONPath: "price",
-															Index:    2,
 														},
 													},
 												},

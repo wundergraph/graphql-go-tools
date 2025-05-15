@@ -446,7 +446,6 @@ func TestMarshalResponseJSON(t *testing.T) {
 				Name:     "results",
 				TypeName: string(DataTypeMessage),
 				Repeated: true,
-				Index:    0,
 				JSONPath: "results",
 				Message: &RPCMessage{
 					Name: "LookupProductByIdResult",
@@ -454,7 +453,6 @@ func TestMarshalResponseJSON(t *testing.T) {
 						{
 							Name:     "product",
 							TypeName: string(DataTypeMessage),
-							Index:    0,
 							JSONPath: "product",
 							Message: &RPCMessage{
 								Name: "Product",
@@ -463,19 +461,16 @@ func TestMarshalResponseJSON(t *testing.T) {
 										Name:     "id",
 										TypeName: string(DataTypeString),
 										JSONPath: "id",
-										Index:    0,
 									},
 									{
 										Name:     "name",
 										TypeName: string(DataTypeString),
 										JSONPath: "name_different",
-										Index:    1,
 									},
 									{
 										Name:     "price",
 										TypeName: string(DataTypeDouble),
 										JSONPath: "price_different",
-										Index:    2,
 									},
 								},
 							},
@@ -894,7 +889,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				},
 			}
 
-			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
 			if err != nil {
 				t.Fatalf("failed to compile proto: %v", err)
 			}
@@ -1013,7 +1008,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		},
 	}
 
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), nil)
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}

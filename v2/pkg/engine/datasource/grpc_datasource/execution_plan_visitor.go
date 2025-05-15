@@ -314,7 +314,6 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
-		Index:    r.planInfo.currentResponseFieldIndex,
 		Repeated: r.definition.TypeIsList(fdt),
 	}
 
@@ -380,7 +379,6 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			Name:     r.resolveFieldMapping(underlyingTypeName, fieldName),
 			TypeName: DataTypeMessage.String(),
 			JSONPath: jsonPath,
-			Index:    r.planInfo.currentRequestFieldIndex,
 			Message:  msg,
 		})
 
@@ -401,7 +399,6 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
-			Index:    r.planInfo.currentRequestFieldIndex,
 			Repeated: r.definition.TypeIsList(underlyingTypeNode.Ref),
 		})
 	case ast.NodeKindEnumTypeDefinition:
@@ -414,7 +411,6 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
 			EnumName: underlyingTypeName,
-			Index:    r.planInfo.currentRequestFieldIndex,
 		})
 	default:
 		// TODO unions, interfaces, etc.
@@ -461,7 +457,6 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef, par
 			Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 			TypeName: dt.String(),
 			JSONPath: fieldName,
-			Index:    index,
 			Repeated: r.definition.TypeIsList(typeRef),
 		}
 
@@ -482,7 +477,6 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef, par
 		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
 		TypeName: DataTypeMessage.String(),
 		JSONPath: fieldName,
-		Index:    index,
 		Message:  msg,
 	})
 
@@ -578,9 +572,8 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 	keyFieldMessage := &RPCMessage{
 		Name: r.rpcMethodName() + "Key",
 	}
-	for i, key := range entityInfo.keyFields {
+	for _, key := range entityInfo.keyFields {
 		keyFieldMessage.Fields = append(keyFieldMessage.Fields, RPCField{
-			Index:    i,
 			Name:     key.fieldName,
 			TypeName: key.fieldType,
 			JSONPath: key.fieldName,
@@ -593,14 +586,12 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 			TypeName: DataTypeMessage.String(),
 			Repeated: true, // The inputs are always a list of objects
 			JSONPath: "representations",
-			Index:    0,
 			Message:  keyFieldMessage,
 		},
 	}
 
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
 		{
-			Index:    0,
 			Name:     "result",
 			TypeName: DataTypeMessage.String(),
 			JSONPath: "_entities",
