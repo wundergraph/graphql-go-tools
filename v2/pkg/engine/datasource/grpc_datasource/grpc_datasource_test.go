@@ -443,37 +443,33 @@ func TestMarshalResponseJSON(t *testing.T) {
 		Name: "LookupProductByIdResponse",
 		Fields: []RPCField{
 			{
-				Name:     "results",
+				Name:     "result",
 				TypeName: string(DataTypeMessage),
 				Repeated: true,
-				JSONPath: "results",
+				JSONPath: "_entities",
 				Message: &RPCMessage{
-					Name: "LookupProductByIdResult",
+					Name: "Product",
 					Fields: []RPCField{
 						{
-							Name:     "product",
-							TypeName: string(DataTypeMessage),
-							JSONPath: "product",
-							Message: &RPCMessage{
-								Name: "Product",
-								Fields: []RPCField{
-									{
-										Name:     "id",
-										TypeName: string(DataTypeString),
-										JSONPath: "id",
-									},
-									{
-										Name:     "name",
-										TypeName: string(DataTypeString),
-										JSONPath: "name_different",
-									},
-									{
-										Name:     "price",
-										TypeName: string(DataTypeDouble),
-										JSONPath: "price_different",
-									},
-								},
-							},
+							Name:        "__typename",
+							TypeName:    string(DataTypeString),
+							JSONPath:    "__typename",
+							StaticValue: "Product",
+						},
+						{
+							Name:     "id",
+							TypeName: string(DataTypeString),
+							JSONPath: "id",
+						},
+						{
+							Name:     "name",
+							TypeName: string(DataTypeString),
+							JSONPath: "name_different",
+						},
+						{
+							Name:     "price",
+							TypeName: string(DataTypeDouble),
+							JSONPath: "price_different",
 						},
 					},
 				},
@@ -492,20 +488,16 @@ func TestMarshalResponseJSON(t *testing.T) {
 	productMessage.Set(productMessageDesc.Fields().ByName("name"), protoref.ValueOfString("test"))
 	productMessage.Set(productMessageDesc.Fields().ByName("price"), protoref.ValueOfFloat64(123.45))
 
-	resultMessageDesc := compiler.doc.MessageByName("LookupProductByIdResult").Desc
-	resultMessage := dynamicpb.NewMessage(resultMessageDesc)
-	resultMessage.Set(resultMessageDesc.Fields().ByName("product"), protoref.ValueOfMessage(productMessage))
-
 	responseMessageDesc := compiler.doc.MessageByName("LookupProductByIdResponse").Desc
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
-	responseMessage.Mutable(responseMessageDesc.Fields().ByName("results")).List().Append(protoref.ValueOfMessage(resultMessage))
+	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
 	ds := &DataSource{}
 
 	arena := astjson.Arena{}
 	responseJSON, err := ds.marshalResponseJSON(&arena, &response, responseMessage)
 	require.NoError(t, err)
-	require.Equal(t, `{"results":[{"product":{"id":"123","name_different":"test","price_different":123.45}}]}`, responseJSON.String())
+	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
 }
 
 // TODO test interface types

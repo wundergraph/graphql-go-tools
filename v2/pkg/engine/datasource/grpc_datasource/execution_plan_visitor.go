@@ -391,27 +391,23 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 		r.planInfo.currentRequestMessage = r.planInfo.requestMessageAncestors[len(r.planInfo.requestMessageAncestors)-1]
 		r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
 
-	case ast.NodeKindScalarTypeDefinition:
-		rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
-		baseType := r.definition.NodeNameString(rootNode)
-		dt := r.toDataType(&r.definition.Types[typeRef])
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
-			TypeName: dt.String(),
-			JSONPath: jsonPath,
-			Repeated: r.definition.TypeIsList(underlyingTypeNode.Ref),
-		})
-	case ast.NodeKindEnumTypeDefinition:
+	case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
 		rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
 		baseType := r.definition.NodeNameString(rootNode)
 		dt := r.toDataType(&r.definition.Types[typeRef])
 
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
+		field := RPCField{
 			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
-			EnumName: underlyingTypeName,
-		})
+			Repeated: r.definition.TypeIsList(typeRef),
+		}
+
+		if dt == DataTypeEnum {
+			field.EnumName = underlyingTypeName
+		}
+
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
 	default:
 		// TODO unions, interfaces, etc.
 		r.walker.Report.AddInternalError(fmt.Errorf("unsupported type: %s", underlyingTypeNode.Kind))
@@ -725,7 +721,7 @@ func (r *rpcPlanVisitor) toDataType(t *ast.Type) DataType {
 	case ast.TypeKindNamed:
 		return r.parseGraphQLType(t)
 	case ast.TypeKindList:
-		return DataTypeMessage
+		return r.toDataType(&r.definition.Types[t.OfType])
 	case ast.TypeKindNonNull:
 		return r.toDataType(&r.definition.Types[t.OfType])
 	}

@@ -158,6 +158,16 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 		},
 		{
 			TypeName:  "Query",
+			FieldName: "categoriesByKinds",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "kinds",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
 			FieldName: "filterCategories",
 			Arguments: []plan.ArgumentConfiguration{
 				{

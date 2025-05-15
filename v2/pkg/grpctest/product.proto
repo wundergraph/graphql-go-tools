@@ -1,199 +1,129 @@
 syntax = "proto3";
-package product.v1;
+package productv1;
 
-option go_package = "grpc-graphql/pkg/proto/product/v1;productv1";
+option go_package = "cosmo/pkg/proto/productv1;productv1";
 
 service ProductService {
-  // Entity Lookup operations
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
-  rpc LookupProductByName(LookupProductByNameRequest) returns (LookupProductByNameResponse) {}
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
-
-  // Normal Query operations
-  rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
-  rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
+  rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
+  rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
+  rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
+  rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
+  rpc QueryCategoriesByKinds(QueryCategoriesByKindsRequest) returns (QueryCategoriesByKindsResponse) {}
+  rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
+  rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
+  rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
   rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
   rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
-  rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
-
-  // Pet query operations to test interface types
-  rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
-  rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
-
-  // Category query operations to test enum mapping
-  rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
-  rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
-  rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
-
-  // Mutation operations to test input type mapping
-  rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
+  rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
+  rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
 }
 
-message MutationCreateUserRequest {
-  UserInput input = 1;
-}
-
-message MutationCreateUserResponse {
-  User create_user = 1;
-}
-
-message LookupProductByNameRequest {
-  repeated LookupProductByNameInput inputs = 1;
-}
-
-message LookupProductByNameInput {
-  string name = 1;
-}
-
-message LookupProductByNameResponse {
-  repeated LookupProductByNameResult results = 1;
-}
-
-message LookupProductByNameResult {
-  Product product = 1;
+message LookupProductByIdRequestKey {
+    string id = 1;
 }
 
 message LookupProductByIdRequest {
-  repeated LookupProductByIdInput inputs = 1;
-}
-
-message LookupProductByIdInput {
-  ProductByIdKey key = 1;
-}
-
-message ProductByIdKey {
-  string id = 1;
+    repeated LookupProductByIdRequestKey keys = 1;
 }
 
 message LookupProductByIdResponse {
-  repeated LookupProductByIdResult results = 1;
+    repeated Product result = 1;
 }
 
-message LookupProductByIdResult {
-  Product product = 1;
+message LookupStorageByIdRequestKey {
+    string id = 1;
 }
 
 message LookupStorageByIdRequest {
-  repeated LookupStorageByIdInput inputs = 1;
-}
-
-message LookupStorageByIdInput {
-  StorageByIdKey key = 1;
-}
-
-message StorageByIdKey {
-  string id = 1;
+    repeated LookupStorageByIdRequestKey keys = 1;
 }
 
 message LookupStorageByIdResponse {
-  repeated LookupStorageByIdResult results = 1;
+    repeated Storage result = 1;
 }
 
-message LookupStorageByIdResult {
-  Storage storage = 1;
+message QueryUsersRequest {
 }
-
-// QueryUsers
-message QueryUsersRequest {}
-
 message QueryUsersResponse {
-  repeated User users = 1;
+    repeated User users = 1;
 }
-
-// QueryUser
 message QueryUserRequest {
-  string id = 1;
+    string id = 1;
 }
-
 message QueryUserResponse {
-  User user = 1;
+    User user = 1;
 }
-
-message QueryNestedTypeRequest {}
-
+message QueryNestedTypeRequest {
+}
 message QueryNestedTypeResponse {
-  repeated NestedTypeA nested_type = 1;
+    repeated NestedTypeA nested_type = 1;
 }
-
-message QueryRecursiveTypeRequest {}
-
+message QueryRecursiveTypeRequest {
+}
 message QueryRecursiveTypeResponse {
-  RecursiveType recursive_type = 1;
+    RecursiveType recursive_type = 1;
 }
-
 message QueryTypeFilterWithArgumentsRequest {
-  string filter_field_1 = 1;
-  string filter_field_2 = 2;
+    string filter_field_1 = 1;
+    string filter_field_2 = 2;
 }
-
 message QueryTypeFilterWithArgumentsResponse {
-  repeated TypeWithMultipleFilterFields type_filter_with_arguments = 1;
+    repeated TypeWithMultipleFilterFields type_filter_with_arguments = 1;
 }
-
 message QueryTypeWithMultipleFilterFieldsRequest {
-  FilterTypeInput filter = 1;
+    FilterTypeInput filter = 1;
 }
-
 message QueryTypeWithMultipleFilterFieldsResponse {
-  repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
+    repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
 }
-
 message QueryComplexFilterTypeRequest {
-  ComplexFilterTypeInput filter = 1;
+    ComplexFilterTypeInput filter = 1;
 }
-
 message QueryComplexFilterTypeResponse {
-  repeated TypeWithComplexFilterInput complex_filter_type = 1;
+    repeated TypeWithComplexFilterInput complex_filter_type = 1;
 }
-
-message QueryRandomPetRequest {}
-
+message QueryCategoriesRequest {
+}
+message QueryCategoriesResponse {
+    repeated Category categories = 1;
+}
+message QueryCategoriesByKindRequest {
+    CategoryKind kind = 1;
+}
+message QueryCategoriesByKindResponse {
+    repeated Category categories_by_kind = 1;
+}
+message QueryCategoriesByKindsRequest {
+    repeated CategoryKind kinds = 1;
+}
+message QueryCategoriesByKindsResponse {
+    repeated Category categories_by_kinds = 1;
+}
+message QueryFilterCategoriesRequest {
+    CategoryFilter filter = 1;
+}
+message QueryFilterCategoriesResponse {
+    repeated Category filter_categories = 1;
+}
+message QueryRandomPetRequest {
+}
 message QueryRandomPetResponse {
-  Animal random_pet = 1;
+    Animal random_pet = 1;
 }
-
-message QueryAllPetsRequest {}
-
+message QueryAllPetsRequest {
+}
 message QueryAllPetsResponse {
-  repeated Animal all_pets = 1;
+    repeated Animal all_pets = 1;
 }
-
-message Animal {
-  oneof animal {
-    Cat cat = 1;
-    Dog dog = 2;
-  }
+message MutationCreateUserRequest {
+    UserInput input = 1;
 }
-
-message Cat {
-  string id = 1;
-  string name = 2;
-  string kind = 3;
-  int32 meow_volume = 4;
-}
-
-message Dog {
-  string id = 1;
-  string name = 2;
-  string kind = 3;
-  int32 bark_volume = 4;
-}
-
-message User {
-  string id = 1;
-  string name = 2;
-}
-
-message UserInput {
-  string name = 1;
-}
-
-message Storage {
-  string id = 1;
-  string name = 2;
-  string location = 3;
+message MutationCreateUserResponse {
+    User create_user = 1;
 }
 
 message Product {
@@ -202,21 +132,21 @@ message Product {
   double price = 3;
 }
 
+message Storage {
+  string id = 1;
+  string name = 2;
+  string location = 3;
+}
+
+message User {
+  string id = 1;
+  string name = 2;
+}
+
 message NestedTypeA {
   string id = 1;
   string name = 2;
   NestedTypeB b = 3;
-}
-
-message NestedTypeB {
-  string id = 1;
-  string name = 2;
-  NestedTypeC c = 3;
-}
-
-message NestedTypeC {
-  string id = 1;
-  string name = 2;
 }
 
 message RecursiveType {
@@ -232,19 +162,51 @@ message TypeWithMultipleFilterFields {
   string filter_field_2 = 4;
 }
 
-message TypeWithComplexFilterInput {
-  string id = 1;
-  string name = 2;
+message FilterTypeInput {
+  string filter_field_1 = 1;
+  string filter_field_2 = 2;
 }
 
 message ComplexFilterTypeInput {
   FilterType filter = 1;
 }
 
-message FilterTypeInput {
+message TypeWithComplexFilterInput {
+  string id = 1;
+  string name = 2;
+}
+
+message Category {
+  string id = 1;
+  string name = 2;
+  CategoryKind kind = 3;
+}
+
+message CategoryFilter {
+  CategoryKind category = 1;
+  Pagination pagination = 2;
+}
+
+message Animal {
+  oneof instance {
+    Cat cat = 1;
+    Dog dog = 2;
+  }
+}
+
+message UserInput {
   string name = 1;
-  string filter_field_1 = 2;
-  string filter_field_2 = 3;
+}
+
+message NestedTypeB {
+  string id = 1;
+  string name = 2;
+  NestedTypeC c = 3;
+}
+
+message NestedTypeC {
+  string id = 1;
+  string name = 2;
 }
 
 message FilterType {
@@ -259,7 +221,6 @@ message Pagination {
   int32 per_page = 2;
 }
 
-// CategoryKind enum for product categories
 enum CategoryKind {
   CATEGORY_KIND_UNSPECIFIED = 0;
   CATEGORY_KIND_BOOK = 1;
@@ -268,38 +229,16 @@ enum CategoryKind {
   CATEGORY_KIND_OTHER = 4;
 }
 
-// Category message
-message Category {
+message Cat {
   string id = 1;
   string name = 2;
-  CategoryKind kind = 3;
+  string kind = 3;
+  int32 meow_volume = 4;
 }
 
-// Category query messages
-message QueryCategoriesRequest {}
-
-message QueryCategoriesResponse {
-  repeated Category categories = 1;
-}
-
-message QueryCategoriesByKindRequest {
-  CategoryKind kind = 1;
-}
-
-message QueryCategoriesByKindResponse {
-  repeated Category categories_by_kind = 1;
-}
-
-message QueryFilterCategoriesRequest {
-  CategoryFilter filter = 1;
-}
-
-message QueryFilterCategoriesResponse {
-  repeated Category filter_categories = 1;
-}
-
-// CategoryFilter for filtering categories
-message CategoryFilter {
-  CategoryKind category = 1;
-  Pagination pagination = 2;
+message Dog {
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+  int32 bark_volume = 4;
 }

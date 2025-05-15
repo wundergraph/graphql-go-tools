@@ -1439,6 +1439,97 @@ func TestProductExecutionPlan(t *testing.T) {
 			},
 		},
 		{
+			name:  "Should create an execution plan for a query with categories by kinds",
+			query: "query CategoriesQuery($kinds: [CategoryKind!]!) { categoriesByKinds(kinds: $kinds) { id name kind } }",
+			mapping: &GRPCMapping{
+				Service: "ProductService",
+				QueryRPCs: map[string]RPCConfig{
+					"categoriesByKinds": {
+						RPC:      "QueryCategoriesByKinds",
+						Request:  "QueryCategoriesByKindsRequest",
+						Response: "QueryCategoriesByKindsResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"categoriesByKinds": {
+							TargetName: "categories_by_kinds",
+							ArgumentMappings: map[string]string{
+								"kinds": "kinds",
+							},
+						},
+					},
+					"Category": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+						"kind": {
+							TargetName: "kind",
+						},
+					},
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Groups: []RPCCallGroup{
+					{
+						Calls: []RPCCall{
+							{
+								ServiceName: "ProductService",
+								MethodName:  "QueryCategoriesByKinds",
+								Request: RPCMessage{
+									Name: "QueryCategoriesByKindsRequest",
+									Fields: []RPCField{
+										{
+											Name:     "kinds",
+											TypeName: string(DataTypeEnum),
+											JSONPath: "kinds",
+											EnumName: "CategoryKind",
+											Repeated: true,
+										},
+									},
+								},
+								Response: RPCMessage{
+									Name: "QueryCategoriesByKindsResponse",
+									Fields: []RPCField{
+										{
+											Name:     "categories_by_kinds",
+											TypeName: string(DataTypeMessage),
+											JSONPath: "categoriesByKinds",
+											Repeated: true,
+											Message: &RPCMessage{
+												Name: "Category",
+												Fields: []RPCField{
+													{
+														Name:     "id",
+														TypeName: string(DataTypeString),
+														JSONPath: "id",
+													},
+													{
+														Name:     "name",
+														TypeName: string(DataTypeString),
+														JSONPath: "name",
+													},
+													{
+														Name:     "kind",
+														TypeName: string(DataTypeEnum),
+														JSONPath: "kind",
+														EnumName: "CategoryKind",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:  "Should create an execution plan for a query with filtered categories",
 			query: "query FilterCategoriesQuery($filter: CategoryFilter!) { filterCategories(filter: $filter) { id name kind } }",
 			mapping: &GRPCMapping{

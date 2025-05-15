@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/rand"
 	"strconv"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc/codes"
@@ -17,59 +16,36 @@ type MockService struct {
 }
 
 func (s *MockService) LookupProductById(ctx context.Context, in *productv1.LookupProductByIdRequest) (*productv1.LookupProductByIdResponse, error) {
-	var results []*productv1.LookupProductByIdResult
+	var results []*productv1.Product
 
-	for _, input := range in.GetInputs() {
-		productId := input.GetKey().GetId()
-		results = append(results, &productv1.LookupProductByIdResult{
-			Product: &productv1.Product{
-				Id:    productId,
-				Name:  fmt.Sprintf("Product %s", productId),
-				Price: 99.99,
-			},
+	for _, input := range in.GetKeys() {
+		productId := input.GetId()
+		results = append(results, &productv1.Product{
+			Id:    productId,
+			Name:  fmt.Sprintf("Product %s", productId),
+			Price: 99.99,
 		})
 	}
 
 	return &productv1.LookupProductByIdResponse{
-		Results: results,
-	}, nil
-}
-
-func (s *MockService) LookupProductByName(ctx context.Context, in *productv1.LookupProductByNameRequest) (*productv1.LookupProductByNameResponse, error) {
-	var results []*productv1.LookupProductByNameResult
-
-	for _, input := range in.GetInputs() {
-		productName := input.GetName()
-		results = append(results, &productv1.LookupProductByNameResult{
-			Product: &productv1.Product{
-				Id:    fmt.Sprintf("id-for-%s", strings.ReplaceAll(productName, " ", "-")),
-				Name:  productName,
-				Price: 49.99,
-			},
-		})
-	}
-
-	return &productv1.LookupProductByNameResponse{
-		Results: results,
+		Result: results,
 	}, nil
 }
 
 func (s *MockService) LookupStorageById(ctx context.Context, in *productv1.LookupStorageByIdRequest) (*productv1.LookupStorageByIdResponse, error) {
-	var results []*productv1.LookupStorageByIdResult
+	var results []*productv1.Storage
 
-	for _, input := range in.GetInputs() {
-		storageId := input.GetKey().GetId()
-		results = append(results, &productv1.LookupStorageByIdResult{
-			Storage: &productv1.Storage{
-				Id:       storageId,
-				Name:     fmt.Sprintf("Storage %s", storageId),
-				Location: fmt.Sprintf("Location %d", rand.Intn(100)),
-			},
+	for _, input := range in.GetKeys() {
+		storageId := input.GetId()
+		results = append(results, &productv1.Storage{
+			Id:       storageId,
+			Name:     fmt.Sprintf("Storage %s", storageId),
+			Location: fmt.Sprintf("Location %d", rand.Intn(100)),
 		})
 	}
 
 	return &productv1.LookupStorageByIdResponse{
-		Results: results,
+		Result: results,
 	}, nil
 }
 
@@ -179,9 +155,9 @@ func (s *MockService) QueryTypeWithMultipleFilterFields(ctx context.Context, in 
 	for i := 1; i <= 2; i++ {
 		fields = append(fields, &productv1.TypeWithMultipleFilterFields{
 			Id:            fmt.Sprintf("filtered-%d", i),
-			Name:          filter.GetName() + " " + strconv.Itoa(i),
-			FilterField_1: filter.GetFilterField_1(),
-			FilterField_2: filter.GetFilterField_2(),
+			Name:          "Filter: " + strconv.Itoa(i),
+			FilterField_1: filter.FilterField_1,
+			FilterField_2: filter.FilterField_2,
 		})
 	}
 
@@ -218,7 +194,7 @@ func (s *MockService) QueryRandomPet(ctx context.Context, in *productv1.QueryRan
 	if rand.Intn(2) == 0 {
 		// Create a cat
 		pet = &productv1.Animal{
-			Animal: &productv1.Animal_Cat{
+			Instance: &productv1.Animal_Cat{
 				Cat: &productv1.Cat{
 					Id:         "cat-1",
 					Name:       "Whiskers",
@@ -230,7 +206,7 @@ func (s *MockService) QueryRandomPet(ctx context.Context, in *productv1.QueryRan
 	} else {
 		// Create a dog
 		pet = &productv1.Animal{
-			Animal: &productv1.Animal_Dog{
+			Instance: &productv1.Animal_Dog{
 				Dog: &productv1.Dog{
 					Id:         "dog-1",
 					Name:       "Spot",
@@ -253,7 +229,7 @@ func (s *MockService) QueryAllPets(ctx context.Context, in *productv1.QueryAllPe
 	// Add 2 cats
 	for i := 1; i <= 2; i++ {
 		pets = append(pets, &productv1.Animal{
-			Animal: &productv1.Animal_Cat{
+			Instance: &productv1.Animal_Cat{
 				Cat: &productv1.Cat{
 					Id:         fmt.Sprintf("cat-%d", i),
 					Name:       fmt.Sprintf("Cat %d", i),
@@ -267,7 +243,7 @@ func (s *MockService) QueryAllPets(ctx context.Context, in *productv1.QueryAllPe
 	// Add 2 dogs
 	for i := 1; i <= 2; i++ {
 		pets = append(pets, &productv1.Animal{
-			Animal: &productv1.Animal_Dog{
+			Instance: &productv1.Animal_Dog{
 				Dog: &productv1.Dog{
 					Id:         fmt.Sprintf("dog-%d", i),
 					Name:       fmt.Sprintf("Dog %d", i),
@@ -327,6 +303,24 @@ func (s *MockService) QueryCategoriesByKind(ctx context.Context, in *productv1.Q
 
 	return &productv1.QueryCategoriesByKindResponse{
 		CategoriesByKind: categories,
+	}, nil
+}
+
+func (s *MockService) QueryCategoriesByKinds(ctx context.Context, in *productv1.QueryCategoriesByKindsRequest) (*productv1.QueryCategoriesByKindsResponse, error) {
+	kinds := in.GetKinds()
+
+	var categories []*productv1.Category
+
+	for i, kind := range kinds {
+		categories = append(categories, &productv1.Category{
+			Id:   fmt.Sprintf("%s-category-%d", kind.String(), i),
+			Name: fmt.Sprintf("%s Category %d", kind.String(), i),
+			Kind: kind,
+		})
+	}
+
+	return &productv1.QueryCategoriesByKindsResponse{
+		CategoriesByKinds: categories,
 	}, nil
 }
 
