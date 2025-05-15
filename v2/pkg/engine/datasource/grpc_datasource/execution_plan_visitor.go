@@ -60,7 +60,6 @@ type rpcPlanVisitor struct {
 	plan                   *RPCExecutionPlan
 	operationDefinitionRef int
 	operationFieldRef      int
-	currentGroupIndex      int
 	currentCall            *RPCCall
 	currentCallID          int
 }
@@ -109,12 +108,6 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	if r.currentCallID < 0 {
 		r.currentCallID = 0
 	}
-
-	r.plan.Groups = append(r.plan.Groups, RPCCallGroup{
-		Calls: []RPCCall{},
-	})
-
-	r.currentGroupIndex = len(r.plan.Groups) - 1
 
 	r.operationDefinitionRef = ref
 
@@ -260,7 +253,7 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 			r.currentCall.Response.Name = methodName + "Response"
 		}
 
-		r.plan.Groups[r.currentGroupIndex].Calls = append(r.plan.Groups[r.currentGroupIndex].Calls, *r.currentCall)
+		r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 		r.currentCall = nil
 	}
 }

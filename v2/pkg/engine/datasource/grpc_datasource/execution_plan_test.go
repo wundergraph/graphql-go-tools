@@ -38,68 +38,64 @@ func TestEntityLookup(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "LookupProductById",
-								// Define the structure of the request message
-								Request: RPCMessage{
-									Name: "LookupProductByIdRequest",
-									Fields: []RPCField{
-										{
-											Name:     "keys",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "representations",
-											Message: &RPCMessage{
-												Name: "LookupProductByIdKey",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-												},
+						ServiceName: "Products",
+						MethodName:  "LookupProductById",
+						// Define the structure of the request message
+						Request: RPCMessage{
+							Name: "LookupProductByIdRequest",
+							Fields: []RPCField{
+								{
+									Name:     "keys",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "representations",
+									Message: &RPCMessage{
+										Name: "LookupProductByIdKey",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
 											},
 										},
 									},
 								},
-								// Define the structure of the response message
-								Response: RPCMessage{
-									Name: "LookupProductByIdResponse",
-									Fields: []RPCField{
-										{
-											Name:     "result",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "_entities",
-											Message: &RPCMessage{
-												Name: "Product",
-												Fields: []RPCField{
-													{
-														Name:        "__typename",
-														TypeName:    string(DataTypeString),
-														JSONPath:    "__typename",
-														StaticValue: "Product",
-													},
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "price",
-														TypeName: string(DataTypeDouble),
-														JSONPath: "price",
-													},
-												},
+							},
+						},
+						// Define the structure of the response message
+						Response: RPCMessage{
+							Name: "LookupProductByIdResponse",
+							Fields: []RPCField{
+								{
+									Name:     "result",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "_entities",
+									Message: &RPCMessage{
+										Name: "Product",
+										Fields: []RPCField{
+											{
+												Name:        "__typename",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "__typename",
+												StaticValue: "Product",
+											},
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "price",
+												TypeName: string(DataTypeDouble),
+												JSONPath: "price",
 											},
 										},
 									},
@@ -346,43 +342,39 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should include typename when requested",
 			query: `query UsersWithTypename { users { __typename id name } }`,
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryUsers",
-								Request: RPCMessage{
-									Name: "QueryUsersRequest",
-								},
-								Response: RPCMessage{
-									Name: "QueryUsersResponse",
-									Fields: []RPCField{
-										{
-											Name:     "users",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "users",
-											Message: &RPCMessage{
-												Name: "User",
-												Fields: []RPCField{
-													{
-														Name:        "__typename",
-														TypeName:    string(DataTypeString),
-														JSONPath:    "__typename",
-														StaticValue: "User",
-													},
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+						ServiceName: "Products",
+						MethodName:  "QueryUsers",
+						Request: RPCMessage{
+							Name: "QueryUsersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryUsersResponse",
+							Fields: []RPCField{
+								{
+									Name:     "users",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "users",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:        "__typename",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "__typename",
+												StaticValue: "User",
+											},
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -393,6 +385,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 				},
 			},
 		},
+
 		{
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
@@ -425,59 +418,55 @@ func TestQueryExecutionPlans(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryTypeFilterWithArguments",
-								Request: RPCMessage{
-									Name: "QueryTypeFilterWithArgumentsRequest",
-									Fields: []RPCField{
-										{
-											Name:     "filter_field_1",
-											TypeName: string(DataTypeString),
-											JSONPath: "filterField1",
-										},
-										{
-											Name:     "filter_field_2",
-											TypeName: string(DataTypeString),
-											JSONPath: "filterField2",
-										},
-									},
+						ServiceName: "Products",
+						MethodName:  "QueryTypeFilterWithArguments",
+						Request: RPCMessage{
+							Name: "QueryTypeFilterWithArgumentsRequest",
+							Fields: []RPCField{
+								{
+									Name:     "filter_field_1",
+									TypeName: string(DataTypeString),
+									JSONPath: "filterField1",
 								},
-								Response: RPCMessage{
-									Name: "QueryTypeFilterWithArgumentsResponse",
-									Fields: []RPCField{
-										{
-											Name:     "type_filter_with_arguments",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "typeFilterWithArguments",
-											Message: &RPCMessage{
-												Name: "TypeWithMultipleFilterFields",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "filter_field_1",
-														TypeName: string(DataTypeString),
-														JSONPath: "filterField1",
-													},
-													{
-														Name:     "filter_field_2",
-														TypeName: string(DataTypeString),
-														JSONPath: "filterField2",
-													},
-												},
+								{
+									Name:     "filter_field_2",
+									TypeName: string(DataTypeString),
+									JSONPath: "filterField2",
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryTypeFilterWithArgumentsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "type_filter_with_arguments",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "typeFilterWithArguments",
+									Message: &RPCMessage{
+										Name: "TypeWithMultipleFilterFields",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "filter_field_1",
+												TypeName: string(DataTypeString),
+												JSONPath: "filterField1",
+											},
+											{
+												Name:     "filter_field_2",
+												TypeName: string(DataTypeString),
+												JSONPath: "filterField2",
 											},
 										},
 									},
@@ -509,62 +498,58 @@ func TestQueryExecutionPlans(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryComplexFilterType",
-								Request: RPCMessage{
-									Name: "QueryComplexFilterTypeRequest",
-									Fields: []RPCField{
-										{
-											Name:     "filter",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "filter",
-											Message: &RPCMessage{
-												Name: "ComplexFilterTypeInput",
-												Fields: []RPCField{
-													{
-														Name:     "filter",
-														TypeName: string(DataTypeMessage),
-														JSONPath: "filter",
-														Message: &RPCMessage{
-															Name: "FilterType",
-															Fields: []RPCField{
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																},
-																{
-																	Name:     "filter_field1",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "filterField1",
-																},
-																{
-																	Name:     "filter_field2",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "filterField2",
-																},
-																{
-																	Name:     "pagination",
-																	TypeName: string(DataTypeMessage),
-																	JSONPath: "pagination",
-																	Message: &RPCMessage{
-																		Name: "Pagination",
-																		Fields: []RPCField{
-																			{
-																				Name:     "page",
-																				TypeName: string(DataTypeInt32),
-																				JSONPath: "page",
-																			},
-																			{
-																				Name:     "per_page",
-																				TypeName: string(DataTypeInt32),
-																				JSONPath: "perPage",
-																			},
-																		},
+						ServiceName: "Products",
+						MethodName:  "QueryComplexFilterType",
+						Request: RPCMessage{
+							Name: "QueryComplexFilterTypeRequest",
+							Fields: []RPCField{
+								{
+									Name:     "filter",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "filter",
+									Message: &RPCMessage{
+										Name: "ComplexFilterTypeInput",
+										Fields: []RPCField{
+											{
+												Name:     "filter",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "filter",
+												Message: &RPCMessage{
+													Name: "FilterType",
+													Fields: []RPCField{
+														{
+															Name:     "name",
+															TypeName: string(DataTypeString),
+															JSONPath: "name",
+														},
+														{
+															Name:     "filter_field1",
+															TypeName: string(DataTypeString),
+															JSONPath: "filterField1",
+														},
+														{
+															Name:     "filter_field2",
+															TypeName: string(DataTypeString),
+															JSONPath: "filterField2",
+														},
+														{
+															Name:     "pagination",
+															TypeName: string(DataTypeMessage),
+															JSONPath: "pagination",
+															Message: &RPCMessage{
+																Name: "Pagination",
+																Fields: []RPCField{
+																	{
+																		Name:     "page",
+																		TypeName: string(DataTypeInt32),
+																		JSONPath: "page",
+																	},
+																	{
+																		Name:     "per_page",
+																		TypeName: string(DataTypeInt32),
+																		JSONPath: "perPage",
 																	},
 																},
 															},
@@ -575,28 +560,28 @@ func TestQueryExecutionPlans(t *testing.T) {
 										},
 									},
 								},
-								Response: RPCMessage{
-									Name: "QueryComplexFilterTypeResponse",
-									Fields: []RPCField{
-										{
-											Repeated: true,
-											Name:     "complexFilterType",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "complexFilterType",
-											Message: &RPCMessage{
-												Name: "TypeWithComplexFilterInput",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryComplexFilterTypeResponse",
+							Fields: []RPCField{
+								{
+									Repeated: true,
+									Name:     "complexFilterType",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "complexFilterType",
+									Message: &RPCMessage{
+										Name: "TypeWithComplexFilterInput",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -611,62 +596,58 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a complex input type and variables",
 			query: `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`,
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryComplexFilterType",
-								Request: RPCMessage{
-									Name: "QueryComplexFilterTypeRequest",
-									Fields: []RPCField{
-										{
-											Name:     "filter",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "filter",
-											Message: &RPCMessage{
-												Name: "ComplexFilterTypeInput",
-												Fields: []RPCField{
-													{
-														Name:     "filter",
-														TypeName: string(DataTypeMessage),
-														JSONPath: "filter",
-														Message: &RPCMessage{
-															Name: "FilterType",
-															Fields: []RPCField{
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																},
-																{
-																	Name:     "filterField1",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "filterField1",
-																},
-																{
-																	Name:     "filterField2",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "filterField2",
-																},
-																{
-																	Name:     "pagination",
-																	TypeName: string(DataTypeMessage),
-																	JSONPath: "pagination",
-																	Message: &RPCMessage{
-																		Name: "Pagination",
-																		Fields: []RPCField{
-																			{
-																				Name:     "page",
-																				TypeName: string(DataTypeInt32),
-																				JSONPath: "page",
-																			},
-																			{
-																				Name:     "perPage",
-																				TypeName: string(DataTypeInt32),
-																				JSONPath: "perPage",
-																			},
-																		},
+						ServiceName: "Products",
+						MethodName:  "QueryComplexFilterType",
+						Request: RPCMessage{
+							Name: "QueryComplexFilterTypeRequest",
+							Fields: []RPCField{
+								{
+									Name:     "filter",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "filter",
+									Message: &RPCMessage{
+										Name: "ComplexFilterTypeInput",
+										Fields: []RPCField{
+											{
+												Name:     "filter",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "filter",
+												Message: &RPCMessage{
+													Name: "FilterType",
+													Fields: []RPCField{
+														{
+															Name:     "name",
+															TypeName: string(DataTypeString),
+															JSONPath: "name",
+														},
+														{
+															Name:     "filterField1",
+															TypeName: string(DataTypeString),
+															JSONPath: "filterField1",
+														},
+														{
+															Name:     "filterField2",
+															TypeName: string(DataTypeString),
+															JSONPath: "filterField2",
+														},
+														{
+															Name:     "pagination",
+															TypeName: string(DataTypeMessage),
+															JSONPath: "pagination",
+															Message: &RPCMessage{
+																Name: "Pagination",
+																Fields: []RPCField{
+																	{
+																		Name:     "page",
+																		TypeName: string(DataTypeInt32),
+																		JSONPath: "page",
+																	},
+																	{
+																		Name:     "perPage",
+																		TypeName: string(DataTypeInt32),
+																		JSONPath: "perPage",
 																	},
 																},
 															},
@@ -677,28 +658,28 @@ func TestQueryExecutionPlans(t *testing.T) {
 										},
 									},
 								},
-								Response: RPCMessage{
-									Name: "QueryComplexFilterTypeResponse",
-									Fields: []RPCField{
-										{
-											Repeated: true,
-											Name:     "complexFilterType",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "complexFilterType",
-											Message: &RPCMessage{
-												Name: "TypeWithComplexFilterInput",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryComplexFilterTypeResponse",
+							Fields: []RPCField{
+								{
+									Repeated: true,
+									Name:     "complexFilterType",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "complexFilterType",
+									Message: &RPCMessage{
+										Name: "TypeWithComplexFilterInput",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -709,66 +690,63 @@ func TestQueryExecutionPlans(t *testing.T) {
 				},
 			},
 		},
+
 		{
 			name:  "Should create an execution plan for a query with a complex input type and variables with different name",
 			query: `query ComplexFilterTypeQuery($foobar: ComplexFilterTypeInput!) { complexFilterType(filter: $foobar) { id name } }`,
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryComplexFilterType",
-								Request: RPCMessage{
-									Name: "QueryComplexFilterTypeRequest",
-									Fields: []RPCField{
-										{
-											Name:     "filter",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "foobar",
-											Message: &RPCMessage{
-												Name: "ComplexFilterTypeInput",
-												Fields: []RPCField{
-													{
-														Name:     "filter",
-														TypeName: string(DataTypeMessage),
-														JSONPath: "filter",
-														Message: &RPCMessage{
-															Name: "FilterType",
-															Fields: []RPCField{
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																},
-																{
-																	Name:     "filterField1",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "filterField1",
-																},
-																{
-																	Name:     "filterField2",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "filterField2",
-																},
-																{
-																	Name:     "pagination",
-																	TypeName: string(DataTypeMessage),
-																	JSONPath: "pagination",
-																	Message: &RPCMessage{
-																		Name: "Pagination",
-																		Fields: []RPCField{
-																			{
-																				Name:     "page",
-																				TypeName: string(DataTypeInt32),
-																				JSONPath: "page",
-																			},
-																			{
-																				Name:     "perPage",
-																				TypeName: string(DataTypeInt32),
-																				JSONPath: "perPage",
-																			},
-																		},
+						ServiceName: "Products",
+						MethodName:  "QueryComplexFilterType",
+						Request: RPCMessage{
+							Name: "QueryComplexFilterTypeRequest",
+							Fields: []RPCField{
+								{
+									Name:     "filter",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "foobar",
+									Message: &RPCMessage{
+										Name: "ComplexFilterTypeInput",
+										Fields: []RPCField{
+											{
+												Name:     "filter",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "filter",
+												Message: &RPCMessage{
+													Name: "FilterType",
+													Fields: []RPCField{
+														{
+															Name:     "name",
+															TypeName: string(DataTypeString),
+															JSONPath: "name",
+														},
+														{
+															Name:     "filterField1",
+															TypeName: string(DataTypeString),
+															JSONPath: "filterField1",
+														},
+														{
+															Name:     "filterField2",
+															TypeName: string(DataTypeString),
+															JSONPath: "filterField2",
+														},
+														{
+															Name:     "pagination",
+															TypeName: string(DataTypeMessage),
+															JSONPath: "pagination",
+															Message: &RPCMessage{
+																Name: "Pagination",
+																Fields: []RPCField{
+																	{
+																		Name:     "page",
+																		TypeName: string(DataTypeInt32),
+																		JSONPath: "page",
+																	},
+																	{
+																		Name:     "perPage",
+																		TypeName: string(DataTypeInt32),
+																		JSONPath: "perPage",
 																	},
 																},
 															},
@@ -779,28 +757,28 @@ func TestQueryExecutionPlans(t *testing.T) {
 										},
 									},
 								},
-								Response: RPCMessage{
-									Name: "QueryComplexFilterTypeResponse",
-									Fields: []RPCField{
-										{
-											Repeated: true,
-											Name:     "complexFilterType",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "complexFilterType",
-											Message: &RPCMessage{
-												Name: "TypeWithComplexFilterInput",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryComplexFilterTypeResponse",
+							Fields: []RPCField{
+								{
+									Repeated: true,
+									Name:     "complexFilterType",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "complexFilterType",
+									Message: &RPCMessage{
+										Name: "TypeWithComplexFilterInput",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -815,61 +793,57 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a type filter with arguments and variables",
 			query: "query TypeWithMultipleFilterFieldsQuery($filter: FilterTypeInput!) { typeWithMultipleFilterFields(filter: $filter) { id name } }",
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryTypeWithMultipleFilterFields",
-								Request: RPCMessage{
-									Name: "QueryTypeWithMultipleFilterFieldsRequest",
-									Fields: []RPCField{
-										{
-											Name:     "filter",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "filter",
-											Message: &RPCMessage{
-												Name: "FilterTypeInput",
-												Fields: []RPCField{
-													{
-														Repeated: false,
-														Name:     "filterField1",
-														TypeName: string(DataTypeString),
-														JSONPath: "filterField1",
-													},
-													{
-														Repeated: false,
-														Name:     "filterField2",
-														TypeName: string(DataTypeString),
-														JSONPath: "filterField2",
-													},
-												},
+						ServiceName: "Products",
+						MethodName:  "QueryTypeWithMultipleFilterFields",
+						Request: RPCMessage{
+							Name: "QueryTypeWithMultipleFilterFieldsRequest",
+							Fields: []RPCField{
+								{
+									Name:     "filter",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "filter",
+									Message: &RPCMessage{
+										Name: "FilterTypeInput",
+										Fields: []RPCField{
+											{
+												Repeated: false,
+												Name:     "filterField1",
+												TypeName: string(DataTypeString),
+												JSONPath: "filterField1",
+											},
+											{
+												Repeated: false,
+												Name:     "filterField2",
+												TypeName: string(DataTypeString),
+												JSONPath: "filterField2",
 											},
 										},
 									},
 								},
-								Response: RPCMessage{
-									Name: "QueryTypeWithMultipleFilterFieldsResponse",
-									Fields: []RPCField{
-										{
-											Name:     "typeWithMultipleFilterFields",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "typeWithMultipleFilterFields",
-											Message: &RPCMessage{
-												Name: "TypeWithMultipleFilterFields",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryTypeWithMultipleFilterFieldsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "typeWithMultipleFilterFields",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "typeWithMultipleFilterFields",
+									Message: &RPCMessage{
+										Name: "TypeWithMultipleFilterFields",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -884,37 +858,33 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query",
 			query: "query UserQuery { users { id name } }",
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryUsers",
-								Request: RPCMessage{
-									Name: "QueryUsersRequest",
-								},
-								Response: RPCMessage{
-									Name: "QueryUsersResponse",
-									Fields: []RPCField{
-										{
-											Name:     "users",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "users",
-											Message: &RPCMessage{
-												Name: "User",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+						ServiceName: "Products",
+						MethodName:  "QueryUsers",
+						Request: RPCMessage{
+							Name: "QueryUsersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryUsersResponse",
+							Fields: []RPCField{
+								{
+									Name:     "users",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "users",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -943,43 +913,39 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a user",
 			query: `query UserQuery { user(id: "abc123") { id name } }`,
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryUser",
-								Request: RPCMessage{
-									Name: "QueryUserRequest",
-									Fields: []RPCField{
-										{
-											Name:     "id",
-											TypeName: string(DataTypeString),
-											JSONPath: "id",
-										},
-									},
+						ServiceName: "Products",
+						MethodName:  "QueryUser",
+						Request: RPCMessage{
+							Name: "QueryUserRequest",
+							Fields: []RPCField{
+								{
+									Name:     "id",
+									TypeName: string(DataTypeString),
+									JSONPath: "id",
 								},
-								Response: RPCMessage{
-									Name: "QueryUserResponse",
-									Fields: []RPCField{
-										{
-											Name:     "user",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "user",
-											Message: &RPCMessage{
-												Name: "User",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryUserResponse",
+							Fields: []RPCField{
+								{
+									Name:     "user",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "user",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
 											},
 										},
 									},
@@ -994,71 +960,67 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a nested type",
 			query: "query NestedTypeQuery { nestedType { id name b { id name c { id name } } } }",
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryNestedType",
-								Request: RPCMessage{
-									Name: "QueryNestedTypeRequest",
-								},
-								Response: RPCMessage{
-									Name: "QueryNestedTypeResponse",
-									Fields: []RPCField{
-										{
-											Name:     "nestedType",
-											TypeName: string(DataTypeMessage),
-											Repeated: true,
-											JSONPath: "nestedType",
-											Message: &RPCMessage{
-												Name: "NestedTypeA",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "b",
-														TypeName: string(DataTypeMessage),
-														JSONPath: "b",
-														Message: &RPCMessage{
-															Name: "NestedTypeB",
-															Fields: []RPCField{
-																{
-																	Name:     "id",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "id",
-																},
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																},
-																{
-																	Name:     "c",
-																	TypeName: string(DataTypeMessage),
-																	JSONPath: "c",
-																	Message: &RPCMessage{
-																		Name: "NestedTypeC",
-																		Fields: []RPCField{
-																			{
-																				Name:     "id",
-																				TypeName: string(DataTypeString),
-																				JSONPath: "id",
-																			},
-																			{
-																				Name:     "name",
-																				TypeName: string(DataTypeString),
-																				JSONPath: "name",
-																			},
-																		},
+						ServiceName: "Products",
+						MethodName:  "QueryNestedType",
+						Request: RPCMessage{
+							Name: "QueryNestedTypeRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryNestedTypeResponse",
+							Fields: []RPCField{
+								{
+									Name:     "nestedType",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "nestedType",
+									Message: &RPCMessage{
+										Name: "NestedTypeA",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "b",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "b",
+												Message: &RPCMessage{
+													Name: "NestedTypeB",
+													Fields: []RPCField{
+														{
+															Name:     "id",
+															TypeName: string(DataTypeString),
+															JSONPath: "id",
+														},
+														{
+															Name:     "name",
+															TypeName: string(DataTypeString),
+															JSONPath: "name",
+														},
+														{
+															Name:     "c",
+															TypeName: string(DataTypeMessage),
+															JSONPath: "c",
+															Message: &RPCMessage{
+																Name: "NestedTypeC",
+																Fields: []RPCField{
+																	{
+																		Name:     "id",
+																		TypeName: string(DataTypeString),
+																		JSONPath: "id",
+																	},
+																	{
+																		Name:     "name",
+																		TypeName: string(DataTypeString),
+																		JSONPath: "name",
 																	},
 																},
 															},
@@ -1079,93 +1041,89 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a recursive type",
 			query: "query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name recursiveType { id name } } name } } }",
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryRecursiveType",
-								Request: RPCMessage{
-									Name: "QueryRecursiveTypeRequest",
-								},
-								Response: RPCMessage{
-									Name: "QueryRecursiveTypeResponse",
-									Fields: []RPCField{
-										{
-											Name:     "recursiveType",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "recursiveType",
-											Message: &RPCMessage{
-												Name: "RecursiveType",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "recursiveType",
-														TypeName: string(DataTypeMessage),
-														JSONPath: "recursiveType",
-														Message: &RPCMessage{
-															Name: "RecursiveType",
-															Fields: []RPCField{
-																{
-																	Name:     "id",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "id",
-																},
-																{
-																	Name:     "recursiveType",
-																	TypeName: string(DataTypeMessage),
-																	JSONPath: "recursiveType",
-																	Message: &RPCMessage{
-																		Name: "RecursiveType",
-																		Fields: []RPCField{
-																			{
-																				Name:     "id",
-																				TypeName: string(DataTypeString),
-																				JSONPath: "id",
-																			},
-																			{
-																				Name:     "name",
-																				TypeName: string(DataTypeString),
-																				JSONPath: "name",
-																			},
-																			{
-																				Name:     "recursiveType",
-																				TypeName: string(DataTypeMessage),
-																				JSONPath: "recursiveType",
-																				Message: &RPCMessage{
-																					Name: "RecursiveType",
-																					Fields: []RPCField{
-																						{
-																							Name:     "id",
-																							TypeName: string(DataTypeString),
-																							JSONPath: "id",
-																						},
-																						{
-																							Name:     "name",
-																							TypeName: string(DataTypeString),
-																							JSONPath: "name",
-																						},
-																					},
+						ServiceName: "Products",
+						MethodName:  "QueryRecursiveType",
+						Request: RPCMessage{
+							Name: "QueryRecursiveTypeRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRecursiveTypeResponse",
+							Fields: []RPCField{
+								{
+									Name:     "recursiveType",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "recursiveType",
+									Message: &RPCMessage{
+										Name: "RecursiveType",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "recursiveType",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "recursiveType",
+												Message: &RPCMessage{
+													Name: "RecursiveType",
+													Fields: []RPCField{
+														{
+															Name:     "id",
+															TypeName: string(DataTypeString),
+															JSONPath: "id",
+														},
+														{
+															Name:     "recursiveType",
+															TypeName: string(DataTypeMessage),
+															JSONPath: "recursiveType",
+															Message: &RPCMessage{
+																Name: "RecursiveType",
+																Fields: []RPCField{
+																	{
+																		Name:     "id",
+																		TypeName: string(DataTypeString),
+																		JSONPath: "id",
+																	},
+																	{
+																		Name:     "name",
+																		TypeName: string(DataTypeString),
+																		JSONPath: "name",
+																	},
+																	{
+																		Name:     "recursiveType",
+																		TypeName: string(DataTypeMessage),
+																		JSONPath: "recursiveType",
+																		Message: &RPCMessage{
+																			Name: "RecursiveType",
+																			Fields: []RPCField{
+																				{
+																					Name:     "id",
+																					TypeName: string(DataTypeString),
+																					JSONPath: "id",
+																				},
+																				{
+																					Name:     "name",
+																					TypeName: string(DataTypeString),
+																					JSONPath: "name",
 																				},
 																			},
 																		},
 																	},
 																},
-																{
-																	Name:     "name",
-																	TypeName: string(DataTypeString),
-																	JSONPath: "name",
-																},
 															},
+														},
+														{
+															Name:     "name",
+															TypeName: string(DataTypeString),
+															JSONPath: "name",
 														},
 													},
 												},
@@ -1250,47 +1208,43 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "Products",
-								MethodName:  "QueryRandomPet",
-								Request: RPCMessage{
-									Name: "QueryRandomPetRequest",
-								},
-								Response: RPCMessage{
-									Name: "QueryRandomPetResponse",
-									Fields: []RPCField{
-										{
-											Name:     "random_pet",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "randomPet",
-											Message: &RPCMessage{
-												Name:  "Animal",
-												OneOf: true,
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "kind",
-														TypeName: string(DataTypeString),
-														JSONPath: "kind",
-													},
-													{
-														Name:     "meow_volume",
-														TypeName: string(DataTypeInt32),
-														JSONPath: "meowVolume",
-													},
-												},
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Message: &RPCMessage{
+										Name:  "Animal",
+										OneOf: true,
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+											{
+												Name:     "meow_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "meowVolume",
 											},
 										},
 									},
@@ -1383,51 +1337,47 @@ func TestProductExecutionPlan(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "ProductService",
-								MethodName:  "QueryCategoriesByKind",
-								Request: RPCMessage{
-									Name: "QueryCategoriesByKindRequest",
-									Fields: []RPCField{
-										{
-											Name:     "kind",
-											TypeName: string(DataTypeEnum),
-											JSONPath: "kind",
-											EnumName: "CategoryKind",
-										},
-									},
+						ServiceName: "ProductService",
+						MethodName:  "QueryCategoriesByKind",
+						Request: RPCMessage{
+							Name: "QueryCategoriesByKindRequest",
+							Fields: []RPCField{
+								{
+									Name:     "kind",
+									TypeName: string(DataTypeEnum),
+									JSONPath: "kind",
+									EnumName: "CategoryKind",
 								},
-								Response: RPCMessage{
-									Name: "QueryCategoriesByKindResponse",
-									Fields: []RPCField{
-										{
-											Name:     "categories_by_kind",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "categoriesByKind",
-											Repeated: true,
-											Message: &RPCMessage{
-												Name: "Category",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "kind",
-														TypeName: string(DataTypeEnum),
-														JSONPath: "kind",
-														EnumName: "CategoryKind",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesByKindResponse",
+							Fields: []RPCField{
+								{
+									Name:     "categories_by_kind",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "categoriesByKind",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												EnumName: "CategoryKind",
 											},
 										},
 									},
@@ -1473,52 +1423,48 @@ func TestProductExecutionPlan(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "ProductService",
-								MethodName:  "QueryCategoriesByKinds",
-								Request: RPCMessage{
-									Name: "QueryCategoriesByKindsRequest",
-									Fields: []RPCField{
-										{
-											Name:     "kinds",
-											TypeName: string(DataTypeEnum),
-											JSONPath: "kinds",
-											EnumName: "CategoryKind",
-											Repeated: true,
-										},
-									},
+						ServiceName: "ProductService",
+						MethodName:  "QueryCategoriesByKinds",
+						Request: RPCMessage{
+							Name: "QueryCategoriesByKindsRequest",
+							Fields: []RPCField{
+								{
+									Name:     "kinds",
+									TypeName: string(DataTypeEnum),
+									JSONPath: "kinds",
+									EnumName: "CategoryKind",
+									Repeated: true,
 								},
-								Response: RPCMessage{
-									Name: "QueryCategoriesByKindsResponse",
-									Fields: []RPCField{
-										{
-											Name:     "categories_by_kinds",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "categoriesByKinds",
-											Repeated: true,
-											Message: &RPCMessage{
-												Name: "Category",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "kind",
-														TypeName: string(DataTypeEnum),
-														JSONPath: "kind",
-														EnumName: "CategoryKind",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesByKindsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "categories_by_kinds",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "categoriesByKinds",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												EnumName: "CategoryKind",
 											},
 										},
 									},
@@ -1580,46 +1526,42 @@ func TestProductExecutionPlan(t *testing.T) {
 				},
 			},
 			expectedPlan: &RPCExecutionPlan{
-				Groups: []RPCCallGroup{
+				Calls: []RPCCall{
 					{
-						Calls: []RPCCall{
-							{
-								ServiceName: "ProductService",
-								MethodName:  "QueryFilterCategories",
-								Request: RPCMessage{
-									Name: "QueryFilterCategoriesRequest",
-									Fields: []RPCField{
-										{
-											Name:     "filter",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "filter",
-											Message: &RPCMessage{
-												Name: "CategoryFilter",
-												Fields: []RPCField{
-													{
-														Name:     "category",
-														TypeName: string(DataTypeEnum),
-														JSONPath: "category",
-														EnumName: "CategoryKind",
-													},
-													{
-														Name:     "pagination",
-														TypeName: string(DataTypeMessage),
-														JSONPath: "pagination",
-														Message: &RPCMessage{
-															Name: "Pagination",
-															Fields: []RPCField{
-																{
-																	Name:     "page",
-																	TypeName: string(DataTypeInt32),
-																	JSONPath: "page",
-																},
-																{
-																	Name:     "per_page",
-																	TypeName: string(DataTypeInt32),
-																	JSONPath: "perPage",
-																},
-															},
+						ServiceName: "ProductService",
+						MethodName:  "QueryFilterCategories",
+						Request: RPCMessage{
+							Name: "QueryFilterCategoriesRequest",
+							Fields: []RPCField{
+								{
+									Name:     "filter",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "filter",
+									Message: &RPCMessage{
+										Name: "CategoryFilter",
+										Fields: []RPCField{
+											{
+												Name:     "category",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "category",
+												EnumName: "CategoryKind",
+											},
+											{
+												Name:     "pagination",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "pagination",
+												Message: &RPCMessage{
+													Name: "Pagination",
+													Fields: []RPCField{
+														{
+															Name:     "page",
+															TypeName: string(DataTypeInt32),
+															JSONPath: "page",
+														},
+														{
+															Name:     "per_page",
+															TypeName: string(DataTypeInt32),
+															JSONPath: "perPage",
 														},
 													},
 												},
@@ -1627,34 +1569,34 @@ func TestProductExecutionPlan(t *testing.T) {
 										},
 									},
 								},
-								Response: RPCMessage{
-									Name: "QueryFilterCategoriesResponse",
-									Fields: []RPCField{
-										{
-											Name:     "filter_categories",
-											TypeName: string(DataTypeMessage),
-											JSONPath: "filterCategories",
-											Repeated: true,
-											Message: &RPCMessage{
-												Name: "Category",
-												Fields: []RPCField{
-													{
-														Name:     "id",
-														TypeName: string(DataTypeString),
-														JSONPath: "id",
-													},
-													{
-														Name:     "name",
-														TypeName: string(DataTypeString),
-														JSONPath: "name",
-													},
-													{
-														Name:     "kind",
-														TypeName: string(DataTypeEnum),
-														JSONPath: "kind",
-														EnumName: "CategoryKind",
-													},
-												},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryFilterCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:     "filter_categories",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "filterCategories",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												EnumName: "CategoryKind",
 											},
 										},
 									},

@@ -16,17 +16,10 @@ const (
 // RPCExecutionPlan represents a plan for executing one or more RPC calls
 // to gRPC services. It defines the sequence of calls and their dependencies.
 type RPCExecutionPlan struct {
-	// Groups is a list of groups of gRPC calls that are executed in the same group
-	Groups []RPCCallGroup
+	// Calls is a list of gRPC calls that are executed in the same group
+	Calls []RPCCall
 	// TODO add mapping to the execution plan
 	// instead of the planner and the compiler?
-}
-
-// RPCCallGroup represents a group of gRPC calls that are executed in the same group
-// to make sure related calls are executed in the same group
-type RPCCallGroup struct {
-	// Calls is a list of gRPC calls to execute as part of this group
-	Calls []RPCCall
 }
 
 // RPCCall represents a single call to a gRPC service method.
@@ -116,35 +109,31 @@ func (r *RPCExecutionPlan) String() string {
 
 	result.WriteString("RPCExecutionPlan:\n")
 
-	for i, group := range r.Groups {
-		result.WriteString(fmt.Sprintf("  Group %d:\n", i))
+	for j, call := range r.Calls {
+		result.WriteString(fmt.Sprintf("    Call %d:\n", j))
+		result.WriteString(fmt.Sprintf("      CallID: %d\n", call.CallID))
 
-		for j, call := range group.Calls {
-			result.WriteString(fmt.Sprintf("    Call %d:\n", j))
-			result.WriteString(fmt.Sprintf("      CallID: %d\n", call.CallID))
-
-			if len(call.DependentCalls) > 0 {
-				result.WriteString("      DependentCalls: [")
-				for k, depID := range call.DependentCalls {
-					if k > 0 {
-						result.WriteString(", ")
-					}
-					result.WriteString(fmt.Sprintf("%d", depID))
+		if len(call.DependentCalls) > 0 {
+			result.WriteString("      DependentCalls: [")
+			for k, depID := range call.DependentCalls {
+				if k > 0 {
+					result.WriteString(", ")
 				}
-				result.WriteString("]\n")
-			} else {
-				result.WriteString("      DependentCalls: []\n")
+				result.WriteString(fmt.Sprintf("%d", depID))
 			}
-
-			result.WriteString(fmt.Sprintf("      Service: %s\n", call.ServiceName))
-			result.WriteString(fmt.Sprintf("      Method: %s\n", call.MethodName))
-
-			result.WriteString("      Request:\n")
-			formatRPCMessage(&result, call.Request, 8)
-
-			result.WriteString("      Response:\n")
-			formatRPCMessage(&result, call.Response, 8)
+			result.WriteString("]\n")
+		} else {
+			result.WriteString("      DependentCalls: []\n")
 		}
+
+		result.WriteString(fmt.Sprintf("      Service: %s\n", call.ServiceName))
+		result.WriteString(fmt.Sprintf("      Method: %s\n", call.MethodName))
+
+		result.WriteString("      Request:\n")
+		formatRPCMessage(&result, call.Request, 8)
+
+		result.WriteString("      Response:\n")
+		formatRPCMessage(&result, call.Response, 8)
 	}
 
 	return result.String()

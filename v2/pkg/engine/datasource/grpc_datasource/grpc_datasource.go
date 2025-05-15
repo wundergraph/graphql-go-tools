@@ -79,37 +79,27 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return err
 	}
 
-	invocationGroups := make(map[int][]Invocation)
-
+	// make gRPC calls
 	for _, invocation := range invocations {
-		invocationGroups[invocation.GroupIndex] = append(invocationGroups[invocation.GroupIndex], invocation)
-	}
-
-	for i := 0; i < len(invocationGroups); i++ {
-		group := invocationGroups[i]
-
-		// make gRPC calls
-		for _, invocation := range group {
-			// Invoke the gRPC method - this will populate invocation.Output
-			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
-			err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
-			if err != nil {
-				out.Write(writeErrorBytes(err))
-				return nil
-			}
-
-			a := astjson.Arena{}
-			responseJSON, err := d.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
-			if err != nil {
-				return err
-			}
-
-			root := a.NewObject()
-			root.Set("data", responseJSON)
-
-			// write output to out
-			out.Write(root.MarshalTo(nil))
+		// Invoke the gRPC method - this will populate invocation.Output
+		methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
+		err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
+		if err != nil {
+			out.Write(writeErrorBytes(err))
+			return nil
 		}
+
+		a := astjson.Arena{}
+		responseJSON, err := d.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+		if err != nil {
+			return err
+		}
+
+		root := a.NewObject()
+		root.Set("data", responseJSON)
+
+		// write output to out
+		out.Write(root.MarshalTo(nil))
 	}
 
 	return nil

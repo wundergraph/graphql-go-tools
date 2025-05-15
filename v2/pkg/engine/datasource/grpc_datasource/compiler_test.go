@@ -198,36 +198,32 @@ func TestBuildProtoMessage(t *testing.T) {
 	// Create an execution plan that defines how to build the protobuf message
 	// This plan describes how to call the LookupProductById method
 	executionPlan := &RPCExecutionPlan{
-		Groups: []RPCCallGroup{
+		Calls: []RPCCall{
 			{
-				Calls: []RPCCall{
-					{
-						ServiceName: "ProductService",
-						MethodName:  "LookupProductById",
-						// Define the structure of the request message
-						Request: RPCMessage{
-							Name: "LookupProductByIdRequest",
-							Fields: []RPCField{
-								{
-									Name:     "inputs",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations", // Path to extract data from GraphQL variables
-									Message: &RPCMessage{
-										Name: "LookupProductByIdInput",
-										Fields: []RPCField{
-											{
-												Name:     "key",
-												TypeName: string(DataTypeMessage),
-												Message: &RPCMessage{
-													Name: "ProductByIdKey",
-													Fields: []RPCField{
-														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id", // Extract 'id' from each representation
-														},
-													},
+				ServiceName: "ProductService",
+				MethodName:  "LookupProductById",
+				// Define the structure of the request message
+				Request: RPCMessage{
+					Name: "LookupProductByIdRequest",
+					Fields: []RPCField{
+						{
+							Name:     "inputs",
+							TypeName: string(DataTypeMessage),
+							Repeated: true,
+							JSONPath: "representations", // Path to extract data from GraphQL variables
+							Message: &RPCMessage{
+								Name: "LookupProductByIdInput",
+								Fields: []RPCField{
+									{
+										Name:     "key",
+										TypeName: string(DataTypeMessage),
+										Message: &RPCMessage{
+											Name: "ProductByIdKey",
+											Fields: []RPCField{
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id", // Extract 'id' from each representation
 												},
 											},
 										},
@@ -235,40 +231,40 @@ func TestBuildProtoMessage(t *testing.T) {
 								},
 							},
 						},
-						// Define the structure of the response message
-						Response: RPCMessage{
-							Name: "LookupProductByIdResponse",
-							Fields: []RPCField{
-								{
-									Name:     "results",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "results",
-									Message: &RPCMessage{
-										Name: "LookupProductByIdResult",
-										Fields: []RPCField{
-											{
-												Name:     "product",
-												TypeName: string(DataTypeMessage),
-												Message: &RPCMessage{
-													Name: "Product",
-													Fields: []RPCField{
-														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
-														},
-														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
-														},
-														{
-															Name:     "price",
-															TypeName: string(DataTypeDouble),
-															JSONPath: "price",
-														},
-													},
+					},
+				},
+				// Define the structure of the response message
+				Response: RPCMessage{
+					Name: "LookupProductByIdResponse",
+					Fields: []RPCField{
+						{
+							Name:     "results",
+							TypeName: string(DataTypeMessage),
+							Repeated: true,
+							JSONPath: "results",
+							Message: &RPCMessage{
+								Name: "LookupProductByIdResult",
+								Fields: []RPCField{
+									{
+										Name:     "product",
+										TypeName: string(DataTypeMessage),
+										Message: &RPCMessage{
+											Name: "Product",
+											Fields: []RPCField{
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "price",
+													TypeName: string(DataTypeDouble),
+													JSONPath: "price",
 												},
 											},
 										},

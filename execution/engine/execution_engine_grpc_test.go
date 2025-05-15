@@ -342,7 +342,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 		require.NoError(t, err)
-		require.Equal(t, `{"data":{"typeWithMultipleFilterFields":[{"id":"filtered-1","name":" 1"},{"id":"filtered-2","name":" 2"}]}}`, response)
+		require.Equal(t, `{"data":{"typeWithMultipleFilterFields":[{"id":"filtered-1","name":"Filter: 1"},{"id":"filtered-2","name":"Filter: 2"}]}}`, response)
 	})
 
 	t.Run("should run query with a nested type", func(t *testing.T) {

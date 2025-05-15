@@ -309,7 +309,6 @@ func (p *RPCCompiler) ConstructExecutionPlan(operation, schema *ast.Document) (*
 
 // Invocation represents a single gRPC invocation with its input and output messages.
 type Invocation struct {
-	GroupIndex  int
 	ServiceName string
 	MethodName  string
 	Input       *dynamicpb.Message
@@ -320,34 +319,31 @@ type Invocation struct {
 // Compile processes an RPCExecutionPlan and builds protobuf messages from JSON data
 // based on the compiled schema.
 func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]Invocation, error) {
-	invocations := make([]Invocation, 0, len(executionPlan.Groups))
+	invocations := make([]Invocation, 0, len(executionPlan.Calls))
 
-	for i, group := range executionPlan.Groups {
-		for _, call := range group.Calls {
-			inputMessage := p.doc.MessageByName(call.Request.Name)
-			outputMessage := p.doc.MessageByName(call.Response.Name)
+	for _, call := range executionPlan.Calls {
+		inputMessage := p.doc.MessageByName(call.Request.Name)
+		outputMessage := p.doc.MessageByName(call.Response.Name)
 
-			request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
-			response := p.newEmptyMessage(outputMessage)
+		request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
+		response := p.newEmptyMessage(outputMessage)
 
-			if p.report.HasErrors() {
-				return nil, fmt.Errorf("failed to compile invocation: %w", p.report)
-			}
-
-			serviceName, ok := p.resolveServiceName(call.MethodName)
-			if !ok {
-				return nil, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
-			}
-
-			invocations = append(invocations, Invocation{
-				GroupIndex:  i,
-				ServiceName: serviceName,
-				MethodName:  call.MethodName,
-				Input:       request,
-				Output:      response,
-				Call:        &call,
-			})
+		if p.report.HasErrors() {
+			return nil, fmt.Errorf("failed to compile invocation: %w", p.report)
 		}
+
+		serviceName, ok := p.resolveServiceName(call.MethodName)
+		if !ok {
+			return nil, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
+		}
+
+		invocations = append(invocations, Invocation{
+			ServiceName: serviceName,
+			MethodName:  call.MethodName,
+			Input:       request,
+			Output:      response,
+			Call:        &call,
+		})
 	}
 
 	return invocations, nil
