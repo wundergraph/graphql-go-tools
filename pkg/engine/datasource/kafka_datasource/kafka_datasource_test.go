@@ -11,7 +11,6 @@ import (
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/datasourcetesting"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/plan"
 	"github.com/TykTechnologies/graphql-go-tools/pkg/engine/resolve"
-	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -268,7 +267,7 @@ func TestKafkaDataSource_Subscription_Start(t *testing.T) {
 		fr.SetMessageWithKey(topic, defaultPartition, 0, testMessageKey, testMessageValue)
 
 		nextBytes := <-next
-		assert.Equal(t, `{"data":{"stock":[{"name":"Trilby","price":293,"inStock":2}]}}`, string(nextBytes))
+		assert.Equal(t, `{"stock":[{"name":"Trilby","price":293,"inStock":2}]}`, string(nextBytes))
 
 		cancelSubscription()
 		_, ok := <-next
@@ -310,7 +309,5 @@ func TestKafkaConsumerGroupBridge_Subscribe(t *testing.T) {
 	expectedMsg, err := testMessageValue.Encode()
 	require.NoError(t, err)
 
-	value, _, _, err := jsonparser.Get(msg, "data")
-	require.NoError(t, err)
-	require.Equal(t, expectedMsg, value)
+	require.Equal(t, expectedMsg, msg)
 }

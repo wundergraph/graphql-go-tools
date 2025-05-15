@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	"github.com/buger/jsonparser"
 	log "github.com/jensneuse/abstractlogger"
 )
 
@@ -307,12 +306,7 @@ func (c *KafkaConsumerGroupBridge) Subscribe(ctx context.Context, options GraphQ
 				if !ok {
 					return
 				}
-				// The "data" field contains the result of your GraphQL request.
-				result, err := jsonparser.Set([]byte(`{}`), msg.Value, "data")
-				if err != nil {
-					return
-				}
-				next <- result
+				next <- msg.Value
 			}
 		}
 	}()
