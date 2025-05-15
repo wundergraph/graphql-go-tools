@@ -48,7 +48,6 @@ type DataSourceConfig struct {
 
 // NewDataSource creates a new gRPC datasource
 func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-
 	planner := NewPlanner(config.SubgraphName, config.Mapping)
 	plan, err := planner.PlanOperation(config.Operation, config.Definition)
 	if err != nil {
@@ -79,6 +78,9 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return err
 	}
 
+	a := astjson.Arena{}
+	root := a.NewObject()
+
 	// make gRPC calls
 	for _, invocation := range invocations {
 		// Invoke the gRPC method - this will populate invocation.Output
@@ -89,18 +91,21 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			return nil
 		}
 
-		a := astjson.Arena{}
 		responseJSON, err := d.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
 		if err != nil {
 			return err
 		}
 
-		root := a.NewObject()
-		root.Set("data", responseJSON)
-
-		// write output to out
-		out.Write(root.MarshalTo(nil))
+		root, _, err = astjson.MergeValues(root, responseJSON)
+		if err != nil {
+			out.Write(writeErrorBytes(err))
+			return nil
+		}
 	}
+
+	data := a.NewObject()
+	data.Set("data", root)
+	out.Write(data.MarshalTo(nil))
 
 	return nil
 }

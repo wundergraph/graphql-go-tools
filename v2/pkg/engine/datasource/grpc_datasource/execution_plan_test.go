@@ -341,6 +341,30 @@ func TestQueryExecutionPlans(t *testing.T) {
 		{
 			name:  "Should include typename when requested",
 			query: `query UsersWithTypename { users { __typename id name } }`,
+			mapping: &GRPCMapping{
+				QueryRPCs: map[string]RPCConfig{
+					"users": {
+						RPC:      "QueryUsers",
+						Request:  "QueryUsersRequest",
+						Response: "QueryUsersResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"users": {
+							TargetName: "users",
+						},
+					},
+					"User": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+					},
+				},
+			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -385,13 +409,110 @@ func TestQueryExecutionPlans(t *testing.T) {
 				},
 			},
 		},
-
+		{
+			name: "Should allow multiple user calls in a single query",
+			query: `query MultipleUserCalls { 
+				users { id name }
+				user(id: "1") { id name }
+				}`,
+			mapping: &GRPCMapping{
+				QueryRPCs: map[string]RPCConfig{
+					"users": {
+						RPC:      "QueryUsers",
+						Request:  "QueryUsersRequest",
+						Response: "QueryUsersResponse",
+					},
+					"user": {
+						RPC:      "QueryUser",
+						Request:  "QueryUserRequest",
+						Response: "QueryUserResponse",
+					},
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryUsers",
+						Request: RPCMessage{
+							Name: "QueryUsersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryUsersResponse",
+							Fields: []RPCField{
+								{
+									Name:     "users",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "users",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryUser",
+						CallID:      1,
+						Request: RPCMessage{
+							Name: "QueryUserRequest",
+							Fields: []RPCField{
+								{
+									Name:     "id",
+									TypeName: string(DataTypeString),
+									JSONPath: "id",
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryUserResponse",
+							Fields: []RPCField{
+								{
+									Name:     "user",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "user",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 		{
 			name:  "Should call query with two arguments and no variables and mapping for field names",
 			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
 			mapping: &GRPCMapping{
 				QueryRPCs: map[string]RPCConfig{
-					"Query": {
+					"typeFilterWithArguments": {
 						RPC:      "QueryTypeFilterWithArguments",
 						Request:  "QueryTypeFilterWithArgumentsRequest",
 						Response: "QueryTypeFilterWithArgumentsResponse",
@@ -481,7 +602,19 @@ func TestQueryExecutionPlans(t *testing.T) {
 			name:  "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
 			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
 			mapping: &GRPCMapping{
+				QueryRPCs: RPCConfigMap{
+					"complexFilterType": {
+						RPC:      "QueryComplexFilterType",
+						Request:  "QueryComplexFilterTypeRequest",
+						Response: "QueryComplexFilterTypeResponse",
+					},
+				},
 				Fields: map[string]FieldMap{
+					"Query": {
+						"complexFilterType": {
+							TargetName: "complex_filter_type",
+						},
+					},
 					"FilterType": {
 						"filterField1": {
 							TargetName: "filter_field1",
@@ -567,7 +700,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Fields: []RPCField{
 								{
 									Repeated: true,
-									Name:     "complexFilterType",
+									Name:     "complex_filter_type",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "complexFilterType",
 									Message: &RPCMessage{
@@ -1160,8 +1293,8 @@ func TestQueryExecutionPlans(t *testing.T) {
 			walker.Walk(&queryDoc, &schemaDoc, &report)
 
 			if report.HasErrors() {
-				require.NotEmpty(t, tt.expectedError)
 				require.Contains(t, report.Error(), tt.expectedError)
+				require.NotEmpty(t, tt.expectedError)
 				return
 			}
 

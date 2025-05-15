@@ -60,6 +60,7 @@ type rpcPlanVisitor struct {
 	plan                   *RPCExecutionPlan
 	operationDefinitionRef int
 	operationFieldRef      int
+	operationFieldRefs     []int
 	currentCall            *RPCCall
 	currentCallID          int
 }
@@ -82,7 +83,7 @@ func newRPCPlanVisitor(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
-	walker.RegisterOperationDefinitionVisitor(visitor)
+	walker.RegisterEnterOperationVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
 	walker.RegisterInlineFragmentVisitor(visitor)
@@ -114,30 +115,10 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 	// Retrieves the fields from the root selection set.
 	// These fields determine the names for the RPC functions to call.
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
-	fieldRefs := r.operation.SelectionSetFieldSelections(selectionSetRef)
-	operationFieldRef := r.operation.Selections[fieldRefs[r.currentCallID]].Ref
+	r.operationFieldRefs = r.operation.SelectionSetFieldSelections(selectionSetRef)
 
-	r.operationFieldRef = operationFieldRef
-	r.planInfo.operationFieldName = r.operation.FieldNameString(r.operationFieldRef)
-
-	// _entities is a special field that is used to look up entities
-	// Entity lookups are handled differently as we use special types for
-	// Providing variables (_Any) and the response type is a Union that needs to be
-	// determined from the first inline fragment.
-	if r.planInfo.operationFieldName == "_entities" {
-		r.planInfo.entityInfo = entityInfo{
-			entityRootFieldRef:      -1,
-			entityInlineFragmentRef: -1,
-		}
-		r.planInfo.isEntityLookup = true
-	}
-
+	r.plan.Calls = make([]RPCCall, len(r.operationFieldRefs))
 	r.planInfo.operationType = r.operation.OperationDefinitions[ref].OperationType
-}
-
-// LeaveOperationDefinition implements astvisitor.OperationDefinitionVisitor.
-func (r *rpcPlanVisitor) LeaveOperationDefinition(ref int) {
-	r.currentCallID++
 }
 
 // EnterArgument implements astvisitor.EnterArgumentVisitor.
@@ -171,23 +152,6 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 // We need to create a new call for each entity lookup.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
-		r.currentCall = &RPCCall{
-			CallID:      r.currentCallID,
-			ServiceName: r.resolveServiceName(),
-		}
-
-		// attempt to resolve the name from the mapping
-		if err := r.resolveRPCMethodMapping(); err != nil {
-			r.walker.Report.AddInternalError(err)
-			r.walker.Stop()
-			return
-		}
-
-		r.planInfo.currentRequestMessage = &r.currentCall.Request
-		r.planInfo.currentResponseMessage = &r.currentCall.Response
-
-		// The operation is in the root level below the operation definition.
-		// Only scaffolding the call here.
 		return
 	}
 
@@ -242,20 +206,6 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 		r.planInfo.currentResponseMessage = r.planInfo.responseMessageAncestors[len(r.planInfo.responseMessageAncestors)-1]
 		r.planInfo.responseMessageAncestors = r.planInfo.responseMessageAncestors[:len(r.planInfo.responseMessageAncestors)-1]
 	}
-
-	// Only scaffold the call if the method name is not set.
-	// This is a fallback for cases where the method name is not provided in the mapping.
-	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
-		if r.currentCall.MethodName == "" {
-			methodName := r.rpcMethodName()
-			r.currentCall.MethodName = methodName
-			r.currentCall.Request.Name = methodName + "Request"
-			r.currentCall.Response.Name = methodName + "Response"
-		}
-
-		r.plan.Calls = append(r.plan.Calls, *r.currentCall)
-		r.currentCall = nil
-	}
 }
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
@@ -277,10 +227,50 @@ func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
 	}
 }
 
+func (r *rpcPlanVisitor) isInRootField() bool {
+	return len(r.walker.Ancestors) == 2 && r.walker.Ancestors[0].Kind == ast.NodeKindOperationDefinition
+}
+
+func (r *rpcPlanVisitor) handleRootField(ref int) error {
+	r.operationFieldRef = ref
+	r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
+
+	r.currentCall = &RPCCall{
+		CallID:      r.currentCallID,
+		ServiceName: r.resolveServiceName(),
+	}
+
+	r.planInfo.currentRequestMessage = &r.currentCall.Request
+	r.planInfo.currentResponseMessage = &r.currentCall.Response
+
+	// attempt to resolve the name from the mapping
+	if err := r.resolveRPCMethodMapping(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // EnterField implements astvisitor.EnterFieldVisitor.
 func (r *rpcPlanVisitor) EnterField(ref int) {
 	fieldName := r.operation.FieldNameString(ref)
+	if r.isInRootField() {
+		if err := r.handleRootField(ref); err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+	}
+
 	if fieldName == "_entities" {
+		// _entities is a special field that is used to look up entities
+		// Entity lookups are handled differently as we use special types for
+		// Providing variables (_Any) and the response type is a Union that needs to be
+		// determined from the first inline fragment.
+		r.planInfo.entityInfo = entityInfo{
+			entityRootFieldRef:      ref,
+			entityInlineFragmentRef: -1,
+		}
+		r.planInfo.isEntityLookup = true
 		r.planInfo.entityInfo.entityRootFieldRef = ref
 		return
 	}
@@ -293,7 +283,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	fd, ok := r.walker.FieldDefinition(ref)
 	if !ok {
 		r.walker.Report.AddExternalError(operationreport.ExternalError{
-			Message: fmt.Sprintf("Field %s not found in definition", r.operation.FieldNameString(ref)),
+			Message: fmt.Sprintf("Field %s not found in definition %s", r.operation.FieldNameString(ref), r.walker.EnclosingTypeDefinition.NameString(r.definition)),
 		})
 		return
 	}
@@ -327,7 +317,30 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 		r.planInfo.entityInfo.entityRootFieldRef = -1
 	}
 
-	r.planInfo.currentResponseFieldIndex++
+	// If we are not in the operation field, we can increment the response field index.
+	if !r.isInRootField() {
+		r.planInfo.currentResponseFieldIndex++
+		return
+	}
+
+	// If we left the operation field, we need to finalize the current call and prepare the next one.
+	if r.currentCall.MethodName == "" {
+		methodName := r.rpcMethodName()
+		r.currentCall.MethodName = methodName
+		r.currentCall.Request.Name = methodName + "Request"
+		r.currentCall.Response.Name = methodName + "Response"
+	}
+
+	r.plan.Calls[r.currentCallID] = *r.currentCall
+	r.currentCall = &RPCCall{}
+
+	r.currentCallID++
+	if r.currentCallID < len(r.operationFieldRefs) {
+		r.operationFieldRef = r.operationFieldRefs[r.currentCallID]
+	}
+
+	r.planInfo.currentRequestFieldIndex = 0
+	r.planInfo.currentResponseFieldIndex = 0
 }
 
 // newMessgeFromSelectionSet creates a new message from a selection set.
