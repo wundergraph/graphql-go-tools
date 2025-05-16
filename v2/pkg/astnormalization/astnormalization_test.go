@@ -443,7 +443,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("Items"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, "  ")
 		assert.Equal(t, expectedQuery, actual)
 	})
 
@@ -752,7 +752,7 @@ func TestOperationNormalizer_NormalizeNamedOperation(t *testing.T) {
 		NormalizeNamedOperation(&operation, &definition, []byte("B"), &report)
 		assert.False(t, report.HasErrors())
 
-		actual, _ := astprinter.PrintStringIndent(&operation, " ")
+		actual, _ := astprinter.PrintStringIndent(&operation, "  ")
 		assert.Equal(t, expectedQuery, actual)
 
 		expectedVariables := ``

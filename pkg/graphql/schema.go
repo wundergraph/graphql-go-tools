@@ -103,7 +103,7 @@ func (s *Schema) Normalize() (result NormalizationResult, err error) {
 	}
 
 	normalizedSchemaBuffer := &bytes.Buffer{}
-	err = astprinter.PrintIndent(&s.document, nil, []byte("  "), normalizedSchemaBuffer)
+	err = astprinter.PrintIndent(&s.document, nil, []byte("    "), normalizedSchemaBuffer)
 	if err != nil {
 		return NormalizationResult{
 			Successful: false,
@@ -416,7 +416,7 @@ func createSchema(schemaContent []byte, mergeWithBaseSchema bool) (*Schema, erro
 		}
 
 		rawSchemaBuffer := &bytes.Buffer{}
-		err = astprinter.PrintIndent(&document, nil, []byte("  "), rawSchemaBuffer)
+		err = astprinter.PrintIndent(&document, nil, []byte("    "), rawSchemaBuffer)
 		if err != nil {
 			return nil, err
 		}

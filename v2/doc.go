@@ -139,7 +139,7 @@ func ExamplePrintWithIndentation() {
 		panic(report.Error())
 	}
 
-	out, err := astprinter.PrintStringIndent(document, "  ")
+	out, err := astprinter.PrintStringIndent(document, "    ")
 	if err != nil {
 		panic(err)
 	}
@@ -300,7 +300,7 @@ func ExampleNormalizeDocument() {
 		panic(report.Error())
 	}
 
-	out, err := astprinter.PrintStringIndent(document, "  ")
+	out, err := astprinter.PrintStringIndent(document, "    ")
 	if err != nil {
 		panic(err)
 	}
