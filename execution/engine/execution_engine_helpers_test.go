@@ -23,6 +23,7 @@ type roundTripperTestCase struct {
 	expectedHost     string
 	expectedPath     string
 	expectedBody     string
+	expectedMethod   string
 	sendStatusCode   int
 	sendResponseBody string
 }

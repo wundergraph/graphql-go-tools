@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -62,6 +63,7 @@ type ProxyEngineConfigFactory struct {
 	proxyUpstreamConfig       ProxyUpstreamConfig
 	subscriptionClientFactory graphqlDataSource.GraphQLSubscriptionClientFactory
 	engineCtx                 context.Context
+	grpcClient                grpc.ClientConnInterface
 }
 
 func NewProxyEngineConfigFactory(engineCtx context.Context, schema *graphql.Schema, proxyUpstreamConfig ProxyUpstreamConfig, opts ...ProxyEngineConfigFactoryOption) *ProxyEngineConfigFactory {
@@ -128,6 +130,7 @@ func (p *ProxyEngineConfigFactory) EngineConfiguration() (Configuration, error) 
 		p.dataSourceID,
 		dataSourceConfig,
 		p.httpClient,
+		p.grpcClient,
 		WithDataSourceGeneratorSubscriptionConfiguration(p.streamingClient, p.proxyUpstreamConfig.SubscriptionType),
 		WithDataSourceGeneratorSubscriptionClientFactory(p.subscriptionClientFactory),
 	)

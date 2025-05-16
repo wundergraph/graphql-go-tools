@@ -16,6 +16,7 @@ import (
 	"github.com/sebdah/goldie/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/wundergraph/graphql-go-tools/execution/federationtesting"
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
@@ -54,6 +55,15 @@ func mustFactory(t testing.TB, httpClient *http.Client) plan.PlannerFactory[grap
 	t.Helper()
 
 	factory, err := graphql_datasource.NewFactory(context.Background(), httpClient, graphql_datasource.NewGraphQLSubscriptionClient(httpClient, httpClient, context.Background()))
+	require.NoError(t, err)
+
+	return factory
+}
+
+func mustFactoryGRPC(t testing.TB, grpcClient grpc.ClientConnInterface) plan.PlannerFactory[graphql_datasource.Configuration] {
+	t.Helper()
+
+	factory, err := graphql_datasource.NewFactoryGRPC(context.Background(), grpcClient)
 	require.NoError(t, err)
 
 	return factory
@@ -290,10 +300,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 	}
 
 	runWithAndCompareError := func(testCase ExecutionEngineTestCase, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
+		t.Helper()
+
 		return run(testCase, true, expectedErrorMessage, options...)
 	}
 
 	runWithoutError := func(testCase ExecutionEngineTestCase, options ...executionTestOptions) func(t *testing.T) {
+		t.Helper()
+
 		return run(testCase, false, "", options...)
 	}
 
@@ -4083,7 +4097,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				type Query {
 					field(arg: Input): String
 				}
-				
+
 				input Input {
 					optional: String
 					required: String!
@@ -4886,16 +4900,16 @@ type Query {
 	me: User
 	topProducts(first: Int = 5): [Product]
 }
-		
+
 type Mutation {
 	setPrice(upc: String!, price: Int!): Product
-} 
+}
 
 type Subscription {
 	updatedPrice: Product!
 	counter: Int!
 }
-		
+
 type User {
 	id: ID!
 	name: String
@@ -4968,10 +4982,10 @@ const enumSDL = `
 		nullableEnums: [Enum]!
 		nestedEnums: Object!
 	}
-	
+
 	enum Enum {
 		A
-		B 
+		B
 		INACCESSIBLE @inaccessible
 	}
 
