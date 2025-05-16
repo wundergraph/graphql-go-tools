@@ -5,9 +5,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	goerrors "errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"net/http"
 	"net/http/httptrace"
 	"slices"
@@ -15,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -57,8 +57,8 @@ type ResponseInfo struct {
 	ResponseHeaders http.Header
 }
 
-func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
-	responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, subgraphError)}
+func newResponseInfo(res *result, err error) *ResponseInfo {
+	responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: err}
 	if res.httpResponseContext != nil {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
 		// cause a memory leak.
@@ -197,7 +197,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 				if l.ctx.LoaderHooks != nil && results[i].nestedMergeItems[j].loaderHookContext != nil {
 					l.ctx.LoaderHooks.OnFinished(results[i].nestedMergeItems[j].loaderHookContext,
 						results[i].nestedMergeItems[j].ds,
-						newResponseInfo(results[i].nestedMergeItems[j], l.ctx.subgraphErrors))
+						newResponseInfo(results[i].nestedMergeItems[j], l.ctx.error))
 				}
 				if err != nil {
 					return errors.WithStack(err)
@@ -206,7 +206,7 @@ func (l *Loader) resolveParallel(nodes []*FetchTreeNode) error {
 		} else {
 			err = l.mergeResult(nodes[i].Item, results[i], itemsItems[i])
 			if l.ctx.LoaderHooks != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.error))
 			}
 			if err != nil {
 				return errors.WithStack(err)
@@ -242,8 +242,12 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return err
 		}
 		err = l.mergeResult(item, res, items)
+
+		if res.err != nil {
+			l.ctx.appendError(res.err)
+		}
 		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.error))
 		}
 
 		return err
@@ -256,9 +260,14 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
+
+		if res.err != nil {
+			l.ctx.appendError(res.err)
 		}
+		if l.ctx.LoaderHooks != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.error))
+		}
+
 		return err
 	case *EntityFetch:
 		res := &result{
@@ -269,9 +278,14 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			return errors.WithStack(err)
 		}
 		err = l.mergeResult(item, res, items)
-		if l.ctx.LoaderHooks != nil {
-			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
+		if res.err != nil {
+			l.ctx.appendError(res.err)
 		}
+
+		if l.ctx.LoaderHooks != nil {
+			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.error))
+		}
+
 		return err
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
@@ -302,9 +316,14 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		for i := range results {
 			err = l.mergeResult(item, results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
+
+			if results[i].err != nil {
+				l.ctx.appendError(results[i].err)
 			}
+			if l.ctx.LoaderHooks != nil {
+				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.error))
+			}
+
 			if err != nil {
 				return errors.WithStack(err)
 			}
@@ -693,7 +712,7 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 		subgraphError.AppendDownstreamError(&gErr)
 	}
 
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+	l.ctx.appendError(subgraphError)
 
 	return nil
 }
@@ -1006,7 +1025,8 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
+	l.ctx.appendError(NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+
 	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
@@ -1032,7 +1052,7 @@ func (l *Loader) renderSubgraphBaseError(ds DataSourceInfo, path, reason string)
 
 func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode)))
+		l.ctx.appendError(NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
@@ -1073,7 +1093,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 }
 
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
+	l.ctx.appendError(NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	var (
 		err         error
