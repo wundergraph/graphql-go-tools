@@ -126,9 +126,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("type introspection request", runTest(schema, typeIntrospection,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
@@ -145,6 +145,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__type"),
@@ -205,9 +207,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("schema introspection request", runTest(schema, schemaIntrospection,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":1}`,
@@ -218,6 +220,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__schema"),
@@ -271,9 +275,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("schema introspection request with custom root operation types", runTest(schemaWithCustomRootOperationTypes, schemaIntrospectionForAllRootOperationTypeNames,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":1}`,
@@ -284,6 +288,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__schema"),
@@ -393,9 +399,9 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 	t.Run("type introspection request with fields args", runTest(schema, typeIntrospectionWithArgs,
 		&plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							DataSourceIdentifier: dataSourceIdentifier,
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input:      `{"request_type":2,"type_name":"$$0$$"}`,
@@ -412,6 +418,8 @@ func TestIntrospectionDataSourcePlanning(t *testing.T) {
 							},
 						},
 					},
+				},
+				Data: &resolve.Object{
 					Fields: []*resolve.Field{
 						{
 							Name: []byte("__type"),

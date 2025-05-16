@@ -3,6 +3,7 @@ package resolve
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -27,6 +28,18 @@ type FetchItem struct {
 	FetchPath            []FetchItemPathElement
 	ResponsePath         string
 	ResponsePathElements []string
+}
+
+func FetchItemWithPath(fetch Fetch, responsePath string, path ...FetchItemPathElement) *FetchItem {
+	item := &FetchItem{
+		Fetch:        fetch,
+		FetchPath:    path,
+		ResponsePath: responsePath,
+	}
+	if responsePath != "" {
+		item.ResponsePathElements = strings.Split(responsePath, ".")
+	}
+	return item
 }
 
 func (f *FetchItem) Equals(other *FetchItem) bool {

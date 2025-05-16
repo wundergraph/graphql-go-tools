@@ -116,6 +116,16 @@ func TestPlanner_Plan(t *testing.T) {
 		}
 	`, "SearchResults", &SynchronousResponsePlan{
 		Response: &resolve.GraphQLResponse{
+			RawFetches: []*resolve.FetchItem{
+				{
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
 			Data: &resolve.Object{
 				Nullable: false,
 				Fields: []*resolve.Field{
@@ -158,14 +168,6 @@ func TestPlanner_Plan(t *testing.T) {
 						},
 					},
 				},
-				Fetches: []resolve.Fetch{
-					&resolve.SingleFetch{
-						FetchConfiguration: resolve.FetchConfiguration{
-							DataSource: &FakeDataSource{&StatefulSource{}},
-						},
-						DataSourceIdentifier: []byte("plan.FakeDataSource"),
-					},
-				},
 			},
 		},
 	}, Configuration{
@@ -189,6 +191,16 @@ func TestPlanner_Plan(t *testing.T) {
 			}
 			`, "Hero", &SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
+						},
+					},
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -225,14 +237,6 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-						},
-					},
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource: &FakeDataSource{&StatefulSource{}},
-							},
-							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
 					},
 				},
@@ -256,6 +260,16 @@ func TestPlanner_Plan(t *testing.T) {
 			}
 			`, "Hero", &SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
+							FetchConfiguration: resolve.FetchConfiguration{
+								DataSource: &FakeDataSource{&StatefulSource{}},
+							},
+							DataSourceIdentifier: []byte("plan.FakeDataSource"),
+						},
+					},
+				},
 				Data: &resolve.Object{
 					Nullable: false,
 					Fields: []*resolve.Field{
@@ -285,14 +299,6 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-						},
-					},
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
-							FetchConfiguration: resolve.FetchConfiguration{
-								DataSource: &FakeDataSource{&StatefulSource{}},
-							},
-							DataSourceIdentifier: []byte("plan.FakeDataSource"),
 						},
 					},
 				},
@@ -424,6 +430,16 @@ func TestPlanner_Plan(t *testing.T) {
 				&SynchronousResponsePlan{
 					FlushInterval: 0,
 					Response: &resolve.GraphQLResponse{
+						RawFetches: []*resolve.FetchItem{
+							{
+								Fetch: &resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
+								},
+							},
+						},
 						Data: &resolve.Object{
 							Fields: []*resolve.Field{
 								{
@@ -444,12 +460,6 @@ func TestPlanner_Plan(t *testing.T) {
 									},
 								},
 							},
-							Fetches: []resolve.Fetch{&resolve.SingleFetch{
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource: &FakeDataSource{&StatefulSource{}},
-								},
-								DataSourceIdentifier: []byte("plan.FakeDataSource"),
-							}},
 						},
 					},
 				},
@@ -477,6 +487,16 @@ func TestPlanner_Plan(t *testing.T) {
 				&SynchronousResponsePlan{
 					FlushInterval: 0,
 					Response: &resolve.GraphQLResponse{
+						RawFetches: []*resolve.FetchItem{
+							{
+								Fetch: &resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
+								},
+							},
+						},
 						Data: &resolve.Object{
 							Fields: []*resolve.Field{
 								{
@@ -497,14 +517,6 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 									},
-								},
-							},
-							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource: &FakeDataSource{&StatefulSource{}},
-									},
-									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
 							},
 						},
@@ -537,6 +549,16 @@ func TestPlanner_Plan(t *testing.T) {
 				&SynchronousResponsePlan{
 					FlushInterval: 0,
 					Response: &resolve.GraphQLResponse{
+						RawFetches: []*resolve.FetchItem{
+							{
+								Fetch: &resolve.SingleFetch{
+									FetchConfiguration: resolve.FetchConfiguration{
+										DataSource: &FakeDataSource{&StatefulSource{}},
+									},
+									DataSourceIdentifier: []byte("plan.FakeDataSource"),
+								},
+							},
+						},
 						Data: &resolve.Object{
 							Fields: []*resolve.Field{
 								{
@@ -554,14 +576,6 @@ func TestPlanner_Plan(t *testing.T) {
 											},
 										},
 									},
-								},
-							},
-							Fetches: []resolve.Fetch{
-								&resolve.SingleFetch{
-									FetchConfiguration: resolve.FetchConfiguration{
-										DataSource: &FakeDataSource{&StatefulSource{}},
-									},
-									DataSourceIdentifier: []byte("plan.FakeDataSource"),
 								},
 							},
 						},
@@ -670,6 +684,16 @@ func TestPlanner_Plan(t *testing.T) {
 var expectedMyHeroPlan = &SynchronousResponsePlan{
 	FlushInterval: 0,
 	Response: &resolve.GraphQLResponse{
+		RawFetches: []*resolve.FetchItem{
+			{
+				Fetch: &resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
+				},
+			},
+		},
 		Data: &resolve.Object{
 			Fields: []*resolve.Field{
 				{
@@ -698,14 +722,6 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 					},
 				},
 			},
-			Fetches: []resolve.Fetch{
-				&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &FakeDataSource{&StatefulSource{}},
-					},
-					DataSourceIdentifier: []byte("plan.FakeDataSource"),
-				},
-			},
 		},
 	},
 }
@@ -713,6 +729,16 @@ var expectedMyHeroPlan = &SynchronousResponsePlan{
 var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 	FlushInterval: 0,
 	Response: &resolve.GraphQLResponse{
+		RawFetches: []*resolve.FetchItem{
+			{
+				Fetch: &resolve.SingleFetch{
+					FetchConfiguration: resolve.FetchConfiguration{
+						DataSource: &FakeDataSource{&StatefulSource{}},
+					},
+					DataSourceIdentifier: []byte("plan.FakeDataSource"),
+				},
+			},
+		},
 		Data: &resolve.Object{
 			Fields: []*resolve.Field{
 				{
@@ -740,14 +766,6 @@ var expectedMyHeroPlanWithFragment = &SynchronousResponsePlan{
 							},
 						},
 					},
-				},
-			},
-			Fetches: []resolve.Fetch{
-				&resolve.SingleFetch{
-					FetchConfiguration: resolve.FetchConfiguration{
-						DataSource: &FakeDataSource{&StatefulSource{}},
-					},
-					DataSourceIdentifier: []byte("plan.FakeDataSource"),
 				},
 			},
 		},

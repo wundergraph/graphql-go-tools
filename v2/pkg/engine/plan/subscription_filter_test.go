@@ -128,6 +128,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -212,6 +213,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -279,6 +281,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					Input: []byte{},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -367,6 +370,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -455,6 +459,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -547,6 +552,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -652,6 +658,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -767,6 +774,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -889,6 +897,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
@@ -989,6 +998,7 @@ func TestPlanSubscriptionFilter(t *testing.T) {
 					},
 				},
 				Response: &resolve.GraphQLResponse{
+					RawFetches: []*resolve.FetchItem{},
 					Data: &resolve.Object{
 						Fields: []*resolve.Field{
 							{
