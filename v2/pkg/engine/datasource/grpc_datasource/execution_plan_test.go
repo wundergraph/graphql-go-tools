@@ -1270,6 +1270,164 @@ func TestQueryExecutionPlans(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Should query total orders by using input type with lists",
+			query: `
+			query CalculateTotalsQuery { 
+				calculateTotals(
+					orders: [
+						{ orderId: "1", customerName: "John", lines: [{ productId: "1", quantity: 10 }, { productId: "2", quantity: 20 }] }, 
+						{ orderId: "2", customerName: "Jane", lines: [{ productId: "3", quantity: 30 }, { productId: "4", quantity: 40 }] }
+						]
+					) { 
+						orderId 
+						customerName 
+						totalItems 
+					} 
+				}`,
+			mapping: &GRPCMapping{
+				Service: "Products",
+				QueryRPCs: map[string]RPCConfig{
+					"calculateTotals": {
+						RPC:      "QueryCalculateTotals",
+						Request:  "QueryCalculateTotalsRequest",
+						Response: "QueryCalculateTotalsResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"calculateTotals": {
+							TargetName: "calculate_totals",
+						},
+					},
+					"Order": {
+						"orderId": {
+							TargetName: "order_id",
+						},
+						"customerName": {
+							TargetName: "customer_name",
+						},
+						"totalItems": {
+							TargetName: "total_items",
+						},
+					},
+					"OrderInput": {
+						"orderId": {
+							TargetName: "order_id",
+						},
+						"customerName": {
+							TargetName: "customer_name",
+						},
+						"lines": {
+							TargetName: "lines",
+						},
+					},
+					"OrderLineInput": {
+						"productId": {
+							TargetName: "product_id",
+						},
+						"quantity": {
+							TargetName: "quantity",
+						},
+						"modifiers": {
+							TargetName: "modifiers",
+						},
+					},
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCalculateTotals",
+						Request: RPCMessage{
+							Name: "QueryCalculateTotalsRequest",
+							Fields: []RPCField{
+								{
+									Name:     "orders",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "orders",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "OrderInput",
+										Fields: []RPCField{
+											{
+												Name:     "order_id",
+												TypeName: string(DataTypeString),
+												JSONPath: "orderId",
+											},
+											{
+												Name:     "customer_name",
+												TypeName: string(DataTypeString),
+												JSONPath: "customerName",
+											},
+											{
+												Name:     "lines",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "lines",
+												Repeated: true,
+												Message: &RPCMessage{
+													Name: "OrderLineInput",
+													Fields: []RPCField{
+														{
+															Name:     "product_id",
+															TypeName: string(DataTypeString),
+															JSONPath: "productId",
+														},
+														{
+															Name:     "quantity",
+															TypeName: string(DataTypeInt32),
+															JSONPath: "quantity",
+														},
+														{
+															Name:     "modifiers",
+															TypeName: string(DataTypeString),
+															JSONPath: "modifiers",
+															Repeated: true,
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryCalculateTotalsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "calculate_totals",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "calculateTotals",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Order",
+										Fields: []RPCField{
+											{
+												Name:     "order_id",
+												TypeName: string(DataTypeString),
+												JSONPath: "orderId",
+											},
+											{
+												Name:     "customer_name",
+												TypeName: string(DataTypeString),
+												JSONPath: "customerName",
+											},
+											{
+												Name:     "total_items",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "totalItems",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

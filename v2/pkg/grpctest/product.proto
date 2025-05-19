@@ -8,6 +8,7 @@ service ProductService {
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
   rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
+  rpc QueryCalculateTotals(QueryCalculateTotalsRequest) returns (QueryCalculateTotalsResponse) {}
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
   rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
   rpc QueryCategoriesByKinds(QueryCategoriesByKindsRequest) returns (QueryCategoriesByKindsResponse) {}
@@ -85,6 +86,12 @@ message QueryComplexFilterTypeRequest {
 }
 message QueryComplexFilterTypeResponse {
     repeated TypeWithComplexFilterInput complex_filter_type = 1;
+}
+message QueryCalculateTotalsRequest {
+    repeated OrderInput orders = 1;
+}
+message QueryCalculateTotalsResponse {
+    repeated Order calculate_totals = 1;
 }
 message QueryCategoriesRequest {
 }
@@ -176,6 +183,18 @@ message TypeWithComplexFilterInput {
   string name = 2;
 }
 
+message OrderInput {
+  string order_id = 1;
+  string customer_name = 2;
+  repeated OrderLineInput lines = 3;
+}
+
+message Order {
+  string order_id = 1;
+  string customer_name = 2;
+  int32 total_items = 3;
+}
+
 message Category {
   string id = 1;
   string name = 2;
@@ -219,6 +238,12 @@ message FilterType {
 message Pagination {
   int32 page = 1;
   int32 per_page = 2;
+}
+
+message OrderLineInput {
+  string product_id = 1;
+  int32 quantity = 2;
+  repeated string modifiers = 3;
 }
 
 enum CategoryKind {

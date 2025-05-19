@@ -23,6 +23,7 @@ const (
 	ProductService_LookupStorageById_FullMethodName                 = "/productv1.ProductService/LookupStorageById"
 	ProductService_MutationCreateUser_FullMethodName                = "/productv1.ProductService/MutationCreateUser"
 	ProductService_QueryAllPets_FullMethodName                      = "/productv1.ProductService/QueryAllPets"
+	ProductService_QueryCalculateTotals_FullMethodName              = "/productv1.ProductService/QueryCalculateTotals"
 	ProductService_QueryCategories_FullMethodName                   = "/productv1.ProductService/QueryCategories"
 	ProductService_QueryCategoriesByKind_FullMethodName             = "/productv1.ProductService/QueryCategoriesByKind"
 	ProductService_QueryCategoriesByKinds_FullMethodName            = "/productv1.ProductService/QueryCategoriesByKinds"
@@ -45,6 +46,7 @@ type ProductServiceClient interface {
 	LookupStorageById(ctx context.Context, in *LookupStorageByIdRequest, opts ...grpc.CallOption) (*LookupStorageByIdResponse, error)
 	MutationCreateUser(ctx context.Context, in *MutationCreateUserRequest, opts ...grpc.CallOption) (*MutationCreateUserResponse, error)
 	QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error)
+	QueryCalculateTotals(ctx context.Context, in *QueryCalculateTotalsRequest, opts ...grpc.CallOption) (*QueryCalculateTotalsResponse, error)
 	QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(ctx context.Context, in *QueryCategoriesByKindRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindResponse, error)
 	QueryCategoriesByKinds(ctx context.Context, in *QueryCategoriesByKindsRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindsResponse, error)
@@ -101,6 +103,16 @@ func (c *productServiceClient) QueryAllPets(ctx context.Context, in *QueryAllPet
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryAllPetsResponse)
 	err := c.cc.Invoke(ctx, ProductService_QueryAllPets_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryCalculateTotals(ctx context.Context, in *QueryCalculateTotalsRequest, opts ...grpc.CallOption) (*QueryCalculateTotalsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryCalculateTotalsResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryCalculateTotals_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +247,7 @@ type ProductServiceServer interface {
 	LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error)
 	MutationCreateUser(context.Context, *MutationCreateUserRequest) (*MutationCreateUserResponse, error)
 	QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error)
+	QueryCalculateTotals(context.Context, *QueryCalculateTotalsRequest) (*QueryCalculateTotalsResponse, error)
 	QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(context.Context, *QueryCategoriesByKindRequest) (*QueryCategoriesByKindResponse, error)
 	QueryCategoriesByKinds(context.Context, *QueryCategoriesByKindsRequest) (*QueryCategoriesByKindsResponse, error)
@@ -268,6 +281,9 @@ func (UnimplementedProductServiceServer) MutationCreateUser(context.Context, *Mu
 }
 func (UnimplementedProductServiceServer) QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryAllPets not implemented")
+}
+func (UnimplementedProductServiceServer) QueryCalculateTotals(context.Context, *QueryCalculateTotalsRequest) (*QueryCalculateTotalsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryCalculateTotals not implemented")
 }
 func (UnimplementedProductServiceServer) QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryCategories not implemented")
@@ -394,6 +410,24 @@ func _ProductService_QueryAllPets_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).QueryAllPets(ctx, req.(*QueryAllPetsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryCalculateTotals_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryCalculateTotalsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryCalculateTotals(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryCalculateTotals_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryCalculateTotals(ctx, req.(*QueryCalculateTotalsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -636,6 +670,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryAllPets",
 			Handler:    _ProductService_QueryAllPets_Handler,
+		},
+		{
+			MethodName: "QueryCalculateTotals",
+			Handler:    _ProductService_QueryCalculateTotals_Handler,
 		},
 		{
 			MethodName: "QueryCategories",

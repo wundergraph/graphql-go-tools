@@ -388,3 +388,27 @@ func (s *MockService) MutationCreateUser(ctx context.Context, in *productv1.Muta
 		CreateUser: user,
 	}, nil
 }
+
+// Implementation for QueryCalculateTotals
+func (s *MockService) QueryCalculateTotals(ctx context.Context, in *productv1.QueryCalculateTotalsRequest) (*productv1.QueryCalculateTotalsResponse, error) {
+	orders := in.GetOrders()
+	var calculatedOrders []*productv1.Order
+
+	for _, orderInput := range orders {
+		// Calculate total items by summing up quantities from all order lines
+		var totalItems int32
+		for _, line := range orderInput.GetLines() {
+			totalItems += line.GetQuantity()
+		}
+
+		calculatedOrders = append(calculatedOrders, &productv1.Order{
+			OrderId:      orderInput.GetOrderId(),
+			CustomerName: orderInput.GetCustomerName(),
+			TotalItems:   totalItems,
+		})
+	}
+
+	return &productv1.QueryCalculateTotalsResponse{
+		CalculateTotals: calculatedOrders,
+	}, nil
+}

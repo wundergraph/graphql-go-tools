@@ -914,6 +914,183 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 	}
 }
 
+// Test_DataSource_Load_WithTotalCalculation tests the calculation of order totals using the
+// MockService implementation
+func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
+	// Set up the bufconn listener
+	lis := bufconn.Listen(1024 * 1024)
+
+	// Create a new gRPC server
+	server := grpc.NewServer()
+
+	// Register our mock service implementation
+	mockService := &grpctest.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
+
+	// Start the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	// Clean up the server when the test completes
+	defer server.Stop()
+
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		"bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// Define the GraphQL query
+	query := `
+	query CalculateTotals($orders: [OrderInput!]!) {
+		calculateTotals(orders: $orders) {
+			orderId
+			customerName
+			totalItems
+		}
+	}`
+
+	variables := `{"variables":{"orders":[
+		{"orderId":"order-1","customerName":"John Doe","lines":[
+			{"productId":"product-1","quantity":3},
+			{"productId":"product-2","quantity":2}
+		]},
+		{"orderId":"order-2","customerName":"Jane Smith","lines":[
+			{"productId":"product-3","quantity":1},
+			{"productId":"product-4","quantity":5}
+		]}
+	]}}`
+
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	// Create mapping configuration
+	mapping := &GRPCMapping{
+		Service: "ProductService",
+		QueryRPCs: map[string]RPCConfig{
+			"calculateTotals": {
+				RPC:      "QueryCalculateTotals",
+				Request:  "QueryCalculateTotalsRequest",
+				Response: "QueryCalculateTotalsResponse",
+			},
+		},
+		Fields: map[string]FieldMap{
+			"Query": {
+				"calculateTotals": {
+					TargetName: "calculate_totals",
+				},
+			},
+			"Order": {
+				"orderId": {
+					TargetName: "order_id",
+				},
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"totalItems": {
+					TargetName: "total_items",
+				},
+			},
+			"OrderInput": {
+				"orderId": {
+					TargetName: "order_id",
+				},
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"lines": {
+					TargetName: "lines",
+				},
+			},
+			"OrderLineInput": {
+				"productId": {
+					TargetName: "product_id",
+				},
+				"quantity": {
+					TargetName: "quantity",
+				},
+				"modifiers": {
+					TargetName: "modifiers",
+				},
+			},
+		},
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
+
+	// Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Mapping:      mapping,
+		Compiler:     compiler,
+	})
+	require.NoError(t, err)
+
+	// Execute the query through our datasource
+	output := new(bytes.Buffer)
+	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
+	err = ds.Load(context.Background(), []byte(input), output)
+	require.NoError(t, err)
+
+	// Parse the response
+	var resp struct {
+		Data struct {
+			CalculateTotals []struct {
+				OrderId      string `json:"orderId"`
+				CustomerName string `json:"customerName"`
+				TotalItems   int    `json:"totalItems"`
+			} `json:"calculateTotals"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors,omitempty"`
+	}
+
+	err = json.Unmarshal(output.Bytes(), &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
+	require.Empty(t, resp.Errors, "Response should not contain errors")
+
+	// Verify the orders were returned
+	require.Len(t, resp.Data.CalculateTotals, 2, "Should return 2 orders")
+
+	// Verify the first order
+	firstOrder := resp.Data.CalculateTotals[0]
+	require.Equal(t, "order-1", firstOrder.OrderId)
+	require.Equal(t, "John Doe", firstOrder.CustomerName)
+	require.Equal(t, 5, firstOrder.TotalItems, "First order should have 3+2=5 total items")
+
+	// Verify the second order
+	secondOrder := resp.Data.CalculateTotals[1]
+	require.Equal(t, "order-2", secondOrder.OrderId)
+	require.Equal(t, "Jane Smith", secondOrder.CustomerName)
+	require.Equal(t, 6, secondOrder.TotalItems, "Second order should have 1+5=6 total items")
+}
+
 // Test_DataSource_Load_WithTypename tests that __typename fields are correctly included
 // in the response with their static values
 func Test_DataSource_Load_WithTypename(t *testing.T) {

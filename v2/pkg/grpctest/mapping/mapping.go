@@ -46,6 +46,11 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryComplexFilterTypeRequest",
 				Response: "QueryComplexFilterTypeResponse",
 			},
+			"calculateTotals": {
+				RPC:      "QueryCalculateTotals",
+				Request:  "QueryCalculateTotalsRequest",
+				Response: "QueryCalculateTotalsResponse",
+			},
 			"randomPet": {
 				RPC:      "QueryRandomPet",
 				Request:  "QueryRandomPetRequest",
@@ -158,6 +163,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "complex_filter_type",
 					ArgumentMappings: map[string]string{
 						"filter": "filter",
+					},
+				},
+				"calculateTotals": {
+					TargetName: "calculate_totals",
+					ArgumentMappings: map[string]string{
+						"orders": "orders",
 					},
 				},
 			},
@@ -347,6 +358,39 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"pagination": {
 					TargetName: "pagination",
+				},
+			},
+			"Order": {
+				"orderId": {
+					TargetName: "order_id",
+				},
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"totalItems": {
+					TargetName: "total_items",
+				},
+			},
+			"OrderInput": {
+				"orderId": {
+					TargetName: "order_id",
+				},
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"lines": {
+					TargetName: "lines",
+				},
+			},
+			"OrderLineInput": {
+				"productId": {
+					TargetName: "product_id",
+				},
+				"quantity": {
+					TargetName: "quantity",
+				},
+				"modifiers": {
+					TargetName: "modifiers",
 				},
 			},
 		},

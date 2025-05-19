@@ -72,6 +72,24 @@ input ComplexFilterTypeInput {
   filter: FilterType!
 }
 
+input OrderLineInput {
+  productId: ID!
+  quantity: Int!
+  modifiers: [String!]
+}
+
+input OrderInput {
+  orderId: ID!
+  customerName: String!
+  lines: [OrderLineInput!]!
+}
+
+type Order {
+  orderId: ID!
+  customerName: String!
+  totalItems: Int!
+}
+
 input CategoryFilter {
   category: CategoryKind!
   pagination: Pagination
@@ -126,6 +144,7 @@ type Query {
   complexFilterType(
     filter: ComplexFilterTypeInput!
   ): [TypeWithComplexFilterInput!]!
+  calculateTotals(orders: [OrderInput!]!): [Order!]!
   categories: [Category!]!
   categoriesByKind(kind: CategoryKind!): [Category!]!
   categoriesByKinds(kinds: [CategoryKind!]!): [Category!]!

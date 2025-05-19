@@ -177,6 +177,16 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 			},
 		},
 		{
+			TypeName:  "Query",
+			FieldName: "calculateTotals",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "orders",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
 			TypeName:  "Mutation",
 			FieldName: "createUser",
 			Arguments: []plan.ArgumentConfiguration{

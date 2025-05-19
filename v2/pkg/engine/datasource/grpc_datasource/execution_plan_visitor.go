@@ -375,7 +375,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			TypeName: DataTypeMessage.String(),
 			JSONPath: jsonPath,
 			Message:  msg,
-			// Repeated: r.definition.TypeIsList(typeRef), TODO: handle repeated complex types
+			Repeated: r.definition.TypeIsList(typeRef),
 		})
 
 		// Add the current request message to the ancestors and set the current request message to the new message.
@@ -468,6 +468,7 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 		TypeName: DataTypeMessage.String(),
 		JSONPath: fieldName,
 		Message:  msg,
+		Repeated: r.definition.TypeIsList(typeRef),
 	})
 
 	r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
