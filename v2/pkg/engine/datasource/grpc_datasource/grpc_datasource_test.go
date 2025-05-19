@@ -304,14 +304,9 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 
 	// Format the input with query and variables
 	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-	t.Logf("Input JSON: %s", inputJSON)
 
 	err = ds.Load(context.Background(), []byte(inputJSON), output)
 	require.NoError(t, err)
-
-	// Print the response for debugging
-	responseData := output.String()
-	t.Logf("Response: %s", responseData)
 
 	// Set up the correct response structure based on your GraphQL schema
 	type response struct {
@@ -408,16 +403,14 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
-	// 7. Print response for debugging
 	responseJson := output.String()
-	t.Logf("Error Response: %s", responseJson)
 
-	// 8. Verify the response format according to GraphQL specification
+	// 7. Verify the response format according to GraphQL specification
 	// The response should have an "errors" array with the error message
 	require.Contains(t, responseJson, "errors")
 	require.Contains(t, responseJson, "user not found: error-user")
 
-	// 9. Parse the response JSON for more detailed validation
+	// 8. Parse the response JSON for more detailed validation
 	var response struct {
 		Errors []struct {
 			Message string `json:"message"`
@@ -1020,9 +1013,6 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
 	err = ds.Load(context.Background(), []byte(input), output)
 	require.NoError(t, err)
-
-	// Log the response for debugging
-	t.Logf("Response: %s", output.String())
 
 	// Parse the response
 	var resp struct {

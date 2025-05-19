@@ -368,6 +368,9 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			Definition: p.config.schemaConfiguration.upstreamSchemaAst,
 			Mapping:    p.config.grpc.Mapping,
 			Compiler:   p.config.grpc.Compiler,
+			// TODO: remove fallback logic in visitor for subgraph name and
+			// add proper error handling if the subgraph name is not set in the mapping
+			SubgraphName: p.dataSourceConfig.Name(),
 		})
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create gRPC datasource: %w", err)))
