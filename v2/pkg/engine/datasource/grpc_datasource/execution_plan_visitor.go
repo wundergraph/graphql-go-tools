@@ -151,7 +151,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 
 	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
 	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessgeFromSelectionSet(ref)
+		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessageFromSelectionSet(ref)
 	}
 
 	// Add the current response message to the ancestors and set the current response message to the current field message
@@ -332,8 +332,8 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	r.planInfo.currentResponseFieldIndex = 0
 }
 
-// newMessgeFromSelectionSet creates a new message from a selection set.
-func (r *rpcPlanVisitor) newMessgeFromSelectionSet(ref int) *RPCMessage {
+// newMessageFromSelectionSet creates a new message from a selection set.
+func (r *rpcPlanVisitor) newMessageFromSelectionSet(ref int) *RPCMessage {
 	message := &RPCMessage{
 		Name:   r.walker.EnclosingTypeDefinition.NameString(r.definition),
 		Fields: make(RPCFields, 0, len(r.operation.SelectionSets[ref].SelectionRefs)),
