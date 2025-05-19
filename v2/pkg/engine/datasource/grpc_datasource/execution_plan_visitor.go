@@ -32,9 +32,8 @@ type planningInfo struct {
 	isEntityLookup     bool
 	methodName         string
 
-	requestMessageAncestors  []*RPCMessage
-	currentRequestMessage    *RPCMessage
-	currentRequestFieldIndex int
+	requestMessageAncestors []*RPCMessage
+	currentRequestMessage   *RPCMessage
 
 	responseMessageAncestors  []*RPCMessage
 	currentResponseMessage    *RPCMessage
@@ -42,12 +41,6 @@ type planningInfo struct {
 
 	responseFieldIndexAncestors []int
 }
-
-var _ astvisitor.EnterDocumentVisitor = &rpcPlanVisitor{}
-var _ astvisitor.FieldVisitor = &rpcPlanVisitor{}
-var _ astvisitor.EnterOperationDefinitionVisitor = &rpcPlanVisitor{}
-var _ astvisitor.EnterSelectionSetVisitor = &rpcPlanVisitor{}
-var _ astvisitor.EnterArgumentVisitor = &rpcPlanVisitor{}
 
 type rpcPlanVisitor struct {
 	walker     *astvisitor.Walker
@@ -106,14 +99,11 @@ func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.
 // The function also checks if this is an entity lookup operation,
 // which requires special handling.
 func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
-	if r.currentCallID < 0 {
-		r.currentCallID = 0
-	}
-
 	r.operationDefinitionRef = ref
 
 	// Retrieves the fields from the root selection set.
 	// These fields determine the names for the RPC functions to call.
+	// TODO: handle fragments on root level `... on Query {}`
 	selectionSetRef := r.operation.OperationDefinitions[ref].SelectionSet
 	r.operationFieldRefs = r.operation.SelectionSetFieldSelections(selectionSetRef)
 
@@ -339,7 +329,6 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 		r.operationFieldRef = r.operationFieldRefs[r.currentCallID]
 	}
 
-	r.planInfo.currentRequestFieldIndex = 0
 	r.planInfo.currentResponseFieldIndex = 0
 }
 
@@ -368,6 +357,8 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 	jsonPath := fieldName
 	argument := r.operation.Arguments[argRef]
 
+	// TODO: We should only work with variables as after normalization we don't have and direct input values.
+	// Therefore we should error out when we don't have a variable.
 	if argument.Value.Kind == ast.ValueKindVariable {
 		jsonPath = r.operation.Input.ByteSliceString(r.operation.VariableValues[argument.Value.Ref].Name)
 	}
@@ -386,6 +377,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			TypeName: DataTypeMessage.String(),
 			JSONPath: jsonPath,
 			Message:  msg,
+			// Repeated: r.definition.TypeIsList(typeRef), TODO: handle repeated complex types
 		})
 
 		// Add the current request message to the ancestors and set the current request message to the new message.
@@ -420,8 +412,6 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 		r.walker.Stop()
 		return
 	}
-
-	r.planInfo.currentRequestFieldIndex++
 }
 
 // buildMessageFromNode builds a message structure from an AST node.
@@ -431,16 +421,16 @@ func (r *rpcPlanVisitor) buildMessageFromNode(node ast.Node) {
 		inputObjectDefinition := r.definition.InputObjectTypeDefinitions[node.Ref]
 		r.planInfo.currentRequestMessage.Fields = make(RPCFields, 0, len(inputObjectDefinition.InputFieldsDefinition.Refs))
 
-		for fieldIndex, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
+		for _, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
 			fieldDefinition := r.definition.InputValueDefinitions[inputFieldRef]
 			fieldName := r.definition.Input.ByteSliceString(fieldDefinition.Name)
-			r.buildMessageField(fieldName, fieldIndex, fieldDefinition.Type, node.Ref)
+			r.buildMessageField(fieldName, fieldDefinition.Type, node.Ref)
 		}
 	}
 }
 
 // buildMessageField creates a field in the current request message based on the field type.
-func (r *rpcPlanVisitor) buildMessageField(fieldName string, index, typeRef, parentTypeRef int) {
+func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentTypeRef int) {
 	inputValueDefinitionType := r.definition.Types[typeRef]
 	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
 	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
