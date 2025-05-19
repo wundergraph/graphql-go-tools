@@ -369,8 +369,6 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	})
 
 	t.Run("should stop when no mapping is found for the operation request", func(t *testing.T) {
-		// ! This should error, not panic, should it not?
-
 		operation := graphql.Request{
 			OperationName: "UserQuery",
 			Query:         `query UserQuery { user(id: "1") { id name } }`,
