@@ -169,11 +169,9 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 }
 
 func (r *rpcPlanVisitor) isInterface(node ast.Node) bool {
-	if node.Kind == ast.NodeKindInterfaceTypeDefinition {
-		return true
-	}
-
 	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		return true
 	case ast.NodeKindField:
 		if r.walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
 			return true
