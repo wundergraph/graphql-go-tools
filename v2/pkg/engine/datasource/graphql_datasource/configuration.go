@@ -9,6 +9,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -18,6 +19,8 @@ type ConfigurationInput struct {
 	Subscription           *SubscriptionConfiguration
 	SchemaConfiguration    *SchemaConfiguration
 	CustomScalarTypeFields []SingleTypeField
+
+	GRPC *grpcdatasource.GRPCConfiguration
 }
 
 type Configuration struct {
@@ -25,6 +28,8 @@ type Configuration struct {
 	subscription           *SubscriptionConfiguration
 	schemaConfiguration    SchemaConfiguration
 	customScalarTypeFields []SingleTypeField
+
+	grpc *grpcdatasource.GRPCConfiguration
 }
 
 func NewConfiguration(input ConfigurationInput) (Configuration, error) {
@@ -41,8 +46,8 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 
 	cfg.schemaConfiguration = *input.SchemaConfiguration
 
-	if input.Fetch == nil && input.Subscription == nil {
-		return Configuration{}, errors.New("fetch or subscription configuration is required")
+	if input.Fetch == nil && input.Subscription == nil && input.GRPC == nil {
+		return Configuration{}, errors.New("fetch or subscription or grpc configuration is required")
 	}
 
 	if input.Fetch != nil {
@@ -67,6 +72,10 @@ func NewConfiguration(input ConfigurationInput) (Configuration, error) {
 		}
 	}
 
+	if input.GRPC != nil {
+		cfg.grpc = input.GRPC
+	}
+
 	return cfg, nil
 }
 
@@ -84,6 +93,10 @@ func (c *Configuration) IsFederationEnabled() bool {
 
 func (c *Configuration) FederationConfiguration() *FederationConfiguration {
 	return c.schemaConfiguration.federation
+}
+
+func (c *Configuration) IsGRPC() bool {
+	return c.grpc != nil
 }
 
 type SingleTypeField struct {

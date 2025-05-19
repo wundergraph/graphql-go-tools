@@ -10,6 +10,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -103,7 +104,7 @@ func newGraphQLDataSourceGenerator(engineCtx context.Context, document *ast.Docu
 	}
 }
 
-func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphql_datasource.Configuration, httpClient *http.Client, options ...DataSourceGeneratorOption) (plan.DataSource, error) {
+func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphql_datasource.Configuration, httpClient *http.Client, grpcClient grpc.ClientConnInterface, options ...DataSourceGeneratorOption) (plan.DataSource, error) {
 	extractor := NewLocalTypeFieldExtractor(d.document)
 	rootNodes, childNodes := extractor.GetAllNodes()
 
@@ -122,11 +123,21 @@ func (d *graphqlDataSourceGenerator) Generate(dsID string, config graphql_dataso
 		return nil, err
 	}
 
-	factory, err := graphql_datasource.NewFactory(
-		d.engineCtx,
-		httpClient,
-		subscriptionClient,
-	)
+	var factory plan.PlannerFactory[graphql_datasource.Configuration]
+
+	if config.IsGRPC() {
+		factory, err = graphql_datasource.NewFactoryGRPC(
+			d.engineCtx,
+			grpcClient,
+		)
+	} else {
+		factory, err = graphql_datasource.NewFactory(
+			d.engineCtx,
+			httpClient,
+			subscriptionClient,
+		)
+	}
+
 	if err != nil {
 		return nil, err
 	}
