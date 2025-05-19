@@ -514,9 +514,11 @@ func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
 
 		directive := r.definition.Directives[directiveRef]
 		for _, argRef := range directive.Arguments.Refs {
-			args := r.definition.Arguments[argRef]
-
-			keyFieldName := r.definition.ValueContentString(args.Value)
+			if r.definition.ArgumentNameString(argRef) != "fields" {
+				continue
+			}
+			argument := r.definition.Arguments[argRef]
+			keyFieldName := r.definition.ValueContentString(argument.Value)
 
 			fieldDef, ok := r.definition.NodeFieldDefinitionByName(node, ast.ByteSlice(keyFieldName))
 			if !ok {
