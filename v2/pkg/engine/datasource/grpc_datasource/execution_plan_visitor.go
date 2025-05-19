@@ -492,6 +492,7 @@ func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
 	}
 
 	// Only process object type definitions
+	// TODO: handle interfaces
 	if node.Kind != ast.NodeKindObjectTypeDefinition {
 		return
 	}
@@ -502,6 +503,8 @@ func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
 		return
 	}
 
+	// TODO: We currently only support one key directive per entity
+	// We need to get the used key from the graphql datasource.
 	for _, directiveRef := range def.Directives.Refs {
 		if r.definition.DirectiveNameString(directiveRef) != federationKeyDirectiveName {
 			continue
@@ -580,6 +583,8 @@ func (r *rpcPlanVisitor) scaffoldEntityLookup() {
 		},
 	}
 
+	// The proto response message has a field `result` which is a list of entities.
+	// As this is a special case we directly map it to _entities.
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
 		{
 			Name:     "result",
