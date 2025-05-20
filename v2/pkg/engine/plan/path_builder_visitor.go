@@ -465,7 +465,7 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 	// we update response path only after we processed the field
 	// because current response path for the field should not include field itself
 	// also if we call a skip node leave field callback won't be called
-	c.pushResponsePath(fieldRef, fieldName)
+	c.pushResponsePath(fieldRef, fieldAliasOrName)
 }
 
 func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
