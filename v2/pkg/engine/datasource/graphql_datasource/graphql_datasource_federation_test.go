@@ -532,7 +532,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 			}
 			type Mutation {
 				a: String!
-				b: String!
+				b: Object!
 				c: String!
 				d: Object!
 			}
@@ -540,6 +540,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 			type Object {
 				id: ID!
 				name: String!
+				field: String!
 			}`
 
 		sub1 := `
@@ -547,13 +548,14 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 				q: String!
 			}
 			type Mutation {
-				b: String!
+				b: Object!
 				c: String!
 				d: Object!
 			}
 
 			type Object @key(fields: "id") {
 				id: ID!
+				field: String!
 			}`
 
 		sub2 := `
@@ -583,7 +585,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 							},
 							{
 								TypeName:   "Object",
-								FieldNames: []string{"id"},
+								FieldNames: []string{"id", "field"},
 							},
 						},
 						FederationMetaData: plan.FederationMetaData{
@@ -640,23 +642,31 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 				),
 			},
 			DisableResolveFieldPositions: true,
-			// Debug: plan.DebugConfiguration{
-			// 	PrintOperationTransformations: true,
-			// 	PrintOperationEnableASTRefs:   true,
-			// 	PrintPlanningPaths:            true,
-			// 	PrintQueryPlans:               true,
-			// 	PrintNodeSuggestions:          true,
-			// },
+			Debug:                        plan.DebugConfiguration{
+				// PrintOperationTransformations: true,
+				// PrintOperationEnableASTRefs:   true,
+				// PrintPlanningPaths:            true,
+				// PrintQueryPlans:               true,
+				// PrintNodeSuggestions:          true,
+			},
 		}
 
 		t.Run("with entity call", RunTest(
 			def, `
 			mutation TypenameOnMutation {
 				d {
-				  name
+					__typename
+					id
+					name
+					field
 				}
 				c
-				b
+				b {
+					__typename
+					id
+					name
+					field
+				}
 				a
 			}`,
 			"TypenameOnMutation", &plan.SynchronousResponsePlan{
@@ -669,21 +679,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{d {__typename id}}"}}`,
-									PostProcessing: DefaultPostProcessingConfiguration,
-								},
-								DataSourceIdentifier: []byte("graphql_datasource.Source"),
-							}),
-
-						resolve.Single(
-							&resolve.SingleFetch{
-								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           1,
-									DependsOnFetchIDs: []int{0},
-								},
-								FetchConfiguration: resolve.FetchConfiguration{
-									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{c}"}}`,
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{d {__typename id field}}"}}`,
 									PostProcessing: DefaultPostProcessingConfiguration,
 								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -691,7 +687,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 						resolve.SingleWithPath(
 							&resolve.SingleFetch{
 								FetchDependencies: resolve.FetchDependencies{
-									FetchID:           4,
+									FetchID:           1,
 									DependsOnFetchIDs: []int{0},
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
@@ -730,11 +726,11 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 							&resolve.SingleFetch{
 								FetchDependencies: resolve.FetchDependencies{
 									FetchID:           2,
-									DependsOnFetchIDs: []int{0, 1},
+									DependsOnFetchIDs: []int{0},
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b}"}}`,
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{c}"}}`,
 									PostProcessing: DefaultPostProcessingConfiguration,
 								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -743,7 +739,58 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 							&resolve.SingleFetch{
 								FetchDependencies: resolve.FetchDependencies{
 									FetchID:           3,
-									DependsOnFetchIDs: []int{0, 1, 2},
+									DependsOnFetchIDs: []int{0, 2},
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									DataSource:     &Source{},
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b {__typename id field}}"}}`,
+									PostProcessing: DefaultPostProcessingConfiguration,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}),
+						resolve.SingleWithPath(
+							&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           4,
+									DependsOnFetchIDs: []int{3},
+								},
+								FetchConfiguration: resolve.FetchConfiguration{
+									Input:                                 `{"method":"POST","url":"https://example-2.com/graphql","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Object {__typename name}}}","variables":{"representations":[$$0$$]}}}`,
+									DataSource:                            &Source{},
+									SetTemplateOutputToNullOnVariableNull: true,
+									Variables: []resolve.Variable{
+										&resolve.ResolvableObjectVariable{
+											Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name: []byte("__typename"),
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+														OnTypeNames: [][]byte{[]byte("Object")},
+													},
+													{
+														Name: []byte("id"),
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+														OnTypeNames: [][]byte{[]byte("Object")},
+													},
+												},
+											}),
+										},
+									},
+									PostProcessing:      SingleEntityPostProcessingConfiguration,
+									RequiresEntityFetch: true,
+								},
+								DataSourceIdentifier: []byte("graphql_datasource.Source"),
+							}, "b", resolve.ObjectPath("b")),
+						resolve.Single(
+							&resolve.SingleFetch{
+								FetchDependencies: resolve.FetchDependencies{
+									FetchID:           5,
+									DependsOnFetchIDs: []int{0, 2, 3},
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource:     &Source{},
@@ -765,9 +812,28 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 									TypeName: "Object",
 									Fields: []*resolve.Field{
 										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
 											Name: []byte("name"),
 											Value: &resolve.String{
 												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("field"),
+											Value: &resolve.String{
+												Path: []string{"field"},
 											},
 										},
 									},
@@ -781,8 +847,39 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 							},
 							{
 								Name: []byte("b"),
-								Value: &resolve.String{
+								Value: &resolve.Object{
 									Path: []string{"b"},
+									PossibleTypes: map[string]struct{}{
+										"Object": {},
+									},
+									TypeName: "Object",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("__typename"),
+											Value: &resolve.String{
+												Path:       []string{"__typename"},
+												IsTypeName: true,
+											},
+										},
+										{
+											Name: []byte("id"),
+											Value: &resolve.Scalar{
+												Path: []string{"id"},
+											},
+										},
+										{
+											Name: []byte("name"),
+											Value: &resolve.String{
+												Path: []string{"name"},
+											},
+										},
+										{
+											Name: []byte("field"),
+											Value: &resolve.String{
+												Path: []string{"field"},
+											},
+										},
+									},
 								},
 							},
 							{
@@ -800,7 +897,9 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 			def, `
 			mutation TypenameOnMutation {
 				c
-				b
+				b {
+					field
+				}
 				a
 			}`,
 			"TypenameOnMutation", &plan.SynchronousResponsePlan{
@@ -826,7 +925,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 								},
 								FetchConfiguration: resolve.FetchConfiguration{
 									DataSource:     &Source{},
-									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b}"}}`,
+									Input:          `{"method":"POST","url":"https://example.com/graphql","body":{"query":"mutation{b {field}}"}}`,
 									PostProcessing: DefaultPostProcessingConfiguration,
 								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
@@ -855,8 +954,20 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 							},
 							{
 								Name: []byte("b"),
-								Value: &resolve.String{
+								Value: &resolve.Object{
 									Path: []string{"b"},
+									PossibleTypes: map[string]struct{}{
+										"Object": {},
+									},
+									TypeName: "Object",
+									Fields: []*resolve.Field{
+										{
+											Name: []byte("field"),
+											Value: &resolve.String{
+												Path: []string{"field"},
+											},
+										},
+									},
 								},
 							},
 							{
