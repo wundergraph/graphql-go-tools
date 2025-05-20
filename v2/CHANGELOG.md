@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.0-rc.180](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.179...v2.0.0-rc.180) (2025-05-20)
+
+
+### Bug Fixes
+
+* detach fetches from objects, serial mutations execution, remove fetch id from operation name ([#1150](https://github.com/wundergraph/graphql-go-tools/issues/1150)) ([d62026b](https://github.com/wundergraph/graphql-go-tools/commit/d62026b95029badee5cb68e24559201a7570c816))
+* fix response path for aliased fields ([#1153](https://github.com/wundergraph/graphql-go-tools/issues/1153)) ([b6270bd](https://github.com/wundergraph/graphql-go-tools/commit/b6270bde84f599fd6dfc32358a9aaa11a7bcbdd7))
+
 ## [2.0.0-rc.179](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.178...v2.0.0-rc.179) (2025-05-19)
 
 
