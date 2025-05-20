@@ -3573,67 +3573,10 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 					}, "query.me.reviews.@.product", ObjectPath("me"), ArrayPath("reviews"), ObjectPath("product")),
 				),
 				Data: &Object{
-					Fetch: &SingleFetch{
-						InputTemplate: InputTemplate{
-							Segments: []TemplateSegment{
-								{
-									Data:        []byte(`{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`),
-									SegmentType: StaticSegmentType,
-								},
-							},
-						},
-						FetchConfiguration: FetchConfiguration{
-							DataSource: userService,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseDataPath: []string{"data"},
-							},
-						},
-					},
 					Fields: []*Field{
 						{
 							Name: []byte("me"),
 							Value: &Object{
-								Fetch: &SingleFetch{
-									InputTemplate: InputTemplate{
-										Segments: []TemplateSegment{
-											{
-												Data:        []byte(`{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[`),
-												SegmentType: StaticSegmentType,
-											},
-											{
-												SegmentType:  VariableSegmentType,
-												VariableKind: ResolvableObjectVariableKind,
-												Renderer: NewGraphQLVariableResolveRenderer(&Object{
-													Fields: []*Field{
-														{
-															Name: []byte("id"),
-															Value: &String{
-																Path: []string{"id"},
-															},
-														},
-														{
-															Name: []byte("__typename"),
-															Value: &String{
-																Path: []string{"__typename"},
-															},
-														},
-													},
-												}),
-											},
-											{
-												Data:        []byte(`]}}}`),
-												SegmentType: StaticSegmentType,
-											},
-										},
-										SetTemplateOutputToNullOnVariableNull: true,
-									},
-									FetchConfiguration: FetchConfiguration{
-										DataSource: reviewsService,
-										PostProcessing: PostProcessingConfiguration{
-											SelectResponseDataPath: []string{"data", "_entities", "0"},
-										},
-									},
-								},
 								Path:     []string{"me"},
 								Nullable: true,
 								Fields: []*Field{
@@ -3669,67 +3612,6 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 														Value: &Object{
 															Nullable: true,
 															Path:     []string{"product"},
-															Fetch: &BatchEntityFetch{
-																DataSource: productService,
-																Input: BatchInput{
-																	Header: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																	Items: []InputTemplate{
-																		{
-																			Segments: []TemplateSegment{
-																				{
-																					SegmentType:  VariableSegmentType,
-																					VariableKind: ResolvableObjectVariableKind,
-																					Renderer: NewGraphQLVariableResolveRenderer(&Object{
-																						Fields: []*Field{
-																							{
-																								Name: []byte("upc"),
-																								Value: &String{
-																									Path: []string{"upc"},
-																								},
-																							},
-																							{
-																								Name: []byte("__typename"),
-																								Value: &String{
-																									Path: []string{"__typename"},
-																								},
-																							},
-																						},
-																					}),
-																				},
-																			},
-																		},
-																	},
-																	SkipNullItems: true,
-																	SkipErrItems:  true,
-																	Separator: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`,`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																	Footer: InputTemplate{
-																		Segments: []TemplateSegment{
-																			{
-																				Data:        []byte(`]}}}`),
-																				SegmentType: StaticSegmentType,
-																			},
-																		},
-																	},
-																},
-																PostProcessing: PostProcessingConfiguration{
-																	SelectResponseDataPath:   []string{"data", "_entities"},
-																	SelectResponseErrorsPath: []string{"errors"},
-																},
-															},
 															Fields: []*Field{
 																{
 																	Name: []byte("upc"),
@@ -6572,23 +6454,6 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 			}, "query.topProducts.reviews.author", ObjectPath("topProducts"), ArrayPath("reviews"), ObjectPath("author")),
 		),
 		Data: &Object{
-			Fetch: &SingleFetch{
-				InputTemplate: InputTemplate{
-					Segments: []TemplateSegment{
-						{
-							Data:        []byte(`{"method":"POST","url":"http://products","body":{"query":"query{topProducts{name __typename upc}}"}}`),
-							SegmentType: StaticSegmentType,
-						},
-					},
-				},
-				FetchConfiguration: FetchConfiguration{
-					DataSource: productsService,
-					PostProcessing: PostProcessingConfiguration{
-						SelectResponseDataPath: []string{"data"},
-					},
-				},
-				DataSourceIdentifier: []byte("graphql"),
-			},
 			Fields: []*Field{
 				{
 					Name: []byte("topProducts"),

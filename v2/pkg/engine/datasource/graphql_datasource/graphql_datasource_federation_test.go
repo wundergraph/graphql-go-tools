@@ -2899,7 +2899,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												"User": {},
 											},
 											TypeName: "User",
-											Fetches:  []resolve.Fetch{},
 											Path:     []string{"user"},
 											Fields: []*resolve.Field{
 												{

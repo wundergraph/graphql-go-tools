@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 
 	"github.com/golang/mock/gomock"
@@ -1076,59 +1077,6 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 												},
 												Value: &Object{
 													Path: []string{"product"},
-													Fetch: &SingleFetch{
-														InputTemplate: InputTemplate{
-															Segments: []TemplateSegment{
-																{
-																	Data:        []byte(`{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":`),
-																	SegmentType: StaticSegmentType,
-																},
-																{
-																	SegmentType:  VariableSegmentType,
-																	VariableKind: ResolvableObjectVariableKind,
-																	Renderer: NewGraphQLVariableResolveRenderer(&Array{
-																		Item: &Object{
-																			Fields: []*Field{
-																				{
-																					Name: []byte("__typename"),
-																					Value: &String{
-																						Path: []string{"__typename"},
-																					},
-																				},
-																				{
-																					Name: []byte("upc"),
-																					Value: &String{
-																						Path: []string{"upc"},
-																					},
-																				},
-																			},
-																		},
-																	}),
-																},
-																{
-																	Data:        []byte(`}}}`),
-																	SegmentType: StaticSegmentType,
-																},
-															},
-														},
-														Info: &FetchInfo{
-															DataSourceID:   "products",
-															DataSourceName: "products",
-															RootFields: []GraphCoordinate{
-																{
-																	TypeName:  "Product",
-																	FieldName: "name",
-																},
-															},
-														},
-														FetchConfiguration: FetchConfiguration{
-															DataSource: productService,
-															PostProcessing: PostProcessingConfiguration{
-																SelectResponseDataPath: []string{"data", "_entities"},
-																MergePath:              []string{"data"},
-															},
-														},
-													},
 													Fields: []*Field{
 														{
 															Name: []byte("upc"),

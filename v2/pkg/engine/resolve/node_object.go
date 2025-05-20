@@ -9,8 +9,6 @@ type Object struct {
 	Nullable bool
 	Path     []string
 	Fields   []*Field
-	Fetches  []Fetch
-	Fetch    Fetch
 
 	PossibleTypes map[string]struct{} `json:"-"`
 	SourceName    string              `json:"-"`
