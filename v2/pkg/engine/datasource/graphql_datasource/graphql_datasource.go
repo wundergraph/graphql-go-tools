@@ -18,6 +18,7 @@ import (
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
+	"google.golang.org/grpc"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astminify"
@@ -25,6 +26,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
+	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -83,6 +85,9 @@ type Planner[T Configuration] struct {
 	hasFederationRoot    bool
 
 	minifier *astminify.Minifier
+
+	// gRPC
+	grpcClient grpc.ClientConnInterface
 }
 
 func (p *Planner[T]) EnableSubgraphRequestMinifier() {
@@ -261,7 +266,7 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 
 func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      true,
+		MergeAliasedRootNodes:      !p.config.IsGRPC(),
 		OverrideFieldPathFromAlias: true,
 		IncludeTypeNameFields:      true,
 	}
@@ -286,7 +291,7 @@ func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSour
 	return nil
 }
 
-func (p *Planner[T]) createInputForQuery() (input []byte) {
+func (p *Planner[T]) createInputForQuery() (input, operation []byte) {
 	opBytes, opVarsBytes := p.printOperation()
 	upstreamVariables := p.upstreamVariables
 
@@ -301,35 +306,37 @@ func (p *Planner[T]) createInputForQuery() (input []byte) {
 		})
 		if err != nil {
 			p.stopWithError(errors.WithStack(fmt.Errorf("createInputForQuery: failed to copy additional variables: %w", err)))
-			return nil
+			return nil, nil
 		}
 	}
 
 	input = httpclient.SetInputBodyWithPath(input, upstreamVariables, "variables")
 	input = httpclient.SetInputBodyWithPath(input, opBytes, "query")
 
-	return input
+	return input, opBytes
 }
 
 func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
-	if p.config.fetch == nil {
-		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch configuration is empty")))
+	if p.config.fetch == nil && p.config.grpc == nil {
+		p.stopWithError(errors.WithStack(errors.New("ConfigureFetch: fetch and grpc configuration is empty")))
 		return resolve.FetchConfiguration{}
 	}
 
-	input := p.createInputForQuery()
+	input, operation := p.createInputForQuery()
 
-	header, err := json.Marshal(p.config.fetch.Header)
-	if err != nil {
-		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
-		return resolve.FetchConfiguration{}
-	}
-	if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
-		input = httpclient.SetInputHeader(input, header)
-	}
+	if p.config.fetch != nil {
+		header, err := json.Marshal(p.config.fetch.Header)
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureFetch: failed to marshal header: %w", err)))
+			return resolve.FetchConfiguration{}
+		}
+		if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+			input = httpclient.SetInputHeader(input, header)
+		}
 
-	input = httpclient.SetInputURL(input, []byte(p.config.fetch.URL))
-	input = httpclient.SetInputMethod(input, []byte(p.config.fetch.Method))
+		input = httpclient.SetInputURL(input, []byte(p.config.fetch.URL))
+		input = httpclient.SetInputMethod(input, []byte(p.config.fetch.Method))
+	}
 
 	postProcessing := DefaultPostProcessingConfiguration
 	requiresEntityFetch := p.requiresEntityFetch()
@@ -342,11 +349,37 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		postProcessing = EntitiesPostProcessingConfiguration
 	}
 
+	var dataSource resolve.DataSource
+
+	dataSource = &Source{httpClient: p.fetchClient}
+
+	if p.config.grpc != nil {
+		var err error
+
+		opDocument, opReport := astparser.ParseGraphqlDocumentBytes(operation)
+		if opReport.HasErrors() {
+			p.stopWithError(errors.WithStack(fmt.Errorf("failed to parse operation: %w", opReport)))
+			return resolve.FetchConfiguration{}
+		}
+
+		dataSource, err = grpcdatasource.NewDataSource(p.grpcClient, grpcdatasource.DataSourceConfig{
+			Operation:  &opDocument,
+			Definition: p.config.schemaConfiguration.upstreamSchemaAst,
+			Mapping:    p.config.grpc.Mapping,
+			Compiler:   p.config.grpc.Compiler,
+			// TODO: remove fallback logic in visitor for subgraph name and
+			// add proper error handling if the subgraph name is not set in the mapping
+			SubgraphName: p.dataSourceConfig.Name(),
+		})
+		if err != nil {
+			p.stopWithError(errors.WithStack(fmt.Errorf("failed to create gRPC datasource: %w", err)))
+			return resolve.FetchConfiguration{}
+		}
+	}
+
 	return resolve.FetchConfiguration{
-		Input: string(input),
-		DataSource: &Source{
-			httpClient: p.fetchClient,
-		},
+		Input:                                 string(input),
+		DataSource:                            dataSource,
 		Variables:                             p.variables,
 		RequiresEntityFetch:                   requiresEntityFetch,
 		RequiresEntityBatchFetch:              requiresEntityBatchFetch,
@@ -375,7 +408,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		return plan.SubscriptionConfiguration{}
 	}
 
-	input := p.createInputForQuery()
+	input, _ := p.createInputForQuery()
 
 	input = httpclient.SetInputURL(input, []byte(p.config.subscription.URL))
 	if p.config.subscription.UseSSE {
@@ -1303,6 +1336,7 @@ func (p *Planner[T]) DebugPrint(args ...interface{}) {
 }
 
 func (p *Planner[T]) debugPrintln(args ...interface{}) {
+	// TODO! no panic when no fetch url
 	allArgs := []interface{}{fmt.Sprintf("[planner_id: %d] [ds_name: %s ds_hash: %d url: %s] ", p.id, p.dataSourceConfig.Name(), p.dataSourceConfig.Hash(), p.config.fetch.URL)}
 	allArgs = append(allArgs, args...)
 	fmt.Println(allArgs...)
@@ -1669,10 +1703,11 @@ var (
 type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
+	grpcClient         grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
 }
 
-// NewFactory creates a new factory for the GraphQL datasource planner
+// NewFactory (HTTP) creates a new factory for the GraphQL datasource planner
 // Graphql Datasource could be stateful in case you are using subscriptions,
 // make sure you are using the same execution context for all datasources
 func NewFactory(executionContext context.Context, httpClient *http.Client, subscriptionClient GraphQLSubscriptionClient) (*Factory[Configuration], error) {
@@ -1693,6 +1728,24 @@ func NewFactory(executionContext context.Context, httpClient *http.Client, subsc
 	}, nil
 }
 
+// NewFactory (GRPC) creates a new factory for the GraphQL datasource planner
+// Graphql Datasource could be stateful in case you are using subscriptions,
+// make sure you are using the same execution context for all datasources
+func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConnInterface) (*Factory[Configuration], error) {
+	if executionContext == nil {
+		return nil, fmt.Errorf("execution context is required")
+	}
+
+	if grpcClient == nil {
+		return nil, fmt.Errorf("grpc client is required")
+	}
+
+	return &Factory[Configuration]{
+		executionContext: executionContext,
+		grpcClient:       grpcClient,
+	}, nil
+}
+
 func (p *Planner[T]) getKit() *printKit {
 	return printKitPool.Get().(*printKit)
 }
@@ -1706,6 +1759,7 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{
 		fetchClient:        f.httpClient,
+		grpcClient:         f.grpcClient,
 		subscriptionClient: f.subscriptionClient,
 	}
 }
