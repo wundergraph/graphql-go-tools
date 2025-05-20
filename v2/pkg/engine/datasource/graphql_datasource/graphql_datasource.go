@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -467,16 +466,14 @@ func (p *Planner[T]) buildUpstreamOperationName(ref int) string {
 		return ""
 	}
 
-	fetchID := strconv.Itoa(p.dataSourcePlannerConfig.FetchID)
-
 	builder := strings.Builder{}
 	operationName = strings.Trim(operationName, "_")
 
 	subgraphName := sanitizeKey(p.dataSourceConfig.Name())
 	subgraphName = strings.Trim(subgraphName, "_")
 
-	builder.Grow(len(operationName) + len(subgraphName) + len(fetchID) + 4) // 4 is for delimiters "__"
-	builder.WriteString(operationName + "__" + subgraphName + "__" + fetchID)
+	builder.Grow(len(operationName) + len(subgraphName) + 2) // 2 is for delimiters "__"
+	builder.WriteString(operationName + "__" + subgraphName)
 
 	return builder.String()
 }
