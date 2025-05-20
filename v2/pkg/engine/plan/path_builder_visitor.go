@@ -34,7 +34,7 @@ type pathBuilderVisitor struct {
 	planners                  []PlannerConfiguration // pathBuilderVisitor is building this list of planners
 	mutationRootFieldPlanners []int                  // mutationRootFieldPlanners is a list of root mutation planner ids
 
-	nodeSuggestions     *NodeSuggestions     // nodeSuggestions holds information about suggested data sources for each field
+	nodeSuggestions *NodeSuggestions // nodeSuggestions holds information about suggested data sources for each field
 
 	parentTypeNodes               []ast.Node          // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
 	arrayFields                   []arrayField        // arrayFields is a stack of array fields - used to plan nested queries
