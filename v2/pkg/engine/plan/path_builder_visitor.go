@@ -31,7 +31,8 @@ type pathBuilderVisitor struct {
 	dataSources         []DataSource        // data sources configurations, which used by the current operation
 	fieldConfigurations FieldConfigurations // field configuration from plan configuration
 
-	planners []PlannerConfiguration // pathBuilderVisitor is building this list of planners
+	planners                  []PlannerConfiguration // pathBuilderVisitor is building this list of planners
+	mutationRootFieldPlanners []int                  // mutationRootFieldPlanners is a list of root mutation planner ids
 
 	nodeSuggestions *NodeSuggestions // nodeSuggestions holds information about suggested data sources for each field
 
@@ -52,6 +53,9 @@ type pathBuilderVisitor struct {
 
 	fieldDependsOn           map[fieldIndexKey][]int // fieldDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
 	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
+
+	currentFetchPath    []resolve.FetchItemPathElement
+	currentResponsePath []string
 }
 
 type FailedToCreatePlanningPathsError struct {
@@ -96,8 +100,6 @@ type arrayField struct {
 }
 
 type objectFetchConfiguration struct {
-	object             *resolve.Object
-	trigger            *resolve.GraphQLSubscriptionTrigger
 	filter             *resolve.SubscriptionFilter
 	planner            DataSourceFetchPlanner
 	isSubscription     bool
@@ -106,6 +108,7 @@ type objectFetchConfiguration struct {
 	sourceID           string
 	sourceName         string
 	fetchID            int
+	fetchItem          *resolve.FetchItem
 	dependsOnFetchIDs  []int
 	rootFields         []resolve.GraphCoordinate
 	operationType      ast.OperationType
@@ -170,6 +173,14 @@ func (c *pathBuilderVisitor) removeArrayField(fieldRef int) {
 	if c.arrayFields[len(c.arrayFields)-1].fieldRef == fieldRef {
 		c.arrayFields = c.arrayFields[:len(c.arrayFields)-1]
 	}
+}
+
+func (c *pathBuilderVisitor) isArrayField(fieldRef int) bool {
+	if len(c.arrayFields) == 0 {
+		return false
+	}
+
+	return c.arrayFields[len(c.arrayFields)-1].fieldRef == fieldRef
 }
 
 func (c *pathBuilderVisitor) addPath(plannerIdx int, configuration pathConfiguration) {
@@ -263,16 +274,42 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 		c.arrayFields = c.arrayFields[:0]
 	}
 
+	if c.currentFetchPath == nil {
+		c.currentFetchPath = make([]resolve.FetchItemPathElement, 0, 4)
+	} else {
+		c.currentFetchPath = c.currentFetchPath[:0]
+	}
+
+	if c.currentResponsePath == nil {
+		c.currentResponsePath = make([]string, 0, 4)
+	} else {
+		c.currentResponsePath = c.currentResponsePath[:0]
+	}
+
+	// values of all the fields below should be preserved between walks
+	// so we initialize them only once on a first walk
 	if c.secondaryRun {
 		return
 	}
 
 	c.operation, c.definition = operation, definition
-	c.parentTypeNodes = c.parentTypeNodes[:0]
+
+	if c.parentTypeNodes == nil {
+		c.parentTypeNodes = make([]ast.Node, 0, 8)
+	} else {
+		c.parentTypeNodes = c.parentTypeNodes[:0]
+	}
+
 	if c.planners == nil {
 		c.planners = make([]PlannerConfiguration, 0, 8)
 	} else {
 		c.planners = c.planners[:0]
+	}
+
+	if c.mutationRootFieldPlanners == nil {
+		c.mutationRootFieldPlanners = make([]int, 0, 2)
+	} else {
+		c.mutationRootFieldPlanners = c.mutationRootFieldPlanners[:0]
 	}
 
 	if c.skipFieldsRefs == nil {
@@ -364,6 +401,10 @@ func (c *pathBuilderVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (c *pathBuilderVisitor) EnterField(fieldRef int) {
+	if c.isNotOperationDefinitionRoot() {
+		return
+	}
+
 	fieldName := c.operation.FieldNameUnsafeString(fieldRef)
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(fieldRef)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
@@ -395,12 +436,6 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 
 	c.addArrayField(fieldRef, currentPath)
 
-	root := c.walker.Ancestors[0]
-	if root.Kind != ast.NodeKindOperationDefinition {
-		return
-	}
-	isSubscription := c.isSubscription(root.Ref, currentPath)
-
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 	shareable := len(suggestions) > 1
 	for _, suggestion := range suggestions {
@@ -424,11 +459,16 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 			return
 		}
 
-		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, isSubscription, suggestion, ds, shareable)
+		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion, ds, shareable)
 	}
+
+	// we update response path only after we processed the field
+	// because current response path for the field should not include field itself
+	// also if we call a skip node leave field callback won't be called
+	c.pushResponsePath(fieldRef, fieldName)
 }
 
-func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, isSubscription bool, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
+func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
 	plannedOnPlannerIds := c.fieldsPlannedOn[fieldRef]
 
 	if slices.ContainsFunc(plannedOnPlannerIds, func(plannerIdx int) bool {
@@ -440,9 +480,20 @@ func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldNa
 		return
 	}
 
-	plannerIdx, planned := c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
-	if !planned {
-		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isSubscription, ds)
+	isMutationRoot := c.isMutationRoot(currentPath)
+
+	var (
+		plannerIdx int
+		planned    bool
+	)
+
+	if isMutationRoot {
+		plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+	} else {
+		plannerIdx, planned = c.planWithExistingPlanners(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion)
+		if !planned {
+			plannerIdx, planned = c.addNewPlanner(fieldRef, typeName, fieldName, currentPath, parentPath, isMutationRoot, ds)
+		}
 	}
 
 	if planned {
@@ -721,7 +772,7 @@ func (c *pathBuilderVisitor) allowNewPlannerForTypenameField(fieldName string, t
 	return c.isParentPathIsRootOperationPath(parentPath)
 }
 
-func (c *pathBuilderVisitor) addNewPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath string, isSubscription bool, dsConfig DataSource) (plannerIdx int, planned bool) {
+func (c *pathBuilderVisitor) addNewPlanner(fieldRef int, typeName, fieldName, currentPath, parentPath string, isMutationRoot bool, dsConfig DataSource) (plannerIdx int, planned bool) {
 	if !dsConfig.HasRootNode(typeName, fieldName) {
 		if fieldName != typeNameField {
 			return -1, false
@@ -825,15 +876,28 @@ func (c *pathBuilderVisitor) addNewPlanner(fieldRef int, typeName, fieldName, cu
 	// the filter needs access to fieldRef to retrieve the field argument variable
 	c.fieldRef = fieldRef
 
+	isSubscription := c.isSubscriptionRoot(currentPath)
+
 	fetchConfiguration := &objectFetchConfiguration{
 		isSubscription:     isSubscription,
 		fieldRef:           fieldRef,
 		fieldDefinitionRef: fieldDefinition,
 		fetchID:            fetchID,
+		fetchItem:          c.fetchItem(),
 		sourceID:           dsConfig.Id(),
 		sourceName:         dsConfig.Name(),
 		operationType:      c.resolveRootFieldOperationType(typeName),
 		filter:             c.resolveSubscriptionFilterCondition(typeName, fieldName),
+	}
+
+	if isMutationRoot {
+		nextPlannerId := len(c.planners)
+
+		if len(c.mutationRootFieldPlanners) > 0 {
+			// each next mutation root field planner depends on all previous mutation root field planners
+			fetchConfiguration.dependsOnFetchIDs = append(fetchConfiguration.dependsOnFetchIDs, c.mutationRootFieldPlanners...)
+		}
+		c.mutationRootFieldPlanners = append(c.mutationRootFieldPlanners, nextPlannerId)
 	}
 
 	plannerPathConfig := newPlannerPathsConfiguration(
@@ -851,6 +915,89 @@ func (c *pathBuilderVisitor) addNewPlanner(fieldRef int, typeName, fieldName, cu
 	}
 
 	return len(c.planners) - 1, true
+}
+
+func (c *pathBuilderVisitor) fetchItem() *resolve.FetchItem {
+	return &resolve.FetchItem{
+		ResponsePath:         c.responsePath(),
+		FetchPath:            c.fetchPath(),
+		ResponsePathElements: c.responsePathElements(),
+	}
+}
+
+func (c *pathBuilderVisitor) fetchPath() []resolve.FetchItemPathElement {
+	if len(c.currentFetchPath) == 0 {
+		return nil
+	}
+
+	path := make([]resolve.FetchItemPathElement, len(c.currentFetchPath))
+	copy(path, c.currentFetchPath[:len(c.currentFetchPath)])
+	return path
+}
+
+func (c *pathBuilderVisitor) responsePath() string {
+	sb := &strings.Builder{}
+	if len(c.currentResponsePath) > 0 {
+		for i := range c.currentResponsePath {
+			if i == len(c.currentResponsePath)-1 && c.currentResponsePath[i] == "@" {
+				continue
+			}
+			if i > 0 {
+				sb.WriteRune('.')
+			}
+			sb.WriteString(c.currentResponsePath[i])
+		}
+	}
+	return sb.String()
+}
+
+func (c *pathBuilderVisitor) responsePathElements() []string {
+	var responsePathElements []string
+	if len(c.currentResponsePath) > 0 {
+		// remove the trailing @
+		if c.currentResponsePath[len(c.currentResponsePath)-1] == "@" {
+			if len(c.currentResponsePath) > 1 {
+				responsePathElements = make([]string, len(c.currentResponsePath)-1)
+				copy(responsePathElements, c.currentResponsePath[:len(c.currentResponsePath)-1])
+			}
+		} else {
+			responsePathElements = make([]string, len(c.currentResponsePath))
+			copy(responsePathElements, c.currentResponsePath)
+		}
+	}
+
+	return responsePathElements
+}
+
+func (c *pathBuilderVisitor) pushResponsePath(fieldRef int, fieldName string) {
+	c.currentResponsePath = append(c.currentResponsePath, fieldName)
+
+	if c.isArrayField(fieldRef) {
+		c.currentFetchPath = append(c.currentFetchPath, resolve.FetchItemPathElement{
+			Kind: resolve.FetchItemPathElementKindArray,
+			Path: []string{fieldName},
+		})
+
+		c.currentResponsePath = append(c.currentResponsePath, "@")
+
+		return
+	}
+
+	c.currentFetchPath = append(c.currentFetchPath, resolve.FetchItemPathElement{
+		Kind: resolve.FetchItemPathElementKindObject,
+		Path: []string{fieldName},
+	})
+}
+
+func (c *pathBuilderVisitor) popResponsePath(fieldRef int) {
+	c.currentFetchPath = c.currentFetchPath[:len(c.currentFetchPath)-1]
+
+	if c.isArrayField(fieldRef) {
+		c.currentResponsePath = c.currentResponsePath[:len(c.currentResponsePath)-2]
+		return
+	}
+
+	c.currentResponsePath = c.currentResponsePath[:len(c.currentResponsePath)-1]
 }
 
 func (c *pathBuilderVisitor) resolveSubscriptionFilterCondition(typeName, fieldName string) *resolve.SubscriptionFilter {
@@ -1038,16 +1185,17 @@ func (c *pathBuilderVisitor) handleMissingPath(planned bool, typeName string, fi
 }
 
 func (c *pathBuilderVisitor) LeaveField(ref int) {
-	c.removeArrayField(ref)
+	if c.isNotOperationDefinitionRoot() {
+		return
+	}
 
 	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldAliasOrName, "typeName:", typeName)
 
-	if !c.secondaryRun {
-		// we should evaluate exit paths only on the second run
-		return
-	}
+	// pop response path uses array fields so it should be called before removeArrayField
+	c.popResponsePath(ref)
+	c.removeArrayField(ref)
 }
 
 // addPlannerPathForTypename adds a path for the __typename field
@@ -1090,10 +1238,31 @@ func (c *pathBuilderVisitor) isParentTypeNodeAbstractType() bool {
 	return parentTypeNode.Kind.IsAbstractType()
 }
 
-func (c *pathBuilderVisitor) isSubscription(root int, path string) bool {
-	rootOperationType := c.operation.OperationDefinitions[root].OperationType
+func (c *pathBuilderVisitor) isSubscriptionRoot(path string) bool {
+	root := c.walker.Ancestors[0]
+
+	rootOperationType := c.operation.OperationDefinitions[root.Ref].OperationType
 	if rootOperationType != ast.OperationTypeSubscription {
 		return false
 	}
 	return strings.Count(path, ".") == 1
+}
+
+func (c *pathBuilderVisitor) isMutationRoot(path string) bool {
+	root := c.walker.Ancestors[0]
+
+	rootOperationType := c.operation.OperationDefinitions[root.Ref].OperationType
+	if rootOperationType != ast.OperationTypeMutation {
+		return false
+	}
+	return strings.Count(path, ".") == 1
+}
+
+func (c *pathBuilderVisitor) isNotOperationDefinitionRoot() bool {
+	// potentially this check is not needed, because we should not have root fragments definitions
+	// at this stage of planning
+	// leaving it here for now
+
+	root := c.walker.Ancestors[0]
+	return root.Kind != ast.NodeKindOperationDefinition
 }

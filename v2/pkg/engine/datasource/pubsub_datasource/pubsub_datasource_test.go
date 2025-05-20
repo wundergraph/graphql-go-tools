@@ -277,31 +277,9 @@ func TestPubSub(t *testing.T) {
 		const operationName = `HelloQuery`
 		expect := &plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("helloQuery"),
-							Value: &resolve.Object{
-								Path:     []string{"helloQuery"},
-								Nullable: false,
-								PossibleTypes: map[string]struct{}{
-									"User": {},
-								},
-								TypeName: "User",
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("id"),
-										Value: &resolve.Integer{
-											Path:     []string{"id"},
-											Nullable: false,
-										},
-									},
-								},
-							},
-						},
-					},
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "providerId":"default"}`,
 								Variables: resolve.Variables{
@@ -329,6 +307,30 @@ func TestPubSub(t *testing.T) {
 						},
 					},
 				},
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("helloQuery"),
+							Value: &resolve.Object{
+								Path:     []string{"helloQuery"},
+								Nullable: false,
+								PossibleTypes: map[string]struct{}{
+									"User": {},
+								},
+								TypeName: "User",
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("id"),
+										Value: &resolve.Integer{
+											Path:     []string{"id"},
+											Nullable: false,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		}
 		datasourcetesting.RunTest(schema, operation, operationName, expect, planConfig)(t)
@@ -339,31 +341,9 @@ func TestPubSub(t *testing.T) {
 		const operationName = `HelloMutation`
 		expect := &plan.SynchronousResponsePlan{
 			Response: &resolve.GraphQLResponse{
-				Data: &resolve.Object{
-					Fields: []*resolve.Field{
-						{
-							Name: []byte("helloMutation"),
-							Value: &resolve.Object{
-								Path:     []string{"helloMutation"},
-								Nullable: false,
-								PossibleTypes: map[string]struct{}{
-									"edfs__PublishResult": {},
-								},
-								TypeName: "edfs__PublishResult",
-								Fields: []*resolve.Field{
-									{
-										Name: []byte("success"),
-										Value: &resolve.Boolean{
-											Path:     []string{"success"},
-											Nullable: false,
-										},
-									},
-								},
-							},
-						},
-					},
-					Fetches: []resolve.Fetch{
-						&resolve.SingleFetch{
+				RawFetches: []*resolve.FetchItem{
+					{
+						Fetch: &resolve.SingleFetch{
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: `{"subject":"tenants.$$0$$.users.$$1$$", "data": {"userKey":$$2$$}, "providerId":"default"}`,
 								Variables: resolve.Variables{
@@ -388,6 +368,30 @@ func TestPubSub(t *testing.T) {
 								},
 							},
 							DataSourceIdentifier: []byte("pubsub_datasource.NatsPublishDataSource"),
+						},
+					},
+				},
+				Data: &resolve.Object{
+					Fields: []*resolve.Field{
+						{
+							Name: []byte("helloMutation"),
+							Value: &resolve.Object{
+								Path:     []string{"helloMutation"},
+								Nullable: false,
+								PossibleTypes: map[string]struct{}{
+									"edfs__PublishResult": {},
+								},
+								TypeName: "edfs__PublishResult",
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("success"),
+										Value: &resolve.Boolean{
+											Path:     []string{"success"},
+											Nullable: false,
+										},
+									},
+								},
+							},
 						},
 					},
 				},
