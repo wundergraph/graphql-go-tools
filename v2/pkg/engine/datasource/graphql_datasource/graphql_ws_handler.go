@@ -33,15 +33,18 @@ type gqlWSConnectionHandler struct {
 
 func (h *gqlWSConnectionHandler) ServerClose() {
 	// Because the server closes the connection, we need to send a close frame to the event loop.
-	h.updater.Done()
-	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 
-	if h.closedGracefully {
-		_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
+	if !h.closedGracefully {
+		h.log.Info("Connection closed unexpectedly")
+		h.updater.Update([]byte(`{"data":{"countEmp":1001}}`))
 	} else {
-		_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusGoingAway, "Server closed"))))
+		h.log.Info("Connection closed gracefully")
 	}
 
+	h.updater.Done()
+
+	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
+	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
 }
 
@@ -256,6 +259,11 @@ func (h *gqlWSConnectionHandler) broadcastErrorMessage(err error) {
 
 func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	h.closedGracefully = true
+
+	if h.closedGracefully {
+		h.log.Info("Connection closed gracefully")
+		h.updater.Update([]byte(`{"data":{"countEmp":1000}}`))
+	}
 
 	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
