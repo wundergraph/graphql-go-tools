@@ -126,7 +126,7 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*h
 
 func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessage, data protoref.Message) (*astjson.Value, error) {
 	if message == nil {
-		return nil, nil
+		return arena.NewNull(), nil
 	}
 
 	root := arena.NewObject()
@@ -161,9 +161,14 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		}
 
 		if fd.IsList() {
+			list := data.Get(fd).List()
+			if !list.IsValid() {
+				root.Set(field.JSONPath, arena.NewNull())
+				continue
+			}
+
 			arr := arena.NewArray()
 			root.Set(field.JSONPath, arr)
-			list := data.Get(fd).List()
 			for i := 0; i < list.Len(); i++ {
 
 				switch fd.Kind() {
@@ -210,6 +215,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 }
 
 func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {
+	if !data.IsValid() {
+		root.Set(name, arena.NewNull())
+		return
+	}
+
 	switch fd.Kind() {
 	case protoref.BoolKind:
 		boolValue := data.Get(fd).Bool()
@@ -247,6 +257,11 @@ func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, nam
 }
 
 func (d *DataSource) setArrayItem(index int, arena *astjson.Arena, array *astjson.Value, data protoref.Value, fd protoref.FieldDescriptor) error {
+	if !data.IsValid() {
+		array.SetArrayItem(index, arena.NewNull())
+		return nil
+	}
+
 	switch fd.Kind() {
 	case protoref.BoolKind:
 		boolValue := data.Bool()
