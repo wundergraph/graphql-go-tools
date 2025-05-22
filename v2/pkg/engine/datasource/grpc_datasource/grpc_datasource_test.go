@@ -961,17 +961,22 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 			orderId
 			customerName
 			totalItems
+			orderLines {
+				productId
+				quantity
+				modifiers
+			}
 		}
 	}`
 
 	variables := `{"variables":{"orders":[
 		{"orderId":"order-1","customerName":"John Doe","lines":[
-			{"productId":"product-1","quantity":3},
-			{"productId":"product-2","quantity":2}
+			{"productId":"product-1","quantity":3,"modifiers":["discount-10"]},
+			{"productId":"product-2","quantity":2,"modifiers":["tax-20"]}
 		]},
 		{"orderId":"order-2","customerName":"Jane Smith","lines":[
-			{"productId":"product-3","quantity":1},
-			{"productId":"product-4","quantity":5}
+			{"productId":"product-3","quantity":1,"modifiers":["discount-15"]},
+			{"productId":"product-4","quantity":5,"modifiers":["tax-25"]}
 		]}
 	]}}`
 
@@ -1009,6 +1014,20 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 				},
 				"totalItems": {
 					TargetName: "total_items",
+				},
+				"orderLines": {
+					TargetName: "order_lines",
+				},
+			},
+			"OrderLine": {
+				"productId": {
+					TargetName: "product_id",
+				},
+				"quantity": {
+					TargetName: "quantity",
+				},
+				"modifiers": {
+					TargetName: "modifiers",
 				},
 			},
 			"OrderInput": {
@@ -1064,6 +1083,11 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 				OrderId      string `json:"orderId"`
 				CustomerName string `json:"customerName"`
 				TotalItems   int    `json:"totalItems"`
+				OrderLines   []struct {
+					ProductId string   `json:"productId"`
+					Quantity  int      `json:"quantity"`
+					Modifiers []string `json:"modifiers"`
+				} `json:"orderLines"`
 			} `json:"calculateTotals"`
 		} `json:"data"`
 		Errors []struct {
@@ -1083,12 +1107,25 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 	require.Equal(t, "order-1", firstOrder.OrderId)
 	require.Equal(t, "John Doe", firstOrder.CustomerName)
 	require.Equal(t, 5, firstOrder.TotalItems, "First order should have 3+2=5 total items")
+	require.Len(t, firstOrder.OrderLines, 2, "First order should have 2 order lines")
+	require.Equal(t, "product-1", firstOrder.OrderLines[0].ProductId)
+	require.Equal(t, 3, firstOrder.OrderLines[0].Quantity)
+	require.Equal(t, []string{"discount-10"}, firstOrder.OrderLines[0].Modifiers)
+	require.Equal(t, "product-2", firstOrder.OrderLines[1].ProductId)
+	require.Equal(t, 2, firstOrder.OrderLines[1].Quantity)
 
 	// Verify the second order
 	secondOrder := resp.Data.CalculateTotals[1]
 	require.Equal(t, "order-2", secondOrder.OrderId)
 	require.Equal(t, "Jane Smith", secondOrder.CustomerName)
 	require.Equal(t, 6, secondOrder.TotalItems, "Second order should have 1+5=6 total items")
+	require.Len(t, secondOrder.OrderLines, 2, "Second order should have 2 order lines")
+	require.Equal(t, "product-3", secondOrder.OrderLines[0].ProductId)
+	require.Equal(t, 1, secondOrder.OrderLines[0].Quantity)
+	require.Equal(t, []string{"discount-15"}, secondOrder.OrderLines[0].Modifiers)
+	require.Equal(t, "product-4", secondOrder.OrderLines[1].ProductId)
+	require.Equal(t, 5, secondOrder.OrderLines[1].Quantity)
+	require.Equal(t, []string{"tax-25"}, secondOrder.OrderLines[1].Modifiers)
 }
 
 // Test_DataSource_Load_WithTypename tests that __typename fields are correctly included

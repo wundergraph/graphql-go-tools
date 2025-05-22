@@ -3,8 +3,11 @@ package productv1;
 
 option go_package = "cosmo/pkg/proto/productv1;productv1";
 
+// Service definition for ProductService
 service ProductService {
+  // Lookup Product entity by id
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
+  // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
   rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
@@ -23,114 +26,156 @@ service ProductService {
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
 }
 
+// Key message for Product entity lookup
 message LookupProductByIdRequestKey {
-    string id = 1;
+  // Key field for Product entity lookup
+  string id = 1;
 }
 
+// Request message for Product entity lookup
 message LookupProductByIdRequest {
-    repeated LookupProductByIdRequestKey keys = 1;
+  // List of keys to look up Product entities
+  repeated LookupProductByIdRequestKey keys = 1;
 }
 
+// Response message for Product entity lookup
 message LookupProductByIdResponse {
-    repeated Product result = 1;
+  // List of Product entities matching the requested keys
+  repeated Product result = 1;
 }
 
+// Key message for Storage entity lookup
 message LookupStorageByIdRequestKey {
-    string id = 1;
+  // Key field for Storage entity lookup
+  string id = 1;
 }
 
+// Request message for Storage entity lookup
 message LookupStorageByIdRequest {
-    repeated LookupStorageByIdRequestKey keys = 1;
+  // List of keys to look up Storage entities
+  repeated LookupStorageByIdRequestKey keys = 1;
 }
 
+// Response message for Storage entity lookup
 message LookupStorageByIdResponse {
-    repeated Storage result = 1;
+  // List of Storage entities matching the requested keys
+  repeated Storage result = 1;
 }
 
+// Request message for users operation
 message QueryUsersRequest {
 }
+// Response message for users operation
 message QueryUsersResponse {
-    repeated User users = 1;
+  repeated User users = 1;
 }
+// Request message for user operation
 message QueryUserRequest {
-    string id = 1;
+  string id = 1;
 }
+// Response message for user operation
 message QueryUserResponse {
-    User user = 1;
+  User user = 1;
 }
+// Request message for nestedType operation
 message QueryNestedTypeRequest {
 }
+// Response message for nestedType operation
 message QueryNestedTypeResponse {
-    repeated NestedTypeA nested_type = 1;
+  repeated NestedTypeA nested_type = 1;
 }
+// Request message for recursiveType operation
 message QueryRecursiveTypeRequest {
 }
+// Response message for recursiveType operation
 message QueryRecursiveTypeResponse {
-    RecursiveType recursive_type = 1;
+  RecursiveType recursive_type = 1;
 }
+// Request message for typeFilterWithArguments operation
 message QueryTypeFilterWithArgumentsRequest {
-    string filter_field_1 = 1;
-    string filter_field_2 = 2;
+  string filter_field_1 = 1;
+  string filter_field_2 = 2;
 }
+// Response message for typeFilterWithArguments operation
 message QueryTypeFilterWithArgumentsResponse {
-    repeated TypeWithMultipleFilterFields type_filter_with_arguments = 1;
+  repeated TypeWithMultipleFilterFields type_filter_with_arguments = 1;
 }
+// Request message for typeWithMultipleFilterFields operation
 message QueryTypeWithMultipleFilterFieldsRequest {
-    FilterTypeInput filter = 1;
+  FilterTypeInput filter = 1;
 }
+// Response message for typeWithMultipleFilterFields operation
 message QueryTypeWithMultipleFilterFieldsResponse {
-    repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
+  repeated TypeWithMultipleFilterFields type_with_multiple_filter_fields = 1;
 }
+// Request message for complexFilterType operation
 message QueryComplexFilterTypeRequest {
-    ComplexFilterTypeInput filter = 1;
+  ComplexFilterTypeInput filter = 1;
 }
+// Response message for complexFilterType operation
 message QueryComplexFilterTypeResponse {
-    repeated TypeWithComplexFilterInput complex_filter_type = 1;
+  repeated TypeWithComplexFilterInput complex_filter_type = 1;
 }
+// Request message for calculateTotals operation
 message QueryCalculateTotalsRequest {
-    repeated OrderInput orders = 1;
+  repeated OrderInput orders = 1;
 }
+// Response message for calculateTotals operation
 message QueryCalculateTotalsResponse {
-    repeated Order calculate_totals = 1;
+  repeated Order calculate_totals = 1;
 }
+// Request message for categories operation
 message QueryCategoriesRequest {
 }
+// Response message for categories operation
 message QueryCategoriesResponse {
-    repeated Category categories = 1;
+  repeated Category categories = 1;
 }
+// Request message for categoriesByKind operation
 message QueryCategoriesByKindRequest {
-    CategoryKind kind = 1;
+  CategoryKind kind = 1;
 }
+// Response message for categoriesByKind operation
 message QueryCategoriesByKindResponse {
-    repeated Category categories_by_kind = 1;
+  repeated Category categories_by_kind = 1;
 }
+// Request message for categoriesByKinds operation
 message QueryCategoriesByKindsRequest {
-    repeated CategoryKind kinds = 1;
+  repeated CategoryKind kinds = 1;
 }
+// Response message for categoriesByKinds operation
 message QueryCategoriesByKindsResponse {
-    repeated Category categories_by_kinds = 1;
+  repeated Category categories_by_kinds = 1;
 }
+// Request message for filterCategories operation
 message QueryFilterCategoriesRequest {
-    CategoryFilter filter = 1;
+  CategoryFilter filter = 1;
 }
+// Response message for filterCategories operation
 message QueryFilterCategoriesResponse {
-    repeated Category filter_categories = 1;
+  repeated Category filter_categories = 1;
 }
+// Request message for randomPet operation
 message QueryRandomPetRequest {
 }
+// Response message for randomPet operation
 message QueryRandomPetResponse {
-    Animal random_pet = 1;
+  Animal random_pet = 1;
 }
+// Request message for allPets operation
 message QueryAllPetsRequest {
 }
+// Response message for allPets operation
 message QueryAllPetsResponse {
-    repeated Animal all_pets = 1;
+  repeated Animal all_pets = 1;
 }
+// Request message for createUser operation
 message MutationCreateUserRequest {
-    UserInput input = 1;
+  UserInput input = 1;
 }
+// Response message for createUser operation
 message MutationCreateUserResponse {
-    User create_user = 1;
+  User create_user = 1;
 }
 
 message Product {
@@ -193,6 +238,7 @@ message Order {
   string order_id = 1;
   string customer_name = 2;
   int32 total_items = 3;
+  repeated OrderLine order_lines = 4;
 }
 
 message Category {
@@ -208,8 +254,8 @@ message CategoryFilter {
 
 message Animal {
   oneof instance {
-    Cat cat = 1;
-    Dog dog = 2;
+  Cat cat = 1;
+  Dog dog = 2;
   }
 }
 
@@ -241,6 +287,12 @@ message Pagination {
 }
 
 message OrderLineInput {
+  string product_id = 1;
+  int32 quantity = 2;
+  repeated string modifiers = 3;
+}
+
+message OrderLine {
   string product_id = 1;
   int32 quantity = 2;
   repeated string modifiers = 3;

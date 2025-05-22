@@ -76,9 +76,11 @@ func (CategoryKind) EnumDescriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{0}
 }
 
+// Key message for Product entity lookup
 type LookupProductByIdRequestKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Key field for Product entity lookup
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -120,8 +122,10 @@ func (x *LookupProductByIdRequestKey) GetId() string {
 	return ""
 }
 
+// Request message for Product entity lookup
 type LookupProductByIdRequest struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// List of keys to look up Product entities
 	Keys          []*LookupProductByIdRequestKey `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -164,9 +168,11 @@ func (x *LookupProductByIdRequest) GetKeys() []*LookupProductByIdRequestKey {
 	return nil
 }
 
+// Response message for Product entity lookup
 type LookupProductByIdResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        []*Product             `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// List of Product entities matching the requested keys
+	Result        []*Product `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -208,9 +214,11 @@ func (x *LookupProductByIdResponse) GetResult() []*Product {
 	return nil
 }
 
+// Key message for Storage entity lookup
 type LookupStorageByIdRequestKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Key field for Storage entity lookup
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -252,8 +260,10 @@ func (x *LookupStorageByIdRequestKey) GetId() string {
 	return ""
 }
 
+// Request message for Storage entity lookup
 type LookupStorageByIdRequest struct {
-	state         protoimpl.MessageState         `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// List of keys to look up Storage entities
 	Keys          []*LookupStorageByIdRequestKey `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -296,9 +306,11 @@ func (x *LookupStorageByIdRequest) GetKeys() []*LookupStorageByIdRequestKey {
 	return nil
 }
 
+// Response message for Storage entity lookup
 type LookupStorageByIdResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Result        []*Storage             `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// List of Storage entities matching the requested keys
+	Result        []*Storage `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -340,6 +352,7 @@ func (x *LookupStorageByIdResponse) GetResult() []*Storage {
 	return nil
 }
 
+// Request message for users operation
 type QueryUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -376,6 +389,7 @@ func (*QueryUsersRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{6}
 }
 
+// Response message for users operation
 type QueryUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
@@ -420,6 +434,7 @@ func (x *QueryUsersResponse) GetUsers() []*User {
 	return nil
 }
 
+// Request message for user operation
 type QueryUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -464,6 +479,7 @@ func (x *QueryUserRequest) GetId() string {
 	return ""
 }
 
+// Response message for user operation
 type QueryUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
@@ -508,6 +524,7 @@ func (x *QueryUserResponse) GetUser() *User {
 	return nil
 }
 
+// Request message for nestedType operation
 type QueryNestedTypeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -544,6 +561,7 @@ func (*QueryNestedTypeRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{10}
 }
 
+// Response message for nestedType operation
 type QueryNestedTypeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NestedType    []*NestedTypeA         `protobuf:"bytes,1,rep,name=nested_type,json=nestedType,proto3" json:"nested_type,omitempty"`
@@ -588,6 +606,7 @@ func (x *QueryNestedTypeResponse) GetNestedType() []*NestedTypeA {
 	return nil
 }
 
+// Request message for recursiveType operation
 type QueryRecursiveTypeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -624,6 +643,7 @@ func (*QueryRecursiveTypeRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{12}
 }
 
+// Response message for recursiveType operation
 type QueryRecursiveTypeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RecursiveType *RecursiveType         `protobuf:"bytes,1,opt,name=recursive_type,json=recursiveType,proto3" json:"recursive_type,omitempty"`
@@ -668,6 +688,7 @@ func (x *QueryRecursiveTypeResponse) GetRecursiveType() *RecursiveType {
 	return nil
 }
 
+// Request message for typeFilterWithArguments operation
 type QueryTypeFilterWithArgumentsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FilterField_1 string                 `protobuf:"bytes,1,opt,name=filter_field_1,json=filterField1,proto3" json:"filter_field_1,omitempty"`
@@ -720,6 +741,7 @@ func (x *QueryTypeFilterWithArgumentsRequest) GetFilterField_2() string {
 	return ""
 }
 
+// Response message for typeFilterWithArguments operation
 type QueryTypeFilterWithArgumentsResponse struct {
 	state                   protoimpl.MessageState          `protogen:"open.v1"`
 	TypeFilterWithArguments []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=type_filter_with_arguments,json=typeFilterWithArguments,proto3" json:"type_filter_with_arguments,omitempty"`
@@ -764,6 +786,7 @@ func (x *QueryTypeFilterWithArgumentsResponse) GetTypeFilterWithArguments() []*T
 	return nil
 }
 
+// Request message for typeWithMultipleFilterFields operation
 type QueryTypeWithMultipleFilterFieldsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Filter        *FilterTypeInput       `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
@@ -808,6 +831,7 @@ func (x *QueryTypeWithMultipleFilterFieldsRequest) GetFilter() *FilterTypeInput 
 	return nil
 }
 
+// Response message for typeWithMultipleFilterFields operation
 type QueryTypeWithMultipleFilterFieldsResponse struct {
 	state                        protoimpl.MessageState          `protogen:"open.v1"`
 	TypeWithMultipleFilterFields []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=type_with_multiple_filter_fields,json=typeWithMultipleFilterFields,proto3" json:"type_with_multiple_filter_fields,omitempty"`
@@ -852,6 +876,7 @@ func (x *QueryTypeWithMultipleFilterFieldsResponse) GetTypeWithMultipleFilterFie
 	return nil
 }
 
+// Request message for complexFilterType operation
 type QueryComplexFilterTypeRequest struct {
 	state         protoimpl.MessageState  `protogen:"open.v1"`
 	Filter        *ComplexFilterTypeInput `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
@@ -896,6 +921,7 @@ func (x *QueryComplexFilterTypeRequest) GetFilter() *ComplexFilterTypeInput {
 	return nil
 }
 
+// Response message for complexFilterType operation
 type QueryComplexFilterTypeResponse struct {
 	state             protoimpl.MessageState        `protogen:"open.v1"`
 	ComplexFilterType []*TypeWithComplexFilterInput `protobuf:"bytes,1,rep,name=complex_filter_type,json=complexFilterType,proto3" json:"complex_filter_type,omitempty"`
@@ -940,6 +966,7 @@ func (x *QueryComplexFilterTypeResponse) GetComplexFilterType() []*TypeWithCompl
 	return nil
 }
 
+// Request message for calculateTotals operation
 type QueryCalculateTotalsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Orders        []*OrderInput          `protobuf:"bytes,1,rep,name=orders,proto3" json:"orders,omitempty"`
@@ -984,6 +1011,7 @@ func (x *QueryCalculateTotalsRequest) GetOrders() []*OrderInput {
 	return nil
 }
 
+// Response message for calculateTotals operation
 type QueryCalculateTotalsResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	CalculateTotals []*Order               `protobuf:"bytes,1,rep,name=calculate_totals,json=calculateTotals,proto3" json:"calculate_totals,omitempty"`
@@ -1028,6 +1056,7 @@ func (x *QueryCalculateTotalsResponse) GetCalculateTotals() []*Order {
 	return nil
 }
 
+// Request message for categories operation
 type QueryCategoriesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1064,6 +1093,7 @@ func (*QueryCategoriesRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{22}
 }
 
+// Response message for categories operation
 type QueryCategoriesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Categories    []*Category            `protobuf:"bytes,1,rep,name=categories,proto3" json:"categories,omitempty"`
@@ -1108,6 +1138,7 @@ func (x *QueryCategoriesResponse) GetCategories() []*Category {
 	return nil
 }
 
+// Request message for categoriesByKind operation
 type QueryCategoriesByKindRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          CategoryKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=productv1.CategoryKind" json:"kind,omitempty"`
@@ -1152,6 +1183,7 @@ func (x *QueryCategoriesByKindRequest) GetKind() CategoryKind {
 	return CategoryKind_CATEGORY_KIND_UNSPECIFIED
 }
 
+// Response message for categoriesByKind operation
 type QueryCategoriesByKindResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	CategoriesByKind []*Category            `protobuf:"bytes,1,rep,name=categories_by_kind,json=categoriesByKind,proto3" json:"categories_by_kind,omitempty"`
@@ -1196,6 +1228,7 @@ func (x *QueryCategoriesByKindResponse) GetCategoriesByKind() []*Category {
 	return nil
 }
 
+// Request message for categoriesByKinds operation
 type QueryCategoriesByKindsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kinds         []CategoryKind         `protobuf:"varint,1,rep,packed,name=kinds,proto3,enum=productv1.CategoryKind" json:"kinds,omitempty"`
@@ -1240,6 +1273,7 @@ func (x *QueryCategoriesByKindsRequest) GetKinds() []CategoryKind {
 	return nil
 }
 
+// Response message for categoriesByKinds operation
 type QueryCategoriesByKindsResponse struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	CategoriesByKinds []*Category            `protobuf:"bytes,1,rep,name=categories_by_kinds,json=categoriesByKinds,proto3" json:"categories_by_kinds,omitempty"`
@@ -1284,6 +1318,7 @@ func (x *QueryCategoriesByKindsResponse) GetCategoriesByKinds() []*Category {
 	return nil
 }
 
+// Request message for filterCategories operation
 type QueryFilterCategoriesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Filter        *CategoryFilter        `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
@@ -1328,6 +1363,7 @@ func (x *QueryFilterCategoriesRequest) GetFilter() *CategoryFilter {
 	return nil
 }
 
+// Response message for filterCategories operation
 type QueryFilterCategoriesResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	FilterCategories []*Category            `protobuf:"bytes,1,rep,name=filter_categories,json=filterCategories,proto3" json:"filter_categories,omitempty"`
@@ -1372,6 +1408,7 @@ func (x *QueryFilterCategoriesResponse) GetFilterCategories() []*Category {
 	return nil
 }
 
+// Request message for randomPet operation
 type QueryRandomPetRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1408,6 +1445,7 @@ func (*QueryRandomPetRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{30}
 }
 
+// Response message for randomPet operation
 type QueryRandomPetResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RandomPet     *Animal                `protobuf:"bytes,1,opt,name=random_pet,json=randomPet,proto3" json:"random_pet,omitempty"`
@@ -1452,6 +1490,7 @@ func (x *QueryRandomPetResponse) GetRandomPet() *Animal {
 	return nil
 }
 
+// Request message for allPets operation
 type QueryAllPetsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1488,6 +1527,7 @@ func (*QueryAllPetsRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{32}
 }
 
+// Response message for allPets operation
 type QueryAllPetsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AllPets       []*Animal              `protobuf:"bytes,1,rep,name=all_pets,json=allPets,proto3" json:"all_pets,omitempty"`
@@ -1532,6 +1572,7 @@ func (x *QueryAllPetsResponse) GetAllPets() []*Animal {
 	return nil
 }
 
+// Request message for createUser operation
 type MutationCreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Input         *UserInput             `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
@@ -1576,6 +1617,7 @@ func (x *MutationCreateUserRequest) GetInput() *UserInput {
 	return nil
 }
 
+// Response message for createUser operation
 type MutationCreateUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CreateUser    *User                  `protobuf:"bytes,1,opt,name=create_user,json=createUser,proto3" json:"create_user,omitempty"`
@@ -2193,6 +2235,7 @@ type Order struct {
 	OrderId       string                 `protobuf:"bytes,1,opt,name=order_id,json=orderId,proto3" json:"order_id,omitempty"`
 	CustomerName  string                 `protobuf:"bytes,2,opt,name=customer_name,json=customerName,proto3" json:"customer_name,omitempty"`
 	TotalItems    int32                  `protobuf:"varint,3,opt,name=total_items,json=totalItems,proto3" json:"total_items,omitempty"`
+	OrderLines    []*OrderLine           `protobuf:"bytes,4,rep,name=order_lines,json=orderLines,proto3" json:"order_lines,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2246,6 +2289,13 @@ func (x *Order) GetTotalItems() int32 {
 		return x.TotalItems
 	}
 	return 0
+}
+
+func (x *Order) GetOrderLines() []*OrderLine {
+	if x != nil {
+		return x.OrderLines
+	}
+	return nil
 }
 
 type Category struct {
@@ -2778,6 +2828,66 @@ func (x *OrderLineInput) GetModifiers() []string {
 	return nil
 }
 
+type OrderLine struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProductId     string                 `protobuf:"bytes,1,opt,name=product_id,json=productId,proto3" json:"product_id,omitempty"`
+	Quantity      int32                  `protobuf:"varint,2,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Modifiers     []string               `protobuf:"bytes,3,rep,name=modifiers,proto3" json:"modifiers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OrderLine) Reset() {
+	*x = OrderLine{}
+	mi := &file_product_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OrderLine) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OrderLine) ProtoMessage() {}
+
+func (x *OrderLine) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OrderLine.ProtoReflect.Descriptor instead.
+func (*OrderLine) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *OrderLine) GetProductId() string {
+	if x != nil {
+		return x.ProductId
+	}
+	return ""
+}
+
+func (x *OrderLine) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *OrderLine) GetModifiers() []string {
+	if x != nil {
+		return x.Modifiers
+	}
+	return nil
+}
+
 type Cat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -2790,7 +2900,7 @@ type Cat struct {
 
 func (x *Cat) Reset() {
 	*x = Cat{}
-	mi := &file_product_proto_msgTypes[56]
+	mi := &file_product_proto_msgTypes[57]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2802,7 +2912,7 @@ func (x *Cat) String() string {
 func (*Cat) ProtoMessage() {}
 
 func (x *Cat) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[56]
+	mi := &file_product_proto_msgTypes[57]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2815,7 +2925,7 @@ func (x *Cat) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Cat.ProtoReflect.Descriptor instead.
 func (*Cat) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{56}
+	return file_product_proto_rawDescGZIP(), []int{57}
 }
 
 func (x *Cat) GetId() string {
@@ -2858,7 +2968,7 @@ type Dog struct {
 
 func (x *Dog) Reset() {
 	*x = Dog{}
-	mi := &file_product_proto_msgTypes[57]
+	mi := &file_product_proto_msgTypes[58]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2870,7 +2980,7 @@ func (x *Dog) String() string {
 func (*Dog) ProtoMessage() {}
 
 func (x *Dog) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[57]
+	mi := &file_product_proto_msgTypes[58]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2883,7 +2993,7 @@ func (x *Dog) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Dog.ProtoReflect.Descriptor instead.
 func (*Dog) Descriptor() ([]byte, []int) {
-	return file_product_proto_rawDescGZIP(), []int{57}
+	return file_product_proto_rawDescGZIP(), []int{58}
 }
 
 func (x *Dog) GetId() string {
@@ -3027,12 +3137,14 @@ const file_product_proto_rawDesc = "" +
 	"OrderInput\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12#\n" +
 	"\rcustomer_name\x18\x02 \x01(\tR\fcustomerName\x12/\n" +
-	"\x05lines\x18\x03 \x03(\v2\x19.productv1.OrderLineInputR\x05lines\"h\n" +
+	"\x05lines\x18\x03 \x03(\v2\x19.productv1.OrderLineInputR\x05lines\"\x9f\x01\n" +
 	"\x05Order\x12\x19\n" +
 	"\border_id\x18\x01 \x01(\tR\aorderId\x12#\n" +
 	"\rcustomer_name\x18\x02 \x01(\tR\fcustomerName\x12\x1f\n" +
 	"\vtotal_items\x18\x03 \x01(\x05R\n" +
-	"totalItems\"[\n" +
+	"totalItems\x125\n" +
+	"\vorder_lines\x18\x04 \x03(\v2\x14.productv1.OrderLineR\n" +
+	"orderLines\"[\n" +
 	"\bCategory\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12+\n" +
@@ -3069,6 +3181,11 @@ const file_product_proto_rawDesc = "" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x19\n" +
 	"\bper_page\x18\x02 \x01(\x05R\aperPage\"i\n" +
 	"\x0eOrderLineInput\x12\x1d\n" +
+	"\n" +
+	"product_id\x18\x01 \x01(\tR\tproductId\x12\x1a\n" +
+	"\bquantity\x18\x02 \x01(\x05R\bquantity\x12\x1c\n" +
+	"\tmodifiers\x18\x03 \x03(\tR\tmodifiers\"d\n" +
+	"\tOrderLine\x12\x1d\n" +
 	"\n" +
 	"product_id\x18\x01 \x01(\tR\tproductId\x12\x1a\n" +
 	"\bquantity\x18\x02 \x01(\x05R\bquantity\x12\x1c\n" +
@@ -3124,7 +3241,7 @@ func file_product_proto_rawDescGZIP() []byte {
 }
 
 var file_product_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 58)
+var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 59)
 var file_product_proto_goTypes = []any{
 	(CategoryKind)(0),                                 // 0: productv1.CategoryKind
 	(*LookupProductByIdRequestKey)(nil),               // 1: productv1.LookupProductByIdRequestKey
@@ -3183,8 +3300,9 @@ var file_product_proto_goTypes = []any{
 	(*FilterType)(nil),                                // 54: productv1.FilterType
 	(*Pagination)(nil),                                // 55: productv1.Pagination
 	(*OrderLineInput)(nil),                            // 56: productv1.OrderLineInput
-	(*Cat)(nil),                                       // 57: productv1.Cat
-	(*Dog)(nil),                                       // 58: productv1.Dog
+	(*OrderLine)(nil),                                 // 57: productv1.OrderLine
+	(*Cat)(nil),                                       // 58: productv1.Cat
+	(*Dog)(nil),                                       // 59: productv1.Dog
 }
 var file_product_proto_depIdxs = []int32{
 	1,  // 0: productv1.LookupProductByIdRequest.keys:type_name -> productv1.LookupProductByIdRequestKey
@@ -3217,52 +3335,53 @@ var file_product_proto_depIdxs = []int32{
 	41, // 27: productv1.RecursiveType.recursive_type:type_name -> productv1.RecursiveType
 	54, // 28: productv1.ComplexFilterTypeInput.filter:type_name -> productv1.FilterType
 	56, // 29: productv1.OrderInput.lines:type_name -> productv1.OrderLineInput
-	0,  // 30: productv1.Category.kind:type_name -> productv1.CategoryKind
-	0,  // 31: productv1.CategoryFilter.category:type_name -> productv1.CategoryKind
-	55, // 32: productv1.CategoryFilter.pagination:type_name -> productv1.Pagination
-	57, // 33: productv1.Animal.cat:type_name -> productv1.Cat
-	58, // 34: productv1.Animal.dog:type_name -> productv1.Dog
-	53, // 35: productv1.NestedTypeB.c:type_name -> productv1.NestedTypeC
-	55, // 36: productv1.FilterType.pagination:type_name -> productv1.Pagination
-	2,  // 37: productv1.ProductService.LookupProductById:input_type -> productv1.LookupProductByIdRequest
-	5,  // 38: productv1.ProductService.LookupStorageById:input_type -> productv1.LookupStorageByIdRequest
-	35, // 39: productv1.ProductService.MutationCreateUser:input_type -> productv1.MutationCreateUserRequest
-	33, // 40: productv1.ProductService.QueryAllPets:input_type -> productv1.QueryAllPetsRequest
-	21, // 41: productv1.ProductService.QueryCalculateTotals:input_type -> productv1.QueryCalculateTotalsRequest
-	23, // 42: productv1.ProductService.QueryCategories:input_type -> productv1.QueryCategoriesRequest
-	25, // 43: productv1.ProductService.QueryCategoriesByKind:input_type -> productv1.QueryCategoriesByKindRequest
-	27, // 44: productv1.ProductService.QueryCategoriesByKinds:input_type -> productv1.QueryCategoriesByKindsRequest
-	19, // 45: productv1.ProductService.QueryComplexFilterType:input_type -> productv1.QueryComplexFilterTypeRequest
-	29, // 46: productv1.ProductService.QueryFilterCategories:input_type -> productv1.QueryFilterCategoriesRequest
-	11, // 47: productv1.ProductService.QueryNestedType:input_type -> productv1.QueryNestedTypeRequest
-	31, // 48: productv1.ProductService.QueryRandomPet:input_type -> productv1.QueryRandomPetRequest
-	13, // 49: productv1.ProductService.QueryRecursiveType:input_type -> productv1.QueryRecursiveTypeRequest
-	15, // 50: productv1.ProductService.QueryTypeFilterWithArguments:input_type -> productv1.QueryTypeFilterWithArgumentsRequest
-	17, // 51: productv1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> productv1.QueryTypeWithMultipleFilterFieldsRequest
-	9,  // 52: productv1.ProductService.QueryUser:input_type -> productv1.QueryUserRequest
-	7,  // 53: productv1.ProductService.QueryUsers:input_type -> productv1.QueryUsersRequest
-	3,  // 54: productv1.ProductService.LookupProductById:output_type -> productv1.LookupProductByIdResponse
-	6,  // 55: productv1.ProductService.LookupStorageById:output_type -> productv1.LookupStorageByIdResponse
-	36, // 56: productv1.ProductService.MutationCreateUser:output_type -> productv1.MutationCreateUserResponse
-	34, // 57: productv1.ProductService.QueryAllPets:output_type -> productv1.QueryAllPetsResponse
-	22, // 58: productv1.ProductService.QueryCalculateTotals:output_type -> productv1.QueryCalculateTotalsResponse
-	24, // 59: productv1.ProductService.QueryCategories:output_type -> productv1.QueryCategoriesResponse
-	26, // 60: productv1.ProductService.QueryCategoriesByKind:output_type -> productv1.QueryCategoriesByKindResponse
-	28, // 61: productv1.ProductService.QueryCategoriesByKinds:output_type -> productv1.QueryCategoriesByKindsResponse
-	20, // 62: productv1.ProductService.QueryComplexFilterType:output_type -> productv1.QueryComplexFilterTypeResponse
-	30, // 63: productv1.ProductService.QueryFilterCategories:output_type -> productv1.QueryFilterCategoriesResponse
-	12, // 64: productv1.ProductService.QueryNestedType:output_type -> productv1.QueryNestedTypeResponse
-	32, // 65: productv1.ProductService.QueryRandomPet:output_type -> productv1.QueryRandomPetResponse
-	14, // 66: productv1.ProductService.QueryRecursiveType:output_type -> productv1.QueryRecursiveTypeResponse
-	16, // 67: productv1.ProductService.QueryTypeFilterWithArguments:output_type -> productv1.QueryTypeFilterWithArgumentsResponse
-	18, // 68: productv1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> productv1.QueryTypeWithMultipleFilterFieldsResponse
-	10, // 69: productv1.ProductService.QueryUser:output_type -> productv1.QueryUserResponse
-	8,  // 70: productv1.ProductService.QueryUsers:output_type -> productv1.QueryUsersResponse
-	54, // [54:71] is the sub-list for method output_type
-	37, // [37:54] is the sub-list for method input_type
-	37, // [37:37] is the sub-list for extension type_name
-	37, // [37:37] is the sub-list for extension extendee
-	0,  // [0:37] is the sub-list for field type_name
+	57, // 30: productv1.Order.order_lines:type_name -> productv1.OrderLine
+	0,  // 31: productv1.Category.kind:type_name -> productv1.CategoryKind
+	0,  // 32: productv1.CategoryFilter.category:type_name -> productv1.CategoryKind
+	55, // 33: productv1.CategoryFilter.pagination:type_name -> productv1.Pagination
+	58, // 34: productv1.Animal.cat:type_name -> productv1.Cat
+	59, // 35: productv1.Animal.dog:type_name -> productv1.Dog
+	53, // 36: productv1.NestedTypeB.c:type_name -> productv1.NestedTypeC
+	55, // 37: productv1.FilterType.pagination:type_name -> productv1.Pagination
+	2,  // 38: productv1.ProductService.LookupProductById:input_type -> productv1.LookupProductByIdRequest
+	5,  // 39: productv1.ProductService.LookupStorageById:input_type -> productv1.LookupStorageByIdRequest
+	35, // 40: productv1.ProductService.MutationCreateUser:input_type -> productv1.MutationCreateUserRequest
+	33, // 41: productv1.ProductService.QueryAllPets:input_type -> productv1.QueryAllPetsRequest
+	21, // 42: productv1.ProductService.QueryCalculateTotals:input_type -> productv1.QueryCalculateTotalsRequest
+	23, // 43: productv1.ProductService.QueryCategories:input_type -> productv1.QueryCategoriesRequest
+	25, // 44: productv1.ProductService.QueryCategoriesByKind:input_type -> productv1.QueryCategoriesByKindRequest
+	27, // 45: productv1.ProductService.QueryCategoriesByKinds:input_type -> productv1.QueryCategoriesByKindsRequest
+	19, // 46: productv1.ProductService.QueryComplexFilterType:input_type -> productv1.QueryComplexFilterTypeRequest
+	29, // 47: productv1.ProductService.QueryFilterCategories:input_type -> productv1.QueryFilterCategoriesRequest
+	11, // 48: productv1.ProductService.QueryNestedType:input_type -> productv1.QueryNestedTypeRequest
+	31, // 49: productv1.ProductService.QueryRandomPet:input_type -> productv1.QueryRandomPetRequest
+	13, // 50: productv1.ProductService.QueryRecursiveType:input_type -> productv1.QueryRecursiveTypeRequest
+	15, // 51: productv1.ProductService.QueryTypeFilterWithArguments:input_type -> productv1.QueryTypeFilterWithArgumentsRequest
+	17, // 52: productv1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> productv1.QueryTypeWithMultipleFilterFieldsRequest
+	9,  // 53: productv1.ProductService.QueryUser:input_type -> productv1.QueryUserRequest
+	7,  // 54: productv1.ProductService.QueryUsers:input_type -> productv1.QueryUsersRequest
+	3,  // 55: productv1.ProductService.LookupProductById:output_type -> productv1.LookupProductByIdResponse
+	6,  // 56: productv1.ProductService.LookupStorageById:output_type -> productv1.LookupStorageByIdResponse
+	36, // 57: productv1.ProductService.MutationCreateUser:output_type -> productv1.MutationCreateUserResponse
+	34, // 58: productv1.ProductService.QueryAllPets:output_type -> productv1.QueryAllPetsResponse
+	22, // 59: productv1.ProductService.QueryCalculateTotals:output_type -> productv1.QueryCalculateTotalsResponse
+	24, // 60: productv1.ProductService.QueryCategories:output_type -> productv1.QueryCategoriesResponse
+	26, // 61: productv1.ProductService.QueryCategoriesByKind:output_type -> productv1.QueryCategoriesByKindResponse
+	28, // 62: productv1.ProductService.QueryCategoriesByKinds:output_type -> productv1.QueryCategoriesByKindsResponse
+	20, // 63: productv1.ProductService.QueryComplexFilterType:output_type -> productv1.QueryComplexFilterTypeResponse
+	30, // 64: productv1.ProductService.QueryFilterCategories:output_type -> productv1.QueryFilterCategoriesResponse
+	12, // 65: productv1.ProductService.QueryNestedType:output_type -> productv1.QueryNestedTypeResponse
+	32, // 66: productv1.ProductService.QueryRandomPet:output_type -> productv1.QueryRandomPetResponse
+	14, // 67: productv1.ProductService.QueryRecursiveType:output_type -> productv1.QueryRecursiveTypeResponse
+	16, // 68: productv1.ProductService.QueryTypeFilterWithArguments:output_type -> productv1.QueryTypeFilterWithArgumentsResponse
+	18, // 69: productv1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> productv1.QueryTypeWithMultipleFilterFieldsResponse
+	10, // 70: productv1.ProductService.QueryUser:output_type -> productv1.QueryUserResponse
+	8,  // 71: productv1.ProductService.QueryUsers:output_type -> productv1.QueryUsersResponse
+	55, // [55:72] is the sub-list for method output_type
+	38, // [38:55] is the sub-list for method input_type
+	38, // [38:38] is the sub-list for extension type_name
+	38, // [38:38] is the sub-list for extension extendee
+	0,  // [0:38] is the sub-list for field type_name
 }
 
 func init() { file_product_proto_init() }
@@ -3280,7 +3399,7 @@ func file_product_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_product_proto_rawDesc), len(file_product_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   58,
+			NumMessages:   59,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
