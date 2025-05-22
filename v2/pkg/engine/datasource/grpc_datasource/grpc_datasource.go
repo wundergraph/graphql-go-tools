@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
@@ -222,7 +223,7 @@ func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, nam
 	case protoref.Int32Kind, protoref.Int64Kind:
 		root.Set(name, arena.NewNumberInt(int(data.Get(fd).Int())))
 	case protoref.Uint32Kind, protoref.Uint64Kind:
-		root.Set(name, arena.NewNumberString(fmt.Sprintf("%d", data.Get(fd).Uint())))
+		root.Set(name, arena.NewNumberString(strconv.FormatUint(data.Get(fd).Uint(), 10)))
 	case protoref.FloatKind, protoref.DoubleKind:
 		root.Set(name, arena.NewNumberFloat64(data.Get(fd).Float()))
 	case protoref.BytesKind:
@@ -259,7 +260,7 @@ func (d *DataSource) setArrayItem(index int, arena *astjson.Arena, array *astjso
 	case protoref.Int32Kind, protoref.Int64Kind:
 		array.SetArrayItem(index, arena.NewNumberInt(int(data.Int())))
 	case protoref.Uint32Kind, protoref.Uint64Kind:
-		array.SetArrayItem(index, arena.NewNumberString(fmt.Sprintf("%d", data.Uint())))
+		array.SetArrayItem(index, arena.NewNumberString(strconv.FormatUint(data.Uint(), 10)))
 	case protoref.FloatKind, protoref.DoubleKind:
 		array.SetArrayItem(index, arena.NewNumberFloat64(data.Float()))
 	case protoref.BytesKind:
