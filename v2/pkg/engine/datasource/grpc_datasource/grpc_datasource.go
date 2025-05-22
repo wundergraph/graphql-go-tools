@@ -191,6 +191,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 		if fd.Kind() == protoref.MessageKind {
 			msg := data.Get(fd).Message()
+			if !msg.IsValid() {
+				root.Set(field.JSONPath, arena.NewNull())
+				continue
+			}
+
 			value, err := d.marshalResponseJSON(arena, field.Message, msg)
 			if err != nil {
 				return nil, err
