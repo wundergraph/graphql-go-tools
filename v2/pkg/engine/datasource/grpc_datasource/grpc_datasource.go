@@ -256,10 +256,10 @@ func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, nam
 	}
 }
 
-func (d *DataSource) setArrayItem(index int, arena *astjson.Arena, array *astjson.Value, data protoref.Value, fd protoref.FieldDescriptor) error {
+func (d *DataSource) setArrayItem(index int, arena *astjson.Arena, array *astjson.Value, data protoref.Value, fd protoref.FieldDescriptor) {
 	if !data.IsValid() {
 		array.SetArrayItem(index, arena.NewNull())
-		return nil
+		return
 	}
 
 	switch fd.Kind() {
@@ -285,18 +285,17 @@ func (d *DataSource) setArrayItem(index int, arena *astjson.Arena, array *astjso
 		enumValueDesc := enumDesc.Values().ByNumber(data.Enum())
 		if enumValueDesc == nil {
 			array.SetArrayItem(index, arena.NewNull())
-			return nil
+			return
 		}
 
 		graphqlValue, ok := d.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
 		if !ok {
 			array.SetArrayItem(index, arena.NewNull())
-			return nil
+			return
 		}
 
 		array.SetArrayItem(index, arena.NewString(graphqlValue))
 	}
-	return nil
 }
 
 func writeErrorBytes(err error) []byte {
