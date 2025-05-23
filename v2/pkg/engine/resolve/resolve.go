@@ -692,7 +692,7 @@ func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 	removed := 0
 	for u := range r.triggers {
 		trig := r.triggers[u]
-		removed += r.shutdownTriggerSubscriptions(u, false, func(sID SubscriptionIdentifier) bool {
+		removed += r.shutdownTriggerSubscriptions(u, true, func(sID SubscriptionIdentifier) bool {
 			return sID == id
 		})
 		if len(trig.subscriptions) == 0 {
@@ -710,7 +710,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 	removed := 0
 	for u := range r.triggers {
-		removed += r.shutdownTriggerSubscriptions(u, false, func(sID SubscriptionIdentifier) bool {
+		removed += r.shutdownTriggerSubscriptions(u, true, func(sID SubscriptionIdentifier) bool {
 			return sID.ConnectionID == id
 		})
 		if len(r.triggers[u].subscriptions) == 0 {
