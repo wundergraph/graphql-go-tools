@@ -4655,6 +4655,7 @@ type SubscriptionRecorder struct {
 	buf      *bytes.Buffer
 	messages []string
 	complete atomic.Bool
+	closed   atomic.Bool
 	mux      sync.Mutex
 	onFlush  func(p []byte)
 }
@@ -4723,6 +4724,10 @@ func (s *SubscriptionRecorder) Flush() error {
 
 func (s *SubscriptionRecorder) Complete() {
 	s.complete.Store(true)
+}
+
+func (s *SubscriptionRecorder) Close() {
+	s.closed.Store(true)
 }
 
 func (s *SubscriptionRecorder) Messages() []string {

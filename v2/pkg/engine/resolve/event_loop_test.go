@@ -23,6 +23,7 @@ type FakeSubscriptionWriter struct {
 	buf                    []byte
 	writtenMessages        []string
 	completed              bool
+	closed                 bool
 	messageCountOnComplete int
 }
 
@@ -45,6 +46,13 @@ func (f *FakeSubscriptionWriter) Complete() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.completed = true
+	f.messageCountOnComplete = len(f.writtenMessages)
+}
+
+func (f *FakeSubscriptionWriter) Close() {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.closed = true
 	f.messageCountOnComplete = len(f.writtenMessages)
 }
 
