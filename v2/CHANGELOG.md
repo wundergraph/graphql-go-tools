@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.181](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.180...v2.0.0-rc.181) (2025-05-23)
+
+
+### Bug Fixes
+
+* do not add array field when node was skipped ([#1156](https://github.com/wundergraph/graphql-go-tools/issues/1156)) ([61dc0b1](https://github.com/wundergraph/graphql-go-tools/commit/61dc0b19b639b1d321c2bce12cad63ec70925a5f))
+
 ## [2.0.0-rc.180](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.179...v2.0.0-rc.180) (2025-05-20)
 
 
