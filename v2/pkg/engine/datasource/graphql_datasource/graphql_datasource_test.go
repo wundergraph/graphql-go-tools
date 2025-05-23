@@ -71,19 +71,19 @@ func TestGraphQLDataSource(t *testing.T) {
 			type Query {
 				a: A
 			}
-	
+
 			type A {
 				a: String
 			}
-	
+
 			type B {
 				b: String
 			}
-	
+
 			union U = A | B
 		`
 
-		t.Run("run", RunTest(definition, ` 
+		t.Run("run", RunTest(definition, `
 			query MyQuery{
 				a {
 					... on U {
@@ -780,20 +780,20 @@ func TestGraphQLDataSource(t *testing.T) {
 			type Query {
 			  thing: Thing
 			}
-			
+
 			type Thing {
 			  id: String!
 			  abstractThing: AbstractThing
 			}
-			
+
 			interface AbstractThing {
 			  name: String
 			}
-			
+
 			type ConcreteOne implements AbstractThing {
 			  name: String
 			}
-			
+
 			type ConcreteTwo implements AbstractThing {
 			  name: String
 			}`
@@ -2140,9 +2140,9 @@ func TestGraphQLDataSource(t *testing.T) {
 			_entities(representations: $representations){
 				... on Product {
 					reviews {
-						body 
+						body
 						author {
-							username 
+							username
 							id
 						}
 					}
@@ -4128,7 +4128,7 @@ func TestGraphQLDataSource(t *testing.T) {
 								author {
 									id
 									username
-								}	
+								}
 								product {
 									name
 									price
@@ -6107,11 +6107,11 @@ func TestGraphQLDataSource(t *testing.T) {
 								me: User
 								self: Identity
 							}
-							
+
 							interface Identity {
 								id: ID!
 							}
-							
+
 							type User implements Identity @key(fields: "id") {
 								id: ID!
 								username: String!
@@ -6181,27 +6181,27 @@ func TestGraphQLDataSource(t *testing.T) {
 							interface Medium {
 								size: Int!
 							}
-						
+
 							type Image implements Medium {
 								size: Int!
 								extension: String!
 							}
-						
+
 							type Video implements Medium {
 								size: Int!
 								length: Int!
 							}
-						
+
 							type Review @key(fields: "id") {
 								id: ID!
 								body: String!
 								author: User! @provides(fields: "username")
 								attachment: Medium
 							}
-							
+
 							type User @key(fields: "id") {
 								id: ID!
-								reviews: [Review] 
+								reviews: [Review]
 							}`,
 						),
 					}),
@@ -8266,6 +8266,7 @@ func (f *FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, option
 type testSubscriptionUpdater struct {
 	updates []string
 	done    bool
+	closed  bool
 	mux     sync.Mutex
 }
 
@@ -8323,6 +8324,12 @@ func (t *testSubscriptionUpdater) Done() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	t.done = true
+}
+
+func (t *testSubscriptionUpdater) Close() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.closed = true
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
@@ -9699,7 +9706,7 @@ input UpdateUserInput {
 }
 """
 The @cache directive caches the response server side and sets cache control headers according to the configuration.
-With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently. 
+With this setting you can reduce the load on your backend systems for operations that get hit a lot while data doesn't change that frequently.
 """
 directive @cache(
   """maxAge defines the maximum time in seconds a response will be understood 'fresh', defaults to 300 (5 minutes)"""
@@ -9707,7 +9714,7 @@ directive @cache(
   """
   vary defines the headers to append to the cache key
   In addition to all possible headers you can also select a custom claim for authenticated requests
-  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt. 
+  Examples: 'jwt.sub', 'jwt.team' to vary the cache key based on 'sub' or 'team' fields on the jwt.
   """
   vary: [String]! = []
 ) on QUERY
@@ -10469,20 +10476,20 @@ const federatedSchemaWithInterfaceQuery = `
 	scalar String
 	scalar Int
 	scalar ID
-	
+
 	schema {
 		query: Query
 	}
-	
+
 	type Query {
 		me: User
 		self: Identity
 	}
-	
+
 	interface Identity {
 		id: ID!
 	}
-	
+
 	type User implements Identity {
 		id: ID!
 		username: String!
@@ -10502,7 +10509,7 @@ const federatedSchemaWithInterfaceQuery = `
 		size: Int!
 		length: Int!
 	}
-	
+
 	type Review {
 		id: ID!
 		body: String!
@@ -10532,10 +10539,10 @@ const reviewSDL = `
 		author: User! @provides(fields: "username")
 		attachment: Medium
 	}
-	
+
 	extend type User @key(fields: "id") {
 		id: ID! @external
-		reviews: [Review] 
+		reviews: [Review]
 	}
 `
 
@@ -10544,11 +10551,11 @@ const userSDLWithInterface = `
 		me: User
 		self: Identity
 	}
-	
+
 	interface Identity {
 		id: ID!
 	}
-	
+
 	type User implements Identity @key(fields: "id") {
 		id: ID!
 		username: String!
