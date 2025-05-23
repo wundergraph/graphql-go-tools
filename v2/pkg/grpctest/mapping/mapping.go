@@ -370,6 +370,20 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"totalItems": {
 					TargetName: "total_items",
 				},
+				"orderLines": {
+					TargetName: "order_lines",
+				},
+			},
+			"OrderLine": {
+				"productId": {
+					TargetName: "product_id",
+				},
+				"quantity": {
+					TargetName: "quantity",
+				},
+				"modifiers": {
+					TargetName: "modifiers",
+				},
 			},
 			"OrderInput": {
 				"orderId": {

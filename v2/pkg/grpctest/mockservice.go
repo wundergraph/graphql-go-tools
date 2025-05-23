@@ -401,10 +401,20 @@ func (s *MockService) QueryCalculateTotals(ctx context.Context, in *productv1.Qu
 			totalItems += line.GetQuantity()
 		}
 
+		orderLines := []*productv1.OrderLine{}
+		for _, line := range orderInput.GetLines() {
+			orderLines = append(orderLines, &productv1.OrderLine{
+				ProductId: line.GetProductId(),
+				Quantity:  line.GetQuantity(),
+				Modifiers: line.GetModifiers(),
+			})
+		}
+
 		calculatedOrders = append(calculatedOrders, &productv1.Order{
 			OrderId:      orderInput.GetOrderId(),
 			CustomerName: orderInput.GetCustomerName(),
 			TotalItems:   totalItems,
+			OrderLines:   orderLines,
 		})
 	}
 

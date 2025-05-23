@@ -408,8 +408,13 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 
 			// Process each element and append to the list
 			for _, element := range elements {
-				fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
-				list.Append(protoref.ValueOfMessage(fieldMsg))
+				switch field.Type {
+				case DataTypeMessage:
+					fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
+					list.Append(protoref.ValueOfMessage(fieldMsg))
+				default:
+					list.Append(p.setValueForKind(field.Type, element))
+				}
 			}
 
 			continue

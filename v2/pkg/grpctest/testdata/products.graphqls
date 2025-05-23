@@ -88,6 +88,13 @@ type Order {
   orderId: ID!
   customerName: String!
   totalItems: Int!
+  orderLines: [OrderLine!]
+}
+
+type OrderLine {
+  productId: ID!
+  quantity: Int!
+  modifiers: [String!]
 }
 
 input CategoryFilter {
