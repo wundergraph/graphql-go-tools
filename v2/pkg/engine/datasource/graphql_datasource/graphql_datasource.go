@@ -1704,6 +1704,7 @@ type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
 	grpcClient         grpc.ClientConnInterface
+	grpcClientProvider func() grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
 }
 
@@ -1746,6 +1747,21 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 	}, nil
 }
 
+func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvider func() grpc.ClientConnInterface) (*Factory[Configuration], error) {
+	if executionContext == nil {
+		return nil, fmt.Errorf("execution context is required")
+	}
+
+	if clientProvider == nil {
+		return nil, fmt.Errorf("provider function is required")
+	}
+
+	return &Factory[Configuration]{
+		executionContext:   executionContext,
+		grpcClientProvider: clientProvider,
+	}, nil
+}
+
 func (p *Planner[T]) getKit() *printKit {
 	return printKitPool.Get().(*printKit)
 }
@@ -1757,9 +1773,14 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
+	grpcClient := f.grpcClient
+	if f.grpcClientProvider != nil {
+		grpcClient = f.grpcClientProvider()
+	}
+
 	return &Planner[T]{
 		fetchClient:        f.httpClient,
-		grpcClient:         f.grpcClient,
+		grpcClient:         grpcClient,
 		subscriptionClient: f.subscriptionClient,
 	}
 }
