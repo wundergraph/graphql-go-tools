@@ -31,10 +31,11 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
-	plan    *RPCExecutionPlan
-	cc      grpc.ClientConnInterface
-	rc      *RPCCompiler
-	mapping *GRPCMapping
+	plan     *RPCExecutionPlan
+	cc       grpc.ClientConnInterface
+	rc       *RPCCompiler
+	mapping  *GRPCMapping
+	disabled bool
 }
 
 type ProtoConfig struct {
@@ -47,6 +48,7 @@ type DataSourceConfig struct {
 	Compiler     *RPCCompiler
 	SubgraphName string
 	Mapping      *GRPCMapping
+	Disabled     bool
 }
 
 // NewDataSource creates a new gRPC datasource
@@ -58,10 +60,11 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	}
 
 	return &DataSource{
-		plan:    plan,
-		cc:      client,
-		rc:      config.Compiler,
-		mapping: config.Mapping,
+		plan:     plan,
+		cc:       client,
+		rc:       config.Compiler,
+		mapping:  config.Mapping,
+		disabled: config.Disabled,
 	}, nil
 }
 
@@ -72,6 +75,11 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+	if d.disabled {
+		out.Write(writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")))
+		return nil
+	}
+
 	// get variables from input
 	variables := gjson.Parse(string(input)).Get("body.variables")
 
