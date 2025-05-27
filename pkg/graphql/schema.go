@@ -208,7 +208,7 @@ func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFie
 	}
 
 	typeFieldArguments := make([]TypeFieldArguments, 0)
-	for _, objectType := range s.document.ObjectTypeDefinitions {
+	for objRef, objectType := range s.document.ObjectTypeDefinitions {
 		typeName, ok := s.typeNameOfObjectTypeIfHavingFields(objectType)
 		if !ok {
 			continue
@@ -219,8 +219,8 @@ func (s *Schema) GetAllFieldArguments(skipFieldFuncs ...SkipFieldFunc) []TypeFie
 			if skip {
 				continue
 			}
-
 			s.addTypeFieldArgsForFieldRef(fieldRef, typeName, fieldName, &typeFieldArguments)
+			s.addParentInterfaceFields(objRef, fieldName, &typeFieldArguments, skipFieldFuncs...)
 		}
 
 		objectTypeExt, ok := objectTypeExtensions[typeName]
@@ -272,6 +272,42 @@ func (s *Schema) determineIfFieldWithFieldNameShouldBeSkipped(ref int, typeName 
 	}
 
 	return fieldName, skip
+}
+
+func (s *Schema) addParentInterfaceFields(objectRef int, fieldName string, fieldArguments *[]TypeFieldArguments, skippedFields ...SkipFieldFunc) {
+	objectType := s.document.ObjectTypeDefinitions[objectRef]
+	if len(objectType.ImplementsInterfaces.Refs) < 1 {
+		return
+	}
+	// iterate through all interfaces available
+	for _, interfaceRef := range objectType.ImplementsInterfaces.Refs {
+		// check the interface whose field matches the fieldName, if any
+		interfaceName := s.document.ResolveTypeNameString(interfaceRef)
+		node, exist := s.document.Index.FirstNodeByNameStr(interfaceName)
+		if !exist || node.Kind != ast.NodeKindInterfaceTypeDefinition {
+			continue
+		}
+		interfaceType := s.document.InterfaceTypeDefinitions[node.Ref]
+		for _, fieldRef := range interfaceType.FieldsDefinition.Refs {
+			if s.document.FieldDefinitionNameString(fieldRef) != fieldName {
+				continue
+			}
+			_, skip := s.determineIfFieldWithFieldNameShouldBeSkipped(fieldRef, interfaceName, skippedFields...)
+			if !s.typeFieldExists(interfaceName, fieldName, fieldArguments) && !skip {
+				s.addTypeFieldArgsForFieldRef(fieldRef, interfaceName, fieldName, fieldArguments)
+			}
+		}
+	}
+}
+
+// typeFieldExists checks if a type field combo exists in the arguments
+func (s *Schema) typeFieldExists(typeName, fieldName string, fieldArguments *[]TypeFieldArguments) bool {
+	for _, arg := range *fieldArguments {
+		if arg.TypeName == typeName && arg.FieldName == fieldName {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Schema) addTypeFieldArgsForFieldRef(ref int, typeName string, fieldName string, fieldArguments *[]TypeFieldArguments) {

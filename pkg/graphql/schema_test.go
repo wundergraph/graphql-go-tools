@@ -421,10 +421,10 @@ func TestSchemaIntrospection(t *testing.T) {
 }
 
 func TestSchema_GetAllFieldArguments(t *testing.T) {
-	schema, err := NewSchemaFromString(schemaWithChildren)
-	require.NoError(t, err)
 
 	t.Run("should get all field arguments without skip function", func(t *testing.T) {
+		schema, err := NewSchemaFromString(schemaWithChildrenInterfaceArguments)
+		require.NoError(t, err)
 		fieldArguments := schema.GetAllFieldArguments()
 		expectedFieldArguments := []TypeFieldArguments{
 			{
@@ -446,6 +446,41 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 				TypeName:      "Query",
 				FieldName:     "multiArgLevel1",
 				ArgumentNames: []string{"lvl", "number"},
+			},
+			{
+				TypeName:      "ArgType",
+				FieldName:     "id",
+				ArgumentNames: []string{"identifierField"},
+			},
+			{
+				TypeName:      "ArgType",
+				FieldName:     "name",
+				ArgumentNames: []string{"identifier"},
+			},
+			{
+				TypeName:      "ArgInterface",
+				FieldName:     "name",
+				ArgumentNames: []string{"identifier"},
+			},
+			{
+				TypeName:      "SecondArgType",
+				FieldName:     "id",
+				ArgumentNames: []string{"identifierField"},
+			},
+			{
+				TypeName:      "SecondArgType",
+				FieldName:     "name",
+				ArgumentNames: []string{"identifier"},
+			},
+			{
+				TypeName:      "SecondArgType",
+				FieldName:     "password",
+				ArgumentNames: []string{"hash"},
+			},
+			{
+				TypeName:      "SecondArgInterface",
+				FieldName:     "password",
+				ArgumentNames: []string{"hash"},
 			},
 			{
 				TypeName:      "SingleArgLevel1",
@@ -472,6 +507,8 @@ func TestSchema_GetAllFieldArguments(t *testing.T) {
 	})
 
 	t.Run("should get all field arguments excluding skipped fields by skip field funcs", func(t *testing.T) {
+		schema, err := NewSchemaFromString(schemaWithChildren)
+		require.NoError(t, err)
 		fieldArguments := schema.GetAllFieldArguments(NewSkipReservedNamesFunc())
 		expectedFieldArguments := []TypeFieldArguments{
 			{
@@ -636,6 +673,65 @@ func TestSchema_GetAllNestedFieldChildrenFromTypeField(t *testing.T) {
 
 var invalidSchema = `type Query {
 	foo: Bar
+}`
+
+var schemaWithChildrenInterfaceArguments = `scalar _Any
+union _Entity = WithChildren
+
+type Query {
+	withChildren: WithChildren
+	singleArgLevel1(lvl: int): SingleArgLevel1
+	_entities(representations: [_Any!]!): [_Entity]!
+	idType: IDType!
+}
+
+extend type Query {
+	multiArgLevel1(lvl: int, number: int): MultiArgLevel1
+}
+
+interface IDType {
+	id: ID!
+}
+
+interface ArgInterface {
+	name(identifier: string): String
+	username: String
+}
+
+interface SecondArgInterface {
+	password(hash: Boolean!): string
+}
+
+type ArgType implements ArgInterface {
+	id(identifierField: string): String
+	name(identifier: string): String
+	username: String
+}
+
+type SecondArgType implements ArgInterface & SecondArgInterface {
+	id(identifierField: string): String
+	name(identifier: string): String
+	username: String
+	password(hash: Boolean!): String
+}
+
+type WithChildren implements IDType { 
+	id: ID!
+	name: String
+	nested: Nested
+}
+
+type Nested implements IDType { 
+	id: ID! 
+	name: String! 
+} 
+
+type SingleArgLevel1 {
+	singleArgLevel2(lvl: int): String
+}
+
+type MultiArgLevel1 {
+	multiArgLevel2(lvl: int, number: int): String
 }`
 
 var schemaWithChildren = `scalar _Any
