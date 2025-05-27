@@ -1748,6 +1748,11 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 	}, nil
 }
 
+// NewFactoryGRPCClientProvider creates a new factory for the GraphQL datasource planner
+// This factory is used when the gRPC client is provided by a function.
+// This is useful when you don't want to provide a static client to the factory and let the client
+// decide how to provide the client to the datasource.
+// For example when you need to recreate the client in case of a connection error.
 func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvider func() grpc.ClientConnInterface) (*Factory[Configuration], error) {
 	if executionContext == nil {
 		return nil, fmt.Errorf("execution context is required")
