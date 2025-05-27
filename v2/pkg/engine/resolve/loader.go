@@ -1544,6 +1544,7 @@ func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *Data
 
 func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []byte, res *result) error {
 	if l.ctx.Files != nil {
+		defer func() { l.ctx.Files = nil }()
 		return source.LoadWithFiles(ctx, input, l.ctx.Files, res.out)
 	}
 	return source.Load(ctx, input, res.out)
