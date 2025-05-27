@@ -353,6 +353,23 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"name",
 				},
 			},
+			{
+				TypeName: "Order",
+				FieldNames: []string{
+					"orderId",
+					"customerName",
+					"totalItems",
+					"orderLines",
+				},
+			},
+			{
+				TypeName: "OrderLine",
+				FieldNames: []string{
+					"productId",
+					"quantity",
+					"modifiers",
+				},
+			},
 		},
 	}
 }

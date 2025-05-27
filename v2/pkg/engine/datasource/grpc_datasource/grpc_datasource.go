@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
@@ -17,6 +18,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -28,10 +31,11 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
-	plan    *RPCExecutionPlan
-	cc      grpc.ClientConnInterface
-	rc      *RPCCompiler
-	mapping *GRPCMapping
+	plan     *RPCExecutionPlan
+	cc       grpc.ClientConnInterface
+	rc       *RPCCompiler
+	mapping  *GRPCMapping
+	disabled bool
 }
 
 type ProtoConfig struct {
@@ -44,6 +48,7 @@ type DataSourceConfig struct {
 	Compiler     *RPCCompiler
 	SubgraphName string
 	Mapping      *GRPCMapping
+	Disabled     bool
 }
 
 // NewDataSource creates a new gRPC datasource
@@ -55,10 +60,11 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 	}
 
 	return &DataSource{
-		plan:    plan,
-		cc:      client,
-		rc:      config.Compiler,
-		mapping: config.Mapping,
+		plan:     plan,
+		cc:       client,
+		rc:       config.Compiler,
+		mapping:  config.Mapping,
+		disabled: config.Disabled,
 	}, nil
 }
 
@@ -69,6 +75,11 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+	if d.disabled {
+		out.Write(writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")))
+		return nil
+	}
+
 	// get variables from input
 	variables := gjson.Parse(string(input)).Get("body.variables")
 
@@ -123,7 +134,7 @@ func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*h
 
 func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessage, data protoref.Message) (*astjson.Value, error) {
 	if message == nil {
-		return nil, nil
+		return arena.NewNull(), nil
 	}
 
 	root := arena.NewObject()
@@ -158,17 +169,29 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		}
 
 		if fd.IsList() {
+			list := data.Get(fd).List()
+			if !list.IsValid() {
+				root.Set(field.JSONPath, arena.NewNull())
+				continue
+			}
+
 			arr := arena.NewArray()
 			root.Set(field.JSONPath, arr)
-			list := data.Get(fd).List()
 			for i := 0; i < list.Len(); i++ {
-				message := list.Get(i).Message()
-				value, err := d.marshalResponseJSON(arena, field.Message, message)
-				if err != nil {
-					return nil, err
+
+				switch fd.Kind() {
+				case protoref.MessageKind:
+					message := list.Get(i).Message()
+					value, err := d.marshalResponseJSON(arena, field.Message, message)
+					if err != nil {
+						return nil, err
+					}
+
+					arr.SetArrayItem(i, value)
+				default:
+					d.setArrayItem(i, arena, arr, list.Get(i), fd)
 				}
 
-				arr.SetArrayItem(i, value)
 			}
 
 			continue
@@ -176,6 +199,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 		if fd.Kind() == protoref.MessageKind {
 			msg := data.Get(fd).Message()
+			if !msg.IsValid() {
+				root.Set(field.JSONPath, arena.NewNull())
+				continue
+			}
+
 			value, err := d.marshalResponseJSON(arena, field.Message, msg)
 			if err != nil {
 				return nil, err
@@ -200,6 +228,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 }
 
 func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {
+	if !data.IsValid() {
+		root.Set(name, arena.NewNull())
+		return
+	}
+
 	switch fd.Kind() {
 	case protoref.BoolKind:
 		boolValue := data.Get(fd).Bool()
@@ -213,7 +246,7 @@ func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, nam
 	case protoref.Int32Kind, protoref.Int64Kind:
 		root.Set(name, arena.NewNumberInt(int(data.Get(fd).Int())))
 	case protoref.Uint32Kind, protoref.Uint64Kind:
-		root.Set(name, arena.NewNumberString(fmt.Sprintf("%d", data.Get(fd).Uint())))
+		root.Set(name, arena.NewNumberString(strconv.FormatUint(data.Get(fd).Uint(), 10)))
 	case protoref.FloatKind, protoref.DoubleKind:
 		root.Set(name, arena.NewNumberFloat64(data.Get(fd).Float()))
 	case protoref.BytesKind:
@@ -236,6 +269,48 @@ func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, nam
 	}
 }
 
+func (d *DataSource) setArrayItem(index int, arena *astjson.Arena, array *astjson.Value, data protoref.Value, fd protoref.FieldDescriptor) {
+	if !data.IsValid() {
+		array.SetArrayItem(index, arena.NewNull())
+		return
+	}
+
+	switch fd.Kind() {
+	case protoref.BoolKind:
+		boolValue := data.Bool()
+		if boolValue {
+			array.SetArrayItem(index, arena.NewTrue())
+		} else {
+			array.SetArrayItem(index, arena.NewFalse())
+		}
+	case protoref.StringKind:
+		array.SetArrayItem(index, arena.NewString(data.String()))
+	case protoref.Int32Kind, protoref.Int64Kind:
+		array.SetArrayItem(index, arena.NewNumberInt(int(data.Int())))
+	case protoref.Uint32Kind, protoref.Uint64Kind:
+		array.SetArrayItem(index, arena.NewNumberString(strconv.FormatUint(data.Uint(), 10)))
+	case protoref.FloatKind, protoref.DoubleKind:
+		array.SetArrayItem(index, arena.NewNumberFloat64(data.Float()))
+	case protoref.BytesKind:
+		array.SetArrayItem(index, arena.NewStringBytes(data.Bytes()))
+	case protoref.EnumKind:
+		enumDesc := fd.Enum()
+		enumValueDesc := enumDesc.Values().ByNumber(data.Enum())
+		if enumValueDesc == nil {
+			array.SetArrayItem(index, arena.NewNull())
+			return
+		}
+
+		graphqlValue, ok := d.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
+		if !ok {
+			array.SetArrayItem(index, arena.NewNull())
+			return
+		}
+
+		array.SetArrayItem(index, arena.NewString(graphqlValue))
+	}
+}
+
 func writeErrorBytes(err error) []byte {
 	a := astjson.Arena{}
 	errorRoot := a.NewObject()
@@ -244,6 +319,15 @@ func writeErrorBytes(err error) []byte {
 
 	errorItem := a.NewObject()
 	errorItem.Set("message", a.NewString(err.Error()))
+
+	extensions := a.NewObject()
+	if st, ok := status.FromError(err); ok {
+		extensions.Set("code", a.NewString(st.Code().String()))
+	} else {
+		extensions.Set("code", a.NewString(codes.Internal.String()))
+	}
+
+	errorItem.Set("extensions", extensions)
 	errorArray.SetArrayItem(0, errorItem)
 
 	return errorRoot.MarshalTo(nil)

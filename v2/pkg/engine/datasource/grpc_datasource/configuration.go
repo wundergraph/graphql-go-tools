@@ -30,6 +30,7 @@ type EnumValueMapping struct {
 }
 
 type GRPCConfiguration struct {
+	Disabled bool
 	Mapping  *GRPCMapping
 	Compiler *RPCCompiler
 }
