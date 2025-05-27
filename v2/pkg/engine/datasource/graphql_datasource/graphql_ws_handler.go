@@ -249,7 +249,6 @@ func (h *gqlWSConnectionHandler) broadcastErrorMessage(err error) {
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
-	// h.closedGracefully = true
 
 	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
@@ -258,6 +257,7 @@ func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if id != "1" {
 		return
 	}
+
 	h.updater.Done()
 }
 
