@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.182](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.181...v2.0.0-rc.182) (2025-05-27)
+
+
+### Bug Fixes
+
+* handle scalar values for lists ([#1155](https://github.com/wundergraph/graphql-go-tools/issues/1155)) ([94031e5](https://github.com/wundergraph/graphql-go-tools/commit/94031e5a1fa20a15b0d01a5a7f94c7dffec122f9))
+
 ## [2.0.0-rc.181](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.180...v2.0.0-rc.181) (2025-05-23)
 
 
