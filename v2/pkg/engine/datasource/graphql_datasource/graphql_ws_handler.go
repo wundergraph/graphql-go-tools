@@ -31,7 +31,6 @@ type gqlWSConnectionHandler struct {
 
 func (h *gqlWSConnectionHandler) ServerClose() {
 	// Because the server closes the connection, we need to send a close frame to the event loop.
-
 	h.updater.Close()
 
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
@@ -249,7 +248,6 @@ func (h *gqlWSConnectionHandler) broadcastErrorMessage(err error) {
 }
 
 func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
-
 	id, err := jsonparser.GetString(data, "id")
 	if err != nil {
 		return
@@ -257,7 +255,6 @@ func (h *gqlWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if id != "1" {
 		return
 	}
-
 	h.updater.Done()
 }
 
