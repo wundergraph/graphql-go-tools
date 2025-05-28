@@ -33,6 +33,7 @@ func (e *EngineResultWriter) Complete() {
 }
 
 func (e *EngineResultWriter) Close() {
+
 }
 
 func (e *EngineResultWriter) SetFlushCallback(flushCb func(data []byte)) {
