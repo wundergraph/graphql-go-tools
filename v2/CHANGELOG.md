@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.183](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.182...v2.0.0-rc.183) (2025-05-28)
+
+
+### Features
+
+* use new negation regex matching for matching connections ([#1161](https://github.com/wundergraph/graphql-go-tools/issues/1161)) ([4f2fe65](https://github.com/wundergraph/graphql-go-tools/commit/4f2fe65ffcf51346b7907626767e5472f56c1b11))
+
 ## [2.0.0-rc.182](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.181...v2.0.0-rc.182) (2025-05-27)
 
 
