@@ -3,13 +3,14 @@ package graphql_datasource
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-	"net/http"
 )
 
 type ConfigurationInput struct {
