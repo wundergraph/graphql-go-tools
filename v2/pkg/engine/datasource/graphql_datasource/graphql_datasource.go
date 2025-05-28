@@ -1905,15 +1905,15 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL                                     string           `json:"url"`
-	InitialPayload                          json.RawMessage  `json:"initial_payload"`
-	Body                                    GraphQLBody      `json:"body"`
-	Header                                  http.Header      `json:"header"`
-	UseSSE                                  bool             `json:"use_sse"`
-	SSEMethodPost                           bool             `json:"sse_method_post"`
-	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
-	WsSubProtocol                           string           `json:"ws_sub_protocol"`
+	URL                                     string              `json:"url"`
+	InitialPayload                          json.RawMessage     `json:"initial_payload"`
+	Body                                    GraphQLBody         `json:"body"`
+	Header                                  http.Header         `json:"header"`
+	UseSSE                                  bool                `json:"use_sse"`
+	SSEMethodPost                           bool                `json:"sse_method_post"`
+	ForwardedClientHeaderNames              []string            `json:"forwarded_client_header_names"`
+	ForwardedClientHeaderRegularExpressions []RegularExpression `json:"forwarded_client_header_regular_expressions"`
+	WsSubProtocol                           string              `json:"ws_sub_protocol"`
 	readTimeout                             time.Duration
 	pingInterval                            time.Duration
 	pingTimeout                             time.Duration
@@ -1924,6 +1924,11 @@ type GraphQLBody struct {
 	OperationName string          `json:"operationName,omitempty"`
 	Variables     json.RawMessage `json:"variables,omitempty"`
 	Extensions    json.RawMessage `json:"extensions,omitempty"`
+}
+
+type RegularExpression struct {
+	Pattern     *regexp.Regexp
+	NegateMatch bool
 }
 
 type SubscriptionSource struct {
