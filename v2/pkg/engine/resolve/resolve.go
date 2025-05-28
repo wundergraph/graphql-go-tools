@@ -1117,13 +1117,17 @@ func (s *subscriptionUpdater) Done() {
 	select {
 	case <-s.ctx.Done():
 		// Skip sending events if trigger is already done
-		fmt.Printf("resolver:subscription_updater:done:skip:%d\n", s.triggerID)
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:done:skip:%d\n", s.triggerID)
+		}
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindTriggerDone,
 	}:
-		fmt.Printf("resolver:subscription_updater:done:sent_event:%d\n", s.triggerID)
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:done:sent_event:%d\n", s.triggerID)
+		}
 	}
 }
 
@@ -1135,13 +1139,17 @@ func (s *subscriptionUpdater) Close() {
 	select {
 	case <-s.ctx.Done():
 		// Skip sending events if trigger is already done
-		fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
+		}
 		return
 	case s.ch <- subscriptionEvent{
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindTriggerShutdown,
 	}:
-		fmt.Printf("resolver:subscription_updater:close:sent_event:%d\n", s.triggerID)
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:close:sent_event:%d\n", s.triggerID)
+		}
 	}
 }
 
