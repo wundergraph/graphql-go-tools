@@ -836,8 +836,8 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, complete bool, shutdo
 			continue
 		}
 
-		// Because the event loop is single threaded, we can safely close the channel from this sender
-		// The subscription worker will finish processing all events before the channel is closed.
+		// If the subscription is complete, we send a complete message to the control channel.
+		// Otherwise, we send a close message to the control channel.
 		if complete {
 			s.controlChan <- controlMsgComplete
 		} else {
