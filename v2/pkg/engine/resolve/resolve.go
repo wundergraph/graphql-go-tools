@@ -275,6 +275,13 @@ type trigger struct {
 	initialized bool
 }
 
+type controlMsg string
+
+const (
+	controlMsgComplete controlMsg = "complete"
+	controlMsgClose    controlMsg = "close"
+)
+
 type sub struct {
 	resolve   *GraphQLSubscription
 	resolver  *Resolver
@@ -287,8 +294,8 @@ type sub struct {
 	// workChan is used to send work to the writer goroutine. All work is processed sequentially.
 	workChan chan func()
 
-	// closeChan is used to instruct the writer goroutine to close.
-	closeChan chan struct{}
+	// controlChan is used to instruct the writer goroutine to complete or close.
+	controlChan chan controlMsg
 }
 
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
@@ -320,11 +327,15 @@ func (s *sub) startWorkerWithHeartbeat() {
 			return
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
-		case fn, ok := <-s.workChan:
-			if !ok {
+		case msg := <-s.controlChan:
+			switch msg {
+			case controlMsgComplete:
 				s.complete()
-				return
+			case controlMsgClose:
+				s.close()
 			}
+			return
+		case fn := <-s.workChan:
 			fn()
 			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
 			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
@@ -342,19 +353,21 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 		case <-s.resolver.ctx.Done():
 			// Abort immediately if the resolver is shutting down
 			return
-		case <-s.closeChan:
-			s.close()
-			return
-		case fn, ok := <-s.workChan:
-			if !ok {
+		case msg := <-s.controlChan:
+			switch msg {
+			case controlMsgComplete:
 				s.complete()
-				return
+			case controlMsgClose:
+				s.close()
 			}
+			return
+		case fn := <-s.workChan:
 			fn()
 		}
 	}
 }
 
+// Called when subgraph indicates a "complete" subscription
 func (s *sub) complete() {
 	// The channel is used to communicate that the subscription is done
 	// It is used only in the synchronous subscription case and to avoid sending events
@@ -364,6 +377,7 @@ func (s *sub) complete() {
 	s.writer.Complete()
 }
 
+// Called when subgraph becomes unreachable or closes the connection without a "complete" event
 func (s *sub) close() {
 	// The channel is used to communicate that the subscription is done
 	// It is used only in the synchronous subscription case and to avoid sending events
@@ -561,14 +575,14 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		fmt.Printf("resolver:trigger:subscription:add:%d:%d\n", triggerID, add.id.SubscriptionID)
 	}
 	s := &sub{
-		ctx:       add.ctx,
-		resolve:   add.resolve,
-		writer:    add.writer,
-		id:        add.id,
-		completed: add.completed,
-		workChan:  make(chan func(), 32),
-		closeChan: make(chan struct{}, 1),
-		resolver:  r,
+		ctx:         add.ctx,
+		resolve:     add.resolve,
+		writer:      add.writer,
+		id:          add.id,
+		completed:   add.completed,
+		workChan:    make(chan func(), 32),
+		controlChan: make(chan controlMsg, 1),
+		resolver:    r,
 	}
 
 	if add.ctx.ExecutionOptions.SendHeartbeat {
@@ -825,9 +839,9 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, complete bool, shutdo
 		// Because the event loop is single threaded, we can safely close the channel from this sender
 		// The subscription worker will finish processing all events before the channel is closed.
 		if complete {
-			close(s.workChan)
+			s.controlChan <- controlMsgComplete
 		} else {
-			close(s.closeChan)
+			s.controlChan <- controlMsgClose
 		}
 
 		// Important because we remove the subscription from the trigger on the same goroutine
