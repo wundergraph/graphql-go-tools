@@ -46,6 +46,7 @@ type SubscriptionResponseWriter interface {
 	ResponseWriter
 	Flush() error
 	Complete()
+	Close()
 }
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
