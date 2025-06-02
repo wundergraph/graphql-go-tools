@@ -320,12 +320,10 @@ func (s *sub) startWorkerWithHeartbeat() {
 			if !ok {
 				return
 			}
-
 			fn()
 
 			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
 			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
-
 		}
 	}
 }
@@ -344,7 +342,6 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 			if !ok {
 				return
 			}
-
 			fn()
 		}
 	}
