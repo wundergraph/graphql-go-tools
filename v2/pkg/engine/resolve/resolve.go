@@ -317,14 +317,15 @@ func (s *sub) startWorkerWithHeartbeat() {
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
 		case fn, ok := <-s.workChan:
-			if ok {
-				fn()
-
-				// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
-				heartbeatTicker.Reset(s.resolver.heartbeatInterval)
-			} else {
+			if !ok {
 				return
 			}
+
+			fn()
+
+			// Reset the heartbeat ticker after each write to avoid sending unnecessary heartbeats
+			heartbeatTicker.Reset(s.resolver.heartbeatInterval)
+
 		}
 	}
 }
@@ -340,11 +341,11 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 			// Abort immediately if the resolver is shutting down
 			return
 		case fn, ok := <-s.workChan:
-			if ok {
-				fn()
-			} else {
+			if !ok {
 				return
 			}
+
+			fn()
 		}
 	}
 }
