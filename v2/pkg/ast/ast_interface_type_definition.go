@@ -180,3 +180,23 @@ func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNames(interface
 
 	return nil, false
 }
+
+func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNamesAsBytes(interfaceDefRef int) (typeNames [][]byte, ok bool) {
+	implementedByNodes := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
+
+	typeNames = make([][]byte, 0, len(implementedByNodes))
+	for _, implementedByNode := range implementedByNodes {
+		if implementedByNode.Kind != NodeKindObjectTypeDefinition {
+			continue
+		}
+
+		typeNames = append(typeNames, implementedByNode.NameBytes(d))
+	}
+
+	if len(typeNames) > 0 {
+		return typeNames, true
+
+	}
+
+	return nil, false
+}
