@@ -11,11 +11,13 @@ type selectionSetInfo struct {
 	hasTypeNameSelection           bool // __typename is selected
 	fields                         []fieldSelection
 	hasFields                      bool
+	isInterfaceObject              bool
 	inlineFragmentsOnObjects       []inlineFragmentSelection
 	hasInlineFragmentsOnObjects    bool
 	inlineFragmentsOnInterfaces    []inlineFragmentSelectionOnInterface
 	hasInlineFragmentsOnInterfaces bool
-	isInterfaceObject              bool
+	inlineFragmentsOnUnions        []inlineFragmentSelectionOnUnion
+	hasInlineFragmentsOnUnions     bool
 }
 
 type fieldSelection struct {
@@ -37,6 +39,13 @@ type inlineFragmentSelectionOnInterface struct {
 	typeNamesImplementingInterface            []string
 	typeNamesImplementingInterfaceInCurrentDS []string
 	entityNamesImplementingInterface          []string
+}
+
+type inlineFragmentSelectionOnUnion struct {
+	inlineFragmentSelection
+	unionMemberTypeNames            []string
+	unionMemberTypeNamesInCurrentDS []string
+	unionMemberEntityNames          []string
 }
 
 func (s *inlineFragmentSelectionOnInterface) hasTypeImplementingInterface(typeName string) bool {
@@ -84,6 +93,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	inlineFragmentSelectionRef int,
 	inlineFragmentSelectionsOnObjects *[]inlineFragmentSelection,
 	inlineFragmentsOnInterfaces *[]inlineFragmentSelectionOnInterface,
+	inlineFragmentsOnUnion *[]inlineFragmentSelectionOnUnion,
 ) error {
 
 	inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
@@ -117,33 +127,57 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 		selectionSetInfo:   selectionSetInfo,
 	}
 
-	if inlineFragmentSelection.definitionNodeKind == ast.NodeKindObjectTypeDefinition {
+	switch definitionNode.Kind {
+	case ast.NodeKindObjectTypeDefinition:
 		*inlineFragmentSelectionsOnObjects = append(*inlineFragmentSelectionsOnObjects, inlineFragmentSelection)
 		return nil
-	}
+	case ast.NodeKindInterfaceTypeDefinition:
+		typeNamesImplementingInterface, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(definitionNode.Ref)
+		sort.Strings(typeNamesImplementingInterface)
 
-	typeNamesImplementingInterface, _ := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(definitionNode.Ref)
-	sort.Strings(typeNamesImplementingInterface)
-
-	inlineFragmentSelectionOnInterface := inlineFragmentSelectionOnInterface{
-		inlineFragmentSelection:        inlineFragmentSelection,
-		typeNamesImplementingInterface: typeNamesImplementingInterface,
-	}
-
-	// NOTE: We are getting type names implementing interface from the current SUBGRAPH definion
-	// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
-	upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
-	if hasUpstreamNode {
-		if upstreamNode.Kind == ast.NodeKindInterfaceTypeDefinition {
-			typeNamesImplementingInterface, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(upstreamNode.Ref)
-			entityNames, _ := r.datasourceHasEntitiesWithName(typeNamesImplementingInterface)
-
-			inlineFragmentSelectionOnInterface.typeNamesImplementingInterfaceInCurrentDS = typeNamesImplementingInterface
-			inlineFragmentSelectionOnInterface.entityNamesImplementingInterface = entityNames
+		inlineFragmentSelectionOnInterface := inlineFragmentSelectionOnInterface{
+			inlineFragmentSelection:        inlineFragmentSelection,
+			typeNamesImplementingInterface: typeNamesImplementingInterface,
 		}
-	}
 
-	*inlineFragmentsOnInterfaces = append(*inlineFragmentsOnInterfaces, inlineFragmentSelectionOnInterface)
+		// NOTE: We are getting type names implementing interface from the current SUBGRAPH definion
+		// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
+		upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
+		if hasUpstreamNode {
+			if upstreamNode.Kind == ast.NodeKindInterfaceTypeDefinition {
+				typeNamesImplementingInterface, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(upstreamNode.Ref)
+				entityNames, _ := r.datasourceHasEntitiesWithName(typeNamesImplementingInterface)
+
+				inlineFragmentSelectionOnInterface.typeNamesImplementingInterfaceInCurrentDS = typeNamesImplementingInterface
+				inlineFragmentSelectionOnInterface.entityNamesImplementingInterface = entityNames
+			}
+		}
+
+		*inlineFragmentsOnInterfaces = append(*inlineFragmentsOnInterfaces, inlineFragmentSelectionOnInterface)
+	case ast.NodeKindUnionTypeDefinition:
+		unionMemberTypeNames, _ := r.definition.UnionTypeDefinitionMemberTypeNames(definitionNode.Ref)
+		sort.Strings(unionMemberTypeNames)
+
+		inlineFragmentSelectionOnUnion := inlineFragmentSelectionOnUnion{
+			inlineFragmentSelection: inlineFragmentSelection,
+			unionMemberTypeNames:    unionMemberTypeNames,
+		}
+
+		// NOTE: We are getting type names of union members from the current SUBGRAPH definion
+		// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
+		upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
+		if hasUpstreamNode {
+			if upstreamNode.Kind == ast.NodeKindUnionTypeDefinition {
+				unionMemberTypeNamesFromCurrentDS, _ := r.upstreamDefinition.UnionTypeDefinitionMemberTypeNames(upstreamNode.Ref)
+				entityNames, _ := r.datasourceHasEntitiesWithName(unionMemberTypeNamesFromCurrentDS)
+
+				inlineFragmentSelectionOnUnion.unionMemberTypeNames = unionMemberTypeNamesFromCurrentDS
+				inlineFragmentSelectionOnUnion.unionMemberEntityNames = entityNames
+			}
+		}
+
+		*inlineFragmentsOnUnion = append(*inlineFragmentsOnUnion, inlineFragmentSelectionOnUnion)
+	}
 
 	return nil
 }
@@ -154,9 +188,10 @@ func (r *fieldSelectionRewriter) collectSelectionSetInformation(selectionSetRef 
 	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
 	inlineFragmentSelectionsOnObjects := make([]inlineFragmentSelection, 0, len(inlineFragmentSelectionRefs))
 	inlineFragmentsOnInterfaces := make([]inlineFragmentSelectionOnInterface, 0, len(inlineFragmentSelectionRefs))
+	inlineFragmentsOnUnions := make([]inlineFragmentSelectionOnUnion, 0, len(inlineFragmentSelectionRefs))
 
 	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
-		err := r.collectInlineFragmentInformation(inlineFragmentSelectionRef, &inlineFragmentSelectionsOnObjects, &inlineFragmentsOnInterfaces)
+		err := r.collectInlineFragmentInformation(inlineFragmentSelectionRef, &inlineFragmentSelectionsOnObjects, &inlineFragmentsOnInterfaces, &inlineFragmentsOnUnions)
 		if err != nil {
 			return selectionSetInfo{}, err
 		}
@@ -170,5 +205,7 @@ func (r *fieldSelectionRewriter) collectSelectionSetInformation(selectionSetRef 
 		hasInlineFragmentsOnObjects:    len(inlineFragmentSelectionsOnObjects) > 0,
 		inlineFragmentsOnInterfaces:    inlineFragmentsOnInterfaces,
 		hasInlineFragmentsOnInterfaces: len(inlineFragmentsOnInterfaces) > 0,
+		inlineFragmentsOnUnions:        inlineFragmentsOnUnions,
+		hasInlineFragmentsOnUnions:     len(inlineFragmentsOnUnions) > 0,
 	}, nil
 }
