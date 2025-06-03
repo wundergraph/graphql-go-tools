@@ -27,8 +27,9 @@ type Context struct {
 	Extensions       []byte
 	LoaderHooks      LoaderHooks
 
-	authorizer  Authorizer
-	rateLimiter RateLimiter
+	authorizer    Authorizer
+	rateLimiter   RateLimiter
+	fieldRenderer FieldValueRenderer
 
 	subgraphErrors error
 }
@@ -37,6 +38,34 @@ type ExecutionOptions struct {
 	SkipLoader                 bool
 	IncludeQueryPlanInResponse bool
 	SendHeartbeat              bool
+}
+
+type FieldValue struct {
+	// Name is the name of the field, e.g. "id", "name", etc.
+	Name string
+	// Type is the type of the field, e.g. "String", "Int", etc.
+	Type string
+	// ParentType is the type of the parent object, e.g. "User", "Post", etc.
+	ParentType string
+	// IsListItem indicates whether the field is a list (array) item.
+	IsListItem bool
+	// IsNullable indicates whether the field is nullable.
+	IsNullable bool
+
+	// Path holds the path to the field in the response.
+	Path string
+
+	// Data holds the actual field value data.
+	Data []byte
+}
+
+type FieldValueRenderer interface {
+	// RenderFieldValue renders a field value to the provided writer.
+	RenderFieldValue(ctx *Context, value FieldValue, out io.Writer) error
+}
+
+func (c *Context) SetFieldValueRenderer(renderer FieldValueRenderer) {
+	c.fieldRenderer = renderer
 }
 
 type AuthorizationDeny struct {
