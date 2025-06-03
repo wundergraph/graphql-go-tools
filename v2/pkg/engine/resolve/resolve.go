@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -285,6 +286,8 @@ type sub struct {
 	completed chan struct{}
 	// workChan is used to send work to the writer goroutine. All work is processed sequentially.
 	workChan chan func()
+	// closeOnce ensures the completed channel is closed only once
+	closeOnce sync.Once
 }
 
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
@@ -352,7 +355,9 @@ func (s *sub) complete() {
 	// The channel is used to communicate that the subscription is done
 	// It is used only in the synchronous subscription case and to avoid sending events
 	// to a subscription that is already done.
-	defer close(s.completed)
+	s.closeOnce.Do(func() {
+		close(s.completed)
+	})
 
 	s.writer.Complete()
 }
@@ -362,7 +367,9 @@ func (s *sub) close() {
 	// The channel is used to communicate that the subscription is done
 	// It is used only in the synchronous subscription case and to avoid sending events
 	// to a subscription that is already done.
-	defer close(s.completed)
+	s.closeOnce.Do(func() {
+		close(s.completed)
+	})
 
 	s.writer.Close()
 }
