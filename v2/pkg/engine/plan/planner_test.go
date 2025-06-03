@@ -176,6 +176,128 @@ func TestPlanner_Plan(t *testing.T) {
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
+	t.Run("Union response type with union fragment selecting typename", test(testDefinition, `
+		query SearchResults {
+			searchResults {
+				... on DroidUnion {
+					__typename
+				}
+			}
+		}
+	`, "SearchResults", &SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			RawFetches: []*resolve.FetchItem{
+				{
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
+			Data: &resolve.Object{
+				Nullable: false,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("searchResults"),
+						Value: &resolve.Array{
+							Path:     []string{"searchResults"},
+							Nullable: true,
+							Item: &resolve.Object{
+								Nullable:      true,
+								TypeName:      "SearchResult",
+								PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}, "Starship": {}},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, Configuration{
+		DisableResolveFieldPositions: true,
+		DisableIncludeInfo:           true,
+		DataSources:                  []DataSource{testDefinitionDSConfiguration},
+	}))
+
+	t.Run("Union response type with union fragment selecting typename on concrete type and union", test(testDefinition, `
+		query SearchResults {
+			searchResults {
+				... on Droid {
+					__typename
+					... on DroidUnion {
+						__typename
+					}
+				}
+			}
+		}
+	`, "SearchResults", &SynchronousResponsePlan{
+		Response: &resolve.GraphQLResponse{
+			RawFetches: []*resolve.FetchItem{
+				{
+					Fetch: &resolve.SingleFetch{
+						FetchConfiguration: resolve.FetchConfiguration{
+							DataSource: &FakeDataSource{&StatefulSource{}},
+						},
+						DataSourceIdentifier: []byte("plan.FakeDataSource"),
+					},
+				},
+			},
+			Data: &resolve.Object{
+				Nullable: false,
+				Fields: []*resolve.Field{
+					{
+						Name: []byte("searchResults"),
+						Value: &resolve.Array{
+							Path:     []string{"searchResults"},
+							Nullable: true,
+							Item: &resolve.Object{
+								Nullable:      true,
+								TypeName:      "SearchResult",
+								PossibleTypes: map[string]struct{}{"Human": {}, "Droid": {}, "Starship": {}},
+								Fields: []*resolve.Field{
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+									},
+									{
+										Name: []byte("__typename"),
+										Value: &resolve.String{
+											Path:       []string{"__typename"},
+											Nullable:   false,
+											IsTypeName: true,
+										},
+										OnTypeNames: [][]byte{[]byte("Droid")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}, Configuration{
+		DisableResolveFieldPositions: true,
+		DisableIncludeInfo:           true,
+		DataSources:                  []DataSource{testDefinitionDSConfiguration},
+	}))
+
 	t.Run("Merging duplicate fields in response should not happen", func(t *testing.T) {
 		t.Run("Interface response type with type fragments and shared field", test(testDefinition, `
 			query Hero {
@@ -793,6 +915,7 @@ directive @flushInterval(milliSeconds: Int!) on QUERY | SUBSCRIPTION
 directive @stream(initialBatchSize: Int) on FIELD
 
 union SearchResult = Human | Droid | Starship
+union DroidUnion = Droid | Review
 
 schema {
     query: Query

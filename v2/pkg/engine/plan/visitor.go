@@ -328,7 +328,7 @@ func (v *Visitor) EnterField(ref int) {
 	}
 	fieldDefinitionTypeRef := v.Definition.FieldDefinitionType(fieldDefinition)
 
-	onTypeNames := v.resolveOnTypeNames(ref)
+	onTypeNames := v.resolveOnTypeNames(ref, fieldName)
 
 	v.currentField = &resolve.Field{
 		Name:        fieldAliasOrName,
@@ -476,7 +476,7 @@ func (v *Visitor) resolveSkipIncludeOnParent() (info skipIncludeInfo, ok bool) {
 	return skipIncludeInfo{}, false
 }
 
-func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
+func (v *Visitor) resolveOnTypeNames(fieldRef int, fieldName ast.ByteSlice) (onTypeNames [][]byte) {
 	if len(v.Walker.Ancestors) < 2 {
 		return nil
 	}
@@ -493,23 +493,31 @@ func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 	if !exists || !node.Kind.IsAbstractType() {
 		return v.addInterfaceObjectNameToTypeNames(fieldRef, typeName, [][]byte{v.Config.Types.RenameTypeNameOnMatchBytes(typeName)})
 	}
+
 	if node.Kind == ast.NodeKindUnionTypeDefinition {
-		// This should never be true. If it is, it's an error
-		panic("resolveOnTypeNames called with a union type")
-	}
-	// We're dealing with an interface, so add all objects that implement this interface to the slice
-	onTypeNames := make([][]byte, 0, 2)
-	for objectTypeDefinitionRef := range v.Definition.ObjectTypeDefinitions {
-		if v.Definition.ObjectTypeDefinitionImplementsInterface(objectTypeDefinitionRef, typeName) {
-			onTypeNames = append(onTypeNames, v.Definition.ObjectTypeDefinitionNameBytes(objectTypeDefinitionRef))
+		if !bytes.Equal(fieldName, literal.TYPENAME) {
+			// Union can't have field selections other than __typename
+			v.Walker.StopWithInternalErr(fmt.Errorf("resolveOnTypeNames called with a union type and field %s", fieldName))
+			return nil
+		}
+
+		typeNames, ok := v.Definition.UnionTypeDefinitionMemberTypeNamesAsBytes(node.Ref)
+		if ok {
+			onTypeNames = typeNames
+		}
+	} else {
+		// We're dealing with an interface, so add all objects that implement this interface to the slice
+		typeNames, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNamesAsBytes(node.Ref)
+		if ok {
+			onTypeNames = typeNames
 		}
 	}
-	if len(onTypeNames) == 0 {
-		return nil
-	}
+
 	if len(v.Walker.TypeDefinitions) > 1 {
+		// filter obtained onTypeNames to only those that are allowed by the grandparent type
 		grandParent := v.Walker.TypeDefinitions[len(v.Walker.TypeDefinitions)-2]
-		if grandParent.Kind == ast.NodeKindUnionTypeDefinition {
+		switch grandParent.Kind {
+		case ast.NodeKindUnionTypeDefinition:
 			for i := 0; i < len(onTypeNames); i++ {
 				possibleMember, exists := v.Definition.Index.FirstNodeByNameStr(string(onTypeNames[i]))
 				if !exists {
@@ -520,8 +528,7 @@ func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 					i--
 				}
 			}
-		}
-		if grandParent.Kind == ast.NodeKindInterfaceTypeDefinition {
+		case ast.NodeKindInterfaceTypeDefinition:
 			objectTypesImplementingGrandParent, _ := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(grandParent.Ref)
 			for i := 0; i < len(onTypeNames); i++ {
 				if !slices.Contains(objectTypesImplementingGrandParent, string(onTypeNames[i])) {
@@ -529,6 +536,16 @@ func (v *Visitor) resolveOnTypeNames(fieldRef int) [][]byte {
 					i--
 				}
 			}
+		case ast.NodeKindObjectTypeDefinition:
+			// if the grandparent is an object type, we only want to keep the onTypeNames that match the grandparent type
+			grandParentTypeName := grandParent.NameBytes(v.Definition)
+			for i := 0; i < len(onTypeNames); i++ {
+				if !bytes.Equal(onTypeNames[i], grandParentTypeName) {
+					onTypeNames = append(onTypeNames[:i], onTypeNames[i+1:]...)
+					i--
+				}
+			}
+		default:
 		}
 	}
 

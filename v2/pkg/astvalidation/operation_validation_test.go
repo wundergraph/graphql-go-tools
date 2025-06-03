@@ -2873,6 +2873,46 @@ func TestExecutionValidation(t *testing.T) {
 									}`,
 							Fragments(), Valid)
 					})
+					t.Run("union into union", func(t *testing.T) {
+						runWithDefinition(t,
+							`
+								scalar String
+
+								schema {
+									query: Query
+								}
+
+								type A {
+									title: String
+									name: String
+								}
+
+								type B {
+									name: String
+								}
+
+								union Title = A
+								union Name = A | B
+
+								type Query {
+									titles: [Title]
+								}
+							`,
+							`
+									{
+										titles {
+											... on Name {	
+												... on A {
+													name
+												}
+												... on B {
+													name
+												}
+											}
+										}
+									}`,
+							Fragments(), Valid)
+					})
 				})
 			})
 		})

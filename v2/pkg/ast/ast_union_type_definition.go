@@ -121,3 +121,25 @@ func (d *Document) UnionTypeDefinitionMemberTypeNames(ref int) (typeNames []stri
 	}
 	return typeNames, true
 }
+
+func (d *Document) UnionTypeDefinitionMemberTypeNamesAsBytes(ref int) (typeNames [][]byte, ok bool) {
+	if !d.UnionTypeDefinitions[ref].HasUnionMemberTypes {
+		return nil, false
+	}
+
+	typeNames = make([][]byte, 0, len(d.UnionTypeDefinitions[ref].UnionMemberTypes.Refs))
+	for _, typeRef := range d.UnionTypeDefinitions[ref].UnionMemberTypes.Refs {
+		typeNames = append(typeNames, d.TypeNameBytes(typeRef))
+	}
+	return typeNames, true
+}
+
+func (d *Document) UnionHasMember(ref int, typeName ByteSlice) bool {
+	for _, i := range d.UnionTypeDefinitions[ref].UnionMemberTypes.Refs {
+		memberName := d.ResolveTypeNameBytes(i)
+		if bytes.Equal(typeName, memberName) {
+			return true
+		}
+	}
+	return false
+}
