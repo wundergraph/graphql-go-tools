@@ -80,6 +80,9 @@ func mustGraphqlDataSourceConfiguration(t *testing.T, id string, factory plan.Pl
 	)
 	require.NoError(t, err)
 
+	assert.Equal(t, customConfig, cfg.CustomConfiguration())
+	assert.Same(t, metadata, cfg.Metadata())
+
 	return cfg
 }
 
