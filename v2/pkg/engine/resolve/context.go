@@ -47,8 +47,8 @@ type FieldValue struct {
 	Type string
 	// ParentType is the type of the parent object, e.g. "User", "Post", etc.
 	ParentType string
-	// IsList indicates whether the field is a list (array) type.
-	IsList bool
+	// IsListItem indicates whether the field is a list (array) item.
+	IsListItem bool
 	// IsNullable indicates whether the field is nullable.
 	IsNullable bool
 

@@ -473,7 +473,7 @@ func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool) {
 			Data:       data,
 		}
 		if len(r.path) > 0 {
-			value.IsList = r.path[len(r.path)-1].Name == ""
+			value.IsListItem = r.path[len(r.path)-1].Name == ""
 		}
 		r.printErr = r.ctx.fieldRenderer.RenderFieldValue(r.ctx, value, r.out)
 		if r.printErr != nil {
