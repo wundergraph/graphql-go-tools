@@ -427,11 +427,15 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 		}
 	}
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
-		if _, err = xxh.WriteString(headerRegexp.String()); err != nil {
+		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
 			return err
 		}
 		for headerName, values := range ctx.Request.Header {
-			if headerRegexp.MatchString(headerName) {
+			result := headerRegexp.Pattern.MatchString(headerName)
+			if headerRegexp.NegateMatch {
+				result = !result
+			}
+			if result {
 				for _, val := range values {
 					if _, err = xxh.WriteString(val); err != nil {
 						return err

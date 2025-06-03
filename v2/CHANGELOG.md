@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0-rc.183](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.182...v2.0.0-rc.183) (2025-05-28)
+
+
+### Features
+
+* use new negation regex matching for matching connections ([#1161](https://github.com/wundergraph/graphql-go-tools/issues/1161)) ([4f2fe65](https://github.com/wundergraph/graphql-go-tools/commit/4f2fe65ffcf51346b7907626767e5472f56c1b11))
+
+## [2.0.0-rc.182](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.181...v2.0.0-rc.182) (2025-05-27)
+
+
+### Bug Fixes
+
+* handle scalar values for lists ([#1155](https://github.com/wundergraph/graphql-go-tools/issues/1155)) ([94031e5](https://github.com/wundergraph/graphql-go-tools/commit/94031e5a1fa20a15b0d01a5a7f94c7dffec122f9))
+
+## [2.0.0-rc.181](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.180...v2.0.0-rc.181) (2025-05-23)
+
+
+### Bug Fixes
+
+* do not add array field when node was skipped ([#1156](https://github.com/wundergraph/graphql-go-tools/issues/1156)) ([61dc0b1](https://github.com/wundergraph/graphql-go-tools/commit/61dc0b19b639b1d321c2bce12cad63ec70925a5f))
+
 ## [2.0.0-rc.180](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.179...v2.0.0-rc.180) (2025-05-20)
 
 

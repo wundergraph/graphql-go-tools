@@ -41,8 +41,12 @@ const (
 // ProductServiceClient is the client API for ProductService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// Service definition for ProductService
 type ProductServiceClient interface {
+	// Lookup Product entity by id
 	LookupProductById(ctx context.Context, in *LookupProductByIdRequest, opts ...grpc.CallOption) (*LookupProductByIdResponse, error)
+	// Lookup Storage entity by id
 	LookupStorageById(ctx context.Context, in *LookupStorageByIdRequest, opts ...grpc.CallOption) (*LookupStorageByIdResponse, error)
 	MutationCreateUser(ctx context.Context, in *MutationCreateUserRequest, opts ...grpc.CallOption) (*MutationCreateUserResponse, error)
 	QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error)
@@ -242,8 +246,12 @@ func (c *productServiceClient) QueryUsers(ctx context.Context, in *QueryUsersReq
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
+//
+// Service definition for ProductService
 type ProductServiceServer interface {
+	// Lookup Product entity by id
 	LookupProductById(context.Context, *LookupProductByIdRequest) (*LookupProductByIdResponse, error)
+	// Lookup Storage entity by id
 	LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error)
 	MutationCreateUser(context.Context, *MutationCreateUserRequest) (*MutationCreateUserResponse, error)
 	QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error)

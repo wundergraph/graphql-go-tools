@@ -266,7 +266,7 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 
 func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      !p.config.IsGRPC(),
+		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
 		IncludeTypeNameFields:      true,
 	}
@@ -367,6 +367,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 			Definition: p.config.schemaConfiguration.upstreamSchemaAst,
 			Mapping:    p.config.grpc.Mapping,
 			Compiler:   p.config.grpc.Compiler,
+			Disabled:   p.config.grpc.Disabled,
 			// TODO: remove fallback logic in visitor for subgraph name and
 			// add proper error handling if the subgraph name is not set in the mapping
 			SubgraphName: p.dataSourceConfig.Name(),
@@ -1704,6 +1705,7 @@ type Factory[T Configuration] struct {
 	executionContext   context.Context
 	httpClient         *http.Client
 	grpcClient         grpc.ClientConnInterface
+	grpcClientProvider func() grpc.ClientConnInterface
 	subscriptionClient GraphQLSubscriptionClient
 }
 
@@ -1746,6 +1748,26 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 	}, nil
 }
 
+// NewFactoryGRPCClientProvider creates a new factory for the GraphQL datasource planner
+// This factory is used when the gRPC client is provided by a function.
+// This is useful when you don't want to provide a static client to the factory and let the consumer
+// decide how to provide the client to the datasource.
+// For example when you need to recreate the client in case of a connection error.
+func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvider func() grpc.ClientConnInterface) (*Factory[Configuration], error) {
+	if executionContext == nil {
+		return nil, fmt.Errorf("execution context is required")
+	}
+
+	if clientProvider == nil {
+		return nil, fmt.Errorf("provider function is required")
+	}
+
+	return &Factory[Configuration]{
+		executionContext:   executionContext,
+		grpcClientProvider: clientProvider,
+	}, nil
+}
+
 func (p *Planner[T]) getKit() *printKit {
 	return printKitPool.Get().(*printKit)
 }
@@ -1757,9 +1779,14 @@ func (p *Planner[T]) releaseKit(kit *printKit) {
 }
 
 func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
+	grpcClient := f.grpcClient
+	if f.grpcClientProvider != nil {
+		grpcClient = f.grpcClientProvider()
+	}
+
 	return &Planner[T]{
 		fetchClient:        f.httpClient,
-		grpcClient:         f.grpcClient,
+		grpcClient:         grpcClient,
 		subscriptionClient: f.subscriptionClient,
 	}
 }
@@ -1878,15 +1905,15 @@ type GraphQLSubscriptionClient interface {
 }
 
 type GraphQLSubscriptionOptions struct {
-	URL                                     string           `json:"url"`
-	InitialPayload                          json.RawMessage  `json:"initial_payload"`
-	Body                                    GraphQLBody      `json:"body"`
-	Header                                  http.Header      `json:"header"`
-	UseSSE                                  bool             `json:"use_sse"`
-	SSEMethodPost                           bool             `json:"sse_method_post"`
-	ForwardedClientHeaderNames              []string         `json:"forwarded_client_header_names"`
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp `json:"forwarded_client_header_regular_expressions"`
-	WsSubProtocol                           string           `json:"ws_sub_protocol"`
+	URL                                     string              `json:"url"`
+	InitialPayload                          json.RawMessage     `json:"initial_payload"`
+	Body                                    GraphQLBody         `json:"body"`
+	Header                                  http.Header         `json:"header"`
+	UseSSE                                  bool                `json:"use_sse"`
+	SSEMethodPost                           bool                `json:"sse_method_post"`
+	ForwardedClientHeaderNames              []string            `json:"forwarded_client_header_names"`
+	ForwardedClientHeaderRegularExpressions []RegularExpression `json:"forwarded_client_header_regular_expressions"`
+	WsSubProtocol                           string              `json:"ws_sub_protocol"`
 	readTimeout                             time.Duration
 	pingInterval                            time.Duration
 	pingTimeout                             time.Duration
@@ -1897,6 +1924,11 @@ type GraphQLBody struct {
 	OperationName string          `json:"operationName,omitempty"`
 	Variables     json.RawMessage `json:"variables,omitempty"`
 	Extensions    json.RawMessage `json:"extensions,omitempty"`
+}
+
+type RegularExpression struct {
+	Pattern     *regexp.Regexp
+	NegateMatch bool
 }
 
 type SubscriptionSource struct {

@@ -434,8 +434,6 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 
 	currentPath := parentPath + "." + fieldAliasOrName
 
-	c.addArrayField(fieldRef, currentPath)
-
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 	shareable := len(suggestions) > 1
 	for _, suggestion := range suggestions {
@@ -462,9 +460,14 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion, ds, shareable)
 	}
 
-	// we update response path only after we processed the field
-	// because current response path for the field should not include field itself
-	// also if we call a skip node leave field callback won't be called
+	// we should update response path and array fields only when we are able to plan - so field is not skipped
+	// 1. Because current response path for the field should not include field itself
+	// 2. To have correct state - when we add something in the EnterField callback,
+	// but we call walker.SkipNode - LeaveField callback won't be called,
+	// and we will have an incorrect state
+
+	c.addArrayField(fieldRef, currentPath)
+	// pushResponsePath uses array fields so it should be called after addArrayField
 	c.pushResponsePath(fieldRef, fieldAliasOrName)
 }
 

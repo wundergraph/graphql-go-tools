@@ -359,13 +359,13 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 	t.Run("should run query with a recursive type", func(t *testing.T) {
 		operation := graphql.Request{
 			OperationName: "RecursiveTypeQuery",
-			Query:         `query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name recursiveType { id name } } name } } }`,
+			Query:         `query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name } name } } }`,
 		}
 
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
-		require.Equal(t, `{"data":{"recursiveType":{"id":"recursive-1","name":"Level 1","recursiveType":{"id":"recursive-2","recursiveType":{"id":"recursive-3","name":"Level 3","recursiveType":{"id":"","name":""}},"name":"Level 2"}}}}`, response)
+		require.Equal(t, `{"data":{"recursiveType":{"id":"recursive-1","name":"Level 1","recursiveType":{"id":"recursive-2","recursiveType":{"id":"recursive-3","name":"Level 3"},"name":"Level 2"}}}}`, response)
 	})
 
 	t.Run("should stop when no mapping is found for the operation request", func(t *testing.T) {
