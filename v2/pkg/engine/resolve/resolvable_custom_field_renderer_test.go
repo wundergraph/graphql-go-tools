@@ -34,903 +34,530 @@ func (t *testCustomResolve) Resolve(ctx *Context, value []byte) ([]byte, error) 
 	return t.resolveFunc(ctx, value)
 }
 
+type fieldValueTestCase struct {
+	name                 string
+	input                string
+	fieldValue           Node
+	fieldInfo            *FieldInfo
+	expectedOutput       string
+	expectedFieldName    string
+	expectedFieldType    string
+	expectedParentType   string
+	expectedIsList       bool
+	expectedIsNullable   bool
+	expectedPath         string
+	expectedData         string
+	rendererOutput       string
+	expectedWithRenderer string
+}
+
 func TestResolvable_CustomFieldRenderer(t *testing.T) {
 	t.Parallel()
-	t.Run("string nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"Hello World!"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &String{
-						Path:     []string{"value"},
-						Nullable: true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "String",
+
+	testCases := []fieldValueTestCase{
+		{
+			name:  "string nullable",
+			input: `{"value":"Hello World!"}`,
+			fieldValue: &String{
+				Path:     []string{"value"},
+				Nullable: true,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "String",
+			},
+			expectedOutput:       `{"data":{"value":"Hello World!"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "String",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         `"Hello World!"`,
+			rendererOutput:       `"xxx"`,
+			expectedWithRenderer: `{"data":{"value":"xxx"}}`,
+		},
+		{
+			name:  "string non nullable",
+			input: `{"value":"Hello World!"}`,
+			fieldValue: &String{
+				Path:     []string{"value"},
+				Nullable: false,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "String",
+			},
+			expectedOutput:       `{"data":{"value":"Hello World!"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "String",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         `"Hello World!"`,
+			rendererOutput:       `"xxx"`,
+			expectedWithRenderer: `{"data":{"value":"xxx"}}`,
+		},
+		{
+			name:  "string list",
+			input: `{"value":["Hello World!"]}`,
+			fieldValue: &Array{
+				Path: []string{"value"},
+				Item: &String{},
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "String",
+			},
+			expectedOutput:       `{"data":{"value":["Hello World!"]}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "String",
+			expectedParentType:   "Query",
+			expectedIsList:       true,
+			expectedIsNullable:   false,
+			expectedPath:         "Query.value",
+			expectedData:         `"Hello World!"`,
+			rendererOutput:       `"xxx"`,
+			expectedWithRenderer: `{"data":{"value":["xxx"]}}`,
+		},
+		{
+			name:  "boolean nullable",
+			input: `{"value":true}`,
+			fieldValue: &Boolean{
+				Path:     []string{"value"},
+				Nullable: true,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Boolean",
+			},
+			expectedOutput:       `{"data":{"value":true}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Boolean",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         "true",
+			rendererOutput:       "false",
+			expectedWithRenderer: `{"data":{"value":false}}`,
+		},
+		{
+			name:  "boolean non nullable",
+			input: `{"value":false}`,
+			fieldValue: &Boolean{
+				Path:     []string{"value"},
+				Nullable: false,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Boolean",
+			},
+			expectedOutput:       `{"data":{"value":false}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Boolean",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         "false",
+			rendererOutput:       "true",
+			expectedWithRenderer: `{"data":{"value":true}}`,
+		},
+		{
+			name:  "integer nullable",
+			input: `{"value":42}`,
+			fieldValue: &Integer{
+				Path:     []string{"value"},
+				Nullable: true,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Int",
+			},
+			expectedOutput:       `{"data":{"value":42}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Int",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         "42",
+			rendererOutput:       "999",
+			expectedWithRenderer: `{"data":{"value":999}}`,
+		},
+		{
+			name:  "integer non nullable",
+			input: `{"value":123}`,
+			fieldValue: &Integer{
+				Path:     []string{"value"},
+				Nullable: false,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Int",
+			},
+			expectedOutput:       `{"data":{"value":123}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Int",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         "123",
+			rendererOutput:       "456",
+			expectedWithRenderer: `{"data":{"value":456}}`,
+		},
+		{
+			name:  "float nullable",
+			input: `{"value":3.14}`,
+			fieldValue: &Float{
+				Path:     []string{"value"},
+				Nullable: true,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Float",
+			},
+			expectedOutput:       `{"data":{"value":3.14}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Float",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         "3.14",
+			rendererOutput:       "2.71",
+			expectedWithRenderer: `{"data":{"value":2.71}}`,
+		},
+		{
+			name:  "float non nullable",
+			input: `{"value":9.99}`,
+			fieldValue: &Float{
+				Path:     []string{"value"},
+				Nullable: false,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Float",
+			},
+			expectedOutput:       `{"data":{"value":9.99}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Float",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         "9.99",
+			rendererOutput:       "1.23",
+			expectedWithRenderer: `{"data":{"value":1.23}}`,
+		},
+		{
+			name:  "bigint nullable",
+			input: `{"value":"123456789012345"}`,
+			fieldValue: &BigInt{
+				Path:     []string{"value"},
+				Nullable: true,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "BigInt",
+			},
+			expectedOutput:       `{"data":{"value":"123456789012345"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "BigInt",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         `"123456789012345"`,
+			rendererOutput:       `"999999999999999"`,
+			expectedWithRenderer: `{"data":{"value":"999999999999999"}}`,
+		},
+		{
+			name:  "bigint non nullable",
+			input: `{"value":"987654321098765"}`,
+			fieldValue: &BigInt{
+				Path:     []string{"value"},
+				Nullable: false,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "BigInt",
+			},
+			expectedOutput:       `{"data":{"value":"987654321098765"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "BigInt",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         `"987654321098765"`,
+			rendererOutput:       `"111111111111111"`,
+			expectedWithRenderer: `{"data":{"value":"111111111111111"}}`,
+		},
+		{
+			name:  "scalar nullable",
+			input: `{"value":"2023-01-01T00:00:00Z"}`,
+			fieldValue: &Scalar{
+				Path:     []string{"value"},
+				Nullable: true,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "DateTime",
+			},
+			expectedOutput:       `{"data":{"value":"2023-01-01T00:00:00Z"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "DateTime",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         `"2023-01-01T00:00:00Z"`,
+			rendererOutput:       `"2024-01-01T00:00:00Z"`,
+			expectedWithRenderer: `{"data":{"value":"2024-01-01T00:00:00Z"}}`,
+		},
+		{
+			name:  "scalar non nullable",
+			input: `{"value":"UUID-123-456"}`,
+			fieldValue: &Scalar{
+				Path:     []string{"value"},
+				Nullable: false,
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "UUID",
+			},
+			expectedOutput:       `{"data":{"value":"UUID-123-456"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "UUID",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         `"UUID-123-456"`,
+			rendererOutput:       `"UUID-789-012"`,
+			expectedWithRenderer: `{"data":{"value":"UUID-789-012"}}`,
+		},
+		{
+			name:  "enum nullable",
+			input: `{"value":"ACTIVE"}`,
+			fieldValue: &Enum{
+				Path:     []string{"value"},
+				Nullable: true,
+				TypeName: "Status",
+				Values:   []string{"ACTIVE", "INACTIVE", "PENDING"},
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Status",
+			},
+			expectedOutput:       `{"data":{"value":"ACTIVE"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Status",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   true,
+			expectedPath:         "Query",
+			expectedData:         `"ACTIVE"`,
+			rendererOutput:       `"PENDING"`,
+			expectedWithRenderer: `{"data":{"value":"PENDING"}}`,
+		},
+		{
+			name:  "enum non nullable",
+			input: `{"value":"RED"}`,
+			fieldValue: &Enum{
+				Path:     []string{"value"},
+				Nullable: false,
+				TypeName: "Color",
+				Values:   []string{"RED", "GREEN", "BLUE"},
+			},
+			fieldInfo: &FieldInfo{
+				Name:                "value",
+				ExactParentTypeName: "Query",
+				NamedType:           "Color",
+			},
+			expectedOutput:       `{"data":{"value":"RED"}}`,
+			expectedFieldName:    "value",
+			expectedFieldType:    "Color",
+			expectedParentType:   "Query",
+			expectedIsList:       false,
+			expectedIsNullable:   false,
+			expectedPath:         "Query",
+			expectedData:         `"RED"`,
+			rendererOutput:       `"BLUE"`,
+			expectedWithRenderer: `{"data":{"value":"BLUE"}}`,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc // capture range variable
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup
+			res := NewResolvable(ResolvableOptions{})
+			ctx := &Context{}
+
+			var input []byte
+			if tc.input != "" {
+				input = []byte(tc.input)
+			}
+
+			err := res.Init(ctx, input, ast.OperationTypeQuery)
+			assert.NoError(t, err)
+			assert.NotNil(t, res)
+
+			object := &Object{
+				Fields: []*Field{
+					{
+						Name:  []byte("value"),
+						Value: tc.fieldValue,
+						Info:  tc.fieldInfo,
 					},
 				},
-			},
-		}
+			}
 
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"Hello World!"}}`, out.String())
+			// Test without renderer
+			out := &bytes.Buffer{}
+			err = res.Resolve(context.Background(), object, nil, out)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedOutput, out.String())
 
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "String", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"Hello World!"`, string(value.Data))
-			_, err := out.Write([]byte(`"xxx"`))
-			return err
+			// Test with renderer
+			renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
+				assert.Equal(t, tc.expectedFieldName, value.Name)
+				assert.Equal(t, tc.expectedFieldType, value.Type)
+				assert.Equal(t, tc.expectedParentType, value.ParentType)
+				assert.Equal(t, tc.expectedIsList, value.IsList)
+				assert.Equal(t, tc.expectedIsNullable, value.IsNullable)
+				assert.Equal(t, tc.expectedPath, value.Path)
+				assert.Equal(t, tc.expectedData, string(value.Data))
+				_, err := out.Write([]byte(tc.rendererOutput))
+				return err
+			})
+			ctx.SetFieldValueRenderer(renderer)
+
+			out.Reset()
+			err = res.Resolve(context.Background(), object, nil, out)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.expectedWithRenderer, out.String())
 		})
-		ctx.SetFieldValueRenderer(renderer)
+	}
 
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"xxx"}}`, out.String())
-	})
-	t.Run("string non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"Hello World!"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &String{
-						Path:     []string{"value"},
-						Nullable: false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "String",
-					},
+	// Custom node tests require special handling due to CustomResolve
+	t.Run("custom node tests", func(t *testing.T) {
+		customNodeTestCases := []struct {
+			name                 string
+			input                string
+			nullable             bool
+			customResolveFunc    func(ctx *Context, value []byte) ([]byte, error)
+			expectedOutput       string
+			expectedData         string
+			rendererOutput       string
+			expectedWithRenderer string
+		}{
+			{
+				name:     "custom node nullable",
+				input:    `{"value":{"name":"test"}}`,
+				nullable: true,
+				customResolveFunc: func(ctx *Context, value []byte) ([]byte, error) {
+					return []byte(`"resolved_custom"`), nil
 				},
+				expectedOutput:       `{"data":{"value":"resolved_custom"}}`,
+				expectedData:         `"resolved_custom"`,
+				rendererOutput:       `"renderer_custom"`,
+				expectedWithRenderer: `{"data":{"value":"renderer_custom"}}`,
 			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"Hello World!"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "String", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"Hello World!"`, string(value.Data))
-			_, err := out.Write([]byte(`"xxx"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"xxx"}}`, out.String())
-	})
-	t.Run("string list", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":["Hello World!"]}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Array{
-						Path: []string{"value"},
-						Item: &String{},
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "String",
-					},
+			{
+				name:     "custom node non nullable",
+				input:    `{"value":123}`,
+				nullable: false,
+				customResolveFunc: func(ctx *Context, value []byte) ([]byte, error) {
+					return []byte("246"), nil // double the input number
 				},
+				expectedOutput:       `{"data":{"value":246}}`,
+				expectedData:         "246",
+				rendererOutput:       "999",
+				expectedWithRenderer: `{"data":{"value":999}}`,
 			},
 		}
 
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":["Hello World!"]}}`, out.String())
+		for _, tc := range customNodeTestCases {
+			tc := tc // capture range variable
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "String", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, true, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query.value", value.Path)
-			assert.Equal(t, `"Hello World!"`, string(value.Data))
-			_, err := out.Write([]byte(`"xxx"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
+				input := []byte(tc.input)
+				res := NewResolvable(ResolvableOptions{})
+				ctx := &Context{}
+				err := res.Init(ctx, input, ast.OperationTypeQuery)
+				assert.NoError(t, err)
+				assert.NotNil(t, res)
 
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":["xxx"]}}`, out.String())
-	})
+				customResolve := &testCustomResolve{
+					resolveFunc: tc.customResolveFunc,
+				}
 
-	t.Run("static string", func(t *testing.T) {
-		t.Parallel()
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, nil, ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &StaticString{
-						Value: "Static Hello",
+				object := &Object{
+					Fields: []*Field{
+						{
+							Name: []byte("value"),
+							Value: &CustomNode{
+								CustomResolve: customResolve,
+								Path:          []string{"value"},
+								Nullable:      tc.nullable,
+							},
+							Info: &FieldInfo{
+								Name:                "value",
+								ExactParentTypeName: "Query",
+								NamedType:           "Custom",
+							},
+						},
 					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "String",
-					},
-				},
-			},
+				}
+
+				// Test without renderer
+				out := &bytes.Buffer{}
+				err = res.Resolve(context.Background(), object, nil, out)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedOutput, out.String())
+
+				// Test with renderer
+				renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
+					assert.Equal(t, "value", value.Name)
+					assert.Equal(t, "Custom", value.Type)
+					assert.Equal(t, "Query", value.ParentType)
+					assert.Equal(t, false, value.IsList)
+					assert.Equal(t, tc.nullable, value.IsNullable)
+					assert.Equal(t, "Query", value.Path)
+					assert.Equal(t, tc.expectedData, string(value.Data))
+					_, err := out.Write([]byte(tc.rendererOutput))
+					return err
+				})
+				ctx.SetFieldValueRenderer(renderer)
+
+				out.Reset()
+				err = res.Resolve(context.Background(), object, nil, out)
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expectedWithRenderer, out.String())
+			})
 		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"Static Hello"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "String", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable) // StaticString is never nullable
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "Static Hello", string(value.Data)) // Raw value without quotes
-			_, err := out.Write([]byte("Custom Static"))        // Don't add quotes here, walkStaticString handles them
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"Custom Static"}}`, out.String())
-	})
-
-	t.Run("boolean nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":true}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Boolean{
-						Path:     []string{"value"},
-						Nullable: true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Boolean",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":true}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Boolean", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "true", string(value.Data))
-			_, err := out.Write([]byte("false"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":false}}`, out.String())
-	})
-
-	t.Run("boolean non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":false}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Boolean{
-						Path:     []string{"value"},
-						Nullable: false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Boolean",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":false}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Boolean", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "false", string(value.Data))
-			_, err := out.Write([]byte("true"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":true}}`, out.String())
-	})
-
-	t.Run("integer nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":42}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Integer{
-						Path:     []string{"value"},
-						Nullable: true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Int",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":42}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Int", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "42", string(value.Data))
-			_, err := out.Write([]byte("999"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":999}}`, out.String())
-	})
-
-	t.Run("integer non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":123}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Integer{
-						Path:     []string{"value"},
-						Nullable: false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Int",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":123}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Int", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "123", string(value.Data))
-			_, err := out.Write([]byte("456"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":456}}`, out.String())
-	})
-
-	t.Run("float nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":3.14}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Float{
-						Path:     []string{"value"},
-						Nullable: true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Float",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":3.14}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Float", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "3.14", string(value.Data))
-			_, err := out.Write([]byte("2.71"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":2.71}}`, out.String())
-	})
-
-	t.Run("float non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":9.99}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Float{
-						Path:     []string{"value"},
-						Nullable: false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Float",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":9.99}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Float", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "9.99", string(value.Data))
-			_, err := out.Write([]byte("1.23"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":1.23}}`, out.String())
-	})
-
-	t.Run("bigint nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"123456789012345"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &BigInt{
-						Path:     []string{"value"},
-						Nullable: true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "BigInt",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"123456789012345"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "BigInt", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"123456789012345"`, string(value.Data))
-			_, err := out.Write([]byte(`"999999999999999"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"999999999999999"}}`, out.String())
-	})
-
-	t.Run("bigint non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"987654321098765"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &BigInt{
-						Path:     []string{"value"},
-						Nullable: false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "BigInt",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"987654321098765"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "BigInt", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"987654321098765"`, string(value.Data))
-			_, err := out.Write([]byte(`"111111111111111"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"111111111111111"}}`, out.String())
-	})
-
-	t.Run("scalar nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"2023-01-01T00:00:00Z"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Scalar{
-						Path:     []string{"value"},
-						Nullable: true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "DateTime",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"2023-01-01T00:00:00Z"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "DateTime", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"2023-01-01T00:00:00Z"`, string(value.Data))
-			_, err := out.Write([]byte(`"2024-01-01T00:00:00Z"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"2024-01-01T00:00:00Z"}}`, out.String())
-	})
-
-	t.Run("scalar non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"UUID-123-456"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Scalar{
-						Path:     []string{"value"},
-						Nullable: false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "UUID",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"UUID-123-456"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "UUID", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"UUID-123-456"`, string(value.Data))
-			_, err := out.Write([]byte(`"UUID-789-012"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"UUID-789-012"}}`, out.String())
-	})
-
-	t.Run("custom node nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":{"name":"test"}}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-
-		customResolve := &testCustomResolve{
-			resolveFunc: func(ctx *Context, value []byte) ([]byte, error) {
-				return []byte(`"resolved_custom"`), nil
-			},
-		}
-
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &CustomNode{
-						CustomResolve: customResolve,
-						Path:          []string{"value"},
-						Nullable:      true,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Custom",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"resolved_custom"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Custom", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"resolved_custom"`, string(value.Data))
-			_, err := out.Write([]byte(`"renderer_custom"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"renderer_custom"}}`, out.String())
-	})
-
-	t.Run("custom node non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":123}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-
-		customResolve := &testCustomResolve{
-			resolveFunc: func(ctx *Context, value []byte) ([]byte, error) {
-				return []byte("246"), nil // double the input number
-			},
-		}
-
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &CustomNode{
-						CustomResolve: customResolve,
-						Path:          []string{"value"},
-						Nullable:      false,
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Custom",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":246}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Custom", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, "246", string(value.Data))
-			_, err := out.Write([]byte("999"))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":999}}`, out.String())
-	})
-
-	t.Run("enum nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"ACTIVE"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Enum{
-						Path:     []string{"value"},
-						Nullable: true,
-						TypeName: "Status",
-						Values:   []string{"ACTIVE", "INACTIVE", "PENDING"},
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Status",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"ACTIVE"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Status", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, true, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"ACTIVE"`, string(value.Data))
-			_, err := out.Write([]byte(`"PENDING"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"PENDING"}}`, out.String())
-	})
-
-	t.Run("enum non nullable", func(t *testing.T) {
-		t.Parallel()
-		input := `{"value":"RED"}`
-		res := NewResolvable(ResolvableOptions{})
-		ctx := &Context{}
-		err := res.Init(ctx, []byte(input), ast.OperationTypeQuery)
-		assert.NoError(t, err)
-		assert.NotNil(t, res)
-		object := &Object{
-			Fields: []*Field{
-				{
-					Name: []byte("value"),
-					Value: &Enum{
-						Path:     []string{"value"},
-						Nullable: false,
-						TypeName: "Color",
-						Values:   []string{"RED", "GREEN", "BLUE"},
-					},
-					Info: &FieldInfo{
-						Name:                "value",
-						ExactParentTypeName: "Query",
-						NamedType:           "Color",
-					},
-				},
-			},
-		}
-
-		out := &bytes.Buffer{}
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"RED"}}`, out.String())
-
-		renderer := createTestFieldValueRenderer(func(ctx *Context, value FieldValue, out io.Writer) error {
-			assert.Equal(t, "value", value.Name)
-			assert.Equal(t, "Color", value.Type)
-			assert.Equal(t, "Query", value.ParentType)
-			assert.Equal(t, false, value.IsList)
-			assert.Equal(t, false, value.IsNullable)
-			assert.Equal(t, "Query", value.Path)
-			assert.Equal(t, `"RED"`, string(value.Data))
-			_, err := out.Write([]byte(`"BLUE"`))
-			return err
-		})
-		ctx.SetFieldValueRenderer(renderer)
-
-		out.Reset()
-		err = res.Resolve(context.Background(), object, nil, out)
-		assert.NoError(t, err)
-		assert.Equal(t, `{"data":{"value":"BLUE"}}`, out.String())
 	})
 }
