@@ -461,7 +461,9 @@ func (r *Resolvable) renderFieldBytes(data []byte, nullable bool) {
 	if r.printErr != nil {
 		return
 	}
-	if r.ctx.fieldRenderer != nil {
+	// if we render a variable that's actually a node, we don't have a context
+	// as such, we skip here because this is not rendering the client response
+	if r.ctx != nil && r.ctx.fieldRenderer != nil {
 		value := FieldValue{
 			Name:       r.currentFieldInfo.Name,
 			Type:       r.currentFieldInfo.NamedType,
