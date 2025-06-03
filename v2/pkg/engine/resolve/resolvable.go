@@ -56,6 +56,8 @@ type Resolvable struct {
 	marshalBuf []byte
 
 	enclosingTypeNames []string
+
+	currentFieldInfo *FieldInfo
 }
 
 type ResolvableOptions struct {
@@ -447,6 +449,39 @@ func (r *Resolvable) printNode(value *astjson.Value) {
 	_, r.printErr = r.out.Write(r.marshalBuf)
 }
 
+func (r *Resolvable) renderFieldAstValue(value *astjson.Value, nullable bool) {
+	if r.printErr != nil {
+		return
+	}
+	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
+	r.renderFieldBytes(r.marshalBuf, nullable)
+}
+
+func (r *Resolvable) renderFieldBytes(data []byte, nullable bool) {
+	if r.printErr != nil {
+		return
+	}
+	if r.ctx.fieldRenderer != nil {
+		value := FieldValue{
+			Name:       r.currentFieldInfo.Name,
+			Type:       r.currentFieldInfo.NamedType,
+			ParentType: r.currentFieldInfo.ExactParentTypeName,
+			IsNullable: nullable,
+			Path:       r.renderFieldPath(),
+			Data:       data,
+		}
+		if len(r.path) > 0 {
+			value.IsList = r.path[len(r.path)-1].Name == ""
+		}
+		r.printErr = r.ctx.fieldRenderer.RenderFieldValue(r.ctx, value, r.out)
+		if r.printErr != nil {
+			return
+		}
+	} else {
+		_, r.printErr = r.out.Write(data)
+	}
+}
+
 func (r *Resolvable) pushArrayPathElement(index int) {
 	r.path = append(r.path, fastjsonext.PathElement{
 		Idx: index,
@@ -613,6 +648,7 @@ func (r *Resolvable) walkObject(obj *Object, parent *astjson.Value) bool {
 			r.printBytes(quote)
 			r.printBytes(colon)
 		}
+		r.currentFieldInfo = obj.Fields[i].Info
 		err := r.walkNode(obj.Fields[i].Value, value)
 		if err {
 			if obj.Nullable {
@@ -823,7 +859,7 @@ func (r *Resolvable) walkNull() bool {
 func (r *Resolvable) walkStaticString(str *StaticString) bool {
 	if r.print {
 		r.printBytes(quote)
-		r.printBytes([]byte(str.Value))
+		r.renderFieldBytes([]byte(str.Value), str.NodeNullable())
 		r.printBytes(quote)
 	}
 	return false
@@ -866,10 +902,10 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 				r.printBytes(content)
 				r.printBytes(quote)
 			} else {
-				r.printBytes(content)
+				r.renderFieldBytes(content, s.Nullable)
 			}
 		} else {
-			r.printNode(value)
+			r.renderFieldAstValue(value, s.Nullable)
 		}
 	}
 	return false
@@ -891,7 +927,7 @@ func (r *Resolvable) walkBoolean(b *Boolean, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderFieldAstValue(value, b.Nullable)
 	}
 	return false
 }
@@ -912,7 +948,7 @@ func (r *Resolvable) walkInteger(i *Integer, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderFieldAstValue(value, i.Nullable)
 	}
 	return false
 }
@@ -942,7 +978,7 @@ func (r *Resolvable) walkFloat(f *Float, value *astjson.Value) bool {
 				return false
 			}
 		}
-		r.printNode(value)
+		r.renderFieldAstValue(value, f.Nullable)
 	}
 	return false
 }
@@ -958,7 +994,7 @@ func (r *Resolvable) walkBigInt(b *BigInt, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderFieldAstValue(value, b.Nullable)
 	}
 	return false
 }
@@ -974,7 +1010,7 @@ func (r *Resolvable) walkScalar(s *Scalar, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderFieldAstValue(value, s.Nullable)
 	}
 	return false
 }
@@ -1012,7 +1048,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printBytes(resolved)
+		r.renderFieldBytes(resolved, c.Nullable)
 	}
 	return false
 }
@@ -1124,7 +1160,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.printNode(value)
+		r.renderFieldAstValue(value, e.Nullable)
 	}
 	return false
 }
