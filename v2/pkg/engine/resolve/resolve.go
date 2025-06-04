@@ -275,10 +275,10 @@ type trigger struct {
 	initialized bool
 }
 
-// work is used to encapsulate a function that needs to be
+// workItem is used to encapsulate a function that needs to be
 // executed in the worker goroutine. fn will be executed, and if
 // final is true the worker will be stopped after fn is executed.
-type work struct {
+type workItem struct {
 	fn    func()
 	final bool
 }
@@ -292,7 +292,7 @@ type sub struct {
 	heartbeat bool
 	completed chan struct{}
 	// workChan is used to send work to the writer goroutine. All work is processed sequentially.
-	workChan chan work
+	workChan chan workItem
 }
 
 // startWorker runs in its own goroutine to process fetches and write data to the client synchronously
@@ -570,7 +570,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		writer:    add.writer,
 		id:        add.id,
 		completed: add.completed,
-		workChan:  make(chan work, 32),
+		workChan:  make(chan workItem, 32),
 		resolver:  r,
 	}
 
@@ -758,7 +758,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			return
 		case <-c.ctx.Done():
 			// Skip sending the event if the client disconnected
-		case s.workChan <- work{fn, false}:
+		case s.workChan <- workItem{fn, false}:
 			// Send the event to the subscription worker
 		}
 	}
@@ -828,9 +828,9 @@ func (r *Resolver) shutdownTriggerSubscriptions(id uint64, complete bool, shutdo
 		// If the subscription was completed, we ask the subscription worker to complete
 		// Otherwise, we ask the subscription worker to close
 		if complete {
-			s.workChan <- work{s.complete, true}
+			s.workChan <- workItem{s.complete, true}
 		} else {
-			s.workChan <- work{s.close, true}
+			s.workChan <- workItem{s.close, true}
 		}
 
 		// Because the event loop is single threaded, we can safely close the channel from this sender
