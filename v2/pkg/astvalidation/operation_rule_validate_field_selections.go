@@ -55,26 +55,40 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
 	for _, i := range definitions {
 		definitionName := f.definition.FieldDefinitionNameBytes(i)
+		definitionTypeName := f.definition.FieldDefinitionTypeNameBytes(i)
+
 		if bytes.Equal(fieldName, definitionName) {
 			// field is defined
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
 
 			if hasSelections && fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition {
-				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnEnum(definitionName))
+				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
+					f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldSelectionOnEnum(definitionName, definitionTypeName))
+				} else {
+					f.StopWithExternalErr(operationreport.ErrFieldSelectionOnEnum(definitionName))
+				}
 			}
 
 			if hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition {
-				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(definitionName))
+				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
+					f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldSelectionOnScalar(definitionName, definitionTypeName))
+				} else {
+					f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(definitionName))
+				}
 			}
 
 			if !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition) {
-				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
+				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
+					f.StopWithExternalErr(operationreport.ErrApolloCompatibleMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName))
+				} else {
+					f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
+				}
 			}
 
 			return
 		}
 	}
-	if f.apolloCompatibilityFlags.ReplaceUndefinedOpFieldError {
+	if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
 		f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName))
 		return
 	}

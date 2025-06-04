@@ -2426,7 +2426,7 @@ func TestExecutionValidation(t *testing.T) {
     									name
   									}
 								}`,
-						Fragments(), Valid)
+						Fragments(OperationValidatorOptions{}), Valid)
 				})
 				t.Run("127", func(t *testing.T) {
 					run(t, `	
@@ -2443,7 +2443,7 @@ func TestExecutionValidation(t *testing.T) {
     									name
   									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(OperationValidatorOptions{}), Invalid)
 				})
 			})
 			t.Run("5.5.1.2 Fragment Spread Existence", func(t *testing.T) {
@@ -2468,13 +2468,13 @@ func TestExecutionValidation(t *testing.T) {
   								... @include(if: true) {
     								name
   								}
-							}`, Fragments(), Valid)
+							}`, Fragments(OperationValidatorOptions{}), Valid)
 				})
 				t.Run("129", func(t *testing.T) {
 					run(t, `	
 								fragment notOnExistingType on NotInSchema {
   									name
-								}`, Fragments(), Invalid, withExpectNormalizationError())
+								}`, Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 				t.Run("129", func(t *testing.T) {
 					run(t, `	
@@ -2482,7 +2482,7 @@ func TestExecutionValidation(t *testing.T) {
   									... on NotInSchema {
     									name
   									}
-								}`, Fragments(), Invalid, withExpectNormalizationError())
+								}`, Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.1.3 Fragments on Composite Types", func(t *testing.T) {
@@ -2506,14 +2506,14 @@ func TestExecutionValidation(t *testing.T) {
 										name
 									}
 								}`,
-						Fragments(), Valid)
+						Fragments(OperationValidatorOptions{}), Valid)
 				})
 				t.Run("131", func(t *testing.T) {
 					run(t, `
 								fragment fragOnScalar on Int {
 									something
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError())
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 				t.Run("131", func(t *testing.T) {
 					run(t, `
@@ -2522,7 +2522,7 @@ func TestExecutionValidation(t *testing.T) {
 										somethingElse
 									}
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError())
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.1.4 Fragments must be used", func(t *testing.T) {
@@ -2545,7 +2545,7 @@ func TestExecutionValidation(t *testing.T) {
 										...nameFragment2
 									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(OperationValidatorOptions{}), Invalid)
 				})
 				t.Run("132 variant", func(t *testing.T) {
 					run(t, `
@@ -2555,7 +2555,7 @@ func TestExecutionValidation(t *testing.T) {
 								{
 									...dogNames
 								}`,
-						Fragments(), Valid)
+						Fragments(OperationValidatorOptions{}), Valid)
 				})
 				t.Run("132 variant", func(t *testing.T) {
 					run(t, `
@@ -2565,7 +2565,7 @@ func TestExecutionValidation(t *testing.T) {
 								{
 									...dogNames
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError())
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 				t.Run("132 variant", func(t *testing.T) {
 					run(t, `	fragment dogNames on Query {
@@ -2574,7 +2574,7 @@ func TestExecutionValidation(t *testing.T) {
 								{
 									... { ...dogNames }
 								}`,
-						Fragments(), Valid)
+						Fragments(OperationValidatorOptions{}), Valid)
 				})
 			})
 		})
@@ -2587,7 +2587,7 @@ func TestExecutionValidation(t *testing.T) {
 										...undefinedFragment
 									}
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
 				})
 				t.Run("Undefined fragment after valid fragment returns ErrFragmentUndefined", func(t *testing.T) {
 					run(t, `
@@ -2603,7 +2603,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 									meowVolume
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError(), withValidationErrors("undefinedFragment undefined"))
 				})
 			})
 			t.Run("5.5.2.2 Fragment spreads must not form cycles", func(t *testing.T) {
@@ -2622,7 +2622,7 @@ func TestExecutionValidation(t *testing.T) {
 						barkVolume
 						...nameFragment
 					}`,
-						Fragments(), Invalid, withValidationErrors("external: fragment spread: nameFragment forms fragment cycle"), withDisableNormalization())
+						Fragments(OperationValidatorOptions{}), Invalid, withValidationErrors("external: fragment spread: nameFragment forms fragment cycle"), withDisableNormalization())
 				})
 				t.Run("136", func(t *testing.T) {
 					run(t, `
@@ -2643,7 +2643,7 @@ func TestExecutionValidation(t *testing.T) {
 										...dogFragment
 									}
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError())
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 				t.Run("136 variant", func(t *testing.T) {
 					run(t, `
@@ -2664,7 +2664,7 @@ func TestExecutionValidation(t *testing.T) {
 										... { ...dogFragment }
 									}
 								}`,
-						Fragments(), Invalid, withExpectNormalizationError())
+						Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 				})
 			})
 			t.Run("5.5.2.3 Fragment spread is possible", func(t *testing.T) {
@@ -2681,7 +2681,7 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("137 variant", func(t *testing.T) {
 						run(t, `
@@ -2695,7 +2695,7 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Invalid, withExpectNormalizationError())
+							Fragments(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
 					})
 					t.Run("138", func(t *testing.T) {
 						run(t, `
@@ -2709,7 +2709,7 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(OperationValidatorOptions{}), Invalid)
 					})
 					t.Run("138 variant", func(t *testing.T) {
 						run(t, `
@@ -2723,7 +2723,7 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("Spreading a fragment on an invalid type returns ErrInvalidFragmentSpread", func(t *testing.T) {
 						run(t, `
@@ -2735,7 +2735,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidCatFragment on Cat {
 										meowVolume
 									}`,
-							Fragments(), Invalid, withValidationErrors("external: fragment spread: fragment invalidCatFragment must be spread on type Cat and not type Dog"))
+							Fragments(OperationValidatorOptions{}), Invalid, withValidationErrors("external: fragment spread: fragment invalidCatFragment must be spread on type Cat and not type Dog"))
 					})
 				})
 				t.Run("5.5.2.3.2 Abstract Spreads in Object Scope", func(t *testing.T) {
@@ -2749,7 +2749,7 @@ func TestExecutionValidation(t *testing.T) {
 											}
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("140", func(t *testing.T) {
 						run(t, `
@@ -2758,7 +2758,7 @@ func TestExecutionValidation(t *testing.T) {
 											...on Dog { ...on CatOrDog { ...on Cat { meowVolume } } }
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 				})
 				t.Run("5.5.2.3.3 Object Spreads In Abstract Scope", func(t *testing.T) {
@@ -2780,7 +2780,7 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("142", func(t *testing.T) {
 						run(t, ` fragment sentientFragment on Sentient {
@@ -2788,7 +2788,7 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(OperationValidatorOptions{}), Invalid)
 					})
 					t.Run("142 variant", func(t *testing.T) {
 						run(t, ` fragment humanOrAlienFragment on HumanOrAlien {
@@ -2796,7 +2796,7 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(OperationValidatorOptions{}), Invalid)
 					})
 				})
 				t.Run("5.5.2.3.4 Abstract Spreads in Abstract Scope", func(t *testing.T) {
@@ -2807,7 +2807,7 @@ func TestExecutionValidation(t *testing.T) {
 											...on Pet { ...on DogOrHuman { ...on Dog { barkVolume } } }
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("143 variant", func(t *testing.T) {
 						run(t, `
@@ -2816,7 +2816,7 @@ func TestExecutionValidation(t *testing.T) {
 											...on DogOrHuman { ...on Pet { ...on Dog { barkVolume } } }
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("144", func(t *testing.T) {
 						run(t, `
@@ -2831,7 +2831,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment sentientFragment on Sentient {
 										name
 									}`,
-							Fragments(), Invalid)
+							Fragments(OperationValidatorOptions{}), Invalid)
 					})
 					t.Run("interface into interface", func(t *testing.T) {
 						runWithDefinition(t,
@@ -2872,7 +2872,7 @@ func TestExecutionValidation(t *testing.T) {
 											}
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 					t.Run("union into union", func(t *testing.T) {
 						runWithDefinition(t,
@@ -2912,7 +2912,7 @@ func TestExecutionValidation(t *testing.T) {
 											}
 										}
 									}`,
-							Fragments(), Valid)
+							Fragments(OperationValidatorOptions{}), Valid)
 					})
 				})
 			})
@@ -4700,37 +4700,33 @@ func TestValidateFieldSelection(t *testing.T) {
 		})
 
 		t.Run("with flag disabled, should return normal error ", func(t *testing.T) {
-			options := []Option{
-				WithApolloCompatibilityFlags(
-					apollocompatibility.Flags{
-						ReplaceUndefinedOpFieldError: false,
-					},
-				),
-			}
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: false,
+				},
+			)
 
 			expectedError := operationreport.ExternalError{
 				Message: `field: age not defined on type: Query`,
 			}
 
-			assertOperationValidationErrorIs(t, op, doc, expectedError, options...)
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
 		})
 
-		t.Run("with flag enabled, should return GRAPHQL_VALIDATION_FAILED", func(t *testing.T) {
-			options := []Option{
-				WithApolloCompatibilityFlags(
-					apollocompatibility.Flags{
-						ReplaceUndefinedOpFieldError: true,
-					},
-				),
-			}
+		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: true,
+				},
+			)
 
 			expectedError := operationreport.ExternalError{
 				ExtensionCode: errorcodes.GraphQLValidationFailed,
 				StatusCode:    http.StatusBadRequest,
-				Message:       `Cannot query "age" on type "Query".`,
+				Message:       `Cannot query field "age" on type "Query".`,
 			}
 
-			assertOperationValidationErrorIs(t, op, doc, expectedError, options...)
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
 		})
 	})
 
@@ -4745,6 +4741,22 @@ func TestValidateFieldSelection(t *testing.T) {
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
+
+		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Field "status" must not have a selection since type "Status!" has no subfields.`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
 	})
 
 	t.Run("selecting on a scalar", func(t *testing.T) {
@@ -4758,6 +4770,80 @@ func TestValidateFieldSelection(t *testing.T) {
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
+
+		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Field "name" must not have a selection since type "String!" has no subfields.`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
+	})
+
+	t.Run("no subfield selection", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { someType(id: ID!): SomeType! } type SomeType { id: ID! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { someType(id: "hi") }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `non scalar field: someType on type: Query must have selections`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Field "someType" of type "SomeType!" must have a selection of subfields. Did you mean "someType { ... }"?`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
+	})
+
+	t.Run("non-existent field selection", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { someType(id: ID!): SomeType! } type SomeType { id: ID! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { someType(id: "hi") { foo } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `field: foo not defined on type: SomeType`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Cannot query field "foo" on type "SomeType".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
 	})
 
 	t.Run("invalid fragment spread", func(t *testing.T) {
@@ -4770,6 +4856,22 @@ func TestValidateFieldSelection(t *testing.T) {
 			}
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationErrors: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Fragment cannot be spread here as objects of type "Query" can never be of type "SomeType".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
 		})
 	})
 }

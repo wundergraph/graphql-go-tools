@@ -42,7 +42,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 	validator.RegisterRule(Values())
 	validator.RegisterRule(ArgumentUniqueness())
 	validator.RegisterRule(RequiredArguments())
-	validator.RegisterRule(Fragments())
+	validator.RegisterRule(Fragments(opts))
 	validator.RegisterRule(DirectivesAreDefined())
 	validator.RegisterRule(DirectivesAreInValidLocations())
 	validator.RegisterRule(VariableUniqueness())

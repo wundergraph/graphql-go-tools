@@ -3,17 +3,19 @@ package astvalidation
 import (
 	"bytes"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // Fragments validates if the use of fragments in a given document is correct
-func Fragments() Rule {
+func Fragments(options OperationValidatorOptions) Rule {
 	return func(walker *astvisitor.Walker) {
 		visitor := fragmentsVisitor{
 			Walker:                     walker,
 			fragmentDefinitionsVisited: make([]ast.ByteSlice, 0, 8),
+			apolloCompatibilityFlags:   options.ApolloCompatibilityFlags,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
 		walker.RegisterLeaveDocumentVisitor(&visitor)
@@ -27,6 +29,7 @@ type fragmentsVisitor struct {
 	*astvisitor.Walker
 	operation, definition      *ast.Document
 	fragmentDefinitionsVisited []ast.ByteSlice
+	apolloCompatibilityFlags   apollocompatibility.Flags
 }
 
 func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
@@ -89,7 +92,11 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	if !f.definition.NodeFragmentIsAllowedOnNode(node, f.EnclosingTypeDefinition) {
 		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
-		f.StopWithExternalErr(operationreport.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
+		if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
+			f.StopWithExternalErr(operationreport.ErrApolloCompatibleInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
+		} else {
+			f.StopWithExternalErr(operationreport.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
+		}
 		return
 	}
 }
