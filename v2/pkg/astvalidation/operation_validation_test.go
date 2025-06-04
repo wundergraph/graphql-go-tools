@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
@@ -4674,58 +4675,62 @@ func BenchmarkValidation(b *testing.B) {
 }
 
 func TestValidateFieldSelection(t *testing.T) {
+	assertOperationValidationErrorIs := func(t *testing.T, op, doc ast.Document, expectedError operationreport.ExternalError, options ...Option) {
+		t.Helper()
+
+		operationValidator := DefaultOperationValidator(options...)
+		report := operationreport.Report{}
+		operationValidator.Validate(&op, &doc, &report)
+		assert.True(t, report.HasErrors())
+		require.Len(t, report.ExternalErrors, 1)
+
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
+		assert.Equal(t, expectedError.StatusCode, report.ExternalErrors[0].StatusCode)
+	}
+
 	t.Run("selecting an undefined operation", func(t *testing.T) {
 		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
 		op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
-			operationValidator := DefaultOperationValidator()
-			report := operationreport.Report{}
-			operationValidator.Validate(&op, &doc, &report)
-			assert.True(t, report.HasErrors())
-			require.Len(t, report.ExternalErrors, 1)
-			expectedError := operationreport.ExternalError{
+			assertOperationValidationErrorIs(t, op, doc, operationreport.ExternalError{
 				Message: `field: age not defined on type: Query`,
-			}
-			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+			})
 		})
 
 		t.Run("with flag disabled, should return normal error ", func(t *testing.T) {
-			operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
-				apollocompatibility.Flags{
-					ReplaceUndefinedOpFieldError: false,
-				},
-			))
-			report := operationreport.Report{}
-			operationValidator.Validate(&op, &doc, &report)
-			assert.True(t, report.HasErrors())
-			require.Len(t, report.ExternalErrors, 1)
+			options := []Option{
+				WithApolloCompatibilityFlags(
+					apollocompatibility.Flags{
+						ReplaceUndefinedOpFieldError: false,
+					},
+				),
+			}
+
 			expectedError := operationreport.ExternalError{
 				Message: `field: age not defined on type: Query`,
 			}
-			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, options...)
 		})
 
 		t.Run("with flag enabled, should return GRAPHQL_VALIDATION_FAILED", func(t *testing.T) {
-			operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
-				apollocompatibility.Flags{
-					ReplaceUndefinedOpFieldError: true,
-				},
-			))
-			report := operationreport.Report{}
-			operationValidator.Validate(&op, &doc, &report)
-			assert.True(t, report.HasErrors())
-			require.Len(t, report.ExternalErrors, 1)
+			options := []Option{
+				WithApolloCompatibilityFlags(
+					apollocompatibility.Flags{
+						ReplaceUndefinedOpFieldError: true,
+					},
+				),
+			}
+
 			expectedError := operationreport.ExternalError{
 				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
 				Message:       `Cannot query "age" on type "Query".`,
 			}
-			assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
-			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, options...)
 		})
 	})
 
@@ -4734,17 +4739,11 @@ func TestValidateFieldSelection(t *testing.T) {
 		op := unsafeparser.ParseGraphqlDocumentString(`query { status { field } }`)
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
-			operationValidator := DefaultOperationValidator()
-			report := operationreport.Report{}
-			operationValidator.Validate(&op, &doc, &report)
-			assert.True(t, report.HasErrors())
-			require.Len(t, report.ExternalErrors, 1)
 			expectedError := operationreport.ExternalError{
 				Message: `cannot select field on enum status`,
 			}
-			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 	})
 
@@ -4753,17 +4752,11 @@ func TestValidateFieldSelection(t *testing.T) {
 		op := unsafeparser.ParseGraphqlDocumentString(`query { name { field } }`)
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
-			operationValidator := DefaultOperationValidator()
-			report := operationreport.Report{}
-			operationValidator.Validate(&op, &doc, &report)
-			assert.True(t, report.HasErrors())
-			require.Len(t, report.ExternalErrors, 1)
 			expectedError := operationreport.ExternalError{
 				Message: `cannot select field on scalar name`,
 			}
-			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 	})
 
@@ -4772,17 +4765,11 @@ func TestValidateFieldSelection(t *testing.T) {
 		op := unsafeparser.ParseGraphqlDocumentString(`query { ... on SomeType { name } }`)
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
-			operationValidator := DefaultOperationValidator()
-			report := operationreport.Report{}
-			operationValidator.Validate(&op, &doc, &report)
-			assert.True(t, report.HasErrors())
-			require.Len(t, report.ExternalErrors, 1)
 			expectedError := operationreport.ExternalError{
 				Message: `inline fragment on type: SomeType mismatches enclosing type: Query`,
 			}
-			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 	})
 }
