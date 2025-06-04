@@ -3,6 +3,7 @@ package astvalidation
 import (
 	"bytes"
 	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -57,12 +58,19 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 		if bytes.Equal(fieldName, definitionName) {
 			// field is defined
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
-			switch {
-			case hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition:
-				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, definitionName))
-			case !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition):
+
+			if hasSelections && fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition {
+				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnEnum(definitionName))
+			}
+
+			if hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition {
+				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(definitionName))
+			}
+
+			if !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition) {
 				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
 			}
+
 			return
 		}
 	}
@@ -74,9 +82,8 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 }
 
 func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) {
-	fieldName := f.operation.FieldNameBytes(ref)
 	scalarTypeName := f.operation.NodeNameBytes(enclosingTypeDefinition)
-	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, scalarTypeName))
+	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(scalarTypeName))
 }
 
 func (f *fieldDefined) EnterField(ref int) {

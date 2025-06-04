@@ -2,10 +2,11 @@ package operationreport
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
-	"net/http"
 )
 
 const (
@@ -166,8 +167,13 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
-func ErrFieldSelectionOnScalar(fieldName, scalarTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("cannot select field: %s on scalar %s", fieldName, scalarTypeName)
+func ErrFieldSelectionOnScalar(scalarTypeName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("cannot select field on scalar %s", scalarTypeName)
+	return err
+}
+
+func ErrFieldSelectionOnEnum(enumTypeName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("cannot select field on enum %s", enumTypeName)
 	return err
 }
 

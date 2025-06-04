@@ -4673,58 +4673,117 @@ func BenchmarkValidation(b *testing.B) {
 	})
 }
 
-func TestWithApolloCompatibilityFlags(t *testing.T) {
-	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
-	op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
+func TestValidateFieldSelection(t *testing.T) {
+	t.Run("selecting an undefined operation", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
 
-	t.Run("With propagated true flag", func(t *testing.T) {
-		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
-			apollocompatibility.Flags{
-				ReplaceInvalidVarError:       false,
-				ReplaceUndefinedOpFieldError: true,
-			},
-		))
-		report := operationreport.Report{}
-		operationValidator.Validate(&op, &doc, &report)
-		assert.True(t, report.HasErrors())
-		require.Len(t, report.ExternalErrors, 1)
-		expectedError := operationreport.ExternalError{
-			ExtensionCode: errorcodes.GraphQLValidationFailed,
-			Message:       `Cannot query "age" on type "Query".`,
-		}
-		assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
-		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			operationValidator := DefaultOperationValidator()
+			report := operationreport.Report{}
+			operationValidator.Validate(&op, &doc, &report)
+			assert.True(t, report.HasErrors())
+			require.Len(t, report.ExternalErrors, 1)
+			expectedError := operationreport.ExternalError{
+				Message: `field: age not defined on type: Query`,
+			}
+			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+		})
+
+		t.Run("with flag disabled, should return normal error ", func(t *testing.T) {
+			operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					ReplaceUndefinedOpFieldError: false,
+				},
+			))
+			report := operationreport.Report{}
+			operationValidator.Validate(&op, &doc, &report)
+			assert.True(t, report.HasErrors())
+			require.Len(t, report.ExternalErrors, 1)
+			expectedError := operationreport.ExternalError{
+				Message: `field: age not defined on type: Query`,
+			}
+			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+		})
+
+		t.Run("with flag enabled, should return GRAPHQL_VALIDATION_FAILED", func(t *testing.T) {
+			operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					ReplaceUndefinedOpFieldError: true,
+				},
+			))
+			report := operationreport.Report{}
+			operationValidator.Validate(&op, &doc, &report)
+			assert.True(t, report.HasErrors())
+			require.Len(t, report.ExternalErrors, 1)
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				Message:       `Cannot query "age" on type "Query".`,
+			}
+			assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
+			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		})
 	})
-	t.Run("With propagated false flag", func(t *testing.T) {
-		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
-			apollocompatibility.Flags{
-				ReplaceInvalidVarError:       false,
-				ReplaceUndefinedOpFieldError: false,
-			},
-		))
-		report := operationreport.Report{}
-		operationValidator.Validate(&op, &doc, &report)
-		assert.True(t, report.HasErrors())
-		require.Len(t, report.ExternalErrors, 1)
-		expectedError := operationreport.ExternalError{
-			Message: `field: age not defined on type: Query`,
-		}
-		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+	t.Run("selecting on an enum", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`enum Status { ACTIVE INACTIVE } type Query { status: Status! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { status { field } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			operationValidator := DefaultOperationValidator()
+			report := operationreport.Report{}
+			operationValidator.Validate(&op, &doc, &report)
+			assert.True(t, report.HasErrors())
+			require.Len(t, report.ExternalErrors, 1)
+			expectedError := operationreport.ExternalError{
+				Message: `cannot select field on enum status`,
+			}
+			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+		})
 	})
-	t.Run("Without propagated false flag", func(t *testing.T) {
-		operationValidator := DefaultOperationValidator()
-		report := operationreport.Report{}
-		operationValidator.Validate(&op, &doc, &report)
-		assert.True(t, report.HasErrors())
-		require.Len(t, report.ExternalErrors, 1)
-		expectedError := operationreport.ExternalError{
-			Message: `field: age not defined on type: Query`,
-		}
-		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+	t.Run("selecting on a scalar", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { name { field } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			operationValidator := DefaultOperationValidator()
+			report := operationreport.Report{}
+			operationValidator.Validate(&op, &doc, &report)
+			assert.True(t, report.HasErrors())
+			require.Len(t, report.ExternalErrors, 1)
+			expectedError := operationreport.ExternalError{
+				Message: `cannot select field on scalar name`,
+			}
+			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+		})
+	})
+
+	t.Run("invalid fragment spread", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! } type SomeType { id: ID! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { ... on SomeType { name } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			operationValidator := DefaultOperationValidator()
+			report := operationreport.Report{}
+			operationValidator.Validate(&op, &doc, &report)
+			assert.True(t, report.HasErrors())
+			require.Len(t, report.ExternalErrors, 1)
+			expectedError := operationreport.ExternalError{
+				Message: `inline fragment on type: SomeType mismatches enclosing type: Query`,
+			}
+			assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+			assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
+			assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+		})
 	})
 }
 
