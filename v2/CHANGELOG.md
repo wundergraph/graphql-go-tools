@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.185](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.184...v2.0.0-rc.185) (2025-06-04)
+
+
+### Features
+
+* differentiate between complete and close event types ([#1158](https://github.com/wundergraph/graphql-go-tools/issues/1158)) ([79f3f41](https://github.com/wundergraph/graphql-go-tools/commit/79f3f411b4101b0cdb29c2e5f075b8efe14fa6d8))
+
 ## [2.0.0-rc.184](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.183...v2.0.0-rc.184) (2025-06-03)
 
 
