@@ -2611,6 +2611,22 @@ func TestParseTodo(t *testing.T) {
 	_ = doc
 }
 
+func TestParseUnionWithUnclosedBlockString(t *testing.T) {
+	t.Run("just block string", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			_, report := ParseGraphqlDocumentString("union\"\"\"")
+			require.True(t, report.HasErrors())
+		})
+	})
+
+	t.Run("block string with content", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			_, report := ParseGraphqlDocumentString("union\"\"\"foo")
+			require.True(t, report.HasErrors())
+		})
+	})
+}
+
 func BenchmarkParseStarwars(b *testing.B) {
 
 	inputFileName := "./testdata/starwars.schema.graphql"
