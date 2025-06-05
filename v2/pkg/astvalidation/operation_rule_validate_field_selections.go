@@ -55,34 +55,34 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
 	for _, i := range definitions {
 		definitionName := f.definition.FieldDefinitionNameBytes(i)
-		definitionTypeName := f.definition.FieldDefinitionTypeNameBytes(i)
+		definitionTypeRef := f.definition.FieldDefinitionType(i)
+
+		buf := bytes.Buffer{}
+		f.definition.PrintType(definitionTypeRef, &buf)
+
+		definitionTypeName := buf.String()
 
 		if bytes.Equal(fieldName, definitionName) {
 			// field is defined
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
 
-			if hasSelections && fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition {
+			if hasSelections && (fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition || fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition) {
+				err := operationreport.ErrFieldSelectionOnLeaf(definitionName, definitionTypeName)
 				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-					f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldSelectionOnEnum(definitionName, definitionTypeName))
-				} else {
-					f.StopWithExternalErr(operationreport.ErrFieldSelectionOnEnum(definitionName))
+					err = operationreport.ApolloGraphQLValidationError(err)
 				}
-			}
 
-			if hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition {
-				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-					f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldSelectionOnScalar(definitionName, definitionTypeName))
-				} else {
-					f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(definitionName))
-				}
+				f.StopWithExternalErr(err)
+
 			}
 
 			if !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition) {
+				err := operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName)
 				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-					f.StopWithExternalErr(operationreport.ErrApolloCompatibleMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName))
-				} else {
-					f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
+					err = operationreport.ApolloGraphQLValidationError(err)
 				}
+
+				f.StopWithExternalErr(err)
 			}
 
 			return
@@ -95,19 +95,12 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 }
 
-func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) {
-	scalarTypeName := f.operation.NodeNameBytes(enclosingTypeDefinition)
-	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(scalarTypeName))
-}
-
 func (f *fieldDefined) EnterField(ref int) {
 	switch f.EnclosingTypeDefinition.Kind {
 	case ast.NodeKindUnionTypeDefinition:
 		f.ValidateUnionField(ref, f.EnclosingTypeDefinition)
 	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindObjectTypeDefinition:
 		f.ValidateInterfaceOrObjectTypeField(ref, f.EnclosingTypeDefinition)
-	case ast.NodeKindScalarTypeDefinition:
-		f.ValidateScalarField(ref, f.EnclosingTypeDefinition)
 	default:
 		fieldName := f.operation.FieldNameBytes(ref)
 		typeName := f.operation.NodeNameBytes(f.EnclosingTypeDefinition)

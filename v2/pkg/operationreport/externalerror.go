@@ -167,39 +167,13 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
-func ErrFieldSelectionOnScalar(scalarTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("cannot select field on scalar %s", scalarTypeName)
-	return err
-}
-
-func ErrApolloCompatibleFieldSelectionOnScalar(scalarTypeName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, scalarTypeName, typeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
-	return err
-}
-
-func ErrFieldSelectionOnEnum(enumTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("cannot select field on enum %s", enumTypeName)
-	return err
-}
-
-func ErrApolloCompatibleFieldSelectionOnEnum(enumTypeName, typeName ast.ByteSlice) (err ExternalError) {
+func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, enumTypeName, typeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
 	return err
 }
 
-func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("non scalar field: %s on type: %s must have selections", fieldName, enclosingTypeName)
-	return err
-}
-
-func ErrApolloCompatibleMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
+func ErrMissingFieldSelectionOnNonScalar(fieldName ast.ByteSlice, enclosingTypeName string) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Field "%s" of type "%s" must have a selection of subfields. Did you mean "%[1]s { ... }"?`, fieldName, enclosingTypeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
 	return err
 }
 
@@ -409,14 +383,7 @@ func ErrInlineFragmentOnTypeDisallowed(onTypeName ast.ByteSlice) (err ExternalEr
 }
 
 func ErrInlineFragmentOnTypeMismatchEnclosingType(fragmentTypeName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("inline fragment on type: %s mismatches enclosing type: %s", fragmentTypeName, enclosingTypeName)
-	return err
-}
-
-func ErrApolloCompatibleInlineFragmentOnTypeMismatchEnclosingType(fragmentTypeName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Fragment cannot be spread here as objects of type "%s" can never be of type "%s".`, enclosingTypeName, fragmentTypeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
 	return err
 }
 
@@ -535,5 +502,14 @@ func ErrDuplicateFieldsMustBeIdentical(fieldName, parentName, typeOne, typeTwo s
 	err.Message = fmt.Sprintf("field '%s' on type '%s' is defined in multiple subgraphs "+
 		"but the fields cannot be merged because the types of the fields are non-identical:\n"+
 		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
+	return err
+}
+
+// Apollo compatibility wrappers
+
+func ApolloGraphQLValidationError(err ExternalError) ExternalError {
+	err.ExtensionCode = errorcodes.GraphQLValidationFailed
+	err.StatusCode = http.StatusBadRequest
+
 	return err
 }
