@@ -36,7 +36,7 @@ func (h *gqlTWSConnectionHandler) ServerClose() {
 	h.shuttingDown.Store(true)
 
 	// Because the server closes the connection, we need to send a close frame to the event loop.
-	h.updater.Close()
+	h.updater.Close(resolve.SubscriptionCloseKindDownstreamServiceError)
 
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
@@ -185,7 +185,7 @@ func (h *gqlTWSConnectionHandler) unsubscribeAllAndCloseConn() {
 }
 
 func (h *gqlTWSConnectionHandler) unsubscribe() {
-	h.updater.Done()
+	h.updater.Complete()
 	req := fmt.Sprintf(completeMessage, "1")
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	err := wsutil.WriteClientText(h.conn, []byte(req))
@@ -223,7 +223,7 @@ func (h *gqlTWSConnectionHandler) handleMessageTypeComplete(data []byte) {
 	if id != "1" {
 		return
 	}
-	h.updater.Done()
+	h.updater.Complete()
 }
 
 func (h *gqlTWSConnectionHandler) handleMessageTypeError(data []byte) {

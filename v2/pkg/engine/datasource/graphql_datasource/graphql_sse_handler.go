@@ -48,7 +48,7 @@ func (h *gqlSSEConnectionHandler) StartBlocking() {
 	defer func() {
 		close(dataCh)
 		close(errCh)
-		h.updater.Done()
+		h.updater.Complete()
 	}()
 
 	go h.subscribe(dataCh, errCh)

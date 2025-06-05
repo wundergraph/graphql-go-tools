@@ -8320,13 +8320,13 @@ func (t *testSubscriptionUpdater) Update(data []byte) {
 	t.updates = append(t.updates, string(data))
 }
 
-func (t *testSubscriptionUpdater) Done() {
+func (t *testSubscriptionUpdater) Complete() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	t.done = true
 }
 
-func (t *testSubscriptionUpdater) Close() {
+func (t *testSubscriptionUpdater) Close(kind resolve.SubscriptionCloseKind) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	t.closed = true
