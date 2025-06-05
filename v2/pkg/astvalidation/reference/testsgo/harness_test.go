@@ -63,7 +63,7 @@ const (
 
 var rulesMap = map[string][]astvalidation.Rule{
 	ExecutableDefinitionsRule:                 {astvalidation.DocumentContainsExecutableOperation()},
-	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections(astvalidation.OperationValidatorOptions{})},
+	FieldsOnCorrectTypeRule:                   {astvalidation.FieldSelections()},
 	KnownArgumentNamesRule:                    {astvalidation.KnownArguments()},
 	KnownArgumentNamesOnDirectivesRule:        {},
 	KnownDirectivesRule:                       {astvalidation.DirectivesAreDefined()},
@@ -85,16 +85,16 @@ var rulesMap = map[string][]astvalidation.Rule{
 	UniqueVariableNamesRule:                   {astvalidation.VariableUniqueness()},
 	ValuesOfCorrectTypeRule:                   {astvalidation.Values()},
 	VariablesAreInputTypesRule:                {astvalidation.VariablesAreInputTypes()},
-	KnownTypeNamesOperationRule:               {astvalidation.VariablesAreInputTypes(), astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
+	KnownTypeNamesOperationRule:               {astvalidation.VariablesAreInputTypes(), astvalidation.Fragments()},
 	VariablesInAllowedPositionRule:            {astvalidation.Values()},
 
 	// fragments rules
-	FragmentsOnCompositeTypesRule: {astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
-	KnownFragmentNamesRule:        {astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
-	NoFragmentCyclesRule:          {astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
-	NoUnusedFragmentsRule:         {astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
-	PossibleFragmentSpreadsRule:   {astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
-	UniqueFragmentNamesRule:       {astvalidation.Fragments(astvalidation.OperationValidatorOptions{})},
+	FragmentsOnCompositeTypesRule: {astvalidation.Fragments()},
+	KnownFragmentNamesRule:        {astvalidation.Fragments()},
+	NoFragmentCyclesRule:          {astvalidation.Fragments()},
+	NoUnusedFragmentsRule:         {astvalidation.Fragments()},
+	PossibleFragmentSpreadsRule:   {astvalidation.Fragments()},
+	UniqueFragmentNamesRule:       {astvalidation.Fragments()},
 
 	// not mapped rules
 

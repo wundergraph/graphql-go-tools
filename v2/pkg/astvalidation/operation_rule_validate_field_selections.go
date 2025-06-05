@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
@@ -13,11 +11,10 @@ import (
 )
 
 // FieldSelections validates if all FieldSelections are possible and valid
-func FieldSelections(options OperationValidatorOptions) Rule {
+func FieldSelections() Rule {
 	return func(walker *astvisitor.Walker) {
 		fieldDefined := fieldDefined{
-			Walker:                   walker,
-			apolloCompatibilityFlags: options.ApolloCompatibilityFlags,
+			Walker: walker,
 		}
 		walker.RegisterEnterDocumentVisitor(&fieldDefined)
 		walker.RegisterEnterFieldVisitor(&fieldDefined)
@@ -26,9 +23,8 @@ func FieldSelections(options OperationValidatorOptions) Rule {
 
 type fieldDefined struct {
 	*astvisitor.Walker
-	operation                *ast.Document
-	definition               *ast.Document
-	apolloCompatibilityFlags apollocompatibility.Flags
+	operation  *ast.Document
+	definition *ast.Document
 }
 
 func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
@@ -67,31 +63,17 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
 
 			if hasSelections && (fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition || fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition) {
-				err := operationreport.ErrFieldSelectionOnLeaf(definitionName, definitionTypeName)
-				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-					err = operationreport.ApolloGraphQLValidationError(err)
-				}
-
-				f.StopWithExternalErr(err)
-
+				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnLeaf(definitionName, definitionTypeName))
 			}
 
 			if !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition) {
-				err := operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName)
-				if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-					err = operationreport.ApolloGraphQLValidationError(err)
-				}
-
-				f.StopWithExternalErr(err)
+				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName))
 			}
 
 			return
 		}
 	}
-	if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-		f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName))
-		return
-	}
+
 	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 }
 
