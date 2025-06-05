@@ -1,6 +1,6 @@
 module github.com/wundergraph/graphql-go-tools/examples/federation
 
-go 1.23
+go 1.23.0
 
 require (
 	github.com/99designs/gqlgen v0.17.45
@@ -9,7 +9,7 @@ require (
 	github.com/jensneuse/abstractlogger v0.0.4
 	github.com/vektah/gqlparser/v2 v2.5.14
 	github.com/wundergraph/graphql-go-tools/execution v1.0.1
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.172
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.186
 	go.uber.org/atomic v1.11.0
 	go.uber.org/zap v1.26.0
 )
@@ -53,10 +53,10 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.18.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	google.golang.org/grpc v1.71.0 // indirect
