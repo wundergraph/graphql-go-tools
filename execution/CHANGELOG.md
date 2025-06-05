@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.3.0...execution/v1.3.1) (2025-06-05)
+
+
+### Bug Fixes
+
+* upgrade execution graphqlgotools dependency to fix vulnerability ([#1176](https://github.com/wundergraph/graphql-go-tools/issues/1176)) ([ff21653](https://github.com/wundergraph/graphql-go-tools/commit/ff216530381b4645ac325b3e30515e982d2396f0))
+
 ## [1.3.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.2.0...execution/v1.3.0) (2025-06-05)
 
 
