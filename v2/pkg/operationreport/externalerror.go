@@ -55,14 +55,7 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 }
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
-	return err
-}
-
-func ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Cannot query field "%s" on type "%s".`, fieldName, typeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
 	return err
 }
 
