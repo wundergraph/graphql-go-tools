@@ -17,7 +17,7 @@ require (
 	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.172
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.185
 	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.36.4
