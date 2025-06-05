@@ -9,12 +9,15 @@ import (
 	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 type EngineResultWriter struct {
 	buf           *bytes.Buffer
 	flushCallback func(data []byte)
 }
+
+var _ resolve.SubscriptionResponseWriter = (*EngineResultWriter)(nil)
 
 func NewEngineResultWriter() EngineResultWriter {
 	return EngineResultWriter{
@@ -32,7 +35,7 @@ func (e *EngineResultWriter) Complete() {
 
 }
 
-func (e *EngineResultWriter) Close() {
+func (e *EngineResultWriter) Close(_ resolve.SubscriptionCloseKind) {
 
 }
 

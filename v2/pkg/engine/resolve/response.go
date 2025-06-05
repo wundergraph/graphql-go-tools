@@ -42,11 +42,19 @@ type ResponseWriter interface {
 	io.Writer
 }
 
+type SubscriptionCloseKind string
+
+const (
+	SubscriptionCloseKindNormal                 SubscriptionCloseKind = "Normal closure"
+	SubscriptionCloseKindDownstreamServiceError SubscriptionCloseKind = "Downstream service error"
+	SubscriptionCloseKindGoingAway              SubscriptionCloseKind = "Going away"
+)
+
 type SubscriptionResponseWriter interface {
 	ResponseWriter
 	Flush() error
 	Complete()
-	Close()
+	Close(kind SubscriptionCloseKind)
 }
 
 func writeGraphqlResponse(buf *BufPair, writer io.Writer, ignoreData bool) (err error) {
