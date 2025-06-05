@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.3.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.2.0...execution/v1.3.0) (2025-06-05)
+
+
+### Features
+
+* add apollo router compat flag for invalid variable rendering ([#1067](https://github.com/wundergraph/graphql-go-tools/issues/1067)) ([e87961f](https://github.com/wundergraph/graphql-go-tools/commit/e87961fcd13f4dde76432745c564950f56f5045d))
+* add deprecated arguments support to introspection ([#1142](https://github.com/wundergraph/graphql-go-tools/issues/1142)) ([1ac2908](https://github.com/wundergraph/graphql-go-tools/commit/1ac2908ec5ab5cfb5aed17c1fee127aef098c7fc))
+* apollo-router-like non-ok http status errors ([#1072](https://github.com/wundergraph/graphql-go-tools/issues/1072)) ([e685c29](https://github.com/wundergraph/graphql-go-tools/commit/e685c29331c0d1879ff8e099d4441047fbddf054))
+* differentiate between complete and close event types ([#1158](https://github.com/wundergraph/graphql-go-tools/issues/1158)) ([79f3f41](https://github.com/wundergraph/graphql-go-tools/commit/79f3f411b4101b0cdb29c2e5f075b8efe14fa6d8))
+* **engine:** mutex free subscription handling ([#1076](https://github.com/wundergraph/graphql-go-tools/issues/1076)) ([21be4ab](https://github.com/wundergraph/graphql-go-tools/commit/21be4ab2fff9962d6f56b2bcb6d51b70a2651381))
+* implement gRPC datasource ([#1146](https://github.com/wundergraph/graphql-go-tools/issues/1146)) ([146a552](https://github.com/wundergraph/graphql-go-tools/commit/146a552419e83b350b769a5e37cceb6d3f4b59d3))
+* update engine version for execution pkg ([#1171](https://github.com/wundergraph/graphql-go-tools/issues/1171)) ([9769beb](https://github.com/wundergraph/graphql-go-tools/commit/9769beb3e8ecc27198a87747bd7f7880814da7cb))
+
+
+### Bug Fixes
+
+* fix printing object value with optional fields ([#1065](https://github.com/wundergraph/graphql-go-tools/issues/1065)) ([5730d72](https://github.com/wundergraph/graphql-go-tools/commit/5730d728f78dc64a10c00eb1de1cd00292ce7dd2))
+* handle scalar values for lists ([#1155](https://github.com/wundergraph/graphql-go-tools/issues/1155)) ([94031e5](https://github.com/wundergraph/graphql-go-tools/commit/94031e5a1fa20a15b0d01a5a7f94c7dffec122f9))
+* interface objects ([#1055](https://github.com/wundergraph/graphql-go-tools/issues/1055)) ([858d929](https://github.com/wundergraph/graphql-go-tools/commit/858d92992680bd8652dde2d3bdd036dbc40608c5))
+* print indent once per level by default ([#1147](https://github.com/wundergraph/graphql-go-tools/issues/1147)) ([0f022e5](https://github.com/wundergraph/graphql-go-tools/commit/0f022e5a7443d71fa5c458485876dfaac4cf060b)), closes [#405](https://github.com/wundergraph/graphql-go-tools/issues/405)
+
 ## [1.2.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.1.0...execution/v1.2.0) (2024-12-30)
 
 

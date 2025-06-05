@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
@@ -118,7 +117,7 @@ type SubscriptionConfiguration struct {
 	// name might be forwarded from the client to the upstream server. This is used to determine
 	// which connections can be multiplexed together, but the subscription engine does not forward
 	// these headers by itself.
-	ForwardedClientHeaderRegularExpressions []*regexp.Regexp
+	ForwardedClientHeaderRegularExpressions []RegularExpression
 	WsSubProtocol                           string
 }
 

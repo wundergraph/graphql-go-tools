@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
+	"github.com/cespare/xxhash/v2"
 	"github.com/coder/websocket"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
@@ -2340,4 +2342,173 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 	client.Unsubscribe(subscriptionID)
 	clientCancel() // Cancel client context
 	serverCancel() // Cancel server context (though serverDone should ensure it exited)
+}
+
+func TestRequestHash(t *testing.T) {
+	t.Parallel()
+	client := &subscriptionClient{}
+
+	t.Run("basic request with URL and headers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := &resolve.Context{
+			Request: resolve.Request{
+				Header: http.Header{},
+			},
+		}
+		options := GraphQLSubscriptionOptions{
+			URL: "http://example.com/graphql",
+			Header: http.Header{
+				"Authorization": []string{"Bearer token"},
+			},
+		}
+		hash := xxhash.New()
+
+		err := client.requestHash(ctx, options, hash)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0xacbca06c541c2a79), hash.Sum64())
+	})
+
+	t.Run("request with forwarded client headers", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := &resolve.Context{
+			Request: resolve.Request{
+				Header: http.Header{
+					"X-User-Id": []string{"123"},
+					"X-Role":    []string{"admin"},
+				},
+			},
+		}
+		options := GraphQLSubscriptionOptions{
+			URL:                        "http://example.com/graphql",
+			ForwardedClientHeaderNames: []string{"X-User-Id", "X-Role"},
+		}
+		hash := xxhash.New()
+
+		err := client.requestHash(ctx, options, hash)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0xf428bef25952044c), hash.Sum64())
+	})
+
+	t.Run("request with forwarded client header regex patterns", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("with normal", func(t *testing.T) {
+			header := http.Header{
+				"X-Custom-1":  []string{"value1"},
+				"X-There-2":   []string{"value2"},
+				"X-Alright-3": []string{"value3"},
+			}
+			ctx := &resolve.Context{
+				Request: resolve.Request{
+					Header: header,
+				},
+			}
+			options := GraphQLSubscriptionOptions{
+				URL: "http://example.com/graphql",
+				ForwardedClientHeaderRegularExpressions: []RegularExpression{
+					{
+						Pattern:     regexp.MustCompile("^X-Custom-.*$"),
+						NegateMatch: false,
+					},
+				},
+			}
+			hash := xxhash.New()
+
+			err := client.requestHash(ctx, options, hash)
+			assert.NoError(t, err)
+			assert.Equal(t, uint64(0xa06f8622f14e1bf7), hash.Sum64())
+		})
+
+		t.Run("with negative", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := &resolve.Context{
+				Request: resolve.Request{
+					Header: http.Header{
+						"X-Custom-1": []string{"valueThere1"},
+						"X-Custom-2": []string{"valueThere2"},
+					},
+				},
+			}
+			options := GraphQLSubscriptionOptions{
+				URL: "http://example.com/graphql",
+				ForwardedClientHeaderRegularExpressions: []RegularExpression{
+					{
+						Pattern:     regexp.MustCompile("^X-Custom-2"),
+						NegateMatch: true,
+					},
+				},
+			}
+			hash := xxhash.New()
+
+			err := client.requestHash(ctx, options, hash)
+			assert.NoError(t, err)
+			assert.Equal(t, uint64(0x2b166b89e3626dba), hash.Sum64())
+		})
+	})
+
+	t.Run("request with initial payload", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := &resolve.Context{
+			Request: resolve.Request{
+				Header: http.Header{},
+			},
+			InitialPayload: []byte(`{"auth": "token"}`),
+		}
+		options := GraphQLSubscriptionOptions{
+			URL: "http://example.com/graphql",
+		}
+		hash := xxhash.New()
+
+		err := client.requestHash(ctx, options, hash)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0x3c5af329478bfcce), hash.Sum64())
+
+	})
+
+	t.Run("request with body components", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := &resolve.Context{
+			Request: resolve.Request{
+				Header: http.Header{},
+			},
+		}
+		options := GraphQLSubscriptionOptions{
+			URL: "http://example.com/graphql",
+			Body: GraphQLBody{
+				Query:         "query { hello }",
+				Variables:     []byte(`{"var": "value"}`),
+				OperationName: "HelloQuery",
+				Extensions:    []byte(`{"ext": "value"}`),
+			},
+		}
+		hash := xxhash.New()
+
+		err := client.requestHash(ctx, options, hash)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0xd8d5588c8a466cf2), hash.Sum64())
+	})
+
+	t.Run("empty components", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := &resolve.Context{
+			Request: resolve.Request{
+				Header: http.Header{},
+			},
+		}
+		options := GraphQLSubscriptionOptions{
+			URL: "http://example.com/graphql",
+		}
+		hash := xxhash.New()
+
+		err := client.requestHash(ctx, options, hash)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(0x767db2231989769), hash.Sum64())
+	})
+
 }

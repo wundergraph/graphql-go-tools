@@ -31,7 +31,8 @@ type gqlWSConnectionHandler struct {
 
 func (h *gqlWSConnectionHandler) ServerClose() {
 	// Because the server closes the connection, we need to send a close frame to the event loop.
-	h.updater.Done()
+	h.updater.Close()
+
 	_ = h.conn.SetWriteDeadline(time.Now().Add(writeTimeout))
 	_ = ws.WriteFrame(h.conn, ws.MaskFrame(ws.NewCloseFrame(ws.NewCloseFrameBody(ws.StatusNormalClosure, "Normal Closure"))))
 	_ = h.conn.Close()
