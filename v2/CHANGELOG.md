@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.186](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.185...v2.0.0-rc.186) (2025-06-05)
+
+
+### Bug Fixes
+
+* upgrade golang/net version and dependencies ([#1173](https://github.com/wundergraph/graphql-go-tools/issues/1173)) ([1e889dd](https://github.com/wundergraph/graphql-go-tools/commit/1e889dd3d79385db80f2a66fec70c9aef3423d76))
+
 ## [2.0.0-rc.185](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.184...v2.0.0-rc.185) (2025-06-04)
 
 
