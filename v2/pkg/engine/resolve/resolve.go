@@ -473,6 +473,8 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleAddSubscription(event.triggerID, event.addSubscription)
 	case subscriptionEventKindRemoveSubscription:
 		r.handleRemoveSubscription(event.id)
+	case subscriptionEventKindCompleteSubscription:
+		r.handleCompleteSubscription(event.id)
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
 	case subscriptionEventKindTriggerUpdate:
@@ -689,6 +691,25 @@ func (r *Resolver) emitTriggerInitialized(triggerID uint64) error {
 	return nil
 }
 
+func (r *Resolver) handleCompleteSubscription(id SubscriptionIdentifier) {
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:remove:%d:%d\n", id.ConnectionID, id.SubscriptionID)
+	}
+	removed := 0
+	for u := range r.triggers {
+		trig := r.triggers[u]
+		removed += r.completeTriggerSubscriptions(u, func(sID SubscriptionIdentifier) bool {
+			return sID == id
+		})
+		if len(trig.subscriptions) == 0 {
+			r.completeTrigger(trig.id)
+		}
+	}
+	if r.reporter != nil {
+		r.reporter.SubscriptionCountDec(removed)
+	}
+}
+
 func (r *Resolver) handleRemoveSubscription(id SubscriptionIdentifier) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:remove:%d:%d\n", id.ConnectionID, id.SubscriptionID)
@@ -799,25 +820,7 @@ func (r *Resolver) completeTrigger(id uint64) {
 		return
 	}
 
-	removed := 0
-
-	for c, s := range trig.subscriptions {
-		s.workChan <- workItem{s.complete, true}
-
-		// Because the event loop is single threaded, we can safely close the channel from this sender
-		// The subscription worker will finish processing all events before the channel is closed.
-		close(s.workChan)
-
-		// Important because we remove the subscription from the trigger on the same goroutine
-		// as we send work to the subscription worker. We can ensure that no new work is sent to the worker after this point.
-		delete(trig.subscriptions, c)
-
-		if r.options.Debug {
-			fmt.Printf("resolver:trigger:subscription:complete:%d:%d\n", trig.id, s.id.SubscriptionID)
-		}
-
-		removed++
-	}
+	removed := r.completeTriggerSubscriptions(id, nil)
 
 	// Cancels the async datasource and cleanup the connection
 	trig.cancel()
@@ -830,6 +833,37 @@ func (r *Resolver) completeTrigger(id uint64) {
 			r.reporter.TriggerCountDec(1)
 		}
 	}
+}
+
+func (r *Resolver) completeTriggerSubscriptions(id uint64, completeMatcher func(a SubscriptionIdentifier) bool) int {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return 0
+	}
+	removed := 0
+	for c, s := range trig.subscriptions {
+		if completeMatcher != nil && !completeMatcher(s.id) {
+			continue
+		}
+
+		// Send a work item to complete the subscription
+		s.workChan <- workItem{s.complete, true}
+
+		// Because the event loop is single threaded, we can safely close the channel from this sender
+		// The subscription worker will finish processing all events before the channel is closed.
+		close(s.workChan)
+
+		// Important because we remove the subscription from the trigger on the same goroutine
+		// as we send work to the subscription worker. We can ensure that no new work is sent to the worker after this point.
+		delete(trig.subscriptions, c)
+
+		if r.options.Debug {
+			fmt.Printf("resolver:trigger:subscription:closed:%d:%d\n", trig.id, s.id.SubscriptionID)
+		}
+
+		removed++
+	}
+	return removed
 }
 
 func (r *Resolver) closeTriggerSubscriptions(id uint64, closeKind SubscriptionCloseKind, closeMatcher func(a SubscriptionIdentifier) bool) int {
@@ -879,6 +913,18 @@ func (r *Resolver) handleShutdown() {
 type SubscriptionIdentifier struct {
 	ConnectionID   int64
 	SubscriptionID int64
+}
+
+func (r *Resolver) AsyncCompleteSubscription(id SubscriptionIdentifier) error {
+	select {
+	case <-r.ctx.Done():
+		return r.ctx.Err()
+	case r.events <- subscriptionEvent{
+		id:   id,
+		kind: subscriptionEventKindCompleteSubscription,
+	}:
+	}
+	return nil
 }
 
 func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error {
@@ -1200,6 +1246,7 @@ const (
 	subscriptionEventKindTriggerComplete
 	subscriptionEventKindAddSubscription
 	subscriptionEventKindRemoveSubscription
+	subscriptionEventKindCompleteSubscription
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerClose
