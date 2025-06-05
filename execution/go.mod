@@ -1,6 +1,6 @@
 module github.com/wundergraph/graphql-go-tools/execution
 
-go 1.23
+go 1.23.0
 
 require (
 	github.com/99designs/gqlgen v0.17.45
@@ -17,7 +17,7 @@ require (
 	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.185
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.186
 	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.36.4
@@ -58,10 +58,10 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
-	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/text v0.23.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
