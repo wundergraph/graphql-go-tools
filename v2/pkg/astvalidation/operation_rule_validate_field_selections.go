@@ -58,7 +58,7 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 		definitionTypeRef := f.definition.FieldDefinitionType(i)
 
 		buf := bytes.Buffer{}
-		f.definition.PrintType(definitionTypeRef, &buf)
+		_ = f.definition.PrintType(definitionTypeRef, &buf)
 
 		definitionTypeName := buf.String()
 
