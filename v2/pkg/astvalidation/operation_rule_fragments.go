@@ -92,11 +92,14 @@ func (f *fragmentsVisitor) EnterInlineFragment(ref int) {
 
 	if !f.definition.NodeFragmentIsAllowedOnNode(node, f.EnclosingTypeDefinition) {
 		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
+
+		err := operationreport.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName)
 		if f.apolloCompatibilityFlags.UseGraphQLValidationErrors {
-			f.StopWithExternalErr(operationreport.ErrApolloCompatibleInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
-		} else {
-			f.StopWithExternalErr(operationreport.ErrInlineFragmentOnTypeMismatchEnclosingType(typeName, enclosingTypeName))
+			err = operationreport.ApolloGraphQLValidationError(err)
 		}
+
+		f.StopWithExternalErr(err)
+
 		return
 	}
 }

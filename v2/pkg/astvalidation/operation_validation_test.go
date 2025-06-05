@@ -4713,7 +4713,7 @@ func TestValidateFieldSelection(t *testing.T) {
 			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
 		})
 
-		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
 					UseGraphQLValidationErrors: true,
@@ -4736,13 +4736,13 @@ func TestValidateFieldSelection(t *testing.T) {
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
 			expectedError := operationreport.ExternalError{
-				Message: `cannot select field on enum status`,
+				Message: `Field "status" must not have a selection since type "Status!" has no subfields.`,
 			}
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 
-		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
 					UseGraphQLValidationErrors: true,
@@ -4765,13 +4765,13 @@ func TestValidateFieldSelection(t *testing.T) {
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
 			expectedError := operationreport.ExternalError{
-				Message: `cannot select field on scalar name`,
+				Message: `Field "name" must not have a selection since type "String!" has no subfields.`,
 			}
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 
-		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
 					UseGraphQLValidationErrors: true,
@@ -4794,13 +4794,13 @@ func TestValidateFieldSelection(t *testing.T) {
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
 			expectedError := operationreport.ExternalError{
-				Message: `non scalar field: someType on type: Query must have selections`,
+				Message: `Field "someType" of type "SomeType!" must have a selection of subfields. Did you mean "someType { ... }"?`,
 			}
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 
-		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
 					UseGraphQLValidationErrors: true,
@@ -4829,7 +4829,7 @@ func TestValidateFieldSelection(t *testing.T) {
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 
-		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
 					UseGraphQLValidationErrors: true,
@@ -4852,13 +4852,13 @@ func TestValidateFieldSelection(t *testing.T) {
 
 		t.Run("by default, should return normal error", func(t *testing.T) {
 			expectedError := operationreport.ExternalError{
-				Message: `inline fragment on type: SomeType mismatches enclosing type: Query`,
+				Message: `Fragment cannot be spread here as objects of type "Query" can never be of type "SomeType".`,
 			}
 
 			assertOperationValidationErrorIs(t, op, doc, expectedError)
 		})
 
-		t.Run("with flag enabled, should return apollo compatible error", func(t *testing.T) {
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
 					UseGraphQLValidationErrors: true,
