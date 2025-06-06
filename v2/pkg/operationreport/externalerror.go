@@ -2,10 +2,8 @@ package operationreport
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -497,14 +495,5 @@ func ErrDuplicateFieldsMustBeIdentical(fieldName, parentName, typeOne, typeTwo s
 	err.Message = fmt.Sprintf("field '%s' on type '%s' is defined in multiple subgraphs "+
 		"but the fields cannot be merged because the types of the fields are non-identical:\n"+
 		"first subgraph: type '%s'\n second subgraph: type '%s'", fieldName, parentName, typeOne, typeTwo)
-	return err
-}
-
-// Apollo compatibility wrappers
-
-func ApolloGraphQLValidationError(err ExternalError) ExternalError {
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
-
 	return err
 }
