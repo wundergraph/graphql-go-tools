@@ -53,26 +53,22 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 		definitionName := f.definition.FieldDefinitionNameBytes(i)
 		definitionTypeRef := f.definition.FieldDefinitionType(i)
 
-		buf := bytes.Buffer{}
-		_ = f.definition.PrintType(definitionTypeRef, &buf)
-
-		definitionTypeName := buf.String()
-
 		if bytes.Equal(fieldName, definitionName) {
 			// field is defined
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
+			definitionTypeName, _ := f.definition.PrintTypeBytes(definitionTypeRef, nil)
 
 			if hasSelections && (fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition || fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition) {
 				// For field selection errors, use the position of the selection set's opening brace
 				position := f.operation.SelectionSets[f.operation.Fields[ref].SelectionSet].LBrace
-				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnLeaf(definitionName, definitionTypeName, position))
+				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnLeaf(definitionName, string(definitionTypeName), position))
 			}
 
 			if !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition) {
 				// Get the position of the field in the operation
 				position := f.operation.Fields[ref].Position
 
-				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName, position))
+				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, string(definitionTypeName), position))
 			}
 
 			return
