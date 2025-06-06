@@ -101,7 +101,7 @@ var rulesMap = map[string][]astvalidation.Rule{
 	UniqueInputFieldNamesRule:  {astvalidation.Values()},
 	UniqueDirectiveNamesRule:   {},
 	LoneSchemaDefinitionRule:   {},
-	ScalarLeafsRule:            {},
+	ScalarLeafsRule:            {astvalidation.FieldSelections()},
 	PossibleTypeExtensionsRule: {},
 }
 
