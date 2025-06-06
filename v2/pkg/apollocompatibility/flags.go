@@ -1,8 +1,8 @@
 package apollocompatibility
 
 type Flags struct {
-	ReplaceInvalidVarError       bool
-	UseValidationFailedExtension bool
+	ReplaceInvalidVarError           bool
+	UseGraphQLValidationFailedStatus bool
 }
 
 type ApolloRouterFlags struct {

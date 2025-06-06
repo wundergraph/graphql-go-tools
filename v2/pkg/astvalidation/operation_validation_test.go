@@ -4702,7 +4702,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag disabled, should return normal error ", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: false,
+					UseGraphQLValidationFailedStatus: false,
 				},
 			)
 
@@ -4716,7 +4716,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: true,
+					UseGraphQLValidationFailedStatus: true,
 				},
 			)
 
@@ -4745,7 +4745,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: true,
+					UseGraphQLValidationFailedStatus: true,
 				},
 			)
 
@@ -4774,7 +4774,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: true,
+					UseGraphQLValidationFailedStatus: true,
 				},
 			)
 
@@ -4803,7 +4803,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: true,
+					UseGraphQLValidationFailedStatus: true,
 				},
 			)
 
@@ -4832,7 +4832,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: true,
+					UseGraphQLValidationFailedStatus: true,
 				},
 			)
 
@@ -4861,7 +4861,7 @@ func TestValidateFieldSelection(t *testing.T) {
 		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
 			option := WithApolloCompatibilityFlags(
 				apollocompatibility.Flags{
-					UseValidationFailedExtension: true,
+					UseGraphQLValidationFailedStatus: true,
 				},
 			)
 

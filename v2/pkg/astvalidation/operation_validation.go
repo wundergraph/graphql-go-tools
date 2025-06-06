@@ -33,7 +33,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 		walker: astvisitor.NewWalker(48),
 	}
 
-	if opts.ApolloCompatibilityFlags.UseValidationFailedExtension {
+	if opts.ApolloCompatibilityFlags.UseGraphQLValidationFailedStatus {
 		validator.walker.OnExternalError = func(err *operationreport.ExternalError) {
 			err.ExtensionCode = errorcodes.GraphQLValidationFailed
 			err.StatusCode = http.StatusBadRequest
