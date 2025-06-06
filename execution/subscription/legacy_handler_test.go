@@ -225,7 +225,7 @@ func TestHandler_Handle(t *testing.T) {
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: []byte(`[{"message":"Cannot query field "age" on type "Query".","path":["query"]}]`),
+					Payload: []byte(`[{"message":"Cannot query field \"serverName\" on type \"Query\".","path":["query"]}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
