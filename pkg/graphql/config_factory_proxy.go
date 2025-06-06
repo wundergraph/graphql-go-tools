@@ -41,6 +41,7 @@ type ProxyUpstreamConfig struct {
 	Method           string
 	StaticHeaders    http.Header
 	SubscriptionType SubscriptionType
+	SSEMethodPost    bool
 }
 
 // ProxyEngineConfigFactory is used to create a v2 engine config with a single upstream and a single data source for this upstream.
@@ -90,8 +91,9 @@ func (p *ProxyEngineConfigFactory) EngineV2Configuration() (EngineV2Configuratio
 			Header: p.proxyUpstreamConfig.StaticHeaders,
 		},
 		Subscription: graphqlDataSource.SubscriptionConfiguration{
-			URL:    p.proxyUpstreamConfig.URL,
-			UseSSE: p.proxyUpstreamConfig.SubscriptionType == SubscriptionTypeSSE,
+			URL:           p.proxyUpstreamConfig.URL,
+			UseSSE:        p.proxyUpstreamConfig.SubscriptionType == SubscriptionTypeSSE,
+			SSEMethodPost: p.proxyUpstreamConfig.SSEMethodPost,
 		},
 	}
 
