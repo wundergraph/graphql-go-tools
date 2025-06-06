@@ -61,11 +61,10 @@ type Resolvable struct {
 }
 
 type ResolvableOptions struct {
-	ApolloCompatibilityValueCompletionInExtensions  bool
-	ApolloCompatibilityTruncateFloatValues          bool
-	ApolloCompatibilitySuppressFetchErrors          bool
-	ApolloCompatibilityReplaceUndefinedOpFieldError bool
-	ApolloCompatibilityReplaceInvalidVarError       bool
+	ApolloCompatibilityValueCompletionInExtensions bool
+	ApolloCompatibilityTruncateFloatValues         bool
+	ApolloCompatibilitySuppressFetchErrors         bool
+	ApolloCompatibilityReplaceInvalidVarError      bool
 
 	ApolloRouterCompatibilitySubrequestHTTPError bool
 }
