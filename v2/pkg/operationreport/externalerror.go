@@ -2,10 +2,9 @@ package operationreport
 
 import (
 	"fmt"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
-	"net/http"
 )
 
 const (
@@ -54,14 +53,7 @@ func ErrDocumentDoesntContainExecutableOperation() (err ExternalError) {
 }
 
 func ErrFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("field: %s not defined on type: %s", fieldName, typeName)
-	return err
-}
-
-func ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf(`Cannot query "%s" on type "%s".`, fieldName, typeName)
-	err.ExtensionCode = errorcodes.GraphQLValidationFailed
-	err.StatusCode = http.StatusBadRequest
+	err.Message = fmt.Sprintf(`Cannot query field "%s" on type "%s".`, fieldName, typeName)
 	return err
 }
 
@@ -166,13 +158,15 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
-func ErrFieldSelectionOnScalar(fieldName, scalarTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("cannot select field: %s on scalar %s", fieldName, scalarTypeName)
+func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, enumTypeName, typeName)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 
-func ErrMissingFieldSelectionOnNonScalar(fieldName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("non scalar field: %s on type: %s must have selections", fieldName, enclosingTypeName)
+func ErrMissingFieldSelectionOnNonScalar(fieldName ast.ByteSlice, enclosingTypeName string, position position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`Field "%s" of type "%s" must have a selection of subfields. Did you mean "%[1]s { ... }"?`, fieldName, enclosingTypeName)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 
@@ -382,7 +376,7 @@ func ErrInlineFragmentOnTypeDisallowed(onTypeName ast.ByteSlice) (err ExternalEr
 }
 
 func ErrInlineFragmentOnTypeMismatchEnclosingType(fragmentTypeName, enclosingTypeName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("inline fragment on type: %s mismatches enclosing type: %s", fragmentTypeName, enclosingTypeName)
+	err.Message = fmt.Sprintf(`Fragment cannot be spread here as objects of type "%s" can never be of type "%s".`, enclosingTypeName, fragmentTypeName)
 	return err
 }
 

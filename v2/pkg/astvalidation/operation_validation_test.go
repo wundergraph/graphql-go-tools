@@ -2,6 +2,7 @@ package astvalidation
 
 import (
 	"fmt"
+	"net/http"
 	"testing"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
@@ -321,7 +322,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment aliasedLyingFieldTargetNotDefined on Dog {
 								barkVolume: kawVolume
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("104 variant", func(t *testing.T) {
 				run(t, `
@@ -330,7 +331,7 @@ func TestExecutionValidation(t *testing.T) {
 									barkVolume: kawVolume
 								}
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("103", func(t *testing.T) {
 				run(t, `	{
@@ -341,7 +342,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment interfaceFieldSelection on Pet {
 								name
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Valid)
+					FieldSelections(), Valid)
 			})
 			t.Run("104", func(t *testing.T) {
 				run(t, `
@@ -353,7 +354,7 @@ func TestExecutionValidation(t *testing.T) {
 							fragment definedOnImplementorsButNotInterface on Pet {
 								nickname
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("105", func(t *testing.T) {
 				run(t, `	fragment inDirectFieldSelectionOnUnion on CatOrDog {
@@ -365,7 +366,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							name
 	  							}
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Valid)
+					FieldSelections(), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
 				run(t, `
@@ -378,7 +379,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							name
 	  							}
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Valid)
+					FieldSelections(), Valid)
 			})
 			t.Run("105 variant", func(t *testing.T) {
 				run(t, `
@@ -391,7 +392,7 @@ func TestExecutionValidation(t *testing.T) {
 	    							x
 	  							}
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106", func(t *testing.T) {
 				run(t, `
@@ -399,7 +400,7 @@ func TestExecutionValidation(t *testing.T) {
 								name
 								barkVolume
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("106 variant", func(t *testing.T) {
 				run(t, `
@@ -408,7 +409,7 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 		})
 		t.Run("5.3.2 Field Selection Merging", func(t *testing.T) {
@@ -2024,7 +2025,7 @@ func TestExecutionValidation(t *testing.T) {
 				run(t, `	fragment scalarSelection on Dog {
 								barkVolume
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Valid)
+					FieldSelections(), Valid)
 			})
 			t.Run("114", func(t *testing.T) {
 				run(t, `
@@ -2033,32 +2034,32 @@ func TestExecutionValidation(t *testing.T) {
 									sinceWhen
 								}
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 			t.Run("116", func(t *testing.T) {
 				run(t, `	
 							query directQueryOnObjectWithoutSubFields {
 								human
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid)
+					FieldSelections(), Invalid)
 				run(t, `	query directQueryOnInterfaceWithoutSubFields {
 								pet
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid)
+					FieldSelections(), Invalid)
 				run(t, `	query directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid)
+					FieldSelections(), Invalid)
 				run(t, `
 							mutation directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 				run(t, `
 							subscription directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(OperationValidatorOptions{}), Invalid, withExpectNormalizationError())
+					FieldSelections(), Invalid, withExpectNormalizationError())
 			})
 		})
 	})
@@ -4673,58 +4674,205 @@ func BenchmarkValidation(b *testing.B) {
 	})
 }
 
-func TestWithApolloCompatibilityFlags(t *testing.T) {
-	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
-	op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
+func TestValidateFieldSelection(t *testing.T) {
+	assertOperationValidationErrorIs := func(t *testing.T, op, doc ast.Document, expectedError operationreport.ExternalError, options ...Option) {
+		t.Helper()
 
-	t.Run("With propagated true flag", func(t *testing.T) {
-		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
-			apollocompatibility.Flags{
-				ReplaceInvalidVarError:       false,
-				ReplaceUndefinedOpFieldError: true,
-			},
-		))
+		operationValidator := DefaultOperationValidator(options...)
 		report := operationreport.Report{}
 		operationValidator.Validate(&op, &doc, &report)
 		assert.True(t, report.HasErrors())
 		require.Len(t, report.ExternalErrors, 1)
-		expectedError := operationreport.ExternalError{
-			ExtensionCode: errorcodes.GraphQLValidationFailed,
-			Message:       `Cannot query "age" on type "Query".`,
-		}
+
+		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
 		assert.Equal(t, expectedError.ExtensionCode, report.ExternalErrors[0].ExtensionCode)
-		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
+		assert.Equal(t, expectedError.StatusCode, report.ExternalErrors[0].StatusCode)
+	}
+
+	t.Run("selecting an undefined operation", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { age }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			assertOperationValidationErrorIs(t, op, doc, operationreport.ExternalError{
+				Message: `Cannot query field "age" on type "Query".`,
+			})
+		})
+
+		t.Run("with flag disabled, should return normal error ", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: false,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				Message: `Cannot query field "age" on type "Query".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
+
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Cannot query field "age" on type "Query".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
 	})
-	t.Run("With propagated false flag", func(t *testing.T) {
-		operationValidator := DefaultOperationValidator(WithApolloCompatibilityFlags(
-			apollocompatibility.Flags{
-				ReplaceInvalidVarError:       false,
-				ReplaceUndefinedOpFieldError: false,
-			},
-		))
-		report := operationreport.Report{}
-		operationValidator.Validate(&op, &doc, &report)
-		assert.True(t, report.HasErrors())
-		require.Len(t, report.ExternalErrors, 1)
-		expectedError := operationreport.ExternalError{
-			Message: `field: age not defined on type: Query`,
-		}
-		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+	t.Run("selecting on an enum", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`enum Status { ACTIVE INACTIVE } type Query { status: Status! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { status { field } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `Field "status" must not have a selection since type "Status!" has no subfields.`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Field "status" must not have a selection since type "Status!" has no subfields.`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
 	})
-	t.Run("Without propagated false flag", func(t *testing.T) {
-		operationValidator := DefaultOperationValidator()
-		report := operationreport.Report{}
-		operationValidator.Validate(&op, &doc, &report)
-		assert.True(t, report.HasErrors())
-		require.Len(t, report.ExternalErrors, 1)
-		expectedError := operationreport.ExternalError{
-			Message: `field: age not defined on type: Query`,
-		}
-		assert.Equal(t, expectedError.Message, report.ExternalErrors[0].Message)
-		assert.Equal(t, "", report.ExternalErrors[0].ExtensionCode)
-		assert.Equal(t, 0, report.ExternalErrors[0].StatusCode)
+
+	t.Run("selecting on a scalar", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { name { field } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `Field "name" must not have a selection since type "String!" has no subfields.`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Field "name" must not have a selection since type "String!" has no subfields.`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
+	})
+
+	t.Run("no subfield selection", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { someType(id: ID!): SomeType! } type SomeType { id: ID! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { someType(id: "hi") }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `Field "someType" of type "SomeType!" must have a selection of subfields. Did you mean "someType { ... }"?`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Field "someType" of type "SomeType!" must have a selection of subfields. Did you mean "someType { ... }"?`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
+	})
+
+	t.Run("non-existent field selection", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { someType(id: ID!): SomeType! } type SomeType { id: ID! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { someType(id: "hi") { foo } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `Cannot query field "foo" on type "SomeType".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Cannot query field "foo" on type "SomeType".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
+	})
+
+	t.Run("invalid fragment spread", func(t *testing.T) {
+		doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(`type Query { name: String! } type SomeType { id: ID! }`)
+		op := unsafeparser.ParseGraphqlDocumentString(`query { ... on SomeType { name } }`)
+
+		t.Run("by default, should return normal error", func(t *testing.T) {
+			expectedError := operationreport.ExternalError{
+				Message: `Fragment cannot be spread here as objects of type "Query" can never be of type "SomeType".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError)
+		})
+
+		t.Run("with flag enabled, should have apollo extension and status", func(t *testing.T) {
+			option := WithApolloCompatibilityFlags(
+				apollocompatibility.Flags{
+					UseGraphQLValidationFailedStatus: true,
+				},
+			)
+
+			expectedError := operationreport.ExternalError{
+				ExtensionCode: errorcodes.GraphQLValidationFailed,
+				StatusCode:    http.StatusBadRequest,
+				Message:       `Fragment cannot be spread here as objects of type "Query" can never be of type "SomeType".`,
+			}
+
+			assertOperationValidationErrorIs(t, op, doc, expectedError, option)
+		})
 	})
 }
 

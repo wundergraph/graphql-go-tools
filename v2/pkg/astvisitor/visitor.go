@@ -92,6 +92,8 @@ type Walker struct {
 	revisit         bool
 	filter          VisitorFilter
 	deferred        []func()
+
+	OnExternalError func(err *operationreport.ExternalError)
 }
 
 // NewWalker returns a fully initialized Walker
@@ -3921,6 +3923,11 @@ func (w *Walker) HandleInternalErr(err error) bool {
 func (w *Walker) StopWithExternalErr(err operationreport.ExternalError) {
 	w.stop = true
 	err.Path = w.Path
+
+	if w.OnExternalError != nil {
+		w.OnExternalError(&err)
+	}
+
 	w.Report.AddExternalError(err)
 }
 

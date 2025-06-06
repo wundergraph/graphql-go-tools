@@ -3,7 +3,6 @@ package astvalidation
 import (
 	"bytes"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
@@ -12,11 +11,10 @@ import (
 )
 
 // FieldSelections validates if all FieldSelections are possible and valid
-func FieldSelections(options OperationValidatorOptions) Rule {
+func FieldSelections() Rule {
 	return func(walker *astvisitor.Walker) {
 		fieldDefined := fieldDefined{
-			Walker:                   walker,
-			apolloCompatibilityFlags: options.ApolloCompatibilityFlags,
+			Walker: walker,
 		}
 		walker.RegisterEnterDocumentVisitor(&fieldDefined)
 		walker.RegisterEnterFieldVisitor(&fieldDefined)
@@ -25,9 +23,8 @@ func FieldSelections(options OperationValidatorOptions) Rule {
 
 type fieldDefined struct {
 	*astvisitor.Walker
-	operation                *ast.Document
-	definition               *ast.Document
-	apolloCompatibilityFlags apollocompatibility.Flags
+	operation  *ast.Document
+	definition *ast.Document
 }
 
 func (f *fieldDefined) EnterDocument(operation, definition *ast.Document) {
@@ -54,29 +51,33 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 	definitions := f.definition.NodeFieldDefinitions(enclosingTypeDefinition)
 	for _, i := range definitions {
 		definitionName := f.definition.FieldDefinitionNameBytes(i)
+		definitionTypeRef := f.definition.FieldDefinitionType(i)
+
 		if bytes.Equal(fieldName, definitionName) {
 			// field is defined
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
-			switch {
-			case hasSelections && fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition:
-				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, definitionName))
-			case !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition):
-				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, typeName))
+			definitionTypeName, _ := f.definition.PrintTypeBytes(definitionTypeRef, nil)
+
+			switch fieldDefinitionTypeKind {
+			case ast.NodeKindEnumTypeDefinition, ast.NodeKindScalarTypeDefinition:
+				if hasSelections {
+					// For field selection errors, use the position of the selection set's opening brace
+					position := f.operation.SelectionSets[f.operation.Fields[ref].SelectionSet].LBrace
+					f.StopWithExternalErr(operationreport.ErrFieldSelectionOnLeaf(definitionName, string(definitionTypeName), position))
+				}
+			default:
+				if !hasSelections {
+					// Get the position of the field in the operation
+					position := f.operation.Fields[ref].Position
+					f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, string(definitionTypeName), position))
+				}
 			}
+
 			return
 		}
 	}
-	if f.apolloCompatibilityFlags.ReplaceUndefinedOpFieldError {
-		f.StopWithExternalErr(operationreport.ErrApolloCompatibleFieldUndefinedOnType(fieldName, typeName))
-		return
-	}
-	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
-}
 
-func (f *fieldDefined) ValidateScalarField(ref int, enclosingTypeDefinition ast.Node) {
-	fieldName := f.operation.FieldNameBytes(ref)
-	scalarTypeName := f.operation.NodeNameBytes(enclosingTypeDefinition)
-	f.StopWithExternalErr(operationreport.ErrFieldSelectionOnScalar(fieldName, scalarTypeName))
+	f.StopWithExternalErr(operationreport.ErrFieldUndefinedOnType(fieldName, typeName))
 }
 
 func (f *fieldDefined) EnterField(ref int) {
@@ -85,8 +86,6 @@ func (f *fieldDefined) EnterField(ref int) {
 		f.ValidateUnionField(ref, f.EnclosingTypeDefinition)
 	case ast.NodeKindInterfaceTypeDefinition, ast.NodeKindObjectTypeDefinition:
 		f.ValidateInterfaceOrObjectTypeField(ref, f.EnclosingTypeDefinition)
-	case ast.NodeKindScalarTypeDefinition:
-		f.ValidateScalarField(ref, f.EnclosingTypeDefinition)
 	default:
 		fieldName := f.operation.FieldNameBytes(ref)
 		typeName := f.operation.NodeNameBytes(f.EnclosingTypeDefinition)

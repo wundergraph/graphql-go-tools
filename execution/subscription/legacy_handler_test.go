@@ -225,7 +225,7 @@ func TestHandler_Handle(t *testing.T) {
 				expectedErrorMessage := Message{
 					Id:      "1",
 					Type:    MessageTypeError,
-					Payload: []byte(`[{"message":"field: serverName not defined on type: Query","path":["query"]}]`),
+					Payload: []byte(`[{"message":"Cannot query field \"serverName\" on type \"Query\".","path":["query"]}]`),
 				}
 
 				messagesFromServer := client.readFromServer()
