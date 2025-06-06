@@ -160,13 +160,15 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
-func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string) (err ExternalError) {
+func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, enumTypeName, typeName)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 
-func ErrMissingFieldSelectionOnNonScalar(fieldName ast.ByteSlice, enclosingTypeName string) (err ExternalError) {
+func ErrMissingFieldSelectionOnNonScalar(fieldName ast.ByteSlice, enclosingTypeName string, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Field "%s" of type "%s" must have a selection of subfields. Did you mean "%[1]s { ... }"?`, fieldName, enclosingTypeName)
+	err.Locations = LocationsFromPosition(position)
 	return err
 }
 

@@ -63,11 +63,16 @@ func (f *fieldDefined) ValidateInterfaceOrObjectTypeField(ref int, enclosingType
 			fieldDefinitionTypeKind := f.definition.FieldDefinitionTypeNode(i).Kind
 
 			if hasSelections && (fieldDefinitionTypeKind == ast.NodeKindEnumTypeDefinition || fieldDefinitionTypeKind == ast.NodeKindScalarTypeDefinition) {
-				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnLeaf(definitionName, definitionTypeName))
+				// For field selection errors, use the position of the selection set's opening brace
+				position := f.operation.SelectionSets[f.operation.Fields[ref].SelectionSet].LBrace
+				f.StopWithExternalErr(operationreport.ErrFieldSelectionOnLeaf(definitionName, definitionTypeName, position))
 			}
 
 			if !hasSelections && (fieldDefinitionTypeKind != ast.NodeKindScalarTypeDefinition && fieldDefinitionTypeKind != ast.NodeKindEnumTypeDefinition) {
-				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName))
+				// Get the position of the field in the operation
+				position := f.operation.Fields[ref].Position
+
+				f.StopWithExternalErr(operationreport.ErrMissingFieldSelectionOnNonScalar(fieldName, definitionTypeName, position))
 			}
 
 			return
