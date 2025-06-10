@@ -99,6 +99,85 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		}
 	`
 
+	definitionA := `
+		type Query {
+			u1: Union1
+		}
+		
+		union Union1 = A | B | C
+		union Union2 = A | B | C
+		union Union3 = A | B | C
+
+		interface Inter1 {
+			id: ID
+		}
+		
+		interface Inter2 {
+			id: ID
+		}
+
+		interface Inter3 {
+			id: ID
+		}
+
+		type A implements Inter1 & Inter2 & Inter3 @key(fields: "id") {
+			id: ID!
+			name: String!
+		}
+		
+		type B implements Inter1 & Inter2 & Inter3 @key(fields: "id") {
+			id: ID!
+			name: String!
+		}
+
+		type C @key(fields: "id") {
+			id: ID!
+			name: String!
+		}`
+
+	upstreamDefinitionA := `
+		type Query {
+			u1: Union1
+			i1: Inter1
+		}
+		
+		union Union1 = A | B
+		union Union2 = A | B
+		
+		interface Inter1 {
+			id: ID
+		}
+		
+		interface Inter2 {
+			id: ID
+		}
+		
+		type A implements Inter1 & Inter2 @key(fields: "id") {
+			id: ID!
+		}
+		
+		type B implements Inter1 & Inter2 @key(fields: "id") {
+			id: ID!
+		}`
+
+	dsConfigurationA := dsb().
+		RootNode("Query", "u1").
+		RootNode("A", "id").
+		RootNode("B", "id").
+		ChildNode("Inter1", "id").
+		ChildNode("Inter2", "id").
+		KeysMetadata(FederationFieldConfigurations{
+			{
+				TypeName:     "A",
+				SelectionSet: "id",
+			},
+			{
+				TypeName:     "B",
+				SelectionSet: "id",
+			},
+		}).
+		DS()
+
 	testCases := []testCase{
 		{
 			name:       "one field is external. query without fragments",
@@ -2818,6 +2897,373 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface {
 						... on User {
 							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is union - union fragment wrapped into concrete type fragment with different from wrapping type fragments",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "u1",
+			operation: `
+				query {
+					u1 {
+						...	on A {
+							title
+							... on Union2 {
+								... on A {
+									id
+								}
+								... on C {
+									title
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					u1 {
+						... on A {
+							title
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is union - union fragment wrapped into concrete type fragment with matching to wrapping type fragment",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "u1",
+			operation: `
+				query {
+					u1 {
+						...	on A {
+							title
+							... on Union2 {
+								... on A {
+									id
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					u1 {
+						... on A {
+							title
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is union - select not existing in the current subgraph type",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "u1",
+			operation: `
+				query {
+					u1 {
+						... on Union2 {
+							... on A {
+								id
+							}
+							... on C {
+								title
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					u1 {
+						... on A {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is union - select not existing in the current subgraph type",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "u1",
+			operation: `
+				query {
+					u1 {
+						... on Union2 {
+							... on A {
+								id
+							}
+							... on C {
+								title
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					u1 {
+						... on A {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is an interface - interface fragment inside concrete type fragment with matching type",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "i1",
+			operation: `
+				query {
+					i1 {
+						... on A {
+							... on Inter2 {
+								... on A {
+									id
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is an interface - interface fragment inside concrete type fragment with not matching type",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "i1",
+			operation: `
+				query {
+					i1 {
+						... on A {
+							... on Inter2 {
+								... on B {
+									id
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						__typename
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is an interface - interface fragment inside concrete type fragment select shared field",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "i1",
+			operation: `
+				query {
+					i1 {
+						... on A {
+							... on Inter2 {
+								id
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is an interface - multiple level of nesting interface and union fragments with concrete types on different levels",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "i1",
+			operation: `
+				query {
+					i1 {
+						... on Union2 {
+							... on Inter2 {
+								... on A {
+									id
+								}
+								... on Union1 {
+									... on Inter1 {
+										... on B {
+											id
+										}
+									}
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+						... on B {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is a interface - union fragment is not exists in the current subgraph",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "i1",
+			operation: `
+				query {
+					i1 {
+						... on Union3 {
+							... on A {
+								id
+							}
+							... on B {
+								id
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+						... on B {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is a interface - interface fragment is not exists in the current subgraph",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "i1",
+			operation: `
+				query {
+					i1 {
+						... on Inter3 {
+							... on A {
+								id
+							}
+							... on B {
+								id
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+						... on B {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is a union - union fragment is not exists in the current subgraph",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "u1",
+			operation: `
+				query {
+					u1 {
+						... on Union3 {
+							... on A {
+								id
+							}
+							... on B {
+								id
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+						... on B {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is a union - interface fragment is not exists in the current subgraph",
+			definition:         definitionA,
+			upstreamDefinition: upstreamDefinitionA,
+			dsConfiguration:    dsConfigurationA,
+			fieldName:          "u1",
+			operation: `
+				query {
+					u1 {
+						... on Inter3 {
+							... on A {
+								id
+							}
+							... on B {
+								id
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					i1 {
+						... on A {
+							id
+						}
+						... on B {
+							id
 						}
 					}
 				}`,
