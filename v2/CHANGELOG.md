@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.187](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.186...v2.0.0-rc.187) (2025-06-10)
+
+
+### Bug Fixes
+
+* support different kinds of close, correct client unsubscribe behaviour ([#1174](https://github.com/wundergraph/graphql-go-tools/issues/1174)) ([b6de322](https://github.com/wundergraph/graphql-go-tools/commit/b6de32263b69902c1f687b7b3fbf89e90df85cd2))
+
 ## [2.0.0-rc.186](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.185...v2.0.0-rc.186) (2025-06-05)
 
 
