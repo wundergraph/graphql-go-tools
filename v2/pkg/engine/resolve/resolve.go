@@ -317,10 +317,13 @@ func (s *sub) startWorkerWithHeartbeat() {
 		select {
 		case <-s.ctx.ctx.Done():
 			// Complete when the client request context is done for synchronous subscriptions
-			s.complete()
+			s.close(SubscriptionCloseKindGoingAway)
+
 			return
 		case <-s.resolver.ctx.Done():
 			// Abort immediately if the resolver is shutting down
+			s.close(SubscriptionCloseKindGoingAway)
+
 			return
 		case <-heartbeatTicker.C:
 			s.resolver.handleHeartbeat(s, multipartHeartbeat)
