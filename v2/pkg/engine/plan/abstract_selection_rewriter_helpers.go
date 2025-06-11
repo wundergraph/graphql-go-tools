@@ -41,11 +41,11 @@ func (r *fieldSelectionRewriter) entitiesImplementingInterface(typesImplementing
 
 	for _, typeName := range typesImplementingInterface {
 		if slices.Contains(entityNames, typeName) {
-			out = append(out, typeName) //nolint:staticcheck
+			out = append(out, typeName)
 		}
 	}
 
-	return entityNames
+	return out
 }
 
 func (r *fieldSelectionRewriter) entityNamesWithoutFragments(inlineFragments []inlineFragmentSelection, entityNames []string) []string {
@@ -86,6 +86,7 @@ func (r *fieldSelectionRewriter) entityNamesWithFragments(inlineFragments []inli
 	return nil
 }
 
+// TODO: looks like it is extensive unnecessary check
 func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
 		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterfaceInCurrentDS, entityNames)
@@ -101,6 +102,7 @@ func (r *fieldSelectionRewriter) allEntitiesImplementsInterfaces(inlineFragments
 	return true
 }
 
+// TODO: looks like it is extensive unnecessary check
 func (r *fieldSelectionRewriter) allEntityFragmentsSatisfyInterfaces(inlineFragmentsOnInterfaces []inlineFragmentSelectionOnInterface, inlineFragmentsOnObjects []inlineFragmentSelection, entityNames []string) bool {
 	for _, inlineFragmentsOnInterface := range inlineFragmentsOnInterfaces {
 		entitiesImplementingInterface := r.entitiesImplementingInterface(inlineFragmentsOnInterface.typeNamesImplementingInterfaceInCurrentDS, entityNames)
