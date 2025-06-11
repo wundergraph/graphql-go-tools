@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.188](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.187...v2.0.0-rc.188) (2025-06-11)
+
+
+### Features
+
+* improve apollo gateway compatible field selection validation ([#1169](https://github.com/wundergraph/graphql-go-tools/issues/1169)) ([8c1a063](https://github.com/wundergraph/graphql-go-tools/commit/8c1a06302309b5c3ad36f908cc8acbbc0bfafda6))
+
 ## [2.0.0-rc.187](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.186...v2.0.0-rc.187) (2025-06-10)
 
 
