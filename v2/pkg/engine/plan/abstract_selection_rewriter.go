@@ -413,15 +413,14 @@ func (r *fieldSelectionRewriter) rewriteInterfaceSelection(fieldRef int, fieldIn
 	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
 
-func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, typeNamesImplementingInterfaceInCurrentDS []string, allowedTypeNames []string, selectionRefs *[]int) {
-	allowedImplementingTypes := make([]string, 0, len(typeNamesImplementingInterfaceInCurrentDS))
-	for _, typeName := range typeNamesImplementingInterfaceInCurrentDS {
+func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo selectionSetInfo, implementingTypes []string, allowedTypeNames []string, selectionRefs *[]int) {
+	allowedImplementingTypes := make([]string, 0, len(implementingTypes))
+	for _, typeName := range implementingTypes {
 		if slices.Contains(allowedTypeNames, typeName) {
 			allowedImplementingTypes = append(allowedImplementingTypes, typeName)
 		}
 	}
 
-	// TODO: check test case - interface is not implemented by any type in the current datasource, but we have field selections on it
 	if selectionSetInfo.hasFields {
 		for _, typeName := range allowedImplementingTypes {
 			*selectionRefs = append(*selectionRefs, r.createFragmentSelection(typeName, selectionSetInfo.fields))

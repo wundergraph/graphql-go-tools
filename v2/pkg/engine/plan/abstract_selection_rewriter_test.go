@@ -102,6 +102,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 	definitionA := `
 		type Query {
 			u1: Union1
+			i1: Inter1
 		}
 		
 		union Union1 = A | B | C
@@ -3219,6 +3220,9 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 								id
 							}
 							... on B {
+								id
+							}
+							... on C {
 								id
 							}
 						}
