@@ -2995,14 +2995,14 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name:               "field is union - select not existing in the current subgraph type",
+			name:               "field is interface - select not existing in the current subgraph type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
 			dsConfiguration:    dsConfigurationA,
-			fieldName:          "u1",
+			fieldName:          "i1",
 			operation: `
 				query {
-					u1 {
+					i1 {
 						... on Union2 {
 							... on A {
 								id
@@ -3015,7 +3015,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			expectedOperation: `
 				query {
-					u1 {
+					i1 {
 						... on A {
 							id
 						}

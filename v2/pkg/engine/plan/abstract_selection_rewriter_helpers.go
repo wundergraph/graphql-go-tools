@@ -150,16 +150,6 @@ func (r *fieldSelectionRewriter) allEntitiesHaveFieldsAsRootNode(entityNames []s
 	return true
 }
 
-func (r *fieldSelectionRewriter) allFragmentTypesExistsOnDatasource(inlineFragments []inlineFragmentSelection) bool {
-	for _, inlineFragment := range inlineFragments {
-		if !r.hasTypeOnDataSource(inlineFragment.typeName) {
-			return false
-		}
-	}
-
-	return true
-}
-
 func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
 	for _, fragment := range inlineFragments {
 		if r.interfaceFragmentNeedCleanup(fragment, parentSelectionValidTypes) {
@@ -170,13 +160,9 @@ func (r *fieldSelectionRewriter) interfaceFragmentsRequiresCleanup(inlineFragmen
 	return false
 }
 
-func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inlineFragmentSelection) bool {
-	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
-		return true
-	}
-
-	for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
-		if r.interfaceFragmentNeedCleanup(fragmentOnInterface, []string{inlineFragment.typeName}) {
+func (r *fieldSelectionRewriter) unionFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelectionOnUnion, parentSelectionValidTypes []string) bool {
+	for _, fragment := range inlineFragments {
+		if r.unionFragmentNeedCleanup(fragment, parentSelectionValidTypes) {
 			return true
 		}
 	}
@@ -184,17 +170,96 @@ func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragment inline
 	return false
 }
 
-func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
+func (r *fieldSelectionRewriter) objectFragmentsRequiresCleanup(inlineFragments []inlineFragmentSelection, parentSelectionValidTypes []string) bool {
+	for _, fragmentOnObject := range inlineFragments {
+		if r.objectFragmentNeedCleanup(fragmentOnObject, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragmentOnObject inlineFragmentSelection, parentSelectionValidTypes []string) bool {
+	if !r.hasTypeOnDataSource(inlineFragmentOnObject.typeName) {
+		return true
+	}
+
+	if !slices.Contains(parentSelectionValidTypes, inlineFragmentOnObject.typeName) {
+		return true
+	}
+
+	// check interface fragments
+	if inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		if r.interfaceFragmentsRequiresCleanup(inlineFragmentOnObject.selectionSetInfo.inlineFragmentsOnInterfaces, []string{inlineFragmentOnObject.typeName}) {
+			return true
+		}
+	}
+
+	// check union fragments
+	if inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnUnions {
+		if r.unionFragmentsRequiresCleanup(inlineFragmentOnObject.selectionSetInfo.inlineFragmentsOnUnions, []string{inlineFragmentOnObject.typeName}) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) unionFragmentNeedCleanup(inlineFragmentOnUnion inlineFragmentSelectionOnUnion, parentSelectionValidTypes []string) bool {
+	// check that union type exists on datasource
+	if !r.hasTypeOnDataSource(inlineFragmentOnUnion.typeName) {
+		return true
+	}
+
+	// We need to check if union type in the given datasource is implemented by parent selection valid types
+	// because it could happen that in the given ds we have all types from union but not all of are part of the union
+	// so we need to rewrite, because otherwise we won't get responses for all possible types, but only for part of union
+	for _, typeName := range parentSelectionValidTypes {
+		if !slices.Contains(inlineFragmentOnUnion.unionMemberTypeNamesInCurrentDS, typeName) {
+			return true
+		}
+	}
+
+	// if union fragment has inline fragments on objects
+	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
+	// check each fragment for the presence of other interface fragments
+	if inlineFragmentOnUnion.selectionSetInfo.hasInlineFragmentsOnObjects {
+		if r.objectFragmentsRequiresCleanup(inlineFragmentOnUnion.selectionSetInfo.inlineFragmentsOnObjects, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	// if union fragment has inline fragments on interfaces
+	// recursively check each fragment for the presence of other interface or union fragments with the same parent selection valid types
+	if inlineFragmentOnUnion.selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		if r.interfaceFragmentsRequiresCleanup(inlineFragmentOnUnion.selectionSetInfo.inlineFragmentsOnInterfaces, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	// if union fragment has inline fragments on unions
+	// recursively check each fragment for the presence of other interface or union fragments with the same parent selection valid types
+	if inlineFragmentOnUnion.selectionSetInfo.hasInlineFragmentsOnUnions {
+		if r.unionFragmentsRequiresCleanup(inlineFragmentOnUnion.selectionSetInfo.inlineFragmentsOnUnions, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragmentOnInterface inlineFragmentSelectionOnInterface, parentSelectionValidTypes []string) bool {
 	// check that interface type exists on datasource
-	if !r.hasTypeOnDataSource(inlineFragment.typeName) {
+	if !r.hasTypeOnDataSource(inlineFragmentOnInterface.typeName) {
 		return true
 	}
 
 	// We need to check if interface type in the given datasource is implemented by parent selection valid types
-	// because it could happen that in the given ds we have all types from union but not all of them implements interface
+	// because it could happen that in the given ds we have all types from interface but not all of them implements interface
 	// so we need to rewrite, because otherwise we won't get responses for all possible types, but only for implementing interface
 	for _, typeName := range parentSelectionValidTypes {
-		if !slices.Contains(inlineFragment.typeNamesImplementingInterfaceInCurrentDS, typeName) {
+		if !slices.Contains(inlineFragmentOnInterface.typeNamesImplementingInterfaceInCurrentDS, typeName) {
 			return true
 		}
 	}
@@ -202,36 +267,34 @@ func (r *fieldSelectionRewriter) interfaceFragmentNeedCleanup(inlineFragment inl
 	// if interface fragment has inline fragments on objects
 	// check that object type is present within parent selection valid types - e.g. members of union or parent interface
 	// check each fragment for the presence of other interface fragments
-	if inlineFragment.selectionSetInfo.hasInlineFragmentsOnObjects {
-		for _, fragmentOnObject := range inlineFragment.selectionSetInfo.inlineFragmentsOnObjects {
-			if !slices.Contains(parentSelectionValidTypes, fragmentOnObject.typeName) {
-				return true
-			}
-
-			if r.objectFragmentNeedCleanup(fragmentOnObject) {
-				return true
-			}
+	if inlineFragmentOnInterface.selectionSetInfo.hasInlineFragmentsOnObjects {
+		if r.objectFragmentsRequiresCleanup(inlineFragmentOnInterface.selectionSetInfo.inlineFragmentsOnObjects, parentSelectionValidTypes) {
+			return true
 		}
 	}
 
 	// if interface fragment has inline fragments on interfaces
 	// recursively check each fragment for the presence of other interface fragments with the same parent selection valid types
-	if inlineFragment.selectionSetInfo.hasInlineFragmentsOnInterfaces {
-		for _, fragmentOnInterface := range inlineFragment.selectionSetInfo.inlineFragmentsOnInterfaces {
-			if r.interfaceFragmentNeedCleanup(fragmentOnInterface, parentSelectionValidTypes) {
-				return true
-			}
+	if inlineFragmentOnInterface.selectionSetInfo.hasInlineFragmentsOnInterfaces {
+		if r.interfaceFragmentsRequiresCleanup(inlineFragmentOnInterface.selectionSetInfo.inlineFragmentsOnInterfaces, parentSelectionValidTypes) {
+			return true
 		}
 	}
 
-	if inlineFragment.selectionSetInfo.hasFields {
+	if inlineFragmentOnInterface.selectionSetInfo.hasInlineFragmentsOnUnions {
+		if r.unionFragmentsRequiresCleanup(inlineFragmentOnInterface.selectionSetInfo.inlineFragmentsOnUnions, parentSelectionValidTypes) {
+			return true
+		}
+	}
+
+	if inlineFragmentOnInterface.selectionSetInfo.hasFields {
 		// NOTE: maybe we need to filter this typenames by parentSelectionValidTypes?
-		for _, typeName := range inlineFragment.typeNamesImplementingInterfaceInCurrentDS {
-			if !r.typeHasAllFieldLocal(typeName, inlineFragment.selectionSetInfo.fields) {
+		for _, typeName := range inlineFragmentOnInterface.typeNamesImplementingInterfaceInCurrentDS {
+			if !r.typeHasAllFieldLocal(typeName, inlineFragmentOnInterface.selectionSetInfo.fields) {
 				return true
 			}
 
-			if r.hasRequiresConfigurationForField(typeName, inlineFragment.selectionSetInfo.fields) {
+			if r.hasRequiresConfigurationForField(typeName, inlineFragmentOnInterface.selectionSetInfo.fields) {
 				return true
 			}
 		}
