@@ -1950,12 +1950,12 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			expectedOperation: `
 				query {
 					accounts {
-						... on Admin {
+						... on User {
+							isUser
 							name
 						}
-						... on User {
+						... on Admin {
 							name
-							isUser
 						}
 					}
 				}`,
@@ -3226,7 +3226,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			expectedOperation: `
 				query {
-					i1 {
+					u1 {
 						... on A {
 							id
 						}
@@ -3258,7 +3258,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			expectedOperation: `
 				query {
-					i1 {
+					u1 {
 						... on A {
 							id
 						}
