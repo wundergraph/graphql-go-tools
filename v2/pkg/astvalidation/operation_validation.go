@@ -2,9 +2,12 @@
 package astvalidation
 
 import (
+	"net/http"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -30,13 +33,20 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 		walker: astvisitor.NewWalker(48),
 	}
 
+	if opts.ApolloCompatibilityFlags.UseGraphQLValidationFailedStatus {
+		validator.walker.OnExternalError = func(err *operationreport.ExternalError) {
+			err.ExtensionCode = errorcodes.GraphQLValidationFailed
+			err.StatusCode = http.StatusBadRequest
+		}
+	}
+
 	validator.RegisterRule(AllVariablesUsed())
 	validator.RegisterRule(AllVariableUsesDefined())
 	validator.RegisterRule(DocumentContainsExecutableOperation())
 	validator.RegisterRule(OperationNameUniqueness())
 	validator.RegisterRule(LoneAnonymousOperation())
 	validator.RegisterRule(SubscriptionSingleRootField())
-	validator.RegisterRule(FieldSelections(opts))
+	validator.RegisterRule(FieldSelections())
 	validator.RegisterRule(FieldSelectionMerging())
 	validator.RegisterRule(KnownArguments())
 	validator.RegisterRule(Values())
