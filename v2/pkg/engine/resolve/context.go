@@ -60,8 +60,8 @@ type FieldValue struct {
 	// Data holds the actual field value data.
 	Data []byte
 
-	// JsonType is the type of the node in JSON AST
-	JsonType astjson.Type
+	// ParsedData is the astjson.Value representation of the field value data.
+	ParsedData *astjson.Value
 }
 
 type FieldValueRenderer interface {
