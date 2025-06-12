@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0-rc.189](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.188...v2.0.0-rc.189) (2025-06-12)
+
+
+### Features
+
+* expose parsed data in RenderFieldValue ([#1182](https://github.com/wundergraph/graphql-go-tools/issues/1182)) ([893c536](https://github.com/wundergraph/graphql-go-tools/commit/893c5366239362af68e0258c5987e7be24d286cb))
+
+
+### Bug Fixes
+
+* prefer websocket tws when negotiate graphql websocket protocol ([#1185](https://github.com/wundergraph/graphql-go-tools/issues/1185)) ([0787d7c](https://github.com/wundergraph/graphql-go-tools/commit/0787d7c8431fe840396e7b5b8e2aa47f1cd94ead))
+
 ## [2.0.0-rc.188](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.187...v2.0.0-rc.188) (2025-06-11)
 
 
