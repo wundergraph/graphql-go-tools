@@ -189,18 +189,9 @@ func (r *fieldSelectionRewriter) objectFragmentNeedCleanup(inlineFragmentOnObjec
 		return true
 	}
 
-	// check interface fragments
-	if inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnInterfaces {
-		if r.interfaceFragmentsRequiresCleanup(inlineFragmentOnObject.selectionSetInfo.inlineFragmentsOnInterfaces, []string{inlineFragmentOnObject.typeName}) {
-			return true
-		}
-	}
-
-	// check union fragments
-	if inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnUnions {
-		if r.unionFragmentsRequiresCleanup(inlineFragmentOnObject.selectionSetInfo.inlineFragmentsOnUnions, []string{inlineFragmentOnObject.typeName}) {
-			return true
-		}
+	if inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnInterfaces ||
+		inlineFragmentOnObject.selectionSetInfo.hasInlineFragmentsOnUnions {
+		return true
 	}
 
 	return false
