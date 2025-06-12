@@ -51,6 +51,8 @@ type FieldValue struct {
 	IsListItem bool
 	// IsNullable indicates whether the field is nullable.
 	IsNullable bool
+	// IsEnum is a value of Enum
+	IsEnum bool
 
 	// Path holds the path to the field in the response.
 	Path string

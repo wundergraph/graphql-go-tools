@@ -448,15 +448,23 @@ func (r *Resolvable) printNode(value *astjson.Value) {
 	_, r.printErr = r.out.Write(r.marshalBuf)
 }
 
+func (r *Resolvable) renderScalarFieldValueEnum(value *astjson.Value, nullable bool) {
+	r.renderScalarFieldValueFull(value, nullable, true)
+}
+
 func (r *Resolvable) renderScalarFieldValue(value *astjson.Value, nullable bool) {
+	r.renderScalarFieldValueFull(value, nullable, false)
+}
+
+func (r *Resolvable) renderScalarFieldValueFull(value *astjson.Value, nullable bool, enum bool) {
 	if r.printErr != nil {
 		return
 	}
 	r.marshalBuf = value.MarshalTo(r.marshalBuf[:0])
-	r.renderScalarFieldBytes(r.marshalBuf, nullable)
+	r.renderScalarFieldBytes(r.marshalBuf, nullable, enum)
 }
 
-func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool) {
+func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool, enum bool) {
 	if r.printErr != nil {
 		return
 	}
@@ -468,6 +476,7 @@ func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool) {
 			Type:       r.currentFieldInfo.NamedType,
 			ParentType: r.currentFieldInfo.ExactParentTypeName,
 			IsNullable: nullable,
+			IsEnum:     enum,
 			Path:       r.renderFieldPath(),
 			Data:       data,
 			JsonType:   r.data.Type(),
@@ -904,7 +913,7 @@ func (r *Resolvable) walkString(s *String, value *astjson.Value) bool {
 				r.printBytes(content)
 				r.printBytes(quote)
 			} else {
-				r.renderScalarFieldBytes(content, s.Nullable)
+				r.renderScalarFieldBytes(content, s.Nullable, false)
 			}
 		} else {
 			r.renderScalarFieldValue(value, s.Nullable)
@@ -1050,7 +1059,7 @@ func (r *Resolvable) walkCustom(c *CustomNode, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.renderScalarFieldBytes(resolved, c.Nullable)
+		r.renderScalarFieldBytes(resolved, c.Nullable, false)
 	}
 	return false
 }
@@ -1162,7 +1171,7 @@ func (r *Resolvable) walkEnum(e *Enum, value *astjson.Value) bool {
 		return r.err()
 	}
 	if r.print {
-		r.renderScalarFieldValue(value, e.Nullable)
+		r.renderScalarFieldValueEnum(value, e.Nullable)
 	}
 	return false
 }
