@@ -23,9 +23,10 @@ import (
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/jensneuse/abstractlogger"
+	"go.uber.org/atomic"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/netpoll"
-	"go.uber.org/atomic"
 )
 
 const (
@@ -538,7 +539,7 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 }
 
 func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscriptionOptions) (conn net.Conn, subProtocol string, err error) {
-	subProtocols := []string{ProtocolGraphQLWS, ProtocolGraphQLTWS}
+	subProtocols := []string{ProtocolGraphQLTWS, ProtocolGraphQLWS}
 	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
 		subProtocols = []string{options.WsSubProtocol}
 	}
@@ -615,7 +616,7 @@ func generateChallengeKey() (string, error) {
 var keyGUID = []byte("258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
 
 func computeAcceptKey(challengeKey string) string {
-	h := sha1.New() //#nosec G401 -- (CWE-326) https://datatracker.ietf.org/doc/html/rfc6455#page-54
+	h := sha1.New() // #nosec G401 -- (CWE-326) https://datatracker.ietf.org/doc/html/rfc6455#page-54
 	h.Write([]byte(challengeKey))
 	h.Write(keyGUID)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
