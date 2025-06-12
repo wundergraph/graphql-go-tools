@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -395,6 +396,7 @@ func TestResolvable_CustomFieldRenderer(t *testing.T) {
 				ParentType: "Query",
 				IsListItem: false,
 				IsNullable: true,
+				IsEnum:     true,
 				Path:       "Query",
 				Data:       []byte(`"ACTIVE"`),
 			},
@@ -422,6 +424,7 @@ func TestResolvable_CustomFieldRenderer(t *testing.T) {
 				ParentType: "Query",
 				IsListItem: false,
 				IsNullable: false,
+				IsEnum:     true,
 				Path:       "Query",
 				Data:       []byte(`"RED"`),
 			},
@@ -431,7 +434,7 @@ func TestResolvable_CustomFieldRenderer(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc // capture range variable
+		tc.expectedFieldValue.ParsedData = astjson.MustParseBytes(tc.expectedFieldValue.Data)
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -534,7 +537,7 @@ func TestResolvable_CustomFieldRenderer(t *testing.T) {
 		}
 
 		for _, tc := range customNodeTestCases {
-			tc := tc // capture range variable
+			tc.expectedFieldValue.ParsedData = astjson.MustParseBytes(tc.expectedFieldValue.Data)
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
