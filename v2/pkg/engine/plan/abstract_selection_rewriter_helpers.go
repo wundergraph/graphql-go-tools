@@ -447,6 +447,16 @@ func (r *fieldSelectionRewriter) typeNameSelection() (selectionRef int, fieldRef
 	}), field.Ref
 }
 
+func (r *fieldSelectionRewriter) preserveTypeNameSelection(selectionSetInfo selectionSetInfo, selectionRefs *[]int) {
+	// we should preserve __typename if it was in the original query as it is explicitly requested
+	if !selectionSetInfo.hasTypeNameSelection {
+		return
+	}
+
+	selectionRef, _ := r.typeNameSelection()
+	*selectionRefs = append(*selectionRefs, selectionRef)
+}
+
 func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, enclosingTypeName ast.ByteSlice) (typeName string, ok bool) {
 	fieldName := r.operation.FieldNameBytes(fieldRef)
 

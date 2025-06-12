@@ -224,11 +224,8 @@ func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInf
 
 func (r *fieldSelectionRewriter) rewriteUnionSelection(fieldRef int, fieldInfo selectionSetInfo, unionTypeNames []string) error {
 	newSelectionRefs := make([]int, 0, len(unionTypeNames)+1) // 1 for __typename
-	if fieldInfo.hasTypeNameSelection {
-		// we should preserve __typename if it was in the original query as it is explicitly requested
-		typeNameSelectionRef, _ := r.typeNameSelection()
-		newSelectionRefs = append(newSelectionRefs, typeNameSelectionRef)
-	}
+
+	r.preserveTypeNameSelection(fieldInfo, &newSelectionRefs)
 
 	r.flattenFragmentOnUnion(fieldInfo, unionTypeNames, &newSelectionRefs)
 
@@ -454,6 +451,8 @@ func (r *fieldSelectionRewriter) flattenFragmentOnInterface(selectionSetInfo sel
 }
 
 func (r *fieldSelectionRewriter) flattenFragmentOnUnion(selectionSetInfo selectionSetInfo, allowedTypeNames []string, selectionRefs *[]int) {
+	r.preserveTypeNameSelection(selectionSetInfo, selectionRefs)
+
 	for _, inlineFragmentInfo := range selectionSetInfo.inlineFragmentsOnObjects {
 		// for object fragments it is necessary to check if inline fragment type is allowed
 		if !slices.Contains(allowedTypeNames, inlineFragmentInfo.typeName) {
