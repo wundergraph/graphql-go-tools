@@ -470,6 +470,7 @@ func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool) {
 			IsNullable: nullable,
 			Path:       r.renderFieldPath(),
 			Data:       data,
+			JsonType:   r.data.Type(),
 		}
 		if len(r.path) > 0 {
 			value.IsListItem = r.path[len(r.path)-1].Name == ""
