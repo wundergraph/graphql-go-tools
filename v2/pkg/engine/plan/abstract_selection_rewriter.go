@@ -7,7 +7,6 @@ import (
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -246,9 +245,6 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 		r.skipFieldRefs = append(r.skipFieldRefs, typeNameFieldRef)
 		r.operation.AddSelectionRefToSelectionSet(fieldSelectionSetRef, typeNameSelectionRef)
 	}
-
-	op, _ := astprinter.PrintStringIndent(r.operation, "  ")
-	fmt.Println("flattened operation:\n", op)
 
 	normalizer := astnormalization.NewAbstractFieldNormalizer(r.operation, r.definition, fieldRef)
 	if err := normalizer.Normalize(); err != nil {
