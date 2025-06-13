@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.190](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.189...v2.0.0-rc.190) (2025-06-13)
+
+
+### Bug Fixes
+
+* handling nested abstract fragments in abstract fragments ([#1184](https://github.com/wundergraph/graphql-go-tools/issues/1184)) ([c3321d3](https://github.com/wundergraph/graphql-go-tools/commit/c3321d3cd72b63fbf5d7d949d70fd6dfeb73e2e1))
+
 ## [2.0.0-rc.189](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.188...v2.0.0-rc.189) (2025-06-12)
 
 
