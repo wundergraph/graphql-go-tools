@@ -42,12 +42,15 @@ type ResponseWriter interface {
 	io.Writer
 }
 
-type SubscriptionCloseKind string
+type SubscriptionCloseKind struct {
+	WSCode string
+	Reason string
+}
 
-const (
-	SubscriptionCloseKindNormal                 SubscriptionCloseKind = "Normal closure"
-	SubscriptionCloseKindDownstreamServiceError SubscriptionCloseKind = "Downstream service error"
-	SubscriptionCloseKindGoingAway              SubscriptionCloseKind = "Going away"
+var (
+	SubscriptionCloseKindNormal                 SubscriptionCloseKind = SubscriptionCloseKind{"1000", "Normal closure"}
+	SubscriptionCloseKindDownstreamServiceError SubscriptionCloseKind = SubscriptionCloseKind{"1001", "Downstream service error"}
+	SubscriptionCloseKindGoingAway              SubscriptionCloseKind = SubscriptionCloseKind{"1001", "Going away"}
 )
 
 type SubscriptionResponseWriter interface {
