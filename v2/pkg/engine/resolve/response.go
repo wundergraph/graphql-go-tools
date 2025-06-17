@@ -3,6 +3,7 @@ package resolve
 import (
 	"io"
 
+	"github.com/gobwas/ws"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
@@ -43,14 +44,14 @@ type ResponseWriter interface {
 }
 
 type SubscriptionCloseKind struct {
-	WSCode string
+	WSCode ws.StatusCode
 	Reason string
 }
 
 var (
-	SubscriptionCloseKindNormal                 SubscriptionCloseKind = SubscriptionCloseKind{"1000", "Normal closure"}
-	SubscriptionCloseKindDownstreamServiceError SubscriptionCloseKind = SubscriptionCloseKind{"1001", "Downstream service error"}
-	SubscriptionCloseKindGoingAway              SubscriptionCloseKind = SubscriptionCloseKind{"1001", "Going away"}
+	SubscriptionCloseKindNormal                 SubscriptionCloseKind = SubscriptionCloseKind{ws.StatusNormalClosure, "Normal closure"}
+	SubscriptionCloseKindDownstreamServiceError SubscriptionCloseKind = SubscriptionCloseKind{ws.StatusGoingAway, "Downstream service error"}
+	SubscriptionCloseKindGoingAway              SubscriptionCloseKind = SubscriptionCloseKind{ws.StatusGoingAway, "Going away"}
 )
 
 type SubscriptionResponseWriter interface {
