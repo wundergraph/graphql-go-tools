@@ -317,7 +317,7 @@ func (s *sub) startWorkerWithHeartbeat() {
 		select {
 		case <-s.ctx.ctx.Done():
 			// Complete when the client request context is done for synchronous subscriptions
-			s.close(SubscriptionCloseKindGoingAway)
+			s.close(SubscriptionCloseKindNormal)
 
 			return
 		case <-s.resolver.ctx.Done():
@@ -345,10 +345,13 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 		select {
 		case <-s.ctx.ctx.Done():
 			// Complete when the client request context is done for synchronous subscriptions
-			s.complete()
+			s.close(SubscriptionCloseKindNormal)
+
 			return
 		case <-s.resolver.ctx.Done():
 			// Abort immediately if the resolver is shutting down
+			s.close(SubscriptionCloseKindGoingAway)
+
 			return
 		case work := <-s.workChan:
 			work.fn()
