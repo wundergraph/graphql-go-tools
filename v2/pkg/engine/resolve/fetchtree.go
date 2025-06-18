@@ -209,9 +209,12 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
-				Query:             f.Info.QueryPlan.Query,
-				Representations:   f.Info.QueryPlan.DependsOnFields,
 				Path:              n.Item.ResponsePath,
+			}
+
+			if f.Info.QueryPlan != nil {
+				queryPlan.Fetch.Query = f.Info.QueryPlan.Query
+				queryPlan.Fetch.Representations = f.Info.QueryPlan.DependsOnFields
 			}
 		case *EntityFetch:
 			queryPlan.Fetch = &FetchTreeQueryPlan{
@@ -220,9 +223,12 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
-				Query:             f.Info.QueryPlan.Query,
-				Representations:   f.Info.QueryPlan.DependsOnFields,
 				Path:              n.Item.ResponsePath,
+			}
+
+			if f.Info.QueryPlan != nil {
+				queryPlan.Fetch.Query = f.Info.QueryPlan.Query
+				queryPlan.Fetch.Representations = f.Info.QueryPlan.DependsOnFields
 			}
 		case *BatchEntityFetch:
 			queryPlan.Fetch = &FetchTreeQueryPlan{
@@ -231,9 +237,12 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				DependsOnFetchIDs: f.FetchDependencies.DependsOnFetchIDs,
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
-				Query:             f.Info.QueryPlan.Query,
-				Representations:   f.Info.QueryPlan.DependsOnFields,
 				Path:              n.Item.ResponsePath,
+			}
+
+			if f.Info.QueryPlan != nil {
+				queryPlan.Fetch.Query = f.Info.QueryPlan.Query
+				queryPlan.Fetch.Representations = f.Info.QueryPlan.DependsOnFields
 			}
 		case *ParallelListItemFetch:
 			queryPlan.Fetch = &FetchTreeQueryPlan{
@@ -242,9 +251,12 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				DependsOnFetchIDs: f.Fetch.FetchDependencies.DependsOnFetchIDs,
 				SubgraphName:      f.Fetch.Info.DataSourceName,
 				SubgraphID:        f.Fetch.Info.DataSourceID,
-				Query:             f.Fetch.Info.QueryPlan.Query,
-				Representations:   f.Fetch.Info.QueryPlan.DependsOnFields,
 				Path:              n.Item.ResponsePath,
+			}
+
+			if f.Fetch.Info.QueryPlan != nil {
+				queryPlan.Fetch.Query = f.Fetch.Info.QueryPlan.Query
+				queryPlan.Fetch.Representations = f.Fetch.Info.QueryPlan.DependsOnFields
 			}
 		default:
 		}
