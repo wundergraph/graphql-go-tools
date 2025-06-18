@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.191](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.190...v2.0.0-rc.191) (2025-06-18)
+
+
+### Bug Fixes
+
+* don't send complete when request/resolver context is done ([#1187](https://github.com/wundergraph/graphql-go-tools/issues/1187)) ([9b51ad6](https://github.com/wundergraph/graphql-go-tools/commit/9b51ad6632c28a985b1f67c97ab1e68647a5f93d))
+
 ## [2.0.0-rc.190](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.189...v2.0.0-rc.190) (2025-06-13)
 
 
