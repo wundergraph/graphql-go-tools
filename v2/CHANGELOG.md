@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.192](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.191...v2.0.0-rc.192) (2025-06-19)
+
+
+### Bug Fixes
+
+* don't panic when calling QueryPlan on FetchTreeNode if `includeQueryPlans` is false ([#1189](https://github.com/wundergraph/graphql-go-tools/issues/1189)) ([f69a3a6](https://github.com/wundergraph/graphql-go-tools/commit/f69a3a6270c4043904d188800a35796dffd4ba43))
+
 ## [2.0.0-rc.191](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.190...v2.0.0-rc.191) (2025-06-18)
 
 
