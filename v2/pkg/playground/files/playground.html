@@ -65,6 +65,8 @@
       import createGraphQLWorker from 'https://esm.sh/monaco-graphql/esm/graphql.worker.js?worker';
       import createEditorWorker from 'https://esm.sh/monaco-editor/esm/vs/editor/editor.worker.js?worker';
 
+      const endpointURL = "{{ .EndpointURL }}";
+
       globalThis.MonacoEnvironment = {
         getWorker(_workerId, label) {
           console.info('MonacoEnvironment.getWorker', { label });
@@ -79,7 +81,7 @@
       };
 
       const fetcher = createGraphiQLFetcher({
-        url: 'https://countries.trevorblades.com',
+        url: endpointURL,
       });
       const plugins = [HISTORY_PLUGIN, explorerPlugin()];
 
