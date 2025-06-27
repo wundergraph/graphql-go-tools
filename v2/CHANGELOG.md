@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.193](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.192...v2.0.0-rc.193) (2025-06-27)
+
+
+### Bug Fixes
+
+* fix rewriting object selections with nested abstract fragments ([#1192](https://github.com/wundergraph/graphql-go-tools/issues/1192)) ([a22b89c](https://github.com/wundergraph/graphql-go-tools/commit/a22b89c4379db027e3e5be99670cc14d037c1894))
+
 ## [2.0.0-rc.192](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.191...v2.0.0-rc.192) (2025-06-19)
 
 
