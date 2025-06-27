@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"slices"
@@ -107,6 +108,11 @@ func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNo
 		res, err = r.processUnionSelection(fieldRef, fieldTypeNode.Ref, enclosingTypeName)
 		if err != nil {
 			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the union return type: %w", enclosingTypeName, fieldName, err)
+		}
+	case ast.NodeKindObjectTypeDefinition:
+		res, err = r.processObjectSelection(fieldRef, fieldTypeNode.Ref)
+		if err != nil {
+			return resultNotRewritten, fmt.Errorf("failed to rewrite field %s.%s with the object return type: %w", enclosingTypeName, fieldName, err)
 		}
 	default:
 		return resultNotRewritten, nil
@@ -252,6 +258,99 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 	}
 
 	return nil
+}
+
+func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefRef int) (res RewriteResult, err error) {
+	selectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
+	if !ok {
+		return resultNotRewritten, FieldDoesntHaveSelectionSetErr
+	}
+
+	fieldTypeName := r.definition.ObjectTypeDefinitionNameBytes(objectDefRef)
+	fieldTypeNameStr := r.definition.ObjectTypeDefinitionNameString(objectDefRef)
+
+	if !r.dsConfiguration.HasRootNodeWithTypename(fieldTypeNameStr) {
+		// if the object type is not an entity in the current datasource
+		// we do not need to rewrite it
+		return resultNotRewritten, nil
+	}
+
+	// Doing a full set of checks with collecting inline fragment information
+	// is very expensive, so we are trying to avoid it.
+	// We need to rewrite the object fragment only in case it has fragments
+	// with type condition which is not matching the object type
+
+	inlineFragmentSelectionRefs := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
+	if len(inlineFragmentSelectionRefs) == 0 {
+		// no inline fragments on the field, so we do not need to rewrite it
+		return resultNotRewritten, nil
+	}
+
+	hasFragmentsWithNotMatchingType := false
+	for _, inlineFragmentSelectionRef := range inlineFragmentSelectionRefs {
+		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
+		typeCondition := r.operation.InlineFragmentTypeConditionName(inlineFragmentRef)
+
+		if !bytes.Equal(typeCondition, fieldTypeName) {
+			hasFragmentsWithNotMatchingType = true
+			break
+		}
+	}
+
+	if !hasFragmentsWithNotMatchingType {
+		return resultNotRewritten, nil
+	}
+
+	selectionSetInfo, err := r.collectFieldInformation(fieldRef)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	needRewrite := r.objectFieldSelectionNeedsRewrite(selectionSetInfo, fieldTypeNameStr)
+	if !needRewrite {
+		return resultNotRewritten, nil
+	}
+
+	fieldRefPaths, _, err := collectPath(r.operation, r.definition, fieldRef, true)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	// handling of the object type is similar to the union type, so we reuse the same logic
+	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, []string{fieldTypeNameStr})
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	changedRefs, err := r.collectChangedRefs(fieldRef, fieldRefPaths)
+	if err != nil {
+		return resultNotRewritten, err
+	}
+
+	return RewriteResult{
+		rewritten:        true,
+		changedFieldRefs: changedRefs,
+	}, nil
+}
+
+func (r *fieldSelectionRewriter) objectFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, objectTypeName string) (needRewrite bool) {
+	if selectionSetInfo.hasInlineFragmentsOnObjects {
+		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, []string{objectTypeName}) {
+			return true
+		}
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnInterfaces &&
+		r.interfaceFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnInterfaces, []string{objectTypeName}) {
+		return true
+	}
+
+	if selectionSetInfo.hasInlineFragmentsOnUnions &&
+		r.unionFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnUnions, []string{objectTypeName}) {
+		return true
+	}
+
+	return false
 }
 
 func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfaceDefRef int, enclosingTypeName ast.ByteSlice) (res RewriteResult, err error) {

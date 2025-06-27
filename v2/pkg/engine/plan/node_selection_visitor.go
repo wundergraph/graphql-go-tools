@@ -208,8 +208,8 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 			c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds, *suggestion.requiresKey)
 		}
 
-		// check if a field type is abstract and need rewrites
-		c.rewriteSelectionSetOfFieldWithInterfaceType(fieldRef, ds)
+		// check if field selections are abstract and needs rewrites
+		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, ds)
 	}
 
 	c.fieldPathCoordinates = append(c.fieldPathCoordinates, KeyConditionCoordinate{
@@ -623,7 +623,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	c.hasNewFields = true
 }
 
-func (c *nodeSelectionVisitor) rewriteSelectionSetOfFieldWithInterfaceType(fieldRef int, ds DataSource) {
+func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource) {
 	if _, ok := c.visitedFieldsAbstractChecks[fieldRef]; ok {
 		return
 	}
