@@ -3273,6 +3273,293 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: true,
 		},
+		{
+			name: "field is an object having interface fragments inside with non matching type",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				type Query {
+					user: User!
+				}`,
+			upstreamDefinition: `
+				type User implements Account {
+					id: ID!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				type Query {
+					user: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "user").
+				RootNode("User", "id").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			fieldName: "user",
+			operation: `
+				query {
+					user {
+						... on Account {
+							... on User {
+								name
+							}
+							... on Admin {
+								name
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					user {
+						name
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "field is an object having union fragments inside with non matching type",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+					login: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				union AccountUnion = User | Admin
+
+				type Query {
+					user: User!
+				}`,
+			upstreamDefinition: `
+				type User implements Account {
+					id: ID!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				union AccountUnion = User | Admin
+
+				type Query {
+					user: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "user").
+				RootNode("User", "id").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			fieldName: "user",
+			operation: `
+				query {
+					user {
+						...	on AccountUnion {
+							... on Account {
+								... on User {
+									name
+								}
+								... on Admin {
+									name
+								}
+							}
+							... on User {
+								id
+							}
+						}
+						... on Account {
+							... on User {
+								... on AccountUnion {
+									... on User {
+										surname
+									}
+									... on Admin {
+										login
+									}
+								}
+							}
+						}
+					}
+				}`,
+			// Note: order of fields changes because we are handling each type of fragments separately
+			expectedOperation: `
+				query {
+					user {
+						surname
+						id
+						name
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name: "field is an object which is not an entity having union fragments inside with non matching type, everything is local",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+					login: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				union AccountUnion = User | Admin
+
+				type Query {
+					user: User!
+				}`,
+			upstreamDefinition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+					login: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				union AccountUnion = User | Admin
+
+				type Query {
+					user: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "user").
+				ChildNode("User", "id", "name", "surname").
+				ChildNode("Admin", "id", "name", "login").
+				ChildNode("Account", "id").
+				DS(),
+			fieldName: "user",
+			operation: `
+				query {
+					user {
+						...	on AccountUnion {
+							... on Account {
+								... on User {
+									name
+								}
+								... on Admin {
+									name
+								}
+							}
+							... on User {
+								id
+							}
+						}
+						... on Account {
+							... on User {
+								... on AccountUnion {
+									... on User {
+										surname
+									}
+									... on Admin {
+										login
+									}
+								}
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					user {
+						...	on AccountUnion {
+							... on Account {
+								... on User {
+									name
+								}
+								... on Admin {
+									name
+								}
+							}
+							... on User {
+								id
+							}
+						}
+						... on Account {
+							... on User {
+								... on AccountUnion {
+									... on User {
+										surname
+									}
+									... on Admin {
+										login
+									}
+								}
+							}
+						}
+					}
+				}`,
+			shouldRewrite: false,
+		},
 	}
 
 	for _, testCase := range testCases {
