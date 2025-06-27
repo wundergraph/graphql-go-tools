@@ -3446,6 +3446,113 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
+			name: "field is an object having union fragments inside with non matching type and fields on object itself",
+			definition: `
+				type User implements Account {
+					id: ID!
+					name: String!
+					surname: String!
+					address: String!
+					someField: String!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+					name: String!
+					login: String!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				union AccountUnion = User | Admin
+
+				type Query {
+					user: User!
+				}`,
+			upstreamDefinition: `
+				type User implements Account {
+					id: ID!
+				}
+		
+				type Admin implements Account {
+					id: ID!
+				}
+
+				interface Account {
+					id: ID!
+				}
+
+				union AccountUnion = User | Admin
+
+				type Query {
+					user: User!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Query", "user").
+				RootNode("User", "id").
+				ChildNode("Account", "id").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}).
+				DS(),
+			fieldName: "user",
+			operation: `
+				query {
+					user {
+						__typename
+						address
+						someField
+						...	on AccountUnion {
+							... on Account {
+								... on User {
+									name
+								}
+								... on Admin {
+									name
+								}
+							}
+							... on User {
+								id
+							}
+						}
+						... on Account {
+							... on User {
+								... on AccountUnion {
+									... on User {
+										surname
+									}
+									... on Admin {
+										login
+									}
+								}
+							}
+						}
+					}
+				}`,
+			// Note: order of fields changes because we are handling each type of fragments separately
+			expectedOperation: `
+				query {
+					user {
+						__typename
+						address
+						someField
+						surname
+						id
+						name
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
 			name: "field is an object which is not an entity having union fragments inside with non matching type, everything is local",
 			definition: `
 				type User implements Account {
