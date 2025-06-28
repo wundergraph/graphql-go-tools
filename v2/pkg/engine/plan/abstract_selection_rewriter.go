@@ -316,8 +316,7 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 		return resultNotRewritten, err
 	}
 
-	// handling of the object type is similar to the union type, so we reuse the same logic
-	err = r.rewriteUnionSelection(fieldRef, selectionSetInfo, []string{fieldTypeNameStr})
+	err = r.rewriteObjectSelection(fieldRef, selectionSetInfo, fieldTypeNameStr)
 	if err != nil {
 		return resultNotRewritten, err
 	}
@@ -331,6 +330,19 @@ func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefR
 		rewritten:        true,
 		changedFieldRefs: changedRefs,
 	}, nil
+}
+
+func (r *fieldSelectionRewriter) rewriteObjectSelection(fieldRef int, fieldInfo selectionSetInfo, objectTypeName string) error {
+	newSelectionRefs := make([]int, 0, 2)
+
+	if fieldInfo.hasFields {
+		newSelectionRefs = append(newSelectionRefs, r.createFragmentSelection(objectTypeName, fieldInfo.fields))
+	}
+
+	// handling of the object type is similar to the union type, so we reuse the same logic
+	r.flattenFragmentOnUnion(fieldInfo, []string{objectTypeName}, &newSelectionRefs)
+
+	return r.replaceFieldSelections(fieldRef, newSelectionRefs)
 }
 
 func (r *fieldSelectionRewriter) objectFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, objectTypeName string) (needRewrite bool) {
