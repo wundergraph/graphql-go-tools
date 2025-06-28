@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.194](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.193...v2.0.0-rc.194) (2025-06-28)
+
+
+### Bug Fixes
+
+* preserve fields selections during object selection rewrite ([#1194](https://github.com/wundergraph/graphql-go-tools/issues/1194)) ([1c9d4d2](https://github.com/wundergraph/graphql-go-tools/commit/1c9d4d2be548da6879f5b7b26d67b5d0ba52df93))
+
 ## [2.0.0-rc.193](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.192...v2.0.0-rc.193) (2025-06-27)
 
 
