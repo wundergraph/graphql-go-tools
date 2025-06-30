@@ -79,7 +79,7 @@ func (CategoryKind) EnumDescriptor() ([]byte, []int) {
 // Key message for Product entity lookup
 type LookupProductByIdRequestKey struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Key field for Product entity lookup
+	// Key field for Product entity lookup.
 	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -122,10 +122,11 @@ func (x *LookupProductByIdRequestKey) GetId() string {
 	return ""
 }
 
-// Request message for Product entity lookup
+// Request message for Product entity lookup.
 type LookupProductByIdRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// List of keys to look up Product entities
+	// List of keys to look up Product entities.
+	// Order matters - each key maps to one entity in LookupProductByIdResponse.
 	Keys          []*LookupProductByIdRequestKey `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -168,10 +169,22 @@ func (x *LookupProductByIdRequest) GetKeys() []*LookupProductByIdRequestKey {
 	return nil
 }
 
-// Response message for Product entity lookup
+// Response message for Product entity lookup.
 type LookupProductByIdResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// List of Product entities matching the requested keys
+	// List of Product entities in the same order as the keys in LookupProductByIdRequest.
+	// Always return the same number of entities as keys. Use null for entities that cannot be found.
+	//
+	// Example:
+	//
+	//	LookupUserByIdRequest:
+	//	  keys:
+	//	    - id: 1
+	//	    - id: 2
+	//	LookupUserByIdResponse:
+	//	  result:
+	//	    - id: 1 # User with id 1 found
+	//	    - null  # User with id 2 not found
 	Result        []*Product `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -217,7 +230,7 @@ func (x *LookupProductByIdResponse) GetResult() []*Product {
 // Key message for Storage entity lookup
 type LookupStorageByIdRequestKey struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Key field for Storage entity lookup
+	// Key field for Storage entity lookup.
 	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -260,10 +273,11 @@ func (x *LookupStorageByIdRequestKey) GetId() string {
 	return ""
 }
 
-// Request message for Storage entity lookup
+// Request message for Storage entity lookup.
 type LookupStorageByIdRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// List of keys to look up Storage entities
+	// List of keys to look up Storage entities.
+	// Order matters - each key maps to one entity in LookupStorageByIdResponse.
 	Keys          []*LookupStorageByIdRequestKey `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -306,10 +320,22 @@ func (x *LookupStorageByIdRequest) GetKeys() []*LookupStorageByIdRequestKey {
 	return nil
 }
 
-// Response message for Storage entity lookup
+// Response message for Storage entity lookup.
 type LookupStorageByIdResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// List of Storage entities matching the requested keys
+	// List of Storage entities in the same order as the keys in LookupStorageByIdRequest.
+	// Always return the same number of entities as keys. Use null for entities that cannot be found.
+	//
+	// Example:
+	//
+	//	LookupUserByIdRequest:
+	//	  keys:
+	//	    - id: 1
+	//	    - id: 2
+	//	LookupUserByIdResponse:
+	//	  result:
+	//	    - id: 1 # User with id 1 found
+	//	    - null  # User with id 2 not found
 	Result        []*Storage `protobuf:"bytes,1,rep,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -352,7 +378,7 @@ func (x *LookupStorageByIdResponse) GetResult() []*Storage {
 	return nil
 }
 
-// Request message for users operation
+// Request message for users operation.
 type QueryUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -389,7 +415,7 @@ func (*QueryUsersRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{6}
 }
 
-// Response message for users operation
+// Response message for users operation.
 type QueryUsersResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Users         []*User                `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
@@ -434,7 +460,7 @@ func (x *QueryUsersResponse) GetUsers() []*User {
 	return nil
 }
 
-// Request message for user operation
+// Request message for user operation.
 type QueryUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -479,7 +505,7 @@ func (x *QueryUserRequest) GetId() string {
 	return ""
 }
 
-// Response message for user operation
+// Response message for user operation.
 type QueryUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	User          *User                  `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
@@ -524,7 +550,7 @@ func (x *QueryUserResponse) GetUser() *User {
 	return nil
 }
 
-// Request message for nestedType operation
+// Request message for nestedType operation.
 type QueryNestedTypeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -561,7 +587,7 @@ func (*QueryNestedTypeRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{10}
 }
 
-// Response message for nestedType operation
+// Response message for nestedType operation.
 type QueryNestedTypeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	NestedType    []*NestedTypeA         `protobuf:"bytes,1,rep,name=nested_type,json=nestedType,proto3" json:"nested_type,omitempty"`
@@ -606,7 +632,7 @@ func (x *QueryNestedTypeResponse) GetNestedType() []*NestedTypeA {
 	return nil
 }
 
-// Request message for recursiveType operation
+// Request message for recursiveType operation.
 type QueryRecursiveTypeRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -643,7 +669,7 @@ func (*QueryRecursiveTypeRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{12}
 }
 
-// Response message for recursiveType operation
+// Response message for recursiveType operation.
 type QueryRecursiveTypeResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RecursiveType *RecursiveType         `protobuf:"bytes,1,opt,name=recursive_type,json=recursiveType,proto3" json:"recursive_type,omitempty"`
@@ -688,7 +714,7 @@ func (x *QueryRecursiveTypeResponse) GetRecursiveType() *RecursiveType {
 	return nil
 }
 
-// Request message for typeFilterWithArguments operation
+// Request message for typeFilterWithArguments operation.
 type QueryTypeFilterWithArgumentsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	FilterField_1 string                 `protobuf:"bytes,1,opt,name=filter_field_1,json=filterField1,proto3" json:"filter_field_1,omitempty"`
@@ -741,7 +767,7 @@ func (x *QueryTypeFilterWithArgumentsRequest) GetFilterField_2() string {
 	return ""
 }
 
-// Response message for typeFilterWithArguments operation
+// Response message for typeFilterWithArguments operation.
 type QueryTypeFilterWithArgumentsResponse struct {
 	state                   protoimpl.MessageState          `protogen:"open.v1"`
 	TypeFilterWithArguments []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=type_filter_with_arguments,json=typeFilterWithArguments,proto3" json:"type_filter_with_arguments,omitempty"`
@@ -786,7 +812,7 @@ func (x *QueryTypeFilterWithArgumentsResponse) GetTypeFilterWithArguments() []*T
 	return nil
 }
 
-// Request message for typeWithMultipleFilterFields operation
+// Request message for typeWithMultipleFilterFields operation.
 type QueryTypeWithMultipleFilterFieldsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Filter        *FilterTypeInput       `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
@@ -831,7 +857,7 @@ func (x *QueryTypeWithMultipleFilterFieldsRequest) GetFilter() *FilterTypeInput 
 	return nil
 }
 
-// Response message for typeWithMultipleFilterFields operation
+// Response message for typeWithMultipleFilterFields operation.
 type QueryTypeWithMultipleFilterFieldsResponse struct {
 	state                        protoimpl.MessageState          `protogen:"open.v1"`
 	TypeWithMultipleFilterFields []*TypeWithMultipleFilterFields `protobuf:"bytes,1,rep,name=type_with_multiple_filter_fields,json=typeWithMultipleFilterFields,proto3" json:"type_with_multiple_filter_fields,omitempty"`
@@ -876,7 +902,7 @@ func (x *QueryTypeWithMultipleFilterFieldsResponse) GetTypeWithMultipleFilterFie
 	return nil
 }
 
-// Request message for complexFilterType operation
+// Request message for complexFilterType operation.
 type QueryComplexFilterTypeRequest struct {
 	state         protoimpl.MessageState  `protogen:"open.v1"`
 	Filter        *ComplexFilterTypeInput `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
@@ -921,7 +947,7 @@ func (x *QueryComplexFilterTypeRequest) GetFilter() *ComplexFilterTypeInput {
 	return nil
 }
 
-// Response message for complexFilterType operation
+// Response message for complexFilterType operation.
 type QueryComplexFilterTypeResponse struct {
 	state             protoimpl.MessageState        `protogen:"open.v1"`
 	ComplexFilterType []*TypeWithComplexFilterInput `protobuf:"bytes,1,rep,name=complex_filter_type,json=complexFilterType,proto3" json:"complex_filter_type,omitempty"`
@@ -966,7 +992,7 @@ func (x *QueryComplexFilterTypeResponse) GetComplexFilterType() []*TypeWithCompl
 	return nil
 }
 
-// Request message for calculateTotals operation
+// Request message for calculateTotals operation.
 type QueryCalculateTotalsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Orders        []*OrderInput          `protobuf:"bytes,1,rep,name=orders,proto3" json:"orders,omitempty"`
@@ -1011,7 +1037,7 @@ func (x *QueryCalculateTotalsRequest) GetOrders() []*OrderInput {
 	return nil
 }
 
-// Response message for calculateTotals operation
+// Response message for calculateTotals operation.
 type QueryCalculateTotalsResponse struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	CalculateTotals []*Order               `protobuf:"bytes,1,rep,name=calculate_totals,json=calculateTotals,proto3" json:"calculate_totals,omitempty"`
@@ -1056,7 +1082,7 @@ func (x *QueryCalculateTotalsResponse) GetCalculateTotals() []*Order {
 	return nil
 }
 
-// Request message for categories operation
+// Request message for categories operation.
 type QueryCategoriesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1093,7 +1119,7 @@ func (*QueryCategoriesRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{22}
 }
 
-// Response message for categories operation
+// Response message for categories operation.
 type QueryCategoriesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Categories    []*Category            `protobuf:"bytes,1,rep,name=categories,proto3" json:"categories,omitempty"`
@@ -1138,7 +1164,7 @@ func (x *QueryCategoriesResponse) GetCategories() []*Category {
 	return nil
 }
 
-// Request message for categoriesByKind operation
+// Request message for categoriesByKind operation.
 type QueryCategoriesByKindRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kind          CategoryKind           `protobuf:"varint,1,opt,name=kind,proto3,enum=productv1.CategoryKind" json:"kind,omitempty"`
@@ -1183,7 +1209,7 @@ func (x *QueryCategoriesByKindRequest) GetKind() CategoryKind {
 	return CategoryKind_CATEGORY_KIND_UNSPECIFIED
 }
 
-// Response message for categoriesByKind operation
+// Response message for categoriesByKind operation.
 type QueryCategoriesByKindResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	CategoriesByKind []*Category            `protobuf:"bytes,1,rep,name=categories_by_kind,json=categoriesByKind,proto3" json:"categories_by_kind,omitempty"`
@@ -1228,7 +1254,7 @@ func (x *QueryCategoriesByKindResponse) GetCategoriesByKind() []*Category {
 	return nil
 }
 
-// Request message for categoriesByKinds operation
+// Request message for categoriesByKinds operation.
 type QueryCategoriesByKindsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Kinds         []CategoryKind         `protobuf:"varint,1,rep,packed,name=kinds,proto3,enum=productv1.CategoryKind" json:"kinds,omitempty"`
@@ -1273,7 +1299,7 @@ func (x *QueryCategoriesByKindsRequest) GetKinds() []CategoryKind {
 	return nil
 }
 
-// Response message for categoriesByKinds operation
+// Response message for categoriesByKinds operation.
 type QueryCategoriesByKindsResponse struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	CategoriesByKinds []*Category            `protobuf:"bytes,1,rep,name=categories_by_kinds,json=categoriesByKinds,proto3" json:"categories_by_kinds,omitempty"`
@@ -1318,7 +1344,7 @@ func (x *QueryCategoriesByKindsResponse) GetCategoriesByKinds() []*Category {
 	return nil
 }
 
-// Request message for filterCategories operation
+// Request message for filterCategories operation.
 type QueryFilterCategoriesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Filter        *CategoryFilter        `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
@@ -1363,7 +1389,7 @@ func (x *QueryFilterCategoriesRequest) GetFilter() *CategoryFilter {
 	return nil
 }
 
-// Response message for filterCategories operation
+// Response message for filterCategories operation.
 type QueryFilterCategoriesResponse struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	FilterCategories []*Category            `protobuf:"bytes,1,rep,name=filter_categories,json=filterCategories,proto3" json:"filter_categories,omitempty"`
@@ -1408,7 +1434,7 @@ func (x *QueryFilterCategoriesResponse) GetFilterCategories() []*Category {
 	return nil
 }
 
-// Request message for randomPet operation
+// Request message for randomPet operation.
 type QueryRandomPetRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1445,7 +1471,7 @@ func (*QueryRandomPetRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{30}
 }
 
-// Response message for randomPet operation
+// Response message for randomPet operation.
 type QueryRandomPetResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RandomPet     *Animal                `protobuf:"bytes,1,opt,name=random_pet,json=randomPet,proto3" json:"random_pet,omitempty"`
@@ -1490,7 +1516,7 @@ func (x *QueryRandomPetResponse) GetRandomPet() *Animal {
 	return nil
 }
 
-// Request message for allPets operation
+// Request message for allPets operation.
 type QueryAllPetsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -1527,7 +1553,7 @@ func (*QueryAllPetsRequest) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{32}
 }
 
-// Response message for allPets operation
+// Response message for allPets operation.
 type QueryAllPetsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	AllPets       []*Animal              `protobuf:"bytes,1,rep,name=all_pets,json=allPets,proto3" json:"all_pets,omitempty"`
@@ -1572,7 +1598,7 @@ func (x *QueryAllPetsResponse) GetAllPets() []*Animal {
 	return nil
 }
 
-// Request message for createUser operation
+// Request message for createUser operation.
 type MutationCreateUserRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Input         *UserInput             `protobuf:"bytes,1,opt,name=input,proto3" json:"input,omitempty"`
@@ -1617,7 +1643,7 @@ func (x *MutationCreateUserRequest) GetInput() *UserInput {
 	return nil
 }
 
-// Response message for createUser operation
+// Response message for createUser operation.
 type MutationCreateUserResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CreateUser    *User                  `protobuf:"bytes,1,opt,name=create_user,json=createUser,proto3" json:"create_user,omitempty"`

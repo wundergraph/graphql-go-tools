@@ -158,7 +158,10 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
 
-	r.planInfo.currentResponseMessage.OneOf = r.isInterface(r.walker.Ancestor())
+	if isInterface, interfaceRef := r.isInterface(r.walker.Ancestor()); isInterface {
+		r.planInfo.currentResponseMessage.OneOf = true
+		r.planInfo.currentResponseMessage.ImplementedBy, _ = r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceRef)
+	}
 
 	// Keep track of the field indices for the current response message.
 	// This is used to set the correct field index for the current response message
@@ -168,23 +171,27 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
 
-func (r *rpcPlanVisitor) isInterface(node ast.Node) bool {
+func (r *rpcPlanVisitor) isInterface(node ast.Node) (bool, int) {
 	switch node.Kind {
 	case ast.NodeKindInterfaceTypeDefinition:
-		return true
+		return true, node.Ref
 	case ast.NodeKindField:
 		if r.walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
-			return true
+			return true, r.walker.EnclosingTypeDefinition.Ref
 		}
 	}
 
-	return false
+	return false, -1
 }
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
 // It updates the current response field index and response message ancestors.
 // If the ancestor is an operation definition, it adds the current call to the group.
 func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
+	if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
+		return
+	}
+
 	if len(r.planInfo.responseFieldIndexAncestors) > 0 {
 		r.planInfo.currentResponseFieldIndex = r.planInfo.responseFieldIndexAncestors[len(r.planInfo.responseFieldIndexAncestors)-1]
 		r.planInfo.responseFieldIndexAncestors = r.planInfo.responseFieldIndexAncestors[:len(r.planInfo.responseFieldIndexAncestors)-1]

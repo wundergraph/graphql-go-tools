@@ -48,6 +48,8 @@ type RPCMessage struct {
 	Fields RPCFields
 	// OneOf indicates if the message is an interface
 	OneOf bool
+	// ImplementedBy provides the names of the types that are implemented by the Interface or Union
+	ImplementedBy []string
 }
 
 // RPCField represents a single field in a gRPC message.

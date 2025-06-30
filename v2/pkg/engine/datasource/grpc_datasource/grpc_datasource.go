@@ -140,26 +140,36 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	root := arena.NewObject()
 
 	// TODO implement oneof
-	// if message.OneOf {
-	// 	name := strings.ToLower(message.Name)
-	// 	oneof := data.Descriptor().Oneofs().ByName(protoref.Name(name))
-	// 	if oneof == nil {
-	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
-	// 	}
+	if message.OneOf {
+		oneof := data.Descriptor().Oneofs().ByName(protoref.Name("instance"))
+		if oneof == nil {
+			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
+		}
 
-	// 	oneofDescriptor := data.WhichOneof(oneof)
-	// 	if oneofDescriptor == nil {
-	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
-	// 	}
+		oneofDescriptor := data.WhichOneof(oneof)
+		if oneofDescriptor == nil {
+			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
+		}
 
-	// 	if oneofDescriptor.Kind() == protoref.MessageKind {
-	// 		data = data.Get(oneofDescriptor).Message()
-	// 	}
-	// }
+		if oneofDescriptor.Kind() == protoref.MessageKind {
+			data = data.Get(oneofDescriptor).Message()
+		}
+	}
 
 	for _, field := range message.Fields {
 		if field.StaticValue != "" {
-			root.Set(field.JSONPath, arena.NewString(field.StaticValue))
+			if len(message.ImplementedBy) == 0 {
+				root.Set(field.JSONPath, arena.NewString(field.StaticValue))
+				continue
+			}
+
+			for _, implementedBy := range message.ImplementedBy {
+				if implementedBy == string(data.Type().Descriptor().Name()) {
+					root.Set(field.JSONPath, arena.NewString(implementedBy))
+					break
+				}
+			}
+
 			continue
 		}
 

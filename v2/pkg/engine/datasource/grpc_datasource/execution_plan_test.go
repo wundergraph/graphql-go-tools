@@ -1516,6 +1516,10 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 									Message: &RPCMessage{
 										Name:  "Animal",
 										OneOf: true,
+										ImplementedBy: []string{
+											"Cat",
+											"Dog",
+										},
 										Fields: []RPCField{
 											{
 												Name:     "id",

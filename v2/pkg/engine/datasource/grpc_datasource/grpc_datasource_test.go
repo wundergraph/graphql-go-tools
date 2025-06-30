@@ -493,180 +493,174 @@ func TestMarshalResponseJSON(t *testing.T) {
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
 }
 
-// TODO test interface types
 // Test_DataSource_Load_WithAnimalInterface tests the datasource with Animal interface types (Cat/Dog)
 // using a bufconn connection to the mock service
-// func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
-// 	// Set up the bufconn listener
-// 	lis := bufconn.Listen(1024 * 1024)
+func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
+	// 1. Start a gRPC server with our mock implementation
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
 
-// 	// Create a new gRPC server
-// 	server := grpc.NewServer()
+	// Get the server address
+	serverAddr := fmt.Sprintf("localhost:%d", lis.Addr().(*net.TCPAddr).Port)
 
-// 	// Register our mock service implementation
-// 	mockService := &grpctest.MockService{}
-// 	productv1.RegisterProductServiceServer(server, mockService)
+	// Create and start the gRPC server
+	server := grpc.NewServer()
+	mockService := &grpctest.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
 
-// 	// Start the server in a goroutine
-// 	go func() {
-// 		if err := server.Serve(lis); err != nil {
-// 			t.Errorf("failed to serve: %v", err)
-// 		}
-// 	}()
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+	defer server.Stop()
 
-// 	// Clean up the server when the test completes
-// 	defer server.Stop()
+	// 2. Connect to the gRPC server
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		serverAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithLocalDNSResolution(),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
 
-// 	// Create a buffer-based dialer
-// 	bufDialer := func(context.Context, string) (net.Conn, error) {
-// 		return lis.Dial()
-// 	}
+	// Define the GraphQL query for the Animal interface
+	query := `query RandomPetQuery {
+		randomPet {
+			__typename
+			id
+			name
+			kind
+			... on Cat {
+				meowVolume
+			}
+			... on Dog {
+				barkVolume
+			}
+		}
+	}`
 
-// 	// Connect using bufconn dialer
-// 	conn, err := grpc.Dial(
-// 		"bufnet",
-// 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-// 		grpc.WithContextDialer(bufDialer),
-// 	)
-// 	require.NoError(t, err)
-// 	defer conn.Close()
+	schemaDoc := grpctest.MustGraphQLSchema(t)
 
-// 	// Define the GraphQL query for the Animal interface
-// 	query := `query RandomPetQuery {
-// 		randomPet {
-// 			id
-// 			name
-// 			kind
-// 			... on Cat {
-// 				meowVolume
-// 			}
-// 			... on Dog {
-// 				barkVolume
-// 			}
-// 		}
-// 	}`
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
 
-// 	report := &operationreport.Report{}
+	// Create mapping configuration based on the mapping.go
+	mapping := &GRPCMapping{
+		Service: "ProductService",
+		QueryRPCs: map[string]RPCConfig{
+			"randomPet": {
+				RPC:      "QueryRandomPet",
+				Request:  "QueryRandomPetRequest",
+				Response: "QueryRandomPetResponse",
+			},
+		},
+		Fields: map[string]FieldMap{
+			"Query": {
+				"randomPet": {
+					TargetName: "random_pet",
+				},
+			},
+			"Cat": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"meowVolume": {
+					TargetName: "meow_volume",
+				},
+			},
+			"Dog": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"barkVolume": {
+					TargetName: "bark_volume",
+				},
+			},
+		},
+	}
 
-// 	// Parse the GraphQL schema
-// 	schemaDoc := ast.NewDocument()
-// 	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
-// 	astparser.NewParser().Parse(schemaDoc, report)
-// 	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+	if err != nil {
+		t.Fatalf("failed to compile proto: %v", err)
+	}
 
-// 	// Parse the GraphQL query
-// 	queryDoc := ast.NewDocument()
-// 	queryDoc.Input.ResetInputString(query)
-// 	astparser.NewParser().Parse(queryDoc, report)
-// 	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+	// Create the datasource
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Compiler:     compiler,
+		Mapping:      mapping,
+	})
+	require.NoError(t, err)
 
-// 	// Transform the GraphQL ASTs
-// 	err = asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
-// 	require.NoError(t, err, "failed to merge schema with base")
+	// Execute the query through our datasource
+	output := new(bytes.Buffer)
+	err = ds.Load(context.Background(), []byte(`{"query":`+fmt.Sprintf("%q", query)+`}`), output)
+	require.NoError(t, err)
 
-// 	// Create mapping configuration based on the mapping.go
-// 	mapping := &GRPCMapping{
-// 		Service: "ProductService",
-// 		QueryRPCs: map[string]RPCConfig{
-// 			"randomPet": {
-// 				RPC:      "QueryRandomPet",
-// 				Request:  "QueryRandomPetRequest",
-// 				Response: "QueryRandomPetResponse",
-// 			},
-// 		},
-// 		Fields: map[string]FieldMap{
-// 			"Query": {
-// 				"randomPet": {
-// 					TargetName: "random_pet",
-// 				},
-// 			},
-// 			"Cat": {
-// 				"id": {
-// 					TargetName: "id",
-// 				},
-// 				"name": {
-// 					TargetName: "name",
-// 				},
-// 				"kind": {
-// 					TargetName: "kind",
-// 				},
-// 				"meowVolume": {
-// 					TargetName: "meow_volume",
-// 				},
-// 			},
-// 			"Dog": {
-// 				"id": {
-// 					TargetName: "id",
-// 				},
-// 				"name": {
-// 					TargetName: "name",
-// 				},
-// 				"kind": {
-// 					TargetName: "kind",
-// 				},
-// 				"barkVolume": {
-// 					TargetName: "bark_volume",
-// 				},
-// 			},
-// 		},
-// 	}
+	// Print the response for debugging
+	responseData := output.String()
+	t.Logf("Response: %s", responseData)
 
-// 	// Create the datasource
-// 	ds, err := NewDataSource(conn, DataSourceConfig{
-// 		Operation:    queryDoc,
-// 		Definition:   schemaDoc,
-// 		ProtoSchema:  grpctest.MustProtoSchema(t),
-// 		SubgraphName: "Products",
-// 		Mapping:      mapping,
-// 	})
-// 	require.NoError(t, err)
+	// Define a response structure that can handle both Cat and Dog types
+	type response struct {
+		Data struct {
+			RandomPet map[string]interface{} `json:"randomPet"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors,omitempty"`
+	}
 
-// 	// Execute the query through our datasource
-// 	output := new(bytes.Buffer)
-// 	err = ds.Load(context.Background(), []byte(`{"query":`+fmt.Sprintf("%q", query)+`}`), output)
-// 	require.NoError(t, err)
+	var resp response
+	err = json.Unmarshal(output.Bytes(), &resp)
+	require.NoError(t, err, "Failed to unmarshal response")
 
-// 	// Print the response for debugging
-// 	responseData := output.String()
-// 	t.Logf("Response: %s", responseData)
+	// Verify there are no errors
+	require.Empty(t, resp.Errors, "Response should not contain errors")
 
-// 	// Define a response structure that can handle both Cat and Dog types
-// 	type response struct {
-// 		Data struct {
-// 			RandomPet map[string]interface{} `json:"randomPet"`
-// 		} `json:"data"`
-// 		Errors []struct {
-// 			Message string `json:"message"`
-// 		} `json:"errors,omitempty"`
-// 	}
+	// Verify we have data
+	require.NotNil(t, resp.Data.RandomPet, "RandomPet should not be nil")
 
-// 	var resp response
-// 	err = json.Unmarshal(output.Bytes(), &resp)
-// 	require.NoError(t, err, "Failed to unmarshal response")
-
-// 	// Verify there are no errors
-// 	require.Empty(t, resp.Errors, "Response should not contain errors")
-
-// 	// Verify we have data
-// 	require.NotNil(t, resp.Data.RandomPet, "RandomPet should not be nil")
-
-// 	// Check if we got either a cat or dog by checking for their specific fields
-// 	if _, hasCat := resp.Data.RandomPet["meowVolume"]; hasCat {
-// 		// We got a Cat response
-// 		require.Contains(t, resp.Data.RandomPet, "id")
-// 		require.Contains(t, resp.Data.RandomPet, "name")
-// 		require.Contains(t, resp.Data.RandomPet, "kind")
-// 		require.Contains(t, resp.Data.RandomPet, "meowVolume")
-// 	} else if _, hasDog := resp.Data.RandomPet["barkVolume"]; hasDog {
-// 		// We got a Dog response
-// 		require.Contains(t, resp.Data.RandomPet, "id")
-// 		require.Contains(t, resp.Data.RandomPet, "name")
-// 		require.Contains(t, resp.Data.RandomPet, "kind")
-// 		require.Contains(t, resp.Data.RandomPet, "barkVolume")
-// 	} else {
-// 		t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", resp.Data.RandomPet)
-// 	}
-// }
+	// Check if we got either a cat or dog by checking for their specific fields
+	if _, hasCat := resp.Data.RandomPet["meowVolume"]; hasCat {
+		// We got a Cat response
+		require.Contains(t, resp.Data.RandomPet, "__typename")
+		require.Equal(t, "Cat", resp.Data.RandomPet["__typename"])
+		require.Contains(t, resp.Data.RandomPet, "id")
+		require.Contains(t, resp.Data.RandomPet, "name")
+		require.Contains(t, resp.Data.RandomPet, "kind")
+		require.Contains(t, resp.Data.RandomPet, "meowVolume")
+	} else if _, hasDog := resp.Data.RandomPet["barkVolume"]; hasDog {
+		// We got a Dog response
+		require.Contains(t, resp.Data.RandomPet, "__typename")
+		require.Equal(t, "Dog", resp.Data.RandomPet["__typename"])
+		require.Contains(t, resp.Data.RandomPet, "id")
+		require.Contains(t, resp.Data.RandomPet, "name")
+		require.Contains(t, resp.Data.RandomPet, "kind")
+		require.Contains(t, resp.Data.RandomPet, "barkVolume")
+	} else {
+		t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", resp.Data.RandomPet)
+	}
+}
 
 // Test_DataSource_Load_WithProductQueries tests the product-related query operations
 func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
