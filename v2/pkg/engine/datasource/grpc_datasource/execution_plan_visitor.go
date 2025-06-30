@@ -158,9 +158,13 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
 
-	if isInterface, interfaceRef := r.isInterface(r.walker.Ancestor()); isInterface {
-		r.planInfo.currentResponseMessage.OneOf = true
-		r.planInfo.currentResponseMessage.ImplementedBy, _ = r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceRef)
+	// Check if the ancestor type is a composite type (interface or union)
+	// and set the oneof type and member types.
+	if err := r.handleCompositeType(r.walker.Ancestor()); err != nil {
+		// If the ancestor is a composite type, but we were unable to resolve the member types,
+		// we stop the walker and return an internal error.
+		r.walker.StopWithInternalErr(err)
+		return
 	}
 
 	// Keep track of the field indices for the current response message.
@@ -171,17 +175,41 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
 
-func (r *rpcPlanVisitor) isInterface(node ast.Node) (bool, int) {
-	switch node.Kind {
-	case ast.NodeKindInterfaceTypeDefinition:
-		return true, node.Ref
-	case ast.NodeKindField:
-		if r.walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
-			return true, r.walker.EnclosingTypeDefinition.Ref
-		}
+func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
+	if node.Ref < 0 {
+		return nil
 	}
 
-	return false, -1
+	var (
+		ok          bool
+		oneOfType   OneOfType
+		memberTypes []string
+	)
+
+	switch node.Kind {
+	case ast.NodeKindField:
+		r.handleCompositeType(r.walker.EnclosingTypeDefinition)
+		return nil
+	case ast.NodeKindInterfaceTypeDefinition:
+		oneOfType = OneOfTypeInterface
+		memberTypes, ok = r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		if !ok {
+			return fmt.Errorf("interface type %s is not implemented by any object", r.definition.InterfaceTypeDefinitionNameString(node.Ref))
+		}
+	case ast.NodeKindUnionTypeDefinition:
+		oneOfType = OneOfTypeUnion
+		memberTypes, ok = r.definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+		if !ok {
+			return fmt.Errorf("union type %s is not defined", r.definition.UnionTypeDefinitionNameString(node.Ref))
+		}
+	default:
+		return nil
+	}
+
+	r.planInfo.currentResponseMessage.OneOfType = oneOfType
+	r.planInfo.currentResponseMessage.MemberTypes = memberTypes
+
+	return nil
 }
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.

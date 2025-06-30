@@ -1514,9 +1514,9 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "randomPet",
 									Message: &RPCMessage{
-										Name:  "Animal",
-										OneOf: true,
-										ImplementedBy: []string{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
 											"Cat",
 											"Dog",
 										},

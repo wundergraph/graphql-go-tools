@@ -662,7 +662,207 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 	}
 }
 
+func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
+	// Set up the bufconn listener
+	lis := bufconn.Listen(1024 * 1024)
+
+	// Create a new gRPC server
+	server := grpc.NewServer()
+
+	// Register our mock service implementation
+	mockService := &grpctest.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
+
+	// Start the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	// Clean up the server when the test completes
+	defer server.Stop()
+
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		"bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	testCases := []struct {
+		name     string
+		query    string
+		vars     string
+		validate func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name:  "Query random search result",
+			query: `query { randomSearchResult { __typename ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResult, ok := data["randomSearchResult"].(map[string]interface{})
+				require.True(t, ok, "randomSearchResult should be an object")
+				require.NotEmpty(t, searchResult, "randomSearchResult should not be empty")
+				require.Contains(t, searchResult, "__typename")
+				typeName := searchResult["__typename"].(string)
+
+				switch typeName {
+				case "Product":
+					require.Contains(t, searchResult, "id")
+					require.Contains(t, searchResult, "name")
+					require.Contains(t, searchResult, "price")
+				case "User":
+					require.Contains(t, searchResult, "id")
+					require.Contains(t, searchResult, "name")
+				case "Category":
+					require.Contains(t, searchResult, "id")
+					require.Contains(t, searchResult, "name")
+					require.Contains(t, searchResult, "kind")
+				}
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			mapping := &GRPCMapping{
+				Service: "ProductService",
+				QueryRPCs: map[string]RPCConfig{
+					"randomSearchResult": {
+						RPC:      "QueryRandomSearchResult",
+						Request:  "QueryRandomSearchResultRequest",
+						Response: "QueryRandomSearchResultResponse",
+					},
+					"search": {
+						RPC:      "QuerySearch",
+						Request:  "QuerySearchRequest",
+						Response: "QuerySearchResponse",
+					},
+				},
+				MutationRPCs: map[string]RPCConfig{
+					"performAction": {
+						RPC:      "MutationPerformAction",
+						Request:  "MutationPerformActionRequest",
+						Response: "MutationPerformActionResponse",
+					},
+				},
+				Fields: map[string]FieldMap{
+					"Query": {
+						"randomSearchResult": {
+							TargetName: "random_search_result",
+						},
+						"search": {
+							TargetName: "search",
+							ArgumentMappings: map[string]string{
+								"input": "input",
+							},
+						},
+					},
+					"Mutation": {
+						"performAction": {
+							TargetName: "perform_action",
+							ArgumentMappings: map[string]string{
+								"input": "input",
+							},
+						},
+					},
+					"ActionSuccess": {
+						"message": {
+							TargetName: "message",
+						},
+						"timestamp": {
+							TargetName: "timestamp",
+						},
+					},
+					"ActionError": {
+						"message": {
+							TargetName: "message",
+						},
+						"code": {
+							TargetName: "code",
+						},
+					},
+					"SearchInput": {
+						"query": {
+							TargetName: "query",
+						},
+						"limit": {
+							TargetName: "limit",
+						},
+					},
+					"ActionInput": {
+						"type": {
+							TargetName: "type",
+						},
+						"payload": {
+							TargetName: "payload",
+						},
+					},
+				},
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Mapping:      mapping,
+				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}
+
 // Test_DataSource_Load_WithProductQueries tests the product-related query operations
+// Category queries are used to mainly focus on testing Enum values
 func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 	// Set up the bufconn listener
 	lis := bufconn.Listen(1024 * 1024)

@@ -135,6 +135,35 @@ type Dog implements Animal {
   barkVolume: Int!
 }
 
+# Union Types for Testing
+
+# Search result union - tests union with existing types
+union SearchResult = Product | User | Category
+
+# Action result union - tests success/error patterns
+union ActionResult = ActionSuccess | ActionError
+
+type ActionSuccess {
+  message: String!
+  timestamp: String!
+}
+
+type ActionError {
+  message: String!
+  code: String!
+}
+
+# Input types for union operations
+input SearchInput {
+  query: String!
+  limit: Int
+}
+
+input ActionInput {
+  type: String!
+  payload: String!
+}
+
 type Query {
   _entities(representations: [_Any!]!): [_Entity!]!
   users: [User!]!
@@ -158,6 +187,10 @@ type Query {
   filterCategories(filter: CategoryFilter!): [Category!]!
   randomPet: Animal!
   allPets: [Animal!]!
+  
+  # Union queries
+  search(input: SearchInput!): [SearchResult!]!
+  randomSearchResult: SearchResult!
 }
 
 input UserInput {
@@ -166,6 +199,9 @@ input UserInput {
 
 type Mutation {
   createUser(input: UserInput!): User!
+  
+  # Union mutation
+  performAction(input: ActionInput!): ActionResult!
 }
 
 union _Entity = Product | Storage

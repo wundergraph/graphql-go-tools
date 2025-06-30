@@ -10,6 +10,7 @@ service ProductService {
   // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
   rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
+  rpc MutationPerformAction(MutationPerformActionRequest) returns (MutationPerformActionResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
   rpc QueryCalculateTotals(QueryCalculateTotalsRequest) returns (QueryCalculateTotalsResponse) {}
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
@@ -19,7 +20,9 @@ service ProductService {
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
   rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
+  rpc QueryRandomSearchResult(QueryRandomSearchResultRequest) returns (QueryRandomSearchResultResponse) {}
   rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
+  rpc QuerySearch(QuerySearchRequest) returns (QuerySearchResponse) {}
   rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
@@ -201,6 +204,21 @@ message QueryAllPetsRequest {
 message QueryAllPetsResponse {
   repeated Animal all_pets = 1;
 }
+// Request message for search operation.
+message QuerySearchRequest {
+  SearchInput input = 1;
+}
+// Response message for search operation.
+message QuerySearchResponse {
+  repeated SearchResult search = 1;
+}
+// Request message for randomSearchResult operation.
+message QueryRandomSearchResultRequest {
+}
+// Response message for randomSearchResult operation.
+message QueryRandomSearchResultResponse {
+  SearchResult random_search_result = 1;
+}
 // Request message for createUser operation.
 message MutationCreateUserRequest {
   UserInput input = 1;
@@ -208,6 +226,14 @@ message MutationCreateUserRequest {
 // Response message for createUser operation.
 message MutationCreateUserResponse {
   User create_user = 1;
+}
+// Request message for performAction operation.
+message MutationPerformActionRequest {
+  ActionInput input = 1;
+}
+// Response message for performAction operation.
+message MutationPerformActionResponse {
+  ActionResult perform_action = 1;
 }
 
 message Product {
@@ -291,8 +317,33 @@ message Animal {
   }
 }
 
+message SearchInput {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message SearchResult {
+  oneof value {
+  Product product = 1;
+  User user = 2;
+  Category category = 3;
+  }
+}
+
 message UserInput {
   string name = 1;
+}
+
+message ActionInput {
+  string type = 1;
+  string payload = 2;
+}
+
+message ActionResult {
+  oneof value {
+  ActionSuccess action_success = 1;
+  ActionError action_error = 2;
+  }
 }
 
 message NestedTypeB {
@@ -350,4 +401,14 @@ message Dog {
   string name = 2;
   string kind = 3;
   int32 bark_volume = 4;
+}
+
+message ActionSuccess {
+  string message = 1;
+  string timestamp = 2;
+}
+
+message ActionError {
+  string message = 1;
+  string code = 2;
 }

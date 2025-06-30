@@ -11,8 +11,162 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+var _ productv1.ProductServiceServer = &MockService{}
+
 type MockService struct {
 	productv1.UnimplementedProductServiceServer
+}
+
+// MutationPerformAction implements productv1.ProductServiceServer.
+func (s *MockService) MutationPerformAction(ctx context.Context, in *productv1.MutationPerformActionRequest) (*productv1.MutationPerformActionResponse, error) {
+	input := in.GetInput()
+	actionType := input.GetType()
+
+	// Simulate different action results based on the action type
+	var result *productv1.ActionResult
+
+	switch actionType {
+	case "error_action":
+		// Return an error result
+		result = &productv1.ActionResult{
+			Value: &productv1.ActionResult_ActionError{
+				ActionError: &productv1.ActionError{
+					Message: "Action failed due to validation error",
+					Code:    "VALIDATION_ERROR",
+				},
+			},
+		}
+	case "invalid_action":
+		// Return a different error result
+		result = &productv1.ActionResult{
+			Value: &productv1.ActionResult_ActionError{
+				ActionError: &productv1.ActionError{
+					Message: "Invalid action type provided",
+					Code:    "INVALID_ACTION",
+				},
+			},
+		}
+	default:
+		// Return a success result
+		result = &productv1.ActionResult{
+			Value: &productv1.ActionResult_ActionSuccess{
+				ActionSuccess: &productv1.ActionSuccess{
+					Message:   fmt.Sprintf("Action '%s' completed successfully", actionType),
+					Timestamp: "2024-01-01T00:00:00Z",
+				},
+			},
+		}
+	}
+
+	return &productv1.MutationPerformActionResponse{
+		PerformAction: result,
+	}, nil
+}
+
+// QueryRandomSearchResult implements productv1.ProductServiceServer.
+func (s *MockService) QueryRandomSearchResult(ctx context.Context, in *productv1.QueryRandomSearchResultRequest) (*productv1.QueryRandomSearchResultResponse, error) {
+	// Randomly return one of the three union types
+	var result *productv1.SearchResult
+
+	switch rand.Intn(3) {
+	case 0:
+		// Return a Product
+		result = &productv1.SearchResult{
+			Value: &productv1.SearchResult_Product{
+				Product: &productv1.Product{
+					Id:    "product-random-1",
+					Name:  "Random Product",
+					Price: 29.99,
+				},
+			},
+		}
+	case 1:
+		// Return a User
+		result = &productv1.SearchResult{
+			Value: &productv1.SearchResult_User{
+				User: &productv1.User{
+					Id:   "user-random-1",
+					Name: "Random User",
+				},
+			},
+		}
+	default:
+		// Return a Category
+		result = &productv1.SearchResult{
+			Value: &productv1.SearchResult_Category{
+				Category: &productv1.Category{
+					Id:   "category-random-1",
+					Name: "Random Category",
+					Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
+				},
+			},
+		}
+	}
+
+	return &productv1.QueryRandomSearchResultResponse{
+		RandomSearchResult: result,
+	}, nil
+}
+
+// QuerySearch implements productv1.ProductServiceServer.
+func (s *MockService) QuerySearch(ctx context.Context, in *productv1.QuerySearchRequest) (*productv1.QuerySearchResponse, error) {
+	input := in.GetInput()
+	query := input.GetQuery()
+	limit := input.GetLimit()
+
+	// Default limit if not specified
+	if limit <= 0 {
+		limit = 10
+	}
+
+	var results []*productv1.SearchResult
+
+	// Generate a mix of different union types based on the query
+	for i := int32(0); i < limit && i < 6; i++ { // Cap at 6 results for testing
+		switch i % 3 {
+		case 0:
+			// Add a Product
+			results = append(results, &productv1.SearchResult{
+				Value: &productv1.SearchResult_Product{
+					Product: &productv1.Product{
+						Id:    fmt.Sprintf("product-search-%d", i+1),
+						Name:  fmt.Sprintf("Product matching '%s' #%d", query, i+1),
+						Price: float64(10 + i*5),
+					},
+				},
+			})
+		case 1:
+			// Add a User
+			results = append(results, &productv1.SearchResult{
+				Value: &productv1.SearchResult_User{
+					User: &productv1.User{
+						Id:   fmt.Sprintf("user-search-%d", i+1),
+						Name: fmt.Sprintf("User matching '%s' #%d", query, i+1),
+					},
+				},
+			})
+		case 2:
+			// Add a Category
+			kinds := []productv1.CategoryKind{
+				productv1.CategoryKind_CATEGORY_KIND_BOOK,
+				productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
+				productv1.CategoryKind_CATEGORY_KIND_FURNITURE,
+			}
+			results = append(results, &productv1.SearchResult{
+				Value: &productv1.SearchResult_Category{
+					Category: &productv1.Category{
+						Id:   fmt.Sprintf("category-search-%d", i+1),
+						Name: fmt.Sprintf("Category matching '%s' #%d", query, i+1),
+						Kind: kinds[i%int32(len(kinds))],
+					},
+				},
+			})
+		}
+	}
+
+	return &productv1.QuerySearchResponse{
+		Search: results,
+	}, nil
 }
 
 func (s *MockService) LookupProductById(ctx context.Context, in *productv1.LookupProductByIdRequest) (*productv1.LookupProductByIdResponse, error) {

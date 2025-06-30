@@ -13,6 +13,34 @@ const (
 	federationKeyDirectiveName = "key"
 )
 
+// OneOfType represents the type of a oneof field in a protobuf message.
+// It can be either an interface or a union type.
+type OneOfType int
+
+// FieldName returns the corresponding field name for the OneOfType.
+// For interfaces, it returns "instance", for unions it returns "value".
+// Returns an empty string for invalid or unknown types.
+func (o OneOfType) FieldName() string {
+	switch o {
+	case OneOfTypeInterface:
+		return "instance"
+	case OneOfTypeUnion:
+		return "value"
+	}
+
+	return ""
+}
+
+// OneOfType constants define the different types of oneof fields.
+const (
+	// OneOfTypeNone represents no oneof type (default/zero value)
+	OneOfTypeNone OneOfType = iota
+	// OneOfTypeInterface represents an interface type oneof field
+	OneOfTypeInterface
+	// OneOfTypeUnion represents a union type oneof field
+	OneOfTypeUnion
+)
+
 // RPCExecutionPlan represents a plan for executing one or more RPC calls
 // to gRPC services. It defines the sequence of calls and their dependencies.
 type RPCExecutionPlan struct {
@@ -46,10 +74,15 @@ type RPCMessage struct {
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
-	// OneOf indicates if the message is an interface
-	OneOf bool
-	// ImplementedBy provides the names of the types that are implemented by the Interface or Union
-	ImplementedBy []string
+	// OneOfType indicates the type of the oneof field
+	OneOfType OneOfType
+	// MemberTypes provides the names of the types that are implemented by the Interface or Union
+	MemberTypes []string
+}
+
+// IsOneOf checks if the message is a oneof field.
+func (r *RPCMessage) IsOneOf() bool {
+	return r.OneOfType > OneOfTypeNone && r.OneOfType <= OneOfTypeUnion
 }
 
 // RPCField represents a single field in a gRPC message.

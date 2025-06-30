@@ -139,9 +139,8 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 	root := arena.NewObject()
 
-	// TODO implement oneof
-	if message.OneOf {
-		oneof := data.Descriptor().Oneofs().ByName(protoref.Name("instance"))
+	if message.IsOneOf() {
+		oneof := data.Descriptor().Oneofs().ByName(protoref.Name(message.OneOfType.FieldName()))
 		if oneof == nil {
 			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
 		}
@@ -158,12 +157,12 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 	for _, field := range message.Fields {
 		if field.StaticValue != "" {
-			if len(message.ImplementedBy) == 0 {
+			if len(message.MemberTypes) == 0 {
 				root.Set(field.JSONPath, arena.NewString(field.StaticValue))
 				continue
 			}
 
-			for _, implementedBy := range message.ImplementedBy {
+			for _, implementedBy := range message.MemberTypes {
 				if implementedBy == string(data.Type().Descriptor().Name()) {
 					root.Set(field.JSONPath, arena.NewString(implementedBy))
 					break

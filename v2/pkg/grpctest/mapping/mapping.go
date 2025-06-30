@@ -76,12 +76,27 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryFilterCategoriesRequest",
 				Response: "QueryFilterCategoriesResponse",
 			},
+			"randomSearchResult": {
+				RPC:      "QueryRandomSearchResult",
+				Request:  "QueryRandomSearchResultRequest",
+				Response: "QueryRandomSearchResultResponse",
+			},
+			"search": {
+				RPC:      "QuerySearch",
+				Request:  "QuerySearchRequest",
+				Response: "QuerySearchResponse",
+			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap{
 			"createUser": {
 				RPC:      "CreateUser",
 				Request:  "CreateUserRequest",
 				Response: "CreateUserResponse",
+			},
+			"performAction": {
+				RPC:      "MutationPerformAction",
+				Request:  "MutationPerformActionRequest",
+				Response: "MutationPerformActionResponse",
 			},
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
@@ -171,10 +186,25 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"orders": "orders",
 					},
 				},
+				"search": {
+					TargetName: "search",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"randomSearchResult": {
+					TargetName: "random_search_result",
+				},
 			},
 			"Mutation": {
 				"createUser": {
 					TargetName: "create_user",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"performAction": {
+					TargetName: "perform_action",
 					ArgumentMappings: map[string]string{
 						"input": "input",
 					},
@@ -405,6 +435,38 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"modifiers": {
 					TargetName: "modifiers",
+				},
+			},
+			"ActionSuccess": {
+				"message": {
+					TargetName: "message",
+				},
+				"timestamp": {
+					TargetName: "timestamp",
+				},
+			},
+			"ActionError": {
+				"message": {
+					TargetName: "message",
+				},
+				"code": {
+					TargetName: "code",
+				},
+			},
+			"SearchInput": {
+				"query": {
+					TargetName: "query",
+				},
+				"limit": {
+					TargetName: "limit",
+				},
+			},
+			"ActionInput": {
+				"type": {
+					TargetName: "type",
+				},
+				"payload": {
+					TargetName: "payload",
 				},
 			},
 		},
