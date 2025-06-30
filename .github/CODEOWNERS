@@ -1,0 +1,7 @@
+# Give everyone ownership for everything expections listed below
+* @wundergraph/Engineering
+
+# Protect the CODEOWNERS file
+/.github/CODEOWNERS @devsergiy @StarpTech
+
+v2 @devsergiy @Noroth @StarpTech
