@@ -36,14 +36,14 @@ type pathBuilderVisitor struct {
 
 	nodeSuggestions *NodeSuggestions // nodeSuggestions holds information about suggested data sources for each field
 
-	parentTypeNodes               []ast.Node          // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
-	arrayFields                   []arrayField        // arrayFields is a stack of array fields - used to plan nested queries
-	selectionSetRefs              []int               // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs                []int               // skipFieldsRefs holds required field refs added by planner and should not be added to user response
-	missingPathTracker            map[string]struct{} // missingPathTracker is a map of paths which will be added on secondary runs
-	potentiallyMissingPathTracker map[string]struct{} // potentiallyMissingPathTracker is a map of paths which will be added on secondary runs
-	addedPathTracker              []pathConfiguration // addedPathTracker is a list of paths which were added
-	addedPathTrackerIndex         map[string][]int    // addedPathTrackerIndex is a map of path to index in addedPathTracker
+	parentTypeNodes               []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
+	arrayFields                   []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
+	selectionSetRefs              []selectionSetTypeInfo // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	skipFieldsRefs                []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
+	missingPathTracker            map[string]struct{}    // missingPathTracker is a map of paths which will be added on secondary runs
+	potentiallyMissingPathTracker map[string]struct{}    // potentiallyMissingPathTracker is a map of paths which will be added on secondary runs
+	addedPathTracker              []pathConfiguration    // addedPathTracker is a list of paths which were added
+	addedPathTrackerIndex         map[string][]int       // addedPathTrackerIndex is a map of path to index in addedPathTracker
 
 	fieldDependenciesForPlanners map[int][]int // fieldDependenciesForPlanners is a map[FieldRef][]plannerIdx holds list of planner ids which depends on a field ref. Used for @key dependencies
 	fieldsPlannedOn              map[int][]int // fieldsPlannedOn is a map[fieldRef][]plannerIdx holds list of planner ids which planned a field ref
@@ -99,6 +99,11 @@ type arrayField struct {
 	fieldPath string
 }
 
+type selectionSetTypeInfo struct {
+	ref       int
+	typeNames []string
+}
+
 type objectFetchConfiguration struct {
 	filter             *resolve.SubscriptionFilter
 	planner            DataSourceFetchPlanner
@@ -114,12 +119,12 @@ type objectFetchConfiguration struct {
 	operationType      ast.OperationType
 }
 
-func (c *pathBuilderVisitor) currentSelectionSet() int {
+func (c *pathBuilderVisitor) currentSelectionSetInfo() (info selectionSetTypeInfo, ok bool) {
 	if len(c.selectionSetRefs) == 0 {
-		return ast.InvalidRef
+		return selectionSetTypeInfo{ref: ast.InvalidRef}, false
 	}
 
-	return c.selectionSetRefs[len(c.selectionSetRefs)-1]
+	return c.selectionSetRefs[len(c.selectionSetRefs)-1], true
 }
 
 func (c *pathBuilderVisitor) plannerPathType(path string) PlannerPathType {
@@ -236,8 +241,8 @@ func (c *pathBuilderVisitor) hasMissingPaths() bool {
 	return len(c.missingPathTracker) > 0
 }
 
-// handleMissingPath - checks if the path was planned and if not, adds the path to the missing path tracker
-func (c *pathBuilderVisitor) populateMissingPahts() {
+// populateMissingPaths - checks if the path was planned and if not, adds the path to the missing path tracker
+func (c *pathBuilderVisitor) populateMissingPaths() {
 	for path := range c.potentiallyMissingPathTracker {
 		if _, ok := c.addedPathDSHash(path); ok {
 			continue
@@ -263,7 +268,7 @@ func (c *pathBuilderVisitor) debugPrint(args ...any) {
 
 func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) {
 	if c.selectionSetRefs == nil {
-		c.selectionSetRefs = make([]int, 0, 8)
+		c.selectionSetRefs = make([]selectionSetTypeInfo, 0, 8)
 	} else {
 		c.selectionSetRefs = c.selectionSetRefs[:0]
 	}
@@ -341,7 +346,6 @@ func (c *pathBuilderVisitor) EnterOperationDefinition(ref int) {
 
 func (c *pathBuilderVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
-	c.selectionSetRefs = append(c.selectionSetRefs, ref)
 	c.parentTypeNodes = append(c.parentTypeNodes, c.walker.EnclosingTypeDefinition)
 
 	// When selection is the inline fragment
@@ -353,12 +357,38 @@ func (c *pathBuilderVisitor) EnterSelectionSet(ref int) {
 	// when all paths for the query are planned. It happens in Planner.removeUnnecessaryFragmentPaths method
 	ancestor := c.walker.Ancestor()
 	if ancestor.Kind != ast.NodeKindInlineFragment {
+		c.selectionSetRefs = append(c.selectionSetRefs, selectionSetTypeInfo{
+			ref: ref,
+		})
 		return
 	}
 
 	parentPath := c.walker.Path[:len(c.walker.Path)-1].DotDelimitedString()
 	currentPath := c.walker.Path.DotDelimitedString()
 	typeName := c.operation.InlineFragmentTypeConditionNameString(ancestor.Ref)
+
+	node, ok := c.definition.NodeByNameStr(typeName)
+	if !ok {
+		c.walker.StopWithInternalErr(fmt.Errorf("inline fragment type condition %q is not defined in the schema", typeName))
+		return
+	}
+
+	// get possible type names for the inline fragment
+	var typeNames []string
+	switch node.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		typeNames = []string{c.definition.ObjectTypeDefinitionNameString(node.Ref)}
+	case ast.NodeKindInterfaceTypeDefinition:
+		typeNames, _ = c.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+	case ast.NodeKindUnionTypeDefinition:
+		typeNames, _ = c.definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+	default:
+	}
+
+	c.selectionSetRefs = append(c.selectionSetRefs, selectionSetTypeInfo{
+		ref:       ref,
+		typeNames: typeNames,
+	})
 
 	for i, planner := range c.planners {
 		if !planner.HasPath(parentPath) {
@@ -986,9 +1016,15 @@ func (c *pathBuilderVisitor) pushResponsePath(fieldRef int, fieldName string) {
 		return
 	}
 
+	var typeNames []string
+	if info, ok := c.currentSelectionSetInfo(); ok {
+		typeNames = info.typeNames
+	}
+
 	c.currentFetchPath = append(c.currentFetchPath, resolve.FetchItemPathElement{
-		Kind: resolve.FetchItemPathElementKindObject,
-		Path: []string{fieldName},
+		Kind:      resolve.FetchItemPathElementKindObject,
+		Path:      []string{fieldName},
+		TypeNames: typeNames,
 	})
 }
 

@@ -642,7 +642,7 @@ func TestGraphQLDataSourceFederation_Mutations(t *testing.T) {
 				),
 			},
 			DisableResolveFieldPositions: true,
-			Debug:                        plan.DebugConfiguration{
+			Debug: plan.DebugConfiguration{
 				// PrintOperationTransformations: true,
 				// PrintOperationEnableASTRefs:   true,
 				// PrintPlanningPaths:            true,
@@ -11751,7 +11751,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
-								}, "accounts.@.address", resolve.ArrayPath("accounts"), resolve.ObjectPath("address")),
+								}, "accounts.@.address", resolve.ArrayPath("accounts"), resolve.PathElementWithTypeNames(resolve.ObjectPath("address"), []string{"Moderator"})),
 							),
 							Data: &resolve.Object{
 								Fields: []*resolve.Field{

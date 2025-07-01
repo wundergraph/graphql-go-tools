@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"net/http"
 	"net/http/httptrace"
 	"slices"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -324,25 +325,41 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 		if len(items) == 0 {
 			break
 		}
-		if path[i].Kind == FetchItemPathElementKindObject {
-			items = l.selectObjectItems(items, path[i].Path)
-		}
-		if path[i].Kind == FetchItemPathElementKindArray {
-			items = l.selectArrayItems(items, path[i].Path)
-		}
+		items = l.selectItems(items, path[i])
 	}
 	return items
 }
 
-func (l *Loader) selectObjectItems(items []*astjson.Value, path []string) []*astjson.Value {
+func (l *Loader) isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
+	if len(typeNames) == 0 {
+		return true
+	}
+	if obj == nil || obj.Type() != astjson.TypeObject {
+		return true
+	}
+	__typeName := obj.GetStringBytes("__typename")
+	if __typeName == nil {
+		return true
+	}
+
+	__typeNameStr := string(__typeName)
+	return slices.Contains(typeNames, __typeNameStr)
+}
+
+func (l *Loader) selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjson.Value {
 	if len(items) == 0 {
 		return nil
 	}
-	if len(path) == 0 {
+	if len(element.Path) == 0 {
 		return items
 	}
+
 	if len(items) == 1 {
-		field := items[0].Get(path...)
+		if !l.isItemAllowedByTypename(items[0], element.TypeNames) {
+			return nil
+		}
+
+		field := items[0].Get(element.Path...)
 		if field == nil {
 			return nil
 		}
@@ -353,7 +370,10 @@ func (l *Loader) selectObjectItems(items []*astjson.Value, path []string) []*ast
 	}
 	selected := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
-		field := item.Get(path...)
+		if !l.isItemAllowedByTypename(item, element.TypeNames) {
+			continue
+		}
+		field := item.Get(element.Path...)
 		if field == nil {
 			continue
 		}
@@ -364,71 +384,6 @@ func (l *Loader) selectObjectItems(items []*astjson.Value, path []string) []*ast
 		selected = append(selected, field)
 	}
 	return selected
-}
-
-func (l *Loader) selectArrayItems(items []*astjson.Value, path []string) []*astjson.Value {
-	if len(items) == 0 {
-		return nil
-	}
-	if len(path) == 0 {
-		return items
-	}
-	if len(items) == 1 {
-		field := items[0].Get(path...)
-		if field == nil {
-			return nil
-		}
-		if field.Type() == astjson.TypeArray {
-			return field.GetArray()
-		}
-		return []*astjson.Value{field}
-	}
-	selected := make([]*astjson.Value, 0, len(items))
-	for _, item := range items {
-		field := item.Get(path...)
-		if field == nil {
-			continue
-		}
-		if field.Type() == astjson.TypeArray {
-			selected = append(selected, field.GetArray()...)
-			continue
-		}
-		selected = append(selected, field)
-	}
-	return selected
-
-}
-
-func (l *Loader) selectNodeItems(parentItems []*astjson.Value, path []string) (items []*astjson.Value) {
-	if parentItems == nil {
-		return nil
-	}
-	if len(path) == 0 {
-		return parentItems
-	}
-	if len(parentItems) == 1 {
-		field := parentItems[0].Get(path...)
-		if field == nil {
-			return nil
-		}
-		if field.Type() == astjson.TypeArray {
-			return field.GetArray()
-		}
-		return []*astjson.Value{field}
-	}
-	items = make([]*astjson.Value, 0, len(parentItems))
-	for _, parent := range parentItems {
-		field := parent.Get(path...)
-		if field == nil {
-			continue
-		}
-		if field.Type() == astjson.TypeArray {
-			items = append(items, field.GetArray()...)
-			continue
-		}
-		items = append(items, field)
-	}
-	return
 }
 
 func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
