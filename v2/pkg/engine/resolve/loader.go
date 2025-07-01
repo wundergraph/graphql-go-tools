@@ -560,6 +560,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	value, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
+		// Fall back to status code if parsing fails and non-2XX
+		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+		}
+
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
@@ -588,6 +593,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		value = value.Get(res.postProcessing.SelectResponseDataPath...)
 		// Check if the not set or null
 		if astjson.ValueIsNull(value) {
+			// When:
+			// - No errors or data are present
+			// - Status code is not within the 2XX range
+			// We can fall back to a status code based error
+			if !hasErrors && ((res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300) {
+				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			}
+
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
 			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
@@ -1019,6 +1032,25 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	return nil
+}
+
+func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, statusCode int) error {
+	reason := fmt.Sprintf("%d", statusCode)
+	if statusText := http.StatusText(statusCode); statusText != "" {
+		reason += fmt.Sprintf(": %s", statusText)
+	}
+
+	l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+
+	errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"%s"}`, reason))
+	if err != nil {
+		return err
+	}
+
+	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
