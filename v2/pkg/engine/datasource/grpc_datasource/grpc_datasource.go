@@ -142,12 +142,12 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	if message.IsOneOf() {
 		oneof := data.Descriptor().Oneofs().ByName(protoref.Name(message.OneOfType.FieldName()))
 		if oneof == nil {
-			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
+			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.OneOfType.FieldName(), message.Name)
 		}
 
 		oneofDescriptor := data.WhichOneof(oneof)
 		if oneofDescriptor == nil {
-			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
+			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.OneOfType.FieldName(), message.Name)
 		}
 
 		if oneofDescriptor.Kind() == protoref.MessageKind {
