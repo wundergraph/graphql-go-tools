@@ -339,32 +339,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:  "Should include typename when requested",
-			query: `query UsersWithTypename { users { __typename id name } }`,
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"users": {
-						RPC:      "QueryUsers",
-						Request:  "QueryUsersRequest",
-						Response: "QueryUsersResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"users": {
-							TargetName: "users",
-						},
-					},
-					"User": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-					},
-				},
-			},
+			name:    "Should include typename when requested",
+			query:   `query UsersWithTypename { users { __typename id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -415,20 +392,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 				users { id name }
 				user(id: "1") { id name }
 				}`,
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"users": {
-						RPC:      "QueryUsers",
-						Request:  "QueryUsersRequest",
-						Response: "QueryUsersResponse",
-					},
-					"user": {
-						RPC:      "QueryUser",
-						Request:  "QueryUserRequest",
-						Response: "QueryUserResponse",
-					},
-				},
-			},
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -508,36 +472,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should call query with two arguments and no variables and mapping for field names",
-			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"typeFilterWithArguments": {
-						RPC:      "QueryTypeFilterWithArguments",
-						Request:  "QueryTypeFilterWithArgumentsRequest",
-						Response: "QueryTypeFilterWithArgumentsResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"typeFilterWithArguments": {
-							TargetName: "type_filter_with_arguments",
-							ArgumentMappings: map[string]string{
-								"filterField1": "filter_field_1",
-								"filterField2": "filter_field_2",
-							},
-						},
-					},
-					"TypeWithMultipleFilterFields": {
-						"filterField1": {
-							TargetName: "filter_field_1",
-						},
-						"filterField2": {
-							TargetName: "filter_field_2",
-						},
-					},
-				},
-			},
+			name:    "Should call query with two arguments and no variables and mapping for field names",
+			query:   `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -599,37 +536,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
-			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
-			mapping: &GRPCMapping{
-				QueryRPCs: RPCConfigMap{
-					"complexFilterType": {
-						RPC:      "QueryComplexFilterType",
-						Request:  "QueryComplexFilterTypeRequest",
-						Response: "QueryComplexFilterTypeResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"complexFilterType": {
-							TargetName: "complex_filter_type",
-						},
-					},
-					"FilterType": {
-						"filterField1": {
-							TargetName: "filter_field1",
-						},
-						"filterField2": {
-							TargetName: "filter_field2",
-						},
-					},
-					"Pagination": {
-						"perPage": {
-							TargetName: "per_page",
-						},
-					},
-				},
-			},
+			name:    "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
+			query:   `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -658,12 +567,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 															JSONPath: "name",
 														},
 														{
-															Name:     "filter_field1",
+															Name:     "filter_field_1",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField1",
 														},
 														{
-															Name:     "filter_field2",
+															Name:     "filter_field_2",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField2",
 														},
@@ -1465,39 +1374,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 	}
 }
 
-// TODO: Define test cases for interface execution plans
-func TestInterfaceExecutionPlan(t *testing.T) {
+func TestCompositeTypeExecutionPlan(t *testing.T) {
 	tests := []struct {
 		name          string
 		query         string
-		mapping       *GRPCMapping
 		expectedPlan  *RPCExecutionPlan
 		expectedError string
 	}{
 		{
 			name:  "Should create an execution plan for a query with a random cat",
 			query: "query RandomCatQuery { randomPet { id name kind ... on Cat { meowVolume } } }",
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"Query": {
-						RPC:      "QueryRandomPet",
-						Request:  "QueryRandomPetRequest",
-						Response: "QueryRandomPetResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"randomPet": {
-							TargetName: "random_pet",
-						},
-					},
-					"Cat": {
-						"meowVolume": {
-							TargetName: "meow_volume",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -1550,6 +1436,443 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Should create an execution plan for a query with a random cat and dog",
+			query: "query CatAndDogQuery { randomPet { id name kind ... on Cat { meowVolume } ... on Dog { barkVolume } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+											{
+												Name:     "meow_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "meowVolume",
+											},
+											{
+												Name:     "bark_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "barkVolume",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with a union type",
+			query: "query UnionQuery { randomPet { id name kind ... on Cat { meowVolume } ... on Dog { barkVolume } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+											{
+												Name:     "meow_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "meowVolume",
+											},
+											{
+												Name:     "bark_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "barkVolume",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with all pets (interface list)",
+			query: "query AllPetsQuery { allPets { id name kind ... on Cat { meowVolume } ... on Dog { barkVolume } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryAllPets",
+						Request: RPCMessage{
+							Name: "QueryAllPetsRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryAllPetsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "all_pets",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "allPets",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+											{
+												Name:     "meow_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "meowVolume",
+											},
+											{
+												Name:     "bark_volume",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "barkVolume",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with interface selecting only common fields",
+			query: "query CommonFieldsQuery { randomPet { id name kind } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a SearchResult union query",
+			query: "query SearchQuery($input: SearchInput!) { search(input: $input) { ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QuerySearch",
+						Request: RPCMessage{
+							Name: "QuerySearchRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "SearchInput",
+										Fields: []RPCField{
+											{
+												Name:     "query",
+												TypeName: string(DataTypeString),
+												JSONPath: "query",
+											},
+											{
+												Name:     "limit",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "limit",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QuerySearchResponse",
+							Fields: []RPCField{
+								{
+									Name:     "search",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "search",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "price",
+												TypeName: string(DataTypeDouble),
+												JSONPath: "price",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												EnumName: "CategoryKind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a single SearchResult union query",
+			query: "query RandomSearchQuery { randomSearchResult { ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomSearchResult",
+						Request: RPCMessage{
+							Name: "QueryRandomSearchResultRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomSearchResultResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_search_result",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomSearchResult",
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "price",
+												TypeName: string(DataTypeDouble),
+												JSONPath: "price",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												EnumName: "CategoryKind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a SearchResult union with partial selection",
+			query: "query PartialSearchQuery($input: SearchInput!) { search(input: $input) { ... on Product { id name } ... on User { id name } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QuerySearch",
+						Request: RPCMessage{
+							Name: "QuerySearchRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "SearchInput",
+										Fields: []RPCField{
+											{
+												Name:     "query",
+												TypeName: string(DataTypeString),
+												JSONPath: "query",
+											},
+											{
+												Name:     "limit",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "limit",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QuerySearchResponse",
+							Fields: []RPCField{
+								{
+									Name:     "search",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "search",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1568,7 +1891,258 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 
 			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
 				subgraphName: "Products",
-				mapping:      tt.mapping,
+				mapping:      testMapping(),
+			})
+
+			walker.Walk(&queryDoc, &schemaDoc, &report)
+
+			if report.HasErrors() {
+				require.NotEmpty(t, tt.expectedError)
+				require.Contains(t, report.Error(), tt.expectedError)
+				return
+			}
+
+			require.Empty(t, tt.expectedError)
+			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
+
+func TestMutationUnionExecutionPlan(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for ActionResult union mutation",
+			query: "mutation PerformActionMutation($input: ActionInput!) { performAction(input: $input) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationPerformAction",
+						Request: RPCMessage{
+							Name: "MutationPerformActionRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "ActionInput",
+										Fields: []RPCField{
+											{
+												Name:     "type",
+												TypeName: string(DataTypeString),
+												JSONPath: "type",
+											},
+											{
+												Name:     "payload",
+												TypeName: string(DataTypeString),
+												JSONPath: "payload",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationPerformActionResponse",
+							Fields: []RPCField{
+								{
+									Name:     "perform_action",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "performAction",
+									Message: &RPCMessage{
+										Name:      "ActionResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"ActionSuccess",
+											"ActionError",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "message",
+												TypeName: string(DataTypeString),
+												JSONPath: "message",
+											},
+											{
+												Name:     "timestamp",
+												TypeName: string(DataTypeString),
+												JSONPath: "timestamp",
+											},
+											{
+												Name:     "code",
+												TypeName: string(DataTypeString),
+												JSONPath: "code",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for ActionResult union with only success case",
+			query: "mutation PerformSuccessActionMutation($input: ActionInput!) { performAction(input: $input) { ... on ActionSuccess { message timestamp } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationPerformAction",
+						Request: RPCMessage{
+							Name: "MutationPerformActionRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "ActionInput",
+										Fields: []RPCField{
+											{
+												Name:     "type",
+												TypeName: string(DataTypeString),
+												JSONPath: "type",
+											},
+											{
+												Name:     "payload",
+												TypeName: string(DataTypeString),
+												JSONPath: "payload",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationPerformActionResponse",
+							Fields: []RPCField{
+								{
+									Name:     "perform_action",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "performAction",
+									Message: &RPCMessage{
+										Name:      "ActionResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"ActionSuccess",
+											"ActionError",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "message",
+												TypeName: string(DataTypeString),
+												JSONPath: "message",
+											},
+											{
+												Name:     "timestamp",
+												TypeName: string(DataTypeString),
+												JSONPath: "timestamp",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for ActionResult union with only error case",
+			query: "mutation PerformErrorActionMutation($input: ActionInput!) { performAction(input: $input) { ... on ActionError { message code } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationPerformAction",
+						Request: RPCMessage{
+							Name: "MutationPerformActionRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "ActionInput",
+										Fields: []RPCField{
+											{
+												Name:     "type",
+												TypeName: string(DataTypeString),
+												JSONPath: "type",
+											},
+											{
+												Name:     "payload",
+												TypeName: string(DataTypeString),
+												JSONPath: "payload",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationPerformActionResponse",
+							Fields: []RPCField{
+								{
+									Name:     "perform_action",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "performAction",
+									Message: &RPCMessage{
+										Name:      "ActionResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"ActionSuccess",
+											"ActionError",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "message",
+												TypeName: string(DataTypeString),
+												JSONPath: "message",
+											},
+											{
+												Name:     "code",
+												TypeName: string(DataTypeString),
+												JSONPath: "code",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			walker := astvisitor.NewWalker(48)
+
+			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+				subgraphName: "Products",
+				mapping:      testMapping(),
 			})
 
 			walker.Walk(&queryDoc, &schemaDoc, &report)
@@ -1593,48 +2167,16 @@ func TestProductExecutionPlan(t *testing.T) {
 	tests := []struct {
 		name          string
 		query         string
-		mapping       *GRPCMapping
 		expectedPlan  *RPCExecutionPlan
 		expectedError string
 	}{
 		{
 			name:  "Should create an execution plan for a query with categories by kind",
 			query: "query CategoriesQuery($kind: CategoryKind!) { categoriesByKind(kind: $kind) { id name kind } }",
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"categoriesByKind": {
-						RPC:      "QueryCategoriesByKind",
-						Request:  "QueryCategoriesByKindRequest",
-						Response: "QueryCategoriesByKindResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"categoriesByKind": {
-							TargetName: "categories_by_kind",
-							ArgumentMappings: map[string]string{
-								"kind": "kind",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "ProductService",
+						ServiceName: "Products",
 						MethodName:  "QueryCategoriesByKind",
 						Request: RPCMessage{
 							Name: "QueryCategoriesByKindRequest",
@@ -1686,41 +2228,10 @@ func TestProductExecutionPlan(t *testing.T) {
 		{
 			name:  "Should create an execution plan for a query with categories by kinds",
 			query: "query CategoriesQuery($kinds: [CategoryKind!]!) { categoriesByKinds(kinds: $kinds) { id name kind } }",
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"categoriesByKinds": {
-						RPC:      "QueryCategoriesByKinds",
-						Request:  "QueryCategoriesByKindsRequest",
-						Response: "QueryCategoriesByKindsResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"categoriesByKinds": {
-							TargetName: "categories_by_kinds",
-							ArgumentMappings: map[string]string{
-								"kinds": "kinds",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "ProductService",
+						ServiceName: "Products",
 						MethodName:  "QueryCategoriesByKinds",
 						Request: RPCMessage{
 							Name: "QueryCategoriesByKindsRequest",
@@ -1773,57 +2284,10 @@ func TestProductExecutionPlan(t *testing.T) {
 		{
 			name:  "Should create an execution plan for a query with filtered categories",
 			query: "query FilterCategoriesQuery($filter: CategoryFilter!) { filterCategories(filter: $filter) { id name kind } }",
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"filterCategories": {
-						RPC:      "QueryFilterCategories",
-						Request:  "QueryFilterCategoriesRequest",
-						Response: "QueryFilterCategoriesResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"filterCategories": {
-							TargetName: "filter_categories",
-							ArgumentMappings: map[string]string{
-								"filter": "filter",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-					"CategoryFilter": {
-						"category": {
-							TargetName: "category",
-						},
-						"pagination": {
-							TargetName: "pagination",
-						},
-					},
-					"Pagination": {
-						"page": {
-							TargetName: "page",
-						},
-						"perPage": {
-							TargetName: "per_page",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "ProductService",
+						ServiceName: "Products",
 						MethodName:  "QueryFilterCategories",
 						Request: RPCMessage{
 							Name: "QueryFilterCategoriesRequest",
@@ -1927,7 +2391,7 @@ func TestProductExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", tt.mapping)
+			planner := NewPlanner("Products", testMapping())
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 
 			if tt.expectedError != "" {
@@ -1949,5 +2413,501 @@ func TestProductExecutionPlan(t *testing.T) {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}
 		})
+	}
+}
+
+func testMapping() *GRPCMapping {
+	return &GRPCMapping{
+		Service: "Products",
+		QueryRPCs: map[string]RPCConfig{
+			"users": {
+				RPC:      "QueryUsers",
+				Request:  "QueryUsersRequest",
+				Response: "QueryUsersResponse",
+			},
+			"user": {
+				RPC:      "QueryUser",
+				Request:  "QueryUserRequest",
+				Response: "QueryUserResponse",
+			},
+			"nestedType": {
+				RPC:      "QueryNestedType",
+				Request:  "QueryNestedTypeRequest",
+				Response: "QueryNestedTypeResponse",
+			},
+			"recursiveType": {
+				RPC:      "QueryRecursiveType",
+				Request:  "QueryRecursiveTypeRequest",
+				Response: "QueryRecursiveTypeResponse",
+			},
+			"typeFilterWithArguments": {
+				RPC:      "QueryTypeFilterWithArguments",
+				Request:  "QueryTypeFilterWithArgumentsRequest",
+				Response: "QueryTypeFilterWithArgumentsResponse",
+			},
+			"typeWithMultipleFilterFields": {
+				RPC:      "QueryTypeWithMultipleFilterFields",
+				Request:  "QueryTypeWithMultipleFilterFieldsRequest",
+				Response: "QueryTypeWithMultipleFilterFieldsResponse",
+			},
+			"complexFilterType": {
+				RPC:      "QueryComplexFilterType",
+				Request:  "QueryComplexFilterTypeRequest",
+				Response: "QueryComplexFilterTypeResponse",
+			},
+			"calculateTotals": {
+				RPC:      "QueryCalculateTotals",
+				Request:  "QueryCalculateTotalsRequest",
+				Response: "QueryCalculateTotalsResponse",
+			},
+			"randomPet": {
+				RPC:      "QueryRandomPet",
+				Request:  "QueryRandomPetRequest",
+				Response: "QueryRandomPetResponse",
+			},
+			"allPets": {
+				RPC:      "QueryAllPets",
+				Request:  "QueryAllPetsRequest",
+				Response: "QueryAllPetsResponse",
+			},
+			"categories": {
+				RPC:      "QueryCategories",
+				Request:  "QueryCategoriesRequest",
+				Response: "QueryCategoriesResponse",
+			},
+			"categoriesByKind": {
+				RPC:      "QueryCategoriesByKind",
+				Request:  "QueryCategoriesByKindRequest",
+				Response: "QueryCategoriesByKindResponse",
+			},
+			"categoriesByKinds": {
+				RPC:      "QueryCategoriesByKinds",
+				Request:  "QueryCategoriesByKindsRequest",
+				Response: "QueryCategoriesByKindsResponse",
+			},
+			"filterCategories": {
+				RPC:      "QueryFilterCategories",
+				Request:  "QueryFilterCategoriesRequest",
+				Response: "QueryFilterCategoriesResponse",
+			},
+			"randomSearchResult": {
+				RPC:      "QueryRandomSearchResult",
+				Request:  "QueryRandomSearchResultRequest",
+				Response: "QueryRandomSearchResultResponse",
+			},
+			"search": {
+				RPC:      "QuerySearch",
+				Request:  "QuerySearchRequest",
+				Response: "QuerySearchResponse",
+			},
+		},
+		MutationRPCs: RPCConfigMap{
+			"createUser": {
+				RPC:      "CreateUser",
+				Request:  "CreateUserRequest",
+				Response: "CreateUserResponse",
+			},
+			"performAction": {
+				RPC:      "MutationPerformAction",
+				Request:  "MutationPerformActionRequest",
+				Response: "MutationPerformActionResponse",
+			},
+		},
+		SubscriptionRPCs: RPCConfigMap{},
+		EntityRPCs: map[string]EntityRPCConfig{
+			"Product": {
+				Key: "id",
+				RPCConfig: RPCConfig{
+					RPC:      "LookupProductById",
+					Request:  "LookupProductByIdRequest",
+					Response: "LookupProductByIdResponse",
+				},
+			},
+			"Storage": {
+				Key: "id",
+				RPCConfig: RPCConfig{
+					RPC:      "LookupStorageById",
+					Request:  "LookupStorageByIdRequest",
+					Response: "LookupStorageByIdResponse",
+				},
+			},
+		},
+		EnumValues: map[string][]EnumValueMapping{
+			"CategoryKind": {
+				{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
+				{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
+				{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
+				{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
+			},
+		},
+		Fields: map[string]FieldMap{
+			"Query": {
+				"user": {
+					TargetName: "user",
+					ArgumentMappings: map[string]string{
+						"id": "id",
+					},
+				},
+				"nestedType": {
+					TargetName: "nested_type",
+				},
+				"recursiveType": {
+					TargetName: "recursive_type",
+				},
+				"randomPet": {
+					TargetName: "random_pet",
+				},
+				"allPets": {
+					TargetName: "all_pets",
+				},
+				"categories": {
+					TargetName: "categories",
+				},
+				"categoriesByKind": {
+					TargetName: "categories_by_kind",
+					ArgumentMappings: map[string]string{
+						"kind": "kind",
+					},
+				},
+				"categoriesByKinds": {
+					TargetName: "categories_by_kinds",
+					ArgumentMappings: map[string]string{
+						"kinds": "kinds",
+					},
+				},
+				"filterCategories": {
+					TargetName: "filter_categories",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+				"typeFilterWithArguments": {
+					TargetName: "type_filter_with_arguments",
+					ArgumentMappings: map[string]string{
+						"filterField1": "filter_field_1",
+						"filterField2": "filter_field_2",
+					},
+				},
+				"typeWithMultipleFilterFields": {
+					TargetName: "type_with_multiple_filter_fields",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+				"complexFilterType": {
+					TargetName: "complex_filter_type",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+				"calculateTotals": {
+					TargetName: "calculate_totals",
+					ArgumentMappings: map[string]string{
+						"orders": "orders",
+					},
+				},
+				"search": {
+					TargetName: "search",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"randomSearchResult": {
+					TargetName: "random_search_result",
+				},
+			},
+			"Mutation": {
+				"createUser": {
+					TargetName: "create_user",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"performAction": {
+					TargetName: "perform_action",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+			},
+			"UserInput": {
+				"name": {
+					TargetName: "name",
+				},
+			},
+			"Product": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"price": {
+					TargetName: "price",
+				},
+			},
+			"Storage": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
+			"User": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+			},
+			"NestedTypeA": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"b": {
+					TargetName: "b",
+				},
+			},
+			"NestedTypeB": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"c": {
+					TargetName: "c",
+				},
+			},
+			"NestedTypeC": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+			},
+			"RecursiveType": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"recursiveType": {
+					TargetName: "recursive_type",
+				},
+			},
+			"TypeWithMultipleFilterFields": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"filterField1": {
+					TargetName: "filter_field_1",
+				},
+				"filterField2": {
+					TargetName: "filter_field_2",
+				},
+			},
+			"TypeWithComplexFilterInput": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+			},
+			"Cat": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"meowVolume": {
+					TargetName: "meow_volume",
+				},
+			},
+			"Dog": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"barkVolume": {
+					TargetName: "bark_volume",
+				},
+			},
+			"Animal": {
+				"cat": {
+					TargetName: "cat",
+				},
+				"dog": {
+					TargetName: "dog",
+				},
+			},
+			"FilterType": {
+				"name": {
+					TargetName: "name",
+				},
+				"filterField1": {
+					TargetName: "filter_field_1",
+				},
+				"filterField2": {
+					TargetName: "filter_field_2",
+				},
+				"pagination": {
+					TargetName: "pagination",
+				},
+			},
+			"Pagination": {
+				"page": {
+					TargetName: "page",
+				},
+				"perPage": {
+					TargetName: "per_page",
+				},
+			},
+			"ComplexFilterTypeInput": {
+				"filter": {
+					TargetName: "filter",
+				},
+			},
+			"Category": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+			},
+			"CategoryFilter": {
+				"category": {
+					TargetName: "category",
+				},
+				"pagination": {
+					TargetName: "pagination",
+				},
+			},
+			"Order": {
+				"orderId": {
+					TargetName: "order_id",
+				},
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"totalItems": {
+					TargetName: "total_items",
+				},
+				"orderLines": {
+					TargetName: "order_lines",
+				},
+			},
+			"OrderLine": {
+				"productId": {
+					TargetName: "product_id",
+				},
+				"quantity": {
+					TargetName: "quantity",
+				},
+				"modifiers": {
+					TargetName: "modifiers",
+				},
+			},
+			"OrderInput": {
+				"orderId": {
+					TargetName: "order_id",
+				},
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"lines": {
+					TargetName: "lines",
+				},
+			},
+			"OrderLineInput": {
+				"productId": {
+					TargetName: "product_id",
+				},
+				"quantity": {
+					TargetName: "quantity",
+				},
+				"modifiers": {
+					TargetName: "modifiers",
+				},
+			},
+			"ActionSuccess": {
+				"message": {
+					TargetName: "message",
+				},
+				"timestamp": {
+					TargetName: "timestamp",
+				},
+			},
+			"ActionError": {
+				"message": {
+					TargetName: "message",
+				},
+				"code": {
+					TargetName: "code",
+				},
+			},
+			"SearchInput": {
+				"query": {
+					TargetName: "query",
+				},
+				"limit": {
+					TargetName: "limit",
+				},
+			},
+			"ActionInput": {
+				"type": {
+					TargetName: "type",
+				},
+				"payload": {
+					TargetName: "payload",
+				},
+			},
+			"SearchResult": {
+				"product": {
+					TargetName: "product",
+				},
+				"user": {
+					TargetName: "user",
+				},
+				"category": {
+					TargetName: "category",
+				},
+			},
+			"ActionResult": {
+				"actionSuccess": {
+					TargetName: "action_success",
+				},
+				"actionError": {
+					TargetName: "action_error",
+				},
+			},
+		},
 	}
 }

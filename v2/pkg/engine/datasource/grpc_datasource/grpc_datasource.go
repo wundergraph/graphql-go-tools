@@ -162,9 +162,9 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 				continue
 			}
 
-			for _, implementedBy := range message.MemberTypes {
-				if implementedBy == string(data.Type().Descriptor().Name()) {
-					root.Set(field.JSONPath, arena.NewString(implementedBy))
+			for _, memberTypes := range message.MemberTypes {
+				if memberTypes == string(data.Type().Descriptor().Name()) {
+					root.Set(field.JSONPath, arena.NewString(memberTypes))
 					break
 				}
 			}
