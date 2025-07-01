@@ -74,6 +74,8 @@ type RPCMessage struct {
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
+	// FieldSelectionSet are field selections based on inline fragments
+	FieldSelectionSet RPCFieldSelectionSet
 	// OneOfType indicates the type of the oneof field
 	OneOfType OneOfType
 	// MemberTypes provides the names of the types that are implemented by the Interface or Union
@@ -83,6 +85,28 @@ type RPCMessage struct {
 // IsOneOf checks if the message is a oneof field.
 func (r *RPCMessage) IsOneOf() bool {
 	return r.OneOfType > OneOfTypeNone && r.OneOfType <= OneOfTypeUnion
+}
+
+// RPCFieldSelectionSet is a map of field selections based on inline fragments
+type RPCFieldSelectionSet map[string]RPCFields
+
+// Add adds a field selection set to the map
+func (r RPCFieldSelectionSet) Add(fragmentName string, field RPCField) {
+	if r[fragmentName] == nil {
+		r[fragmentName] = make(RPCFields, 0)
+	}
+
+	r[fragmentName] = append(r[fragmentName], field)
+}
+
+// FieldsForSelection returns the fields for a given fragment name.
+func (r RPCFieldSelectionSet) FieldsForSelection(fragmentName string) RPCFields {
+	fields, ok := r[fragmentName]
+	if !ok {
+		return nil
+	}
+
+	return fields
 }
 
 // RPCField represents a single field in a gRPC message.

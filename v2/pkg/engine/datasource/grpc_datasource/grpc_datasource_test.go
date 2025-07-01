@@ -722,14 +722,196 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 					require.Contains(t, searchResult, "id")
 					require.Contains(t, searchResult, "name")
 					require.Contains(t, searchResult, "price")
+					require.Equal(t, "product-random-1", searchResult["id"])
+					require.Equal(t, "Random Product", searchResult["name"])
+					require.Equal(t, 29.99, searchResult["price"])
 				case "User":
 					require.Contains(t, searchResult, "id")
 					require.Contains(t, searchResult, "name")
+					require.Equal(t, "user-random-1", searchResult["id"])
+					require.Equal(t, "Random User", searchResult["name"])
 				case "Category":
 					require.Contains(t, searchResult, "id")
 					require.Contains(t, searchResult, "name")
 					require.Contains(t, searchResult, "kind")
+					require.Equal(t, "category-random-1", searchResult["id"])
+					require.Equal(t, "Random Category", searchResult["name"])
+					require.Equal(t, "ELECTRONICS", searchResult["kind"])
+				default:
+					t.Fatalf("Unexpected __typename: %s", typeName)
 				}
+			},
+		},
+		{
+			name:  "Query search with input - mixed results",
+			query: `query($input: SearchInput!) { search(input: $input) { __typename ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }`,
+			vars:  `{"variables":{"input":{"query":"test","limit":6}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResults, ok := data["search"].([]interface{})
+				require.True(t, ok, "search should be an array")
+				require.NotEmpty(t, searchResults, "search should not be empty")
+				require.Len(t, searchResults, 6, "should return 6 results as per limit")
+
+				// Verify we have a mix of all three types (Product, User, Category)
+				var productCount, userCount, categoryCount int
+				for i, result := range searchResults {
+					searchResult := result.(map[string]interface{})
+					require.Contains(t, searchResult, "__typename")
+					typeName := searchResult["__typename"].(string)
+
+					switch typeName {
+					case "Product":
+						productCount++
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						require.Contains(t, searchResult, "price")
+						expectedID := fmt.Sprintf("product-search-%d", (i/3)*3+1)
+						require.Equal(t, expectedID, searchResult["id"])
+						require.Contains(t, searchResult["name"].(string), "Product matching 'test'")
+					case "User":
+						userCount++
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						expectedID := fmt.Sprintf("user-search-%d", ((i-1)/3)*3+2)
+						require.Equal(t, expectedID, searchResult["id"])
+						require.Contains(t, searchResult["name"].(string), "User matching 'test'")
+					case "Category":
+						categoryCount++
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						require.Contains(t, searchResult, "kind")
+						expectedID := fmt.Sprintf("category-search-%d", ((i-2)/3)*3+3)
+						require.Equal(t, expectedID, searchResult["id"])
+						require.Contains(t, searchResult["name"].(string), "Category matching 'test'")
+					default:
+						t.Fatalf("Unexpected __typename: %s", typeName)
+					}
+				}
+
+				// Verify we have exactly 2 of each type (cycling through Product, User, Category)
+				require.Equal(t, 2, productCount, "should have 2 products")
+				require.Equal(t, 2, userCount, "should have 2 users")
+				require.Equal(t, 2, categoryCount, "should have 2 categories")
+			},
+		},
+		{
+			name:  "Query search with limited results",
+			query: `query($input: SearchInput!) { search(input: $input) { __typename ... on Product { id name } ... on User { id name } } }`,
+			vars:  `{"variables":{"input":{"query":"limited","limit":3}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResults, ok := data["search"].([]interface{})
+				require.True(t, ok, "search should be an array")
+				require.NotEmpty(t, searchResults, "search should not be empty")
+				require.Len(t, searchResults, 3, "should return 3 results as per limit")
+
+				// Only check Product and User types since Category fragments are not selected
+				for _, result := range searchResults {
+					searchResult := result.(map[string]interface{})
+					require.Contains(t, searchResult, "__typename")
+					typeName := searchResult["__typename"].(string)
+
+					switch typeName {
+					case "Product":
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						require.NotContains(t, searchResult, "price", "price should not be selected")
+					case "User":
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+					case "Category":
+						// Category should still have __typename, but won't have other fields since they weren't selected
+						require.Contains(t, searchResult, "__typename")
+						require.NotContains(t, searchResult, "name", "name should not be selected for Category")
+						require.NotContains(t, searchResult, "kind", "kind should not be selected for Category")
+					default:
+						t.Fatalf("Unexpected __typename: %s", typeName)
+					}
+				}
+			},
+		},
+		{
+			name:  "Mutation perform action - success case",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"create_user","payload":"user data"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionSuccess", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "timestamp")
+				require.Equal(t, "Action 'create_user' completed successfully", actionResult["message"])
+				require.Equal(t, "2024-01-01T00:00:00Z", actionResult["timestamp"])
+			},
+		},
+		{
+			name:  "Mutation perform action - validation error case",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"error_action","payload":"invalid data"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionError", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "code")
+				require.Equal(t, "Action failed due to validation error", actionResult["message"])
+				require.Equal(t, "VALIDATION_ERROR", actionResult["code"])
+			},
+		},
+		{
+			name:  "Mutation perform action - invalid action error case",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"invalid_action","payload":"test"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionError", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "code")
+				require.Equal(t, "Invalid action type provided", actionResult["message"])
+				require.Equal(t, "INVALID_ACTION", actionResult["code"])
+			},
+		},
+		{
+			name:  "Mutation perform action - only success fragment",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } } }`,
+			vars:  `{"variables":{"input":{"type":"success_only","payload":"test"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionSuccess", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "timestamp")
+				require.Equal(t, "Action 'success_only' completed successfully", actionResult["message"])
+				require.Equal(t, "2024-01-01T00:00:00Z", actionResult["timestamp"])
+			},
+		},
+		{
+			name:  "Mutation perform action - only error fragment",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"error_action","payload":"test"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionError", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "code")
+				require.Equal(t, "Action failed due to validation error", actionResult["message"])
+				require.Equal(t, "VALIDATION_ERROR", actionResult["code"])
 			},
 		},
 	}
@@ -766,6 +948,14 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 						Response: "MutationPerformActionResponse",
 					},
 				},
+				EnumValues: map[string][]EnumValueMapping{
+					"CategoryKind": {
+						{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
+						{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
+						{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
+						{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
+					},
+				},
 				Fields: map[string]FieldMap{
 					"Query": {
 						"randomSearchResult": {
@@ -784,6 +974,36 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 							ArgumentMappings: map[string]string{
 								"input": "input",
 							},
+						},
+					},
+					"Product": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+						"price": {
+							TargetName: "price",
+						},
+					},
+					"User": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+					},
+					"Category": {
+						"id": {
+							TargetName: "id",
+						},
+						"name": {
+							TargetName: "name",
+						},
+						"kind": {
+							TargetName: "kind",
 						},
 					},
 					"ActionSuccess": {

@@ -188,8 +188,7 @@ func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
 
 	switch node.Kind {
 	case ast.NodeKindField:
-		r.handleCompositeType(r.walker.EnclosingTypeDefinition)
-		return nil
+		return r.handleCompositeType(r.walker.EnclosingTypeDefinition)
 	case ast.NodeKindInterfaceTypeDefinition:
 		oneOfType = OneOfTypeInterface
 		memberTypes, ok = r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
@@ -250,8 +249,21 @@ func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
 	}
 }
 
-func (r *rpcPlanVisitor) isInRootField() bool {
+func (r *rpcPlanVisitor) IsRootField() bool {
 	return len(r.walker.Ancestors) == 2 && r.walker.Ancestors[0].Kind == ast.NodeKindOperationDefinition
+}
+
+func (r *rpcPlanVisitor) IsInlineFragmentField() (int, bool) {
+	if len(r.walker.Ancestors) < 2 {
+		return -1, false
+	}
+
+	node := r.walker.Ancestors[len(r.walker.Ancestors)-2]
+	if node.Kind != ast.NodeKindInlineFragment {
+		return -1, false
+	}
+
+	return node.Ref, true
 }
 
 func (r *rpcPlanVisitor) handleRootField(ref int) error {
@@ -277,7 +289,7 @@ func (r *rpcPlanVisitor) handleRootField(ref int) error {
 // EnterField implements astvisitor.EnterFieldVisitor.
 func (r *rpcPlanVisitor) EnterField(ref int) {
 	fieldName := r.operation.FieldNameString(ref)
-	if r.isInRootField() {
+	if r.IsRootField() {
 		if err := r.handleRootField(ref); err != nil {
 			r.walker.StopWithInternalErr(err)
 			return
@@ -331,6 +343,16 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		field.StaticValue = parentTypeName
 	}
 
+	if ref, ok := r.IsInlineFragmentField(); ok && !r.planInfo.isEntityLookup {
+		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
+			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
+		}
+
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
+		r.planInfo.currentResponseMessage.FieldSelectionSet.Add(inlineFragmentName, field)
+		return
+	}
+
 	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, field)
 }
 
@@ -341,7 +363,7 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	}
 
 	// If we are not in the operation field, we can increment the response field index.
-	if !r.isInRootField() {
+	if !r.IsRootField() {
 		r.planInfo.currentResponseFieldIndex++
 		return
 	}

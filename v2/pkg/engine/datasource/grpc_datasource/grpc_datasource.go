@@ -155,7 +155,9 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		}
 	}
 
-	for _, field := range message.Fields {
+	validFields := append(message.Fields, message.FieldSelectionSet.FieldsForSelection(string(data.Type().Descriptor().Name()))...)
+
+	for _, field := range validFields {
 		if field.StaticValue != "" {
 			if len(message.MemberTypes) == 0 {
 				root.Set(field.JSONPath, arena.NewString(field.StaticValue))

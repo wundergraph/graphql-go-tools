@@ -1406,6 +1406,15 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+										},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -1421,11 +1430,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 												Name:     "kind",
 												TypeName: string(DataTypeString),
 												JSONPath: "kind",
-											},
-											{
-												Name:     "meow_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "meowVolume",
 											},
 										},
 									},
@@ -1461,6 +1465,22 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+											"Dog": {
+												{
+													Name:     "bark_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "barkVolume",
+												},
+											},
+										},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -1476,16 +1496,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 												Name:     "kind",
 												TypeName: string(DataTypeString),
 												JSONPath: "kind",
-											},
-											{
-												Name:     "meow_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "meowVolume",
-											},
-											{
-												Name:     "bark_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "barkVolume",
 											},
 										},
 									},
@@ -1521,6 +1531,22 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+											"Dog": {
+												{
+													Name:     "bark_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "barkVolume",
+												},
+											},
+										},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -1536,16 +1562,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 												Name:     "kind",
 												TypeName: string(DataTypeString),
 												JSONPath: "kind",
-											},
-											{
-												Name:     "meow_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "meowVolume",
-											},
-											{
-												Name:     "bark_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "barkVolume",
 											},
 										},
 									},
@@ -1582,6 +1598,22 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"Cat",
 											"Dog",
 										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+											"Dog": {
+												{
+													Name:     "bark_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "barkVolume",
+												},
+											},
+										},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -1597,16 +1629,6 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 												Name:     "kind",
 												TypeName: string(DataTypeString),
 												JSONPath: "kind",
-											},
-											{
-												Name:     "meow_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "meowVolume",
-											},
-											{
-												Name:     "bark_volume",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "barkVolume",
 											},
 										},
 									},
@@ -1716,27 +1738,54 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"User",
 											"Category",
 										},
-										Fields: []RPCField{
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "price",
+													TypeName: string(DataTypeDouble),
+													JSONPath: "price",
+												},
 											},
-											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
 											},
-											{
-												Name:     "price",
-												TypeName: string(DataTypeDouble),
-												JSONPath: "price",
-											},
-											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												EnumName: "CategoryKind",
+											"Category": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeEnum),
+													JSONPath: "kind",
+													EnumName: "CategoryKind",
+												},
 											},
 										},
 									},
@@ -1773,27 +1822,54 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"User",
 											"Category",
 										},
-										Fields: []RPCField{
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "price",
+													TypeName: string(DataTypeDouble),
+													JSONPath: "price",
+												},
 											},
-											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
 											},
-											{
-												Name:     "price",
-												TypeName: string(DataTypeDouble),
-												JSONPath: "price",
-											},
-											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												EnumName: "CategoryKind",
+											"Category": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeEnum),
+													JSONPath: "kind",
+													EnumName: "CategoryKind",
+												},
 											},
 										},
 									},
@@ -1853,16 +1929,31 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 											"User",
 											"Category",
 										},
-										Fields: []RPCField{
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
 											},
-											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
 											},
 										},
 									},
@@ -1965,21 +2056,31 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 											"ActionSuccess",
 											"ActionError",
 										},
-										Fields: []RPCField{
-											{
-												Name:     "message",
-												TypeName: string(DataTypeString),
-												JSONPath: "message",
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"ActionSuccess": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "timestamp",
+													TypeName: string(DataTypeString),
+													JSONPath: "timestamp",
+												},
 											},
-											{
-												Name:     "timestamp",
-												TypeName: string(DataTypeString),
-												JSONPath: "timestamp",
-											},
-											{
-												Name:     "code",
-												TypeName: string(DataTypeString),
-												JSONPath: "code",
+											"ActionError": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "code",
+													TypeName: string(DataTypeString),
+													JSONPath: "code",
+												},
 											},
 										},
 									},
@@ -2037,16 +2138,19 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 											"ActionSuccess",
 											"ActionError",
 										},
-										Fields: []RPCField{
-											{
-												Name:     "message",
-												TypeName: string(DataTypeString),
-												JSONPath: "message",
-											},
-											{
-												Name:     "timestamp",
-												TypeName: string(DataTypeString),
-												JSONPath: "timestamp",
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"ActionSuccess": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "timestamp",
+													TypeName: string(DataTypeString),
+													JSONPath: "timestamp",
+												},
 											},
 										},
 									},
@@ -2104,16 +2208,19 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 											"ActionSuccess",
 											"ActionError",
 										},
-										Fields: []RPCField{
-											{
-												Name:     "message",
-												TypeName: string(DataTypeString),
-												JSONPath: "message",
-											},
-											{
-												Name:     "code",
-												TypeName: string(DataTypeString),
-												JSONPath: "code",
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"ActionError": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "code",
+													TypeName: string(DataTypeString),
+													JSONPath: "code",
+												},
 											},
 										},
 									},
