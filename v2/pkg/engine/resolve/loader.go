@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	goerrors "errors"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"net/http"
 	"net/http/httptrace"
 	"slices"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -699,7 +700,7 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 		subgraphError.AppendDownstreamError(&gErr)
 	}
 
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+	l.ctx.appendSubgraphErrors(res.err, subgraphError)
 
 	return nil
 }
@@ -1012,7 +1013,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
+	l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
@@ -1038,7 +1039,7 @@ func (l *Loader) renderSubgraphBaseError(ds DataSourceInfo, path, reason string)
 
 func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode)))
+		l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
@@ -1079,7 +1080,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 }
 
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
+	l.ctx.appendSubgraphErrors(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	var (
 		err         error

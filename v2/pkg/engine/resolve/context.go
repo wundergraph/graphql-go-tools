@@ -141,8 +141,8 @@ func (c *Context) SubgraphErrors() error {
 	return c.subgraphErrors
 }
 
-func (c *Context) appendSubgraphError(err error) {
-	c.subgraphErrors = errors.Join(c.subgraphErrors, err)
+func (c *Context) appendSubgraphErrors(errs ...error) {
+	c.subgraphErrors = errors.Join(c.subgraphErrors, errors.Join(errs...))
 }
 
 type Request struct {
