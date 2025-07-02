@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.3.1...execution/v1.4.0) (2025-07-02)
+
+
+### Features
+
+* improve apollo gateway compatible field selection validation ([#1169](https://github.com/wundergraph/graphql-go-tools/issues/1169)) ([8c1a063](https://github.com/wundergraph/graphql-go-tools/commit/8c1a06302309b5c3ad36f908cc8acbbc0bfafda6))
+
+
+### Bug Fixes
+
+* support different kinds of close, correct client unsubscribe behaviour ([#1174](https://github.com/wundergraph/graphql-go-tools/issues/1174)) ([b6de322](https://github.com/wundergraph/graphql-go-tools/commit/b6de32263b69902c1f687b7b3fbf89e90df85cd2))
+
 ## [1.3.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.3.0...execution/v1.3.1) (2025-06-05)
 
 
