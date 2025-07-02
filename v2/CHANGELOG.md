@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.195](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.194...v2.0.0-rc.195) (2025-07-02)
+
+
+### Bug Fixes
+
+* fix checking presence of type mapping to interface object ([#1201](https://github.com/wundergraph/graphql-go-tools/issues/1201)) ([0a849ee](https://github.com/wundergraph/graphql-go-tools/commit/0a849ee561dd4abac38f870ca61299ca93672acd))
+
 ## [2.0.0-rc.194](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.193...v2.0.0-rc.194) (2025-06-28)
 
 

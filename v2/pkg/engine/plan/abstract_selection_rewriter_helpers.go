@@ -466,7 +466,23 @@ func (r *fieldSelectionRewriter) fieldTypeNameFromUpstreamSchema(fieldRef int, e
 
 	node, hasNode := r.upstreamDefinition.NodeByName(enclosingTypeName)
 	if !hasNode {
-		return "", false
+		var interfaceObjectName string
+
+		for _, objCfg := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
+			if slices.Contains(objCfg.ConcreteTypeNames, string(enclosingTypeName)) {
+				interfaceObjectName = objCfg.InterfaceTypeName
+				break
+			}
+		}
+
+		if interfaceObjectName == "" {
+			return "", false
+		}
+
+		node, hasNode = r.upstreamDefinition.NodeByNameStr(interfaceObjectName)
+		if !hasNode {
+			return "", false
+		}
 	}
 
 	fieldTypeNode, ok := r.upstreamDefinition.FieldTypeNode(fieldName, node)
