@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.196](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.195...v2.0.0-rc.196) (2025-07-02)
+
+
+### Features
+
+* pass in response body ([#1203](https://github.com/wundergraph/graphql-go-tools/issues/1203)) ([ef03374](https://github.com/wundergraph/graphql-go-tools/commit/ef03374352bff7715b430409d20a55c9f456405a))
+
 ## [2.0.0-rc.195](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.194...v2.0.0-rc.195) (2025-07-02)
 
 
