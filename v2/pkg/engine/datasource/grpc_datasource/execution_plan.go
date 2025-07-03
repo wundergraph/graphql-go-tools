@@ -20,7 +20,7 @@ type OneOfType uint8
 // OneOfType constants define the different types of oneof fields.
 const (
 	// OneOfTypeNone represents no oneof type (default/zero value)
-	OneOfTypeNone OneOfType = 1 << iota
+	OneOfTypeNone OneOfType = iota
 	// OneOfTypeInterface represents an interface type oneof field
 	OneOfTypeInterface
 	// OneOfTypeUnion represents a union type oneof field
