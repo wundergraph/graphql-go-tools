@@ -1,0 +1,10 @@
+# Give everyone ownership for everything expections listed below
+* @wundergraph/Router
+
+# Protect the CODEOWNERS file
+/.github/CODEOWNERS @devsergiy @StarpTech
+
+v2 @devsergiy @Noroth @StarpTech
+
+# Releases
+v2/CHANGELOG.md @wundergraph/Router

@@ -1,5 +1,26 @@
 # Changelog
 
+## [2.0.0-rc.197](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.196...v2.0.0-rc.197) (2025-07-03)
+
+
+### Features
+
+* status code derived fallback errors ([#1198](https://github.com/wundergraph/graphql-go-tools/issues/1198)) ([aa1c7ef](https://github.com/wundergraph/graphql-go-tools/commit/aa1c7efcb22a92c63e22b5de71905fdc327c6875))
+
+## [2.0.0-rc.196](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.195...v2.0.0-rc.196) (2025-07-02)
+
+
+### Features
+
+* pass in response body ([#1203](https://github.com/wundergraph/graphql-go-tools/issues/1203)) ([ef03374](https://github.com/wundergraph/graphql-go-tools/commit/ef03374352bff7715b430409d20a55c9f456405a))
+
+## [2.0.0-rc.195](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.194...v2.0.0-rc.195) (2025-07-02)
+
+
+### Bug Fixes
+
+* fix checking presence of type mapping to interface object ([#1201](https://github.com/wundergraph/graphql-go-tools/issues/1201)) ([0a849ee](https://github.com/wundergraph/graphql-go-tools/commit/0a849ee561dd4abac38f870ca61299ca93672acd))
+
 ## [2.0.0-rc.194](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.193...v2.0.0-rc.194) (2025-06-28)
 
 

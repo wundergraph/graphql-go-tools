@@ -56,10 +56,16 @@ type ResponseInfo struct {
 	Request *http.Request
 	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
+	// ResponseBody contains the response body of the subgraph, it is of type string so that it cannot be manipulated.
+	ResponseBody string
 }
 
 func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
-	responseInfo := &ResponseInfo{StatusCode: res.statusCode, Err: goerrors.Join(res.err, subgraphError)}
+	responseInfo := &ResponseInfo{
+		StatusCode:   res.statusCode,
+		Err:          goerrors.Join(res.err, subgraphError),
+		ResponseBody: res.out.String(),
+	}
 	if res.httpResponseContext != nil {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
 		// cause a memory leak.
@@ -508,6 +514,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	value, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
+		// Fall back to status code if parsing fails and non-2XX
+		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
+			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+		}
+
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
@@ -536,6 +547,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		value = value.Get(res.postProcessing.SelectResponseDataPath...)
 		// Check if the not set or null
 		if astjson.ValueIsNull(value) {
+			// When:
+			// - No errors or data are present
+			// - Status code is not within the 2XX range
+			// We can fall back to a status code based error
+			if !hasErrors && ((res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300) {
+				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
+			}
+
 			// If we didn't get any data nor errors, we return an error because the response is invalid
 			// Returning an error here also avoids the need to walk over it later.
 			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
@@ -648,7 +667,7 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 		subgraphError.AppendDownstreamError(&gErr)
 	}
 
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, subgraphError))
+	l.ctx.appendSubgraphErrors(res.err, subgraphError)
 
 	return nil
 }
@@ -961,12 +980,31 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 }
 
 func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, reason string) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode)))
+	l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
 	errorObject, err := astjson.ParseWithoutCache(l.renderSubgraphBaseError(res.ds, fetchItem.ResponsePath, reason))
 	if err != nil {
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	astjson.AppendToArray(l.resolvable.errors, errorObject)
+	return nil
+}
+
+func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, statusCode int) error {
+	reason := fmt.Sprintf("%d", statusCode)
+	if statusText := http.StatusText(statusCode); statusText != "" {
+		reason += fmt.Sprintf(": %s", statusText)
+	}
+
+	l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, reason, res.statusCode))
+
+	errorObject, err := astjson.ParseWithoutCache(fmt.Sprintf(`{"message":"%s"}`, reason))
+	if err != nil {
+		return err
+	}
+
+	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -987,7 +1025,7 @@ func (l *Loader) renderSubgraphBaseError(ds DataSourceInfo, path, reason string)
 
 func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *result) error {
 	for i := range res.authorizationRejectedReasons {
-		l.ctx.appendSubgraphError(goerrors.Join(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode)))
+		l.ctx.appendSubgraphErrors(res.err, NewSubgraphError(res.ds, fetchItem.ResponsePath, res.authorizationRejectedReasons[i], res.statusCode))
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
@@ -1028,7 +1066,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 }
 
 func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result) error {
-	l.ctx.appendSubgraphError(goerrors.Join(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason)))
+	l.ctx.appendSubgraphErrors(res.err, NewRateLimitError(res.ds.Name, fetchItem.ResponsePath, res.rateLimitRejectedReason))
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	var (
 		err         error

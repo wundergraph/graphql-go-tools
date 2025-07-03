@@ -28,8 +28,8 @@
           "attachments": [
             {
               "__typename": "Question",
-              "upc": "top-1",
-              "body": "How do I turn it on?"
+              "body": "How do I turn it on?",
+              "upc": "top-1"
             }
           ]
         },
@@ -96,7 +96,7 @@
                 "raw_input_data": {},
                 "input": {
                   "body": {
-                    "query": "{me {id username history {__typename ... on Sale {location product {upc __typename}} ... on Purchase {wallet {currency}}} __typename}}"
+                    "query": "{me {id username history {__typename ... on Purchase {wallet {currency}} ... on Sale {location product {upc __typename}}} __typename}}"
                   },
                   "header": {},
                   "method": "POST",
@@ -409,7 +409,7 @@
                     },
                     "input": {
                       "body": {
-                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Question {upc body} ... on Rating {upc body} ... on Video {upc size}}}}}}",
+                        "query": "query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename reviews {__typename attachments {__typename ... on Question {body upc} ... on Video {upc size} ... on Rating {upc body}}}}}}",
                         "variables": {
                           "representations": [
                             {
@@ -434,8 +434,8 @@
                                 "attachments": [
                                   {
                                     "__typename": "Question",
-                                    "upc": "top-1",
-                                    "body": "How do I turn it on?"
+                                    "body": "How do I turn it on?",
+                                    "upc": "top-1"
                                   }
                                 ]
                               },
