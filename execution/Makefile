@@ -7,7 +7,7 @@ test:
 test-quick:
 	go test -count=1 ./...
 
-.PHONY: test
+.PHONY: test-no-race
 test-no-race:
 	go test -count=1 ./...
 
