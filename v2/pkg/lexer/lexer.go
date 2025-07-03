@@ -352,6 +352,9 @@ func (l *Lexer) readBlockString(tok *token.Token) {
 			quoteCount = 0
 			whitespaceCount++
 		case runes.EOF:
+			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
+			tok.Literal.Start += uint32(leadingWhitespaceToken)
+			tok.Literal.End -= uint32(whitespaceCount)
 			return
 		case runes.QUOTE:
 			if escaped {
