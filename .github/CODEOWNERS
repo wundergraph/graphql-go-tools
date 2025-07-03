@@ -5,3 +5,6 @@
 /.github/CODEOWNERS @devsergiy @StarpTech
 
 v2 @devsergiy @Noroth @StarpTech
+
+# Releases
+v2/CHANGELOG.md @wundergraph/Router

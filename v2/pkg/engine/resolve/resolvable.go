@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	goerrors "errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -760,8 +759,8 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	} else {
 		errorMessage = fmt.Sprintf("Unauthorized to load field '%s', Reason: %s.", fieldPath, reason)
 	}
-	r.ctx.appendSubgraphError(goerrors.Join(errors.New(errorMessage),
-		NewSubgraphError(ds, fieldPath, reason, 0)))
+	r.ctx.appendSubgraphErrors(errors.New(errorMessage),
+		NewSubgraphError(ds, fieldPath, reason, 0))
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
 	r.popNodePathElement(nodePath)
 }
