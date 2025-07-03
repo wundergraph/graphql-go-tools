@@ -15,7 +15,17 @@ const (
 
 // OneOfType represents the type of a oneof field in a protobuf message.
 // It can be either an interface or a union type.
-type OneOfType int
+type OneOfType uint8
+
+// OneOfType constants define the different types of oneof fields.
+const (
+	// OneOfTypeNone represents no oneof type (default/zero value)
+	OneOfTypeNone OneOfType = 1 << iota
+	// OneOfTypeInterface represents an interface type oneof field
+	OneOfTypeInterface
+	// OneOfTypeUnion represents a union type oneof field
+	OneOfTypeUnion
+)
 
 // FieldName returns the corresponding field name for the OneOfType.
 // For interfaces, it returns "instance", for unions it returns "value".
@@ -30,16 +40,6 @@ func (o OneOfType) FieldName() string {
 
 	return ""
 }
-
-// OneOfType constants define the different types of oneof fields.
-const (
-	// OneOfTypeNone represents no oneof type (default/zero value)
-	OneOfTypeNone OneOfType = iota
-	// OneOfTypeInterface represents an interface type oneof field
-	OneOfTypeInterface
-	// OneOfTypeUnion represents a union type oneof field
-	OneOfTypeUnion
-)
 
 // RPCExecutionPlan represents a plan for executing one or more RPC calls
 // to gRPC services. It defines the sequence of calls and their dependencies.
