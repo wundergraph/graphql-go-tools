@@ -928,121 +928,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			mapping := &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"randomSearchResult": {
-						RPC:      "QueryRandomSearchResult",
-						Request:  "QueryRandomSearchResultRequest",
-						Response: "QueryRandomSearchResultResponse",
-					},
-					"search": {
-						RPC:      "QuerySearch",
-						Request:  "QuerySearchRequest",
-						Response: "QuerySearchResponse",
-					},
-				},
-				MutationRPCs: map[string]RPCConfig{
-					"performAction": {
-						RPC:      "MutationPerformAction",
-						Request:  "MutationPerformActionRequest",
-						Response: "MutationPerformActionResponse",
-					},
-				},
-				EnumValues: map[string][]EnumValueMapping{
-					"CategoryKind": {
-						{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
-						{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
-						{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
-						{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"randomSearchResult": {
-							TargetName: "random_search_result",
-						},
-						"search": {
-							TargetName: "search",
-							ArgumentMappings: map[string]string{
-								"input": "input",
-							},
-						},
-					},
-					"Mutation": {
-						"performAction": {
-							TargetName: "perform_action",
-							ArgumentMappings: map[string]string{
-								"input": "input",
-							},
-						},
-					},
-					"Product": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"price": {
-							TargetName: "price",
-						},
-					},
-					"User": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-					"ActionSuccess": {
-						"message": {
-							TargetName: "message",
-						},
-						"timestamp": {
-							TargetName: "timestamp",
-						},
-					},
-					"ActionError": {
-						"message": {
-							TargetName: "message",
-						},
-						"code": {
-							TargetName: "code",
-						},
-					},
-					"SearchInput": {
-						"query": {
-							TargetName: "query",
-						},
-						"limit": {
-							TargetName: "limit",
-						},
-					},
-					"ActionInput": {
-						"type": {
-							TargetName: "type",
-						},
-						"payload": {
-							TargetName: "payload",
-						},
-					},
-				},
-			}
-
-			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 			if err != nil {
 				t.Fatalf("failed to compile proto: %v", err)
 			}
@@ -1052,7 +938,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
-				Mapping:      mapping,
+				Mapping:      testMapping(),
 				Compiler:     compiler,
 			})
 			require.NoError(t, err)
@@ -1179,83 +1065,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			// Create a new GRPCMapping configuration
-			mapping := &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"categories": {
-						RPC:      "QueryCategories",
-						Request:  "QueryCategoriesRequest",
-						Response: "QueryCategoriesResponse",
-					},
-					"categoriesByKind": {
-						RPC:      "QueryCategoriesByKind",
-						Request:  "QueryCategoriesByKindRequest",
-						Response: "QueryCategoriesByKindResponse",
-					},
-					"filterCategories": {
-						RPC:      "QueryFilterCategories",
-						Request:  "QueryFilterCategoriesRequest",
-						Response: "QueryFilterCategoriesResponse",
-					},
-				},
-				EnumValues: map[string][]EnumValueMapping{
-					"CategoryKind": {
-						{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
-						{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
-						{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
-						{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"categories": {
-							TargetName: "categories",
-						},
-						"categoriesByKind": {
-							TargetName: "categories_by_kind",
-							ArgumentMappings: map[string]string{
-								"kind": "kind",
-							},
-						},
-						"filterCategories": {
-							TargetName: "filter_categories",
-							ArgumentMappings: map[string]string{
-								"filter": "filter",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-					"CategoryFilter": {
-						"category": {
-							TargetName: "category",
-						},
-						"pagination": {
-							TargetName: "pagination",
-						},
-					},
-					"Pagination": {
-						"page": {
-							TargetName: "page",
-						},
-						"perPage": {
-							TargetName: "per_page",
-						},
-					},
-				},
-			}
-
-			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 			if err != nil {
 				t.Fatalf("failed to compile proto: %v", err)
 			}
@@ -1265,7 +1075,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
-				Mapping:      mapping,
+				Mapping:      testMapping(),
 				Compiler:     compiler,
 			})
 			require.NoError(t, err)
@@ -1337,73 +1147,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
-	// Create mapping configuration
-	mapping := &GRPCMapping{
-		Service: "ProductService",
-		QueryRPCs: map[string]RPCConfig{
-			"calculateTotals": {
-				RPC:      "QueryCalculateTotals",
-				Request:  "QueryCalculateTotalsRequest",
-				Response: "QueryCalculateTotalsResponse",
-			},
-		},
-		Fields: map[string]FieldMap{
-			"Query": {
-				"calculateTotals": {
-					TargetName: "calculate_totals",
-				},
-			},
-			"Order": {
-				"orderId": {
-					TargetName: "order_id",
-				},
-				"customerName": {
-					TargetName: "customer_name",
-				},
-				"totalItems": {
-					TargetName: "total_items",
-				},
-				"orderLines": {
-					TargetName: "order_lines",
-				},
-			},
-			"OrderLine": {
-				"productId": {
-					TargetName: "product_id",
-				},
-				"quantity": {
-					TargetName: "quantity",
-				},
-				"modifiers": {
-					TargetName: "modifiers",
-				},
-			},
-			"OrderInput": {
-				"orderId": {
-					TargetName: "order_id",
-				},
-				"customerName": {
-					TargetName: "customer_name",
-				},
-				"lines": {
-					TargetName: "lines",
-				},
-			},
-			"OrderLineInput": {
-				"productId": {
-					TargetName: "product_id",
-				},
-				"quantity": {
-					TargetName: "quantity",
-				},
-				"modifiers": {
-					TargetName: "modifiers",
-				},
-			},
-		},
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -1413,7 +1157,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
-		Mapping:      mapping,
+		Mapping:      testMapping(),
 		Compiler:     compiler,
 	})
 	require.NoError(t, err)
@@ -1494,34 +1238,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
-	// Create a new GRPCMapping configuration
-	mapping := &GRPCMapping{
-		Service: "ProductService",
-		QueryRPCs: map[string]RPCConfig{
-			"users": {
-				RPC:      "QueryUsers",
-				Request:  "QueryUsersRequest",
-				Response: "QueryUsersResponse",
-			},
-		},
-		Fields: map[string]FieldMap{
-			"Query": {
-				"users": {
-					TargetName: "users",
-				},
-			},
-			"User": {
-				"id": {
-					TargetName: "id",
-				},
-				"name": {
-					TargetName: "name",
-				},
-			},
-		},
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -1531,7 +1248,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
-		Mapping:      mapping,
+		Mapping:      testMapping(),
 		Compiler:     compiler,
 	})
 	require.NoError(t, err)
