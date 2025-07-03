@@ -406,7 +406,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/complex_nesting.graphql"), nil, t)
-		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"upc":"top-2","name":"Fedora"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","upc":"top-1","body":"How do I turn it on?"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}}}`
+		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"upc":"top-2","name":"Fedora"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","body":"How do I turn it on?","upc":"top-1"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
@@ -418,7 +418,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/more_complex_nesting.graphql"), nil, t)
-		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"name":"Fedora","upc":"top-2"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","upc":"top-1","body":"How do I turn it on?"}],"comment":{"__typename":"Question","subject":"Life"}},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}],"comment":{"__typename":"Question","subject":"Life"}}]}}}`
+		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"upc":"top-2","name":"Fedora"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","body":"How do I turn it on?","upc":"top-1"}],"comment":{"__typename":"Question","subject":"Life"}},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}],"comment":{"__typename":"Question","subject":"Life"}}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
@@ -454,7 +454,7 @@ func TestFederationIntegrationTest(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, testQueryPath("queries/more_complex_nesting_typename_variant.graphql"), nil, t)
-		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"name":"Fedora","upc":"top-2"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","upc":"top-1","body":"How do I turn it on?"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}}}`
+		expected := `{"data":{"me":{"id":"1234","username":"Me","history":[{"wallet":{"currency":"USD"}},{"location":"Germany","product":{"upc":"top-2","name":"Fedora"}},{"wallet":{"currency":"USD"}}],"reviews":[{"__typename":"Review","attachments":[{"__typename":"Question","body":"How do I turn it on?","upc":"top-1"}]},{"__typename":"Review","attachments":[{"__typename":"Rating","upc":"top-2","body":"The best hat I have ever bought in my life."},{"__typename":"Video","upc":"top-2","size":13.37}]}]}}}`
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
