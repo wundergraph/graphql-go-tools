@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.197](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.196...v2.0.0-rc.197) (2025-07-03)
+
+
+### Features
+
+* status code derived fallback errors ([#1198](https://github.com/wundergraph/graphql-go-tools/issues/1198)) ([aa1c7ef](https://github.com/wundergraph/graphql-go-tools/commit/aa1c7efcb22a92c63e22b5de71905fdc327c6875))
+
 ## [2.0.0-rc.196](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.195...v2.0.0-rc.196) (2025-07-02)
 
 
