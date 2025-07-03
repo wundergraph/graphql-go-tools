@@ -496,169 +496,288 @@ func TestMarshalResponseJSON(t *testing.T) {
 // Test_DataSource_Load_WithAnimalInterface tests the datasource with Animal interface types (Cat/Dog)
 // using a bufconn connection to the mock service
 func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
-	// 1. Start a gRPC server with our mock implementation
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	// Set up the bufconn listener
+	lis := bufconn.Listen(1024 * 1024)
 
-	// Get the server address
-	serverAddr := fmt.Sprintf("localhost:%d", lis.Addr().(*net.TCPAddr).Port)
-
-	// Create and start the gRPC server
+	// Create a new gRPC server
 	server := grpc.NewServer()
+
+	// Register our mock service implementation
 	mockService := &grpctest.MockService{}
 	productv1.RegisterProductServiceServer(server, mockService)
 
+	// Start the server in a goroutine
 	go func() {
 		if err := server.Serve(lis); err != nil {
 			t.Errorf("failed to serve: %v", err)
 		}
 	}()
+
+	// Clean up the server when the test completes
 	defer server.Stop()
 
-	// 2. Connect to the gRPC server
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
 	// see https://github.com/grpc/grpc-go/issues/7091
 	// nolint: staticcheck
 	conn, err := grpc.Dial(
-		serverAddr,
+		"bufnet",
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
 		grpc.WithLocalDNSResolution(),
 	)
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// Define the GraphQL query for the Animal interface
-	query := `query RandomPetQuery {
-		randomPet {
-			__typename
-			id
-			name
-			kind
-			... on Cat {
-				meowVolume
-			}
-			... on Dog {
-				barkVolume
-			}
-		}
-	}`
+	testCases := []struct {
+		name     string
+		query    string
+		vars     string
+		validate func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name: "Query random pet with only common fields",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					id
+					name
+					kind
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
-	schemaDoc := grpctest.MustGraphQLSchema(t)
+				// Verify common fields
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "id")
+				require.Contains(t, randomPet, "name")
+				require.Contains(t, randomPet, "kind")
 
-	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
-	if report.HasErrors() {
-		t.Fatalf("failed to parse query: %s", report.Error())
-	}
+				// Verify __typename is either Cat or Dog
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
 
-	// Create mapping configuration based on the mapping.go
-	mapping := &GRPCMapping{
-		Service: "ProductService",
-		QueryRPCs: map[string]RPCConfig{
-			"randomPet": {
-				RPC:      "QueryRandomPet",
-				Request:  "QueryRandomPetRequest",
-				Response: "QueryRandomPetResponse",
+				// Verify specific fields are not present since they weren't requested
+				require.NotContains(t, randomPet, "meowVolume")
+				require.NotContains(t, randomPet, "barkVolume")
 			},
 		},
-		Fields: map[string]FieldMap{
-			"Query": {
-				"randomPet": {
-					TargetName: "random_pet",
-				},
+		{
+			name: "Query random pet with full interface fields",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					id
+					name
+					kind
+					... on Cat {
+						meowVolume
+					}
+					... on Dog {
+						barkVolume
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
+
+				// Check if we got either a cat or dog by checking for their specific fields
+				if _, hasCat := randomPet["meowVolume"]; hasCat {
+					// We got a Cat response
+					require.Contains(t, randomPet, "__typename")
+					require.Equal(t, "Cat", randomPet["__typename"])
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "name")
+					require.Contains(t, randomPet, "kind")
+					require.Contains(t, randomPet, "meowVolume")
+				} else if _, hasDog := randomPet["barkVolume"]; hasDog {
+					// We got a Dog response
+					require.Contains(t, randomPet, "__typename")
+					require.Equal(t, "Dog", randomPet["__typename"])
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "name")
+					require.Contains(t, randomPet, "kind")
+					require.Contains(t, randomPet, "barkVolume")
+				} else {
+					t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", randomPet)
+				}
 			},
-			"Cat": {
-				"id": {
-					TargetName: "id",
-				},
-				"name": {
-					TargetName: "name",
-				},
-				"kind": {
-					TargetName: "kind",
-				},
-				"meowVolume": {
-					TargetName: "meow_volume",
-				},
+		},
+		{
+			name: "Query random pet with only Cat fragment",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					id
+					name
+					... on Cat {
+						meowVolume
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
+
+				// Common fields should always be present
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "id")
+				require.Contains(t, randomPet, "name")
+
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
+
+				// If it's a Cat, meowVolume should be present
+				if typename == "Cat" {
+					require.Contains(t, randomPet, "meowVolume")
+				}
+				// barkVolume should never be present since it wasn't requested
+				require.NotContains(t, randomPet, "barkVolume")
 			},
-			"Dog": {
-				"id": {
-					TargetName: "id",
-				},
-				"name": {
-					TargetName: "name",
-				},
-				"kind": {
-					TargetName: "kind",
-				},
-				"barkVolume": {
-					TargetName: "bark_volume",
-				},
+		},
+		{
+			name: "Query random pet with only Animal fragment",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					... on Animal {
+						kind
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
+
+				// Common fields should always be present
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "kind")
+
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
+			},
+		},
+		{
+			name: "Query random pet with Animal and Member fragments",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					... on Animal {
+						id
+						kind
+					}
+					... on Cat {
+						id
+						meowVolume
+					}
+					... on Dog {
+						id
+						name
+						barkVolume
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
+
+				// Common fields should always be present
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "kind")
+
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
+
+				switch typename {
+				case "Cat":
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "meowVolume")
+					require.Contains(t, randomPet, "kind")
+					require.NotContains(t, randomPet, "name")
+					require.NotContains(t, randomPet, "barkVolume")
+
+					require.Equal(t, "cat-1", randomPet["id"])
+					require.Equal(t, "Siamese", randomPet["kind"])
+				case "Dog":
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "name")
+					require.Contains(t, randomPet, "kind")
+					require.Contains(t, randomPet, "barkVolume")
+					require.NotContains(t, randomPet, "meowVolume")
+
+					require.Equal(t, "dog-1", randomPet["id"])
+					require.Equal(t, "Dalmatian", randomPet["kind"])
+					require.Equal(t, "Spot", randomPet["name"])
+				}
 			},
 		},
 	}
 
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
-	if err != nil {
-		t.Fatalf("failed to compile proto: %v", err)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
 
-	// Create the datasource
-	ds, err := NewDataSource(conn, DataSourceConfig{
-		Operation:    &queryDoc,
-		Definition:   &schemaDoc,
-		SubgraphName: "Products",
-		Compiler:     compiler,
-		Mapping:      mapping,
-	})
-	require.NoError(t, err)
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
 
-	// Execute the query through our datasource
-	output := new(bytes.Buffer)
-	err = ds.Load(context.Background(), []byte(`{"query":`+fmt.Sprintf("%q", query)+`}`), output)
-	require.NoError(t, err)
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
 
-	// Print the response for debugging
-	responseData := output.String()
-	t.Logf("Response: %s", responseData)
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Compiler:     compiler,
+				Mapping:      testMapping(),
+			})
+			require.NoError(t, err)
 
-	// Define a response structure that can handle both Cat and Dog types
-	type response struct {
-		Data struct {
-			RandomPet map[string]interface{} `json:"randomPet"`
-		} `json:"data"`
-		Errors []struct {
-			Message string `json:"message"`
-		} `json:"errors,omitempty"`
-	}
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
 
-	var resp response
-	err = json.Unmarshal(output.Bytes(), &resp)
-	require.NoError(t, err, "Failed to unmarshal response")
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
 
-	// Verify there are no errors
-	require.Empty(t, resp.Errors, "Response should not contain errors")
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
 
-	// Verify we have data
-	require.NotNil(t, resp.Data.RandomPet, "RandomPet should not be nil")
-
-	// Check if we got either a cat or dog by checking for their specific fields
-	if _, hasCat := resp.Data.RandomPet["meowVolume"]; hasCat {
-		// We got a Cat response
-		require.Contains(t, resp.Data.RandomPet, "__typename")
-		require.Equal(t, "Cat", resp.Data.RandomPet["__typename"])
-		require.Contains(t, resp.Data.RandomPet, "id")
-		require.Contains(t, resp.Data.RandomPet, "name")
-		require.Contains(t, resp.Data.RandomPet, "kind")
-		require.Contains(t, resp.Data.RandomPet, "meowVolume")
-	} else if _, hasDog := resp.Data.RandomPet["barkVolume"]; hasDog {
-		// We got a Dog response
-		require.Contains(t, resp.Data.RandomPet, "__typename")
-		require.Equal(t, "Dog", resp.Data.RandomPet["__typename"])
-		require.Contains(t, resp.Data.RandomPet, "id")
-		require.Contains(t, resp.Data.RandomPet, "name")
-		require.Contains(t, resp.Data.RandomPet, "kind")
-		require.Contains(t, resp.Data.RandomPet, "barkVolume")
-	} else {
-		t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", resp.Data.RandomPet)
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
 	}
 }
 

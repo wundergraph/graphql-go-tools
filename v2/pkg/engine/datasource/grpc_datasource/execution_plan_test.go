@@ -1640,6 +1640,60 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 			},
 		},
 		{
+			name:  "Should create an execution plan for a query with all pets using an interface fragment",
+			query: "query AllPetsQuery { allPets { ... on Animal { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryAllPets",
+						Request: RPCMessage{
+							Name: "QueryAllPetsRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryAllPetsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "all_pets",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "allPets",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Animal": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeString),
+													JSONPath: "kind",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:  "Should create an execution plan for a query with interface selecting only common fields",
 			query: "query CommonFieldsQuery { randomPet { id name kind } }",
 			expectedPlan: &RPCExecutionPlan{

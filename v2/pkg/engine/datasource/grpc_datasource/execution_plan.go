@@ -87,6 +87,16 @@ func (r *RPCMessage) IsOneOf() bool {
 	return r.OneOfType > OneOfTypeNone && r.OneOfType <= OneOfTypeUnion
 }
 
+// SelectValidTypes returns the valid types for a given type name.
+func (r *RPCMessage) SelectValidTypes(typeName string) []string {
+	if r.Name == typeName {
+		return []string{r.Name}
+	}
+
+	// If we have an interface or union type, we need to select the provided type as well.
+	return []string{r.Name, typeName}
+}
+
 // RPCFieldSelectionSet is a map of field selections based on inline fragments
 type RPCFieldSelectionSet map[string]RPCFields
 
@@ -99,11 +109,25 @@ func (r RPCFieldSelectionSet) Add(fragmentName string, field RPCField) {
 	r[fragmentName] = append(r[fragmentName], field)
 }
 
-// FieldsForSelection returns the fields for a given fragment name.
-func (r RPCFieldSelectionSet) FieldsForSelection(fragmentName string) RPCFields {
-	fields, ok := r[fragmentName]
-	if !ok {
-		return nil
+// SelectFieldsForTypes returns the fields for the given valid types.
+// It also makes sure to deduplicate the fields.
+func (r RPCFieldSelectionSet) SelectFieldsForTypes(validTypes []string) RPCFields {
+	fieldSet := make(map[string]struct{})
+	fields := make(RPCFields, 0)
+	for _, typeName := range validTypes {
+		lookupFields, ok := r[typeName]
+		if !ok {
+			continue
+		}
+
+		for _, field := range lookupFields {
+			if _, found := fieldSet[field.Name]; found {
+				continue
+			}
+
+			fieldSet[field.Name] = struct{}{}
+			fields = append(fields, field)
+		}
 	}
 
 	return fields
