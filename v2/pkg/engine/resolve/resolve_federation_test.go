@@ -2831,4 +2831,161 @@ func TestResolveGraphQLResponse_Federation(t *testing.T) {
 			},
 		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"accounts":[{"name":"User"},{"type":"super"},{"subject":"posts"}]}}`
 	}))
+
+	t.Run("nested fetch should apply to only single type", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+
+		accountsService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://accounts","body":{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}}`,
+			`{"accounts":[{"__typename":"User","some":{"__typename":"User","id":"1"}},{"__typename":"Admin","some":{"__typename":"User","id":"2"}},{"__typename":"User","some":{"__typename":"User","id":"3"}}]}`)
+
+		namesService := mockedDS(t, ctrl,
+			`{"method":"POST","url":"http://names","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}}`,
+			`{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}`)
+
+		return &GraphQLResponse{
+			Fetches: Sequence(
+				SingleWithPath(&SingleFetch{
+					InputTemplate: InputTemplate{
+						Segments: []TemplateSegment{
+							{
+								Data:        []byte(`{"method":"POST","url":"http://accounts","body":{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}}`),
+								SegmentType: StaticSegmentType,
+							},
+						},
+					},
+					FetchConfiguration: FetchConfiguration{
+						DataSource: accountsService,
+						PostProcessing: PostProcessingConfiguration{
+							SelectResponseDataPath: []string{"data"},
+						},
+					},
+				}, "query"),
+				SingleWithPath(&BatchEntityFetch{
+					Input: BatchInput{
+						Header: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`{"method":"POST","url":"http://names","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Items: []InputTemplate{
+							{
+								Segments: []TemplateSegment{
+									{
+										SegmentType:  VariableSegmentType,
+										VariableKind: ResolvableObjectVariableKind,
+										Renderer: NewGraphQLVariableResolveRenderer(&Object{
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path: []string{"__typename"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+												{
+													Name: []byte("id"),
+													Value: &String{
+														Path: []string{"id"},
+													},
+													OnTypeNames: [][]byte{[]byte("User")},
+												},
+											},
+										}),
+									},
+								},
+							},
+						},
+						Separator: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`,`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+						Footer: InputTemplate{
+							Segments: []TemplateSegment{
+								{
+									Data:        []byte(`]}}}`),
+									SegmentType: StaticSegmentType,
+								},
+							},
+						},
+					},
+					DataSource: namesService,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseDataPath: []string{"data", "_entities"},
+					},
+				}, "accounts.@.some", ArrayPath("accounts"), PathElementWithTypeNames(ObjectPath("some"), []string{"User"})),
+			),
+			Data: &Object{
+				Fields: []*Field{
+					{
+						Name: []byte("accounts"),
+						Value: &Array{
+							Path: []string{"accounts"},
+							Item: &Object{
+								Nullable: false,
+								PossibleTypes: map[string]struct{}{
+									"Admin": {},
+									"User":  {},
+								},
+								TypeName: "Node",
+								Fields: []*Field{
+									{
+										Name: []byte("some"),
+										Value: &Object{
+											Path: []string{"some"},
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
+											Fields: []*Field{
+												{
+													Name: []byte("title"),
+													Value: &String{
+														Path: []string{"title"},
+													},
+												},
+											},
+										},
+										OnTypeNames: [][]byte{[]byte("User")},
+									},
+									{
+										Name: []byte("some"),
+										Value: &Object{
+											Path: []string{"some"},
+											PossibleTypes: map[string]struct{}{
+												"User": {},
+											},
+											TypeName: "User",
+											Fields: []*Field{
+												{
+													Name: []byte("__typename"),
+													Value: &String{
+														Path:       []string{"__typename"},
+														IsTypeName: true,
+													},
+												},
+												{
+													Name: []byte("id"),
+													Value: &Scalar{
+														Path: []string{"id"},
+													},
+												},
+											},
+										},
+										OnTypeNames: [][]byte{[]byte("Admin")},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background(), Variables: nil}, `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`
+	}))
 }

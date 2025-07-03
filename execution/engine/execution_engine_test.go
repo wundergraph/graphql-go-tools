@@ -4224,6 +4224,214 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			))
 		})
 	})
+
+	t.Run("execute operation with nested fetch on one of the types", func(t *testing.T) {
+
+		definition := `
+			type User implements Node {
+				id: ID!
+				title: String!
+				some: User!
+			}
+
+			type Admin implements Node {
+				id: ID!
+				title: String!
+				some: User!
+			}
+
+			interface Node {
+				id: ID!
+				title: String!
+				some: User!
+			}
+
+			type Query {
+				accounts: [Node!]!
+			}`
+
+		firstSubgraphSDL := `	
+				type User implements Node @key(fields: "id") {
+					id: ID!
+					title: String! @external
+					some: User!
+				}
+
+				type Admin implements Node @key(fields: "id") {
+					id: ID!
+					title: String! @external
+					some: User!
+				}
+
+				interface Node {
+					id: ID!
+					title: String!
+					some: User!
+				}
+
+				type Query {
+					accounts: [Node!]!
+				}
+			`
+		secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Admin @key(fields: "id") {
+					id: ID!
+					adminName: String!
+					title: String!
+				}
+			`
+
+		datasources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "first",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`,
+						sendResponseBody: `{"data":{"accounts":[{"__typename":"User","some":{"__typename":"User","id":"1"}},{"__typename":"Admin","some":{"__typename":"User","id":"2"}},{"__typename":"User","some":{"__typename":"User","id":"3"}}]}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"accounts"},
+						},
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "some"},
+						},
+						{
+							TypeName:   "Admin",
+							FieldNames: []string{"id", "some"},
+						},
+					},
+					ChildNodes: []plan.TypeField{
+						{
+							TypeName:   "Node",
+							FieldNames: []string{"id", "title", "some"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: firstSubgraphSDL,
+						},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"id-2",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "second",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+						sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "name", "title"},
+						},
+						{
+							TypeName:   "Admin",
+							FieldNames: []string{"id", "adminName", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+							{
+								TypeName:     "Admin",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://second/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: secondSubgraphSDL,
+						},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+
+		t.Run("run", runWithoutError(ExecutionEngineTestCase{
+			schema: func(t *testing.T) *graphql.Schema {
+				t.Helper()
+				parseSchema, err := graphql.NewSchemaFromString(definition)
+				require.NoError(t, err)
+				return parseSchema
+			}(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "Accounts",
+					Query: `
+					query Accounts {
+						accounts {
+							... on User {
+								some {
+									title
+								}
+							}
+							... on Admin {
+								some {
+									__typename
+									id
+								}
+							}
+						}
+					}`,
+				}
+			},
+			dataSources:      datasources,
+			expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
+		}))
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
