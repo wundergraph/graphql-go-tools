@@ -53,6 +53,51 @@ func (m mockInterface) NewStream(ctx context.Context, desc *grpc.StreamDesc, met
 
 var _ grpc.ClientConnInterface = (*mockInterface)(nil)
 
+func setupTestGRPCServer(t *testing.T) (conn *grpc.ClientConn, cleanup func()) {
+	t.Helper()
+
+	// Set up the bufconn listener
+	lis := bufconn.Listen(1024 * 1024)
+
+	// Create a new gRPC server
+	server := grpc.NewServer()
+
+	// Register our mock service implementation
+	mockService := &grpctest.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
+
+	// Start the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		"bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
+	)
+	require.NoError(t, err)
+
+	cleanup = func() {
+		conn.Close()
+		server.Stop()
+		lis.Close()
+	}
+
+	return conn, cleanup
+}
+
 // Test_DataSource_Load tests the datasource.Load method with a mock gRPC interface
 func Test_DataSource_Load(t *testing.T) {
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
@@ -102,44 +147,10 @@ func Test_DataSource_Load(t *testing.T) {
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
 // TODO update this test to not use mappings anc expect no response
 func Test_DataSource_Load_WithMockService(t *testing.T) {
-	// 1. Start a real gRPC server with our mock implementation
-	lis := bufconn.Listen(1024 * 1024)
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
-	// Create a new gRPC server
-	server := grpc.NewServer()
-
-	// Register our mock service implementation
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	// Start the server in a goroutine
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-
-	// Clean up the server when the test completes
-	defer server.Stop()
-
-	// Create a buffer-based dialer
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}
-
-	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(bufDialer),
-	)
-
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// 3. Set up GraphQL query and schema
+	// 1. Set up GraphQL query and schema
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
 	variables := `{"variables":{"filter":{"filter":{"name":"Test Product","filterField1":"filterField1","filterField2":"filterField2"}}}}`
 
@@ -157,7 +168,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
-	// 4. Create a datasource with the real gRPC client connection
+	// 2. Create a datasource with the real gRPC client connection
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
@@ -186,7 +197,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 5. Execute the query through our datasource
+	// 3. Execute the query through our datasource
 	output := new(bytes.Buffer)
 	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
 	require.NoError(t, err)
@@ -216,44 +227,10 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 }
 
 func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
-	// 1. Start a real gRPC server with our mock implementation
-	lis := bufconn.Listen(1024 * 1024)
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
-	// Create a new gRPC server
-	server := grpc.NewServer()
-
-	// Register our mock service implementation
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	// Start the server in a goroutine
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-
-	// Clean up the server when the test completes
-	defer server.Stop()
-
-	// Create a buffer-based dialer
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}
-
-	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(bufDialer),
-		grpc.WithLocalDNSResolution(),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// 3. Set up GraphQL query and schema
+	// 1. Set up GraphQL query and schema
 	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
 	variables := `{"variables":{"filter":{"filter":{"name":"HARDCODED_NAME_TEST","filterField1":"value1","filterField2":"value2"}}}}`
 
@@ -270,7 +247,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
-	// 4. Create a datasource with the real gRPC client connection
+	// 2. Create a datasource with the real gRPC client connection
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
@@ -299,7 +276,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 5. Execute the query through our datasource
+	// 3. Execute the query through our datasource
 	output := new(bytes.Buffer)
 
 	// Format the input with query and variables
@@ -342,41 +319,14 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 // Test_DataSource_Load_WithGrpcError tests how the datasource handles gRPC errors
 // and formats them as GraphQL errors in the response
 func Test_DataSource_Load_WithGrpcError(t *testing.T) {
-	// 1. Start a gRPC server with our mock implementation
-	lis, err := net.Listen("tcp", "localhost:0")
-	require.NoError(t, err)
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
-	// Get the server address
-	serverAddr := fmt.Sprintf("localhost:%d", lis.Addr().(*net.TCPAddr).Port)
-
-	// Create and start the gRPC server
-	server := grpc.NewServer()
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-	defer server.Stop()
-
-	// 2. Connect to the gRPC server
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		serverAddr,
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithLocalDNSResolution(),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
-
-	// 3. Set up the GraphQL query that will trigger the error
+	// 1. Set up the GraphQL query that will trigger the error
 	query := `query UserQuery($id: ID!) { user(id: $id) { id name } }`
 	variables := `{"variables":{"id":"error-user"}}`
 
-	// 4. Parse the schema and query
+	// 2. Parse the schema and query
 	schemaDoc := grpctest.MustGraphQLSchema(t)
 
 	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
@@ -389,7 +339,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
-	// 5. Create the datasource
+	// 3. Create the datasource
 	ds, err := NewDataSource(conn, DataSourceConfig{
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
@@ -398,19 +348,19 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// 6. Execute the query
+	// 4. Execute the query
 	output := new(bytes.Buffer)
 	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
 	responseJson := output.String()
 
-	// 7. Verify the response format according to GraphQL specification
+	// 5. Verify the response format according to GraphQL specification
 	// The response should have an "errors" array with the error message
 	require.Contains(t, responseJson, "errors")
 	require.Contains(t, responseJson, "user not found: error-user")
 
-	// 8. Parse the response JSON for more detailed validation
+	// 6. Parse the response JSON for more detailed validation
 	var response struct {
 		Errors []struct {
 			Message string `json:"message"`
@@ -493,219 +443,536 @@ func TestMarshalResponseJSON(t *testing.T) {
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
 }
 
-// TODO test interface types
 // Test_DataSource_Load_WithAnimalInterface tests the datasource with Animal interface types (Cat/Dog)
 // using a bufconn connection to the mock service
-// func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
-// 	// Set up the bufconn listener
-// 	lis := bufconn.Listen(1024 * 1024)
+func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
-// 	// Create a new gRPC server
-// 	server := grpc.NewServer()
+	testCases := []struct {
+		name     string
+		query    string
+		vars     string
+		validate func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name: "Query random pet with only common fields",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					id
+					name
+					kind
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
-// 	// Register our mock service implementation
-// 	mockService := &grpctest.MockService{}
-// 	productv1.RegisterProductServiceServer(server, mockService)
+				// Verify common fields
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "id")
+				require.Contains(t, randomPet, "name")
+				require.Contains(t, randomPet, "kind")
 
-// 	// Start the server in a goroutine
-// 	go func() {
-// 		if err := server.Serve(lis); err != nil {
-// 			t.Errorf("failed to serve: %v", err)
-// 		}
-// 	}()
+				// Verify __typename is either Cat or Dog
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
 
-// 	// Clean up the server when the test completes
-// 	defer server.Stop()
+				// Verify specific fields are not present since they weren't requested
+				require.NotContains(t, randomPet, "meowVolume")
+				require.NotContains(t, randomPet, "barkVolume")
+			},
+		},
+		{
+			name: "Query random pet with full interface fields",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					id
+					name
+					kind
+					... on Cat {
+						meowVolume
+					}
+					... on Dog {
+						barkVolume
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
-// 	// Create a buffer-based dialer
-// 	bufDialer := func(context.Context, string) (net.Conn, error) {
-// 		return lis.Dial()
-// 	}
+				// Check if we got either a cat or dog by checking for their specific fields
+				if _, hasCat := randomPet["meowVolume"]; hasCat {
+					// We got a Cat response
+					require.Contains(t, randomPet, "__typename")
+					require.Equal(t, "Cat", randomPet["__typename"])
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "name")
+					require.Contains(t, randomPet, "kind")
+					require.Contains(t, randomPet, "meowVolume")
+				} else if _, hasDog := randomPet["barkVolume"]; hasDog {
+					// We got a Dog response
+					require.Contains(t, randomPet, "__typename")
+					require.Equal(t, "Dog", randomPet["__typename"])
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "name")
+					require.Contains(t, randomPet, "kind")
+					require.Contains(t, randomPet, "barkVolume")
+				} else {
+					t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", randomPet)
+				}
+			},
+		},
+		{
+			name: "Query random pet with only Cat fragment",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					id
+					name
+					... on Cat {
+						meowVolume
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
-// 	// Connect using bufconn dialer
-// 	conn, err := grpc.Dial(
-// 		"bufnet",
-// 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-// 		grpc.WithContextDialer(bufDialer),
-// 	)
-// 	require.NoError(t, err)
-// 	defer conn.Close()
+				// Common fields should always be present
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "id")
+				require.Contains(t, randomPet, "name")
 
-// 	// Define the GraphQL query for the Animal interface
-// 	query := `query RandomPetQuery {
-// 		randomPet {
-// 			id
-// 			name
-// 			kind
-// 			... on Cat {
-// 				meowVolume
-// 			}
-// 			... on Dog {
-// 				barkVolume
-// 			}
-// 		}
-// 	}`
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
 
-// 	report := &operationreport.Report{}
+				// If it's a Cat, meowVolume should be present
+				if typename == "Cat" {
+					require.Contains(t, randomPet, "meowVolume")
+				}
+				// barkVolume should never be present since it wasn't requested
+				require.NotContains(t, randomPet, "barkVolume")
+			},
+		},
+		{
+			name: "Query random pet with only Animal fragment",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					... on Animal {
+						kind
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
-// 	// Parse the GraphQL schema
-// 	schemaDoc := ast.NewDocument()
-// 	schemaDoc.Input.ResetInputString(string(grpctest.MustGraphQLSchema(t).RawSchema()))
-// 	astparser.NewParser().Parse(schemaDoc, report)
-// 	require.False(t, report.HasErrors(), "failed to parse schema: %s", report.Error())
+				// Common fields should always be present
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "kind")
 
-// 	// Parse the GraphQL query
-// 	queryDoc := ast.NewDocument()
-// 	queryDoc.Input.ResetInputString(query)
-// 	astparser.NewParser().Parse(queryDoc, report)
-// 	require.False(t, report.HasErrors(), "failed to parse query: %s", report.Error())
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
+			},
+		},
+		{
+			name: "Query random pet with Animal and Member fragments",
+			query: `query RandomPetQuery {
+				randomPet {
+					__typename
+					... on Animal {
+						id
+						kind
+					}
+					... on Cat {
+						id
+						meowVolume
+					}
+					... on Dog {
+						id
+						name
+						barkVolume
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				randomPet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotNil(t, randomPet, "RandomPet should not be nil")
 
-// 	// Transform the GraphQL ASTs
-// 	err = asttransform.MergeDefinitionWithBaseSchema(schemaDoc)
-// 	require.NoError(t, err, "failed to merge schema with base")
+				// Common fields should always be present
+				require.Contains(t, randomPet, "__typename")
+				require.Contains(t, randomPet, "kind")
 
-// 	// Create mapping configuration based on the mapping.go
-// 	mapping := &GRPCMapping{
-// 		Service: "ProductService",
-// 		QueryRPCs: map[string]RPCConfig{
-// 			"randomPet": {
-// 				RPC:      "QueryRandomPet",
-// 				Request:  "QueryRandomPetRequest",
-// 				Response: "QueryRandomPetResponse",
-// 			},
-// 		},
-// 		Fields: map[string]FieldMap{
-// 			"Query": {
-// 				"randomPet": {
-// 					TargetName: "random_pet",
-// 				},
-// 			},
-// 			"Cat": {
-// 				"id": {
-// 					TargetName: "id",
-// 				},
-// 				"name": {
-// 					TargetName: "name",
-// 				},
-// 				"kind": {
-// 					TargetName: "kind",
-// 				},
-// 				"meowVolume": {
-// 					TargetName: "meow_volume",
-// 				},
-// 			},
-// 			"Dog": {
-// 				"id": {
-// 					TargetName: "id",
-// 				},
-// 				"name": {
-// 					TargetName: "name",
-// 				},
-// 				"kind": {
-// 					TargetName: "kind",
-// 				},
-// 				"barkVolume": {
-// 					TargetName: "bark_volume",
-// 				},
-// 			},
-// 		},
-// 	}
+				typename := randomPet["__typename"].(string)
+				require.Contains(t, []string{"Cat", "Dog"}, typename, "typename should be either Cat or Dog")
 
-// 	// Create the datasource
-// 	ds, err := NewDataSource(conn, DataSourceConfig{
-// 		Operation:    queryDoc,
-// 		Definition:   schemaDoc,
-// 		ProtoSchema:  grpctest.MustProtoSchema(t),
-// 		SubgraphName: "Products",
-// 		Mapping:      mapping,
-// 	})
-// 	require.NoError(t, err)
+				switch typename {
+				case "Cat":
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "meowVolume")
+					require.Contains(t, randomPet, "kind")
+					require.NotContains(t, randomPet, "name")
+					require.NotContains(t, randomPet, "barkVolume")
 
-// 	// Execute the query through our datasource
-// 	output := new(bytes.Buffer)
-// 	err = ds.Load(context.Background(), []byte(`{"query":`+fmt.Sprintf("%q", query)+`}`), output)
-// 	require.NoError(t, err)
+					require.Equal(t, "cat-1", randomPet["id"])
+					require.Equal(t, "Siamese", randomPet["kind"])
+				case "Dog":
+					require.Contains(t, randomPet, "id")
+					require.Contains(t, randomPet, "name")
+					require.Contains(t, randomPet, "kind")
+					require.Contains(t, randomPet, "barkVolume")
+					require.NotContains(t, randomPet, "meowVolume")
 
-// 	// Print the response for debugging
-// 	responseData := output.String()
-// 	t.Logf("Response: %s", responseData)
-
-// 	// Define a response structure that can handle both Cat and Dog types
-// 	type response struct {
-// 		Data struct {
-// 			RandomPet map[string]interface{} `json:"randomPet"`
-// 		} `json:"data"`
-// 		Errors []struct {
-// 			Message string `json:"message"`
-// 		} `json:"errors,omitempty"`
-// 	}
-
-// 	var resp response
-// 	err = json.Unmarshal(output.Bytes(), &resp)
-// 	require.NoError(t, err, "Failed to unmarshal response")
-
-// 	// Verify there are no errors
-// 	require.Empty(t, resp.Errors, "Response should not contain errors")
-
-// 	// Verify we have data
-// 	require.NotNil(t, resp.Data.RandomPet, "RandomPet should not be nil")
-
-// 	// Check if we got either a cat or dog by checking for their specific fields
-// 	if _, hasCat := resp.Data.RandomPet["meowVolume"]; hasCat {
-// 		// We got a Cat response
-// 		require.Contains(t, resp.Data.RandomPet, "id")
-// 		require.Contains(t, resp.Data.RandomPet, "name")
-// 		require.Contains(t, resp.Data.RandomPet, "kind")
-// 		require.Contains(t, resp.Data.RandomPet, "meowVolume")
-// 	} else if _, hasDog := resp.Data.RandomPet["barkVolume"]; hasDog {
-// 		// We got a Dog response
-// 		require.Contains(t, resp.Data.RandomPet, "id")
-// 		require.Contains(t, resp.Data.RandomPet, "name")
-// 		require.Contains(t, resp.Data.RandomPet, "kind")
-// 		require.Contains(t, resp.Data.RandomPet, "barkVolume")
-// 	} else {
-// 		t.Fatalf("Response doesn't contain either a Cat or Dog type: %v", resp.Data.RandomPet)
-// 	}
-// }
-
-// Test_DataSource_Load_WithProductQueries tests the product-related query operations
-func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
-	// Set up the bufconn listener
-	lis := bufconn.Listen(1024 * 1024)
-
-	// Create a new gRPC server
-	server := grpc.NewServer()
-
-	// Register our mock service implementation
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	// Start the server in a goroutine
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-
-	// Clean up the server when the test completes
-	defer server.Stop()
-
-	// Create a buffer-based dialer
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
+					require.Equal(t, "dog-1", randomPet["id"])
+					require.Equal(t, "Dalmatian", randomPet["kind"])
+					require.Equal(t, "Spot", randomPet["name"])
+				}
+			},
+		},
 	}
 
-	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(bufDialer),
-		grpc.WithLocalDNSResolution(),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Compiler:     compiler,
+				Mapping:      testMapping(),
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}
+
+func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	testCases := []struct {
+		name     string
+		query    string
+		vars     string
+		validate func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name:  "Query random search result",
+			query: `query { randomSearchResult { __typename ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResult, ok := data["randomSearchResult"].(map[string]interface{})
+				require.True(t, ok, "randomSearchResult should be an object")
+				require.NotEmpty(t, searchResult, "randomSearchResult should not be empty")
+				require.Contains(t, searchResult, "__typename")
+				typeName := searchResult["__typename"].(string)
+
+				switch typeName {
+				case "Product":
+					require.Contains(t, searchResult, "id")
+					require.Contains(t, searchResult, "name")
+					require.Contains(t, searchResult, "price")
+					require.Equal(t, "product-random-1", searchResult["id"])
+					require.Equal(t, "Random Product", searchResult["name"])
+					require.Equal(t, 29.99, searchResult["price"])
+				case "User":
+					require.Contains(t, searchResult, "id")
+					require.Contains(t, searchResult, "name")
+					require.Equal(t, "user-random-1", searchResult["id"])
+					require.Equal(t, "Random User", searchResult["name"])
+				case "Category":
+					require.Contains(t, searchResult, "id")
+					require.Contains(t, searchResult, "name")
+					require.Contains(t, searchResult, "kind")
+					require.Equal(t, "category-random-1", searchResult["id"])
+					require.Equal(t, "Random Category", searchResult["name"])
+					require.Equal(t, "ELECTRONICS", searchResult["kind"])
+				default:
+					t.Fatalf("Unexpected __typename: %s", typeName)
+				}
+			},
+		},
+		{
+			name:  "Query search with input - mixed results",
+			query: `query($input: SearchInput!) { search(input: $input) { __typename ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }`,
+			vars:  `{"variables":{"input":{"query":"test","limit":6}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResults, ok := data["search"].([]interface{})
+				require.True(t, ok, "search should be an array")
+				require.NotEmpty(t, searchResults, "search should not be empty")
+				require.Len(t, searchResults, 6, "should return 6 results as per limit")
+
+				// Verify we have a mix of all three types (Product, User, Category)
+				var productCount, userCount, categoryCount int
+				for i, result := range searchResults {
+					searchResult := result.(map[string]interface{})
+					require.Contains(t, searchResult, "__typename")
+					typeName := searchResult["__typename"].(string)
+
+					switch typeName {
+					case "Product":
+						productCount++
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						require.Contains(t, searchResult, "price")
+						expectedID := fmt.Sprintf("product-search-%d", (i/3)*3+1)
+						require.Equal(t, expectedID, searchResult["id"])
+						require.Contains(t, searchResult["name"].(string), "Product matching 'test'")
+					case "User":
+						userCount++
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						expectedID := fmt.Sprintf("user-search-%d", ((i-1)/3)*3+2)
+						require.Equal(t, expectedID, searchResult["id"])
+						require.Contains(t, searchResult["name"].(string), "User matching 'test'")
+					case "Category":
+						categoryCount++
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						require.Contains(t, searchResult, "kind")
+						expectedID := fmt.Sprintf("category-search-%d", ((i-2)/3)*3+3)
+						require.Equal(t, expectedID, searchResult["id"])
+						require.Contains(t, searchResult["name"].(string), "Category matching 'test'")
+					default:
+						t.Fatalf("Unexpected __typename: %s", typeName)
+					}
+				}
+
+				// Verify we have exactly 2 of each type (cycling through Product, User, Category)
+				require.Equal(t, 2, productCount, "should have 2 products")
+				require.Equal(t, 2, userCount, "should have 2 users")
+				require.Equal(t, 2, categoryCount, "should have 2 categories")
+			},
+		},
+		{
+			name:  "Query search with limited results",
+			query: `query($input: SearchInput!) { search(input: $input) { __typename ... on Product { id name } ... on User { id name } } }`,
+			vars:  `{"variables":{"input":{"query":"limited","limit":3}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResults, ok := data["search"].([]interface{})
+				require.True(t, ok, "search should be an array")
+				require.NotEmpty(t, searchResults, "search should not be empty")
+				require.Len(t, searchResults, 3, "should return 3 results as per limit")
+
+				// Only check Product and User types since Category fragments are not selected
+				for _, result := range searchResults {
+					searchResult := result.(map[string]interface{})
+					require.Contains(t, searchResult, "__typename")
+					typeName := searchResult["__typename"].(string)
+
+					switch typeName {
+					case "Product":
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+						require.NotContains(t, searchResult, "price", "price should not be selected")
+					case "User":
+						require.Contains(t, searchResult, "id")
+						require.Contains(t, searchResult, "name")
+					case "Category":
+						// Category should still have __typename, but won't have other fields since they weren't selected
+						require.Contains(t, searchResult, "__typename")
+						require.NotContains(t, searchResult, "name", "name should not be selected for Category")
+						require.NotContains(t, searchResult, "kind", "kind should not be selected for Category")
+					default:
+						t.Fatalf("Unexpected __typename: %s", typeName)
+					}
+				}
+			},
+		},
+		{
+			name:  "Mutation perform action - success case",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"create_user","payload":"user data"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionSuccess", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "timestamp")
+				require.Equal(t, "Action 'create_user' completed successfully", actionResult["message"])
+				require.Equal(t, "2024-01-01T00:00:00Z", actionResult["timestamp"])
+			},
+		},
+		{
+			name:  "Mutation perform action - validation error case",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"error_action","payload":"invalid data"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionError", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "code")
+				require.Equal(t, "Action failed due to validation error", actionResult["message"])
+				require.Equal(t, "VALIDATION_ERROR", actionResult["code"])
+			},
+		},
+		{
+			name:  "Mutation perform action - invalid action error case",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"invalid_action","payload":"test"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionError", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "code")
+				require.Equal(t, "Invalid action type provided", actionResult["message"])
+				require.Equal(t, "INVALID_ACTION", actionResult["code"])
+			},
+		},
+		{
+			name:  "Mutation perform action - only success fragment",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionSuccess { message timestamp } } }`,
+			vars:  `{"variables":{"input":{"type":"success_only","payload":"test"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionSuccess", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "timestamp")
+				require.Equal(t, "Action 'success_only' completed successfully", actionResult["message"])
+				require.Equal(t, "2024-01-01T00:00:00Z", actionResult["timestamp"])
+			},
+		},
+		{
+			name:  "Mutation perform action - only error fragment",
+			query: `mutation($input: ActionInput!) { performAction(input: $input) { __typename ... on ActionError { message code } } }`,
+			vars:  `{"variables":{"input":{"type":"error_action","payload":"test"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				actionResult, ok := data["performAction"].(map[string]interface{})
+				require.True(t, ok, "performAction should be an object")
+				require.NotEmpty(t, actionResult, "performAction should not be empty")
+				require.Contains(t, actionResult, "__typename")
+				require.Equal(t, "ActionError", actionResult["__typename"])
+
+				require.Contains(t, actionResult, "message")
+				require.Contains(t, actionResult, "code")
+				require.Equal(t, "Action failed due to validation error", actionResult["message"])
+				require.Equal(t, "VALIDATION_ERROR", actionResult["code"])
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Mapping:      testMapping(),
+				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}
+
+// Test_DataSource_Load_WithProductQueries tests the product-related query operations
+// Category queries are used to mainly focus on testing Enum values
+func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
 	// Define test cases
 	testCases := []struct {
@@ -798,83 +1065,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			// Create a new GRPCMapping configuration
-			mapping := &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"categories": {
-						RPC:      "QueryCategories",
-						Request:  "QueryCategoriesRequest",
-						Response: "QueryCategoriesResponse",
-					},
-					"categoriesByKind": {
-						RPC:      "QueryCategoriesByKind",
-						Request:  "QueryCategoriesByKindRequest",
-						Response: "QueryCategoriesByKindResponse",
-					},
-					"filterCategories": {
-						RPC:      "QueryFilterCategories",
-						Request:  "QueryFilterCategoriesRequest",
-						Response: "QueryFilterCategoriesResponse",
-					},
-				},
-				EnumValues: map[string][]EnumValueMapping{
-					"CategoryKind": {
-						{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
-						{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
-						{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
-						{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"categories": {
-							TargetName: "categories",
-						},
-						"categoriesByKind": {
-							TargetName: "categories_by_kind",
-							ArgumentMappings: map[string]string{
-								"kind": "kind",
-							},
-						},
-						"filterCategories": {
-							TargetName: "filter_categories",
-							ArgumentMappings: map[string]string{
-								"filter": "filter",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-					"CategoryFilter": {
-						"category": {
-							TargetName: "category",
-						},
-						"pagination": {
-							TargetName: "pagination",
-						},
-					},
-					"Pagination": {
-						"page": {
-							TargetName: "page",
-						},
-						"perPage": {
-							TargetName: "per_page",
-						},
-					},
-				},
-			}
-
-			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 			if err != nil {
 				t.Fatalf("failed to compile proto: %v", err)
 			}
@@ -884,7 +1075,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				Operation:    &queryDoc,
 				Definition:   &schemaDoc,
 				SubgraphName: "Products",
-				Mapping:      mapping,
+				Mapping:      testMapping(),
 				Compiler:     compiler,
 			})
 			require.NoError(t, err)
@@ -917,42 +1108,9 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 // Test_DataSource_Load_WithTotalCalculation tests the calculation of order totals using the
 // MockService implementation
 func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
-	// Set up the bufconn listener
-	lis := bufconn.Listen(1024 * 1024)
 
-	// Create a new gRPC server
-	server := grpc.NewServer()
-
-	// Register our mock service implementation
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	// Start the server in a goroutine
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-
-	// Clean up the server when the test completes
-	defer server.Stop()
-
-	// Create a buffer-based dialer
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}
-
-	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(bufDialer),
-		grpc.WithLocalDNSResolution(),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
 	// Define the GraphQL query
 	query := `
@@ -989,73 +1147,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
-	// Create mapping configuration
-	mapping := &GRPCMapping{
-		Service: "ProductService",
-		QueryRPCs: map[string]RPCConfig{
-			"calculateTotals": {
-				RPC:      "QueryCalculateTotals",
-				Request:  "QueryCalculateTotalsRequest",
-				Response: "QueryCalculateTotalsResponse",
-			},
-		},
-		Fields: map[string]FieldMap{
-			"Query": {
-				"calculateTotals": {
-					TargetName: "calculate_totals",
-				},
-			},
-			"Order": {
-				"orderId": {
-					TargetName: "order_id",
-				},
-				"customerName": {
-					TargetName: "customer_name",
-				},
-				"totalItems": {
-					TargetName: "total_items",
-				},
-				"orderLines": {
-					TargetName: "order_lines",
-				},
-			},
-			"OrderLine": {
-				"productId": {
-					TargetName: "product_id",
-				},
-				"quantity": {
-					TargetName: "quantity",
-				},
-				"modifiers": {
-					TargetName: "modifiers",
-				},
-			},
-			"OrderInput": {
-				"orderId": {
-					TargetName: "order_id",
-				},
-				"customerName": {
-					TargetName: "customer_name",
-				},
-				"lines": {
-					TargetName: "lines",
-				},
-			},
-			"OrderLineInput": {
-				"productId": {
-					TargetName: "product_id",
-				},
-				"quantity": {
-					TargetName: "quantity",
-				},
-				"modifiers": {
-					TargetName: "modifiers",
-				},
-			},
-		},
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -1065,7 +1157,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
-		Mapping:      mapping,
+		Mapping:      testMapping(),
 		Compiler:     compiler,
 	})
 	require.NoError(t, err)
@@ -1131,42 +1223,8 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 // Test_DataSource_Load_WithTypename tests that __typename fields are correctly included
 // in the response with their static values
 func Test_DataSource_Load_WithTypename(t *testing.T) {
-	// Set up the bufconn listener
-	lis := bufconn.Listen(1024 * 1024)
-
-	// Create a new gRPC server
-	server := grpc.NewServer()
-
-	// Register our mock service implementation
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	// Start the server in a goroutine
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-
-	// Clean up the server when the test completes
-	defer server.Stop()
-
-	// Create a buffer-based dialer
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}
-
-	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(bufDialer),
-		grpc.WithLocalDNSResolution(),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
 	// Define GraphQL query that requests __typename
 	query := `query UsersWithTypename { users { __typename id name } }`
@@ -1180,34 +1238,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
-	// Create a new GRPCMapping configuration
-	mapping := &GRPCMapping{
-		Service: "ProductService",
-		QueryRPCs: map[string]RPCConfig{
-			"users": {
-				RPC:      "QueryUsers",
-				Request:  "QueryUsersRequest",
-				Response: "QueryUsersResponse",
-			},
-		},
-		Fields: map[string]FieldMap{
-			"Query": {
-				"users": {
-					TargetName: "users",
-				},
-			},
-			"User": {
-				"id": {
-					TargetName: "id",
-				},
-				"name": {
-					TargetName: "name",
-				},
-			},
-		},
-	}
-
-	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), mapping)
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -1217,7 +1248,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		Operation:    &queryDoc,
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
-		Mapping:      mapping,
+		Mapping:      testMapping(),
 		Compiler:     compiler,
 	})
 	require.NoError(t, err)
