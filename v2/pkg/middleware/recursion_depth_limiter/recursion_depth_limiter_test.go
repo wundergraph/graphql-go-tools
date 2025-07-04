@@ -154,9 +154,7 @@ func run(t *testing.T, definition, operation string, maxRecursionDepth int, expe
 	report := operationreport.Report{}
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
-	if report.HasErrors() {
-		require.NoError(t, report)
-	}
+	require.False(t, report.HasErrors(), "report should not contain errors")
 
 	err := LimitRecursionDepth(&def, &op, maxRecursionDepth)
 

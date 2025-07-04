@@ -46,9 +46,10 @@ func (c *recursionDepthLimiter) EnterField(ref int) {
 
 	c.objectVisited[def]++
 	if c.objectVisited[def] > c.maxRecursionDepth {
-		if def > len(c.definition.FieldDefinitions) {
+		if def >= len(c.definition.FieldDefinitions) {
 			// this should never happen, if it gets to this point it's a problem in the implementation code
-			panic("referenced field not in definitions")
+			c.walker.Report.AddInternalError(fmt.Errorf("referenced field not in definitions"))
+			c.walker.Stop()
 		}
 
 		objectTypeName := c.definition.TypeNameString(c.definition.FieldDefinitions[def].Type)
