@@ -1108,7 +1108,6 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 // Test_DataSource_Load_WithTotalCalculation tests the calculation of order totals using the
 // MockService implementation
 func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
-
 	conn, cleanup := setupTestGRPCServer(t)
 	t.Cleanup(cleanup)
 
@@ -1291,42 +1290,8 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 // Test_DataSource_Load_WithAliases tests various GraphQL alias scenarios
 // with the actual gRPC service using bufconn
 func Test_DataSource_Load_WithAliases(t *testing.T) {
-	// Set up the bufconn listener
-	lis := bufconn.Listen(1024 * 1024)
-
-	// Create a new gRPC server
-	server := grpc.NewServer()
-
-	// Register our mock service implementation
-	mockService := &grpctest.MockService{}
-	productv1.RegisterProductServiceServer(server, mockService)
-
-	// Start the server in a goroutine
-	go func() {
-		if err := server.Serve(lis); err != nil {
-			t.Errorf("failed to serve: %v", err)
-		}
-	}()
-
-	// Clean up the server when the test completes
-	defer server.Stop()
-
-	// Create a buffer-based dialer
-	bufDialer := func(context.Context, string) (net.Conn, error) {
-		return lis.Dial()
-	}
-
-	// Connect using bufconn dialer
-	// see https://github.com/grpc/grpc-go/issues/7091
-	// nolint: staticcheck
-	conn, err := grpc.Dial(
-		"bufnet",
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithContextDialer(bufDialer),
-		grpc.WithLocalDNSResolution(),
-	)
-	require.NoError(t, err)
-	defer conn.Close()
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
 
 	testCases := []struct {
 		name     string
