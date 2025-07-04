@@ -35,11 +35,8 @@ func (d *deduplicateSingleFetches) mergeFetchPath(left, right []resolve.FetchIte
 }
 
 func (d *deduplicateSingleFetches) mergeTypeNames(left []string, right []string) []string {
-	if len(left) == 0 {
-		return left
-	}
-	if len(right) == 0 {
-		return right
+	if len(left) == 0 || len(right) == 0 {
+		return nil // if either side is empty, fetch is unscoped
 	}
 
 	out := append(left, right...)
