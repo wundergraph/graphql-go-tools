@@ -84,7 +84,12 @@ type RPCMessage struct {
 
 // IsOneOf checks if the message is a oneof field.
 func (r *RPCMessage) IsOneOf() bool {
-	return r.OneOfType > OneOfTypeNone && r.OneOfType <= OneOfTypeUnion
+	switch r.OneOfType {
+	case OneOfTypeInterface, OneOfTypeUnion:
+		return true
+	}
+
+	return false
 }
 
 // SelectValidTypes returns the valid types for a given type name.
