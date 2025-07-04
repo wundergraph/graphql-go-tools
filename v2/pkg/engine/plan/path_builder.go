@@ -64,7 +64,7 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 		return nil
 	}
 	// we have to populate missing paths after the walk
-	p.visitor.populateMissingPahts()
+	p.visitor.populateMissingPaths()
 
 	// walk ends in 2 cases:
 	// - we have finished visiting document
@@ -86,7 +86,7 @@ func (p *PathBuilder) CreatePlanningPaths(operation, definition *ast.Document, r
 			return nil
 		}
 		// we have to populate missing paths after the walk
-		p.visitor.populateMissingPahts()
+		p.visitor.populateMissingPaths()
 
 		if p.config.Debug.PrintPlanningPaths {
 			debugMessage(fmt.Sprintf("Create planning paths run #%d", i))

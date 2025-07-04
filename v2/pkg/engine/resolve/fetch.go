@@ -72,8 +72,9 @@ func (f *FetchItem) Equals(other *FetchItem) bool {
 }
 
 type FetchItemPathElement struct {
-	Kind FetchItemPathElementKind
-	Path []string
+	Kind      FetchItemPathElementKind
+	Path      []string
+	TypeNames []string
 }
 
 type FetchItemPathElementKind string
