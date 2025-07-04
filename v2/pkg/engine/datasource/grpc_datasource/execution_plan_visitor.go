@@ -158,7 +158,14 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
 
-	r.planInfo.currentResponseMessage.OneOf = r.isInterface(r.walker.Ancestor())
+	// Check if the ancestor type is a composite type (interface or union)
+	// and set the oneof type and member types.
+	if err := r.handleCompositeType(r.walker.Ancestor()); err != nil {
+		// If the ancestor is a composite type, but we were unable to resolve the member types,
+		// we stop the walker and return an internal error.
+		r.walker.StopWithInternalErr(err)
+		return
+	}
 
 	// Keep track of the field indices for the current response message.
 	// This is used to set the correct field index for the current response message
@@ -168,23 +175,50 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	r.planInfo.currentResponseFieldIndex = 0 // reset the field index for the current selection set
 }
 
-func (r *rpcPlanVisitor) isInterface(node ast.Node) bool {
-	switch node.Kind {
-	case ast.NodeKindInterfaceTypeDefinition:
-		return true
-	case ast.NodeKindField:
-		if r.walker.EnclosingTypeDefinition.Kind == ast.NodeKindInterfaceTypeDefinition {
-			return true
-		}
+func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
+	if node.Ref < 0 {
+		return nil
 	}
 
-	return false
+	var (
+		ok          bool
+		oneOfType   OneOfType
+		memberTypes []string
+	)
+
+	switch node.Kind {
+	case ast.NodeKindField:
+		return r.handleCompositeType(r.walker.EnclosingTypeDefinition)
+	case ast.NodeKindInterfaceTypeDefinition:
+		oneOfType = OneOfTypeInterface
+		memberTypes, ok = r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		if !ok {
+			return fmt.Errorf("interface type %s is not implemented by any object", r.definition.InterfaceTypeDefinitionNameString(node.Ref))
+		}
+	case ast.NodeKindUnionTypeDefinition:
+		oneOfType = OneOfTypeUnion
+		memberTypes, ok = r.definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+		if !ok {
+			return fmt.Errorf("union type %s is not defined", r.definition.UnionTypeDefinitionNameString(node.Ref))
+		}
+	default:
+		return nil
+	}
+
+	r.planInfo.currentResponseMessage.OneOfType = oneOfType
+	r.planInfo.currentResponseMessage.MemberTypes = memberTypes
+
+	return nil
 }
 
 // LeaveSelectionSet implements astvisitor.SelectionSetVisitor.
 // It updates the current response field index and response message ancestors.
 // If the ancestor is an operation definition, it adds the current call to the group.
 func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
+	if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
+		return
+	}
+
 	if len(r.planInfo.responseFieldIndexAncestors) > 0 {
 		r.planInfo.currentResponseFieldIndex = r.planInfo.responseFieldIndexAncestors[len(r.planInfo.responseFieldIndexAncestors)-1]
 		r.planInfo.responseFieldIndexAncestors = r.planInfo.responseFieldIndexAncestors[:len(r.planInfo.responseFieldIndexAncestors)-1]
@@ -215,8 +249,21 @@ func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
 	}
 }
 
-func (r *rpcPlanVisitor) isInRootField() bool {
+func (r *rpcPlanVisitor) IsRootField() bool {
 	return len(r.walker.Ancestors) == 2 && r.walker.Ancestors[0].Kind == ast.NodeKindOperationDefinition
+}
+
+func (r *rpcPlanVisitor) IsInlineFragmentField() (int, bool) {
+	if len(r.walker.Ancestors) < 2 {
+		return -1, false
+	}
+
+	node := r.walker.Ancestors[len(r.walker.Ancestors)-2]
+	if node.Kind != ast.NodeKindInlineFragment {
+		return -1, false
+	}
+
+	return node.Ref, true
 }
 
 func (r *rpcPlanVisitor) handleRootField(ref int) error {
@@ -242,7 +289,7 @@ func (r *rpcPlanVisitor) handleRootField(ref int) error {
 // EnterField implements astvisitor.EnterFieldVisitor.
 func (r *rpcPlanVisitor) EnterField(ref int) {
 	fieldName := r.operation.FieldNameString(ref)
-	if r.isInRootField() {
+	if r.IsRootField() {
 		if err := r.handleRootField(ref); err != nil {
 			r.walker.StopWithInternalErr(err)
 			return
@@ -296,6 +343,16 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		field.StaticValue = parentTypeName
 	}
 
+	if ref, ok := r.IsInlineFragmentField(); ok && !r.planInfo.isEntityLookup {
+		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
+			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
+		}
+
+		inlineFragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
+		r.planInfo.currentResponseMessage.FieldSelectionSet.Add(inlineFragmentName, field)
+		return
+	}
+
 	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, field)
 }
 
@@ -306,7 +363,7 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	}
 
 	// If we are not in the operation field, we can increment the response field index.
-	if !r.isInRootField() {
+	if !r.IsRootField() {
 		r.planInfo.currentResponseFieldIndex++
 		return
 	}

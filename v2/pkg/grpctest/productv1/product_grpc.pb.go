@@ -22,6 +22,7 @@ const (
 	ProductService_LookupProductById_FullMethodName                 = "/productv1.ProductService/LookupProductById"
 	ProductService_LookupStorageById_FullMethodName                 = "/productv1.ProductService/LookupStorageById"
 	ProductService_MutationCreateUser_FullMethodName                = "/productv1.ProductService/MutationCreateUser"
+	ProductService_MutationPerformAction_FullMethodName             = "/productv1.ProductService/MutationPerformAction"
 	ProductService_QueryAllPets_FullMethodName                      = "/productv1.ProductService/QueryAllPets"
 	ProductService_QueryCalculateTotals_FullMethodName              = "/productv1.ProductService/QueryCalculateTotals"
 	ProductService_QueryCategories_FullMethodName                   = "/productv1.ProductService/QueryCategories"
@@ -31,7 +32,9 @@ const (
 	ProductService_QueryFilterCategories_FullMethodName             = "/productv1.ProductService/QueryFilterCategories"
 	ProductService_QueryNestedType_FullMethodName                   = "/productv1.ProductService/QueryNestedType"
 	ProductService_QueryRandomPet_FullMethodName                    = "/productv1.ProductService/QueryRandomPet"
+	ProductService_QueryRandomSearchResult_FullMethodName           = "/productv1.ProductService/QueryRandomSearchResult"
 	ProductService_QueryRecursiveType_FullMethodName                = "/productv1.ProductService/QueryRecursiveType"
+	ProductService_QuerySearch_FullMethodName                       = "/productv1.ProductService/QuerySearch"
 	ProductService_QueryTypeFilterWithArguments_FullMethodName      = "/productv1.ProductService/QueryTypeFilterWithArguments"
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryUser_FullMethodName                         = "/productv1.ProductService/QueryUser"
@@ -49,6 +52,7 @@ type ProductServiceClient interface {
 	// Lookup Storage entity by id
 	LookupStorageById(ctx context.Context, in *LookupStorageByIdRequest, opts ...grpc.CallOption) (*LookupStorageByIdResponse, error)
 	MutationCreateUser(ctx context.Context, in *MutationCreateUserRequest, opts ...grpc.CallOption) (*MutationCreateUserResponse, error)
+	MutationPerformAction(ctx context.Context, in *MutationPerformActionRequest, opts ...grpc.CallOption) (*MutationPerformActionResponse, error)
 	QueryAllPets(ctx context.Context, in *QueryAllPetsRequest, opts ...grpc.CallOption) (*QueryAllPetsResponse, error)
 	QueryCalculateTotals(ctx context.Context, in *QueryCalculateTotalsRequest, opts ...grpc.CallOption) (*QueryCalculateTotalsResponse, error)
 	QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error)
@@ -58,7 +62,9 @@ type ProductServiceClient interface {
 	QueryFilterCategories(ctx context.Context, in *QueryFilterCategoriesRequest, opts ...grpc.CallOption) (*QueryFilterCategoriesResponse, error)
 	QueryNestedType(ctx context.Context, in *QueryNestedTypeRequest, opts ...grpc.CallOption) (*QueryNestedTypeResponse, error)
 	QueryRandomPet(ctx context.Context, in *QueryRandomPetRequest, opts ...grpc.CallOption) (*QueryRandomPetResponse, error)
+	QueryRandomSearchResult(ctx context.Context, in *QueryRandomSearchResultRequest, opts ...grpc.CallOption) (*QueryRandomSearchResultResponse, error)
 	QueryRecursiveType(ctx context.Context, in *QueryRecursiveTypeRequest, opts ...grpc.CallOption) (*QueryRecursiveTypeResponse, error)
+	QuerySearch(ctx context.Context, in *QuerySearchRequest, opts ...grpc.CallOption) (*QuerySearchResponse, error)
 	QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
@@ -97,6 +103,16 @@ func (c *productServiceClient) MutationCreateUser(ctx context.Context, in *Mutat
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(MutationCreateUserResponse)
 	err := c.cc.Invoke(ctx, ProductService_MutationCreateUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationPerformAction(ctx context.Context, in *MutationPerformActionRequest, opts ...grpc.CallOption) (*MutationPerformActionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationPerformActionResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationPerformAction_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -193,10 +209,30 @@ func (c *productServiceClient) QueryRandomPet(ctx context.Context, in *QueryRand
 	return out, nil
 }
 
+func (c *productServiceClient) QueryRandomSearchResult(ctx context.Context, in *QueryRandomSearchResultRequest, opts ...grpc.CallOption) (*QueryRandomSearchResultResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryRandomSearchResultResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryRandomSearchResult_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) QueryRecursiveType(ctx context.Context, in *QueryRecursiveTypeRequest, opts ...grpc.CallOption) (*QueryRecursiveTypeResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryRecursiveTypeResponse)
 	err := c.cc.Invoke(ctx, ProductService_QueryRecursiveType_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QuerySearch(ctx context.Context, in *QuerySearchRequest, opts ...grpc.CallOption) (*QuerySearchResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuerySearchResponse)
+	err := c.cc.Invoke(ctx, ProductService_QuerySearch_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -254,6 +290,7 @@ type ProductServiceServer interface {
 	// Lookup Storage entity by id
 	LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error)
 	MutationCreateUser(context.Context, *MutationCreateUserRequest) (*MutationCreateUserResponse, error)
+	MutationPerformAction(context.Context, *MutationPerformActionRequest) (*MutationPerformActionResponse, error)
 	QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error)
 	QueryCalculateTotals(context.Context, *QueryCalculateTotalsRequest) (*QueryCalculateTotalsResponse, error)
 	QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error)
@@ -263,7 +300,9 @@ type ProductServiceServer interface {
 	QueryFilterCategories(context.Context, *QueryFilterCategoriesRequest) (*QueryFilterCategoriesResponse, error)
 	QueryNestedType(context.Context, *QueryNestedTypeRequest) (*QueryNestedTypeResponse, error)
 	QueryRandomPet(context.Context, *QueryRandomPetRequest) (*QueryRandomPetResponse, error)
+	QueryRandomSearchResult(context.Context, *QueryRandomSearchResultRequest) (*QueryRandomSearchResultResponse, error)
 	QueryRecursiveType(context.Context, *QueryRecursiveTypeRequest) (*QueryRecursiveTypeResponse, error)
+	QuerySearch(context.Context, *QuerySearchRequest) (*QuerySearchResponse, error)
 	QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
@@ -286,6 +325,9 @@ func (UnimplementedProductServiceServer) LookupStorageById(context.Context, *Loo
 }
 func (UnimplementedProductServiceServer) MutationCreateUser(context.Context, *MutationCreateUserRequest) (*MutationCreateUserResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MutationCreateUser not implemented")
+}
+func (UnimplementedProductServiceServer) MutationPerformAction(context.Context, *MutationPerformActionRequest) (*MutationPerformActionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationPerformAction not implemented")
 }
 func (UnimplementedProductServiceServer) QueryAllPets(context.Context, *QueryAllPetsRequest) (*QueryAllPetsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryAllPets not implemented")
@@ -314,8 +356,14 @@ func (UnimplementedProductServiceServer) QueryNestedType(context.Context, *Query
 func (UnimplementedProductServiceServer) QueryRandomPet(context.Context, *QueryRandomPetRequest) (*QueryRandomPetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryRandomPet not implemented")
 }
+func (UnimplementedProductServiceServer) QueryRandomSearchResult(context.Context, *QueryRandomSearchResultRequest) (*QueryRandomSearchResultResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryRandomSearchResult not implemented")
+}
 func (UnimplementedProductServiceServer) QueryRecursiveType(context.Context, *QueryRecursiveTypeRequest) (*QueryRecursiveTypeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryRecursiveType not implemented")
+}
+func (UnimplementedProductServiceServer) QuerySearch(context.Context, *QuerySearchRequest) (*QuerySearchResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QuerySearch not implemented")
 }
 func (UnimplementedProductServiceServer) QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryTypeFilterWithArguments not implemented")
@@ -400,6 +448,24 @@ func _ProductService_MutationCreateUser_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).MutationCreateUser(ctx, req.(*MutationCreateUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationPerformAction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationPerformActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationPerformAction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationPerformAction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationPerformAction(ctx, req.(*MutationPerformActionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -566,6 +632,24 @@ func _ProductService_QueryRandomPet_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryRandomSearchResult_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRandomSearchResultRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryRandomSearchResult(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryRandomSearchResult_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryRandomSearchResult(ctx, req.(*QueryRandomSearchResultRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_QueryRecursiveType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryRecursiveTypeRequest)
 	if err := dec(in); err != nil {
@@ -580,6 +664,24 @@ func _ProductService_QueryRecursiveType_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).QueryRecursiveType(ctx, req.(*QueryRecursiveTypeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QuerySearch_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QuerySearchRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QuerySearch(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QuerySearch_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QuerySearch(ctx, req.(*QuerySearchRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -676,6 +778,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_MutationCreateUser_Handler,
 		},
 		{
+			MethodName: "MutationPerformAction",
+			Handler:    _ProductService_MutationPerformAction_Handler,
+		},
+		{
 			MethodName: "QueryAllPets",
 			Handler:    _ProductService_QueryAllPets_Handler,
 		},
@@ -712,8 +818,16 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_QueryRandomPet_Handler,
 		},
 		{
+			MethodName: "QueryRandomSearchResult",
+			Handler:    _ProductService_QueryRandomSearchResult_Handler,
+		},
+		{
 			MethodName: "QueryRecursiveType",
 			Handler:    _ProductService_QueryRecursiveType_Handler,
+		},
+		{
+			MethodName: "QuerySearch",
+			Handler:    _ProductService_QuerySearch_Handler,
 		},
 		{
 			MethodName: "QueryTypeFilterWithArguments",
