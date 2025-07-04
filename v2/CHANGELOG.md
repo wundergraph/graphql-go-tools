@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0-rc.198](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.197...v2.0.0-rc.198) (2025-07-04)
+
+
+### Features
+
+* add support for composite types ([#1197](https://github.com/wundergraph/graphql-go-tools/issues/1197)) ([e9b9f19](https://github.com/wundergraph/graphql-go-tools/commit/e9b9f193b749089eda7fa9126e93407c2a4dbd7f))
+
+
+### Bug Fixes
+
+* fix collecting representation for fetches scoped to concrete types ([#1200](https://github.com/wundergraph/graphql-go-tools/issues/1200)) ([bcf547d](https://github.com/wundergraph/graphql-go-tools/commit/bcf547d8c5f93fe6caf1c90b8f3049c94d1fed23))
+
 ## [2.0.0-rc.197](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.196...v2.0.0-rc.197) (2025-07-03)
 
 
