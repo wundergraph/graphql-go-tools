@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.4.0...execution/v1.4.1) (2025-07-04)
+
+
+### Bug Fixes
+
+* execution tests, disable test cache for execution ([#1206](https://github.com/wundergraph/graphql-go-tools/issues/1206)) ([7216c0f](https://github.com/wundergraph/graphql-go-tools/commit/7216c0f331fe9b6d367eba481ad61f5a6d9f482e))
+* fix collecting representation for fetches scoped to concrete types ([#1200](https://github.com/wundergraph/graphql-go-tools/issues/1200)) ([bcf547d](https://github.com/wundergraph/graphql-go-tools/commit/bcf547d8c5f93fe6caf1c90b8f3049c94d1fed23))
+
 ## [1.4.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.3.1...execution/v1.4.0) (2025-07-02)
 
 
