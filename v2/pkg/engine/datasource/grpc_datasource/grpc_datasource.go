@@ -163,13 +163,13 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	for _, field := range validFields {
 		if field.StaticValue != "" {
 			if len(message.MemberTypes) == 0 {
-				root.Set(field.JSONPath, arena.NewString(field.StaticValue))
+				root.Set(field.AliasOrPath(), arena.NewString(field.StaticValue))
 				continue
 			}
 
 			for _, memberTypes := range message.MemberTypes {
 				if memberTypes == string(data.Type().Descriptor().Name()) {
-					root.Set(field.JSONPath, arena.NewString(memberTypes))
+					root.Set(field.AliasOrPath(), arena.NewString(memberTypes))
 					break
 				}
 			}
@@ -185,12 +185,12 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		if fd.IsList() {
 			list := data.Get(fd).List()
 			if !list.IsValid() {
-				root.Set(field.JSONPath, arena.NewNull())
+				root.Set(field.AliasOrPath(), arena.NewNull())
 				continue
 			}
 
 			arr := arena.NewArray()
-			root.Set(field.JSONPath, arr)
+			root.Set(field.AliasOrPath(), arr)
 			for i := 0; i < list.Len(); i++ {
 
 				switch fd.Kind() {
@@ -214,7 +214,7 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		if fd.Kind() == protoref.MessageKind {
 			msg := data.Get(fd).Message()
 			if !msg.IsValid() {
-				root.Set(field.JSONPath, arena.NewNull())
+				root.Set(field.AliasOrPath(), arena.NewNull())
 				continue
 			}
 
@@ -229,13 +229,13 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 					return nil, err
 				}
 			} else {
-				root.Set(field.JSONPath, value)
+				root.Set(field.AliasOrPath(), value)
 			}
 
 			continue
 		}
 
-		d.setJSONValue(arena, root, field.JSONPath, data, fd)
+		d.setJSONValue(arena, root, field.AliasOrPath(), data, fd)
 	}
 
 	return root, nil

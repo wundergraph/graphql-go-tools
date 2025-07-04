@@ -323,7 +323,14 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 
 	for _, call := range executionPlan.Calls {
 		inputMessage := p.doc.MessageByName(call.Request.Name)
+		if inputMessage.Name == "" {
+			return nil, fmt.Errorf("input message %s not found in document", call.Request.Name)
+		}
+
 		outputMessage := p.doc.MessageByName(call.Response.Name)
+		if outputMessage.Name == "" {
+			return nil, fmt.Errorf("output message %s not found in document", call.Response.Name)
+		}
 
 		request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
 		response := p.newEmptyMessage(outputMessage)
