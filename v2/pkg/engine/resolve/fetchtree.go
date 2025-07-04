@@ -44,6 +44,11 @@ func ObjectPath(path ...string) FetchItemPathElement {
 	}
 }
 
+func PathElementWithTypeNames(element FetchItemPathElement, typeNames []string) FetchItemPathElement {
+	element.TypeNames = typeNames
+	return element
+}
+
 func ArrayPath(path ...string) FetchItemPathElement {
 	return FetchItemPathElement{
 		Kind: FetchItemPathElementKindArray,
