@@ -1287,3 +1287,288 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		require.NotEmpty(t, user.Name, "User name should not be empty")
 	}
 }
+
+// Test_DataSource_Load_WithAliases tests various GraphQL alias scenarios
+// with the actual gRPC service using bufconn
+func Test_DataSource_Load_WithAliases(t *testing.T) {
+	// Set up the bufconn listener
+	lis := bufconn.Listen(1024 * 1024)
+
+	// Create a new gRPC server
+	server := grpc.NewServer()
+
+	// Register our mock service implementation
+	mockService := &grpctest.MockService{}
+	productv1.RegisterProductServiceServer(server, mockService)
+
+	// Start the server in a goroutine
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			t.Errorf("failed to serve: %v", err)
+		}
+	}()
+
+	// Clean up the server when the test completes
+	defer server.Stop()
+
+	// Create a buffer-based dialer
+	bufDialer := func(context.Context, string) (net.Conn, error) {
+		return lis.Dial()
+	}
+
+	// Connect using bufconn dialer
+	// see https://github.com/grpc/grpc-go/issues/7091
+	// nolint: staticcheck
+	conn, err := grpc.Dial(
+		"bufnet",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithContextDialer(bufDialer),
+		grpc.WithLocalDNSResolution(),
+	)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	testCases := []struct {
+		name     string
+		query    string
+		vars     string
+		validate func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name:  "Simple root field alias",
+			query: `query { allUsers: users { id name } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				users, ok := data["allUsers"].([]interface{})
+				require.True(t, ok, "allUsers should be an array")
+				require.NotEmpty(t, users, "allUsers should not be empty")
+
+				user := users[0].(map[string]interface{})
+				require.Contains(t, user, "id")
+				require.Contains(t, user, "name")
+				require.NotEmpty(t, user["id"])
+				require.NotEmpty(t, user["name"])
+			},
+		},
+		{
+			name:  "Field alias with arguments and nested field aliases",
+			query: `query { specificUser: user(id: $id) { userId: id userName: name } }`,
+			vars:  `{"variables": {"id": "123"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user, ok := data["specificUser"].(map[string]interface{})
+				require.True(t, ok, "specificUser should be an object")
+				require.NotEmpty(t, user, "specificUser should not be empty")
+
+				require.Contains(t, user, "userId")
+				require.Contains(t, user, "userName")
+				require.Equal(t, "123", user["userId"])
+				require.Equal(t, "User 123", user["userName"])
+
+				// Ensure original field names are not present
+				require.NotContains(t, user, "id")
+				require.NotContains(t, user, "name")
+			},
+		},
+		{
+			name:  "Multiple aliases on the same level",
+			query: `query { allUsers: users { id name } allCategories: categories { id name categoryType: kind } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				// Check users alias
+				users, ok := data["allUsers"].([]interface{})
+				require.True(t, ok, "allUsers should be an array")
+				require.NotEmpty(t, users, "allUsers should not be empty")
+
+				// Check categories alias
+				categories, ok := data["allCategories"].([]interface{})
+				require.True(t, ok, "allCategories should be an array")
+				require.NotEmpty(t, categories, "allCategories should not be empty")
+
+				// Check first category has aliased field
+				category := categories[0].(map[string]interface{})
+				require.Contains(t, category, "categoryType")
+				require.NotContains(t, category, "kind", "original field name should not be present")
+			},
+		},
+		{
+			name:  "Nested object aliases",
+			query: `query { nestedData: nestedType { identifier: id title: name childB: b { identifier: id title: name } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nestedData, ok := data["nestedData"].([]interface{})
+				require.True(t, ok, "nestedData should be an array")
+				require.NotEmpty(t, nestedData, "nestedData should not be empty")
+
+				nestedItem := nestedData[0].(map[string]interface{})
+				require.Contains(t, nestedItem, "identifier")
+				require.Contains(t, nestedItem, "title")
+				require.Contains(t, nestedItem, "childB")
+
+				// Check nested object aliases
+				childB := nestedItem["childB"].(map[string]interface{})
+				require.Contains(t, childB, "identifier")
+				require.Contains(t, childB, "title")
+
+				// Ensure original field names are not present
+				require.NotContains(t, nestedItem, "id")
+				require.NotContains(t, nestedItem, "name")
+				require.NotContains(t, nestedItem, "b")
+			},
+		},
+		{
+			name:  "Interface aliases",
+			query: `query { pet: randomPet { identifier: id petName: name animalKind: kind ... on Cat { volumeLevel: meowVolume } ... on Dog { volumeLevel: barkVolume } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				pet, ok := data["pet"].(map[string]interface{})
+				require.True(t, ok, "pet should be an object")
+				require.NotEmpty(t, pet, "pet should not be empty")
+
+				require.Contains(t, pet, "identifier")
+				require.Contains(t, pet, "petName")
+				require.Contains(t, pet, "animalKind")
+
+				// Check if it has the volume level (either cat or dog)
+				if _, hasCat := pet["volumeLevel"]; hasCat {
+					require.Contains(t, pet, "volumeLevel")
+					require.IsType(t, float64(0), pet["volumeLevel"]) // JSON numbers are float64
+				}
+
+				// Ensure original field names are not present
+				require.NotContains(t, pet, "id")
+				require.NotContains(t, pet, "name")
+				require.NotContains(t, pet, "kind")
+			},
+		},
+		{
+			name:  "Union type aliases",
+			query: `query { searchResults: randomSearchResult { ... on Product { productId: id productName: name cost: price } ... on User { userId: id userName: name } ... on Category { categoryId: id categoryName: name categoryType: kind } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResults, ok := data["searchResults"].(map[string]interface{})
+				require.True(t, ok, "searchResults should be an object")
+				require.NotEmpty(t, searchResults, "searchResults should not be empty")
+
+				// Check based on which union member was returned
+				if productId, hasProduct := searchResults["productId"]; hasProduct {
+					// Product case
+					require.Contains(t, searchResults, "productName")
+					require.Contains(t, searchResults, "cost")
+					require.Equal(t, "product-random-1", productId)
+					require.Equal(t, "Random Product", searchResults["productName"])
+					require.Equal(t, 29.99, searchResults["cost"])
+				} else if userId, hasUser := searchResults["userId"]; hasUser {
+					// User case
+					require.Contains(t, searchResults, "userName")
+					require.Equal(t, "user-random-1", userId)
+					require.Equal(t, "Random User", searchResults["userName"])
+				} else if categoryId, hasCategory := searchResults["categoryId"]; hasCategory {
+					// Category case
+					require.Contains(t, searchResults, "categoryName")
+					require.Contains(t, searchResults, "categoryType")
+					require.Equal(t, "category-random-1", categoryId)
+					require.Equal(t, "Random Category", searchResults["categoryName"])
+					require.Equal(t, "ELECTRONICS", searchResults["categoryType"])
+				} else {
+					t.Fatal("searchResults should contain at least one union member with aliased fields")
+				}
+
+				// Ensure original field names are not present
+				require.NotContains(t, searchResults, "id")
+				require.NotContains(t, searchResults, "name")
+				require.NotContains(t, searchResults, "price")
+				require.NotContains(t, searchResults, "kind")
+			},
+		},
+		{
+			name:  "Mutation aliases",
+			query: `mutation { newUser: createUser(input: $input) { userId: id fullName: name } }`,
+			vars:  `{"variables": {"input": {"name": "John Doe"}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				newUser, ok := data["newUser"].(map[string]interface{})
+				require.True(t, ok, "newUser should be an object")
+				require.NotEmpty(t, newUser, "newUser should not be empty")
+
+				require.Contains(t, newUser, "userId")
+				require.Contains(t, newUser, "fullName")
+				require.NotEmpty(t, newUser["userId"])
+				require.Equal(t, "John Doe", newUser["fullName"])
+
+				// Ensure original field names are not present
+				require.NotContains(t, newUser, "id")
+				require.NotContains(t, newUser, "name")
+			},
+		},
+		{
+			name:  "Enum field aliases",
+			query: `query { bookCategories: categoriesByKind(kind: $kind) { identifier: id title: name type: kind } }`,
+			vars:  `{"variables": {"kind": "BOOK"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bookCategories, ok := data["bookCategories"].([]interface{})
+				require.True(t, ok, "bookCategories should be an array")
+				require.NotEmpty(t, bookCategories, "bookCategories should not be empty")
+
+				category := bookCategories[0].(map[string]interface{})
+				require.Contains(t, category, "identifier")
+				require.Contains(t, category, "title")
+				require.Contains(t, category, "type")
+				require.Equal(t, "BOOK", category["type"])
+
+				// Ensure original field names are not present
+				require.NotContains(t, category, "id")
+				require.NotContains(t, category, "name")
+				require.NotContains(t, category, "kind")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Mapping:      testMapping(),
+				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}

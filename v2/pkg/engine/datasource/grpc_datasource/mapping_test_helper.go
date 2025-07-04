@@ -87,9 +87,9 @@ func testMapping() *GRPCMapping {
 		},
 		MutationRPCs: RPCConfigMap{
 			"createUser": {
-				RPC:      "CreateUser",
-				Request:  "CreateUserRequest",
-				Response: "CreateUserResponse",
+				RPC:      "MutationCreateUser",
+				Request:  "MutationCreateUserRequest",
+				Response: "MutationCreateUserResponse",
 			},
 			"performAction": {
 				RPC:      "MutationPerformAction",

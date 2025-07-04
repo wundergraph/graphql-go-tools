@@ -166,6 +166,15 @@ type RPCField struct {
 	Message *RPCMessage
 }
 
+// AliasOrPath returns the alias of the field if it exists, otherwise it returns the JSONPath.
+func (r *RPCField) AliasOrPath() string {
+	if r.Alias != "" {
+		return r.Alias
+	}
+
+	return r.JSONPath
+}
+
 // RPCFields is a list of RPCFields that provides helper methods
 // for working with collections of fields.
 type RPCFields []RPCField
