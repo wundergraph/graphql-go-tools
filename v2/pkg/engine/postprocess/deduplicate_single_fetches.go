@@ -42,5 +42,5 @@ func (d *deduplicateSingleFetches) mergeTypeNames(left []string, right []string)
 	out := append(left, right...)
 
 	slices.Sort(out)
-	return slices.Compact(out) // deduplicate
+	return slices.Compact(out) // removes consecutive duplicates from the sorted slice
 }
