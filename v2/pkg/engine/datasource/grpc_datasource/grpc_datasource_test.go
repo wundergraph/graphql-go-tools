@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"net"
 	"strings"
 	"testing"
@@ -1667,7 +1666,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 				require.Equal(t, "Full Data Entry", firstEntry["name"])
 				require.Equal(t, "Optional String Value", firstEntry["optionalString"])
 				require.Equal(t, float64(42), firstEntry["optionalInt"])
-				require.Equal(t, float64(3.14), math.Round(firstEntry["optionalFloat"].(float64)*100)/100) // round to 2 decimal places
+				require.InDelta(t, float64(3.14), firstEntry["optionalFloat"], 0.01)
 				require.Equal(t, true, firstEntry["optionalBoolean"])
 				require.Equal(t, "Required String 1", firstEntry["requiredString"])
 				require.Equal(t, float64(100), firstEntry["requiredInt"])
@@ -1727,7 +1726,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 				require.Equal(t, "Created Type", createdType["name"])
 				require.Equal(t, "Optional Value", createdType["optionalString"])
 				require.Equal(t, float64(42), createdType["optionalInt"])
-				require.Equal(t, float64(3.14), math.Round(createdType["optionalFloat"].(float64)*100)/100) // round to 2 decimal places
+				require.InDelta(t, float64(3.14), createdType["optionalFloat"], 0.01)
 				require.Equal(t, true, createdType["optionalBoolean"])
 				require.Equal(t, "Required Value", createdType["requiredString"])
 				require.Equal(t, float64(100), createdType["requiredInt"])
