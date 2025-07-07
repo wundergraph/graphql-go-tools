@@ -218,6 +218,15 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 				continue
 			}
 
+			if field.Optional {
+				err := d.resolveOptionalField(arena, root, field.JSONPath, msg)
+				if err != nil {
+					return nil, err
+				}
+
+				continue
+			}
+
 			value, err := d.marshalResponseJSON(arena, field.Message, msg)
 			if err != nil {
 				return nil, err
@@ -239,6 +248,16 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	}
 
 	return root, nil
+}
+
+func (d *DataSource) resolveOptionalField(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message) error {
+	fd := data.Descriptor().Fields().ByName(protoref.Name("value"))
+	if fd == nil {
+		return fmt.Errorf("unable to resolve optional field: field value not found in message %s", data.Descriptor().Name())
+	}
+
+	d.setJSONValue(arena, root, name, data, fd)
+	return nil
 }
 
 func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {

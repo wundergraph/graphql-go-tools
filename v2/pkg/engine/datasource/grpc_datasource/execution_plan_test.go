@@ -14,6 +14,44 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
+type testCase struct {
+	query         string
+	expectedPlan  *RPCExecutionPlan
+	expectedError string
+}
+
+func runTest(t *testing.T, testCase testCase) {
+	// Parse the GraphQL schema
+	schemaDoc := grpctest.MustGraphQLSchema(t)
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(testCase.query)
+	if report.HasErrors() {
+		t.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	walker := astvisitor.NewWalker(48)
+
+	rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+		subgraphName: "Products",
+		mapping:      testMapping(),
+	})
+
+	walker.Walk(&queryDoc, &schemaDoc, &report)
+
+	if report.HasErrors() {
+		require.NotEmpty(t, testCase.expectedError)
+		require.Contains(t, report.Error(), testCase.expectedError)
+		return
+	}
+
+	require.Empty(t, testCase.expectedError)
+	diff := cmp.Diff(testCase.expectedPlan, rpcPlanVisitor.plan)
+	if diff != "" {
+		t.Fatalf("execution plan mismatch: %s", diff)
+	}
+}
+
 func TestEntityLookup(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -2257,7 +2295,6 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 	}
 }
 
-// TODO: Define test cases for product execution plans
 func TestProductExecutionPlan(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -3117,4 +3154,99 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 		})
 	}
 
+}
+
+func TestNullableFieldsExecutionPlan(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with nullable fields type",
+			query: "query NullableFieldsTypeQuery { nullableFieldsType { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryNullableFieldsType",
+						Request: RPCMessage{
+							Name: "QueryNullableFieldsTypeRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryNullableFieldsTypeResponse",
+							Fields: []RPCField{
+								{
+									Name:     "nullable_fields_type",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "nullableFieldsType",
+									Message: &RPCMessage{
+										Name: "NullableFieldsType",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "optional_string",
+												TypeName: string(DataTypeString),
+												JSONPath: "optionalString",
+												Optional: true,
+											},
+											{
+												Name:     "optional_int",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "optionalInt",
+												Optional: true,
+											},
+											{
+												Name:     "optional_float",
+												TypeName: string(DataTypeDouble),
+												JSONPath: "optionalFloat",
+												Optional: true,
+											},
+											{
+												Name:     "optional_boolean",
+												TypeName: string(DataTypeBool),
+												JSONPath: "optionalBoolean",
+												Optional: true,
+											},
+											{
+												Name:     "required_string",
+												TypeName: string(DataTypeString),
+												JSONPath: "requiredString",
+											},
+											{
+												Name:     "required_int",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "requiredInt",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
+		})
+	}
 }

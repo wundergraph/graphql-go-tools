@@ -90,6 +90,7 @@ func parseDataType(name string) DataType {
 // Document represents a compiled protobuf document with all its services, messages, and methods.
 type Document struct {
 	Package  string    // The package name of the protobuf document
+	Imports  []string  // The imports of the protobuf document
 	Services []Service // All services defined in the document
 	Enums    []Enum    // All enums defined in the document
 	Messages []Message // All messages defined in the document
@@ -271,34 +272,47 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 		return nil, fmt.Errorf("no files compiled")
 	}
 
-	f := fd[0]
+	schemaFile := fd[0]
 	pc := &RPCCompiler{
 		doc: &Document{
-			Package: string(f.Package()),
+			Package: string(schemaFile.Package()),
 		},
 		report: operationreport.Report{},
 	}
 
 	// Extract information from the compiled file descriptor
-	pc.doc.Package = string(f.Package())
+	pc.doc.Package = string(schemaFile.Package())
 
+	// We potentially have imported other files and need to resolve the types first
+	// before we can parse the schema.
+	for i := 0; i < schemaFile.Imports().Len(); i++ {
+		protoImport := schemaFile.Imports().Get(i)
+		pc.doc.Imports = append(pc.doc.Imports, string(protoImport.Path()))
+		pc.processFile(protoImport, mapping)
+	}
+
+	// Process the schema file
+	pc.processFile(schemaFile, mapping)
+
+	return pc, nil
+}
+
+func (p *RPCCompiler) processFile(f protoref.FileDescriptor, mapping *GRPCMapping) {
 	// Process all enums in the schema
 	for i := 0; i < f.Enums().Len(); i++ {
-		pc.doc.Enums = append(pc.doc.Enums, pc.parseEnum(f.Enums().Get(i), mapping))
+		p.doc.Enums = append(p.doc.Enums, p.parseEnum(f.Enums().Get(i), mapping))
 	}
 
 	// Process all messages in the schema
-	pc.doc.Messages = pc.parseMessageDefinitions(f.Messages())
-	for ref, message := range pc.doc.Messages {
-		pc.enrichMessageData(ref, message.Desc)
+	p.doc.Messages = append(p.doc.Messages, p.parseMessageDefinitions(f.Messages())...)
+	for ref, message := range p.doc.Messages {
+		p.enrichMessageData(ref, message.Desc)
 	}
 
 	// Process all services in the schema
 	for i := 0; i < f.Services().Len(); i++ {
-		pc.doc.Services = append(pc.doc.Services, pc.parseService(f.Services().Get(i)))
+		p.doc.Services = append(p.doc.Services, p.parseService(f.Services().Get(i)))
 	}
-
-	return pc, nil
 }
 
 // ConstructExecutionPlan constructs an RPCExecutionPlan from a parsed GraphQL operation and schema.

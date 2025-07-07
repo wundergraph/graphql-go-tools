@@ -80,6 +80,9 @@ type RPCMessage struct {
 	OneOfType OneOfType
 	// MemberTypes provides the names of the types that are implemented by the Interface or Union
 	MemberTypes []string
+	// Message represents the nested message type definition for complex fields.
+	// This enables recursive construction of nested protobuf message structures.
+	Message *RPCMessage
 }
 
 // IsOneOf checks if the message is a oneof field.
@@ -160,9 +163,10 @@ type RPCField struct {
 	EnumName string
 	// StaticValue is the static value of the field
 	StaticValue string
-
-	// Message is the message type if the field is a nested message type
-	// This allows for recursive construction of complex message types
+	// Optional indicates if the field is optional
+	Optional bool
+	// Message represents the nested message type definition for complex fields.
+	// This enables recursive construction of nested protobuf message structures.
 	Message *RPCMessage
 }
 

@@ -1537,3 +1537,84 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 		})
 	}
 }
+
+func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	testCases := []struct {
+		name     string
+		query    string
+		vars     string
+		validate func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name:  "Query nullable fields type",
+			query: `query { nullableFieldsType { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "NullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType["id"], "ID should not be empty")
+				require.NotEmpty(t, nullableFieldsType["name"], "Name should not be empty")
+				require.NotEmpty(t, nullableFieldsType["optionalString"], "OptionalString should not be empty")
+				require.NotEmpty(t, nullableFieldsType["optionalInt"], "OptionalInt should not be empty")
+				require.NotEmpty(t, nullableFieldsType["optionalBoolean"], "OptionalBoolean should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredString"], "RequiredString should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredInt"], "RequiredInt should not be empty")
+				require.Empty(t, nullableFieldsType["optionalFloat"], "OptionalFloat should be empty")
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:    &queryDoc,
+				Definition:   &schemaDoc,
+				SubgraphName: "Products",
+				Mapping:      testMapping(),
+				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}

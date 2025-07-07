@@ -1,6 +1,8 @@
 syntax = "proto3";
 package productv1;
 
+import "google/protobuf/wrappers.proto";
+
 option go_package = "cosmo/pkg/proto/productv1;productv1";
 
 // Service definition for ProductService
@@ -27,6 +29,13 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  // Nullable fields RPCs
+  rpc QueryNullableFieldsType(QueryNullableFieldsTypeRequest) returns (QueryNullableFieldsTypeResponse) {}
+  rpc QueryNullableFieldsTypeById(QueryNullableFieldsTypeByIdRequest) returns (QueryNullableFieldsTypeByIdResponse) {}
+  rpc QueryNullableFieldsTypeWithFilter(QueryNullableFieldsTypeWithFilterRequest) returns (QueryNullableFieldsTypeWithFilterResponse) {}
+  rpc QueryAllNullableFieldsTypes(QueryAllNullableFieldsTypesRequest) returns (QueryAllNullableFieldsTypesResponse) {}
+  rpc MutationCreateNullableFieldsType(MutationCreateNullableFieldsTypeRequest) returns (MutationCreateNullableFieldsTypeResponse) {}
+  rpc MutationUpdateNullableFieldsType(MutationUpdateNullableFieldsTypeRequest) returns (MutationUpdateNullableFieldsTypeResponse) {}
 }
 
 // Key message for Product entity lookup
@@ -236,6 +245,54 @@ message MutationPerformActionResponse {
   ActionResult perform_action = 1;
 }
 
+// Request message for nullableFieldsType operation.
+message QueryNullableFieldsTypeRequest {
+}
+// Response message for nullableFieldsType operation.
+message QueryNullableFieldsTypeResponse {
+  NullableFieldsType nullable_fields_type = 1;
+}
+// Request message for nullableFieldsTypeById operation.
+message QueryNullableFieldsTypeByIdRequest {
+  string id = 1;
+}
+// Response message for nullableFieldsTypeById operation.
+message QueryNullableFieldsTypeByIdResponse {
+  NullableFieldsType nullable_fields_type_by_id = 1;
+}
+// Request message for nullableFieldsTypeWithFilter operation.
+message QueryNullableFieldsTypeWithFilterRequest {
+  NullableFieldsFilter filter = 1;
+}
+// Response message for nullableFieldsTypeWithFilter operation.
+message QueryNullableFieldsTypeWithFilterResponse {
+  repeated NullableFieldsType nullable_fields_type_with_filter = 1;
+}
+// Request message for allNullableFieldsTypes operation.
+message QueryAllNullableFieldsTypesRequest {
+}
+// Response message for allNullableFieldsTypes operation.
+message QueryAllNullableFieldsTypesResponse {
+  repeated NullableFieldsType all_nullable_fields_types = 1;
+}
+// Request message for createNullableFieldsType operation.
+message MutationCreateNullableFieldsTypeRequest {
+  NullableFieldsInput input = 1;
+}
+// Response message for createNullableFieldsType operation.
+message MutationCreateNullableFieldsTypeResponse {
+  NullableFieldsType create_nullable_fields_type = 1;
+}
+// Request message for updateNullableFieldsType operation.
+message MutationUpdateNullableFieldsTypeRequest {
+  string id = 1;
+  NullableFieldsInput input = 2;
+}
+// Response message for updateNullableFieldsType operation.
+message MutationUpdateNullableFieldsTypeResponse {
+  NullableFieldsType update_nullable_fields_type = 1;
+}
+
 message Product {
   string id = 1;
   string name = 2;
@@ -411,4 +468,32 @@ message ActionSuccess {
 message ActionError {
   string message = 1;
   string code = 2;
+}
+
+// New messages for testing nullable fields
+message NullableFieldsType {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue optional_string = 3;
+  google.protobuf.Int32Value optional_int = 4;
+  google.protobuf.FloatValue optional_float = 5;
+  google.protobuf.BoolValue optional_boolean = 6;
+  string required_string = 7;
+  int32 required_int = 8;
+}
+
+message NullableFieldsInput {
+  string name = 1;
+  google.protobuf.StringValue optional_string = 2;
+  google.protobuf.Int32Value optional_int = 3;
+  google.protobuf.FloatValue optional_float = 4;
+  google.protobuf.BoolValue optional_boolean = 5;
+  string required_string = 6;
+  int32 required_int = 7;
+}
+
+message NullableFieldsFilter {
+  google.protobuf.StringValue name = 1;
+  google.protobuf.StringValue optional_string = 2;
+  google.protobuf.BoolValue include_nulls = 3;
 }
