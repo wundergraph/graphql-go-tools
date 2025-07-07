@@ -394,15 +394,12 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 	tok.TextPosition.CharStart -= 1
 
 	escaped := false
-	whitespaceCount := 0
-	reachedFirstNonWhitespace := false
 
 	for {
 		next := l.readRune()
 		switch next {
 		case runes.SPACE, runes.TAB:
 			escaped = false
-			whitespaceCount++
 		case runes.EOF:
 			tok.SetEnd(l.input.InputPosition, l.input.TextPosition)
 			return
@@ -416,13 +413,8 @@ func (l *Lexer) readSingleLineString(tok *token.Token) {
 			return
 		case runes.BACKSLASH:
 			escaped = !escaped
-			whitespaceCount = 0
 		default:
-			if !reachedFirstNonWhitespace {
-				reachedFirstNonWhitespace = true
-			}
 			escaped = false
-			whitespaceCount = 0
 		}
 	}
 }
