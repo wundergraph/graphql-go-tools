@@ -448,11 +448,12 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 			// If the field is optional, we are handling a scalar value that is wrapped in a message
 			// as protobuf scalar types are not nullable.
 			if rpcField.Optional {
-				// If we don't have a value for an optional field, we skip it to provide a null message
+				// If we don't have a value for an optional field, we skip it to provide a null message.
 				if !data.Get(rpcField.JSONPath).Exists() {
 					continue
 				}
 
+				// As those optional messages are well known wrapper types, we can convert them to the underlying message definition.
 				fieldMsg = p.buildProtoMessage(
 					p.doc.Messages[field.MessageRef],
 					rpcField.ToOptionalTypeMessage(p.doc.Messages[field.MessageRef].Name),
