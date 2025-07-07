@@ -456,6 +456,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
 			Repeated: r.definition.TypeIsList(typeRef),
+			Optional: r.isNullableScalar(typeRef),
 		}
 
 		if dt == DataTypeEnum {
@@ -507,6 +508,7 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 			TypeName: dt.String(),
 			JSONPath: fieldName,
 			Repeated: r.definition.TypeIsList(typeRef),
+			Optional: r.isNullableScalar(typeRef),
 		}
 
 		if dt == DataTypeEnum {
