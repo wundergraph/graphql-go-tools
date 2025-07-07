@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.0.0-rc.199](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.198...v2.0.0-rc.199) (2025-07-07)
+
+
+### Features
+
+* add support for aliases ([#1209](https://github.com/wundergraph/graphql-go-tools/issues/1209)) ([9223351](https://github.com/wundergraph/graphql-go-tools/commit/9223351ca9530e3738bfac794de108bbbac134c0))
+
+
+### Bug Fixes
+
+* do not trim whitespaces around non-block strings ([#1211](https://github.com/wundergraph/graphql-go-tools/issues/1211)) ([6f5046b](https://github.com/wundergraph/graphql-go-tools/commit/6f5046b8b1cdbd3d54154d55cc049e45404905aa))
+
 ## [2.0.0-rc.198](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.197...v2.0.0-rc.198) (2025-07-04)
 
 
