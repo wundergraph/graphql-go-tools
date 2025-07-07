@@ -333,6 +333,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
 		Repeated: r.definition.TypeIsList(fdt),
+		Alias:    r.operation.FieldAliasString(ref),
 	}
 
 	if typeName == DataTypeEnum {
