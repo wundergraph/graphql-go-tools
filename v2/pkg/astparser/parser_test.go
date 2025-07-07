@@ -2574,6 +2574,18 @@ func TestErrorReport(t *testing.T) {
 			t.Fatalf("want:\n%s\ngot:\n%s\n", want, report.Error())
 		}
 	})
+	t.Run("ident incomplete block string", func(t *testing.T) {
+		_, report := ParseGraphqlDocumentString(`union"""`)
+
+		if !report.HasErrors() {
+			t.Fatalf("want err, got nil")
+		}
+
+		want := "external: unexpected token - got: BLOCKSTRING want one of: [IDENT], locations: [{Line:1 Column:6}], path: []"
+		if report.Error() != want {
+			t.Fatalf("want:\n%s\ngot:\n%s\n", want, report.Error())
+		}
+	})
 }
 
 func TestParseStarwars(t *testing.T) {
