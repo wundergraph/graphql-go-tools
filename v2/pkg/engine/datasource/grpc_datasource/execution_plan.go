@@ -11,6 +11,9 @@ import (
 
 const (
 	federationKeyDirectiveName = "key"
+	// knownTypeOptionalFieldValueName is the name of the field that is used to wrap optional scalar values
+	// in a message as protobuf scalar types are not nullable.
+	knownTypeOptionalFieldValueName = "value"
 )
 
 // OneOfType represents the type of a oneof field in a protobuf message.
@@ -168,6 +171,28 @@ type RPCField struct {
 	// Message represents the nested message type definition for complex fields.
 	// This enables recursive construction of nested protobuf message structures.
 	Message *RPCMessage
+}
+
+// ToOptionalTypeMessage returns a message that wraps the scalar value in a message
+// as protobuf scalar types are not nullable.
+func (r *RPCField) ToOptionalTypeMessage(protoName string) *RPCMessage {
+	if r == nil {
+		return nil
+	}
+
+	return &RPCMessage{
+		Name: protoName,
+		Fields: RPCFields{
+			RPCField{
+				Name:     knownTypeOptionalFieldValueName,
+				JSONPath: r.JSONPath,
+				TypeName: r.TypeName,
+				Repeated: r.Repeated,
+				EnumName: r.EnumName,
+			},
+		},
+	}
+
 }
 
 // AliasOrPath returns the alias of the field if it exists, otherwise it returns the JSONPath.

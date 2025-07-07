@@ -498,4 +498,16 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should handle nullable fields", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeQuery",
+			Query:         `query NullableFieldsTypeQuery { nullableFieldsType { id optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"nullableFieldsType":{"id":"nullable-default","optionalString":"Default optional string","optionalInt":777,"optionalFloat":null,"optionalBoolean":true,"requiredString":"Default required string","requiredInt":999}}}`, response)
+	})
 }

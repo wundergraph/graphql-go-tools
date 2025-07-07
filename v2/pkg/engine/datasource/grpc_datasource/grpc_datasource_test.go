@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net"
 	"strings"
 	"testing"
@@ -1549,27 +1550,284 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 		validate func(t *testing.T, data map[string]interface{})
 	}{
 		{
-			name:  "Query nullable fields type",
+			name:  "Query nullable fields type with all fields",
 			query: `query { nullableFieldsType { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
 			vars:  "{}",
 			validate: func(t *testing.T, data map[string]interface{}) {
 				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
-				require.True(t, ok, "NullableFieldsType should be an object")
-				require.NotEmpty(t, nullableFieldsType["id"], "ID should not be empty")
-				require.NotEmpty(t, nullableFieldsType["name"], "Name should not be empty")
-				require.NotEmpty(t, nullableFieldsType["optionalString"], "OptionalString should not be empty")
-				require.NotEmpty(t, nullableFieldsType["optionalInt"], "OptionalInt should not be empty")
-				require.NotEmpty(t, nullableFieldsType["optionalBoolean"], "OptionalBoolean should not be empty")
-				require.NotEmpty(t, nullableFieldsType["requiredString"], "RequiredString should not be empty")
-				require.NotEmpty(t, nullableFieldsType["requiredInt"], "RequiredInt should not be empty")
-				require.Empty(t, nullableFieldsType["optionalFloat"], "OptionalFloat should be empty")
+				require.True(t, ok, "nullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, nullableFieldsType, "id")
+				require.Contains(t, nullableFieldsType, "name")
+				require.Contains(t, nullableFieldsType, "requiredString")
+				require.Contains(t, nullableFieldsType, "requiredInt")
+
+				require.NotEmpty(t, nullableFieldsType["id"], "id should not be empty")
+				require.NotEmpty(t, nullableFieldsType["name"], "name should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredString"], "requiredString should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredInt"], "requiredInt should not be empty")
+
+				// Check optional fields are present (but may be null)
+				require.Contains(t, nullableFieldsType, "optionalString")
+				require.Contains(t, nullableFieldsType, "optionalInt")
+				require.Contains(t, nullableFieldsType, "optionalFloat")
+				require.Contains(t, nullableFieldsType, "optionalBoolean")
+
+				// Verify types of non-null optional fields
+				if nullableFieldsType["optionalString"] != nil {
+					require.IsType(t, "", nullableFieldsType["optionalString"])
+				}
+				if nullableFieldsType["optionalInt"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalInt"]) // JSON numbers are float64
+				}
+				if nullableFieldsType["optionalFloat"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalFloat"])
+				}
+				if nullableFieldsType["optionalBoolean"] != nil {
+					require.IsType(t, false, nullableFieldsType["optionalBoolean"])
+				}
+			},
+		},
+		{
+			name:  "Query nullable fields type by ID",
+			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString requiredString } }`,
+			vars:  `{"variables":{"id":"full-data"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsTypeById should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsTypeById should not be empty")
+
+				require.Equal(t, "full-data", nullableFieldsType["id"])
+				require.Equal(t, "Full Data by ID", nullableFieldsType["name"])
+				require.Equal(t, "All fields populated", nullableFieldsType["optionalString"])
+				require.Equal(t, "Required by ID", nullableFieldsType["requiredString"])
+			},
+		},
+		{
+			name:  "Query nullable fields type by ID with partial data",
+			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  `{"variables":{"id":"partial-data"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsTypeById should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsTypeById should not be empty")
+
+				require.Equal(t, "partial-data", nullableFieldsType["id"])
+				require.Equal(t, "Partial Data by ID", nullableFieldsType["name"])
+				require.Nil(t, nullableFieldsType["optionalString"], "optionalString should be null")
+				require.NotNil(t, nullableFieldsType["optionalInt"], "optionalInt should not be null")
+				require.Nil(t, nullableFieldsType["optionalFloat"], "optionalFloat should be null")
+				require.NotNil(t, nullableFieldsType["optionalBoolean"], "optionalBoolean should not be null")
+				require.Equal(t, "Partial required by ID", nullableFieldsType["requiredString"])
+				require.Equal(t, float64(321), nullableFieldsType["requiredInt"]) // JSON numbers are float64
+			},
+		},
+		{
+			name:  "Query nullable fields type by ID with minimal data",
+			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  `{"variables":{"id":"minimal-data"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsTypeById"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsTypeById should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsTypeById should not be empty")
+
+				require.Equal(t, "minimal-data", nullableFieldsType["id"])
+				require.Equal(t, "Minimal Data by ID", nullableFieldsType["name"])
+				require.Nil(t, nullableFieldsType["optionalString"], "optionalString should be null")
+				require.Nil(t, nullableFieldsType["optionalInt"], "optionalInt should be null")
+				require.Nil(t, nullableFieldsType["optionalFloat"], "optionalFloat should be null")
+				require.Nil(t, nullableFieldsType["optionalBoolean"], "optionalBoolean should be null")
+				require.Equal(t, "Only required fields", nullableFieldsType["requiredString"])
+				require.Equal(t, float64(111), nullableFieldsType["requiredInt"]) // JSON numbers are float64
+			},
+		},
+		{
+			name:  "Query nullable fields type by ID - not found",
+			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString requiredString } }`,
+			vars:  `{"variables":{"id":"not-found"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType := data["nullableFieldsTypeById"]
+				require.Nil(t, nullableFieldsType, "nullableFieldsTypeById should be null for not-found ID")
+			},
+		},
+		{
+			name:  "Query all nullable fields types",
+			query: `query { allNullableFieldsTypes { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				allNullableFieldsTypes, ok := data["allNullableFieldsTypes"].([]interface{})
+				require.True(t, ok, "allNullableFieldsTypes should be an array")
+				require.Len(t, allNullableFieldsTypes, 3, "should return 3 nullable field types")
+
+				// Check first entry (full data)
+				firstEntry := allNullableFieldsTypes[0].(map[string]interface{})
+				require.Equal(t, "nullable-1", firstEntry["id"])
+				require.Equal(t, "Full Data Entry", firstEntry["name"])
+				require.Equal(t, "Optional String Value", firstEntry["optionalString"])
+				require.Equal(t, float64(42), firstEntry["optionalInt"])
+				require.Equal(t, float64(3.14), math.Round(firstEntry["optionalFloat"].(float64)*100)/100) // round to 2 decimal places
+				require.Equal(t, true, firstEntry["optionalBoolean"])
+				require.Equal(t, "Required String 1", firstEntry["requiredString"])
+				require.Equal(t, float64(100), firstEntry["requiredInt"])
+
+				// Check second entry (partial data)
+				secondEntry := allNullableFieldsTypes[1].(map[string]interface{})
+				require.Equal(t, "nullable-2", secondEntry["id"])
+				require.Equal(t, "Partial Data Entry", secondEntry["name"])
+				require.Equal(t, "Only string is set", secondEntry["optionalString"])
+				require.Nil(t, secondEntry["optionalInt"], "optionalInt should be null")
+				require.Nil(t, secondEntry["optionalFloat"], "optionalFloat should be null")
+				require.Equal(t, false, secondEntry["optionalBoolean"])
+				require.Equal(t, "Required String 2", secondEntry["requiredString"])
+				require.Equal(t, float64(200), secondEntry["requiredInt"])
+
+				// Check third entry (minimal data)
+				thirdEntry := allNullableFieldsTypes[2].(map[string]interface{})
+				require.Equal(t, "nullable-3", thirdEntry["id"])
+				require.Equal(t, "Minimal Data Entry", thirdEntry["name"])
+				require.Nil(t, thirdEntry["optionalString"], "optionalString should be null")
+				require.Nil(t, thirdEntry["optionalInt"], "optionalInt should be null")
+				require.Nil(t, thirdEntry["optionalFloat"], "optionalFloat should be null")
+				require.Nil(t, thirdEntry["optionalBoolean"], "optionalBoolean should be null")
+				require.Equal(t, "Required String 3", thirdEntry["requiredString"])
+				require.Equal(t, float64(300), thirdEntry["requiredInt"])
+			},
+		},
+		{
+			name:  "Query nullable fields type with filter",
+			query: `query($filter: NullableFieldsFilter!) { nullableFieldsTypeWithFilter(filter: $filter) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  `{"variables":{"filter":{"name":"TestFilter","optionalString":"FilteredString","includeNulls":true}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsTypes, ok := data["nullableFieldsTypeWithFilter"].([]interface{})
+				require.True(t, ok, "nullableFieldsTypeWithFilter should be an array")
+				require.Len(t, nullableFieldsTypes, 3, "should return 3 filtered nullable field types")
+
+				for i, item := range nullableFieldsTypes {
+					entry := item.(map[string]interface{})
+					require.Equal(t, fmt.Sprintf("filtered-%d", i+1), entry["id"])
+					require.Equal(t, fmt.Sprintf("TestFilter - %d", i+1), entry["name"])
+					require.Equal(t, "FilteredString", entry["optionalString"])
+					require.Equal(t, fmt.Sprintf("Required filtered %d", i+1), entry["requiredString"])
+					require.Equal(t, float64((i+1)*1000), entry["requiredInt"])
+				}
+			},
+		},
+		{
+			name:  "Create nullable fields type mutation",
+			query: `mutation($input: NullableFieldsInput!) { createNullableFieldsType(input: $input) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  `{"variables":{"input":{"name":"Created Type","optionalString":"Optional Value","optionalInt":42,"optionalFloat":3.14,"optionalBoolean":true,"requiredString":"Required Value","requiredInt":100}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				createdType, ok := data["createNullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "createNullableFieldsType should be an object")
+				require.NotEmpty(t, createdType, "createNullableFieldsType should not be empty")
+
+				require.Contains(t, createdType["id"], "nullable-") // ID should start with "nullable-"
+				require.Equal(t, "Created Type", createdType["name"])
+				require.Equal(t, "Optional Value", createdType["optionalString"])
+				require.Equal(t, float64(42), createdType["optionalInt"])
+				require.Equal(t, float64(3.14), math.Round(createdType["optionalFloat"].(float64)*100)/100) // round to 2 decimal places
+				require.Equal(t, true, createdType["optionalBoolean"])
+				require.Equal(t, "Required Value", createdType["requiredString"])
+				require.Equal(t, float64(100), createdType["requiredInt"])
+			},
+		},
+		{
+			name:  "Create nullable fields type mutation with minimal input",
+			query: `mutation($input: NullableFieldsInput!) { createNullableFieldsType(input: $input) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  `{"variables":{"input":{"name":"Minimal Type","requiredString":"Only Required","requiredInt":200}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				createdType, ok := data["createNullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "createNullableFieldsType should be an object")
+				require.NotEmpty(t, createdType, "createNullableFieldsType should not be empty")
+
+				require.Contains(t, createdType["id"], "nullable-") // ID should start with "nullable-"
+				require.Equal(t, "Minimal Type", createdType["name"])
+				require.Nil(t, createdType["optionalString"], "optionalString should be null")
+				require.Nil(t, createdType["optionalInt"], "optionalInt should be null")
+				require.Nil(t, createdType["optionalFloat"], "optionalFloat should be null")
+				require.Nil(t, createdType["optionalBoolean"], "optionalBoolean should be null")
+				require.Equal(t, "Only Required", createdType["requiredString"])
+				require.Equal(t, float64(200), createdType["requiredInt"])
+			},
+		},
+		{
+			name:  "Update nullable fields type mutation",
+			query: `mutation($id: ID!, $input: NullableFieldsInput!) { updateNullableFieldsType(id: $id, input: $input) { id name optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+			vars:  `{"variables":{"id":"test-update","input":{"name":"Updated Type","optionalString":"Updated Optional","optionalInt":999,"requiredString":"Updated Required","requiredInt":500}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				updatedType, ok := data["updateNullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "updateNullableFieldsType should be an object")
+				require.NotEmpty(t, updatedType, "updateNullableFieldsType should not be empty")
+
+				require.Equal(t, "test-update", updatedType["id"])
+				require.Equal(t, "Updated Type", updatedType["name"])
+				require.Equal(t, "Updated Optional", updatedType["optionalString"])
+				require.Equal(t, float64(999), updatedType["optionalInt"])
+				require.Nil(t, updatedType["optionalFloat"], "optionalFloat should be null")
+				require.Nil(t, updatedType["optionalBoolean"], "optionalBoolean should be null")
+				require.Equal(t, "Updated Required", updatedType["requiredString"])
+				require.Equal(t, float64(500), updatedType["requiredInt"])
+			},
+		},
+		{
+			name:  "Update nullable fields type mutation - non-existent ID",
+			query: `mutation($id: ID!, $input: NullableFieldsInput!) { updateNullableFieldsType(id: $id, input: $input) { id name optionalString requiredString } }`,
+			vars:  `{"variables":{"id":"non-existent","input":{"name":"Should Not Exist","requiredString":"Not Created","requiredInt":0}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				updatedType := data["updateNullableFieldsType"]
+				require.Nil(t, updatedType, "updateNullableFieldsType should be null for non-existent ID")
+			},
+		},
+		{
+			name:  "Query nullable fields with only optional fields",
+			query: `query { nullableFieldsType { optionalString optionalInt optionalFloat optionalBoolean } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
+
+				// Should only contain the requested optional fields
+				require.Contains(t, nullableFieldsType, "optionalString")
+				require.Contains(t, nullableFieldsType, "optionalInt")
+				require.Contains(t, nullableFieldsType, "optionalFloat")
+				require.Contains(t, nullableFieldsType, "optionalBoolean")
+
+				// Should not contain other fields
+				require.NotContains(t, nullableFieldsType, "id")
+				require.NotContains(t, nullableFieldsType, "name")
+				require.NotContains(t, nullableFieldsType, "requiredString")
+				require.NotContains(t, nullableFieldsType, "requiredInt")
+			},
+		},
+		{
+			name:  "Query nullable fields with partial selection",
+			query: `query { nullableFieldsType { id name optionalString requiredString } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
+
+				// Should contain the requested fields
+				require.Contains(t, nullableFieldsType, "id")
+				require.Contains(t, nullableFieldsType, "name")
+				require.Contains(t, nullableFieldsType, "optionalString")
+				require.Contains(t, nullableFieldsType, "requiredString")
+
+				// Should not contain other fields
+				require.NotContains(t, nullableFieldsType, "optionalInt")
+				require.NotContains(t, nullableFieldsType, "optionalFloat")
+				require.NotContains(t, nullableFieldsType, "optionalBoolean")
+				require.NotContains(t, nullableFieldsType, "requiredInt")
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-
 			// Parse the GraphQL schema
 			schemaDoc := grpctest.MustGraphQLSchema(t)
 

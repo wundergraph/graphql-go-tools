@@ -443,9 +443,26 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 
 		// Handle nested message fields
 		if field.MessageRef >= 0 {
-			fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
-			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
+			var fieldMsg *dynamicpb.Message
 
+			// If the field is optional, we are handling a scalar value that is wrapped in a message
+			// as protobuf scalar types are not nullable.
+			if rpcField.Optional {
+				// If we don't have a value for an optional field, we skip it to provide a null message
+				if !data.Get(rpcField.JSONPath).Exists() {
+					continue
+				}
+
+				fieldMsg = p.buildProtoMessage(
+					p.doc.Messages[field.MessageRef],
+					rpcField.ToOptionalTypeMessage(p.doc.Messages[field.MessageRef].Name),
+					data,
+				)
+			} else {
+				fieldMsg = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
+			}
+
+			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
 			continue
 		}
 
