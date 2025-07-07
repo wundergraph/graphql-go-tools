@@ -210,13 +210,19 @@ func TestLexer_Peek_Read(t *testing.T) {
 	t.Run("read block string with leading/trailing space", func(t *testing.T) {
 		run(`""" foo """`, mustRead(keyword.BLOCKSTRING, "foo"))
 	})
-	t.Run("read block string incomplete", func(t *testing.T) {
+	t.Run("read block string incomplete trailing space", func(t *testing.T) {
 		run(`"""foo unfinished `, mustRead(keyword.BLOCKSTRING, "foo unfinished"))
 	})
-	t.Run("read ident and block string incomplete", func(t *testing.T) {
+	t.Run("read ident and block string incomplete empty", func(t *testing.T) {
 		run(`union"""`,
 			mustRead(keyword.IDENT, "union"),
 			mustRead(keyword.BLOCKSTRING, ""),
+		)
+	})
+	t.Run("read ident and block string incomplete", func(t *testing.T) {
+		run(`union"""incomplete str`,
+			mustRead(keyword.IDENT, "union"),
+			mustRead(keyword.BLOCKSTRING, "incomplete str"),
 		)
 	})
 	t.Run("read block string with surrounding tabs", func(t *testing.T) {
@@ -235,10 +241,10 @@ func TestLexer_Peek_Read(t *testing.T) {
 		b
 """`, mustRead(keyword.BLOCKSTRING, "indented\n\tlines\n\t\ta\n\t\tb"))
 	})
-	t.Run("complex BlockString", func(t *testing.T) {
+	t.Run("complex block string", func(t *testing.T) {
 		run("\"\"\"block string uses \\\"\"\"\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
 	})
-	t.Run("complex BlockString with carriage return", func(t *testing.T) {
+	t.Run("complex block string with carriage return", func(t *testing.T) {
 		run("\"\"\"block string uses \\\"\"\"\r\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
 	})
 	t.Run("read block string with leading/trailing whitespace combination", func(t *testing.T) {
