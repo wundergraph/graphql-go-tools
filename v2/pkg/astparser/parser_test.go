@@ -2368,8 +2368,7 @@ this is a schema \
 							panic("want schema description to be defined")
 						}
 						description := doc.Input.ByteSliceString(schema.Description.Content)
-						expectedDescription := `this is a schema \`
-						require.Equal(t, expectedDescription, description)
+						require.Equal(t, `this is a schema \ `, description)
 						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
 						if query.OperationType != ast.OperationTypeQuery {
 							panic("want OperationTypeQuery")
@@ -2436,8 +2435,7 @@ this is a schema \
 							panic("want schema description to be defined")
 						}
 						description := doc.Input.ByteSliceString(schema.Description.Content)
-						expectedDescription := `this is a schema \`
-						require.Equal(t, expectedDescription, description)
+						require.Equal(t, `this is a schema \ `, description)
 						query := doc.RootOperationTypeDefinitions[schema.RootOperationTypeDefinitions.Refs[0]]
 						if query.OperationType != ast.OperationTypeQuery {
 							panic("want OperationTypeQuery")
@@ -2504,9 +2502,7 @@ this is a schema \
 						if name.DefaultValue.Value.Kind != ast.ValueKindString {
 							panic("want ValueKindString")
 						}
-						if doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != `Gopher \` {
-							panic("want Gopher")
-						}
+						assert.Equal(t, doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content), `Gopher \ `)
 					})
 			})
 
@@ -2530,9 +2526,7 @@ this is a schema \
 						if name.DefaultValue.Value.Kind != ast.ValueKindString {
 							panic("want ValueKindString")
 						}
-						if doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content) != `Gopher \\` {
-							panic("want Gopher")
-						}
+						assert.Equal(t, doc.Input.ByteSliceString(doc.StringValues[name.DefaultValue.Value.Ref].Content), `Gopher \\ `)
 					})
 			})
 		})

@@ -622,7 +622,7 @@ scalar Boolean
 scalar ID @custom(typeName: "string")
 "Directs the executor to include this field or fragment only when the argument is true."
 directive @include(
-    " Included when true."
+    "Included when true."
     if: Boolean!
 ) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 "Directs the executor to skip this field or fragment when the argument is true."
