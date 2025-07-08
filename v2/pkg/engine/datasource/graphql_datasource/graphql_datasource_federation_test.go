@@ -3097,8 +3097,44 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
+										Input:      `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource: &Source{},
+										CoordinateDependencies: []resolve.FetchDependency{
+											{
+												Coordinate: resolve.GraphCoordinate{
+													TypeName:  "Address",
+													FieldName: "country",
+												},
+												DependsOn: []resolve.FetchDependencyOrigin{
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "id",
+														},
+														IsKey: true,
+													},
+												},
+											},
+											{
+												Coordinate: resolve.GraphCoordinate{
+													TypeName:  "Address",
+													FieldName: "city",
+												},
+												DependsOn: []resolve.FetchDependencyOrigin{
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "id",
+														},
+														IsKey: true,
+													},
+												},
+											},
+										},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
 										Variables: []resolve.Variable{
@@ -3138,6 +3174,60 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
+										CoordinateDependencies: []resolve.FetchDependency{
+											{
+												Coordinate: resolve.GraphCoordinate{
+													TypeName:  "Address",
+													FieldName: "line3",
+												},
+												DependsOn: []resolve.FetchDependencyOrigin{
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "id",
+														},
+														IsKey: true,
+													},
+												},
+											},
+											{
+												Coordinate: resolve.GraphCoordinate{
+													TypeName:  "Address",
+													FieldName: "zip",
+												},
+												DependsOn: []resolve.FetchDependencyOrigin{
+													{
+														FetchID:  1,
+														Subgraph: "address-enricher.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "country",
+														},
+														IsRequires: true,
+													},
+													{
+														FetchID:  1,
+														Subgraph: "address-enricher.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "city",
+														},
+														IsRequires: true,
+													},
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "id",
+														},
+														IsKey: true,
+													},
+												},
+											},
+										},
 										Variables: []resolve.Variable{
 											&resolve.ResolvableObjectVariable{
 												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -3185,9 +3275,65 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:               `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
-										DataSource:          &Source{},
-										PostProcessing:      SingleEntityPostProcessingConfiguration,
+										Input:          `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
+										DataSource:     &Source{},
+										PostProcessing: SingleEntityPostProcessingConfiguration,
+										CoordinateDependencies: []resolve.FetchDependency{
+											{
+												Coordinate: resolve.GraphCoordinate{
+													TypeName:  "Address",
+													FieldName: "fullAddress",
+												},
+												IsUserRequested: true,
+												DependsOn: []resolve.FetchDependencyOrigin{
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "line1",
+														},
+														IsRequires: true,
+													},
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "line2",
+														},
+														IsRequires: true,
+													},
+													{
+														FetchID:  2,
+														Subgraph: "address.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "line3",
+														},
+														IsRequires: true,
+													},
+													{
+														FetchID:  2,
+														Subgraph: "address.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "zip",
+														},
+														IsRequires: true,
+													},
+													{
+														FetchID:  0,
+														Subgraph: "user.service",
+														Coordinate: resolve.GraphCoordinate{
+															TypeName:  "Address",
+															FieldName: "id",
+														},
+														IsKey: true,
+													},
+												},
+											},
+										},
 										RequiresEntityFetch: true,
 										Variables: []resolve.Variable{
 											&resolve.ResolvableObjectVariable{
@@ -3328,6 +3474,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 					WithDefaultPostProcessor(),
+					WithFieldDependencies(),
 				)
 			})
 

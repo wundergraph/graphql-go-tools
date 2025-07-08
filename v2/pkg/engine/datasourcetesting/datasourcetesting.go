@@ -28,10 +28,11 @@ import (
 )
 
 type testOptions struct {
-	postProcessors []*postprocess.Processor
-	skipReason     string
-	withFieldInfo  bool
-	withPrintPlan  bool
+	postProcessors        []*postprocess.Processor
+	skipReason            string
+	withFieldInfo         bool
+	withPrintPlan         bool
+	withFieldDependencies bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -64,6 +65,12 @@ func WithPrintPlan() func(*testOptions) {
 	return func(o *testOptions) {
 		o.withPrintPlan = true
 		o.withFieldInfo = true
+	}
+}
+
+func WithFieldDependencies() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldDependencies = true
 	}
 }
 
@@ -125,6 +132,7 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		// by default, we don't want to have field info in the tests because it's too verbose
 		config.DisableIncludeInfo = true
+		config.DisableIncludeFieldDependencies = true
 
 		opts := &testOptions{}
 		for _, o := range options {
@@ -133,6 +141,10 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		if opts.withFieldInfo {
 			config.DisableIncludeInfo = false
+		}
+
+		if opts.withFieldDependencies {
+			config.DisableIncludeFieldDependencies = false
 		}
 
 		if opts.skipReason != "" {
