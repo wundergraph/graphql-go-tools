@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0-rc.200](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.199...v2.0.0-rc.200) (2025-07-08)
+
+
+### Features
+
+* implement resolving fetch dependencies ([#1216](https://github.com/wundergraph/graphql-go-tools/issues/1216)) ([ca9ebaa](https://github.com/wundergraph/graphql-go-tools/commit/ca9ebaa7784b5da89c78239f83a1c3eba909b838))
+
+
+### Bug Fixes
+
+* use existing files in BenchmarkMinify ([#1214](https://github.com/wundergraph/graphql-go-tools/issues/1214)) ([0083b78](https://github.com/wundergraph/graphql-go-tools/commit/0083b7880bbcb20da4f26ca509e45cb48eedaaf1))
+* use int in netpoll's BenchmarkSocketFdReflect ([#1213](https://github.com/wundergraph/graphql-go-tools/issues/1213)) ([35f3175](https://github.com/wundergraph/graphql-go-tools/commit/35f31751d5971c491c98fa3b223fba846729a3fa))
+
 ## [2.0.0-rc.199](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.198...v2.0.0-rc.199) (2025-07-07)
 
 
