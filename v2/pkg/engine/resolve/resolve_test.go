@@ -1177,7 +1177,7 @@ func testFnSubgraphErrorsPassthrough(fn func(t *testing.T, ctrl *gomock.Controll
 	}
 }
 
-func testFnSubgraphErrorsWithExtensionFieldCode(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+func testFnSubgraphErrorsWrappedWithExtensionFieldCode(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -1190,7 +1190,7 @@ func testFnSubgraphErrorsWithExtensionFieldCode(fn func(t *testing.T, ctrl *gomo
 			PropagateSubgraphErrors:      true,
 			PropagateSubgraphStatusCodes: true,
 			AllowedErrorExtensionFields:  []string{"code"},
-			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModeWrapped,
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
 
