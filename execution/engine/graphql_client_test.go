@@ -73,6 +73,18 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	return responseBodyBytes
 }
 
+func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath string, variables queryVariables, expectedStatusCode int, t *testing.T) []byte {
+	reqBody := loadQuery(t, queryFilePath, variables)
+	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
+	require.NoError(t, err)
+	req = req.WithContext(ctx)
+	resp, err := g.httpClient.Do(req)
+	require.NoError(t, err)
+	responseBodyBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	return responseBodyBytes
+}
+
 func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath string, variables queryVariables, t *testing.T) chan []byte {
 	messageCh := make(chan []byte)
 

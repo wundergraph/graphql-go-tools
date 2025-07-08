@@ -354,6 +354,16 @@ func TestFederationIntegrationTest(t *testing.T) {
 		assert.Equal(t, compact(expected), string(resp))
 	})
 
+	t.Run("recursive fragment", func(t *testing.T) {
+		setup := federationtesting.NewFederationSetup(addGateway(false))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		resp := gqlClient.QueryStatusCode(ctx, setup.GatewayServer.URL, testQueryPath("queries/recursive_fragment.graphql"), nil, http.StatusInternalServerError, t)
+		assert.Len(t, resp, 0)
+	})
+
 	t.Run("Union response type with interface fragments", func(t *testing.T) {
 		setup := federationtesting.NewFederationSetup(addGateway(false))
 		t.Cleanup(setup.Close)

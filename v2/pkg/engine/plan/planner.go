@@ -149,6 +149,8 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.planners = plannersConfigurations
 	p.planningVisitor.Config = p.config
 	p.planningVisitor.skipFieldsRefs = selectionsConfig.skipFieldsRefs
+	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
+	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)

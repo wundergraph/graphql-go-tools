@@ -19,12 +19,21 @@ type NodeSelectionBuilder struct {
 	nodeSelectionsVisitor *nodeSelectionVisitor
 }
 
+type fieldDependencyKind int
+
+const (
+	fieldDependencyKindKey fieldDependencyKind = iota
+	fieldDependencyKindRequires
+)
+
 type NodeSelectionResult struct {
 	dataSources              []DataSource                                     // data sources configurations, which used by the current operation
 	nodeSuggestions          *NodeSuggestions                                 // nodeSuggestions holds information about suggested data sources for each field
 	fieldDependsOn           map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldIndexKey][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
 	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldIndexKey]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
 	skipFieldsRefs           []int                                            // skipFieldsRefs holds required field refs added by planner and should not be added to user response
+	fieldRefDependsOn        map[int][]int
+	fieldDependencyKind      map[fieldDependencyKey]fieldDependencyKind
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
@@ -170,6 +179,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		fieldDependsOn:           p.nodeSelectionsVisitor.fieldDependsOn,
 		fieldRequirementsConfigs: p.nodeSelectionsVisitor.fieldRequirementsConfigs,
 		skipFieldsRefs:           p.nodeSelectionsVisitor.skipFieldsRefs,
+		fieldRefDependsOn:        p.nodeSelectionsVisitor.fieldRefDependsOn,
+		fieldDependencyKind:      p.nodeSelectionsVisitor.fieldDependencyKind,
 	}
 }
 
