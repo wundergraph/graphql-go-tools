@@ -2,7 +2,6 @@ package lexer
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 
@@ -15,6 +14,7 @@ import (
 )
 
 func TestLexer_Peek_Read(t *testing.T) {
+	t.Parallel()
 
 	type checkFunc func(lex *Lexer, i int)
 
@@ -34,11 +34,11 @@ func TestLexer_Peek_Read(t *testing.T) {
 		return func(lex *Lexer, i int) {
 			tok := lex.Read()
 			if k != tok.Keyword {
-				panic(fmt.Errorf("mustRead: want(keyword): %s, got: %s [check: %d]", k.String(), tok.String(), i))
+				t.Errorf("mustRead: want(keyword): %q, got: %q [check: %d]", k.String(), tok.String(), i)
 			}
 			gotLiteral := string(lex.input.ByteSlice(tok.Literal))
 			if wantLiteral != gotLiteral {
-				panic(fmt.Errorf("mustRead: want(literal): %s, got: %s [check: %d]", wantLiteral, gotLiteral, i))
+				t.Errorf("mustRead: want(literal): %q, got: %q [check: %d]", wantLiteral, gotLiteral, i)
 			}
 		}
 	}
@@ -54,16 +54,16 @@ func TestLexer_Peek_Read(t *testing.T) {
 			tok := lex.Read()
 
 			if lineStart != tok.TextPosition.LineStart {
-				panic(fmt.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.TextPosition.LineStart, i))
+				t.Errorf("mustReadPosition: want(lineStart): %d, got: %d [check: %d]", lineStart, tok.TextPosition.LineStart, i)
 			}
 			if charStart != tok.TextPosition.CharStart {
-				panic(fmt.Errorf("mustReadPosition: want(charStart): %d, got: %d [check: %d]", charStart, tok.TextPosition.CharStart, i))
+				t.Errorf("mustReadPosition: want(charStart): %d, got: %d [check: %d]", charStart, tok.TextPosition.CharStart, i)
 			}
 			if lineEnd != tok.TextPosition.LineEnd {
-				panic(fmt.Errorf("mustReadPosition: want(lineEnd): %d, got: %d [check: %d]", lineEnd, tok.TextPosition.LineEnd, i))
+				t.Errorf("mustReadPosition: want(lineEnd): %d, got: %d [check: %d]", lineEnd, tok.TextPosition.LineEnd, i)
 			}
 			if charEnd != tok.TextPosition.CharEnd {
-				panic(fmt.Errorf("mustReadPosition: want(charEnd): %d, got: %d [check: %d]", charEnd, tok.TextPosition.CharEnd, i))
+				t.Errorf("mustReadPosition: want(charEnd): %d, got: %d [check: %d]", charEnd, tok.TextPosition.CharEnd, i)
 			}
 		}
 	}
@@ -72,7 +72,7 @@ func TestLexer_Peek_Read(t *testing.T) {
 		return func(lex *Lexer, i int) {
 			got := lex.peekWhitespaceLength()
 			if want != got {
-				panic(fmt.Errorf("mustPeekWhitespaceLength: want: %d, got: %d [check: %d]", want, got, i))
+				t.Errorf("mustPeekWhitespaceLength: want: %d, got: %d [check: %d]", want, got, i)
 			}
 		}
 	}
@@ -174,54 +174,80 @@ func TestLexer_Peek_Read(t *testing.T) {
 		run("-1.758E11", mustRead(keyword.SUB, "-"),
 			mustRead(keyword.FLOAT, "1.758E11"))
 	})
-	t.Run("read single line string", func(t *testing.T) {
-		run("\"foo\"", mustRead(keyword.STRING, "foo"))
+	t.Run("read string", func(t *testing.T) {
+		run(`"foo"`, mustRead(keyword.STRING, `foo`))
 	})
-	t.Run("read single line string with leading/trailing whitespace", func(t *testing.T) {
-		run("\" 	foo	 \"", mustRead(keyword.STRING, "foo"))
+	t.Run("read string with leading/trailing whitespace", func(t *testing.T) {
+		run("\" \tfoo\t \"", mustRead(keyword.STRING, " \tfoo\t "))
 	})
 	t.Run("peek incomplete string as quote", func(t *testing.T) {
-		run("\"foo", mustRead(keyword.STRING, "foo"))
+		run(`"foo`, mustRead(keyword.STRING, "foo"))
 	})
-	t.Run("read single line string with escaped quote", func(t *testing.T) {
-		run("\"foo \\\" bar\"", mustRead(keyword.STRING, "foo \\\" bar"))
+	t.Run("read string with escaped quote", func(t *testing.T) {
+		run(`"foo \" bar"`, mustRead(keyword.STRING, `foo \" bar`))
 	})
-	t.Run("read single line string with escaped backslash", func(t *testing.T) {
-		run("\"foo \\\\ bar\"", mustRead(keyword.STRING, "foo \\\\ bar"))
+	t.Run("read string with escaped backslash", func(t *testing.T) {
+		run(`"foo \\ bar"`, mustRead(keyword.STRING, `foo \\ bar`))
 	})
-	t.Run("read multi line string with escaped quote", func(t *testing.T) {
-		run("\"\"\"foo \\\" bar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo \\\" bar"))
+	t.Run("read block string with escaped quote", func(t *testing.T) {
+		run(`"""foo \" bar"""`, mustRead(keyword.BLOCKSTRING, `foo \" bar`))
 	})
-	t.Run("read multi line string with two escaped quotes", func(t *testing.T) {
-		run("\"\"\"foo \"\" bar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo \"\" bar"))
+	t.Run("read block string with two escaped quotes", func(t *testing.T) {
+		run(`"""foo "" bar"""`, mustRead(keyword.BLOCKSTRING, `foo "" bar`))
 	})
-	t.Run("read multi line string", func(t *testing.T) {
+	t.Run("read block string padded with whitespaces", func(t *testing.T) {
+		run(`"""  foo bar  """`, mustRead(keyword.BLOCKSTRING, `foo bar`))
+	})
+	t.Run("read block string", func(t *testing.T) {
 		run("\"\"\"\nfoo\nbar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo\nbar"))
 	})
-	t.Run("read multi line string with carriage return", func(t *testing.T) {
+	t.Run("read block string with carriage return", func(t *testing.T) {
 		run("\"\"\"\r\nfoo\r\nbar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo\r\nbar"))
 	})
-	t.Run("read multi line string with escaped backslash", func(t *testing.T) {
-		run("\"\"\"foo \\\\ bar\"\"\"", mustRead(keyword.BLOCKSTRING, "foo \\\\ bar"))
+	t.Run("read block string with escaped backslash", func(t *testing.T) {
+		run(`"""foo \\ bar"""`, mustRead(keyword.BLOCKSTRING, `foo \\ bar`))
 	})
-	t.Run("read multi line string with leading/trailing space", func(t *testing.T) {
+	t.Run("read block string with leading/trailing space", func(t *testing.T) {
 		run(`""" foo """`, mustRead(keyword.BLOCKSTRING, "foo"))
 	})
-	t.Run("read multi line string with trailing leading/trailing tab", func(t *testing.T) {
+	t.Run("read block string incomplete trailing space", func(t *testing.T) {
+		run(`"""foo unfinished `, mustRead(keyword.BLOCKSTRING, "foo unfinished"))
+	})
+	t.Run("read ident and block string incomplete empty", func(t *testing.T) {
+		run(`union"""`,
+			mustRead(keyword.IDENT, "union"),
+			mustRead(keyword.BLOCKSTRING, ""),
+		)
+	})
+	t.Run("read ident and block string incomplete", func(t *testing.T) {
+		run(`union"""incomplete str`,
+			mustRead(keyword.IDENT, "union"),
+			mustRead(keyword.BLOCKSTRING, "incomplete str"),
+		)
+	})
+	t.Run("read block string with surrounding tabs", func(t *testing.T) {
 		run(`"""	foo	"""`, mustRead(keyword.BLOCKSTRING, "foo"))
 	})
-	t.Run("read multi line string with trailing leading/trailing LT", func(t *testing.T) {
+	t.Run("read block string with leading/trailing newlines", func(t *testing.T) {
 		run(`"""
-	  	foo 
+		foo 
 """`, mustRead(keyword.BLOCKSTRING, "foo"))
 	})
-	t.Run("complex multi line string", func(t *testing.T) {
+	t.Run("read block string with common indent", func(t *testing.T) {
+		run(`"""
+	indented
+	lines
+		a
+		b
+"""`, mustRead(keyword.BLOCKSTRING, "indented\n\tlines\n\t\ta\n\t\tb"))
+	})
+	t.Run("complex block string", func(t *testing.T) {
 		run("\"\"\"block string uses \\\"\"\"\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
 	})
-	t.Run("complex multi line string with carriage return", func(t *testing.T) {
+	t.Run("complex block string with carriage return", func(t *testing.T) {
 		run("\"\"\"block string uses \\\"\"\"\r\n\"\"\"", mustRead(keyword.BLOCKSTRING, "block string uses \\\"\"\""))
 	})
-	t.Run("read multi line string with trailing leading/trailing whitespace combination", func(t *testing.T) {
+	t.Run("read block string with leading/trailing whitespace combination", func(t *testing.T) {
 		run(`	"""	 	 
 						foo
 				  	"""`, mustRead(keyword.BLOCKSTRING, "foo"))

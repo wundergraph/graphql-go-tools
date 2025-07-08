@@ -16,10 +16,10 @@ import (
 )
 
 func BenchmarkMinify(b *testing.B) {
-	operation, err := os.ReadFile("cosmo.graphql")
+	operation, err := os.ReadFile("operation1.graphql")
 	assert.NoError(b, err)
 
-	schema, err := os.ReadFile("tsb-us-in.graphql")
+	schema, err := os.ReadFile("simpleschema.graphql")
 	assert.NoError(b, err)
 
 	definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(string(schema))
@@ -40,9 +40,6 @@ func BenchmarkMinify(b *testing.B) {
 		_, err = m.Minify(operation, &definition, opts, buf)
 		if err != nil {
 			b.Fatal(err)
-		}
-		if buf.Len() != 10366 {
-			b.Fatalf("unexpected length: %d, run: %d", buf.Len(), i)
 		}
 	}
 }
@@ -127,31 +124,6 @@ func TestMinifier_Minify(t *testing.T) {
 			schemaFile:    "simpleschema.graphql",
 			sort:          true,
 		},
-	}
-
-	if os.Getenv("WG_INTERNAL") == "true" {
-		testCases = append(testCases, testCase{
-			name:          "cosmo-presorted",
-			operationFile: "cosmo-sorted.graphql",
-			operationName: "MyQuery",
-			schemaFile:    "tsb-us-in.graphql",
-			sort:          true,
-		},
-			testCase{
-				name:          "cosmo-nosort",
-				operationFile: "cosmo.graphql",
-				operationName: "MyQuery",
-				schemaFile:    "tsb-us-in.graphql",
-				sort:          false,
-			},
-			testCase{
-				name:          "cosmo-sorted",
-				operationFile: "cosmo.graphql",
-				operationName: "MyQuery",
-				schemaFile:    "tsb-us-in.graphql",
-				sort:          true,
-			},
-		)
 	}
 
 	for _, tc := range testCases {
