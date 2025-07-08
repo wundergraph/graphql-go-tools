@@ -162,14 +162,15 @@ type FetchTreeQueryPlanNode struct {
 }
 
 type FetchTreeQueryPlan struct {
-	Kind              string           `json:"kind"`
-	Path              string           `json:"path,omitempty"`
-	SubgraphName      string           `json:"subgraphName"`
-	SubgraphID        string           `json:"subgraphId"`
-	FetchID           int              `json:"fetchId"`
-	DependsOnFetchIDs []int            `json:"dependsOnFetchIds,omitempty"`
-	Representations   []Representation `json:"representations,omitempty"`
-	Query             string           `json:"query,omitempty"`
+	Kind              string            `json:"kind"`
+	Path              string            `json:"path,omitempty"`
+	SubgraphName      string            `json:"subgraphName"`
+	SubgraphID        string            `json:"subgraphId"`
+	FetchID           int               `json:"fetchId"`
+	DependsOnFetchIDs []int             `json:"dependsOnFetchIds,omitempty"`
+	Representations   []Representation  `json:"representations,omitempty"`
+	Query             string            `json:"query,omitempty"`
+	Dependencies      []FetchDependency `json:"dependencies"`
 }
 
 func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {
@@ -215,6 +216,7 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
+				Dependencies:      f.FetchConfiguration.CoordinateDependencies,
 			}
 
 			if f.Info.QueryPlan != nil {
@@ -229,6 +231,7 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
+				Dependencies:      f.CoordinateDependencies,
 			}
 
 			if f.Info.QueryPlan != nil {
@@ -243,6 +246,7 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
+				Dependencies:      f.CoordinateDependencies,
 			}
 
 			if f.Info.QueryPlan != nil {

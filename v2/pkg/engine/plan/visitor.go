@@ -1327,7 +1327,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	}
 
 	if !v.Config.DisableIncludeFieldDependencies {
-		singleFetch.FetchConfiguration.Dependencies = v.resolveFetchDependencies(internal.fetchID)
+		singleFetch.FetchConfiguration.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
 	}
 
 	return singleFetch
