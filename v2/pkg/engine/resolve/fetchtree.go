@@ -170,7 +170,7 @@ type FetchTreeQueryPlan struct {
 	DependsOnFetchIDs []int             `json:"dependsOnFetchIds,omitempty"`
 	Representations   []Representation  `json:"representations,omitempty"`
 	Query             string            `json:"query,omitempty"`
-	Dependencies      []FetchDependency `json:"dependencies"`
+	Dependencies      []FetchDependency `json:"dependencies,omitempty"`
 }
 
 func (n *FetchTreeNode) QueryPlan() *FetchTreeQueryPlanNode {

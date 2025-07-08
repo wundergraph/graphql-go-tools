@@ -3099,7 +3099,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									FetchConfiguration: resolve.FetchConfiguration{
 										Input:      `{"method":"POST","url":"http://address-enricher.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename country city}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource: &Source{},
-										Dependencies: []resolve.FetchDependency{
+										CoordinateDependencies: []resolve.FetchDependency{
 											{
 												Coordinate: resolve.GraphCoordinate{
 													TypeName:  "Address",
@@ -3174,7 +3174,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DataSource:          &Source{},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
 										RequiresEntityFetch: true,
-										Dependencies: []resolve.FetchDependency{
+										CoordinateDependencies: []resolve.FetchDependency{
 											{
 												Coordinate: resolve.GraphCoordinate{
 													TypeName:  "Address",
@@ -3278,7 +3278,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Input:          `{"method":"POST","url":"http://account.service","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename fullAddress}}}","variables":{"representations":[$$0$$]}}}`,
 										DataSource:     &Source{},
 										PostProcessing: SingleEntityPostProcessingConfiguration,
-										Dependencies: []resolve.FetchDependency{
+										CoordinateDependencies: []resolve.FetchDependency{
 											{
 												Coordinate: resolve.GraphCoordinate{
 													TypeName:  "Address",
