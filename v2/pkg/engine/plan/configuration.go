@@ -27,7 +27,8 @@ type Configuration struct {
 
 	MinifySubgraphOperations bool
 
-	DisableIncludeInfo bool
+	DisableIncludeInfo              bool
+	DisableIncludeFieldDependencies bool
 }
 
 type DebugConfiguration struct {

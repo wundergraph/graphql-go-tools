@@ -1,0 +1,12 @@
+query RecursiveFragmentQuery {
+    ...FragmentA
+}
+
+fragment FragmentA on Query {
+    ...FragmentB
+}
+
+fragment FragmentB on Query {
+    ...FragmentA
+}
+
