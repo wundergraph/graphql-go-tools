@@ -339,32 +339,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 		expectedError string
 	}{
 		{
-			name:  "Should include typename when requested",
-			query: `query UsersWithTypename { users { __typename id name } }`,
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"users": {
-						RPC:      "QueryUsers",
-						Request:  "QueryUsersRequest",
-						Response: "QueryUsersResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"users": {
-							TargetName: "users",
-						},
-					},
-					"User": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-					},
-				},
-			},
+			name:    "Should include typename when requested",
+			query:   `query UsersWithTypename { users { __typename id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -415,20 +392,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 				users { id name }
 				user(id: "1") { id name }
 				}`,
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"users": {
-						RPC:      "QueryUsers",
-						Request:  "QueryUsersRequest",
-						Response: "QueryUsersResponse",
-					},
-					"user": {
-						RPC:      "QueryUser",
-						Request:  "QueryUserRequest",
-						Response: "QueryUserResponse",
-					},
-				},
-			},
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -508,36 +472,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should call query with two arguments and no variables and mapping for field names",
-			query: `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"typeFilterWithArguments": {
-						RPC:      "QueryTypeFilterWithArguments",
-						Request:  "QueryTypeFilterWithArgumentsRequest",
-						Response: "QueryTypeFilterWithArgumentsResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"typeFilterWithArguments": {
-							TargetName: "type_filter_with_arguments",
-							ArgumentMappings: map[string]string{
-								"filterField1": "filter_field_1",
-								"filterField2": "filter_field_2",
-							},
-						},
-					},
-					"TypeWithMultipleFilterFields": {
-						"filterField1": {
-							TargetName: "filter_field_1",
-						},
-						"filterField2": {
-							TargetName: "filter_field_2",
-						},
-					},
-				},
-			},
+			name:    "Should call query with two arguments and no variables and mapping for field names",
+			query:   `query QueryWithTwoArguments { typeFilterWithArguments(filterField1: "test1", filterField2: "test2") { id name filterField1 filterField2 } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -599,37 +536,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
-			query: `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
-			mapping: &GRPCMapping{
-				QueryRPCs: RPCConfigMap{
-					"complexFilterType": {
-						RPC:      "QueryComplexFilterType",
-						Request:  "QueryComplexFilterTypeRequest",
-						Response: "QueryComplexFilterTypeResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"complexFilterType": {
-							TargetName: "complex_filter_type",
-						},
-					},
-					"FilterType": {
-						"filterField1": {
-							TargetName: "filter_field1",
-						},
-						"filterField2": {
-							TargetName: "filter_field2",
-						},
-					},
-					"Pagination": {
-						"perPage": {
-							TargetName: "per_page",
-						},
-					},
-				},
-			},
+			name:    "Should create an execution plan for a query with a complex input type and no variables and mapping for field names",
+			query:   `query ComplexFilterTypeQuery { complexFilterType(filter: { name: "test", filterField1: "test1", filterField2: "test2", pagination: { page: 1, perPage: 10 } }) { id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -658,12 +567,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 															JSONPath: "name",
 														},
 														{
-															Name:     "filter_field1",
+															Name:     "filter_field_1",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField1",
 														},
 														{
-															Name:     "filter_field2",
+															Name:     "filter_field_2",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField2",
 														},
@@ -1465,39 +1374,16 @@ func TestQueryExecutionPlans(t *testing.T) {
 	}
 }
 
-// TODO: Define test cases for interface execution plans
-func TestInterfaceExecutionPlan(t *testing.T) {
+func TestCompositeTypeExecutionPlan(t *testing.T) {
 	tests := []struct {
 		name          string
 		query         string
-		mapping       *GRPCMapping
 		expectedPlan  *RPCExecutionPlan
 		expectedError string
 	}{
 		{
 			name:  "Should create an execution plan for a query with a random cat",
 			query: "query RandomCatQuery { randomPet { id name kind ... on Cat { meowVolume } } }",
-			mapping: &GRPCMapping{
-				QueryRPCs: map[string]RPCConfig{
-					"Query": {
-						RPC:      "QueryRandomPet",
-						Request:  "QueryRandomPetRequest",
-						Response: "QueryRandomPetResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"randomPet": {
-							TargetName: "random_pet",
-						},
-					},
-					"Cat": {
-						"meowVolume": {
-							TargetName: "meow_volume",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -1514,8 +1400,21 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "randomPet",
 									Message: &RPCMessage{
-										Name:  "Animal",
-										OneOf: true,
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+										},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -1532,10 +1431,517 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 												TypeName: string(DataTypeString),
 												JSONPath: "kind",
 											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with a random cat and dog",
+			query: "query CatAndDogQuery { randomPet { id name kind ... on Cat { meowVolume } ... on Dog { barkVolume } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+											"Dog": {
+												{
+													Name:     "bark_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "barkVolume",
+												},
+											},
+										},
+										Fields: []RPCField{
 											{
-												Name:     "meow_volume",
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with all pets (interface list)",
+			query: "query AllPetsQuery { allPets { id name kind ... on Cat { meowVolume } ... on Dog { barkVolume } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryAllPets",
+						Request: RPCMessage{
+							Name: "QueryAllPetsRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryAllPetsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "all_pets",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "allPets",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+												},
+											},
+											"Dog": {
+												{
+													Name:     "bark_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "barkVolume",
+												},
+											},
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with all pets using an interface fragment",
+			query: "query AllPetsQuery { allPets { ... on Animal { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryAllPets",
+						Request: RPCMessage{
+							Name: "QueryAllPetsRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryAllPetsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "all_pets",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "allPets",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Animal": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeString),
+													JSONPath: "kind",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with interface selecting only common fields",
+			query: "query CommonFieldsQuery { randomPet { id name kind } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a SearchResult union query",
+			query: "query SearchQuery($input: SearchInput!) { search(input: $input) { ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QuerySearch",
+						Request: RPCMessage{
+							Name: "QuerySearchRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "SearchInput",
+										Fields: []RPCField{
+											{
+												Name:     "query",
+												TypeName: string(DataTypeString),
+												JSONPath: "query",
+											},
+											{
+												Name:     "limit",
 												TypeName: string(DataTypeInt32),
-												JSONPath: "meowVolume",
+												JSONPath: "limit",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QuerySearchResponse",
+							Fields: []RPCField{
+								{
+									Name:     "search",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "search",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "price",
+													TypeName: string(DataTypeDouble),
+													JSONPath: "price",
+												},
+											},
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+											},
+											"Category": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeEnum),
+													JSONPath: "kind",
+													EnumName: "CategoryKind",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a single SearchResult union query",
+			query: "query RandomSearchQuery { randomSearchResult { ... on Product { id name price } ... on User { id name } ... on Category { id name kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomSearchResult",
+						Request: RPCMessage{
+							Name: "QueryRandomSearchResultRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomSearchResultResponse",
+							Fields: []RPCField{
+								{
+									Name:     "random_search_result",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomSearchResult",
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "price",
+													TypeName: string(DataTypeDouble),
+													JSONPath: "price",
+												},
+											},
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+											},
+											"Category": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeEnum),
+													JSONPath: "kind",
+													EnumName: "CategoryKind",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a SearchResult union with partial selection",
+			query: "query PartialSearchQuery($input: SearchInput!) { search(input: $input) { ... on Product { id name } ... on User { id name } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QuerySearch",
+						Request: RPCMessage{
+							Name: "QuerySearchRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "SearchInput",
+										Fields: []RPCField{
+											{
+												Name:     "query",
+												TypeName: string(DataTypeString),
+												JSONPath: "query",
+											},
+											{
+												Name:     "limit",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "limit",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QuerySearchResponse",
+							Fields: []RPCField{
+								{
+									Name:     "search",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "search",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
+											},
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+												},
 											},
 										},
 									},
@@ -1564,7 +1970,274 @@ func TestInterfaceExecutionPlan(t *testing.T) {
 
 			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
 				subgraphName: "Products",
-				mapping:      tt.mapping,
+				mapping:      testMapping(),
+			})
+
+			walker.Walk(&queryDoc, &schemaDoc, &report)
+
+			if report.HasErrors() {
+				require.NotEmpty(t, tt.expectedError)
+				require.Contains(t, report.Error(), tt.expectedError)
+				return
+			}
+
+			require.Empty(t, tt.expectedError)
+			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+}
+
+func TestMutationUnionExecutionPlan(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for ActionResult union mutation",
+			query: "mutation PerformActionMutation($input: ActionInput!) { performAction(input: $input) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationPerformAction",
+						Request: RPCMessage{
+							Name: "MutationPerformActionRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "ActionInput",
+										Fields: []RPCField{
+											{
+												Name:     "type",
+												TypeName: string(DataTypeString),
+												JSONPath: "type",
+											},
+											{
+												Name:     "payload",
+												TypeName: string(DataTypeString),
+												JSONPath: "payload",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationPerformActionResponse",
+							Fields: []RPCField{
+								{
+									Name:     "perform_action",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "performAction",
+									Message: &RPCMessage{
+										Name:      "ActionResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"ActionSuccess",
+											"ActionError",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"ActionSuccess": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "timestamp",
+													TypeName: string(DataTypeString),
+													JSONPath: "timestamp",
+												},
+											},
+											"ActionError": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "code",
+													TypeName: string(DataTypeString),
+													JSONPath: "code",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for ActionResult union with only success case",
+			query: "mutation PerformSuccessActionMutation($input: ActionInput!) { performAction(input: $input) { ... on ActionSuccess { message timestamp } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationPerformAction",
+						Request: RPCMessage{
+							Name: "MutationPerformActionRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "ActionInput",
+										Fields: []RPCField{
+											{
+												Name:     "type",
+												TypeName: string(DataTypeString),
+												JSONPath: "type",
+											},
+											{
+												Name:     "payload",
+												TypeName: string(DataTypeString),
+												JSONPath: "payload",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationPerformActionResponse",
+							Fields: []RPCField{
+								{
+									Name:     "perform_action",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "performAction",
+									Message: &RPCMessage{
+										Name:      "ActionResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"ActionSuccess",
+											"ActionError",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"ActionSuccess": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "timestamp",
+													TypeName: string(DataTypeString),
+													JSONPath: "timestamp",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for ActionResult union with only error case",
+			query: "mutation PerformErrorActionMutation($input: ActionInput!) { performAction(input: $input) { ... on ActionError { message code } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationPerformAction",
+						Request: RPCMessage{
+							Name: "MutationPerformActionRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "ActionInput",
+										Fields: []RPCField{
+											{
+												Name:     "type",
+												TypeName: string(DataTypeString),
+												JSONPath: "type",
+											},
+											{
+												Name:     "payload",
+												TypeName: string(DataTypeString),
+												JSONPath: "payload",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationPerformActionResponse",
+							Fields: []RPCField{
+								{
+									Name:     "perform_action",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "performAction",
+									Message: &RPCMessage{
+										Name:      "ActionResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"ActionSuccess",
+											"ActionError",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"ActionError": {
+												{
+													Name:     "message",
+													TypeName: string(DataTypeString),
+													JSONPath: "message",
+												},
+												{
+													Name:     "code",
+													TypeName: string(DataTypeString),
+													JSONPath: "code",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tt.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			walker := astvisitor.NewWalker(48)
+
+			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+				subgraphName: "Products",
+				mapping:      testMapping(),
 			})
 
 			walker.Walk(&queryDoc, &schemaDoc, &report)
@@ -1589,48 +2262,16 @@ func TestProductExecutionPlan(t *testing.T) {
 	tests := []struct {
 		name          string
 		query         string
-		mapping       *GRPCMapping
 		expectedPlan  *RPCExecutionPlan
 		expectedError string
 	}{
 		{
 			name:  "Should create an execution plan for a query with categories by kind",
 			query: "query CategoriesQuery($kind: CategoryKind!) { categoriesByKind(kind: $kind) { id name kind } }",
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"categoriesByKind": {
-						RPC:      "QueryCategoriesByKind",
-						Request:  "QueryCategoriesByKindRequest",
-						Response: "QueryCategoriesByKindResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"categoriesByKind": {
-							TargetName: "categories_by_kind",
-							ArgumentMappings: map[string]string{
-								"kind": "kind",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "ProductService",
+						ServiceName: "Products",
 						MethodName:  "QueryCategoriesByKind",
 						Request: RPCMessage{
 							Name: "QueryCategoriesByKindRequest",
@@ -1682,41 +2323,10 @@ func TestProductExecutionPlan(t *testing.T) {
 		{
 			name:  "Should create an execution plan for a query with categories by kinds",
 			query: "query CategoriesQuery($kinds: [CategoryKind!]!) { categoriesByKinds(kinds: $kinds) { id name kind } }",
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"categoriesByKinds": {
-						RPC:      "QueryCategoriesByKinds",
-						Request:  "QueryCategoriesByKindsRequest",
-						Response: "QueryCategoriesByKindsResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"categoriesByKinds": {
-							TargetName: "categories_by_kinds",
-							ArgumentMappings: map[string]string{
-								"kinds": "kinds",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "ProductService",
+						ServiceName: "Products",
 						MethodName:  "QueryCategoriesByKinds",
 						Request: RPCMessage{
 							Name: "QueryCategoriesByKindsRequest",
@@ -1769,57 +2379,10 @@ func TestProductExecutionPlan(t *testing.T) {
 		{
 			name:  "Should create an execution plan for a query with filtered categories",
 			query: "query FilterCategoriesQuery($filter: CategoryFilter!) { filterCategories(filter: $filter) { id name kind } }",
-			mapping: &GRPCMapping{
-				Service: "ProductService",
-				QueryRPCs: map[string]RPCConfig{
-					"filterCategories": {
-						RPC:      "QueryFilterCategories",
-						Request:  "QueryFilterCategoriesRequest",
-						Response: "QueryFilterCategoriesResponse",
-					},
-				},
-				Fields: map[string]FieldMap{
-					"Query": {
-						"filterCategories": {
-							TargetName: "filter_categories",
-							ArgumentMappings: map[string]string{
-								"filter": "filter",
-							},
-						},
-					},
-					"Category": {
-						"id": {
-							TargetName: "id",
-						},
-						"name": {
-							TargetName: "name",
-						},
-						"kind": {
-							TargetName: "kind",
-						},
-					},
-					"CategoryFilter": {
-						"category": {
-							TargetName: "category",
-						},
-						"pagination": {
-							TargetName: "pagination",
-						},
-					},
-					"Pagination": {
-						"page": {
-							TargetName: "page",
-						},
-						"perPage": {
-							TargetName: "per_page",
-						},
-					},
-				},
-			},
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
-						ServiceName: "ProductService",
+						ServiceName: "Products",
 						MethodName:  "QueryFilterCategories",
 						Request: RPCMessage{
 							Name: "QueryFilterCategoriesRequest",
@@ -1923,7 +2486,7 @@ func TestProductExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", tt.mapping)
+			planner := NewPlanner("Products", testMapping())
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 
 			if tt.expectedError != "" {
@@ -1946,4 +2509,612 @@ func TestProductExecutionPlan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProductExecutionPlanWithAliases(t *testing.T) {
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with an alias on the users root field",
+			query: "query { foo: users { id name } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryUsers",
+						Request: RPCMessage{
+							Name: "QueryUsersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryUsersResponse",
+							Fields: RPCFields{
+								{
+									Name:     "users",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "users",
+									Alias:    "foo",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with an alias on a field with arguments",
+			query: `query { specificUser: user(id: "123") { userId: id userName: name } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryUser",
+						Request: RPCMessage{
+							Name: "QueryUserRequest",
+							Fields: []RPCField{
+								{
+									Name:     "id",
+									TypeName: string(DataTypeString),
+									JSONPath: "id",
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryUserResponse",
+							Fields: RPCFields{
+								{
+									Name:     "user",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "user",
+									Alias:    "specificUser",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+												Alias:    "userId",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+												Alias:    "userName",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with multiple aliases on the same level",
+			query: "query { allUsers: users { id name } allCategories: categories { id name categoryType: kind } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryUsers",
+						Request: RPCMessage{
+							Name: "QueryUsersRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryUsersResponse",
+							Fields: RPCFields{
+								{
+									Name:     "users",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "users",
+									Alias:    "allUsers",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						CallID:      1,
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: RPCFields{
+								{
+									Name:     "categories",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "categories",
+									Alias:    "allCategories",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												Alias:    "categoryType",
+												EnumName: "CategoryKind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with aliases on nested object fields",
+			query: "query { nestedData: nestedType { identifier: id title: name childB: b { identifier: id title: name grandChild: c { identifier: id title: name } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryNestedType",
+						Request: RPCMessage{
+							Name: "QueryNestedTypeRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryNestedTypeResponse",
+							Fields: RPCFields{
+								{
+									Name:     "nested_type",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "nestedType",
+									Alias:    "nestedData",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "NestedTypeA",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+												Alias:    "identifier",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+												Alias:    "title",
+											},
+											{
+												Name:     "b",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "b",
+												Alias:    "childB",
+												Message: &RPCMessage{
+													Name: "NestedTypeB",
+													Fields: RPCFields{
+														{
+															Name:     "id",
+															TypeName: string(DataTypeString),
+															JSONPath: "id",
+															Alias:    "identifier",
+														},
+														{
+															Name:     "name",
+															TypeName: string(DataTypeString),
+															JSONPath: "name",
+															Alias:    "title",
+														},
+														{
+															Name:     "c",
+															TypeName: string(DataTypeMessage),
+															JSONPath: "c",
+															Alias:    "grandChild",
+															Message: &RPCMessage{
+																Name: "NestedTypeC",
+																Fields: RPCFields{
+																	{
+																		Name:     "id",
+																		TypeName: string(DataTypeString),
+																		JSONPath: "id",
+																		Alias:    "identifier",
+																	},
+																	{
+																		Name:     "name",
+																		TypeName: string(DataTypeString),
+																		JSONPath: "name",
+																		Alias:    "title",
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with aliases on interface fields",
+			query: "query { pet: randomPet { identifier: id petName: name animalKind: kind ... on Cat { volumeLevel: meowVolume } ... on Dog { volumeLevel: barkVolume } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomPet",
+						Request: RPCMessage{
+							Name: "QueryRandomPetRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomPetResponse",
+							Fields: RPCFields{
+								{
+									Name:     "random_pet",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomPet",
+									Alias:    "pet",
+									Message: &RPCMessage{
+										Name:      "Animal",
+										OneOfType: OneOfTypeInterface,
+										MemberTypes: []string{
+											"Cat",
+											"Dog",
+										},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Cat": {
+												{
+													Name:     "meow_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "meowVolume",
+													Alias:    "volumeLevel",
+												},
+											},
+											"Dog": {
+												{
+													Name:     "bark_volume",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "barkVolume",
+													Alias:    "volumeLevel",
+												},
+											},
+										},
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+												Alias:    "identifier",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+												Alias:    "petName",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeString),
+												JSONPath: "kind",
+												Alias:    "animalKind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with aliases on union type fields",
+			query: "query { searchResults: randomSearchResult { ... on Product { productId: id productName: name cost: price } ... on User { userId: id userName: name } ... on Category { categoryId: id categoryName: name categoryType: kind } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryRandomSearchResult",
+						Request: RPCMessage{
+							Name: "QueryRandomSearchResultRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryRandomSearchResultResponse",
+							Fields: RPCFields{
+								{
+									Name:     "random_search_result",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "randomSearchResult",
+									Alias:    "searchResults",
+									Message: &RPCMessage{
+										Name:      "SearchResult",
+										OneOfType: OneOfTypeUnion,
+										MemberTypes: []string{
+											"Product",
+											"User",
+											"Category",
+										},
+										Fields: RPCFields{},
+										FieldSelectionSet: RPCFieldSelectionSet{
+											"Product": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+													Alias:    "productId",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+													Alias:    "productName",
+												},
+												{
+													Name:     "price",
+													TypeName: string(DataTypeDouble),
+													JSONPath: "price",
+													Alias:    "cost",
+												},
+											},
+											"User": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+													Alias:    "userId",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+													Alias:    "userName",
+												},
+											},
+											"Category": {
+												{
+													Name:     "id",
+													TypeName: string(DataTypeString),
+													JSONPath: "id",
+													Alias:    "categoryId",
+												},
+												{
+													Name:     "name",
+													TypeName: string(DataTypeString),
+													JSONPath: "name",
+													Alias:    "categoryName",
+												},
+												{
+													Name:     "kind",
+													TypeName: string(DataTypeEnum),
+													JSONPath: "kind",
+													Alias:    "categoryType",
+													EnumName: "CategoryKind",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a mutation with aliases",
+			query: `mutation { newUser: createUser(input: { name: "John Doe" }) { userId: id fullName: name } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "MutationCreateUser",
+						Request: RPCMessage{
+							Name: "MutationCreateUserRequest",
+							Fields: []RPCField{
+								{
+									Name:     "input",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "input",
+									Message: &RPCMessage{
+										Name: "UserInput",
+										Fields: []RPCField{
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "MutationCreateUserResponse",
+							Fields: RPCFields{
+								{
+									Name:     "create_user",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "createUser",
+									Alias:    "newUser",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+												Alias:    "userId",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+												Alias:    "fullName",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with aliases on field with complex input type",
+			query: `query { bookCategories: categoriesByKind(kind: BOOK) { identifier: id title: name type: kind } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategoriesByKind",
+						Request: RPCMessage{
+							Name: "QueryCategoriesByKindRequest",
+							Fields: []RPCField{
+								{
+									Name:     "kind",
+									TypeName: string(DataTypeEnum),
+									JSONPath: "kind",
+									EnumName: "CategoryKind",
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesByKindResponse",
+							Fields: RPCFields{
+								{
+									Name:     "categories_by_kind",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "categoriesByKind",
+									Alias:    "bookCategories",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Category",
+										Fields: RPCFields{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+												Alias:    "identifier",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+												Alias:    "title",
+											},
+											{
+												Name:     "kind",
+												TypeName: string(DataTypeEnum),
+												JSONPath: "kind",
+												Alias:    "type",
+												EnumName: "CategoryKind",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			report := &operationreport.Report{}
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			astvalidation.DefaultDefinitionValidator().Validate(&schemaDoc, report)
+			if report.HasErrors() {
+				t.Fatalf("failed to validate schema: %s", report.Error())
+			}
+
+			// Parse the GraphQL query
+			queryDoc, queryReport := astparser.ParseGraphqlDocumentString(tt.query)
+			if queryReport.HasErrors() {
+				t.Fatalf("failed to parse query: %s", queryReport.Error())
+			}
+
+			astvalidation.DefaultOperationValidator().Validate(&queryDoc, &schemaDoc, report)
+			if report.HasErrors() {
+				t.Fatalf("failed to validate query: %s", report.Error())
+			}
+
+			planner := NewPlanner("Products", testMapping())
+			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+
+			if tt.expectedError != "" {
+				if err == nil {
+					t.Fatalf("expected error, got nil")
+				}
+				if !strings.Contains(err.Error(), tt.expectedError) {
+					t.Fatalf("expected error to contain %q, got %q", tt.expectedError, err.Error())
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %s", err)
+			}
+
+			diff := cmp.Diff(tt.expectedPlan, outPlan)
+			if diff != "" {
+				t.Fatalf("execution plan mismatch: %s", diff)
+			}
+		})
+	}
+
 }

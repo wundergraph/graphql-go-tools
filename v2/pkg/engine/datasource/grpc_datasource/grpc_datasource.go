@@ -139,27 +139,41 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 	root := arena.NewObject()
 
-	// TODO implement oneof
-	// if message.OneOf {
-	// 	name := strings.ToLower(message.Name)
-	// 	oneof := data.Descriptor().Oneofs().ByName(protoref.Name(name))
-	// 	if oneof == nil {
-	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
-	// 	}
+	if message.IsOneOf() {
+		oneof := data.Descriptor().Oneofs().ByName(protoref.Name(message.OneOfType.FieldName()))
+		if oneof == nil {
+			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.OneOfType.FieldName(), message.Name)
+		}
 
-	// 	oneofDescriptor := data.WhichOneof(oneof)
-	// 	if oneofDescriptor == nil {
-	// 		return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.Name, message.Name)
-	// 	}
+		oneofDescriptor := data.WhichOneof(oneof)
+		if oneofDescriptor == nil {
+			return nil, fmt.Errorf("unable to build response JSON: oneof %s not found in message %s", message.OneOfType.FieldName(), message.Name)
+		}
 
-	// 	if oneofDescriptor.Kind() == protoref.MessageKind {
-	// 		data = data.Get(oneofDescriptor).Message()
-	// 	}
-	// }
+		if oneofDescriptor.Kind() == protoref.MessageKind {
+			data = data.Get(oneofDescriptor).Message()
+		}
+	}
 
-	for _, field := range message.Fields {
+	validFields := message.Fields
+	if message.IsOneOf() {
+		validFields = append(validFields, message.FieldSelectionSet.SelectFieldsForTypes(message.SelectValidTypes(string(data.Type().Descriptor().Name())))...)
+	}
+
+	for _, field := range validFields {
 		if field.StaticValue != "" {
-			root.Set(field.JSONPath, arena.NewString(field.StaticValue))
+			if len(message.MemberTypes) == 0 {
+				root.Set(field.AliasOrPath(), arena.NewString(field.StaticValue))
+				continue
+			}
+
+			for _, memberTypes := range message.MemberTypes {
+				if memberTypes == string(data.Type().Descriptor().Name()) {
+					root.Set(field.AliasOrPath(), arena.NewString(memberTypes))
+					break
+				}
+			}
+
 			continue
 		}
 
@@ -171,12 +185,12 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		if fd.IsList() {
 			list := data.Get(fd).List()
 			if !list.IsValid() {
-				root.Set(field.JSONPath, arena.NewNull())
+				root.Set(field.AliasOrPath(), arena.NewNull())
 				continue
 			}
 
 			arr := arena.NewArray()
-			root.Set(field.JSONPath, arr)
+			root.Set(field.AliasOrPath(), arr)
 			for i := 0; i < list.Len(); i++ {
 
 				switch fd.Kind() {
@@ -200,7 +214,7 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 		if fd.Kind() == protoref.MessageKind {
 			msg := data.Get(fd).Message()
 			if !msg.IsValid() {
-				root.Set(field.JSONPath, arena.NewNull())
+				root.Set(field.AliasOrPath(), arena.NewNull())
 				continue
 			}
 
@@ -215,13 +229,13 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 					return nil, err
 				}
 			} else {
-				root.Set(field.JSONPath, value)
+				root.Set(field.AliasOrPath(), value)
 			}
 
 			continue
 		}
 
-		d.setJSONValue(arena, root, field.JSONPath, data, fd)
+		d.setJSONValue(arena, root, field.AliasOrPath(), data, fd)
 	}
 
 	return root, nil

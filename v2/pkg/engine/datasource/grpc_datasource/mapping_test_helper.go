@@ -1,16 +1,9 @@
-package mapping
+package grpcdatasource
 
-import (
-	"testing"
-
-	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
-)
-
-// DefaultGRPCMapping returns a hardcoded default mapping between GraphQL and Protobuf
-func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
-	return &grpcdatasource.GRPCMapping{
-		Service: "ProductService",
-		QueryRPCs: map[string]grpcdatasource.RPCConfig{
+func testMapping() *GRPCMapping {
+	return &GRPCMapping{
+		Service: "Products",
+		QueryRPCs: map[string]RPCConfig{
 			"users": {
 				RPC:      "QueryUsers",
 				Request:  "QueryUsersRequest",
@@ -71,6 +64,11 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryCategoriesByKindRequest",
 				Response: "QueryCategoriesByKindResponse",
 			},
+			"categoriesByKinds": {
+				RPC:      "QueryCategoriesByKinds",
+				Request:  "QueryCategoriesByKindsRequest",
+				Response: "QueryCategoriesByKindsResponse",
+			},
 			"filterCategories": {
 				RPC:      "QueryFilterCategories",
 				Request:  "QueryFilterCategoriesRequest",
@@ -87,7 +85,7 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Response: "QuerySearchResponse",
 			},
 		},
-		MutationRPCs: grpcdatasource.RPCConfigMap{
+		MutationRPCs: RPCConfigMap{
 			"createUser": {
 				RPC:      "MutationCreateUser",
 				Request:  "MutationCreateUserRequest",
@@ -99,11 +97,11 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Response: "MutationPerformActionResponse",
 			},
 		},
-		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
-		EntityRPCs: map[string]grpcdatasource.EntityRPCConfig{
+		SubscriptionRPCs: RPCConfigMap{},
+		EntityRPCs: map[string]EntityRPCConfig{
 			"Product": {
 				Key: "id",
-				RPCConfig: grpcdatasource.RPCConfig{
+				RPCConfig: RPCConfig{
 					RPC:      "LookupProductById",
 					Request:  "LookupProductByIdRequest",
 					Response: "LookupProductByIdResponse",
@@ -111,14 +109,14 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 			"Storage": {
 				Key: "id",
-				RPCConfig: grpcdatasource.RPCConfig{
+				RPCConfig: RPCConfig{
 					RPC:      "LookupStorageById",
 					Request:  "LookupStorageByIdRequest",
 					Response: "LookupStorageByIdResponse",
 				},
 			},
 		},
-		EnumValues: map[string][]grpcdatasource.EnumValueMapping{
+		EnumValues: map[string][]EnumValueMapping{
 			"CategoryKind": {
 				{Value: "BOOK", TargetValue: "CATEGORY_KIND_BOOK"},
 				{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
@@ -126,7 +124,7 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
 			},
 		},
-		Fields: map[string]grpcdatasource.FieldMap{
+		Fields: map[string]FieldMap{
 			"Query": {
 				"user": {
 					TargetName: "user",
@@ -153,6 +151,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "categories_by_kind",
 					ArgumentMappings: map[string]string{
 						"kind": "kind",
+					},
+				},
+				"categoriesByKinds": {
+					TargetName: "categories_by_kinds",
+					ArgumentMappings: map[string]string{
+						"kinds": "kinds",
 					},
 				},
 				"filterCategories": {
@@ -473,6 +477,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"product": {
 					TargetName: "product",
 				},
+				"user": {
+					TargetName: "user",
+				},
+				"category": {
+					TargetName: "category",
+				},
 			},
 			"ActionResult": {
 				"actionSuccess": {
@@ -484,9 +494,4 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 		},
 	}
-}
-
-func MustDefaultGRPCMapping(t *testing.T) *grpcdatasource.GRPCMapping {
-	mapping := DefaultGRPCMapping()
-	return mapping
 }

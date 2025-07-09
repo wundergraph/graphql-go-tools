@@ -13,6 +13,34 @@ const (
 	federationKeyDirectiveName = "key"
 )
 
+// OneOfType represents the type of a oneof field in a protobuf message.
+// It can be either an interface or a union type.
+type OneOfType uint8
+
+// OneOfType constants define the different types of oneof fields.
+const (
+	// OneOfTypeNone represents no oneof type (default/zero value)
+	OneOfTypeNone OneOfType = iota
+	// OneOfTypeInterface represents an interface type oneof field
+	OneOfTypeInterface
+	// OneOfTypeUnion represents a union type oneof field
+	OneOfTypeUnion
+)
+
+// FieldName returns the corresponding field name for the OneOfType.
+// For interfaces, it returns "instance", for unions it returns "value".
+// Returns an empty string for invalid or unknown types.
+func (o OneOfType) FieldName() string {
+	switch o {
+	case OneOfTypeInterface:
+		return "instance"
+	case OneOfTypeUnion:
+		return "value"
+	}
+
+	return ""
+}
+
 // RPCExecutionPlan represents a plan for executing one or more RPC calls
 // to gRPC services. It defines the sequence of calls and their dependencies.
 type RPCExecutionPlan struct {
@@ -46,8 +74,68 @@ type RPCMessage struct {
 	Name string
 	// Fields is a list of fields in the message
 	Fields RPCFields
-	// OneOf indicates if the message is an interface
-	OneOf bool
+	// FieldSelectionSet are field selections based on inline fragments
+	FieldSelectionSet RPCFieldSelectionSet
+	// OneOfType indicates the type of the oneof field
+	OneOfType OneOfType
+	// MemberTypes provides the names of the types that are implemented by the Interface or Union
+	MemberTypes []string
+}
+
+// IsOneOf checks if the message is a oneof field.
+func (r *RPCMessage) IsOneOf() bool {
+	switch r.OneOfType {
+	case OneOfTypeInterface, OneOfTypeUnion:
+		return true
+	}
+
+	return false
+}
+
+// SelectValidTypes returns the valid types for a given type name.
+func (r *RPCMessage) SelectValidTypes(typeName string) []string {
+	if r.Name == typeName {
+		return []string{r.Name}
+	}
+
+	// If we have an interface or union type, we need to select the provided type as well.
+	return []string{r.Name, typeName}
+}
+
+// RPCFieldSelectionSet is a map of field selections based on inline fragments
+type RPCFieldSelectionSet map[string]RPCFields
+
+// Add adds a field selection set to the map
+func (r RPCFieldSelectionSet) Add(fragmentName string, field RPCField) {
+	if r[fragmentName] == nil {
+		r[fragmentName] = make(RPCFields, 0)
+	}
+
+	r[fragmentName] = append(r[fragmentName], field)
+}
+
+// SelectFieldsForTypes returns the fields for the given valid types.
+// It also makes sure to deduplicate the fields.
+func (r RPCFieldSelectionSet) SelectFieldsForTypes(validTypes []string) RPCFields {
+	fieldSet := make(map[string]struct{})
+	fields := make(RPCFields, 0)
+	for _, typeName := range validTypes {
+		lookupFields, ok := r[typeName]
+		if !ok {
+			continue
+		}
+
+		for _, field := range lookupFields {
+			if _, found := fieldSet[field.Name]; found {
+				continue
+			}
+
+			fieldSet[field.Name] = struct{}{}
+			fields = append(fields, field)
+		}
+	}
+
+	return fields
 }
 
 // RPCField represents a single field in a gRPC message.
@@ -76,6 +164,15 @@ type RPCField struct {
 	// Message is the message type if the field is a nested message type
 	// This allows for recursive construction of complex message types
 	Message *RPCMessage
+}
+
+// AliasOrPath returns the alias of the field if it exists, otherwise it returns the JSONPath.
+func (r *RPCField) AliasOrPath() string {
+	if r.Alias != "" {
+		return r.Alias
+	}
+
+	return r.JSONPath
 }
 
 // RPCFields is a list of RPCFields that provides helper methods

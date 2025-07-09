@@ -38,6 +38,7 @@ type nodeSelectionVisitor struct {
 	fieldRefDependsOn           map[int][]int                                    // fieldRefDependsOn is a map[fieldRef][]fieldRef - holds list of field refs which are required by a field ref, it is a second index without datasource hash
 	fieldRequirementsConfigs    map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldIndexKey]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
 	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
+	fieldDependencyKind         map[fieldDependencyKey]fieldDependencyKind
 
 	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
@@ -45,6 +46,10 @@ type nodeSelectionVisitor struct {
 
 	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates // TODO: remove me
 	rewrittenFieldRefs   []int
+}
+
+type fieldDependencyKey struct {
+	field, dependsOn int
 }
 
 func (c *nodeSelectionVisitor) shouldRevisit() bool {
@@ -142,6 +147,7 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	c.visitedFieldsKeyChecks = make(map[fieldIndexKey]struct{})
 	c.pendingKeyRequirements = make(map[int]pendingKeyRequirements)
 	c.pendingFieldRequirements = make(map[int]pendingFieldRequirements)
+	c.fieldDependencyKind = make(map[fieldDependencyKey]fieldDependencyKind)
 
 	c.fieldDependsOn = make(map[fieldIndexKey][]int)
 	c.fieldRefDependsOn = make(map[int][]int)
@@ -502,6 +508,9 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 			RemappedPaths: addFieldsResult.remappedPaths,
 		}
 		c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], fieldConfiguration)
+		for _, requiredFieldRef := range addFieldsResult.requiredFieldRefs {
+			c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindRequires
+		}
 	}
 
 	c.hasNewFields = true
@@ -590,6 +599,9 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 					TypeName:     previousJump.TypeName,
 					SelectionSet: previousJump.SelectionSet,
 				})
+				for _, requiredFieldRef := range currentFieldRefs {
+					c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindKey
+				}
 			}
 		}
 		currentFieldRefs = addFieldsResult.requiredFieldRefs
@@ -610,6 +622,9 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 					TypeName:     jump.TypeName,
 					SelectionSet: jump.SelectionSet,
 				})
+				for _, requiredFieldRef := range addFieldsResult.requiredFieldRefs {
+					c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindKey
+				}
 			}
 		}
 

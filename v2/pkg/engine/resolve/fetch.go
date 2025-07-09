@@ -72,8 +72,9 @@ func (f *FetchItem) Equals(other *FetchItem) bool {
 }
 
 type FetchItemPathElement struct {
-	Kind FetchItemPathElementKind
-	Path []string
+	Kind      FetchItemPathElementKind
+	Path      []string
+	TypeNames []string
 }
 
 type FetchItemPathElementKind string
@@ -154,12 +155,13 @@ func (_ *SingleFetch) FetchKind() FetchKind {
 // representations variable will contain multiple items according to amount of entities matching this query
 type BatchEntityFetch struct {
 	FetchDependencies
-	Input                BatchInput
-	DataSource           DataSource
-	PostProcessing       PostProcessingConfiguration
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	Input                  BatchInput
+	DataSource             DataSource
+	PostProcessing         PostProcessingConfiguration
+	DataSourceIdentifier   []byte
+	Trace                  *DataSourceLoadTrace
+	Info                   *FetchInfo
+	CoordinateDependencies []FetchDependency
 }
 
 func (b *BatchEntityFetch) Dependencies() FetchDependencies {
@@ -196,12 +198,13 @@ func (_ *BatchEntityFetch) FetchKind() FetchKind {
 // representations variable will contain single item
 type EntityFetch struct {
 	FetchDependencies
-	Input                EntityInput
-	DataSource           DataSource
-	PostProcessing       PostProcessingConfiguration
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	CoordinateDependencies []FetchDependency
+	Input                  EntityInput
+	DataSource             DataSource
+	PostProcessing         PostProcessingConfiguration
+	DataSourceIdentifier   []byte
+	Trace                  *DataSourceLoadTrace
+	Info                   *FetchInfo
 }
 
 func (e *EntityFetch) Dependencies() FetchDependencies {
@@ -283,6 +286,10 @@ type FetchConfiguration struct {
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
 	QueryPlan                             *QueryPlan
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName) and which fields from other fetches they depend on
+	// This information is useful to understand why a fetch depends on other fetches,
+	// and how multiple dependencies lead to a chain of fetches
+	CoordinateDependencies []FetchDependency
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -312,8 +319,51 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
 		return false
 	}
-
+	if !slices.EqualFunc(fc.CoordinateDependencies, other.CoordinateDependencies, func(a, b FetchDependency) bool {
+		if a.Coordinate != b.Coordinate {
+			return false
+		}
+		if a.IsUserRequested != b.IsUserRequested {
+			return false
+		}
+		return slices.EqualFunc(a.DependsOn, b.DependsOn, func(x, y FetchDependencyOrigin) bool {
+			return x.FetchID == y.FetchID &&
+				x.Subgraph == y.Subgraph &&
+				x.Coordinate == y.Coordinate &&
+				x.IsKey == y.IsKey &&
+				x.IsRequires == y.IsRequires
+		})
+	}) {
+		return false
+	}
 	return true
+}
+
+// FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
+type FetchDependency struct {
+	// Coordinate is the type+field which depends on one or more FetchDependencyOrigin
+	Coordinate GraphCoordinate `json:"coordinate"`
+	// IsUserRequested is true if the field was requested by the user/client
+	// If false, this indicates that the Coordinate is a dependency for another fetch
+	IsUserRequested bool `json:"isUserRequested"`
+	// DependsOn are the FetchDependencyOrigins the Coordinate depends on
+	DependsOn []FetchDependencyOrigin `json:"dependsOn"`
+}
+
+// FetchDependencyOrigin defines a GraphCoordinate on a FetchID that another Coordinate depends on
+// In addition, it contains information on the Subgraph providing the field,
+// and if the Coordinate is a @key or a @requires field dependency
+type FetchDependencyOrigin struct {
+	// FetchID is the fetch id providing the Coordinate
+	FetchID int `json:"fetchId"`
+	// Subgraph is the subgraph providing the Coordinate
+	Subgraph string `json:"subgraph"`
+	// Coordinate is the GraphCoordinate that another Coordinate depends on
+	Coordinate GraphCoordinate `json:"coordinate"`
+	// IsKey is true if the Coordinate is a @key dependency
+	IsKey bool `json:"isKey"`
+	// IsRequires is true if the Coordinate is a @requires dependency
+	IsRequires bool `json:"isRequires"`
 }
 
 type FetchInfo struct {

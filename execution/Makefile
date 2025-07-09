@@ -1,14 +1,15 @@
 .PHONY: test
 test:
-	go test -race ./...
+	# The idiomatic way to disable test caching explicitly is to use -count=1
+	go test -race -count=1 ./...
 
 .PHONY: test-quick
 test-quick:
 	go test -count=1 ./...
 
-.PHONY: test
+.PHONY: test-no-race
 test-no-race:
-	go test ./...
+	go test -count=1 ./...
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures

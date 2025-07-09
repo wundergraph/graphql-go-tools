@@ -208,6 +208,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	directivesIncludeSkip := astvisitor.NewWalker(8)
+	preventFragmentCycles(&directivesIncludeSkip)
 	directiveIncludeSkip(&directivesIncludeSkip)
 
 	cleanup := astvisitor.NewWalker(8)
@@ -391,4 +392,100 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 	v.fourthCoerce.Walk(operation, definition, report)
 
 	return v.variablesExtractionVisitor.uploadsPath
+}
+
+type fragmentCycleVisitor struct {
+	*astvisitor.Walker
+	operation, definition *ast.Document
+	currentFragmentRef    int           // current fragment ref
+	spreadsInFragments    map[int][]int // fragment ref -> spread refs
+}
+
+func (f *fragmentCycleVisitor) LeaveDocument(operation, _ *ast.Document) {
+	report := f.Walker.Report
+	if report == nil {
+		return
+	}
+
+	visited := make(map[string]bool)
+	stack := make(map[string]bool)
+
+	for fragmentIdx := range f.spreadsInFragments {
+		f.detectFragmentCycle(fragmentIdx, []int{fragmentIdx}, visited, stack, operation)
+	}
+}
+
+func (f *fragmentCycleVisitor) detectFragmentCycle(fragmentIdx int, path []int, visited, stack map[string]bool, operation *ast.Document) bool {
+	fragName := string(operation.FragmentDefinitionNameBytes(fragmentIdx))
+	if stack[fragName] {
+		// Cycle detected, report using the spread that closes the cycle
+		cycleStart := 0
+		for i, idx := range path {
+			if string(operation.FragmentDefinitionNameBytes(idx)) == fragName {
+				cycleStart = i
+				break
+			}
+		}
+		cyclePath := path[cycleStart:]
+		if len(cyclePath) > 0 {
+			// The spread that closes the cycle is the first spread in the cycle
+			cycleFragIdx := cyclePath[0]
+			spreadName := operation.FragmentDefinitionNameBytes(cycleFragIdx)
+			f.Walker.Report.AddExternalError(operationreport.ErrFragmentSpreadFormsCycle(spreadName))
+		}
+		return true
+	}
+	if visited[fragName] {
+		return false
+	}
+	visited[fragName] = true
+	stack[fragName] = true
+	for _, spreadRef := range f.spreadsInFragments[fragmentIdx] {
+		// Find the fragment definition index for this spread name
+		fragName := operation.FragmentSpreadNameBytes(spreadRef)
+		fragRef, exists := operation.FragmentDefinitionRef(fragName)
+		if exists && f.detectFragmentCycle(fragRef, append(path, fragRef), visited, stack, operation) {
+			return true
+		}
+	}
+	stack[fragName] = false
+	return false
+}
+
+func (f *fragmentCycleVisitor) EnterDocument(operation, definition *ast.Document) {
+	f.operation = operation
+	f.definition = definition
+	f.currentFragmentRef = -1
+	f.spreadsInFragments = make(map[int][]int)
+}
+
+func (f *fragmentCycleVisitor) LeaveFragmentDefinition(ref int) {
+	f.currentFragmentRef = -1
+}
+
+func (f *fragmentCycleVisitor) EnterFragmentDefinition(ref int) {
+	f.currentFragmentRef = ref
+}
+
+func (f *fragmentCycleVisitor) EnterFragmentSpread(ref int) {
+	if f.currentFragmentRef == -1 {
+		return
+	}
+	if _, exists := f.spreadsInFragments[f.currentFragmentRef]; !exists {
+		f.spreadsInFragments[f.currentFragmentRef] = []int{ref}
+		return
+	}
+	f.spreadsInFragments[f.currentFragmentRef] = append(f.spreadsInFragments[f.currentFragmentRef], ref)
+}
+
+func preventFragmentCycles(walker *astvisitor.Walker) *fragmentCycleVisitor {
+	visitor := &fragmentCycleVisitor{
+		Walker:     walker,
+		operation:  nil,
+		definition: nil,
+	}
+	walker.RegisterDocumentVisitor(visitor)
+	walker.RegisterEnterFragmentSpreadVisitor(visitor)
+	walker.RegisterFragmentDefinitionVisitor(visitor)
+	return visitor
 }

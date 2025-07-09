@@ -1,5 +1,56 @@
 # Changelog
 
+## [2.0.0-rc.200](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.199...v2.0.0-rc.200) (2025-07-08)
+
+
+### Features
+
+* implement resolving fetch dependencies ([#1216](https://github.com/wundergraph/graphql-go-tools/issues/1216)) ([ca9ebaa](https://github.com/wundergraph/graphql-go-tools/commit/ca9ebaa7784b5da89c78239f83a1c3eba909b838))
+
+
+### Bug Fixes
+
+* use existing files in BenchmarkMinify ([#1214](https://github.com/wundergraph/graphql-go-tools/issues/1214)) ([0083b78](https://github.com/wundergraph/graphql-go-tools/commit/0083b7880bbcb20da4f26ca509e45cb48eedaaf1))
+* use int in netpoll's BenchmarkSocketFdReflect ([#1213](https://github.com/wundergraph/graphql-go-tools/issues/1213)) ([35f3175](https://github.com/wundergraph/graphql-go-tools/commit/35f31751d5971c491c98fa3b223fba846729a3fa))
+
+## [2.0.0-rc.199](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.198...v2.0.0-rc.199) (2025-07-07)
+
+
+### Features
+
+* add support for aliases ([#1209](https://github.com/wundergraph/graphql-go-tools/issues/1209)) ([9223351](https://github.com/wundergraph/graphql-go-tools/commit/9223351ca9530e3738bfac794de108bbbac134c0))
+
+
+### Bug Fixes
+
+* do not trim whitespaces around non-block strings ([#1211](https://github.com/wundergraph/graphql-go-tools/issues/1211)) ([6f5046b](https://github.com/wundergraph/graphql-go-tools/commit/6f5046b8b1cdbd3d54154d55cc049e45404905aa))
+
+## [2.0.0-rc.198](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.197...v2.0.0-rc.198) (2025-07-04)
+
+
+### Features
+
+* add support for composite types ([#1197](https://github.com/wundergraph/graphql-go-tools/issues/1197)) ([e9b9f19](https://github.com/wundergraph/graphql-go-tools/commit/e9b9f193b749089eda7fa9126e93407c2a4dbd7f))
+
+
+### Bug Fixes
+
+* fix collecting representation for fetches scoped to concrete types ([#1200](https://github.com/wundergraph/graphql-go-tools/issues/1200)) ([bcf547d](https://github.com/wundergraph/graphql-go-tools/commit/bcf547d8c5f93fe6caf1c90b8f3049c94d1fed23))
+
+## [2.0.0-rc.197](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.196...v2.0.0-rc.197) (2025-07-03)
+
+
+### Features
+
+* status code derived fallback errors ([#1198](https://github.com/wundergraph/graphql-go-tools/issues/1198)) ([aa1c7ef](https://github.com/wundergraph/graphql-go-tools/commit/aa1c7efcb22a92c63e22b5de71905fdc327c6875))
+
+## [2.0.0-rc.196](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.195...v2.0.0-rc.196) (2025-07-02)
+
+
+### Features
+
+* pass in response body ([#1203](https://github.com/wundergraph/graphql-go-tools/issues/1203)) ([ef03374](https://github.com/wundergraph/graphql-go-tools/commit/ef03374352bff7715b430409d20a55c9f456405a))
+
 ## [2.0.0-rc.195](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.194...v2.0.0-rc.195) (2025-07-02)
 
 
