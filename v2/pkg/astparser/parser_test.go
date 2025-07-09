@@ -778,27 +778,25 @@ func TestParser_Parse(t *testing.T) {
 		   """"
 		   Object Type BlockString to ignore
 		   """
-		   extend type Person {
+		   extend type Person { a: Int
 		   }
 		   """"
 		   Interface Type BlockString to ignore
 		   """
-		   extend interface NamedEntity {
+		   extend interface NamedEntity { a: Int
 		   }
 		   """"
 		   Scalar Type BlockString to ignore
 		   """
-		   extend scalar JSON {
-		   }
+		   extend scalar JSON
 		   """"
 		   Union Type BlockString to ignore
 		   """
-		   extend union SearchResult = Photo | Person {
-		   }
+		   extend union SearchResult = Photo | Person
 		   """"
 		   Input Type BlockString to ignore
 		   """
-		   extend input NamedEntity {
+		   extend input NamedEntity { a: Int
 		   }`, parse, false)
 	})
 	t.Run("scalar type definition", func(t *testing.T) {
@@ -2233,18 +2231,18 @@ func TestParser_Parse(t *testing.T) {
 				mutation: Mutation
 				subscription: Subscription
 			}
-			scalar Scalar1 {} 
-			scalar Scalar2 {} 
-			type Type1 {} 
-			type Type2 {}
-			interface Iface1 {}
-			interface Iface2 {}
-			input Input1 {}
-			input Input2 {}
+			scalar Scalar1
+			scalar Scalar2
+			type Type1 { a: Int } 
+			type Type2 { a: Int }
+			interface Iface1 { a: Int }
+			interface Iface2 { a: Int }
+			input Input1 { a: Int }
+			input Input2 { a: Int }
 			union Union1
 			union Union2
-			enum Enum1 {}
-			enum Enum2 {}
+			enum Enum1 { A }
+			enum Enum2 { B }
 			directive @directive1 on FIELD
 			directive @directive2 on FIELD
 			`, parse, false,
@@ -2582,6 +2580,21 @@ func TestErrorReport(t *testing.T) {
 		}
 
 		want := "external: unexpected token - got: BLOCKSTRING want one of: [IDENT], locations: [{Line:1 Column:6}], path: []"
+		if report.Error() != want {
+			t.Fatalf("want:\n%s\ngot:\n%s\n", want, report.Error())
+		}
+	})
+	t.Run("empty fragment", func(t *testing.T) {
+		_, report := ParseGraphqlDocumentString(`
+			fragment A on Query {}
+			query { ...A }
+		`)
+
+		if !report.HasErrors() {
+			t.Fatalf("want err, got nil")
+		}
+
+		want := "external: unexpected token - got: RBRACE want one of: [IDENT SPREAD], locations: [{Line:2 Column:25}], path: []"
 		if report.Error() != want {
 			t.Fatalf("want:\n%s\ngot:\n%s\n", want, report.Error())
 		}

@@ -1,0 +1,5 @@
+fragment A on Query {}
+
+{
+    ...A
+}
