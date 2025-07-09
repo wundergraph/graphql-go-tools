@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.201](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.200...v2.0.0-rc.201) (2025-07-09)
+
+
+### Features
+
+* use a method to get response body details on demand ([#1218](https://github.com/wundergraph/graphql-go-tools/issues/1218)) ([3964286](https://github.com/wundergraph/graphql-go-tools/commit/39642862866d4a94691de10574834f64a66fb2a3))
+
 ## [2.0.0-rc.200](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.199...v2.0.0-rc.200) (2025-07-08)
 
 

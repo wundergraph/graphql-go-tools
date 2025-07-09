@@ -56,15 +56,19 @@ type ResponseInfo struct {
 	Request *http.Request
 	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
-	// ResponseBody contains the response body of the subgraph, it is of type string so that it cannot be manipulated.
-	ResponseBody string
+	// This should be private as we do not want user's to access the raw responseBody directly
+	responseBody *bytes.Buffer
+}
+
+func (ri *ResponseInfo) GetResponseBody() string {
+	return ri.responseBody.String()
 }
 
 func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	responseInfo := &ResponseInfo{
 		StatusCode:   res.statusCode,
 		Err:          goerrors.Join(res.err, subgraphError),
-		ResponseBody: res.out.String(),
+		responseBody: res.out,
 	}
 	if res.httpResponseContext != nil {
 		// We're using the response.Request here, because the body will be nil (since the response was read) and won't
