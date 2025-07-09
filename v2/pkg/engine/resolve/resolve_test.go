@@ -1177,7 +1177,7 @@ func testFnSubgraphErrorsPassthrough(fn func(t *testing.T, ctrl *gomock.Controll
 	}
 }
 
-func testFnSubgraphErrorsWrappedWithExtensionFieldCode(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+func testFnSubgraphErrorsWithExtensionFieldCode(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -1190,7 +1190,42 @@ func testFnSubgraphErrorsWrappedWithExtensionFieldCode(fn func(t *testing.T, ctr
 			PropagateSubgraphErrors:      true,
 			PropagateSubgraphStatusCodes: true,
 			AllowedErrorExtensionFields:  []string{"code"},
-			SubgraphErrorPropagationMode: SubgraphErrorPropagationModeWrapped,
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+		})
+		node, ctx, expectedOutput := fn(t, ctrl)
+
+		if node.Info == nil {
+			node.Info = &GraphQLResponseInfo{
+				OperationType: ast.OperationTypeQuery,
+			}
+		}
+
+		if t.Skipped() {
+			return
+		}
+
+		buf := &bytes.Buffer{}
+		_, err := r.ResolveGraphQLResponse(&ctx, node, nil, buf)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOutput, buf.String())
+		ctrl.Finish()
+	}
+}
+
+func testFnSubgraphErrorsWithAllowAllExtensionFields(fn func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string)) func(t *testing.T) {
+	return func(t *testing.T) {
+		t.Helper()
+
+		ctrl := gomock.NewController(t)
+		rCtx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		r := New(rCtx, ResolverOptions{
+			MaxConcurrency:               1024,
+			Debug:                        false,
+			PropagateSubgraphErrors:      true,
+			PropagateSubgraphStatusCodes: true,
+			AllowAllErrorExtensionFields: true,
+			SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
 		})
 		node, ctx, expectedOutput := fn(t, ctrl)
 

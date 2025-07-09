@@ -142,9 +142,12 @@ type Loader struct {
 	omitSubgraphErrorLocations        bool
 	omitSubgraphErrorExtensions       bool
 	attachServiceNameToErrorExtension bool
-	allowedErrorExtensionFields       map[string]struct{}
-	defaultErrorExtensionCode         string
-	allowedSubgraphErrorFields        map[string]struct{}
+
+	allowAllErrorExtensionFields bool
+	allowedErrorExtensionFields  map[string]struct{}
+	defaultErrorExtensionCode    string
+
+	allowedSubgraphErrorFields map[string]struct{}
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
 }
@@ -681,7 +684,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	l.optionallyRewriteErrorPaths(fetchItem, values)
 	l.optionallyEnsureExtensionErrorCode(values)
 
-	if l.subgraphErrorPropagationMode == SubgraphErrorPropagationModeWrapped {
+	if !l.allowAllErrorExtensionFields {
 		l.optionallyAllowCustomExtensionProperties(values)
 	}
 
@@ -960,7 +963,7 @@ func (l *Loader) renderAtPathErrorPart(path string) string {
 }
 
 func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
-	if !l.resolvable.options.ApolloRouterCompatibilitySubrequestHTTPError || (res.statusCode < 400) {
+	if !l.apolloRouterCompatibilitySubrequestHTTPError || (res.statusCode < 400) {
 		return nil
 	}
 

@@ -384,7 +384,7 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			}
 	}))
 
-	t.Run("Propagate only extension code field from subgraph errors", testFnSubgraphErrorsWrappedWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+	t.Run("Propagate only extension code field from subgraph errors", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
 			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
@@ -419,7 +419,45 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 					},
 				},
 			},
-		}, Context{ctx: context.Background()}, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users'.","extensions":{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}}],"data":{"name":null}}`
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
+	}))
+
+	t.Run("Propagate all extension fields from subgraph errors when allow all option is enabled", testFnSubgraphErrorsWithAllowAllExtensionFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
+		mockDataSource := NewMockDataSource(ctrl)
+		mockDataSource.EXPECT().
+			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
+			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
+				pair := NewBufPair()
+				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\",\"foo\":\"bar\"}"))
+				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
+				return writeGraphqlResponse(pair, w, false)
+			})
+		return &GraphQLResponse{
+			Fetches: Single(&SingleFetch{
+				FetchConfiguration: FetchConfiguration{
+					DataSource: mockDataSource,
+					PostProcessing: PostProcessingConfiguration{
+						SelectResponseErrorsPath: []string{"errors"},
+					},
+				},
+				Info: &FetchInfo{
+					DataSourceID:   "Users",
+					DataSourceName: "Users",
+				},
+			}),
+			Data: &Object{
+				Nullable: false,
+				Fields: []*Field{
+					{
+						Name: []byte("name"),
+						Value: &String{
+							Path:     []string{"name"},
+							Nullable: true,
+						},
+					},
+				},
+			},
+		}, Context{ctx: context.Background()}, `{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","foo":"bar"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}],"data":{"name":null}}`
 	}))
 
 	t.Run("Include datasource name as serviceName extension field", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {

@@ -127,6 +127,8 @@ type ResolverOptions struct {
 	OmitSubgraphErrorLocations bool
 	// OmitSubgraphErrorExtensions omits the extensions field of Subgraph Errors
 	OmitSubgraphErrorExtensions bool
+	// AllowAllErrorExtensionFields allows all fields in the extensions field of a root subgraph error
+	AllowAllErrorExtensionFields bool
 	// AllowedErrorExtensionFields defines which fields are allowed in the extensions field of a root subgraph error
 	AllowedErrorExtensionFields []string
 	// AttachServiceNameToErrorExtensions attaches the service name to the extensions field of a root subgraph error
@@ -225,6 +227,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
 			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
 			allowedSubgraphErrorFields:        allowedErrorFields,
+			allowAllErrorExtensionFields:      options.AllowAllErrorExtensionFields,
 
 			apolloRouterCompatibilitySubrequestHTTPError: options.ResolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError,
 		},
