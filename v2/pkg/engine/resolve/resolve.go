@@ -147,6 +147,8 @@ type ResolverOptions struct {
 	MultipartSubHeartbeatInterval time.Duration
 	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	MaxSubscriptionFetchTimeout time.Duration
+	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
+	ApolloRouterCompatibilitySubrequestHTTPError bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -217,19 +219,18 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 	return &tools{
 		resolvable: NewResolvable(options.ResolvableOptions),
 		loader: &Loader{
-			propagateSubgraphErrors:           options.PropagateSubgraphErrors,
-			propagateSubgraphStatusCodes:      options.PropagateSubgraphStatusCodes,
-			subgraphErrorPropagationMode:      options.SubgraphErrorPropagationMode,
-			rewriteSubgraphErrorPaths:         options.RewriteSubgraphErrorPaths,
-			omitSubgraphErrorLocations:        options.OmitSubgraphErrorLocations,
-			omitSubgraphErrorExtensions:       options.OmitSubgraphErrorExtensions,
-			allowedErrorExtensionFields:       allowedExtensionFields,
-			attachServiceNameToErrorExtension: options.AttachServiceNameToErrorExtensions,
-			defaultErrorExtensionCode:         options.DefaultErrorExtensionCode,
-			allowedSubgraphErrorFields:        allowedErrorFields,
-			allowAllErrorExtensionFields:      options.AllowAllErrorExtensionFields,
-
-			apolloRouterCompatibilitySubrequestHTTPError: options.ResolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError,
+			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
+			propagateSubgraphStatusCodes:                 options.PropagateSubgraphStatusCodes,
+			subgraphErrorPropagationMode:                 options.SubgraphErrorPropagationMode,
+			rewriteSubgraphErrorPaths:                    options.RewriteSubgraphErrorPaths,
+			omitSubgraphErrorLocations:                   options.OmitSubgraphErrorLocations,
+			omitSubgraphErrorExtensions:                  options.OmitSubgraphErrorExtensions,
+			allowedErrorExtensionFields:                  allowedExtensionFields,
+			attachServiceNameToErrorExtension:            options.AttachServiceNameToErrorExtensions,
+			defaultErrorExtensionCode:                    options.DefaultErrorExtensionCode,
+			allowedSubgraphErrorFields:                   allowedErrorFields,
+			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
+			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 		},
 	}
 }
