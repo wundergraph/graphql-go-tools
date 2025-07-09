@@ -1311,7 +1311,8 @@ func (p *Parser) parseSelectionSet() (int, bool) {
 			set.RBrace = rbraceToken.TextPosition
 
 			if len(set.SelectionRefs) == 0 {
-				return 0, false
+				p.errUnexpectedToken(rbraceToken, keyword.IDENT, keyword.SPREAD)
+				return ast.InvalidRef, false
 			}
 
 			p.document.SelectionSets = append(p.document.SelectionSets, set)

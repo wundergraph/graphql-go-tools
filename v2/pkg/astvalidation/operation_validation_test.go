@@ -3386,14 +3386,6 @@ type Query {
 					DirectivesAreInValidLocations(), Invalid)
 			})
 			t.Run("150 variant", func(t *testing.T) {
-				run(t, `
-							{
-								...frag @spread
-							}
-							fragment frag on Query {}`,
-					DirectivesAreInValidLocations(), Valid, withDisableNormalization())
-			})
-			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	{
 								... {
 									dog @spread
@@ -3408,13 +3400,6 @@ type Query {
 								}
 							}`,
 					DirectivesAreInValidLocations(), Invalid)
-			})
-			t.Run("150 variant", func(t *testing.T) {
-				run(t, `	{
-								...frag
-							}
-							fragment frag on Query @fragmentDefinition {}`,
-					DirectivesAreInValidLocations(), Valid, withDisableNormalization())
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	query @onQuery {
@@ -3548,15 +3533,15 @@ type Query {
 					VariablesAreInputTypes(), Valid)
 			})
 			t.Run("157", func(t *testing.T) {
-				run(t, `query takesCat($cat: Cat) {}`,
+				run(t, `query takesCat($cat: Cat) { a }`,
 					VariablesAreInputTypes(), Invalid)
-				run(t, `query takesDogBang($dog: Dog!) {}`,
+				run(t, `query takesDogBang($dog: Dog!) { a }`,
 					VariablesAreInputTypes(), Invalid)
-				run(t, `query takesListOfPet($pets: [Pet]) {}`,
+				run(t, `query takesListOfPet($pets: [Pet]) { a }`,
 					VariablesAreInputTypes(), Invalid)
-				run(t, `query takesCatOrDog($catOrDog: CatOrDog) {}`,
+				run(t, `query takesCatOrDog($catOrDog: CatOrDog) { a }`,
 					VariablesAreInputTypes(), Invalid)
-				run(t, `query takesCatOrDog($catCommand: CatCommand) {}`,
+				run(t, `query takesCatOrDog($catCommand: CatCommand) { a }`,
 					VariablesAreInputTypes(), Valid)
 			})
 		})
