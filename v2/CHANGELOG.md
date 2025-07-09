@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.202](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.201...v2.0.0-rc.202) (2025-07-09)
+
+
+### Bug Fixes
+
+* return parsing error for empty selection sets ([#1220](https://github.com/wundergraph/graphql-go-tools/issues/1220)) ([726c0d2](https://github.com/wundergraph/graphql-go-tools/commit/726c0d203edba1a863444cbbe70ccec2092d8416))
+
 ## [2.0.0-rc.201](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.200...v2.0.0-rc.201) (2025-07-09)
 
 
