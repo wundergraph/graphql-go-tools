@@ -30,19 +30,19 @@ func TestDocument_OperationNameExists(t *testing.T) {
 	))
 
 	t.Run("found on document with a single operations", run(
-		"query MyOperation {}",
+		"query MyOperation {other}",
 		"MyOperation",
 		true,
 	))
 
 	t.Run("found on document with multiple operations", run(
-		"query OtherOperation {other} query AnotherOperation {another} query MyOperation {}",
+		"query OtherOperation {other} query AnotherOperation {another} query MyOperation {other}",
 		"MyOperation",
 		true,
 	))
 
 	t.Run("found on a document with preceding root nodes of not operation type", run(
-		"fragment F on T {field} query MyOperation {}",
+		"fragment F on T {field} query MyOperation {another}",
 		"MyOperation",
 		true,
 	))
