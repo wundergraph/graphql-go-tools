@@ -529,36 +529,9 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 2. Lookup for the first parent root node with enabled entity resolver
-		// when we haven't found a possible duplicate
-		// we need to find parent node which is a root node and has enabled entity resolver, e.g. the point in the query from where we could jump
-		// it is a parent entity jump case
+		// stages 2,3,4 - are stages when choices are equal, and we should select first available node
 
-		if f.checkNodes(itemIDs,
-			func(i int) bool {
-				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
-					return false
-				}
-
-				parents := f.findPossibleParents(i)
-				if len(parents) > 0 {
-					if f.selectWithExternalCheck(i, ReasonStage3SelectNodeUnderFirstParentRootNode) {
-						for _, parent := range parents {
-							f.nodes.items[parent].selectWithReason(ReasonStage3SelectParentRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
-						}
-
-						return true
-					}
-				}
-				return false
-			},
-			nil) {
-			continue
-		}
-
-		// stages 3,4,5 - are stages when choices are equal, and we should select first available node
-
-		// 3. we choose first available leaf node
+		// 2. we choose the first available leaf node
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
 				return f.selectWithExternalCheck(i, ReasonStage3SelectAvailableLeafNode)
@@ -582,7 +555,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 4. if node is not a leaf we select a node which could provide more selections on the same source
+		// 3. if node is not a leaf we select a node which could provide more selections on the same source
 		currentChildNodeCount := -1
 		currentItemIDx := -1
 
@@ -605,7 +578,7 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			continue
 		}
 
-		// 5. We check here not leaf nodes which could provide keys to the child nodes
+		// 4. We check here not leaf nodes which could provide keys to the child nodes
 		// this rule one of the rules responsible for the shareable nodes
 		if f.checkNodes(itemIDs,
 			func(i int) bool {
@@ -630,6 +603,37 @@ func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
 			}) {
 			continue
 		}
+
+		// 5. Lookup for the first parent root node with the enabled entity resolver.
+		// When we haven't found a possible duplicate -
+		// we need to find the parent node which is a root node and has enabled entity resolver,
+		// e.g., the point in the query from where we could jump.
+		// It is a parent entity jump case, and it is less preferable,
+		// than direct entity jump, so it should go last.
+
+		// TODO: replace with all nodes check - select smallest parent entity chain
+		if f.checkNodes(itemIDs,
+			func(i int) bool {
+				if f.nodes.items[i].IsExternal && !f.nodes.items[i].IsProvided {
+					return false
+				}
+
+				parents := f.findPossibleParents(i)
+				if len(parents) > 0 {
+					if f.selectWithExternalCheck(i, ReasonStage3SelectNodeUnderFirstParentRootNode) {
+						for _, parent := range parents {
+							f.nodes.items[parent].selectWithReason(ReasonStage3SelectParentRootNodeWithEnabledEntityResolver, f.enableSelectionReasons)
+						}
+
+						return true
+					}
+				}
+				return false
+			},
+			nil) {
+			continue
+		}
+
 	}
 }
 
