@@ -164,6 +164,34 @@ input ActionInput {
   payload: String!
 }
 
+# New types for testing nullable fields
+type NullableFieldsType {
+  id: ID!
+  name: String!
+  optionalString: String
+  optionalInt: Int
+  optionalFloat: Float
+  optionalBoolean: Boolean
+  requiredString: String!
+  requiredInt: Int!
+}
+
+input NullableFieldsInput {
+  name: String!
+  optionalString: String
+  optionalInt: Int
+  optionalFloat: Float
+  optionalBoolean: Boolean
+  requiredString: String!
+  requiredInt: Int!
+}
+
+input NullableFieldsFilter {
+  name: String
+  optionalString: String
+  includeNulls: Boolean
+}
+
 type Query {
   _entities(representations: [_Any!]!): [_Entity!]!
   users: [User!]!
@@ -191,6 +219,12 @@ type Query {
   # Union queries
   search(input: SearchInput!): [SearchResult!]!
   randomSearchResult: SearchResult!
+  
+  # Nullable fields queries
+  nullableFieldsType: NullableFieldsType!
+  nullableFieldsTypeById(id: ID!): NullableFieldsType
+  nullableFieldsTypeWithFilter(filter: NullableFieldsFilter!): [NullableFieldsType!]!
+  allNullableFieldsTypes: [NullableFieldsType!]!
 }
 
 input UserInput {
@@ -202,6 +236,10 @@ type Mutation {
   
   # Union mutation
   performAction(input: ActionInput!): ActionResult!
+  
+  # Nullable fields mutation
+  createNullableFieldsType(input: NullableFieldsInput!): NullableFieldsType!
+  updateNullableFieldsType(id: ID!, input: NullableFieldsInput!): NullableFieldsType
 }
 
 union _Entity = Product | Storage

@@ -39,6 +39,12 @@ const (
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryUser_FullMethodName                         = "/productv1.ProductService/QueryUser"
 	ProductService_QueryUsers_FullMethodName                        = "/productv1.ProductService/QueryUsers"
+	ProductService_QueryNullableFieldsType_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsType"
+	ProductService_QueryNullableFieldsTypeById_FullMethodName       = "/productv1.ProductService/QueryNullableFieldsTypeById"
+	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
+	ProductService_QueryAllNullableFieldsTypes_FullMethodName       = "/productv1.ProductService/QueryAllNullableFieldsTypes"
+	ProductService_MutationCreateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationCreateNullableFieldsType"
+	ProductService_MutationUpdateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationUpdateNullableFieldsType"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -69,6 +75,13 @@ type ProductServiceClient interface {
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
+	// Nullable fields RPCs
+	QueryNullableFieldsType(ctx context.Context, in *QueryNullableFieldsTypeRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeResponse, error)
+	QueryNullableFieldsTypeById(ctx context.Context, in *QueryNullableFieldsTypeByIdRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeByIdResponse, error)
+	QueryNullableFieldsTypeWithFilter(ctx context.Context, in *QueryNullableFieldsTypeWithFilterRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeWithFilterResponse, error)
+	QueryAllNullableFieldsTypes(ctx context.Context, in *QueryAllNullableFieldsTypesRequest, opts ...grpc.CallOption) (*QueryAllNullableFieldsTypesResponse, error)
+	MutationCreateNullableFieldsType(ctx context.Context, in *MutationCreateNullableFieldsTypeRequest, opts ...grpc.CallOption) (*MutationCreateNullableFieldsTypeResponse, error)
+	MutationUpdateNullableFieldsType(ctx context.Context, in *MutationUpdateNullableFieldsTypeRequest, opts ...grpc.CallOption) (*MutationUpdateNullableFieldsTypeResponse, error)
 }
 
 type productServiceClient struct {
@@ -279,6 +292,66 @@ func (c *productServiceClient) QueryUsers(ctx context.Context, in *QueryUsersReq
 	return out, nil
 }
 
+func (c *productServiceClient) QueryNullableFieldsType(ctx context.Context, in *QueryNullableFieldsTypeRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryNullableFieldsTypeResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryNullableFieldsType_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryNullableFieldsTypeById(ctx context.Context, in *QueryNullableFieldsTypeByIdRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryNullableFieldsTypeByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryNullableFieldsTypeById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryNullableFieldsTypeWithFilter(ctx context.Context, in *QueryNullableFieldsTypeWithFilterRequest, opts ...grpc.CallOption) (*QueryNullableFieldsTypeWithFilterResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryNullableFieldsTypeWithFilterResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryAllNullableFieldsTypes(ctx context.Context, in *QueryAllNullableFieldsTypesRequest, opts ...grpc.CallOption) (*QueryAllNullableFieldsTypesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryAllNullableFieldsTypesResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryAllNullableFieldsTypes_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationCreateNullableFieldsType(ctx context.Context, in *MutationCreateNullableFieldsTypeRequest, opts ...grpc.CallOption) (*MutationCreateNullableFieldsTypeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationCreateNullableFieldsTypeResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationCreateNullableFieldsType_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationUpdateNullableFieldsType(ctx context.Context, in *MutationUpdateNullableFieldsTypeRequest, opts ...grpc.CallOption) (*MutationUpdateNullableFieldsTypeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationUpdateNullableFieldsTypeResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationUpdateNullableFieldsType_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -307,6 +380,13 @@ type ProductServiceServer interface {
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
+	// Nullable fields RPCs
+	QueryNullableFieldsType(context.Context, *QueryNullableFieldsTypeRequest) (*QueryNullableFieldsTypeResponse, error)
+	QueryNullableFieldsTypeById(context.Context, *QueryNullableFieldsTypeByIdRequest) (*QueryNullableFieldsTypeByIdResponse, error)
+	QueryNullableFieldsTypeWithFilter(context.Context, *QueryNullableFieldsTypeWithFilterRequest) (*QueryNullableFieldsTypeWithFilterResponse, error)
+	QueryAllNullableFieldsTypes(context.Context, *QueryAllNullableFieldsTypesRequest) (*QueryAllNullableFieldsTypesResponse, error)
+	MutationCreateNullableFieldsType(context.Context, *MutationCreateNullableFieldsTypeRequest) (*MutationCreateNullableFieldsTypeResponse, error)
+	MutationUpdateNullableFieldsType(context.Context, *MutationUpdateNullableFieldsTypeRequest) (*MutationUpdateNullableFieldsTypeResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -376,6 +456,24 @@ func (UnimplementedProductServiceServer) QueryUser(context.Context, *QueryUserRe
 }
 func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryUsers not implemented")
+}
+func (UnimplementedProductServiceServer) QueryNullableFieldsType(context.Context, *QueryNullableFieldsTypeRequest) (*QueryNullableFieldsTypeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryNullableFieldsType not implemented")
+}
+func (UnimplementedProductServiceServer) QueryNullableFieldsTypeById(context.Context, *QueryNullableFieldsTypeByIdRequest) (*QueryNullableFieldsTypeByIdResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryNullableFieldsTypeById not implemented")
+}
+func (UnimplementedProductServiceServer) QueryNullableFieldsTypeWithFilter(context.Context, *QueryNullableFieldsTypeWithFilterRequest) (*QueryNullableFieldsTypeWithFilterResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryNullableFieldsTypeWithFilter not implemented")
+}
+func (UnimplementedProductServiceServer) QueryAllNullableFieldsTypes(context.Context, *QueryAllNullableFieldsTypesRequest) (*QueryAllNullableFieldsTypesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryAllNullableFieldsTypes not implemented")
+}
+func (UnimplementedProductServiceServer) MutationCreateNullableFieldsType(context.Context, *MutationCreateNullableFieldsTypeRequest) (*MutationCreateNullableFieldsTypeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationCreateNullableFieldsType not implemented")
+}
+func (UnimplementedProductServiceServer) MutationUpdateNullableFieldsType(context.Context, *MutationUpdateNullableFieldsTypeRequest) (*MutationUpdateNullableFieldsTypeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationUpdateNullableFieldsType not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -758,6 +856,114 @@ func _ProductService_QueryUsers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryNullableFieldsType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryNullableFieldsTypeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryNullableFieldsType(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryNullableFieldsType_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryNullableFieldsType(ctx, req.(*QueryNullableFieldsTypeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryNullableFieldsTypeById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryNullableFieldsTypeByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryNullableFieldsTypeById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryNullableFieldsTypeById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryNullableFieldsTypeById(ctx, req.(*QueryNullableFieldsTypeByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryNullableFieldsTypeWithFilter_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryNullableFieldsTypeWithFilterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryNullableFieldsTypeWithFilter(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryNullableFieldsTypeWithFilter(ctx, req.(*QueryNullableFieldsTypeWithFilterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryAllNullableFieldsTypes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryAllNullableFieldsTypesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryAllNullableFieldsTypes(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryAllNullableFieldsTypes_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryAllNullableFieldsTypes(ctx, req.(*QueryAllNullableFieldsTypesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationCreateNullableFieldsType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationCreateNullableFieldsTypeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationCreateNullableFieldsType(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationCreateNullableFieldsType_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationCreateNullableFieldsType(ctx, req.(*MutationCreateNullableFieldsTypeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationUpdateNullableFieldsType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationUpdateNullableFieldsTypeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationUpdateNullableFieldsType(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationUpdateNullableFieldsType_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationUpdateNullableFieldsType(ctx, req.(*MutationUpdateNullableFieldsTypeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -844,6 +1050,30 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryUsers",
 			Handler:    _ProductService_QueryUsers_Handler,
+		},
+		{
+			MethodName: "QueryNullableFieldsType",
+			Handler:    _ProductService_QueryNullableFieldsType_Handler,
+		},
+		{
+			MethodName: "QueryNullableFieldsTypeById",
+			Handler:    _ProductService_QueryNullableFieldsTypeById_Handler,
+		},
+		{
+			MethodName: "QueryNullableFieldsTypeWithFilter",
+			Handler:    _ProductService_QueryNullableFieldsTypeWithFilter_Handler,
+		},
+		{
+			MethodName: "QueryAllNullableFieldsTypes",
+			Handler:    _ProductService_QueryAllNullableFieldsTypes_Handler,
+		},
+		{
+			MethodName: "MutationCreateNullableFieldsType",
+			Handler:    _ProductService_MutationCreateNullableFieldsType_Handler,
+		},
+		{
+			MethodName: "MutationUpdateNullableFieldsType",
+			Handler:    _ProductService_MutationUpdateNullableFieldsType_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
