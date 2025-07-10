@@ -1684,11 +1684,18 @@ type printKit struct {
 var (
 	printKitPool = &sync.Pool{
 		New: func() any {
+			validator := astvalidation.DefaultOperationValidator()
+			// as we are creating operation programmatically in the graphql datasource planner,
+			// we need to catch incorrect behavior of the planner
+			// as graphql datasource planner should visit only selection sets which has fields,
+			// landed to the current planner
+			validator.RegisterRule(astvalidation.ValidateEmptySelectionSets())
+
 			return &printKit{
 				buf:       &bytes.Buffer{},
 				parser:    astparser.NewParser(),
 				printer:   astprinter.NewPrinter(nil),
-				validator: astvalidation.DefaultOperationValidator(),
+				validator: validator,
 				normalizer: astnormalization.NewWithOpts(
 					astnormalization.WithExtractVariables(),
 					astnormalization.WithRemoveFragmentDefinitions(),
