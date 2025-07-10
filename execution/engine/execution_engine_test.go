@@ -212,6 +212,8 @@ type ExecutionEngineTestCase struct {
 
 type _executionTestOptions struct {
 	resolvableOptions resolve.ResolvableOptions
+
+	apolloRouterCompatibilitySubrequestHTTPError bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -258,6 +260,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
+				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
 			})
 			require.NoError(t, err)
 
@@ -376,7 +379,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = true
+			eto.apolloRouterCompatibilitySubrequestHTTPError = true
 		},
 	))
 
@@ -435,7 +438,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = false
+			eto.apolloRouterCompatibilitySubrequestHTTPError = false
 		},
 	))
 
@@ -494,7 +497,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.resolvableOptions.ApolloRouterCompatibilitySubrequestHTTPError = true
+			eto.apolloRouterCompatibilitySubrequestHTTPError = true
 		},
 	))
 
