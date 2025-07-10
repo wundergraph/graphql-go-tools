@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.204](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.203...v2.0.0-rc.204) (2025-07-10)
+
+
+### Features
+
+* support nullable base types ([#1212](https://github.com/wundergraph/graphql-go-tools/issues/1212)) ([b45b92c](https://github.com/wundergraph/graphql-go-tools/commit/b45b92c37854778851740bcbd9d0562641b4593b))
+
 ## [2.0.0-rc.203](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.202...v2.0.0-rc.203) (2025-07-10)
 
 
