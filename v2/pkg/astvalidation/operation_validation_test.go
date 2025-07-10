@@ -4230,7 +4230,7 @@ func BenchmarkValidation(b *testing.B) {
 		report := operationreport.Report{}
 		astnormalization.NormalizeOperation(&op, &def, &report)
 		if report.HasErrors() {
-			panic(report.Error())
+			b.Error(report.Error())
 		}
 
 		validator := DefaultOperationValidator()
