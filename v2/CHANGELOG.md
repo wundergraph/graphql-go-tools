@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.203](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.202...v2.0.0-rc.203) (2025-07-10)
+
+
+### Features
+
+* option to allow all error extensions ([#1217](https://github.com/wundergraph/graphql-go-tools/issues/1217)) ([b2e6575](https://github.com/wundergraph/graphql-go-tools/commit/b2e65752b043151c5a21f0dfbebe6823c4b96f0f))
+
 ## [2.0.0-rc.202](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.201...v2.0.0-rc.202) (2025-07-09)
 
 
