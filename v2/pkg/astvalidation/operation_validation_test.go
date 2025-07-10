@@ -1,7 +1,6 @@
 package astvalidation
 
 import (
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -4243,7 +4242,7 @@ func BenchmarkValidation(b *testing.B) {
 			report.Reset()
 			out := validator.Validate(&op, &def, &report)
 			if out != state {
-				panic(fmt.Errorf("want state: %s, got: %s, reason: %s", state, out, report.Error()))
+				b.Errorf("want state: %s, got: %s, reason: %s", state, out, report.Error())
 			}
 		}
 	}
