@@ -37,11 +37,20 @@ func (f *fragmentsVisitor) EnterFragmentSpread(ref int) {
 		return
 	}
 	fragmentTypeName := f.operation.FragmentDefinitionTypeName(fragmentDefinitionRef)
-	enclosingTypeName := f.EnclosingTypeDefinition.NameBytes(f.definition)
-	if !bytes.Equal(fragmentTypeName, enclosingTypeName) {
+	node, exists := f.definition.Index.FirstNonExtensionNodeByNameBytes(fragmentTypeName)
+	if !exists {
+		typePosition := f.operation.Types[f.operation.FragmentDefinitions[fragmentDefinitionRef].TypeCondition.Type].Position
+		f.Report.AddExternalError(operationreport.ErrUnknownType(fragmentTypeName, typePosition))
+		f.SkipNode()
+		return
+	}
+
+	if !f.definition.NodeFragmentIsAllowedOnNode(node, f.EnclosingTypeDefinition) {
+		enclosingTypeName := f.definition.NodeNameBytes(f.EnclosingTypeDefinition)
 		f.StopWithExternalErr(operationreport.ErrInvalidFragmentSpread(fragmentName, fragmentTypeName, enclosingTypeName))
 		return
 	}
+
 	if f.Ancestors[0].Kind == ast.NodeKindOperationDefinition {
 		f.StopWithExternalErr(operationreport.ErrFragmentSpreadFormsCycle(fragmentName))
 	}
