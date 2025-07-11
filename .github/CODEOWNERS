@@ -4,7 +4,7 @@
 # Protect the CODEOWNERS file
 /.github/CODEOWNERS @devsergiy @StarpTech
 
-v2 @devsergiy @Noroth @StarpTech
+v2 @devsergiy @Noroth @StarpTech @jensneuse
 
 # Releases
 v2/CHANGELOG.md @wundergraph/Router

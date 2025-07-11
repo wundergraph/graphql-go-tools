@@ -184,13 +184,16 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 		if fd.IsList() {
 			list := data.Get(fd).List()
+			// We currently do not yet support to distingish between nullable and non-nullable lists.
+			// Therefore we always return an empty array for now.
+			// TODO: Add support for nullable lists.
+			arr := arena.NewArray()
+			root.Set(field.AliasOrPath(), arr)
+
 			if !list.IsValid() {
-				root.Set(field.AliasOrPath(), arena.NewNull())
 				continue
 			}
 
-			arr := arena.NewArray()
-			root.Set(field.AliasOrPath(), arr)
 			for i := 0; i < list.Len(); i++ {
 
 				switch fd.Kind() {
@@ -218,6 +221,15 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 				continue
 			}
 
+			if field.Optional {
+				err := d.resolveOptionalField(arena, root, field.JSONPath, msg)
+				if err != nil {
+					return nil, err
+				}
+
+				continue
+			}
+
 			value, err := d.marshalResponseJSON(arena, field.Message, msg)
 			if err != nil {
 				return nil, err
@@ -239,6 +251,16 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	}
 
 	return root, nil
+}
+
+func (d *DataSource) resolveOptionalField(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message) error {
+	fd := data.Descriptor().Fields().ByName(protoref.Name("value"))
+	if fd == nil {
+		return fmt.Errorf("unable to resolve optional field: field value not found in message %s", data.Descriptor().Name())
+	}
+
+	d.setJSONValue(arena, root, name, data, fd)
+	return nil
 }
 
 func (d *DataSource) setJSONValue(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message, fd protoref.FieldDescriptor) {

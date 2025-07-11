@@ -334,6 +334,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		JSONPath: fieldName,
 		Repeated: r.definition.TypeIsList(fdt),
 		Alias:    r.operation.FieldAliasString(ref),
+		Optional: r.isNullableScalar(fdt),
 	}
 
 	if typeName == DataTypeEnum {
@@ -455,6 +456,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
 			Repeated: r.definition.TypeIsList(typeRef),
+			Optional: r.isNullableScalar(typeRef),
 		}
 
 		if dt == DataTypeEnum {
@@ -506,6 +508,7 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 			TypeName: dt.String(),
 			JSONPath: fieldName,
 			Repeated: r.definition.TypeIsList(typeRef),
+			Optional: r.isNullableScalar(typeRef),
 		}
 
 		if dt == DataTypeEnum {
@@ -813,6 +816,10 @@ func (r *rpcPlanVisitor) parseGraphQLType(t *ast.Type) DataType {
 	default:
 		return fromGraphQLType(dt)
 	}
+}
+
+func (r *rpcPlanVisitor) isNullableScalar(fdt int) bool {
+	return r.definition.TypeIsScalar(fdt, r.definition) && !r.definition.TypeIsNonNull(fdt)
 }
 
 // titleSlice capitalizes the first letter of each string in a slice.

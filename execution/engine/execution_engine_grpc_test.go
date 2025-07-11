@@ -498,4 +498,315 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("should handle nullable fields", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeQuery",
+			Query:         `query NullableFieldsTypeQuery { nullableFieldsType { id optionalString optionalInt optionalFloat optionalBoolean requiredString requiredInt } }`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"nullableFieldsType":{"id":"nullable-default","optionalString":"Default optional string","optionalInt":777,"optionalFloat":null,"optionalBoolean":true,"requiredString":"Default required string","requiredInt":999}}}`, response)
+	})
+
+	t.Run("should handle nullable fields query by ID with full data", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeByIdQuery",
+			Variables: stringify(map[string]any{
+				"id": "full-data",
+			}),
+			Query: `query NullableFieldsTypeByIdQuery($id: ID!) { 
+				nullableFieldsTypeById(id: $id) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"nullableFieldsTypeById":{"id":"full-data","name":"Full Data by ID","optionalString":"All fields populated","optionalInt":123,"optionalFloat":12.34000015258789,"optionalBoolean":false,"requiredString":"Required by ID","requiredInt":456}}}`, response)
+	})
+
+	t.Run("should handle nullable fields query by ID with partial data", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeByIdQuery",
+			Variables: stringify(map[string]any{
+				"id": "partial-data",
+			}),
+			Query: `query NullableFieldsTypeByIdQuery($id: ID!) { 
+				nullableFieldsTypeById(id: $id) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"nullableFieldsTypeById":{"id":"partial-data","name":"Partial Data by ID","optionalString":null,"optionalInt":789,"optionalFloat":null,"optionalBoolean":true,"requiredString":"Partial required by ID","requiredInt":321}}}`, response)
+	})
+
+	t.Run("should handle nullable fields query by ID with minimal data", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeByIdQuery",
+			Variables: stringify(map[string]any{
+				"id": "minimal-data",
+			}),
+			Query: `query NullableFieldsTypeByIdQuery($id: ID!) { 
+				nullableFieldsTypeById(id: $id) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"nullableFieldsTypeById":{"id":"minimal-data","name":"Minimal Data by ID","optionalString":null,"optionalInt":null,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Only required fields","requiredInt":111}}}`, response)
+	})
+
+	t.Run("should handle nullable fields query by ID returning null for not found", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeByIdQuery",
+			Variables: stringify(map[string]any{
+				"id": "not-found",
+			}),
+			Query: `query NullableFieldsTypeByIdQuery($id: ID!) { 
+				nullableFieldsTypeById(id: $id) { 
+					id 
+					name 
+					optionalString 
+					requiredString 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"nullableFieldsTypeById":null}}`, response)
+	})
+
+	t.Run("should handle query for all nullable fields types", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AllNullableFieldsTypesQuery",
+			Query: `query AllNullableFieldsTypesQuery { 
+				allNullableFieldsTypes { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"allNullableFieldsTypes":[{"id":"nullable-1","name":"Full Data Entry","optionalString":"Optional String Value","optionalInt":42,"optionalFloat":3.140000104904175,"optionalBoolean":true,"requiredString":"Required String 1","requiredInt":100},{"id":"nullable-2","name":"Partial Data Entry","optionalString":"Only string is set","optionalInt":null,"optionalFloat":null,"optionalBoolean":false,"requiredString":"Required String 2","requiredInt":200},{"id":"nullable-3","name":"Minimal Data Entry","optionalString":null,"optionalInt":null,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Required String 3","requiredInt":300}]}}`, response)
+	})
+
+	t.Run("should handle nullable fields query with filter", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "NullableFieldsTypeWithFilterQuery",
+			Variables: stringify(map[string]any{
+				"filter": map[string]any{
+					"name":           "TestFilter",
+					"optionalString": "FilteredString",
+					"includeNulls":   true,
+				},
+			}),
+			Query: `query NullableFieldsTypeWithFilterQuery($filter: NullableFieldsFilter!) { 
+				nullableFieldsTypeWithFilter(filter: $filter) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"id":"filtered-1"`)
+		require.Contains(t, response, `"name":"TestFilter - 1"`)
+		require.Contains(t, response, `"optionalString":"FilteredString"`)
+		require.Contains(t, response, `"requiredString":"Required filtered 1"`)
+		require.Contains(t, response, `"requiredInt":1000`)
+		require.Contains(t, response, `"id":"filtered-2"`)
+		require.Contains(t, response, `"id":"filtered-3"`)
+	})
+
+	t.Run("should handle create nullable fields type mutation", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "CreateNullableFieldsTypeMutation",
+			Variables: stringify(map[string]any{
+				"input": map[string]any{
+					"name":            "Created Type",
+					"optionalString":  "Optional Value",
+					"optionalInt":     42,
+					"optionalFloat":   3.14,
+					"optionalBoolean": true,
+					"requiredString":  "Required Value",
+					"requiredInt":     100,
+				},
+			}),
+			Query: `mutation CreateNullableFieldsTypeMutation($input: NullableFieldsInput!) { 
+				createNullableFieldsType(input: $input) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"name":"Created Type"`)
+		require.Contains(t, response, `"optionalString":"Optional Value"`)
+		require.Contains(t, response, `"optionalInt":42`)
+		require.Contains(t, response, `"optionalFloat":3.14`)
+		require.Contains(t, response, `"optionalBoolean":true`)
+		require.Contains(t, response, `"requiredString":"Required Value"`)
+		require.Contains(t, response, `"requiredInt":100`)
+		// Verify ID contains "nullable-" prefix
+		require.Contains(t, response, `"id":"nullable-`)
+	})
+
+	t.Run("should handle create nullable fields type mutation with minimal input", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "CreateNullableFieldsTypeMutation",
+			Variables: stringify(map[string]any{
+				"input": map[string]any{
+					"name":           "Minimal Type",
+					"requiredString": "Only Required",
+					"requiredInt":    200,
+				},
+			}),
+			Query: `mutation CreateNullableFieldsTypeMutation($input: NullableFieldsInput!) { 
+				createNullableFieldsType(input: $input) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"name":"Minimal Type"`)
+		require.Contains(t, response, `"optionalString":null`)
+		require.Contains(t, response, `"optionalInt":null`)
+		require.Contains(t, response, `"optionalFloat":null`)
+		require.Contains(t, response, `"optionalBoolean":null`)
+		require.Contains(t, response, `"requiredString":"Only Required"`)
+		require.Contains(t, response, `"requiredInt":200`)
+		// Verify ID contains "nullable-" prefix
+		require.Contains(t, response, `"id":"nullable-`)
+	})
+
+	t.Run("should handle update nullable fields type mutation", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "UpdateNullableFieldsTypeMutation",
+			Variables: stringify(map[string]any{
+				"id": "test-update",
+				"input": map[string]any{
+					"name":           "Updated Type",
+					"optionalString": "Updated Optional",
+					"optionalInt":    999,
+					"requiredString": "Updated Required",
+					"requiredInt":    500,
+				},
+			}),
+			Query: `mutation UpdateNullableFieldsTypeMutation($id: ID!, $input: NullableFieldsInput!) { 
+				updateNullableFieldsType(id: $id, input: $input) { 
+					id 
+					name 
+					optionalString 
+					optionalInt 
+					optionalFloat 
+					optionalBoolean 
+					requiredString 
+					requiredInt 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"updateNullableFieldsType":{"id":"test-update","name":"Updated Type","optionalString":"Updated Optional","optionalInt":999,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Updated Required","requiredInt":500}}}`, response)
+	})
+
+	t.Run("should handle update nullable fields type mutation returning null for non-existent ID", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "UpdateNullableFieldsTypeMutation",
+			Variables: stringify(map[string]any{
+				"id": "non-existent",
+				"input": map[string]any{
+					"name":           "Should Not Exist",
+					"requiredString": "Not Created",
+					"requiredInt":    0,
+				},
+			}),
+			Query: `mutation UpdateNullableFieldsTypeMutation($id: ID!, $input: NullableFieldsInput!) { 
+				updateNullableFieldsType(id: $id, input: $input) { 
+					id 
+					name 
+					optionalString 
+					requiredString 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"updateNullableFieldsType":null}}`, response)
+	})
 }

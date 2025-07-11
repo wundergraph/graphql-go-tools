@@ -84,6 +84,26 @@ func testMapping() *GRPCMapping {
 				Request:  "QuerySearchRequest",
 				Response: "QuerySearchResponse",
 			},
+			"nullableFieldsType": {
+				RPC:      "QueryNullableFieldsType",
+				Request:  "QueryNullableFieldsTypeRequest",
+				Response: "QueryNullableFieldsTypeResponse",
+			},
+			"nullableFieldsTypeById": {
+				RPC:      "QueryNullableFieldsTypeById",
+				Request:  "QueryNullableFieldsTypeByIdRequest",
+				Response: "QueryNullableFieldsTypeByIdResponse",
+			},
+			"nullableFieldsTypeWithFilter": {
+				RPC:      "QueryNullableFieldsTypeWithFilter",
+				Request:  "QueryNullableFieldsTypeWithFilterRequest",
+				Response: "QueryNullableFieldsTypeWithFilterResponse",
+			},
+			"allNullableFieldsTypes": {
+				RPC:      "QueryAllNullableFieldsTypes",
+				Request:  "QueryAllNullableFieldsTypesRequest",
+				Response: "QueryAllNullableFieldsTypesResponse",
+			},
 		},
 		MutationRPCs: RPCConfigMap{
 			"createUser": {
@@ -95,6 +115,16 @@ func testMapping() *GRPCMapping {
 				RPC:      "MutationPerformAction",
 				Request:  "MutationPerformActionRequest",
 				Response: "MutationPerformActionResponse",
+			},
+			"createNullableFieldsType": {
+				RPC:      "MutationCreateNullableFieldsType",
+				Request:  "MutationCreateNullableFieldsTypeRequest",
+				Response: "MutationCreateNullableFieldsTypeResponse",
+			},
+			"updateNullableFieldsType": {
+				RPC:      "MutationUpdateNullableFieldsType",
+				Request:  "MutationUpdateNullableFieldsTypeRequest",
+				Response: "MutationUpdateNullableFieldsTypeResponse",
 			},
 		},
 		SubscriptionRPCs: RPCConfigMap{},
@@ -199,6 +229,24 @@ func testMapping() *GRPCMapping {
 				"randomSearchResult": {
 					TargetName: "random_search_result",
 				},
+				"nullableFieldsType": {
+					TargetName: "nullable_fields_type",
+				},
+				"nullableFieldsTypeById": {
+					TargetName: "nullable_fields_type_by_id",
+					ArgumentMappings: map[string]string{
+						"id": "id",
+					},
+				},
+				"nullableFieldsTypeWithFilter": {
+					TargetName: "nullable_fields_type_with_filter",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+				"allNullableFieldsTypes": {
+					TargetName: "all_nullable_fields_types",
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -210,6 +258,19 @@ func testMapping() *GRPCMapping {
 				"performAction": {
 					TargetName: "perform_action",
 					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"createNullableFieldsType": {
+					TargetName: "create_nullable_fields_type",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"updateNullableFieldsType": {
+					TargetName: "update_nullable_fields_type",
+					ArgumentMappings: map[string]string{
+						"id":    "id",
 						"input": "input",
 					},
 				},
@@ -473,23 +534,64 @@ func testMapping() *GRPCMapping {
 					TargetName: "payload",
 				},
 			},
-			"SearchResult": {
-				"product": {
-					TargetName: "product",
+			"NullableFieldsType": {
+				"id": {
+					TargetName: "id",
 				},
-				"user": {
-					TargetName: "user",
+				"name": {
+					TargetName: "name",
 				},
-				"category": {
-					TargetName: "category",
+				"optionalString": {
+					TargetName: "optional_string",
+				},
+				"optionalInt": {
+					TargetName: "optional_int",
+				},
+				"optionalFloat": {
+					TargetName: "optional_float",
+				},
+				"optionalBoolean": {
+					TargetName: "optional_boolean",
+				},
+				"requiredString": {
+					TargetName: "required_string",
+				},
+				"requiredInt": {
+					TargetName: "required_int",
 				},
 			},
-			"ActionResult": {
-				"actionSuccess": {
-					TargetName: "action_success",
+			"NullableFieldsInput": {
+				"name": {
+					TargetName: "name",
 				},
-				"actionError": {
-					TargetName: "action_error",
+				"optionalString": {
+					TargetName: "optional_string",
+				},
+				"optionalInt": {
+					TargetName: "optional_int",
+				},
+				"optionalFloat": {
+					TargetName: "optional_float",
+				},
+				"optionalBoolean": {
+					TargetName: "optional_boolean",
+				},
+				"requiredString": {
+					TargetName: "required_string",
+				},
+				"requiredInt": {
+					TargetName: "required_int",
+				},
+			},
+			"NullableFieldsFilter": {
+				"name": {
+					TargetName: "name",
+				},
+				"optionalString": {
+					TargetName: "optional_string",
+				},
+				"includeNulls": {
+					TargetName: "include_nulls",
 				},
 			},
 		},

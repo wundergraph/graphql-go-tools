@@ -196,6 +196,70 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 				},
 			},
 		},
+		{
+			TypeName:  "Query",
+			FieldName: "search",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "nullableFieldsTypeById",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "nullableFieldsTypeWithFilter",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filter",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "performAction",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "createNullableFieldsType",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "updateNullableFieldsType",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
 	}
 }
 
@@ -230,15 +294,26 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"complexFilterType",
 					"categories",
 					"categoriesByKind",
+					"categoriesByKinds",
 					"filterCategories",
 					"randomPet",
 					"allPets",
+					"search",
+					"calculateTotals",
+					"randomSearchResult",
+					"nullableFieldsType",
+					"nullableFieldsTypeById",
+					"nullableFieldsTypeWithFilter",
+					"allNullableFieldsTypes",
 				},
 			},
 			{
 				TypeName: "Mutation",
 				FieldNames: []string{
 					"createUser",
+					"performAction",
+					"createNullableFieldsType",
+					"updateNullableFieldsType",
 				},
 			},
 		},
@@ -368,6 +443,142 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"productId",
 					"quantity",
 					"modifiers",
+				},
+			},
+			{
+				TypeName: "ActionInput",
+				FieldNames: []string{
+					"name",
+				},
+			},
+			{
+				TypeName: "Product",
+				FieldNames: []string{
+					"id",
+					"name",
+					"price",
+				},
+			},
+			{
+				TypeName: "Storage",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+				},
+			},
+			{
+				TypeName: "FilterTypeInput",
+				FieldNames: []string{
+					"filterField1",
+					"filterField2",
+				},
+			},
+			{
+				TypeName: "FilterType",
+				FieldNames: []string{
+					"name",
+					"filterField1",
+					"filterField2",
+					"pagination",
+				},
+			},
+			{
+				TypeName: "Pagination",
+				FieldNames: []string{
+					"page",
+					"perPage",
+				},
+			},
+			{
+				TypeName: "ComplexFilterTypeInput",
+				FieldNames: []string{
+					"filter",
+				},
+			},
+			{
+				TypeName: "OrderLineInput",
+				FieldNames: []string{
+					"productId",
+					"quantity",
+					"modifiers",
+				},
+			},
+			{
+				TypeName: "OrderInput",
+				FieldNames: []string{
+					"orderId",
+					"customerName",
+					"lines",
+				},
+			},
+			{
+				TypeName: "ActionSuccess",
+				FieldNames: []string{
+					"message",
+					"timestamp",
+				},
+			},
+			{
+				TypeName: "ActionError",
+				FieldNames: []string{
+					"message",
+					"code",
+				},
+			},
+			{
+				TypeName: "SearchInput",
+				FieldNames: []string{
+					"query",
+					"limit",
+				},
+			},
+			{
+				TypeName: "SearchResult",
+				FieldNames: []string{
+					"product",
+					"user",
+					"category",
+				},
+			},
+			{
+				TypeName: "ActionResult",
+				FieldNames: []string{
+					"actionSuccess",
+					"actionError",
+				},
+			},
+			{
+				TypeName: "NullableFieldsType",
+				FieldNames: []string{
+					"id",
+					"name",
+					"optionalString",
+					"optionalInt",
+					"optionalFloat",
+					"optionalBoolean",
+					"requiredString",
+					"requiredInt",
+				},
+			},
+			{
+				TypeName: "NullableFieldsInput",
+				FieldNames: []string{
+					"name",
+					"optionalString",
+					"optionalInt",
+					"optionalFloat",
+					"optionalBoolean",
+					"requiredString",
+					"requiredInt",
+				},
+			},
+			{
+				TypeName: "NullableFieldsFilter",
+				FieldNames: []string{
+					"name",
+					"optionalString",
+					"includeNulls",
 				},
 			},
 		},
