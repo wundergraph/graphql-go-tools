@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.205](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.204...v2.0.0-rc.205) (2025-07-11)
+
+
+### Bug Fixes
+
+* return empty list for nullable lists ([#1225](https://github.com/wundergraph/graphql-go-tools/issues/1225)) ([1166a10](https://github.com/wundergraph/graphql-go-tools/commit/1166a10a5da4151af5a7abeea7bee45d63d71349))
+
 ## [2.0.0-rc.204](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.203...v2.0.0-rc.204) (2025-07-10)
 
 
