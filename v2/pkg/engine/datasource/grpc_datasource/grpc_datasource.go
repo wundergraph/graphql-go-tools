@@ -184,13 +184,16 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 		if fd.IsList() {
 			list := data.Get(fd).List()
+			// We currently do not yet support to distingish between nullable and non-nullable lists.
+			// Therefore we always return an empty array for now.
+			// TODO: Add support for nullable lists.
+			arr := arena.NewArray()
+			root.Set(field.AliasOrPath(), arr)
+
 			if !list.IsValid() {
-				root.Set(field.AliasOrPath(), arena.NewNull())
 				continue
 			}
 
-			arr := arena.NewArray()
-			root.Set(field.AliasOrPath(), arr)
 			for i := 0; i < list.Len(); i++ {
 
 				switch fd.Kind() {
