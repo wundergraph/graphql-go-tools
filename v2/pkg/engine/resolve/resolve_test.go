@@ -6258,6 +6258,9 @@ func Benchmark_NestedBatching(b *testing.B) {
 				},
 			},
 		},
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
+		},
 	}
 
 	expected := []byte(`{"data":{"topProducts":[{"name":"Table","stock":8,"reviews":[{"body":"Love Table!","author":{"name":"user-1"}},{"body":"Prefer other Table.","author":{"name":"user-2"}}]},{"name":"Couch","stock":2,"reviews":[{"body":"Couch Too expensive.","author":{"name":"user-1"}}]},{"name":"Chair","stock":5,"reviews":[{"body":"Chair Could be better.","author":{"name":"user-2"}}]}]}}`)
@@ -6564,6 +6567,9 @@ func Benchmark_NestedBatchingWithoutChecks(b *testing.B) {
 					},
 				},
 			},
+		},
+		Info: &GraphQLResponseInfo{
+			OperationType: ast.OperationTypeQuery,
 		},
 	}
 

@@ -83,7 +83,7 @@ The following benchmark measures the "overhead" of loading and resolving a Graph
 In more complete end-to-end benchmarks, we've measured up to 8x more requests per second and 8x lower p99 latency compared to Apollo Router, which is written in Rust.
 
 ```shell
-cd v2/pkg/engine
+cd v2/pkg/engine/resolve
 go test -run=nothing -bench=Benchmark_NestedBatchingWithoutChecks -memprofile memprofile.out -benchtime 3s && go tool pprof memprofile.out
 goos: darwin
 goarch: arm64
