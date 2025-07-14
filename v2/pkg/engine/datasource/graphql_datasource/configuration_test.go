@@ -76,16 +76,6 @@ func TestNewSchemaConfiguration(t *testing.T) {
 			errorContains: "federation service SDL is required",
 		},
 		{
-			name:           "federation enabled with empty ServiceSDL should fail",
-			upstreamSchema: validSchema,
-			federationCfg: &FederationConfiguration{
-				Enabled:    true,
-				ServiceSDL: "",
-			},
-			expectError:   true,
-			errorContains: "federation service SDL is required",
-		},
-		{
 			name:           "federation enabled with valid ServiceSDL should succeed",
 			upstreamSchema: validSchema,
 			federationCfg: &FederationConfiguration{
