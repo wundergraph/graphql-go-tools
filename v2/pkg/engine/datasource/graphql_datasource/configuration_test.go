@@ -276,22 +276,14 @@ func TestNewSchemaConfiguration_FederationConfigurationCases(t *testing.T) {
 			cfg, err := NewSchemaConfiguration(validSchema, tt.federationCfg)
 
 			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-					return
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					require.Contains(t, err.Error(), tt.errorContains)
 				}
-				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("expected error to contain %q, but got: %s", tt.errorContains, err.Error())
-				}
+				require.Nil(t, cfg)
 			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %s", err.Error())
-					return
-				}
-				if cfg == nil {
-					t.Errorf("expected non-nil config but got nil")
-					return
-				}
+				require.NoError(t, err)
+				require.NotNil(t, cfg)
 			}
 		})
 	}
