@@ -43,7 +43,8 @@ func FetchItemWithPath(fetch Fetch, responsePath string, path ...FetchItemPathEl
 	return item
 }
 
-func (f *FetchItem) Equals(other *FetchItem) bool {
+// EqualSingleFetch compares two FetchItem for equality, both items should be of kind FetchKindSingle
+func (f *FetchItem) EqualSingleFetch(other *FetchItem) bool {
 	if len(f.FetchPath) != len(other.FetchPath) {
 		return false
 	}
@@ -320,6 +321,8 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	// Note: we do not compare datasources, as they will always be a different instance
+	// Note: we do not compare CoordinateDependencies, as they contain more detailed
+	// dependencies information that is already present in the FetchDependencies on the fetch itself
 
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
 		return false
