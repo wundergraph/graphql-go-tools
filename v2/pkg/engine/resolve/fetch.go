@@ -19,8 +19,9 @@ const (
 
 type Fetch interface {
 	FetchKind() FetchKind
-	Dependencies() FetchDependencies
+	Dependencies() *FetchDependencies
 	DataSourceInfo() DataSourceInfo
+	DependenciesCoordinates() []FetchDependency
 }
 
 type FetchItem struct {
@@ -93,8 +94,12 @@ type SingleFetch struct {
 	Info                 *FetchInfo
 }
 
-func (s *SingleFetch) Dependencies() FetchDependencies {
-	return s.FetchDependencies
+func (s *SingleFetch) Dependencies() *FetchDependencies {
+	return &s.FetchDependencies
+}
+
+func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
+	return s.FetchConfiguration.CoordinateDependencies
 }
 
 func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
@@ -164,8 +169,12 @@ type BatchEntityFetch struct {
 	CoordinateDependencies []FetchDependency
 }
 
-func (b *BatchEntityFetch) Dependencies() FetchDependencies {
-	return b.FetchDependencies
+func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
+	return &b.FetchDependencies
+}
+
+func (b *BatchEntityFetch) DependenciesCoordinates() []FetchDependency {
+	return b.CoordinateDependencies
 }
 
 func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
@@ -207,8 +216,12 @@ type EntityFetch struct {
 	Info                   *FetchInfo
 }
 
-func (e *EntityFetch) Dependencies() FetchDependencies {
-	return e.FetchDependencies
+func (e *EntityFetch) Dependencies() *FetchDependencies {
+	return &e.FetchDependencies
+}
+
+func (e *EntityFetch) DependenciesCoordinates() []FetchDependency {
+	return e.CoordinateDependencies
 }
 
 func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
@@ -238,8 +251,12 @@ type ParallelListItemFetch struct {
 	Trace  *DataSourceLoadTrace
 }
 
-func (p *ParallelListItemFetch) Dependencies() FetchDependencies {
-	return p.Fetch.FetchDependencies
+func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
+	return &p.Fetch.FetchDependencies
+}
+
+func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
+	return p.Fetch.FetchConfiguration.CoordinateDependencies
 }
 
 func (_ *ParallelListItemFetch) FetchKind() FetchKind {
@@ -319,23 +336,7 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	if fc.SetTemplateOutputToNullOnVariableNull != other.SetTemplateOutputToNullOnVariableNull {
 		return false
 	}
-	if !slices.EqualFunc(fc.CoordinateDependencies, other.CoordinateDependencies, func(a, b FetchDependency) bool {
-		if a.Coordinate != b.Coordinate {
-			return false
-		}
-		if a.IsUserRequested != b.IsUserRequested {
-			return false
-		}
-		return slices.EqualFunc(a.DependsOn, b.DependsOn, func(x, y FetchDependencyOrigin) bool {
-			return x.FetchID == y.FetchID &&
-				x.Subgraph == y.Subgraph &&
-				x.Coordinate == y.Coordinate &&
-				x.IsKey == y.IsKey &&
-				x.IsRequires == y.IsRequires
-		})
-	}) {
-		return false
-	}
+
 	return true
 }
 
