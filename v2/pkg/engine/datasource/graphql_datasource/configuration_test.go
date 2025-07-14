@@ -213,37 +213,18 @@ func TestNewSchemaConfiguration(t *testing.T) {
 			cfg, err := NewSchemaConfiguration(upstreamSchema, tt.federationCfg)
 
 			if tt.expectError {
-				if err == nil {
-					t.Errorf("expected error but got none")
-					return
+				require.Error(t, err)
+				if tt.errorContains != "" {
+					require.Contains(t, err.Error(), tt.errorContains)
 				}
-				if tt.errorContains != "" && !strings.Contains(err.Error(), tt.errorContains) {
-					t.Errorf("expected error to contain %q, but got: %s", tt.errorContains, err.Error())
-				}
-				if cfg != nil {
-					t.Errorf("expected nil config when error occurs, but got: %v", cfg)
-				}
+				require.Nil(t, cfg)
 			} else {
-				if err != nil {
-					t.Errorf("expected no error but got: %s", err.Error())
-					return
-				}
-				if cfg == nil {
-					t.Errorf("expected non-nil config but got nil")
-					return
-				}
-
-				// Verify the configuration is properly set up
-				if cfg.upstreamSchema != upstreamSchema {
-					t.Errorf("expected upstream schema to be preserved")
-				}
-				if cfg.upstreamSchemaAst == nil {
-					t.Errorf("expected upstream schema AST to be parsed")
-				}
+				require.NoError(t, err)
+				require.NotNil(t, cfg)
+				require.Equal(t, upstreamSchema, cfg.upstreamSchema)
+				require.NotNil(t, cfg.upstreamSchemaAst)
 				if tt.federationCfg != nil {
-					if cfg.federation != tt.federationCfg {
-						t.Errorf("expected federation config to be preserved")
-					}
+					require.Equal(t, tt.federationCfg, cfg.federation)
 				}
 			}
 		})
@@ -344,7 +325,7 @@ func TestNewSchemaConfiguration_SchemaWithUnionShouldContainTypename(t *testing.
 		}
 	})
 
-	t.Run("Should contian typename for federation schema", func(t *testing.T) {
+	t.Run("Should contain typename for federation schema", func(t *testing.T) {
 		cfg, err := NewSchemaConfiguration(validSchema, &FederationConfiguration{
 			Enabled:    true,
 			ServiceSDL: validSchema,
