@@ -175,6 +175,14 @@ func NewSchemaConfiguration(upstreamSchema string, federationCfg *FederationConf
 		if report.HasErrors() {
 			return nil, fmt.Errorf("unable to parse federation schema: %v", report)
 		}
+
+		// As BuildFederationSchema is already merged with base definitions, we actually don't want to do it again,
+		// but as we have to parse the schema again, we also need to make sure to add the typename fields to union types again
+		// TODO: find a better way to do this
+		typeNamesVisitor := asttransform.NewTypeNameVisitor()
+		if err := typeNamesVisitor.ExtendSchema(definition); err != nil {
+			return nil, fmt.Errorf("unable to extend federation schema with type names: %v", err)
+		}
 	} else {
 		definition.Input.ResetInputString(cfg.upstreamSchema)
 		definitionParser.Parse(definition, report)
