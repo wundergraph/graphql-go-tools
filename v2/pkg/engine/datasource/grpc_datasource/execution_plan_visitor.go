@@ -311,7 +311,8 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	}
 
 	// prevent duplicate fields
-	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName) {
+	fieldAlias := r.operation.FieldAliasString(ref)
+	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName, fieldAlias) {
 		return
 	}
 
@@ -333,7 +334,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		TypeName: typeName.String(),
 		JSONPath: fieldName,
 		Repeated: r.definition.TypeIsList(fdt),
-		Alias:    r.operation.FieldAliasString(ref),
+		Alias:    fieldAlias,
 		Optional: r.isNullableScalar(fdt),
 	}
 
