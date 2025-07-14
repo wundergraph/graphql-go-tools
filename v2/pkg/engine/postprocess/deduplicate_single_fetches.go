@@ -6,6 +6,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+// deduplicateSingleFetches is a post-processing step that removes duplicate single fetches
+// from the initial fetch tree. It merges their fetch paths and updates dependencies accordingly.
+// NOTE: initial tree structure should be flat and contain a single root item with all fetches as children.
 type deduplicateSingleFetches struct {
 	disable bool
 }
