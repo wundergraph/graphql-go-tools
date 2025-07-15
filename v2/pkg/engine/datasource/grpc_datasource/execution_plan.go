@@ -132,11 +132,11 @@ func (r RPCFieldSelectionSet) SelectFieldsForTypes(validTypes []string) RPCField
 		}
 
 		for _, field := range lookupFields {
-			if _, found := fieldSet[field.Name]; found {
+			if _, found := fieldSet[field.AliasOrPath()]; found {
 				continue
 			}
 
-			fieldSet[field.Name] = struct{}{}
+			fieldSet[field.AliasOrPath()] = struct{}{}
 			fields = append(fields, field)
 		}
 	}
@@ -220,9 +220,9 @@ func (r RPCFields) ByName(name string) *RPCField {
 	return nil
 }
 
-func (r RPCFields) Exists(name string) bool {
+func (r RPCFields) Exists(name, alias string) bool {
 	for _, field := range r {
-		if field.Name == name {
+		if field.Name == name && field.Alias == alias {
 			return true
 		}
 	}

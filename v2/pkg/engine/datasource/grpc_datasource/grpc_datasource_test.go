@@ -1317,17 +1317,23 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 		},
 		{
 			name:  "Field alias with arguments and nested field aliases",
-			query: `query { specificUser: user(id: $id) { userId: id userName: name } }`,
+			query: `query { specificUser: user(id: $id) { userId1: id userId2: id userName1: name userName2: name } }`,
 			vars:  `{"variables": {"id": "123"}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				user, ok := data["specificUser"].(map[string]interface{})
 				require.True(t, ok, "specificUser should be an object")
 				require.NotEmpty(t, user, "specificUser should not be empty")
 
-				require.Contains(t, user, "userId")
-				require.Contains(t, user, "userName")
-				require.Equal(t, "123", user["userId"])
-				require.Equal(t, "User 123", user["userName"])
+				require.Contains(t, user, "userId1")
+				require.Contains(t, user, "userId2")
+				require.Contains(t, user, "userName1")
+				require.Contains(t, user, "userName2")
+
+				// Check that aliases have the same values
+				require.Equal(t, user["userId1"], user["userId2"])
+				require.Equal(t, user["userName1"], user["userName2"])
+				require.Equal(t, "123", user["userId1"])
+				require.Equal(t, "User 123", user["userName1"])
 
 				// Ensure original field names are not present
 				require.NotContains(t, user, "id")
@@ -1483,6 +1489,209 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 				require.NotContains(t, category, "id")
 				require.NotContains(t, category, "name")
 				require.NotContains(t, category, "kind")
+			},
+		},
+		{
+			name:  "Multiple aliases for the same field",
+			query: `query { users { id name1: name name2: name name3: name } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				users, ok := data["users"].([]interface{})
+				require.True(t, ok, "users should be an array")
+				require.NotEmpty(t, users, "users should not be empty")
+
+				user := users[0].(map[string]interface{})
+				require.Contains(t, user, "id")
+				require.Contains(t, user, "name1")
+				require.Contains(t, user, "name2")
+				require.Contains(t, user, "name3")
+
+				// All aliases should have the same value
+				require.Equal(t, user["name1"], user["name2"])
+				require.Equal(t, user["name2"], user["name3"])
+				require.NotEmpty(t, user["name1"])
+
+				// Original field name should not be present
+				require.NotContains(t, user, "name")
+			},
+		},
+		{
+			name:  "Multiple aliases for the same field with arguments",
+			query: `query($id1: ID!, $id2: ID!, $id3: ID!) { user1: user(id: $id1) { id name } user2: user(id: $id2) { id name } sameUser: user(id: $id3) { userId: id userName: name } }`,
+			vars:  `{"variables": {"id1": "123", "id2": "456", "id3": "123"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user1, ok := data["user1"].(map[string]interface{})
+				require.True(t, ok, "user1 should be an object")
+				require.NotEmpty(t, user1, "user1 should not be empty")
+
+				user2, ok := data["user2"].(map[string]interface{})
+				require.True(t, ok, "user2 should be an object")
+				require.NotEmpty(t, user2, "user2 should not be empty")
+
+				sameUser, ok := data["sameUser"].(map[string]interface{})
+				require.True(t, ok, "sameUser should be an object")
+				require.NotEmpty(t, sameUser, "sameUser should not be empty")
+
+				// user1 and sameUser should have the same ID since they query the same user
+				require.Equal(t, user1["id"], sameUser["userId"])
+				require.Equal(t, user1["name"], sameUser["userName"])
+
+				// user2 should have different ID
+				require.NotEqual(t, user1["id"], user2["id"])
+
+				// Verify expected values
+				require.Equal(t, "123", user1["id"])
+				require.Equal(t, "User 123", user1["name"])
+				require.Equal(t, "456", user2["id"])
+				require.Equal(t, "User 456", user2["name"])
+				require.Equal(t, "123", sameUser["userId"])
+				require.Equal(t, "User 123", sameUser["userName"])
+			},
+		},
+		{
+			name:  "Multiple aliases for the same field in nested objects",
+			query: `query { nestedType { id name1: name name2: name b { id title1: name title2: name c { id label1: name label2: name } } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nestedType, ok := data["nestedType"].([]interface{})
+				require.True(t, ok, "nestedType should be an array")
+				require.NotEmpty(t, nestedType, "nestedType should not be empty")
+
+				nestedItem := nestedType[0].(map[string]interface{})
+				require.Contains(t, nestedItem, "id")
+				require.Contains(t, nestedItem, "name1")
+				require.Contains(t, nestedItem, "name2")
+
+				// Check that aliases have the same value
+				require.Equal(t, nestedItem["name1"], nestedItem["name2"])
+				require.NotEmpty(t, nestedItem["name1"])
+
+				// Check nested object B
+				childB := nestedItem["b"].(map[string]interface{})
+				require.Contains(t, childB, "id")
+				require.Contains(t, childB, "title1")
+				require.Contains(t, childB, "title2")
+				require.Equal(t, childB["title1"], childB["title2"])
+
+				// Check nested object C
+				childC := childB["c"].(map[string]interface{})
+				require.Contains(t, childC, "id")
+				require.Contains(t, childC, "label1")
+				require.Contains(t, childC, "label2")
+				require.Equal(t, childC["label1"], childC["label2"])
+
+				// Ensure original field names are not present
+				require.NotContains(t, nestedItem, "name")
+				require.NotContains(t, childB, "name")
+				require.NotContains(t, childC, "name")
+			},
+		},
+		{
+			name:  "Multiple aliases for the same field in interface fragments",
+			query: `query { randomPet { id name1: name name2: name kind ... on Cat { volume1: meowVolume volume2: meowVolume } ... on Dog { volume1: barkVolume volume2: barkVolume } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				pet, ok := data["randomPet"].(map[string]interface{})
+				require.True(t, ok, "randomPet should be an object")
+				require.NotEmpty(t, pet, "randomPet should not be empty")
+
+				require.Contains(t, pet, "id")
+				require.Contains(t, pet, "name1")
+				require.Contains(t, pet, "name2")
+				require.Contains(t, pet, "kind")
+
+				// Check that aliases have the same value
+				require.Equal(t, pet["name1"], pet["name2"])
+				require.NotEmpty(t, pet["name1"])
+
+				// Check type-specific aliases based on what's present
+				if volume1, hasVolume1 := pet["volume1"]; hasVolume1 {
+					require.IsType(t, float64(0), volume1, "volume1 should be a number")
+					require.Contains(t, pet, "volume2")
+					require.Equal(t, volume1, pet["volume2"])
+				}
+
+				// Ensure original field names are not present
+				require.NotContains(t, pet, "name")
+				require.NotContains(t, pet, "meowVolume")
+				require.NotContains(t, pet, "barkVolume")
+			},
+		},
+		{
+			name:  "Multiple aliases for the same field call with identical arguments",
+			query: `query($id: ID!) { user1: user(id: $id) { id name1: name name2: name name3: name } user2: user(id: $id) { userId1: id userId2: id userName1: name userName2: name } }`,
+			vars:  `{"variables": {"id": "123"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				user1, ok := data["user1"].(map[string]interface{})
+				require.True(t, ok, "user1 should be an object")
+				require.NotEmpty(t, user1, "user1 should not be empty")
+
+				user2, ok := data["user2"].(map[string]interface{})
+				require.True(t, ok, "user2 should be an object")
+				require.NotEmpty(t, user2, "user2 should not be empty")
+
+				// Both users should have the same data since they query the same ID
+				require.Equal(t, user1["id"], user2["userId1"])
+				require.Equal(t, user1["id"], user2["userId2"])
+				require.Equal(t, user1["name1"], user2["userName1"])
+				require.Equal(t, user1["name1"], user2["userName2"])
+
+				// Check that aliases in user1 have the same value
+				require.Equal(t, user1["name1"], user1["name2"])
+				require.Equal(t, user1["name2"], user1["name3"])
+				require.NotEmpty(t, user1["name1"])
+
+				// Check that aliases in user2 have the same value
+				require.Equal(t, user2["userId1"], user2["userId2"])
+				require.Equal(t, user2["userName1"], user2["userName2"])
+				require.NotEmpty(t, user2["userId1"])
+
+				// Verify expected values
+				require.Equal(t, "123", user1["id"])
+				require.Equal(t, "User 123", user1["name1"])
+				require.Equal(t, "123", user2["userId1"])
+				require.Equal(t, "User 123", user2["userName1"])
+
+				// Ensure original field names are not present in user2 (since it only uses aliases)
+				require.NotContains(t, user2, "id")
+				require.NotContains(t, user2, "name")
+			},
+		},
+		{
+			name:  "Multiple aliases for the same field in union fragments",
+			query: `query { randomSearchResult { ... on Product { id name1: name name2: name price1: price } ... on User { id name1: name name2: name } ... on Category { id name1: name name2: name kind1: kind kind2: kind } } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				searchResult, ok := data["randomSearchResult"].(map[string]interface{})
+				require.True(t, ok, "randomSearchResult should be an object")
+				require.NotEmpty(t, searchResult, "randomSearchResult should not be empty")
+
+				require.Contains(t, searchResult, "id")
+
+				// Check that name aliases have the same value (only if they exist)
+				if name1, hasName1 := searchResult["name1"]; hasName1 {
+					require.NotEmpty(t, name1, "name1 should not be empty")
+					require.Contains(t, searchResult, "name2")
+					require.Equal(t, name1, searchResult["name2"])
+				}
+
+				// Check type-specific aliases
+				if price1, hasPrice1 := searchResult["price1"]; hasPrice1 {
+					// This is a Product
+					require.IsType(t, float64(0), price1, "price1 should be a number")
+				}
+
+				if kind1, hasKind1 := searchResult["kind1"]; hasKind1 {
+					// This is a Category
+					require.IsType(t, "", kind1, "kind1 should be a string")
+					require.Contains(t, searchResult, "kind2")
+					require.Equal(t, kind1, searchResult["kind2"])
+				}
+
+				// Ensure original field names are not present
+				require.NotContains(t, searchResult, "name")
+				require.NotContains(t, searchResult, "price")
+				require.NotContains(t, searchResult, "kind")
 			},
 		},
 	}
