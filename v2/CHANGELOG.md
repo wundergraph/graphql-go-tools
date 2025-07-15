@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.206](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.205...v2.0.0-rc.206) (2025-07-15)
+
+
+### Bug Fixes
+
+* allow multiple aliases ([#1231](https://github.com/wundergraph/graphql-go-tools/issues/1231)) ([01d91e2](https://github.com/wundergraph/graphql-go-tools/commit/01d91e2b882b000d95a08ac4e96d97d95f1e3a9d))
+
 ## [2.0.0-rc.205](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.204...v2.0.0-rc.205) (2025-07-14)
 
 
