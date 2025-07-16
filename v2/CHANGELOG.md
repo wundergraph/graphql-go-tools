@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.207](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.206...v2.0.0-rc.207) (2025-07-15)
+
+
+### Bug Fixes
+
+* fix merging fetches and add dependencies update ([#1232](https://github.com/wundergraph/graphql-go-tools/issues/1232)) ([c91d59e](https://github.com/wundergraph/graphql-go-tools/commit/c91d59eeeb9ac09f84806b9d3af903f5d25f064d))
+
 ## [2.0.0-rc.206](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.205...v2.0.0-rc.206) (2025-07-15)
 
 
