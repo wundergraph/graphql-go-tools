@@ -373,7 +373,7 @@ func (d *Document) InputValueDefinitionIsLast(inputValue int, ancestor Node) boo
 
 // Node misc
 
-// NodeImplementsInterfaceFields - checks that the given node has all fields of the given interface node
+// NodeImplementsInterfaceFields checks that the given node has all fields of the interfaceNode
 func (d *Document) NodeImplementsInterfaceFields(node Node, interfaceNode Node) bool {
 	nodeFields := d.NodeFieldDefinitions(node)
 	interfaceFields := d.NodeFieldDefinitions(interfaceNode)
@@ -401,8 +401,10 @@ func (d *Document) InterfacesIntersect(interfaceA, interfaceB int) bool {
 	return false
 }
 
-// NodeImplementsInterface - checks that the given node has `implements` interface.
-// node can be either object type or interface type
+// NodeImplementsInterface checks that the given node has an interfaceName in the `implements` section.
+// Node can be an object or interface type.
+//
+// This does not guarantee that the node has all the fields of the interfaceName.
 func (d *Document) NodeImplementsInterface(node Node, interfaceName ByteSlice) bool {
 	switch node.Kind {
 	case NodeKindObjectTypeDefinition:
@@ -517,15 +519,19 @@ func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
 func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, interfaceTypeNode Node) bool {
 	switch fragmentNode.Kind {
 	case NodeKindObjectTypeDefinition:
-		return d.NodeImplementsInterfaceFields(fragmentNode, interfaceTypeNode)
+		interfaceName := d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)
+		claimsImplementation := d.NodeImplementsInterface(fragmentNode, interfaceName)
+		return claimsImplementation && d.NodeImplementsInterfaceFields(fragmentNode, interfaceTypeNode)
 	case NodeKindInterfaceTypeDefinition:
-		return bytes.Equal(d.InterfaceTypeDefinitionNameBytes(fragmentNode.Ref), d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)) ||
+		fragmentName := d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)
+		interfaceName := d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)
+		return bytes.Equal(fragmentName, interfaceName) ||
 			d.InterfaceNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)
 	case NodeKindUnionTypeDefinition:
 		return d.UnionNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)
+	default:
+		return false
 	}
-
-	return false
 }
 
 func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unionTypeNode Node) bool {
