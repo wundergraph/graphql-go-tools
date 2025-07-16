@@ -346,6 +346,7 @@ func (d *Document) NodeFieldDefinitionArgumentsDefinitions(node Node, fieldName 
 
 // Node input value definitions
 
+// NodeInputValueDefinitions returns input value definition refs based on the node's kind.
 func (d *Document) NodeInputValueDefinitions(node Node) []int {
 	switch node.Kind {
 	case NodeKindInputObjectTypeDefinition:
@@ -371,9 +372,7 @@ func (d *Document) InputValueDefinitionIsLast(inputValue int, ancestor Node) boo
 	return inputValues != nil && inputValues[len(inputValues)-1] == inputValue
 }
 
-// Node misc
-
-// NodeImplementsInterfaceFields checks that the given node has all fields of the interfaceNode
+// NodeImplementsInterfaceFields checks that the node has all fields of the interfaceNode.
 func (d *Document) NodeImplementsInterfaceFields(node Node, interfaceNode Node) bool {
 	nodeFields := d.NodeFieldDefinitions(node)
 	interfaceFields := d.NodeFieldDefinitions(interfaceNode)
@@ -388,6 +387,7 @@ func (d *Document) NodeImplementsInterfaceFields(node Node, interfaceNode Node) 
 	return true
 }
 
+// InterfacesIntersect checks if two interfaces share at least one common implementing type.
 func (d *Document) InterfacesIntersect(interfaceA, interfaceB int) bool {
 	typeNamesImplementingInterfaceA, _ := d.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceA)
 	typeNamesImplementingInterfaceB, _ := d.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceB)
@@ -401,10 +401,11 @@ func (d *Document) InterfacesIntersect(interfaceA, interfaceB int) bool {
 	return false
 }
 
-// NodeImplementsInterface checks that the given node has an interfaceName in the `implements` section.
+// NodeImplementsInterface checks that the node has an interfaceName in the `implements` section,
+// in other words, that the node claims to implement the interfaceName.
 // Node can be an object or interface type.
 //
-// This does not guarantee that the node has all the fields of the interfaceName.
+// This check does not verify that the node has all the fields of the interfaceName.
 func (d *Document) NodeImplementsInterface(node Node, interfaceName ByteSlice) bool {
 	switch node.Kind {
 	case NodeKindObjectTypeDefinition:
@@ -416,6 +417,7 @@ func (d *Document) NodeImplementsInterface(node Node, interfaceName ByteSlice) b
 	}
 }
 
+// NodeIsUnionMember checks if the node is a member of the specified union.
 func (d *Document) NodeIsUnionMember(node Node, union Node) bool {
 	nodeTypeName := d.NodeNameBytes(node)
 	for _, i := range d.UnionTypeDefinitions[union.Ref].UnionMemberTypes.Refs {
@@ -502,15 +504,15 @@ func (d *Document) NodeUnionMemberRefs(node Node) (refs []int) {
 
 // Node fragments
 
-// NodeFragmentIsAllowedOnNode checks if a fragmentNode is allowed on a given onNode based on its kind.
-func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
-	switch onNode.Kind {
+// NodeFragmentIsAllowedOnNode determines if a fragment node is valid on a target node.
+func (d *Document) NodeFragmentIsAllowedOnNode(fragment, target Node) bool {
+	switch target.Kind {
 	case NodeKindObjectTypeDefinition:
-		return d.NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, onNode)
+		return d.NodeFragmentIsAllowedOnObjectTypeDefinition(fragment, target)
 	case NodeKindInterfaceTypeDefinition:
-		return d.NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, onNode)
+		return d.NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragment, target)
 	case NodeKindUnionTypeDefinition:
-		return d.NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, onNode)
+		return d.NodeFragmentIsAllowedOnUnionTypeDefinition(fragment, target)
 	default:
 		return false
 	}
@@ -542,9 +544,9 @@ func (d *Document) NodeFragmentIsAllowedOnUnionTypeDefinition(fragmentNode, unio
 		return d.UnionNodeIntersectsInterfaceNode(unionTypeNode, fragmentNode)
 	case NodeKindUnionTypeDefinition:
 		return d.UnionNodeIntersectsUnionNode(unionTypeNode, fragmentNode)
+	default:
+		return false
 	}
-
-	return false
 }
 
 func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, objectTypeNode Node) bool {
@@ -557,9 +559,9 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 		return claimsImplementation && d.NodeImplementsInterfaceFields(objectTypeNode, fragmentNode)
 	case NodeKindUnionTypeDefinition:
 		return d.NodeIsUnionMember(objectTypeNode, fragmentNode)
+	default:
+		return false
 	}
-
-	return false
 }
 
 func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Node) bool {

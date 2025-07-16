@@ -161,6 +161,7 @@ func (d *Document) InterfaceTypeDefinitionFieldWithName(ref int, fieldName []byt
 	return InvalidRef, false
 }
 
+// InterfaceTypeDefinitionImplementedByObjectWithNames returns object type names implementing the interface.
 func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef int) (typeNames []string, ok bool) {
 	implementedByNodes := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
 
