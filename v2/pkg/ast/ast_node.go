@@ -523,7 +523,7 @@ func (d *Document) NodeFragmentIsAllowedOnInterfaceTypeDefinition(fragmentNode, 
 		claimsImplementation := d.NodeImplementsInterface(fragmentNode, interfaceName)
 		return claimsImplementation && d.NodeImplementsInterfaceFields(fragmentNode, interfaceTypeNode)
 	case NodeKindInterfaceTypeDefinition:
-		fragmentName := d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)
+		fragmentName := d.InterfaceTypeDefinitionNameBytes(fragmentNode.Ref)
 		interfaceName := d.InterfaceTypeDefinitionNameBytes(interfaceTypeNode.Ref)
 		return bytes.Equal(fragmentName, interfaceName) ||
 			d.InterfaceNodeIntersectsInterfaceNode(fragmentNode, interfaceTypeNode)

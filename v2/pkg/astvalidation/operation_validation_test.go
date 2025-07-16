@@ -2734,7 +2734,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidCatFragment on Cat {
 										meowVolume
 									}`,
-							Fragments(), Invalid, withValidationErrors("fragment spread: fragment invalidCatFragment must be spread on type Cat and not type Dog"))
+							Fragments(), Invalid, withValidationErrors("fragment invalidCatFragment must be spread on type Cat and not type Dog"))
 					})
 				})
 				t.Run("5.5.2.3.2 Abstract Spreads in Object Scope", func(t *testing.T) {
