@@ -71,6 +71,202 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 		assert.Equal(t, output, input)
 	})
 
+	t.Run("same path, same input, different fetch ids - should update dependencies with merged fetch ids", func(t *testing.T) {
+		input := &resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           0,
+								DependsOnFetchIDs: []int{},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{Input: "rootQuery"},
+						},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: "a",
+								CoordinateDependencies: []resolve.FetchDependency{
+									{
+										DependsOn: []resolve.FetchDependencyOrigin{
+											{
+												FetchID: 0,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           2,
+								DependsOnFetchIDs: []int{0},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: "a",
+								CoordinateDependencies: []resolve.FetchDependency{
+									{
+										DependsOn: []resolve.FetchDependencyOrigin{
+											{
+												FetchID: 0,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a.b"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           4,
+								DependsOnFetchIDs: []int{0, 2},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: "b",
+								CoordinateDependencies: []resolve.FetchDependency{
+									{
+										DependsOn: []resolve.FetchDependencyOrigin{
+											{
+												FetchID: 0,
+											},
+											{
+												FetchID: 2,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a.b"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           3,
+								DependsOnFetchIDs: []int{0, 1},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: "b",
+								CoordinateDependencies: []resolve.FetchDependency{
+									{
+										DependsOn: []resolve.FetchDependencyOrigin{
+											{
+												FetchID: 0,
+											},
+											{
+												FetchID: 1,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		output := &resolve.FetchTreeNode{
+			ChildNodes: []*resolve.FetchTreeNode{
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           0,
+								DependsOnFetchIDs: []int{},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{Input: "rootQuery"},
+						},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           1,
+								DependsOnFetchIDs: []int{0},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: "a",
+								CoordinateDependencies: []resolve.FetchDependency{
+									{
+										DependsOn: []resolve.FetchDependencyOrigin{
+											{
+												FetchID: 0,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				{
+					Kind: resolve.FetchTreeNodeKindSingle,
+					Item: &resolve.FetchItem{
+						FetchPath: []resolve.FetchItemPathElement{{Kind: resolve.FetchItemPathElementKindObject, Path: []string{"root.a.b"}}},
+						Fetch: &resolve.SingleFetch{
+							FetchDependencies: resolve.FetchDependencies{
+								FetchID:           4,
+								DependsOnFetchIDs: []int{0, 1},
+							},
+							FetchConfiguration: resolve.FetchConfiguration{
+								Input: "b",
+								CoordinateDependencies: []resolve.FetchDependency{
+									{
+										DependsOn: []resolve.FetchDependencyOrigin{
+											{
+												FetchID: 0,
+											},
+											{
+												FetchID: 1,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		dedup := &deduplicateSingleFetches{}
+		dedup.ProcessFetchTree(input)
+
+		assert.Equal(t, output, input)
+	})
+
 	t.Run("different path, same input", func(t *testing.T) {
 		input := &resolve.FetchTreeNode{
 			ChildNodes: []*resolve.FetchTreeNode{

@@ -134,7 +134,10 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		for i := range p.processResponseTree {
 			p.processResponseTree[i].Process(t.Response.Data)
 		}
+		// initialize the fetch tree
 		p.createFetchTree(t.Response)
+		// NOTE: deduplication relies on the fact that the fetch tree
+		// have flat structure of child fetches
 		p.dedupe.ProcessFetchTree(t.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
@@ -156,6 +159,8 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 	return pre
 }
 
+// createFetchTree creates an inital fetch tree from the raw fetches in the GraphQL response.
+// The initial fetch tree is a node of sequence fetch kind, with a flat list of fetches as children.
 func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.disableExtractFetches {
 		return

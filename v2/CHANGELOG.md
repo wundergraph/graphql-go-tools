@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.0.0-rc.207](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.206...v2.0.0-rc.207) (2025-07-15)
+
+
+### Bug Fixes
+
+* fix merging fetches and add dependencies update ([#1232](https://github.com/wundergraph/graphql-go-tools/issues/1232)) ([c91d59e](https://github.com/wundergraph/graphql-go-tools/commit/c91d59eeeb9ac09f84806b9d3af903f5d25f064d))
+
+## [2.0.0-rc.206](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.205...v2.0.0-rc.206) (2025-07-15)
+
+
+### Bug Fixes
+
+* allow multiple aliases ([#1231](https://github.com/wundergraph/graphql-go-tools/issues/1231)) ([01d91e2](https://github.com/wundergraph/graphql-go-tools/commit/01d91e2b882b000d95a08ac4e96d97d95f1e3a9d))
+
+## [2.0.0-rc.205](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.204...v2.0.0-rc.205) (2025-07-14)
+
+
+### Bug Fixes
+
+* missing field refs in union types ([#1228](https://github.com/wundergraph/graphql-go-tools/issues/1228)) ([57e1d38](https://github.com/wundergraph/graphql-go-tools/commit/57e1d38955f14df4e39f9f139a31a40a6d6e4659))
+* return empty list for nullable lists ([#1225](https://github.com/wundergraph/graphql-go-tools/issues/1225)) ([1166a10](https://github.com/wundergraph/graphql-go-tools/commit/1166a10a5da4151af5a7abeea7bee45d63d71349))
+
 ## [2.0.0-rc.204](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.203...v2.0.0-rc.204) (2025-07-10)
 
 
