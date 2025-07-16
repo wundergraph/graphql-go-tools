@@ -2808,6 +2808,15 @@ func TestExecutionValidation(t *testing.T) {
 									}`,
 							Fragments(), Valid)
 					})
+					t.Run("143 invalid interface", func(t *testing.T) {
+						run(t, `
+									{
+										dog {
+											...on Sentient { ...on DogOrHuman { ...on Dog { barkVolume } } }
+										}
+									}`,
+							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Sentient"`))
+					})
 					t.Run("143 variant", func(t *testing.T) {
 						run(t, `
 									{

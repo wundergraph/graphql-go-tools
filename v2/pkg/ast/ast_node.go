@@ -552,7 +552,9 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 	case NodeKindObjectTypeDefinition:
 		return bytes.Equal(d.ObjectTypeDefinitionNameBytes(fragmentNode.Ref), d.ObjectTypeDefinitionNameBytes(objectTypeNode.Ref))
 	case NodeKindInterfaceTypeDefinition:
-		return d.NodeImplementsInterfaceFields(objectTypeNode, fragmentNode)
+		interfaceName := d.InterfaceTypeDefinitionNameBytes(fragmentNode.Ref)
+		claimsImplementation := d.NodeImplementsInterface(objectTypeNode, interfaceName)
+		return claimsImplementation && d.NodeImplementsInterfaceFields(objectTypeNode, fragmentNode)
 	case NodeKindUnionTypeDefinition:
 		return d.NodeIsUnionMember(objectTypeNode, fragmentNode)
 	}
@@ -561,6 +563,7 @@ func (d *Document) NodeFragmentIsAllowedOnObjectTypeDefinition(fragmentNode, obj
 }
 
 func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Node) bool {
+	interfaceName := d.InterfaceTypeDefinitionNameBytes(interfaceNode.Ref)
 	for _, i := range d.UnionTypeDefinitions[unionNode.Ref].UnionMemberTypes.Refs {
 		memberName := d.ResolveTypeNameBytes(i)
 		node, exists := d.Index.FirstNodeByNameBytes(memberName)
@@ -570,7 +573,8 @@ func (d *Document) UnionNodeIntersectsInterfaceNode(unionNode, interfaceNode Nod
 		if node.Kind != NodeKindObjectTypeDefinition {
 			continue
 		}
-		if d.NodeImplementsInterfaceFields(node, interfaceNode) {
+		claimsImplementation := d.NodeImplementsInterface(node, interfaceName)
+		if claimsImplementation && d.NodeImplementsInterfaceFields(node, interfaceNode) {
 			return true
 		}
 	}
