@@ -500,6 +500,7 @@ func (d *Document) NodeUnionMemberRefs(node Node) (refs []int) {
 
 // Node fragments
 
+// NodeFragmentIsAllowedOnNode checks if a fragmentNode is allowed on a given onNode based on its kind.
 func (d *Document) NodeFragmentIsAllowedOnNode(fragmentNode, onNode Node) bool {
 	switch onNode.Kind {
 	case NodeKindObjectTypeDefinition:
