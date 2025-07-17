@@ -36,7 +36,7 @@ jobs:
         id: go
       - name: CI
         working-directory: execution
-        run: make ci
+        run: make test-quick
       - name: Run tests under race detector
         working-directory: execution
         if: runner.os != 'Windows' # These are very slow on Windows, skip them

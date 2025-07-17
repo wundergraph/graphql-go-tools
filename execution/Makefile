@@ -7,10 +7,6 @@ test:
 test-quick:
 	go test -count=1 ./...
 
-.PHONY: test-no-race
-test-no-race:
-	go test -count=1 ./...
-
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures
 updateTestFixtures:
@@ -22,12 +18,6 @@ format:
 
 .PHONY: prepare-merge
 prepare-merge: format test
-
-.PHONY: ci
-ci: test
-
-.PHONY: ci-quick
-ci-full: test-quick
 
 .PHONY: update-deps
 update-deps:
