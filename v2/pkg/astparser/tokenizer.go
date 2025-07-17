@@ -3,6 +3,7 @@ package astparser
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/token"
 )
@@ -40,18 +41,61 @@ func (t *Tokenizer) Tokenize(input *ast.Input) {
 	}
 }
 
-// hasNextToken - checks that we haven't reached eof
-func (t *Tokenizer) hasNextToken(skip int) bool {
-	return t.currentToken+1+skip < t.maxTokens
-}
+// TokenizeWithDepthLimit tokenizes input with a depth limit to prevent excessive nesting
+// that could lead to stack overflow or DoS attacks. It tracks both global depth across
+// the entire document and local depth within individual operations/fragments.
+//
+// The depth limit applies to the total nesting depth of GraphQL constructs (objects,
+// arrays, selection sets) across the entire document. When a new operation or fragment
+// is encountered, the local depth peak is added to the global depth counter.
+//
+// Returns ErrDepthLimitExceeded if the depth limit is exceeded during tokenization.
+func (t *Tokenizer) TokenizeWithDepthLimit(depthLimit int, input *ast.Input) error {
+	t.lexer.SetInput(input)
+	t.tokens = t.tokens[:0]
 
-// next - increments current token index if hasNextToken
-// otherwise returns current token
-func (t *Tokenizer) next() int {
-	if t.hasNextToken(0) {
-		t.currentToken++
+	// globalDepth tracks the cumulative depth across the entire document
+	globalDepth := 0
+	// localDepth tracks the current nesting depth within the current operation/fragment
+	localDepth := 0
+	// localDepthPeak tracks the maximum depth reached within the current operation/fragment
+	localDepthPeak := 0
+
+	for {
+		next := t.lexer.Read()
+		if next.Keyword == keyword.EOF {
+			t.maxTokens = len(t.tokens)
+			t.currentToken = -1
+			return nil
+		}
+		switch next.Keyword {
+		case keyword.LBRACE:
+			globalDepth++
+			if globalDepth > depthLimit {
+				return ErrDepthLimitExceeded{
+					limit: depthLimit,
+				}
+			}
+			localDepth++
+			if localDepth > localDepthPeak {
+				localDepthPeak = localDepth
+			}
+		case keyword.RBRACE:
+			globalDepth--
+			localDepth--
+		case keyword.IDENT:
+			key := identkeyword.KeywordFromLiteral(input.ByteSlice(next.Literal))
+			switch key {
+			case identkeyword.FRAGMENT, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION:
+				// When starting a new operation or fragment, add the local depth peak
+				// to global depth and reset local tracking
+				globalDepth += localDepthPeak
+				localDepth = 0
+				localDepthPeak = 0
+			}
+		}
+		t.tokens = append(t.tokens, next)
 	}
-	return t.currentToken
 }
 
 // Read - increments currentToken index and return token if hasNextToken
@@ -66,8 +110,9 @@ func (t *Tokenizer) Read() token.Token {
 }
 
 func (t *Tokenizer) read() token.Token {
-	if t.hasNextToken(0) {
-		return t.tokens[t.next()]
+	if t.currentToken+1 < t.maxTokens {
+		t.currentToken++
+		return t.tokens[t.currentToken]
 	}
 
 	return token.Token{
@@ -87,7 +132,7 @@ func (t *Tokenizer) Peek() token.Token {
 }
 
 func (t *Tokenizer) peek(skip int) token.Token {
-	if t.hasNextToken(skip) {
+	if t.currentToken+1+skip < t.maxTokens {
 		nextIndex := t.currentToken + 1 + skip
 		return t.tokens[nextIndex]
 	}

@@ -51,3 +51,14 @@ func (e ErrUnexpectedIdentKey) Error() string {
 
 	return fmt.Sprintf("unexpected ident - keyword: '%s' literal: '%s' - expected: '%s' position: '%s'%s", e.keyword, e.literal, e.expected, e.position, origins)
 }
+
+// ErrDepthLimitExceeded is returned when the parser encounters nesting depth
+// that exceeds the configured limit during tokenization. This error helps prevent
+// stack overflow and DoS attacks from maliciously deep GraphQL documents.
+type ErrDepthLimitExceeded struct {
+	limit int
+}
+
+func (e ErrDepthLimitExceeded) Error() string {
+	return fmt.Sprintf("allowed parsing depth limit per GraphQL document of '%d' exceeded", e.limit)
+}
