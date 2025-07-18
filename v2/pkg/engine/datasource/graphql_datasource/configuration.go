@@ -9,6 +9,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -103,6 +104,8 @@ type SingleTypeField struct {
 	FieldName string
 }
 
+type OnSubscriptionStartFn func(ctx *resolve.Context) ([][]byte, error)
+
 type SubscriptionConfiguration struct {
 	URL           string
 	Header        http.Header
@@ -119,6 +122,7 @@ type SubscriptionConfiguration struct {
 	// these headers by itself.
 	ForwardedClientHeaderRegularExpressions []RegularExpression
 	WsSubProtocol                           string
+	OnSubscriptionStartFns                  []OnSubscriptionStartFn
 }
 
 type FetchConfiguration struct {

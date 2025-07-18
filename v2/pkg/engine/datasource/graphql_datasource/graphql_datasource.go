@@ -450,7 +450,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{
 		Input: string(input),
 		DataSource: &SubscriptionSource{
-			client: p.subscriptionClient,
+			client:                 p.subscriptionClient,
+			OnSubscriptionStartFns: p.config.subscription.OnSubscriptionStartFns,
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,
@@ -1932,7 +1933,8 @@ type RegularExpression struct {
 }
 
 type SubscriptionSource struct {
-	client GraphQLSubscriptionClient
+	client                 GraphQLSubscriptionClient
+	OnSubscriptionStartFns []OnSubscriptionStartFn
 }
 
 func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
@@ -1943,6 +1945,15 @@ func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input [
 	}
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
+	}
+	for _, fn := range s.OnSubscriptionStartFns {
+		events, err := fn(ctx)
+		if err != nil {
+			return err
+		}
+		for _, event := range events {
+			updater.Update(event)
+		}
 	}
 	return s.client.SubscribeAsync(ctx, id, options, updater)
 }
@@ -1962,6 +1973,15 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater r
 	}
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
+	}
+	for _, fn := range s.OnSubscriptionStartFns {
+		events, err := fn(ctx)
+		if err != nil {
+			return err
+		}
+		for _, event := range events {
+			updater.Update(event)
+		}
 	}
 	return s.client.Subscribe(ctx, options, updater)
 }

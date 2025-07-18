@@ -4019,7 +4019,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 					Source: &SubscriptionSource{
-						NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
 				},
