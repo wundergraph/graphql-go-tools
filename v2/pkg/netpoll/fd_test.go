@@ -1,4 +1,4 @@
-//go:build linux || darwin || netbsd || freebsd || openbsd || dragonfly
+//go:build !windows
 
 package netpoll
 

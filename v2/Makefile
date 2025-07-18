@@ -1,15 +1,18 @@
 .PHONY: test
 test:
-	go test -race -count=1 ./...
+	go test -race ./...
 
 test-fresh: clean-testcache test
 
 test-stability:
 	@while $(MAKE) test-fresh; do :; done
 
+# First we run tests, then benchmarks.
+# If we run them together then we get noisy output from testing logs in data
 .PHONY: test-quick
 test-quick:
-	go test -count=1 -run=. -bench=. -benchtime=1x ./...
+	go test ./...
+	go test -run=xxxx -bench=. -benchtime=1x ./...
 
 clean-testcache:
 	go clean -testcache
