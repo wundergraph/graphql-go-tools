@@ -2630,13 +2630,13 @@ func TestParseTodo(t *testing.T) {
 	_ = doc
 }
 
-func testParseWithDepthLimit(t *testing.T, limit int, expectError bool, text string) {
+func testParseWithLimits(t *testing.T, limits TokenizerLimits, expectError bool, text string) {
 	t.Helper()
 	p := NewParser()
 	doc := ast.NewDocument()
 	report := operationreport.Report{}
 	doc.Input.ResetInputBytes([]byte(text))
-	err := p.ParseWithDepthLimit(limit, doc, &report)
+	err := p.ParseWithLimits(limits, doc, &report)
 	if expectError {
 		assert.Error(t, err)
 	} else {
@@ -2644,30 +2644,63 @@ func testParseWithDepthLimit(t *testing.T, limit int, expectError bool, text str
 	}
 }
 
-func TestParser_ParseWithDepthLimit(t *testing.T) {
+func TestParser_ParseWithLimits(t *testing.T) {
 	t.Run("depth limit 3 not exceeded", func(t *testing.T) {
-		testParseWithDepthLimit(t, 3, false, `query { one { two { three } } }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, false, `query { one { two { three } } }`)
 	})
 	t.Run("depth limit 3 exceeded", func(t *testing.T) {
-		testParseWithDepthLimit(t, 3, true, `query { one { two { three { four } } } }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, true, `query { one { two { three { four } } } }`)
 	})
 	t.Run("multiple named operations not exceeding depth limit", func(t *testing.T) {
-		testParseWithDepthLimit(t, 4, false, `query A { one { two { three } } } query B { one }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 4, MaxFields: 0}, false, `query A { one { two { three } } } query B { one }`)
 	})
 	t.Run("multiple named operations exceeding depth limit", func(t *testing.T) {
-		testParseWithDepthLimit(t, 3, true, `query A { one { two { three } } } query B { one }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, true, `query A { one { two { three } } } query B { one }`)
 	})
 	t.Run("query with fragment not exceeding depth limit", func(t *testing.T) {
-		testParseWithDepthLimit(t, 4, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 4, MaxFields: 0}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
 	})
 	t.Run("query with fragment exceeding depth limit", func(t *testing.T) {
-		testParseWithDepthLimit(t, 3, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three { four } } }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three { four } } }`)
 	})
 	t.Run("query with multiple fragments not exceeding depth limit", func(t *testing.T) {
-		testParseWithDepthLimit(t, 5, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 5, MaxFields: 0}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
 	})
 	t.Run("query with multiple fragments exceeding depth limit", func(t *testing.T) {
-		testParseWithDepthLimit(t, 4, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 4, MaxFields: 0}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query { one { two { three } } }`)
+	})
+	t.Run("query exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query { one { two { three } } }`)
+	})
+	t.Run("query with multiple operations not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query A { one { two } } query B { three }`)
+	})
+	t.Run("query with multiple operations exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query A { one { two } } query B { three }`)
+	})
+	t.Run("query with fragment not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
+	})
+	t.Run("query with fragment exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
+	})
+	t.Run("query with multiple fragments not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments exceeding field limit and depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 2, MaxFields: 2}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments not exceeding field limit and depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 5, MaxFields: 3}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("no limits", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 0}, false, `query { one { two { three } } }`)
 	})
 }
 

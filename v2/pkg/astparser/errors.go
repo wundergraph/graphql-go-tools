@@ -60,5 +60,15 @@ type ErrDepthLimitExceeded struct {
 }
 
 func (e ErrDepthLimitExceeded) Error() string {
-	return fmt.Sprintf("allowed parsing depth limit per GraphQL document of '%d' exceeded", e.limit)
+	return fmt.Sprintf("allowed parsing depth per GraphQL document of '%d' exceeded", e.limit)
+}
+
+// ErrFieldsLimitExceeded is returned when the parser encounters a number of fields
+// that exceeds the configured limit during tokenization. This error helps prevent
+type ErrFieldsLimitExceeded struct {
+	limit int
+}
+
+func (e ErrFieldsLimitExceeded) Error() string {
+	return fmt.Sprintf("allowed number of fields per GraphQL document of '%d' exceeded", e.limit)
 }

@@ -97,19 +97,15 @@ func (p *Parser) tokenize() {
 	p.tokenizer.Tokenize(&p.document.Input)
 }
 
-// ParseWithDepthLimit parses all input in a Document.Input into the Document with a depth limit
-func (p *Parser) ParseWithDepthLimit(depthLimit int, document *ast.Document, report *operationreport.Report) error {
+// ParseWithLimits parses all input in a Document.Input into the Document with limits on the number of fields and depth
+func (p *Parser) ParseWithLimits(limits TokenizerLimits, document *ast.Document, report *operationreport.Report) error {
 	p.document = document
 	p.report = report
-	if err := p.tokenizeWithDepthLimit(depthLimit); err != nil {
+	if err := p.tokenizer.TokenizeWithLimits(limits, &p.document.Input); err != nil {
 		return err
 	}
 	p.parse()
 	return nil
-}
-
-func (p *Parser) tokenizeWithDepthLimit(depthLimit int) error {
-	return p.tokenizer.TokenizeWithDepthLimit(depthLimit, &p.document.Input)
 }
 
 func (p *Parser) parse() {

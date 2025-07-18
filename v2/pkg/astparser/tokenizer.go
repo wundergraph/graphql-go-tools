@@ -41,19 +41,16 @@ func (t *Tokenizer) Tokenize(input *ast.Input) {
 	}
 }
 
-// TokenizeWithDepthLimit tokenizes input with a depth limit to prevent excessive nesting
-// that could lead to stack overflow or DoS attacks. It tracks both global depth across
-// the entire document and local depth within individual operations/fragments.
-//
-// The depth limit applies to the total nesting depth of GraphQL constructs (objects,
-// arrays, selection sets) across the entire document. When a new operation or fragment
-// is encountered, the local depth peak is added to the global depth counter.
-//
-// Returns ErrDepthLimitExceeded if the depth limit is exceeded during tokenization.
-func (t *Tokenizer) TokenizeWithDepthLimit(depthLimit int, input *ast.Input) error {
+type TokenizerLimits struct {
+	MaxDepth  int
+	MaxFields int
+}
+
+func (t *Tokenizer) TokenizeWithLimits(limits TokenizerLimits, input *ast.Input) error {
 	t.lexer.SetInput(input)
 	t.tokens = t.tokens[:0]
 
+	limitDepth := limits.MaxDepth > 0
 	// globalDepth tracks the cumulative depth across the entire document
 	globalDepth := 0
 	// localDepth tracks the current nesting depth within the current operation/fragment
@@ -61,28 +58,35 @@ func (t *Tokenizer) TokenizeWithDepthLimit(depthLimit int, input *ast.Input) err
 	// localDepthPeak tracks the maximum depth reached within the current operation/fragment
 	localDepthPeak := 0
 
+	limitFields := limits.MaxFields > 0
+	fieldsCount := 0
+	lastWasSpread := false // used to dismiss an identifier after a spread operator
+
 	for {
 		next := t.lexer.Read()
-		if next.Keyword == keyword.EOF {
+		switch next.Keyword {
+		case keyword.EOF:
 			t.maxTokens = len(t.tokens)
 			t.currentToken = -1
 			return nil
-		}
-		switch next.Keyword {
 		case keyword.LBRACE:
 			globalDepth++
-			if globalDepth > depthLimit {
+			if limitDepth && globalDepth > limits.MaxDepth {
 				return ErrDepthLimitExceeded{
-					limit: depthLimit,
+					limit: limits.MaxDepth,
 				}
 			}
 			localDepth++
 			if localDepth > localDepthPeak {
 				localDepthPeak = localDepth
 			}
+			lastWasSpread = false
 		case keyword.RBRACE:
 			globalDepth--
 			localDepth--
+			lastWasSpread = false
+		case keyword.SPREAD:
+			lastWasSpread = true
 		case keyword.IDENT:
 			key := identkeyword.KeywordFromLiteral(input.ByteSlice(next.Literal))
 			switch key {
@@ -92,7 +96,19 @@ func (t *Tokenizer) TokenizeWithDepthLimit(depthLimit int, input *ast.Input) err
 				globalDepth += localDepthPeak
 				localDepth = 0
 				localDepthPeak = 0
+			default:
+				// localDepth > 0 means that we are inside a selection set, otherwise we're not counting fields
+				// if lastWasSpread, it means that the next token is an identifier of a fragment spread, we dismiss it
+				if localDepth > 0 && !lastWasSpread {
+					fieldsCount++
+				}
+				if limitFields && fieldsCount > limits.MaxFields {
+					return ErrFieldsLimitExceeded{
+						limit: limits.MaxFields,
+					}
+				}
 			}
+			lastWasSpread = false
 		}
 		t.tokens = append(t.tokens, next)
 	}
