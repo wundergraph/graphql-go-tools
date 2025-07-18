@@ -7,13 +7,12 @@ test-fresh: clean-testcache test
 test-stability:
 	@while $(MAKE) test-fresh; do :; done
 
+# First we run tests, then benchmarks.
+# If we run them together then we get noisy output from testing logs in data
 .PHONY: test-quick
 test-quick:
-	go test -count=1 ./...
-
-.PHONY: test
-test-no-race:
-	go test -race ./...
+	go test ./...
+	go test -run=xxxx -bench=. -benchtime=1x ./...
 
 clean-testcache:
 	go clean -testcache
@@ -29,12 +28,6 @@ format:
 
 .PHONY: prepare-merge
 prepare-merge: format test
-
-.PHONY: ci
-ci: test
-
-.PHONY: ci-quick
-ci-full: test-quick
 
 .PHONY: generate
 generate: $(GOPATH)/bin/go-enum $(GOPATH)/bin/mockgen $(GOPATH)/bin/stringer
