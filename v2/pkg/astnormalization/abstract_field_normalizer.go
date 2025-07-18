@@ -29,9 +29,8 @@ func NewAbstractFieldNormalizer(operation *ast.Document, definition *ast.Documen
 	walker.RegisterFieldVisitor(normalizer)
 	walker.SetVisitorFilter(normalizer)
 
-	mergeInlineFragmentSelections(&walker)
+	mergeInlineFragmentFieldSelections(&walker)
 	inlineSelectionsFromInlineFragments(&walker)
-	mergeFieldSelections(&walker)
 	deduplicateFields(&walker)
 
 	return normalizer
