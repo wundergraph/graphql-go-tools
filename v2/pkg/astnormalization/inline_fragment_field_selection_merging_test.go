@@ -247,5 +247,89 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 						}
 					}`)
 		})
+		t.Run("mixed heavily fields with deep inline fragments", func(t *testing.T) {
+			run(t, mergeInlineFragmentFieldSelections, testDefinition, `
+					query mixedFragmentTypes {
+						pet {
+							... on Dog {
+								name
+							}
+						}
+						pet {
+							... on Dog {
+								extras { 
+									... on DogExtra {
+										string 
+									}
+								}
+							}
+						}
+						pet {
+							... on Dog {
+								name
+								barkVolume
+							}
+						}
+						pet {
+							... on Dog {
+								extras { 
+									... on DogExtra {
+										string1
+									}
+								}
+							}
+						}
+						pet {
+							... on Cat {
+								name
+							}
+						}
+						pet {
+							... on Dog {
+								name
+								barkVolume
+								owner {
+									name
+								}
+							}
+						}
+						pet {
+							... on Cat {
+								meowVolume
+							}
+						}
+						pet {
+							... on Cat {
+								meowVolume
+							}
+						}
+					}`, `
+					query mixedFragmentTypes {
+						pet {
+							... on Dog {
+								name
+								extras {
+									... on DogExtra {
+										string
+										string1
+									}
+								}
+								name
+								barkVolume
+								name
+								barkVolume
+								owner {
+									name
+								}
+							}
+							... on Cat {
+								name
+								meowVolume
+								meowVolume
+							}
+						}
+					}`)
+		})
+
 	})
 }
