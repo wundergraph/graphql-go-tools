@@ -17,6 +17,11 @@ type Tokenizer struct {
 	skipComments bool
 }
 
+type TokenizerStats struct {
+	TotalDepth  int
+	TotalFields int
+}
+
 // NewTokenizer returns a new tokenizer
 func NewTokenizer() *Tokenizer {
 	return &Tokenizer{
@@ -46,7 +51,7 @@ type TokenizerLimits struct {
 	MaxFields int
 }
 
-func (t *Tokenizer) TokenizeWithLimits(limits TokenizerLimits, input *ast.Input) error {
+func (t *Tokenizer) TokenizeWithLimits(limits TokenizerLimits, input *ast.Input) (TokenizerStats, error) {
 	t.lexer.SetInput(input)
 	t.tokens = t.tokens[:0]
 
@@ -68,11 +73,11 @@ func (t *Tokenizer) TokenizeWithLimits(limits TokenizerLimits, input *ast.Input)
 		case keyword.EOF:
 			t.maxTokens = len(t.tokens)
 			t.currentToken = -1
-			return nil
+			return TokenizerStats{TotalDepth: globalDepth + localDepthPeak, TotalFields: fieldsCount}, nil
 		case keyword.LBRACE:
 			globalDepth++
 			if limitDepth && globalDepth > limits.MaxDepth {
-				return ErrDepthLimitExceeded{
+				return TokenizerStats{TotalDepth: globalDepth + localDepthPeak, TotalFields: fieldsCount}, ErrDepthLimitExceeded{
 					limit: limits.MaxDepth,
 				}
 			}
@@ -103,7 +108,7 @@ func (t *Tokenizer) TokenizeWithLimits(limits TokenizerLimits, input *ast.Input)
 					fieldsCount++
 				}
 				if limitFields && fieldsCount > limits.MaxFields {
-					return ErrFieldsLimitExceeded{
+					return TokenizerStats{TotalDepth: globalDepth + localDepthPeak, TotalFields: fieldsCount}, ErrFieldsLimitExceeded{
 						limit: limits.MaxFields,
 					}
 				}

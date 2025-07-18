@@ -98,14 +98,15 @@ func (p *Parser) tokenize() {
 }
 
 // ParseWithLimits parses all input in a Document.Input into the Document with limits on the number of fields and depth
-func (p *Parser) ParseWithLimits(limits TokenizerLimits, document *ast.Document, report *operationreport.Report) error {
+func (p *Parser) ParseWithLimits(limits TokenizerLimits, document *ast.Document, report *operationreport.Report) (TokenizerStats, error) {
 	p.document = document
 	p.report = report
-	if err := p.tokenizer.TokenizeWithLimits(limits, &p.document.Input); err != nil {
-		return err
+	stats, err := p.tokenizer.TokenizeWithLimits(limits, &p.document.Input)
+	if err != nil {
+		return stats, err
 	}
 	p.parse()
-	return nil
+	return stats, nil
 }
 
 func (p *Parser) parse() {

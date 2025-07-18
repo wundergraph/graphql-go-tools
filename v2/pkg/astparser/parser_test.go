@@ -2636,7 +2636,7 @@ func testParseWithLimits(t *testing.T, limits TokenizerLimits, expectError bool,
 	doc := ast.NewDocument()
 	report := operationreport.Report{}
 	doc.Input.ResetInputBytes([]byte(text))
-	err := p.ParseWithLimits(limits, doc, &report)
+	_, err := p.ParseWithLimits(limits, doc, &report)
 	if expectError {
 		assert.Error(t, err)
 	} else {
@@ -2701,6 +2701,26 @@ func TestParser_ParseWithLimits(t *testing.T) {
 	})
 	t.Run("no limits", func(t *testing.T) {
 		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 0}, false, `query { one { two { three } } }`)
+	})
+	t.Run("parse stats", func(t *testing.T) {
+		p := NewParser()
+		doc := ast.NewDocument()
+		report := operationreport.Report{}
+		doc.Input.ResetInputBytes([]byte(`query { one { two { three } } }`))
+		stats, err := p.ParseWithLimits(TokenizerLimits{}, doc, &report)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, stats.TotalFields)
+		assert.Equal(t, 3, stats.TotalDepth)
+	})
+	t.Run("parse stats with multiple operations and fragments", func(t *testing.T) {
+		p := NewParser()
+		doc := ast.NewDocument()
+		report := operationreport.Report{}
+		doc.Input.ResetInputBytes([]byte(`query A { one { two } } query B { three } fragment OneFragment on One { two { three } }`))
+		stats, err := p.ParseWithLimits(TokenizerLimits{}, doc, &report)
+		assert.NoError(t, err)
+		assert.Equal(t, 5, stats.TotalFields)
+		assert.Equal(t, 5, stats.TotalDepth)
 	})
 }
 
