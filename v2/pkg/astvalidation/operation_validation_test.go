@@ -2708,7 +2708,7 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Cat".`))
 					})
 					t.Run("138 variant", func(t *testing.T) {
 						run(t, `
@@ -2734,7 +2734,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidCatFragment on Cat {
 										meowVolume
 									}`,
-							Fragments(), Invalid, withValidationErrors("external: fragment spread: fragment invalidCatFragment must be spread on type Cat and not type Dog"))
+							Fragments(), Invalid, withValidationErrors("fragment invalidCatFragment must be spread on type Cat and not type Dog"))
 					})
 				})
 				t.Run("5.5.2.3.2 Abstract Spreads in Object Scope", func(t *testing.T) {
@@ -2787,7 +2787,7 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Sentient" can never be of type "Dog".`))
 					})
 					t.Run("142 variant", func(t *testing.T) {
 						run(t, ` fragment humanOrAlienFragment on HumanOrAlien {
@@ -2795,7 +2795,7 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Invalid)
+							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "HumanOrAlien" can never be of type "Cat"`))
 					})
 				})
 				t.Run("5.5.2.3.4 Abstract Spreads in Abstract Scope", func(t *testing.T) {
@@ -2807,6 +2807,15 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}`,
 							Fragments(), Valid)
+					})
+					t.Run("143 invalid interface", func(t *testing.T) {
+						run(t, `
+									{
+										dog {
+											...on Sentient { ...on DogOrHuman { ...on Dog { barkVolume } } }
+										}
+									}`,
+							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Sentient"`))
 					})
 					t.Run("143 variant", func(t *testing.T) {
 						run(t, `
@@ -2830,7 +2839,7 @@ func TestExecutionValidation(t *testing.T) {
 									fragment sentientFragment on Sentient {
 										name
 									}`,
-							Fragments(), Invalid)
+							Fragments(), Invalid, withValidationErrors(`fragment sentientFragment must be spread on type Sentient and not type Dog`))
 					})
 					t.Run("interface into interface", func(t *testing.T) {
 						runWithDefinition(t,
