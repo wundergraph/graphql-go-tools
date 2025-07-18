@@ -21,7 +21,7 @@ clean-testcache:
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures
 updateTestFixtures:
-	GOLDIE_UPDATE=1 go test ./pkg/...
+	GOLDIE_UPDATE=1 go test -count=1 ./pkg/...
 
 .PHONY: format
 format:
