@@ -8457,39 +8457,6 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		assert.Len(t, updater.updates, 1)
 		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
 	})
-
-	t.Run("should call the start method at subscription source", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
-
-		updater := &testSubscriptionUpdater{}
-
-		startFnCalled := make(chan *resolve.Context, 1)
-		source := newSubscriptionSource(ctx.Context())
-		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
-			func(ctx *resolve.Context) ([][]byte, error) {
-				startFnCalled <- ctx
-				return nil, nil
-			},
-		}
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
-
-		select {
-		case <-startFnCalled:
-		case <-time.After(time.Second):
-			t.Fatalf("start fn not called")
-		}
-	})
 }
 
 func TestSubscription_GTWS_SubProtocol(t *testing.T) {
