@@ -104,6 +104,9 @@ type SingleTypeField struct {
 	FieldName string
 }
 
+// OnSubscriptionStartFn defines a hook function that is called when a subscription starts.
+// It receives the resolve context and can return initial events or an error.
+// If an error is returned, the subscription will not start.
 type OnSubscriptionStartFn func(ctx *resolve.Context) ([][]byte, error)
 
 type SubscriptionConfiguration struct {
