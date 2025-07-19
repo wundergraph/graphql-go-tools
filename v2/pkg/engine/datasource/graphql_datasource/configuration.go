@@ -9,6 +9,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -103,6 +104,11 @@ type SingleTypeField struct {
 	FieldName string
 }
 
+// OnSubscriptionStartFn defines a hook function that is called when a subscription starts.
+// It receives the resolve context and can return initial events or an error.
+// If an error is returned, the subscription will not start.
+type OnSubscriptionStartFn func(ctx *resolve.Context) ([][]byte, error)
+
 type SubscriptionConfiguration struct {
 	URL           string
 	Header        http.Header
@@ -119,6 +125,7 @@ type SubscriptionConfiguration struct {
 	// these headers by itself.
 	ForwardedClientHeaderRegularExpressions []RegularExpression
 	WsSubProtocol                           string
+	OnSubscriptionStartFns                  []OnSubscriptionStartFn
 }
 
 type FetchConfiguration struct {
