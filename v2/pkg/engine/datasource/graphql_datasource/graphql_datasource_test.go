@@ -9009,7 +9009,7 @@ func TestSubscriptionSource_OnSubscriptionStartFns(t *testing.T) {
 		}
 	})
 
-	t.Run("if the onSubscriptionStartFns returns an error, the subscription should not start and return the error", func(t *testing.T) {
+	t.Run("if the onSubscriptionStartFns returns an error, the subscription should not async start and return the error", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
@@ -9024,6 +9024,26 @@ func TestSubscriptionSource_OnSubscriptionStartFns(t *testing.T) {
 		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
 		err := source.AsyncStart(ctx, 0, chatSubscriptionOptions, updater)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "test error")
+		assert.Len(t, updater.updates, 0)
+	})
+
+	t.Run("if the onSubscriptionStartFns returns an error, the subscription should not start and return the error", func(t *testing.T) {
+		ctx := resolve.NewContext(context.Background())
+		defer ctx.Context().Done()
+
+		updater := &testSubscriptionUpdater{}
+
+		source := newSubscriptionSource(ctx.Context())
+		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
+			func(ctx *resolve.Context) ([][]byte, error) {
+				return nil, errors.New("test error")
+			},
+		}
+		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
+
+		err := source.Start(ctx, chatSubscriptionOptions, updater)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "test error")
 		assert.Len(t, updater.updates, 0)
