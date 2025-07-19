@@ -3,6 +3,7 @@ package astparser
 import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/identkeyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/keyword"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/token"
 )
@@ -14,6 +15,11 @@ type Tokenizer struct {
 	maxTokens    int
 	currentToken int
 	skipComments bool
+}
+
+type TokenizerStats struct {
+	TotalDepth  int
+	TotalFields int
 }
 
 // NewTokenizer returns a new tokenizer
@@ -40,18 +46,77 @@ func (t *Tokenizer) Tokenize(input *ast.Input) {
 	}
 }
 
-// hasNextToken - checks that we haven't reached eof
-func (t *Tokenizer) hasNextToken(skip int) bool {
-	return t.currentToken+1+skip < t.maxTokens
+type TokenizerLimits struct {
+	MaxDepth  int
+	MaxFields int
 }
 
-// next - increments current token index if hasNextToken
-// otherwise returns current token
-func (t *Tokenizer) next() int {
-	if t.hasNextToken(0) {
-		t.currentToken++
+func (t *Tokenizer) TokenizeWithLimits(limits TokenizerLimits, input *ast.Input) (TokenizerStats, error) {
+	t.lexer.SetInput(input)
+	t.tokens = t.tokens[:0]
+
+	limitDepth := limits.MaxDepth > 0
+	// globalDepth tracks the cumulative depth across the entire document
+	globalDepth := 0
+	// localDepth tracks the current nesting depth within the current operation/fragment
+	localDepth := 0
+	// localDepthPeak tracks the maximum depth reached within the current operation/fragment
+	localDepthPeak := 0
+
+	limitFields := limits.MaxFields > 0
+	fieldsCount := 0
+	lastWasSpread := false // used to dismiss an identifier after a spread operator
+
+	for {
+		next := t.lexer.Read()
+		switch next.Keyword {
+		case keyword.EOF:
+			t.maxTokens = len(t.tokens)
+			t.currentToken = -1
+			return TokenizerStats{TotalDepth: globalDepth + localDepthPeak, TotalFields: fieldsCount}, nil
+		case keyword.LBRACE:
+			globalDepth++
+			if limitDepth && globalDepth > limits.MaxDepth {
+				return TokenizerStats{TotalDepth: globalDepth + localDepthPeak, TotalFields: fieldsCount}, ErrDepthLimitExceeded{
+					limit: limits.MaxDepth,
+				}
+			}
+			localDepth++
+			if localDepth > localDepthPeak {
+				localDepthPeak = localDepth
+			}
+			lastWasSpread = false
+		case keyword.RBRACE:
+			globalDepth--
+			localDepth--
+			lastWasSpread = false
+		case keyword.SPREAD:
+			lastWasSpread = true
+		case keyword.IDENT:
+			key := identkeyword.KeywordFromLiteral(input.ByteSlice(next.Literal))
+			switch key {
+			case identkeyword.FRAGMENT, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION:
+				// When starting a new operation or fragment, add the local depth peak
+				// to global depth and reset local tracking
+				globalDepth += localDepthPeak
+				localDepth = 0
+				localDepthPeak = 0
+			default:
+				// localDepth > 0 means that we are inside a selection set, otherwise we're not counting fields
+				// if lastWasSpread, it means that the next token is an identifier of a fragment spread, we dismiss it
+				if localDepth > 0 && !lastWasSpread {
+					fieldsCount++
+				}
+				if limitFields && fieldsCount > limits.MaxFields {
+					return TokenizerStats{TotalDepth: globalDepth + localDepthPeak, TotalFields: fieldsCount}, ErrFieldsLimitExceeded{
+						limit: limits.MaxFields,
+					}
+				}
+			}
+			lastWasSpread = false
+		}
+		t.tokens = append(t.tokens, next)
 	}
-	return t.currentToken
 }
 
 // Read - increments currentToken index and return token if hasNextToken
@@ -66,8 +131,9 @@ func (t *Tokenizer) Read() token.Token {
 }
 
 func (t *Tokenizer) read() token.Token {
-	if t.hasNextToken(0) {
-		return t.tokens[t.next()]
+	if t.currentToken+1 < t.maxTokens {
+		t.currentToken++
+		return t.tokens[t.currentToken]
 	}
 
 	return token.Token{
@@ -87,7 +153,7 @@ func (t *Tokenizer) Peek() token.Token {
 }
 
 func (t *Tokenizer) peek(skip int) token.Token {
-	if t.hasNextToken(skip) {
+	if t.currentToken+1+skip < t.maxTokens {
 		nextIndex := t.currentToken + 1 + skip
 		return t.tokens[nextIndex]
 	}
