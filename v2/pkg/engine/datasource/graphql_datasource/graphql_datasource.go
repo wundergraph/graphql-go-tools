@@ -451,7 +451,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		Input: string(input),
 		DataSource: &SubscriptionSource{
 			client:                 p.subscriptionClient,
-			OnSubscriptionStartFns: p.config.subscription.OnSubscriptionStartFns,
+			onSubscriptionStartFns: p.config.subscription.OnSubscriptionStartFns,
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,
@@ -1934,7 +1934,7 @@ type RegularExpression struct {
 
 type SubscriptionSource struct {
 	client                 GraphQLSubscriptionClient
-	OnSubscriptionStartFns []OnSubscriptionStartFn
+	onSubscriptionStartFns []OnSubscriptionStartFn
 }
 
 func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
@@ -1946,7 +1946,7 @@ func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input [
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	for _, fn := range s.OnSubscriptionStartFns {
+	for _, fn := range s.onSubscriptionStartFns {
 		events, err := fn(ctx)
 		if err != nil {
 			return err
@@ -1974,7 +1974,7 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater r
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	for _, fn := range s.OnSubscriptionStartFns {
+	for _, fn := range s.onSubscriptionStartFns {
 		events, err := fn(ctx)
 		if err != nil {
 			return err
