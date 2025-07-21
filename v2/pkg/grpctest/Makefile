@@ -9,6 +9,10 @@ generate-proto: install-protoc
     	--go-grpc_out=productv1 --go-grpc_opt=paths=source_relative \
     	product.proto
 
+PHONY: build-plugin
 build-plugin:
 	go build -o plugin/plugin_service plugin/plugin_service.go
 
+PHONY: regenerate-proto
+regenerate-proto:
+	pnpx wgc@latest grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" Product

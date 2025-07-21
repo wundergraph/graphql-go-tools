@@ -487,6 +487,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 									Name:     "user",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "user",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
@@ -1014,6 +1015,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 									Name:     "user",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "user",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
@@ -1328,9 +1330,20 @@ func TestQueryExecutionPlans(t *testing.T) {
 														},
 														{
 															Name:     "modifiers",
-															TypeName: string(DataTypeString),
-															JSONPath: "modifiers",
-															Repeated: true,
+															TypeName: string(DataTypeMessage),
+															Repeated: false,
+															Optional: true,
+															Message: &RPCMessage{
+																Name: "ListOfString",
+																Fields: []RPCField{
+																	{
+																		Name:     "items",
+																		TypeName: string(DataTypeString),
+																		Repeated: true,
+																		JSONPath: "modifiers",
+																	},
+																},
+															},
 														},
 													},
 												},
@@ -2625,6 +2638,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "user",
 									Alias:    "specificUser",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
@@ -3187,6 +3201,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "user",
 									Alias:    "user1",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
@@ -3228,6 +3243,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "user",
 									Alias:    "user2",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
@@ -3269,6 +3285,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "user",
 									Alias:    "sameUser",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
@@ -3854,6 +3871,7 @@ func TestNullableFieldsExecutionPlan(t *testing.T) {
 									Name:     "nullable_fields_type_by_id",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "nullableFieldsTypeById",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "NullableFieldsType",
 										Fields: []RPCField{
@@ -4149,6 +4167,7 @@ func TestNullableFieldsExecutionPlan(t *testing.T) {
 									Name:     "update_nullable_fields_type",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "updateNullableFieldsType",
+									Optional: true,
 									Message: &RPCMessage{
 										Name: "NullableFieldsType",
 										Fields: []RPCField{

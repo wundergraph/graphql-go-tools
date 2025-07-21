@@ -1,9 +1,9 @@
 syntax = "proto3";
 package productv1;
 
-import "google/protobuf/wrappers.proto";
-
 option go_package = "cosmo/pkg/proto/productv1;productv1";
+
+import "google/protobuf/wrappers.proto";
 
 // Service definition for ProductService
 service ProductService {
@@ -11,8 +11,11 @@ service ProductService {
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
   // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
+  rpc MutationCreateNullableFieldsType(MutationCreateNullableFieldsTypeRequest) returns (MutationCreateNullableFieldsTypeResponse) {}
   rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
   rpc MutationPerformAction(MutationPerformActionRequest) returns (MutationPerformActionResponse) {}
+  rpc MutationUpdateNullableFieldsType(MutationUpdateNullableFieldsTypeRequest) returns (MutationUpdateNullableFieldsTypeResponse) {}
+  rpc QueryAllNullableFieldsTypes(QueryAllNullableFieldsTypesRequest) returns (QueryAllNullableFieldsTypesResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
   rpc QueryCalculateTotals(QueryCalculateTotalsRequest) returns (QueryCalculateTotalsResponse) {}
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
@@ -21,6 +24,9 @@ service ProductService {
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
+  rpc QueryNullableFieldsType(QueryNullableFieldsTypeRequest) returns (QueryNullableFieldsTypeResponse) {}
+  rpc QueryNullableFieldsTypeById(QueryNullableFieldsTypeByIdRequest) returns (QueryNullableFieldsTypeByIdResponse) {}
+  rpc QueryNullableFieldsTypeWithFilter(QueryNullableFieldsTypeWithFilterRequest) returns (QueryNullableFieldsTypeWithFilterResponse) {}
   rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
   rpc QueryRandomSearchResult(QueryRandomSearchResultRequest) returns (QueryRandomSearchResultResponse) {}
   rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
@@ -29,13 +35,16 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
-  // Nullable fields RPCs
-  rpc QueryNullableFieldsType(QueryNullableFieldsTypeRequest) returns (QueryNullableFieldsTypeResponse) {}
-  rpc QueryNullableFieldsTypeById(QueryNullableFieldsTypeByIdRequest) returns (QueryNullableFieldsTypeByIdResponse) {}
-  rpc QueryNullableFieldsTypeWithFilter(QueryNullableFieldsTypeWithFilterRequest) returns (QueryNullableFieldsTypeWithFilterResponse) {}
-  rpc QueryAllNullableFieldsTypes(QueryAllNullableFieldsTypesRequest) returns (QueryAllNullableFieldsTypesResponse) {}
-  rpc MutationCreateNullableFieldsType(MutationCreateNullableFieldsTypeRequest) returns (MutationCreateNullableFieldsTypeResponse) {}
-  rpc MutationUpdateNullableFieldsType(MutationUpdateNullableFieldsTypeRequest) returns (MutationUpdateNullableFieldsTypeResponse) {}
+}
+
+// Wrapper message for a list of OrderLine.
+message ListOfOrderLine {
+  repeated OrderLine items = 1;
+}
+
+// Wrapper message for a list of String.
+message ListOfString {
+  repeated string items = 1;
 }
 
 // Key message for Product entity lookup
@@ -228,23 +237,6 @@ message QueryRandomSearchResultRequest {
 message QueryRandomSearchResultResponse {
   SearchResult random_search_result = 1;
 }
-// Request message for createUser operation.
-message MutationCreateUserRequest {
-  UserInput input = 1;
-}
-// Response message for createUser operation.
-message MutationCreateUserResponse {
-  User create_user = 1;
-}
-// Request message for performAction operation.
-message MutationPerformActionRequest {
-  ActionInput input = 1;
-}
-// Response message for performAction operation.
-message MutationPerformActionResponse {
-  ActionResult perform_action = 1;
-}
-
 // Request message for nullableFieldsType operation.
 message QueryNullableFieldsTypeRequest {
 }
@@ -274,6 +266,22 @@ message QueryAllNullableFieldsTypesRequest {
 // Response message for allNullableFieldsTypes operation.
 message QueryAllNullableFieldsTypesResponse {
   repeated NullableFieldsType all_nullable_fields_types = 1;
+}
+// Request message for createUser operation.
+message MutationCreateUserRequest {
+  UserInput input = 1;
+}
+// Response message for createUser operation.
+message MutationCreateUserResponse {
+  User create_user = 1;
+}
+// Request message for performAction operation.
+message MutationPerformActionRequest {
+  ActionInput input = 1;
+}
+// Response message for performAction operation.
+message MutationPerformActionResponse {
+  ActionResult perform_action = 1;
 }
 // Request message for createNullableFieldsType operation.
 message MutationCreateNullableFieldsTypeRequest {
@@ -353,7 +361,7 @@ message Order {
   string order_id = 1;
   string customer_name = 2;
   int32 total_items = 3;
-  repeated OrderLine order_lines = 4;
+  ListOfOrderLine order_lines = 4;
 }
 
 message Category {
@@ -376,7 +384,7 @@ message Animal {
 
 message SearchInput {
   string query = 1;
-  int32 limit = 2;
+  google.protobuf.Int32Value limit = 2;
 }
 
 message SearchResult {
@@ -385,6 +393,23 @@ message SearchResult {
   User user = 2;
   Category category = 3;
   }
+}
+
+message NullableFieldsType {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue optional_string = 3;
+  google.protobuf.Int32Value optional_int = 4;
+  google.protobuf.DoubleValue optional_float = 5;
+  google.protobuf.BoolValue optional_boolean = 6;
+  string required_string = 7;
+  int32 required_int = 8;
+}
+
+message NullableFieldsFilter {
+  google.protobuf.StringValue name = 1;
+  google.protobuf.StringValue optional_string = 2;
+  google.protobuf.BoolValue include_nulls = 3;
 }
 
 message UserInput {
@@ -401,6 +426,16 @@ message ActionResult {
   ActionSuccess action_success = 1;
   ActionError action_error = 2;
   }
+}
+
+message NullableFieldsInput {
+  string name = 1;
+  google.protobuf.StringValue optional_string = 2;
+  google.protobuf.Int32Value optional_int = 3;
+  google.protobuf.DoubleValue optional_float = 4;
+  google.protobuf.BoolValue optional_boolean = 5;
+  string required_string = 6;
+  int32 required_int = 7;
 }
 
 message NestedTypeB {
@@ -429,13 +464,13 @@ message Pagination {
 message OrderLineInput {
   string product_id = 1;
   int32 quantity = 2;
-  repeated string modifiers = 3;
+  ListOfString modifiers = 3;
 }
 
 message OrderLine {
   string product_id = 1;
   int32 quantity = 2;
-  repeated string modifiers = 3;
+  ListOfString modifiers = 3;
 }
 
 enum CategoryKind {
@@ -468,32 +503,4 @@ message ActionSuccess {
 message ActionError {
   string message = 1;
   string code = 2;
-}
-
-// New messages for testing nullable fields
-message NullableFieldsType {
-  string id = 1;
-  string name = 2;
-  google.protobuf.StringValue optional_string = 3;
-  google.protobuf.Int32Value optional_int = 4;
-  google.protobuf.FloatValue optional_float = 5;
-  google.protobuf.BoolValue optional_boolean = 6;
-  string required_string = 7;
-  int32 required_int = 8;
-}
-
-message NullableFieldsInput {
-  string name = 1;
-  google.protobuf.StringValue optional_string = 2;
-  google.protobuf.Int32Value optional_int = 3;
-  google.protobuf.FloatValue optional_float = 4;
-  google.protobuf.BoolValue optional_boolean = 5;
-  string required_string = 6;
-  int32 required_int = 7;
-}
-
-message NullableFieldsFilter {
-  google.protobuf.StringValue name = 1;
-  google.protobuf.StringValue optional_string = 2;
-  google.protobuf.BoolValue include_nulls = 3;
 }

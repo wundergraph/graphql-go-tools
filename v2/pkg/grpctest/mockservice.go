@@ -38,7 +38,7 @@ func (s *MockService) MutationCreateNullableFieldsType(ctx context.Context, in *
 		result.OptionalInt = &wrapperspb.Int32Value{Value: input.OptionalInt.GetValue()}
 	}
 	if input.OptionalFloat != nil {
-		result.OptionalFloat = &wrapperspb.FloatValue{Value: input.OptionalFloat.GetValue()}
+		result.OptionalFloat = &wrapperspb.DoubleValue{Value: input.OptionalFloat.GetValue()}
 	}
 	if input.OptionalBoolean != nil {
 		result.OptionalBoolean = &wrapperspb.BoolValue{Value: input.OptionalBoolean.GetValue()}
@@ -77,7 +77,7 @@ func (s *MockService) MutationUpdateNullableFieldsType(ctx context.Context, in *
 		result.OptionalInt = &wrapperspb.Int32Value{Value: input.OptionalInt.GetValue()}
 	}
 	if input.OptionalFloat != nil {
-		result.OptionalFloat = &wrapperspb.FloatValue{Value: input.OptionalFloat.GetValue()}
+		result.OptionalFloat = &wrapperspb.DoubleValue{Value: input.OptionalFloat.GetValue()}
 	}
 	if input.OptionalBoolean != nil {
 		result.OptionalBoolean = &wrapperspb.BoolValue{Value: input.OptionalBoolean.GetValue()}
@@ -100,7 +100,7 @@ func (s *MockService) QueryAllNullableFieldsTypes(ctx context.Context, in *produ
 		Name:            "Full Data Entry",
 		OptionalString:  &wrapperspb.StringValue{Value: "Optional String Value"},
 		OptionalInt:     &wrapperspb.Int32Value{Value: 42},
-		OptionalFloat:   &wrapperspb.FloatValue{Value: 3.14},
+		OptionalFloat:   &wrapperspb.DoubleValue{Value: 3.14},
 		OptionalBoolean: &wrapperspb.BoolValue{Value: true},
 		RequiredString:  "Required String 1",
 		RequiredInt:     100,
@@ -175,7 +175,7 @@ func (s *MockService) QueryNullableFieldsTypeById(ctx context.Context, in *produ
 			Name:            "Full Data by ID",
 			OptionalString:  &wrapperspb.StringValue{Value: "All fields populated"},
 			OptionalInt:     &wrapperspb.Int32Value{Value: 123},
-			OptionalFloat:   &wrapperspb.FloatValue{Value: 12.34},
+			OptionalFloat:   &wrapperspb.DoubleValue{Value: 12.34},
 			OptionalBoolean: &wrapperspb.BoolValue{Value: false},
 			RequiredString:  "Required by ID",
 			RequiredInt:     456,
@@ -209,7 +209,7 @@ func (s *MockService) QueryNullableFieldsTypeById(ctx context.Context, in *produ
 			Name:            fmt.Sprintf("Nullable Type %s", id),
 			OptionalString:  &wrapperspb.StringValue{Value: fmt.Sprintf("Optional for %s", id)},
 			OptionalInt:     &wrapperspb.Int32Value{Value: int32(len(id) * 10)},
-			OptionalFloat:   &wrapperspb.FloatValue{Value: float32(len(id)) * 1.5},
+			OptionalFloat:   &wrapperspb.DoubleValue{Value: float64(len(id)) * 1.5},
 			OptionalBoolean: &wrapperspb.BoolValue{Value: len(id)%2 == 0},
 			RequiredString:  fmt.Sprintf("Required for %s", id),
 			RequiredInt:     int32(len(id) * 100),
@@ -253,7 +253,7 @@ func (s *MockService) QueryNullableFieldsTypeWithFilter(ctx context.Context, in 
 	for i := 1; i <= 3; i++ {
 		var optionalString *wrapperspb.StringValue
 		var optionalInt *wrapperspb.Int32Value
-		var optionalFloat *wrapperspb.FloatValue
+		var optionalFloat *wrapperspb.DoubleValue
 		var optionalBoolean *wrapperspb.BoolValue
 
 		// Vary the nullable fields based on includeNulls and index
@@ -270,7 +270,7 @@ func (s *MockService) QueryNullableFieldsTypeWithFilter(ctx context.Context, in 
 		}
 
 		if includeNulls || i%2 == 0 {
-			optionalFloat = &wrapperspb.FloatValue{Value: float32(i) * 10.5}
+			optionalFloat = &wrapperspb.DoubleValue{Value: float64(i) * 10.5}
 		}
 
 		if includeNulls || i%4 != 0 {
@@ -397,14 +397,14 @@ func (s *MockService) QuerySearch(ctx context.Context, in *productv1.QuerySearch
 	limit := input.GetLimit()
 
 	// Default limit if not specified
-	if limit <= 0 {
-		limit = 10
+	if limit.GetValue() <= 0 {
+		limit = &wrapperspb.Int32Value{Value: 10}
 	}
 
 	var results []*productv1.SearchResult
 
 	// Generate a mix of different union types based on the query
-	for i := int32(0); i < limit && i < 6; i++ { // Cap at 6 results for testing
+	for i := int32(0); i < limit.GetValue() && i < 6; i++ { // Cap at 6 results for testing
 		switch i % 3 {
 		case 0:
 			// Add a Product
@@ -850,7 +850,9 @@ func (s *MockService) QueryCalculateTotals(ctx context.Context, in *productv1.Qu
 			OrderId:      orderInput.GetOrderId(),
 			CustomerName: orderInput.GetCustomerName(),
 			TotalItems:   totalItems,
-			OrderLines:   orderLines,
+			OrderLines: &productv1.ListOfOrderLine{
+				Items: orderLines,
+			},
 		})
 	}
 
