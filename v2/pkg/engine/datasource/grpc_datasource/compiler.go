@@ -115,9 +115,10 @@ type Method struct {
 
 // Message represents a protobuf message type with its fields.
 type Message struct {
-	Name   string                     // The name of the message
-	Fields []Field                    // The fields in the message
-	Desc   protoref.MessageDescriptor // The protobuf descriptor for the message
+	Name           string                     // The name of the message
+	Fields         []Field                    // The fields in the message
+	Desc           protoref.MessageDescriptor // The protobuf descriptor for the message
+	NestedMessages []Message                  // The nested messages in the message
 }
 
 // Field represents a field in a protobuf message.
@@ -599,18 +600,24 @@ func (p *RPCCompiler) parseMethod(m protoref.MethodDescriptor) Method {
 // parseMessageDefinitions extracts information from a protobuf message descriptor.
 // It returns a slice of Message objects with the name and descriptor.
 func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescriptors) []Message {
-	extractedMessage := make([]Message, 0, messages.Len())
+	extractedMessages := make([]Message, 0, messages.Len())
 
 	for i := 0; i < messages.Len(); i++ {
 		protoMessage := messages.Get(i)
 
-		extractedMessage = append(extractedMessage, Message{
+		message := Message{
 			Name: string(protoMessage.Name()),
 			Desc: protoMessage,
-		})
+		}
+
+		if protoMessage.Messages().Len() > 0 {
+			message.NestedMessages = p.parseMessageDefinitions(protoMessage.Messages())
+		}
+
+		extractedMessages = append(extractedMessages, message)
 	}
 
-	return extractedMessage
+	return extractedMessages
 }
 
 // enrichMessageData enriches the message data with the field information.

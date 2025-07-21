@@ -860,3 +860,645 @@ func (s *MockService) QueryCalculateTotals(ctx context.Context, in *productv1.Qu
 		CalculateTotals: calculatedOrders,
 	}, nil
 }
+
+// BlogPost query implementations
+func (s *MockService) QueryBlogPost(ctx context.Context, in *productv1.QueryBlogPostRequest) (*productv1.QueryBlogPostResponse, error) {
+	// Return a default blog post with comprehensive list examples
+	result := &productv1.BlogPost{
+		Id:      "blog-default",
+		Title:   "Default Blog Post",
+		Content: "This is a sample blog post content for testing nested lists.",
+		Tags:    []string{"tech", "programming", "go"},
+		OptionalTags: &productv1.ListOfString{
+			Items: []string{"optional1", "optional2"},
+		},
+		Categories: []string{"Technology", "", "Programming"}, // includes null/empty
+		Keywords: &productv1.ListOfString{
+			Items: []string{"keyword1", "keyword2"},
+		},
+		ViewCounts: []int32{100, 150, 200, 250},
+		Ratings: &productv1.ListOfFloat{
+			Items: []float64{4.5, 3.8, 5.0},
+		},
+		IsPublished: &productv1.ListOfBoolean{
+			Items: []bool{false, true, true},
+		},
+		TagGroups: &productv1.ListOfListOfString{
+			List: &productv1.ListOfListOfString_List{
+				Items: []*productv1.ListOfString{
+					{Items: []string{"tech", "programming"}},
+					{Items: []string{"golang", "backend"}},
+				},
+			},
+		},
+		RelatedTopics: &productv1.ListOfListOfString{
+			List: &productv1.ListOfListOfString_List{
+				Items: []*productv1.ListOfString{
+					{Items: []string{"microservices", "api"}},
+					{Items: []string{"databases", "performance"}},
+				},
+			},
+		},
+		CommentThreads: &productv1.ListOfListOfString{
+			List: &productv1.ListOfListOfString_List{
+				Items: []*productv1.ListOfString{
+					{Items: []string{"Great post!", "Very helpful"}},
+					{Items: []string{"Could use more examples", "Thanks for sharing"}},
+				},
+			},
+		},
+		Suggestions: &productv1.ListOfListOfString{
+			List: &productv1.ListOfListOfString_List{
+				Items: []*productv1.ListOfString{
+					{Items: []string{"Add code examples", "Include diagrams"}},
+				},
+			},
+		},
+	}
+
+	return &productv1.QueryBlogPostResponse{
+		BlogPost: result,
+	}, nil
+}
+
+func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.QueryBlogPostByIdRequest) (*productv1.QueryBlogPostByIdResponse, error) {
+	id := in.GetId()
+
+	// Return null for specific test IDs
+	if id == "not-found" {
+		return &productv1.QueryBlogPostByIdResponse{
+			BlogPostById: nil,
+		}, nil
+	}
+
+	// Create different test data based on ID
+	var result *productv1.BlogPost
+
+	switch id {
+	case "simple":
+		result = &productv1.BlogPost{
+			Id:             id,
+			Title:          "Simple Post",
+			Content:        "Simple content",
+			Tags:           []string{"simple"},
+			Categories:     []string{"Basic"},
+			ViewCounts:     []int32{10},
+			TagGroups:      &productv1.ListOfListOfString{},
+			RelatedTopics:  &productv1.ListOfListOfString{},
+			CommentThreads: &productv1.ListOfListOfString{},
+		}
+	case "complex":
+		result = &productv1.BlogPost{
+			Id:      id,
+			Title:   "Complex Blog Post",
+			Content: "Complex content with comprehensive lists",
+			Tags:    []string{"complex", "advanced", "detailed"},
+			OptionalTags: &productv1.ListOfString{
+				Items: []string{"deep-dive", "tutorial"},
+			},
+			Categories: []string{"Advanced", "Tutorial", "Guide"},
+			Keywords: &productv1.ListOfString{
+				Items: []string{"advanced", "complex", "comprehensive"},
+			},
+			ViewCounts: []int32{500, 600, 750, 800, 950},
+			Ratings: &productv1.ListOfFloat{
+				Items: []float64{4.8, 4.9, 4.7, 5.0},
+			},
+			IsPublished: &productv1.ListOfBoolean{
+				Items: []bool{false, false, true, true},
+			},
+			TagGroups: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"advanced", "expert"}},
+						{Items: []string{"tutorial", "guide", "comprehensive"}},
+						{Items: []string{"deep-dive", "detailed"}},
+					},
+				},
+			},
+			RelatedTopics: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"architecture", "patterns", "design"}},
+						{Items: []string{"optimization", "performance", "scaling"}},
+					},
+				},
+			},
+			CommentThreads: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"Excellent deep dive!", "Very thorough"}},
+						{Items: []string{"Could be longer", "More examples please"}},
+						{Items: []string{"Best tutorial I've read", "Thank you!"}},
+					},
+				},
+			},
+			Suggestions: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"Add video content", "Include interactive examples"}},
+						{Items: []string{"Create follow-up posts", "Add Q&A section"}},
+					},
+				},
+			},
+		}
+	default:
+		// Generic response for any other ID
+		result = &productv1.BlogPost{
+			Id:             id,
+			Title:          fmt.Sprintf("Blog Post %s", id),
+			Content:        fmt.Sprintf("Content for blog post %s", id),
+			Tags:           []string{fmt.Sprintf("tag-%s", id), "general"},
+			Categories:     []string{"General", fmt.Sprintf("Category-%s", id)},
+			ViewCounts:     []int32{int32(len(id) * 10), int32(len(id) * 20)},
+			TagGroups:      &productv1.ListOfListOfString{},
+			RelatedTopics:  &productv1.ListOfListOfString{},
+			CommentThreads: &productv1.ListOfListOfString{},
+		}
+	}
+
+	return &productv1.QueryBlogPostByIdResponse{
+		BlogPostById: result,
+	}, nil
+}
+
+func (s *MockService) QueryBlogPostsWithFilter(ctx context.Context, in *productv1.QueryBlogPostsWithFilterRequest) (*productv1.QueryBlogPostsWithFilterResponse, error) {
+	filter := in.GetFilter()
+	var results []*productv1.BlogPost
+
+	// If no filter provided, return empty results
+	if filter == nil {
+		return &productv1.QueryBlogPostsWithFilterResponse{
+			BlogPostsWithFilter: results,
+		}, nil
+	}
+
+	titleFilter := ""
+	if filter.Title != nil {
+		titleFilter = filter.Title.GetValue()
+	}
+
+	hasCategories := false
+	if filter.HasCategories != nil {
+		hasCategories = filter.HasCategories.GetValue()
+	}
+
+	minTags := int32(0)
+	if filter.MinTags != nil {
+		minTags = filter.MinTags.GetValue()
+	}
+
+	// Generate filtered results
+	for i := 1; i <= 3; i++ {
+		title := fmt.Sprintf("Filtered Post %d", i)
+		if titleFilter != "" {
+			title = fmt.Sprintf("%s - Post %d", titleFilter, i)
+		}
+
+		var tags []string
+		tagsCount := minTags + int32(i)
+		for j := int32(0); j < tagsCount; j++ {
+			tags = append(tags, fmt.Sprintf("tag%d", j+1))
+		}
+
+		var categories []string
+		if hasCategories {
+			categories = []string{fmt.Sprintf("Category%d", i), "Filtered"}
+		}
+
+		results = append(results, &productv1.BlogPost{
+			Id:             fmt.Sprintf("filtered-blog-%d", i),
+			Title:          title,
+			Content:        fmt.Sprintf("Filtered content %d", i),
+			Tags:           tags,
+			Categories:     categories,
+			ViewCounts:     []int32{int32(i * 100)},
+			TagGroups:      &productv1.ListOfListOfString{},
+			RelatedTopics:  &productv1.ListOfListOfString{},
+			CommentThreads: &productv1.ListOfListOfString{},
+		})
+	}
+
+	return &productv1.QueryBlogPostsWithFilterResponse{
+		BlogPostsWithFilter: results,
+	}, nil
+}
+
+func (s *MockService) QueryAllBlogPosts(ctx context.Context, in *productv1.QueryAllBlogPostsRequest) (*productv1.QueryAllBlogPostsResponse, error) {
+	var results []*productv1.BlogPost
+
+	// Create a variety of blog posts
+	for i := 1; i <= 4; i++ {
+		var optionalTags *productv1.ListOfString
+		var keywords *productv1.ListOfString
+		var ratings *productv1.ListOfFloat
+
+		// Vary the optional fields
+		if i%2 == 1 {
+			optionalTags = &productv1.ListOfString{
+				Items: []string{fmt.Sprintf("optional%d", i), "common"},
+			}
+		}
+
+		if i%3 == 0 {
+			keywords = &productv1.ListOfString{
+				Items: []string{fmt.Sprintf("keyword%d", i)},
+			}
+		}
+
+		if i%2 == 0 {
+			ratings = &productv1.ListOfFloat{
+				Items: []float64{float64(i) + 0.5, float64(i) + 1.0},
+			}
+		}
+
+		results = append(results, &productv1.BlogPost{
+			Id:           fmt.Sprintf("blog-%d", i),
+			Title:        fmt.Sprintf("Blog Post %d", i),
+			Content:      fmt.Sprintf("Content for blog post %d", i),
+			Tags:         []string{fmt.Sprintf("tag%d", i), "common"},
+			OptionalTags: optionalTags,
+			Categories:   []string{fmt.Sprintf("Category%d", i)},
+			Keywords:     keywords,
+			ViewCounts:   []int32{int32(i * 100), int32(i * 150)},
+			Ratings:      ratings,
+			IsPublished: &productv1.ListOfBoolean{
+				Items: []bool{i%2 == 0, true},
+			},
+			TagGroups: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{fmt.Sprintf("group%d", i), "shared"}},
+					},
+				},
+			},
+			RelatedTopics: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{fmt.Sprintf("topic%d", i)}},
+					},
+				},
+			},
+			CommentThreads: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{fmt.Sprintf("Comment for post %d", i)}},
+					},
+				},
+			},
+			Suggestions: &productv1.ListOfListOfString{},
+		})
+	}
+
+	return &productv1.QueryAllBlogPostsResponse{
+		AllBlogPosts: results,
+	}, nil
+}
+
+// Author query implementations
+func (s *MockService) QueryAuthor(ctx context.Context, in *productv1.QueryAuthorRequest) (*productv1.QueryAuthorResponse, error) {
+	result := &productv1.Author{
+		Id:   "author-default",
+		Name: "Default Author",
+		Email: &wrapperspb.StringValue{
+			Value: "author@example.com",
+		},
+		Skills:    []string{"Go", "GraphQL", "Protocol Buffers"},
+		Languages: []string{"English", "Spanish", ""},
+		SocialLinks: &productv1.ListOfString{
+			Items: []string{"https://twitter.com/author", "https://linkedin.com/in/author"},
+		},
+		TeamsByProject: &productv1.ListOfListOfString{
+			List: &productv1.ListOfListOfString_List{
+				Items: []*productv1.ListOfString{
+					{Items: []string{"Alice", "Bob", "Charlie"}},
+					{Items: []string{"David", "Eve"}},
+				},
+			},
+		},
+		Collaborations: &productv1.ListOfListOfString{
+			List: &productv1.ListOfListOfString_List{
+				Items: []*productv1.ListOfString{
+					{Items: []string{"Open Source Project A", "Research Paper B"}},
+					{Items: []string{"Conference Talk C"}},
+				},
+			},
+		},
+	}
+
+	return &productv1.QueryAuthorResponse{
+		Author: result,
+	}, nil
+}
+
+func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAuthorByIdRequest) (*productv1.QueryAuthorByIdResponse, error) {
+	id := in.GetId()
+
+	// Return null for specific test IDs
+	if id == "not-found" {
+		return &productv1.QueryAuthorByIdResponse{
+			AuthorById: nil,
+		}, nil
+	}
+
+	var result *productv1.Author
+
+	switch id {
+	case "minimal":
+		result = &productv1.Author{
+			Id:        id,
+			Name:      "Minimal Author",
+			Skills:    []string{"Basic"},
+			Languages: []string{"English"},
+			TeamsByProject: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"Solo"}},
+					},
+				},
+			},
+			Collaborations: &productv1.ListOfListOfString{},
+		}
+	case "experienced":
+		result = &productv1.Author{
+			Id:   id,
+			Name: "Experienced Author",
+			Email: &wrapperspb.StringValue{
+				Value: "experienced@example.com",
+			},
+			Skills:    []string{"Go", "GraphQL", "gRPC", "Microservices", "Kubernetes"},
+			Languages: []string{"English", "French", "German"},
+			SocialLinks: &productv1.ListOfString{
+				Items: []string{
+					"https://github.com/experienced",
+					"https://twitter.com/experienced",
+					"https://medium.com/@experienced",
+				},
+			},
+			TeamsByProject: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"Senior Dev 1", "Senior Dev 2", "Tech Lead"}},
+						{Items: []string{"Architect", "Principal Engineer"}},
+						{Items: []string{"PM", "Designer", "QA Lead"}},
+					},
+				},
+			},
+			Collaborations: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"Major OSS Project", "Industry Standard", "Research Initiative"}},
+						{Items: []string{"Conference Keynote", "Workshop Series"}},
+					},
+				},
+			},
+		}
+	default:
+		result = &productv1.Author{
+			Id:   id,
+			Name: fmt.Sprintf("Author %s", id),
+			Email: &wrapperspb.StringValue{
+				Value: fmt.Sprintf("%s@example.com", id),
+			},
+			Skills:    []string{fmt.Sprintf("Skill-%s", id), "General"},
+			Languages: []string{"English", fmt.Sprintf("Language-%s", id)},
+			TeamsByProject: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{fmt.Sprintf("Team-%s", id)}},
+					},
+				},
+			},
+			Collaborations: &productv1.ListOfListOfString{},
+		}
+	}
+
+	return &productv1.QueryAuthorByIdResponse{
+		AuthorById: result,
+	}, nil
+}
+
+func (s *MockService) QueryAuthorsWithFilter(ctx context.Context, in *productv1.QueryAuthorsWithFilterRequest) (*productv1.QueryAuthorsWithFilterResponse, error) {
+	filter := in.GetFilter()
+	var results []*productv1.Author
+
+	if filter == nil {
+		return &productv1.QueryAuthorsWithFilterResponse{
+			AuthorsWithFilter: results,
+		}, nil
+	}
+
+	nameFilter := ""
+	if filter.Name != nil {
+		nameFilter = filter.Name.GetValue()
+	}
+
+	hasTeams := false
+	if filter.HasTeams != nil {
+		hasTeams = filter.HasTeams.GetValue()
+	}
+
+	skillCount := int32(0)
+	if filter.SkillCount != nil {
+		skillCount = filter.SkillCount.GetValue()
+	}
+
+	// Generate filtered results
+	for i := 1; i <= 3; i++ {
+		name := fmt.Sprintf("Filtered Author %d", i)
+		if nameFilter != "" {
+			name = fmt.Sprintf("%s - Author %d", nameFilter, i)
+		}
+
+		var skills []string
+		skillsNeeded := skillCount + int32(i)
+		for j := int32(0); j < skillsNeeded; j++ {
+			skills = append(skills, fmt.Sprintf("Skill%d", j+1))
+		}
+
+		var teamsByProject *productv1.ListOfListOfString
+		if hasTeams {
+			teamsByProject = &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{fmt.Sprintf("Team%d", i), "SharedTeam"}},
+					},
+				},
+			}
+		} else {
+			teamsByProject = &productv1.ListOfListOfString{}
+		}
+
+		results = append(results, &productv1.Author{
+			Id:             fmt.Sprintf("filtered-author-%d", i),
+			Name:           name,
+			Skills:         skills,
+			Languages:      []string{"English", fmt.Sprintf("Lang%d", i)},
+			TeamsByProject: teamsByProject,
+			Collaborations: &productv1.ListOfListOfString{},
+		})
+	}
+
+	return &productv1.QueryAuthorsWithFilterResponse{
+		AuthorsWithFilter: results,
+	}, nil
+}
+
+func (s *MockService) QueryAllAuthors(ctx context.Context, in *productv1.QueryAllAuthorsRequest) (*productv1.QueryAllAuthorsResponse, error) {
+	var results []*productv1.Author
+
+	for i := 1; i <= 3; i++ {
+		var email *wrapperspb.StringValue
+		var socialLinks *productv1.ListOfString
+		var collaborations *productv1.ListOfListOfString
+
+		if i%2 == 1 {
+			email = &wrapperspb.StringValue{
+				Value: fmt.Sprintf("author%d@example.com", i),
+			}
+		}
+
+		if i%3 == 0 {
+			socialLinks = &productv1.ListOfString{
+				Items: []string{fmt.Sprintf("https://github.com/author%d", i)},
+			}
+		}
+
+		if i == 2 {
+			collaborations = &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{"Collaboration A", "Collaboration B"}},
+					},
+				},
+			}
+		} else {
+			collaborations = &productv1.ListOfListOfString{}
+		}
+
+		results = append(results, &productv1.Author{
+			Id:          fmt.Sprintf("author-%d", i),
+			Name:        fmt.Sprintf("Author %d", i),
+			Email:       email,
+			Skills:      []string{fmt.Sprintf("Skill%d", i), "Common"},
+			Languages:   []string{"English", fmt.Sprintf("Language%d", i)},
+			SocialLinks: socialLinks,
+			TeamsByProject: &productv1.ListOfListOfString{
+				List: &productv1.ListOfListOfString_List{
+					Items: []*productv1.ListOfString{
+						{Items: []string{fmt.Sprintf("Team%d", i)}},
+					},
+				},
+			},
+			Collaborations: collaborations,
+		})
+	}
+
+	return &productv1.QueryAllAuthorsResponse{
+		AllAuthors: results,
+	}, nil
+}
+
+// BlogPost mutation implementations
+func (s *MockService) MutationCreateBlogPost(ctx context.Context, in *productv1.MutationCreateBlogPostRequest) (*productv1.MutationCreateBlogPostResponse, error) {
+	input := in.GetInput()
+
+	result := &productv1.BlogPost{
+		Id:             fmt.Sprintf("blog-%d", rand.Intn(1000)),
+		Title:          input.GetTitle(),
+		Content:        input.GetContent(),
+		Tags:           input.GetTags(),
+		OptionalTags:   input.GetOptionalTags(),
+		Categories:     input.GetCategories(),
+		Keywords:       input.GetKeywords(),
+		ViewCounts:     input.GetViewCounts(),
+		Ratings:        input.GetRatings(),
+		IsPublished:    input.GetIsPublished(),
+		TagGroups:      input.GetTagGroups(),
+		RelatedTopics:  input.GetRelatedTopics(),
+		CommentThreads: input.GetCommentThreads(),
+		Suggestions:    input.GetSuggestions(),
+	}
+
+	return &productv1.MutationCreateBlogPostResponse{
+		CreateBlogPost: result,
+	}, nil
+}
+
+func (s *MockService) MutationUpdateBlogPost(ctx context.Context, in *productv1.MutationUpdateBlogPostRequest) (*productv1.MutationUpdateBlogPostResponse, error) {
+	id := in.GetId()
+	input := in.GetInput()
+
+	if id == "non-existent" {
+		return &productv1.MutationUpdateBlogPostResponse{
+			UpdateBlogPost: nil,
+		}, nil
+	}
+
+	result := &productv1.BlogPost{
+		Id:             id,
+		Title:          input.GetTitle(),
+		Content:        input.GetContent(),
+		Tags:           input.GetTags(),
+		OptionalTags:   input.GetOptionalTags(),
+		Categories:     input.GetCategories(),
+		Keywords:       input.GetKeywords(),
+		ViewCounts:     input.GetViewCounts(),
+		Ratings:        input.GetRatings(),
+		IsPublished:    input.GetIsPublished(),
+		TagGroups:      input.GetTagGroups(),
+		RelatedTopics:  input.GetRelatedTopics(),
+		CommentThreads: input.GetCommentThreads(),
+		Suggestions:    input.GetSuggestions(),
+	}
+
+	return &productv1.MutationUpdateBlogPostResponse{
+		UpdateBlogPost: result,
+	}, nil
+}
+
+// Author mutation implementations
+func (s *MockService) MutationCreateAuthor(ctx context.Context, in *productv1.MutationCreateAuthorRequest) (*productv1.MutationCreateAuthorResponse, error) {
+	input := in.GetInput()
+
+	result := &productv1.Author{
+		Id:             fmt.Sprintf("author-%d", rand.Intn(1000)),
+		Name:           input.GetName(),
+		Email:          input.GetEmail(),
+		Skills:         input.GetSkills(),
+		Languages:      input.GetLanguages(),
+		SocialLinks:    input.GetSocialLinks(),
+		TeamsByProject: input.GetTeamsByProject(),
+		Collaborations: input.GetCollaborations(),
+	}
+
+	return &productv1.MutationCreateAuthorResponse{
+		CreateAuthor: result,
+	}, nil
+}
+
+func (s *MockService) MutationUpdateAuthor(ctx context.Context, in *productv1.MutationUpdateAuthorRequest) (*productv1.MutationUpdateAuthorResponse, error) {
+	id := in.GetId()
+	input := in.GetInput()
+
+	if id == "non-existent" {
+		return &productv1.MutationUpdateAuthorResponse{
+			UpdateAuthor: nil,
+		}, nil
+	}
+
+	result := &productv1.Author{
+		Id:             id,
+		Name:           input.GetName(),
+		Email:          input.GetEmail(),
+		Skills:         input.GetSkills(),
+		Languages:      input.GetLanguages(),
+		SocialLinks:    input.GetSocialLinks(),
+		TeamsByProject: input.GetTeamsByProject(),
+		Collaborations: input.GetCollaborations(),
+	}
+
+	return &productv1.MutationUpdateAuthorResponse{
+		UpdateAuthor: result,
+	}, nil
+}

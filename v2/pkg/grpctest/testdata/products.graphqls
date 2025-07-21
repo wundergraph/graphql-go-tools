@@ -176,6 +176,85 @@ type NullableFieldsType {
   requiredInt: Int!
 }
 
+# Blog Post with various list types for testing
+type BlogPost {
+  id: ID!
+  title: String!
+  content: String!
+  
+  # Single lists with different nullability
+  tags: [String!]!              # Required list, required items
+  optionalTags: [String!]       # Optional list, required items  
+  categories: [String]!         # Required list, optional items
+  keywords: [String]            # Optional list, optional items
+  
+  # Single lists with different scalar types
+  viewCounts: [Int!]!           # Daily view counts
+  ratings: [Float]              # User ratings (can be null)
+  isPublished: [Boolean!]       # Publication status history
+  
+  # Nested lists (one level deep) with different nullability
+  tagGroups: [[String!]!]!      # Required groups, required group content, required tags
+  relatedTopics: [[String!]]!   # Required groups, optional group content, required topics
+  commentThreads: [[String]!]!  # Required threads, required thread content, optional comments
+  suggestions: [[String]]       # Optional groups, optional group content, optional suggestions
+}
+
+# Author with team structure
+type Author {
+  id: ID!
+  name: String!
+  email: String
+  
+  # Single lists
+  skills: [String!]!            # Required skills
+  languages: [String]!         # Required list, optional languages
+  socialLinks: [String]        # Optional social media links
+  
+  # Nested lists for team organization
+  teamsByProject: [[String!]!]! # Projects -> team members (all required)
+  collaborations: [[String]]    # Past collaborations grouped (all optional)
+}
+
+# Input types
+input BlogPostInput {
+  title: String!
+  content: String!
+  tags: [String!]!
+  optionalTags: [String!]
+  categories: [String]!
+  keywords: [String]
+  viewCounts: [Int!]!
+  ratings: [Float]
+  isPublished: [Boolean!]
+  tagGroups: [[String!]!]!
+  relatedTopics: [[String!]]!
+  commentThreads: [[String]!]!
+  suggestions: [[String]]
+}
+
+input AuthorInput {
+  name: String!
+  email: String
+  skills: [String!]!
+  languages: [String]!
+  socialLinks: [String]
+  teamsByProject: [[String!]!]!
+  collaborations: [[String]]
+}
+
+input BlogPostFilter {
+  title: String
+  hasCategories: Boolean
+  minTags: Int
+}
+
+input AuthorFilter {
+  name: String
+  hasTeams: Boolean
+  skillCount: Int
+}
+
 input NullableFieldsInput {
   name: String!
   optionalString: String
@@ -190,6 +269,11 @@ input NullableFieldsFilter {
   name: String
   optionalString: String
   includeNulls: Boolean
+}
+
+input CategoryInput {
+  name: String!
+  kind: CategoryKind!
 }
 
 type Query {
@@ -225,6 +309,18 @@ type Query {
   nullableFieldsTypeById(id: ID!): NullableFieldsType
   nullableFieldsTypeWithFilter(filter: NullableFieldsFilter!): [NullableFieldsType!]!
   allNullableFieldsTypes: [NullableFieldsType!]!
+  
+  # Blog post queries (testing single and nested lists)
+  blogPost: BlogPost!
+  blogPostById(id: ID!): BlogPost
+  blogPostsWithFilter(filter: BlogPostFilter!): [BlogPost!]!
+  allBlogPosts: [BlogPost!]!
+  
+  # Author queries (testing team structures)
+  author: Author!
+  authorById(id: ID!): Author
+  authorsWithFilter(filter: AuthorFilter!): [Author!]!
+  allAuthors: [Author!]!
 }
 
 input UserInput {
@@ -240,6 +336,14 @@ type Mutation {
   # Nullable fields mutation
   createNullableFieldsType(input: NullableFieldsInput!): NullableFieldsType!
   updateNullableFieldsType(id: ID!, input: NullableFieldsInput!): NullableFieldsType
+  
+  # Blog post mutations (testing single and nested lists)
+  createBlogPost(input: BlogPostInput!): BlogPost!
+  updateBlogPost(id: ID!, input: BlogPostInput!): BlogPost
+  
+  # Author mutations (testing team structures)
+  createAuthor(input: AuthorInput!): Author!
+  updateAuthor(id: ID!, input: AuthorInput!): Author
 }
 
 union _Entity = Product | Storage

@@ -171,9 +171,23 @@ type RPCField struct {
 	StaticValue string
 	// Optional indicates if the field is optional
 	Optional bool
+	// IsListType indicates if the field is a list wrapper type
+	IsListType bool
+	// ListMetadata contains the metadata for the list type
+	ListMetadata *ListMetadata
 	// Message represents the nested message type definition for complex fields.
 	// This enables recursive construction of nested protobuf message structures.
 	Message *RPCMessage
+}
+
+type ListMetadata struct {
+	ItemTypeName string
+	NestingLevel int
+	LevelInfo    []ListMetadataItem
+}
+
+type ListMetadataItem struct {
+	Optional bool
 }
 
 // ToOptionalTypeMessage returns a message that wraps the scalar value in a message

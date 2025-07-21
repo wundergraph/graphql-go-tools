@@ -9,7 +9,7 @@ import (
 // DefaultGRPCMapping returns a hardcoded default mapping between GraphQL and Protobuf
 func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 	return &grpcdatasource.GRPCMapping{
-		Service: "ProductService",
+		Service: "Products",
 		QueryRPCs: map[string]grpcdatasource.RPCConfig{
 			"users": {
 				RPC:      "QueryUsers",
@@ -111,6 +111,46 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryAllNullableFieldsTypesRequest",
 				Response: "QueryAllNullableFieldsTypesResponse",
 			},
+			"blogPost": {
+				RPC:      "QueryBlogPost",
+				Request:  "QueryBlogPostRequest",
+				Response: "QueryBlogPostResponse",
+			},
+			"blogPostById": {
+				RPC:      "QueryBlogPostById",
+				Request:  "QueryBlogPostByIdRequest",
+				Response: "QueryBlogPostByIdResponse",
+			},
+			"blogPostsWithFilter": {
+				RPC:      "QueryBlogPostsWithFilter",
+				Request:  "QueryBlogPostsWithFilterRequest",
+				Response: "QueryBlogPostsWithFilterResponse",
+			},
+			"allBlogPosts": {
+				RPC:      "QueryAllBlogPosts",
+				Request:  "QueryAllBlogPostsRequest",
+				Response: "QueryAllBlogPostsResponse",
+			},
+			"author": {
+				RPC:      "QueryAuthor",
+				Request:  "QueryAuthorRequest",
+				Response: "QueryAuthorResponse",
+			},
+			"authorById": {
+				RPC:      "QueryAuthorById",
+				Request:  "QueryAuthorByIdRequest",
+				Response: "QueryAuthorByIdResponse",
+			},
+			"authorsWithFilter": {
+				RPC:      "QueryAuthorsWithFilter",
+				Request:  "QueryAuthorsWithFilterRequest",
+				Response: "QueryAuthorsWithFilterResponse",
+			},
+			"allAuthors": {
+				RPC:      "QueryAllAuthors",
+				Request:  "QueryAllAuthorsRequest",
+				Response: "QueryAllAuthorsResponse",
+			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap{
 			"createUser": {
@@ -132,6 +172,26 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				RPC:      "MutationUpdateNullableFieldsType",
 				Request:  "MutationUpdateNullableFieldsTypeRequest",
 				Response: "MutationUpdateNullableFieldsTypeResponse",
+			},
+			"createBlogPost": {
+				RPC:      "MutationCreateBlogPost",
+				Request:  "MutationCreateBlogPostRequest",
+				Response: "MutationCreateBlogPostResponse",
+			},
+			"updateBlogPost": {
+				RPC:      "MutationUpdateBlogPost",
+				Request:  "MutationUpdateBlogPostRequest",
+				Response: "MutationUpdateBlogPostResponse",
+			},
+			"createAuthor": {
+				RPC:      "MutationCreateAuthor",
+				Request:  "MutationCreateAuthorRequest",
+				Response: "MutationCreateAuthorResponse",
+			},
+			"updateAuthor": {
+				RPC:      "MutationUpdateAuthor",
+				Request:  "MutationUpdateAuthorRequest",
+				Response: "MutationUpdateAuthorResponse",
 			},
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
@@ -254,6 +314,42 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"allNullableFieldsTypes": {
 					TargetName: "all_nullable_fields_types",
 				},
+				"blogPost": {
+					TargetName: "blog_post",
+				},
+				"blogPostById": {
+					TargetName: "blog_post_by_id",
+					ArgumentMappings: map[string]string{
+						"id": "id",
+					},
+				},
+				"blogPostsWithFilter": {
+					TargetName: "blog_posts_with_filter",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+				"allBlogPosts": {
+					TargetName: "all_blog_posts",
+				},
+				"author": {
+					TargetName: "author",
+				},
+				"authorById": {
+					TargetName: "author_by_id",
+					ArgumentMappings: map[string]string{
+						"id": "id",
+					},
+				},
+				"authorsWithFilter": {
+					TargetName: "authors_with_filter",
+					ArgumentMappings: map[string]string{
+						"filter": "filter",
+					},
+				},
+				"allAuthors": {
+					TargetName: "all_authors",
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -276,6 +372,32 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"updateNullableFieldsType": {
 					TargetName: "update_nullable_fields_type",
+					ArgumentMappings: map[string]string{
+						"id":    "id",
+						"input": "input",
+					},
+				},
+				"createBlogPost": {
+					TargetName: "create_blog_post",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"updateBlogPost": {
+					TargetName: "update_blog_post",
+					ArgumentMappings: map[string]string{
+						"id":    "id",
+						"input": "input",
+					},
+				},
+				"createAuthor": {
+					TargetName: "create_author",
+					ArgumentMappings: map[string]string{
+						"input": "input",
+					},
+				},
+				"updateAuthor": {
+					TargetName: "update_author",
 					ArgumentMappings: map[string]string{
 						"id":    "id",
 						"input": "input",
@@ -612,6 +734,162 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"includeNulls": {
 					TargetName: "include_nulls",
+				},
+			},
+			"BlogPost": {
+				"id": {
+					TargetName: "id",
+				},
+				"title": {
+					TargetName: "title",
+				},
+				"content": {
+					TargetName: "content",
+				},
+				"tags": {
+					TargetName: "tags",
+				},
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+				"categories": {
+					TargetName: "categories",
+				},
+				"keywords": {
+					TargetName: "keywords",
+				},
+				"viewCounts": {
+					TargetName: "view_counts",
+				},
+				"ratings": {
+					TargetName: "ratings",
+				},
+				"isPublished": {
+					TargetName: "is_published",
+				},
+				"tagGroups": {
+					TargetName: "tag_groups",
+				},
+				"relatedTopics": {
+					TargetName: "related_topics",
+				},
+				"commentThreads": {
+					TargetName: "comment_threads",
+				},
+				"suggestions": {
+					TargetName: "suggestions",
+				},
+			},
+			"Author": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"email": {
+					TargetName: "email",
+				},
+				"skills": {
+					TargetName: "skills",
+				},
+				"languages": {
+					TargetName: "languages",
+				},
+				"socialLinks": {
+					TargetName: "social_links",
+				},
+				"teamsByProject": {
+					TargetName: "teams_by_project",
+				},
+				"collaborations": {
+					TargetName: "collaborations",
+				},
+			},
+			"BlogPostInput": {
+				"title": {
+					TargetName: "title",
+				},
+				"content": {
+					TargetName: "content",
+				},
+				"tags": {
+					TargetName: "tags",
+				},
+				"optionalTags": {
+					TargetName: "optional_tags",
+				},
+				"categories": {
+					TargetName: "categories",
+				},
+				"keywords": {
+					TargetName: "keywords",
+				},
+				"viewCounts": {
+					TargetName: "view_counts",
+				},
+				"ratings": {
+					TargetName: "ratings",
+				},
+				"isPublished": {
+					TargetName: "is_published",
+				},
+				"tagGroups": {
+					TargetName: "tag_groups",
+				},
+				"relatedTopics": {
+					TargetName: "related_topics",
+				},
+				"commentThreads": {
+					TargetName: "comment_threads",
+				},
+				"suggestions": {
+					TargetName: "suggestions",
+				},
+			},
+			"AuthorInput": {
+				"name": {
+					TargetName: "name",
+				},
+				"email": {
+					TargetName: "email",
+				},
+				"skills": {
+					TargetName: "skills",
+				},
+				"languages": {
+					TargetName: "languages",
+				},
+				"socialLinks": {
+					TargetName: "social_links",
+				},
+				"teamsByProject": {
+					TargetName: "teams_by_project",
+				},
+				"collaborations": {
+					TargetName: "collaborations",
+				},
+			},
+			"BlogPostFilter": {
+				"title": {
+					TargetName: "title",
+				},
+				"hasCategories": {
+					TargetName: "has_categories",
+				},
+				"minTags": {
+					TargetName: "min_tags",
+				},
+			},
+			"AuthorFilter": {
+				"name": {
+					TargetName: "name",
+				},
+				"hasTeams": {
+					TargetName: "has_teams",
+				},
+				"skillCount": {
+					TargetName: "skill_count",
 				},
 			},
 		},

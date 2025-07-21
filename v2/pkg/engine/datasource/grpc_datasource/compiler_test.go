@@ -291,3 +291,21 @@ func TestBuildProtoMessage(t *testing.T) {
 	require.Equal(t, 1, len(invocations))
 
 }
+
+func TestCompileNestedLists(t *testing.T) {
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	require.Equal(t, "productv1", compiler.doc.Package)
+
+	listOfListOfString := compiler.doc.MessageByName("ListOfListOfString")
+	require.Equal(t, "ListOfListOfString", listOfListOfString.Name)
+	require.Equal(t, 1, len(listOfListOfString.Fields))
+	require.Equal(t, "list", listOfListOfString.Fields[0].Name)
+
+	message := compiler.doc.MessageByName("BlogPost")
+	require.Equal(t, "BlogPost", message.Name)
+	require.Equal(t, 2, len(message.Fields))
+	require.Equal(t, "id", message.Fields[0].Name)
+	require.Equal(t, "tag_groups", message.Fields[1].Name)
+}

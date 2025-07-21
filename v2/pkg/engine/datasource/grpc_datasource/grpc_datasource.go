@@ -221,6 +221,17 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 				continue
 			}
 
+			if field.IsListType {
+				arr, err := d.flattenListStructure(arena, field.ListMetadata, msg, field.Message)
+				if err != nil {
+					return nil, err
+				}
+
+				root.Set(field.AliasOrPath(), arr)
+
+				continue
+			}
+
 			if field.Optional {
 				err := d.resolveOptionalField(arena, root, field.JSONPath, msg)
 				if err != nil {
@@ -253,10 +264,92 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	return root, nil
 }
 
+/*
+	message ListOfListOfString {
+		message List {
+			repeated ListOfString items = 1;
+		}
+		List list = 1;
+	}
+
+	message ListOfString {
+	  repeated string items = 1;
+	}
+*/
+func (d *DataSource) flattenListStructure(arena *astjson.Arena, md *ListMetadata, data protoref.Message, message *RPCMessage) (*astjson.Value, error) {
+	if md == nil {
+		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: list metadata not found")
+	}
+
+	root := arena.NewArray()
+	return d.traverseList(0, arena, root, md, data, message)
+}
+
+func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astjson.Value, md *ListMetadata, data protoref.Message, message *RPCMessage) (*astjson.Value, error) {
+	if level > md.NestingLevel {
+		return current, nil
+	}
+
+	// List wrappers always use field number 1
+	fd := data.Descriptor().Fields().ByNumber(1)
+	if fd == nil {
+		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field with number %d not found in message %q", 1, data.Descriptor().Name())
+	}
+
+	if level < md.NestingLevel-1 {
+		if fd.Kind() != protoref.MessageKind {
+			return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a message", fd.Name())
+		}
+
+		msg := data.Get(fd).Message()
+		if !msg.IsValid() {
+			if md.LevelInfo[level].Optional {
+				return arena.NewNull(), nil
+			}
+
+			return arena.NewNull(), fmt.Errorf("unable to flatten list structure: message %q is invalid", data.Descriptor().Name())
+		}
+
+		fd = msg.Descriptor().Fields().ByNumber(1)
+		if !fd.IsList() {
+			return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a list", fd.Name())
+		}
+
+		list := msg.Get(fd).List()
+		for i := 0; i < list.Len(); i++ {
+			next := arena.NewArray()
+			val, err := d.traverseList(level+1, arena, next, md, list.Get(i).Message(), message)
+			if err != nil {
+				return nil, err
+			}
+
+			current.SetArrayItem(i, val)
+		}
+
+		return current, nil
+	}
+
+	list := data.Get(fd).List()
+	for i := 0; i < list.Len(); i++ {
+		if message != nil {
+			val, err := d.marshalResponseJSON(arena, message, list.Get(i).Message())
+			if err != nil {
+				return nil, err
+			}
+
+			current.SetArrayItem(i, val)
+		} else {
+			d.setArrayItem(i, arena, current, list.Get(i), fd)
+		}
+	}
+
+	return current, nil
+}
+
 func (d *DataSource) resolveOptionalField(arena *astjson.Arena, root *astjson.Value, name string, data protoref.Message) error {
 	fd := data.Descriptor().Fields().ByName(protoref.Name("value"))
 	if fd == nil {
-		return fmt.Errorf("unable to resolve optional field: field value not found in message %s", data.Descriptor().Name())
+		return fmt.Errorf("unable to resolve optional field: field %q not found in message %s", "value", data.Descriptor().Name())
 	}
 
 	d.setJSONValue(arena, root, name, data, fd)
