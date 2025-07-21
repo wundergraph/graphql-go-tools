@@ -31,7 +31,6 @@ func NewAbstractFieldNormalizer(operation *ast.Document, definition *ast.Documen
 
 	mergeInlineFragmentSelections(&walker)
 	inlineSelectionsFromInlineFragments(&walker)
-	mergeFieldSelections(&walker)
 	deduplicateFields(&walker)
 
 	return normalizer
