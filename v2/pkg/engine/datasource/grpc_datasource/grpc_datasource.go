@@ -225,7 +225,6 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 				}
 
 				root.Set(field.AliasOrPath(), arr)
-
 				continue
 			}
 

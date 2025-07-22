@@ -425,13 +425,17 @@ func TestMarshalResponseJSON(t *testing.T) {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
-	productMessageDesc := compiler.doc.MessageByName("Product").Desc
+	productMsg, ok := compiler.doc.MessageByName("Product")
+	require.True(t, ok)
+	productMessageDesc := productMsg.Desc
 	productMessage := dynamicpb.NewMessage(productMessageDesc)
 	productMessage.Set(productMessageDesc.Fields().ByName("id"), protoref.ValueOfString("123"))
 	productMessage.Set(productMessageDesc.Fields().ByName("name"), protoref.ValueOfString("test"))
 	productMessage.Set(productMessageDesc.Fields().ByName("price"), protoref.ValueOfFloat64(123.45))
 
-	responseMessageDesc := compiler.doc.MessageByName("LookupProductByIdResponse").Desc
+	responseMsg, ok := compiler.doc.MessageByName("LookupProductByIdResponse")
+	require.True(t, ok)
+	responseMessageDesc := responseMsg.Desc
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
@@ -2552,6 +2556,334 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					require.NotEmpty(t, author["id"])
 					require.NotEmpty(t, author["name"])
 					require.NotEmpty(t, author["skills"])
+				}
+			},
+		},
+		{
+			name: "Should handle BlogPost creation with complex input lists and nested complex input lists",
+			query: `mutation($input: BlogPostInput!) {
+				createBlogPost(input: $input) {
+					id
+					title
+					content
+					tags
+					optionalTags
+					categories
+					keywords
+					viewCounts
+					ratings
+					isPublished
+					tagGroups
+					relatedTopics
+					commentThreads
+					suggestions
+					relatedCategories {
+						id
+						name
+						kind
+					}
+					contributors {
+						id
+						name
+					}
+					categoryGroups {
+						id
+						name
+						kind
+					}
+				}
+			}`,
+			vars: `{"variables":{"input":{"title":"Complex Lists Blog Post","content":"Testing complex input lists","tags":["graphql","grpc","lists"],"optionalTags":["optional1","optional2"],"categories":["Technology","Programming"],"keywords":["nested","complex","types"],"viewCounts":[150,250,350],"ratings":[4.2,4.8,3.9],"isPublished":[true,false,true],"tagGroups":[["graphql","schema"],["grpc","protobuf"],["lists","arrays"]],"relatedTopics":[["backend","api"],["frontend","ui"]],"commentThreads":[["Great post!","Thanks for sharing"],["Very helpful","Keep it up"]],"suggestions":[["Add examples"],["More details","Better formatting"]],"relatedCategories":[{"name":"Web Development","kind":"ELECTRONICS"},{"name":"API Design","kind":"OTHER"}],"contributors":[{"name":"Alice Developer"},{"name":"Bob Engineer"}],"categoryGroups":[[{"name":"Backend","kind":"ELECTRONICS"},{"name":"Database","kind":"OTHER"}],[{"name":"Frontend","kind":"ELECTRONICS"}]]}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				createBlogPost, ok := data["createBlogPost"].(map[string]interface{})
+				require.True(t, ok, "createBlogPost should be an object")
+
+				// Check basic fields from input
+				require.NotEmpty(t, createBlogPost["id"])
+				require.Equal(t, "Complex Lists Blog Post", createBlogPost["title"])
+				require.Equal(t, "Testing complex input lists", createBlogPost["content"])
+
+				// Check scalar lists from input
+				tags, ok := createBlogPost["tags"].([]interface{})
+				require.True(t, ok, "tags should be an array")
+				require.Contains(t, tags, "graphql")
+				require.Contains(t, tags, "grpc")
+				require.Contains(t, tags, "lists")
+
+				optionalTags, ok := createBlogPost["optionalTags"].([]interface{})
+				require.True(t, ok, "optionalTags should be an array")
+				require.Contains(t, optionalTags, "optional1")
+				require.Contains(t, optionalTags, "optional2")
+
+				categories, ok := createBlogPost["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Contains(t, categories, "Technology")
+				require.Contains(t, categories, "Programming")
+
+				keywords, ok := createBlogPost["keywords"].([]interface{})
+				require.True(t, ok, "keywords should be an array")
+				require.Contains(t, keywords, "nested")
+				require.Contains(t, keywords, "complex")
+				require.Contains(t, keywords, "types")
+
+				// Check nested scalar lists from input
+				tagGroups, ok := createBlogPost["tagGroups"].([]interface{})
+				require.True(t, ok, "tagGroups should be an array")
+				require.Len(t, tagGroups, 3)
+
+				firstTagGroup, ok := tagGroups[0].([]interface{})
+				require.True(t, ok, "first tag group should be an array")
+				require.Contains(t, firstTagGroup, "graphql")
+				require.Contains(t, firstTagGroup, "schema")
+
+				relatedTopics, ok := createBlogPost["relatedTopics"].([]interface{})
+				require.True(t, ok, "relatedTopics should be an array")
+				require.Len(t, relatedTopics, 2)
+
+				commentThreads, ok := createBlogPost["commentThreads"].([]interface{})
+				require.True(t, ok, "commentThreads should be an array")
+				require.Len(t, commentThreads, 2)
+
+				suggestions, ok := createBlogPost["suggestions"].([]interface{})
+				require.True(t, ok, "suggestions should be an array")
+				require.Len(t, suggestions, 2)
+
+				// Check single complex lists from input - converted from input types to output types
+				// relatedCategories: [CategoryInput] -> [Category]
+				relatedCategories, ok := createBlogPost["relatedCategories"].([]interface{})
+				require.True(t, ok, "relatedCategories should be an array")
+				require.Len(t, relatedCategories, 2)
+				for i, cat := range relatedCategories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "each category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["kind"])
+					switch i {
+					case 0:
+						require.Equal(t, "Web Development", category["name"])
+						require.Equal(t, "ELECTRONICS", category["kind"])
+					case 1:
+						require.Equal(t, "API Design", category["name"])
+						require.Equal(t, "OTHER", category["kind"])
+					}
+				}
+
+				// contributors: [UserInput] -> [User]
+				contributors, ok := createBlogPost["contributors"].([]interface{})
+				require.True(t, ok, "contributors should be an array")
+				require.Len(t, contributors, 2)
+				for i, cont := range contributors {
+					contributor, ok := cont.(map[string]interface{})
+					require.True(t, ok, "each contributor should be an object")
+					require.NotEmpty(t, contributor["id"])
+					require.NotEmpty(t, contributor["name"])
+					switch i {
+					case 0:
+						require.Equal(t, "Alice Developer", contributor["name"])
+					case 1:
+						require.Equal(t, "Bob Engineer", contributor["name"])
+					}
+				}
+
+				// Check nested complex lists from input - converted from input types to output types
+				// categoryGroups: [[CategoryInput!]] -> [[Category!]]
+				categoryGroups, ok := createBlogPost["categoryGroups"].([]interface{})
+				require.True(t, ok, "categoryGroups should be an array")
+				require.Len(t, categoryGroups, 2)
+
+				// First group should have 2 categories
+				firstCategoryGroup, ok := categoryGroups[0].([]interface{})
+				require.True(t, ok, "first category group should be an array")
+				require.Len(t, firstCategoryGroup, 2)
+				for i, cat := range firstCategoryGroup {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "each category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["kind"])
+					switch i {
+					case 0:
+						require.Equal(t, "Backend", category["name"])
+						require.Equal(t, "ELECTRONICS", category["kind"])
+					case 1:
+						require.Equal(t, "Database", category["name"])
+						require.Equal(t, "OTHER", category["kind"])
+					}
+				}
+
+				// Second group should have 1 category
+				secondCategoryGroup, ok := categoryGroups[1].([]interface{})
+				require.True(t, ok, "second category group should be an array")
+				require.Len(t, secondCategoryGroup, 1)
+				category, ok := secondCategoryGroup[0].(map[string]interface{})
+				require.True(t, ok, "category should be an object")
+				require.NotEmpty(t, category["id"])
+				require.Equal(t, "Frontend", category["name"])
+				require.Equal(t, "ELECTRONICS", category["kind"])
+			},
+		},
+		{
+			name: "Should handle Author with complex lists and nested complex lists",
+			query: `query {
+				author {
+					id
+					name
+					email
+					writtenPosts {
+						id
+						title
+						content
+					}
+					favoriteCategories {
+						id
+						name
+						kind
+					}
+					relatedAuthors {
+						id
+						name
+					}
+					productReviews {
+						id
+						name
+						price
+					}
+					authorGroups {
+						id
+						name
+					}
+					categoryPreferences {
+						id
+						name
+						kind
+					}
+					projectTeams {
+						id
+						name
+					}
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				author, ok := data["author"].(map[string]interface{})
+				require.True(t, ok, "author should be an object")
+
+				// Check basic fields
+				require.NotEmpty(t, author["id"])
+				require.NotEmpty(t, author["name"])
+
+				// Check single complex lists
+				// writtenPosts: [BlogPost] - Optional list of blog posts
+				if writtenPosts := author["writtenPosts"]; writtenPosts != nil {
+					writtenPostsArr, ok := writtenPosts.([]interface{})
+					require.True(t, ok, "writtenPosts should be an array if present")
+					for _, post := range writtenPostsArr {
+						if post != nil { // posts can be null
+							blogPost, ok := post.(map[string]interface{})
+							require.True(t, ok, "each blog post should be an object")
+							require.NotEmpty(t, blogPost["id"])
+							require.NotEmpty(t, blogPost["title"])
+							require.NotEmpty(t, blogPost["content"])
+						}
+					}
+				}
+
+				// favoriteCategories: [Category!]! - Required list of required categories
+				favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+				require.True(t, ok, "favoriteCategories should be an array")
+				require.NotEmpty(t, favoriteCategories, "favoriteCategories should not be empty")
+				for _, cat := range favoriteCategories {
+					category, ok := cat.(map[string]interface{})
+					require.True(t, ok, "each category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["kind"])
+				}
+
+				// relatedAuthors: [User] - Optional list of related authors/collaborators
+				if relatedAuthors := author["relatedAuthors"]; relatedAuthors != nil {
+					relatedAuthorsArr, ok := relatedAuthors.([]interface{})
+					require.True(t, ok, "relatedAuthors should be an array if present")
+					for _, auth := range relatedAuthorsArr {
+						if auth != nil { // authors can be null
+							authorObj, ok := auth.(map[string]interface{})
+							require.True(t, ok, "each author should be an object")
+							require.NotEmpty(t, authorObj["id"])
+							require.NotEmpty(t, authorObj["name"])
+						}
+					}
+				}
+
+				// productReviews: [Product] - Optional list of products they've reviewed
+				if productReviews := author["productReviews"]; productReviews != nil {
+					productReviewsArr, ok := productReviews.([]interface{})
+					require.True(t, ok, "productReviews should be an array if present")
+					for _, prod := range productReviewsArr {
+						if prod != nil { // products can be null
+							product, ok := prod.(map[string]interface{})
+							require.True(t, ok, "each product should be an object")
+							require.NotEmpty(t, product["id"])
+							require.NotEmpty(t, product["name"])
+							require.NotEmpty(t, product["price"])
+						}
+					}
+				}
+
+				// Nested complex lists
+				// authorGroups: [[User!]] - Optional groups of required authors
+				if authorGroups := author["authorGroups"]; authorGroups != nil {
+					authorGroupsArr, ok := authorGroups.([]interface{})
+					require.True(t, ok, "authorGroups should be an array if present")
+					for _, group := range authorGroupsArr {
+						if group != nil { // groups can be null
+							groupArr, ok := group.([]interface{})
+							require.True(t, ok, "authorGroups items should be arrays")
+							for _, auth := range groupArr {
+								authorObj, ok := auth.(map[string]interface{})
+								require.True(t, ok, "each author should be an object")
+								require.NotEmpty(t, authorObj["id"])
+								require.NotEmpty(t, authorObj["name"])
+							}
+						}
+					}
+				}
+
+				// categoryPreferences: [[Category!]!]! - Required groups of required category preferences
+				categoryPreferences, ok := author["categoryPreferences"].([]interface{})
+				require.True(t, ok, "categoryPreferences should be an array")
+				require.NotEmpty(t, categoryPreferences, "categoryPreferences should not be empty")
+				for _, group := range categoryPreferences {
+					groupArr, ok := group.([]interface{})
+					require.True(t, ok, "categoryPreferences items should be arrays")
+					require.NotEmpty(t, groupArr, "categoryPreferences inner arrays should not be empty")
+					for _, cat := range groupArr {
+						category, ok := cat.(map[string]interface{})
+						require.True(t, ok, "each category should be an object")
+						require.NotEmpty(t, category["id"])
+						require.NotEmpty(t, category["name"])
+						require.NotEmpty(t, category["kind"])
+					}
+				}
+
+				// projectTeams: [[User]] - Optional groups of optional users for projects
+				if projectTeams := author["projectTeams"]; projectTeams != nil {
+					projectTeamsArr, ok := projectTeams.([]interface{})
+					require.True(t, ok, "projectTeams should be an array if present")
+					for _, team := range projectTeamsArr {
+						if team != nil { // teams can be null
+							teamArr, ok := team.([]interface{})
+							require.True(t, ok, "projectTeams items should be arrays")
+							for _, user := range teamArr {
+								if user != nil { // users can be null
+									userObj, ok := user.(map[string]interface{})
+									require.True(t, ok, "each user should be an object")
+									require.NotEmpty(t, userObj["id"])
+									require.NotEmpty(t, userObj["name"])
+								}
+							}
+						}
+					}
 				}
 			},
 		},

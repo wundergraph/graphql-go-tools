@@ -213,7 +213,6 @@ func (r *RPCField) ToOptionalTypeMessage(protoName string) *RPCMessage {
 			},
 		},
 	}
-
 }
 
 // AliasOrPath returns the alias of the field if it exists, otherwise it returns the JSONPath.
@@ -227,7 +226,7 @@ func (r *RPCField) AliasOrPath() string {
 
 // IsOptionalScalar checks if the field is an optional scalar value.
 func (r *RPCField) IsOptionalScalar() bool {
-	return r.Optional && r.Message == nil
+	return r.Optional && r.TypeName != string(DataTypeMessage)
 }
 
 // RPCFields is a list of RPCFields that provides helper methods

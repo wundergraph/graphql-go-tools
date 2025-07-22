@@ -115,10 +115,9 @@ type Method struct {
 
 // Message represents a protobuf message type with its fields.
 type Message struct {
-	Name           string                     // The name of the message
-	Fields         []Field                    // The fields in the message
-	Desc           protoref.MessageDescriptor // The protobuf descriptor for the message
-	NestedMessages []Message                  // The nested messages in the message
+	Name   string                     // The name of the message
+	Fields []Field                    // The fields in the message
+	Desc   protoref.MessageDescriptor // The protobuf descriptor for the message
 }
 
 // Field represents a field in a protobuf message.
@@ -213,14 +212,14 @@ func (d *Document) ServiceByRef(ref int) Service {
 
 // MessageByName returns a Message by its name.
 // Returns an empty Message if no message with the given name exists.
-func (d *Document) MessageByName(name string) Message {
+func (d *Document) MessageByName(name string) (Message, bool) {
 	for _, m := range d.Messages {
 		if m.Name == name {
-			return m
+			return m, true
 		}
 	}
 
-	return Message{}
+	return Message{}, false
 }
 
 // MessageRefByName returns the index of a Message in the Messages slice by its name.
@@ -337,13 +336,13 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 	invocations := make([]Invocation, 0, len(executionPlan.Calls))
 
 	for _, call := range executionPlan.Calls {
-		inputMessage := p.doc.MessageByName(call.Request.Name)
-		if inputMessage.Name == "" {
+		inputMessage, ok := p.doc.MessageByName(call.Request.Name)
+		if !ok {
 			return nil, fmt.Errorf("input message %s not found in document", call.Request.Name)
 		}
 
-		outputMessage := p.doc.MessageByName(call.Response.Name)
-		if outputMessage.Name == "" {
+		outputMessage, ok := p.doc.MessageByName(call.Response.Name)
+		if !ok {
 			return nil, fmt.Errorf("output message %s not found in document", call.Response.Name)
 		}
 
@@ -496,21 +495,11 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		}
 
 		if field.Type == DataTypeEnum {
-			enum, ok := p.doc.EnumByName(rpcField.EnumName)
-			if !ok {
-				p.report.AddInternalError(fmt.Errorf("enum %s not found in document", rpcField.EnumName))
-				continue
-			}
-
-			for _, enumValue := range enum.Values {
-				if enumValue.GraphqlValue == data.Get(rpcField.JSONPath).String() {
-					message.Set(
-						fd.ByName(protoref.Name(field.Name)),
-						protoref.ValueOfEnum(protoref.EnumNumber(enumValue.Number)),
-					)
-
-					break
-				}
+			if val := p.getEnumValue(rpcField.EnumName, data.Get(rpcField.JSONPath)); val != nil {
+				message.Set(
+					fd.ByName(protoref.Name(field.Name)),
+					*val,
+				)
 			}
 
 			continue
@@ -536,7 +525,6 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 
 	if level >= rpcField.ListMetadata.NestingLevel {
 		arr := data.Array()
-		// TODO handle optional lists
 		if len(arr) == 0 {
 			if rpcField.ListMetadata.LevelInfo[level-1].Optional {
 				return nil
@@ -554,11 +542,24 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 
 		itemsField := rootMsg.Mutable(fieldDesc).List()
 
-		switch {
-		case rpcField.Message != nil:
+		switch DataType(rpcField.TypeName) {
+		case DataTypeMessage:
+			itemsFieldMsg, ok := p.doc.MessageByName(rpcField.Message.Name)
+			if !ok {
+				p.report.AddInternalError(fmt.Errorf("message %s not found in document", rpcField.Message.Name))
+				return nil
+			}
+
 			for _, element := range arr {
-				msg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
-				itemsField.Append(protoref.ValueOfMessage(msg))
+				if msg := p.buildProtoMessage(itemsFieldMsg, rpcField.Message, element); msg != nil {
+					itemsField.Append(protoref.ValueOfMessage(msg))
+				}
+			}
+		case DataTypeEnum:
+			for _, element := range arr {
+				if val := p.getEnumValue(rpcField.EnumName, element); val != nil {
+					itemsField.Append(*val)
+				}
 			}
 		default:
 			for _, element := range arr {
@@ -598,13 +599,31 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc)
 	for _, element := range elements {
 		newElement := itemsField.List().NewElement()
-		val := p.traverseList(newElement.Message(), level+1, field, rpcField, element)
-		itemsField.List().Append(protoref.ValueOfMessage(val))
+		if val := p.traverseList(newElement.Message(), level+1, field, rpcField, element); val != nil {
+			itemsField.List().Append(protoref.ValueOfMessage(val))
+		}
 	}
 
 	rootMsg.Set(listFieldDesc, newListField)
 
 	return rootMsg
+}
+
+func (p *RPCCompiler) getEnumValue(enumName string, data gjson.Result) *protoref.Value {
+	enum, ok := p.doc.EnumByName(enumName)
+	if !ok {
+		p.report.AddInternalError(fmt.Errorf("enum %s not found in document", enumName))
+		return nil
+	}
+
+	for _, enumValue := range enum.Values {
+		if enumValue.GraphqlValue == data.String() {
+			v := protoref.ValueOfEnum(protoref.EnumNumber(enumValue.Number))
+			return &v
+		}
+	}
+
+	return nil
 }
 
 // setValueForKind converts a gjson.Result value to the appropriate protobuf value
@@ -717,10 +736,6 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 		message := Message{
 			Name: string(protoMessage.Name()),
 			Desc: protoMessage,
-		}
-
-		if protoMessage.Messages().Len() > 0 {
-			message.NestedMessages = p.parseMessageDefinitions(protoMessage.Messages())
 		}
 
 		extractedMessages = append(extractedMessages, message)
