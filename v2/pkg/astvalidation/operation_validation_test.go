@@ -4025,6 +4025,8 @@ type Query {
 						nested2(input: Input2): String
 						nested3(input: Input3): String
 						nested4(input: Input4): String
+						nested5(input: Input5): String
+						nested10(input: Input10): String
 					}
 
 					input Input {
@@ -4041,6 +4043,13 @@ type Query {
 
 					input Input4 {
 						list: [String!]!
+					}
+
+					input Input5 {
+						list: [[[String]!]!]
+					}
+					input Input10 {
+						list: [[[[[[[[[[String]]]]]]]]]]
 					}`
 
 				t.Run("[String]", func(t *testing.T) {
@@ -4119,6 +4128,50 @@ type Query {
 
 					t.Run("[String!]! -> [String!]!", func(t *testing.T) {
 						runWithDefinition(t, definition, `query Q($a: [String!]!) { nested4(input: {list: $a})}`, Values(), Valid)
+					})
+				})
+
+				t.Run("[[[String]!]!]", func(t *testing.T) {
+					t.Run("[[[String!]!]!]! -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String!]!]!]!) { nested5(input: {list: $a})}`, Values(), Valid)
+					})
+					t.Run("[[[String!]!]!] -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String!]!]!]) { nested5(input: {list: $a})}`, Values(), Valid)
+					})
+					t.Run("[[[String]!]!]! -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String]!]!]!) { nested5(input: {list: $a})}`, Values(), Valid)
+					})
+					t.Run("[[[String]!]!] -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String]!]!]) { nested5(input: {list: $a})}`, Values(), Valid)
+					})
+
+					t.Run("[[[String]!]]! -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String]!]]!) { nested5(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[[[String]!]]!" used in position expecting type "[[[String]!]!]"`))
+					})
+					t.Run("[[[String!]!]] -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String!]!]]) { nested5(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[[[String!]!]]" used in position expecting type "[[[String]!]!]"`))
+					})
+					t.Run("[[[String]]!]! -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String]]!]!) { nested5(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[[[String]]!]!" used in position expecting type "[[[String]!]!]"`))
+					})
+					t.Run("[[[String]]] -> [[[String]!]!]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[String]]]) { nested5(input: {list: $a})}`, Values(), Invalid,
+							withValidationErrors(`Variable "$a" of type "[[[String]]]" used in position expecting type "[[[String]!]!]"`))
+					})
+				})
+
+				t.Run("[[[[[[[[[[String]]]]]]]]]]", func(t *testing.T) {
+					t.Run("[[[[[[[[[[String]]]]]]]]]] -> [[[[[[[[[[String]]]]]]]]]]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[[[[[[[[String]]]]]]]]]]) { nested10(input: {list: $a})}`, Values(), Valid)
+					})
+					t.Run("[[[[[[[[[[String!]]]]]]]]]] -> [[[[[[[[[[String]]]]]]]]]]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[[[[[[[[String!]]]]]]]]]]) { nested10(input: {list: $a})}`, Values(), Valid)
+					})
+					t.Run("[[[[[[[[[[String]!]]]]]]]]]! -> [[[[[[[[[[String]]]]]]]]]]", func(t *testing.T) {
+						runWithDefinition(t, definition, `query Q($a: [[[[[[[[[[String]!]]]]]]]]]!) { nested10(input: {list: $a})}`, Values(), Valid)
 					})
 				})
 			})
