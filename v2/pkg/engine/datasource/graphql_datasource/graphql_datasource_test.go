@@ -8914,18 +8914,19 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 		}, 1)
 		subscriptionSource := SubscriptionSource{
 			onSubscriptionStartFns: []OnSubscriptionStartFn{
-				func(ctx *resolve.Context, input []byte) ([][]byte, error) {
+				func(ctx *resolve.Context, input []byte) ([][]byte, bool, error) {
 					startFnCalled <- struct {
 						ctx   *resolve.Context
 						input []byte
 					}{ctx, input}
-					return nil, nil
+					return nil, false, nil
 				},
 			},
 		}
 
-		err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		close, err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.NoError(t, err)
+		assert.False(t, close)
 		require.Len(t, startFnCalled, 1)
 		called := <-startFnCalled
 		assert.Equal(t, ctx, called.ctx)
@@ -8938,13 +8939,14 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 
 		subscriptionSource := SubscriptionSource{
 			onSubscriptionStartFns: []OnSubscriptionStartFn{
-				func(ctx *resolve.Context, input []byte) ([][]byte, error) {
-					return nil, errors.New("test error")
+				func(ctx *resolve.Context, input []byte) ([][]byte, bool, error) {
+					return nil, false, errors.New("test error")
 				},
 			},
 		}
 
-		err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		close, err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		assert.False(t, close)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "test error")
 	})

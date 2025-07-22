@@ -624,7 +624,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			r.asyncErrorWriter.WriteError(add.ctx, errStartHook, add.resolve.Response, add.writer)
 		}
 		if close {
-			_ = r.emitTriggerClose(triggerID)
+			r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
 		}
 		return
 	}
@@ -667,7 +667,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		r.asyncErrorWriter.WriteError(add.ctx, errStartHook, add.resolve.Response, add.writer)
 	}
 	if close {
-		_ = r.emitTriggerClose(triggerID)
+		r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
 		return
 	}
 

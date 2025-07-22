@@ -1985,15 +1985,18 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 	return s.client.UniqueRequestID(ctx, options, xxh)
 }
 
-func (s *SubscriptionSource) OnSubscriptionStart(ctx *resolve.Context, input []byte) (err error) {
+func (s *SubscriptionSource) OnSubscriptionStart(ctx *resolve.Context, input []byte) (close bool, err error) {
 	for _, fn := range s.onSubscriptionStartFns {
-		events, err := fn(ctx, input)
+		events, close, err := fn(ctx, input)
 		if err != nil {
-			return err
+			return close, err
 		}
 		for _, event := range events {
 			ctx.EmitSubscriptionUpdate(event)
 		}
+		if close {
+			return true, nil
+		}
 	}
-	return nil
+	return false, nil
 }
