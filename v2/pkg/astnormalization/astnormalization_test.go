@@ -197,6 +197,176 @@ func TestNormalizeOperation(t *testing.T) {
 				}`, ``, ``)
 	})
 
+	// The following 3 tests are to test the combined logic of inline fragment selection merging
+	// and a field selection merging. When applied separately, they could not merge the field and
+	// fragments.
+	t.Run("combined inline fragment fields merging 1", func(t *testing.T) {
+		run(t, testDefinition, `
+				query q {
+					pet {
+						... on Dog {
+								... on Pet {
+									...DogName
+									...DogExtraString
+								}
+						}
+					}
+					pet {
+						... on Dog {
+								...DogBarkVolume
+								...DogExtraString
+						}
+					}
+				}
+				fragment DogName on Pet { ... on Dog { name } }
+				fragment DogBarkVolume on Pet { ... on Dog { barkVolume } }
+				fragment DogExtraString on Dog {
+					...DogName
+					extras { 
+						... on DogExtra {
+							string 
+						}
+					}
+				} `, `
+				query q {
+					pet {
+						... on Dog {
+							name
+							extras { 
+								string 
+							}
+							barkVolume
+						}
+					}
+				}`, ``, ``)
+	})
+
+	t.Run("combined inline fragment fields merging 2", func(t *testing.T) {
+		run(t, testDefinition, `
+				query q {
+					pet {
+						...DogExtraString
+					}
+					pet {
+						... on Dog {
+							extras {
+								... on DogExtra {
+									string1
+								}
+							}
+						}
+					}
+				}
+				fragment DogExtraString on Dog {
+					extras { 
+						... on DogExtra {
+							string
+						}
+						... on Pet {
+							__typename
+						}
+					}
+				} `, `
+				query q {
+					pet {
+						... on Dog {
+							extras {
+								string
+								... on Pet {
+									__typename
+								}
+								string1
+							}
+						}
+					}
+				}`, ``, ``)
+	})
+
+	t.Run("combined inline fragment fields merging 3", func(t *testing.T) {
+		run(t, ` schema { query: Query }
+				scalar ID
+				scalar String
+
+				type Query {
+					requestForQuote(id: ID!): Request
+				}
+				type Request { draftQuotePackage: QuotePackage }
+				type QuotePackage { requestedParts: Parts }
+				type Parts { edges: [PartEdge] }
+				type PartEdge { quote: Quote }
+				type Quote { quoteRevision: QuoteRevisionUnion }
+				union QuoteRevisionUnion = QuoteRevision | Node
+				type QuoteRevision { partBreakdown: PartBreakdown }
+				type Node { name: String! }
+				type PartBreakdown {
+					breakdownType: String!
+					cost: String!
+				} `, `
+				query SimplePartQuoteEditorQuery($requestForQuoteId: ID!) {
+				  requestForQuote(id: $requestForQuoteId) {
+					draftQuotePackage {
+					  ...useBreakdownTypeFilter_quotePackage
+					  requestedParts {
+						edges {
+						  quote {
+							quoteRevision {
+							  ... on QuoteRevision {
+								partBreakdown {
+								  cost
+								}
+							  }
+							}
+						  }
+						}
+					  }
+					}
+				  }
+				}
+
+				fragment useBreakdownTypeFilter_quotePackage on QuotePackage {
+				  requestedParts {
+					edges {
+					  quote {
+						quoteRevision {
+						  ... on QuoteRevision {
+							partBreakdown {
+							  breakdownType
+							}
+						  }
+						  ... on Node {
+							__isNode: __typename
+						  }
+						}
+					  }
+					}
+				  }
+				}
+`, `
+				query SimplePartQuoteEditorQuery($requestForQuoteId: ID!) {
+				  requestForQuote(id: $requestForQuoteId) {
+					draftQuotePackage {
+					  requestedParts {
+						edges {
+						  quote {
+							quoteRevision {
+							  ... on QuoteRevision {
+								partBreakdown {
+								  breakdownType
+								  cost
+								}
+							  }
+							  ... on Node {
+								__isNode: __typename
+							  }
+							}
+						  }
+						}
+					  }
+					}
+				  }
+				}`, `123`, `123`)
+	})
+
 	t.Run("fragments", func(t *testing.T) {
 		run(t, variablesExtractionDefinition, `
 			mutation HttpBinPost{

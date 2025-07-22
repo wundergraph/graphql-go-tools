@@ -2630,6 +2630,100 @@ func TestParseTodo(t *testing.T) {
 	_ = doc
 }
 
+func testParseWithLimits(t *testing.T, limits TokenizerLimits, expectError bool, text string) {
+	t.Helper()
+	p := NewParser()
+	doc := ast.NewDocument()
+	report := operationreport.Report{}
+	doc.Input.ResetInputBytes([]byte(text))
+	_, err := p.ParseWithLimits(limits, doc, &report)
+	if expectError {
+		assert.Error(t, err)
+	} else {
+		assert.NoError(t, err)
+	}
+}
+
+func TestParser_ParseWithLimits(t *testing.T) {
+	t.Run("depth limit 3 not exceeded", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, false, `query { one { two { three } } }`)
+	})
+	t.Run("depth limit 3 exceeded", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, true, `query { one { two { three { four } } } }`)
+	})
+	t.Run("multiple named operations not exceeding depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 4, MaxFields: 0}, false, `query A { one { two { three } } } query B { one }`)
+	})
+	t.Run("multiple named operations exceeding depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, true, `query A { one { two { three } } } query B { one }`)
+	})
+	t.Run("query with fragment not exceeding depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 4, MaxFields: 0}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
+	})
+	t.Run("query with fragment exceeding depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 3, MaxFields: 0}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three { four } } }`)
+	})
+	t.Run("query with multiple fragments not exceeding depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 5, MaxFields: 0}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments exceeding depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 4, MaxFields: 0}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query { one { two { three } } }`)
+	})
+	t.Run("query exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query { one { two { three } } }`)
+	})
+	t.Run("query with multiple operations not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query A { one { two } } query B { three }`)
+	})
+	t.Run("query with multiple operations exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query A { one { two } } query B { three }`)
+	})
+	t.Run("query with fragment not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
+	})
+	t.Run("query with fragment exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { three } }`)
+	})
+	t.Run("query with multiple fragments not exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 3}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments exceeding field limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 2}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments exceeding field limit and depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 2, MaxFields: 2}, true, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("query with multiple fragments not exceeding field limit and depth limit", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 5, MaxFields: 3}, false, `query A { one { ...OneFragment } } fragment OneFragment on One { two { ...TwoFragment } } fragment TwoFragment on Two { three }`)
+	})
+	t.Run("no limits", func(t *testing.T) {
+		testParseWithLimits(t, TokenizerLimits{MaxDepth: 0, MaxFields: 0}, false, `query { one { two { three } } }`)
+	})
+	t.Run("parse stats", func(t *testing.T) {
+		p := NewParser()
+		doc := ast.NewDocument()
+		report := operationreport.Report{}
+		doc.Input.ResetInputBytes([]byte(`query { one { two { three } } }`))
+		stats, err := p.ParseWithLimits(TokenizerLimits{}, doc, &report)
+		assert.NoError(t, err)
+		assert.Equal(t, 3, stats.TotalFields)
+		assert.Equal(t, 3, stats.TotalDepth)
+	})
+	t.Run("parse stats with multiple operations and fragments", func(t *testing.T) {
+		p := NewParser()
+		doc := ast.NewDocument()
+		report := operationreport.Report{}
+		doc.Input.ResetInputBytes([]byte(`query A { one { two } } query B { three } fragment OneFragment on One { two { three } }`))
+		stats, err := p.ParseWithLimits(TokenizerLimits{}, doc, &report)
+		assert.NoError(t, err)
+		assert.Equal(t, 5, stats.TotalFields)
+		assert.Equal(t, 5, stats.TotalDepth)
+	})
+}
+
 func BenchmarkParseStarwars(b *testing.B) {
 
 	inputFileName := "./testdata/starwars.schema.graphql"

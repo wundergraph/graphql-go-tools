@@ -7,6 +7,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
+// removeSelfAliasing registers a visitor to remove redundant aliasing within GraphQL documents.
 func removeSelfAliasing(walker *astvisitor.Walker) {
 	visitor := removeSelfAliasingVisitor{}
 	walker.RegisterEnterDocumentVisitor(&visitor)
