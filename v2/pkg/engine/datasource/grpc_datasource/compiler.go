@@ -521,8 +521,6 @@ func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field Fi
 }
 
 func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Field, rpcField *RPCField, data gjson.Result) protoref.Message {
-	fd := rootMsg.Descriptor()
-
 	if level >= rpcField.ListMetadata.NestingLevel {
 		arr := data.Array()
 		if len(arr) == 0 {
@@ -534,7 +532,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 		}
 
 		// List wrappers always use field number 1
-		fieldDesc := fd.Fields().ByNumber(1)
+		fieldDesc := rootMsg.Descriptor().Fields().ByNumber(1)
 		if fieldDesc == nil {
 			p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
 			return nil
@@ -571,8 +569,8 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 		return rootMsg
 	}
 
-	// We always expect a list fields in the root message.
-	listFieldDesc := fd.Fields().ByNumber(1)
+	// For nested Lists we always expect a "list" field in the root message with field number 1
+	listFieldDesc := rootMsg.Descriptor().Fields().ByNumber(1)
 	if listFieldDesc == nil {
 		p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
 		return nil
@@ -589,6 +587,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 		return rootMsg
 	}
 
+	// Inside of a List message type we expect a repeated "items" field with field number 1
 	itemsFieldMsg := newListField.Message()
 	itemsFieldDesc := itemsFieldMsg.Descriptor().Fields().ByNumber(1)
 	if itemsFieldDesc == nil {
