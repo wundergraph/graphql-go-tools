@@ -572,14 +572,11 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 // callSubscriptionDataSourceStartHook is used to call the OnSubscriptionStart method of the subscription data source
 // if the subscription data source implements the SubscriptionDataSourceHook interface.
 // This is used to allow external code to emit updates on this subscription.
-func callSubscriptionDataSourceStartHook(ctx *Context, source SubscriptionDataSource, input []byte) (err error) {
-	if hook, ok := source.(SubscriptionDataSourceHook); ok {
-		err = hook.OnSubscriptionStart(ctx, input)
-		if err != nil {
-			return err
-		}
+func callSubscriptionDataSourceStartHook(ctx *Context, source SubscriptionDataSource, input []byte) (close bool, err error) {
+	if hook, ok := source.(SubscriptionDataSourceHookable); ok {
+		return hook.OnSubscriptionStart(ctx, input)
 	}
-	return nil
+	return false, nil
 }
 
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
@@ -622,10 +619,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		err = callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
-		if err != nil {
-			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
-			return
+		close, errStartHook := callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
+		if errStartHook != nil {
+			r.asyncErrorWriter.WriteError(add.ctx, errStartHook, add.resolve.Response, add.writer)
+		}
+		if close {
+			_ = r.emitTriggerClose(triggerID)
 		}
 		return
 	}
@@ -663,9 +662,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		asyncDataSource = async
 	}
 
-	err = callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
-	if err != nil {
-		r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+	close, errStartHook := callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
+	if errStartHook != nil {
+		r.asyncErrorWriter.WriteError(add.ctx, errStartHook, add.resolve.Response, add.writer)
+	}
+	if close {
+		_ = r.emitTriggerClose(triggerID)
 		return
 	}
 

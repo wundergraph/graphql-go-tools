@@ -4787,7 +4787,7 @@ func (s *SubscriptionRecorder) Messages() []string {
 	return s.messages
 }
 
-func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), onSubscriptionStartFn func(ctx *Context, input []byte) (err error)) *_fakeStream {
+func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), onSubscriptionStartFn func(ctx *Context, input []byte) (close bool, err error)) *_fakeStream {
 	return &_fakeStream{
 		messageFunc:           messageFunc,
 		delay:                 delay,
@@ -4805,12 +4805,12 @@ type _fakeStream struct {
 	onStart               func(input []byte)
 	delay                 time.Duration
 	isDone                atomic.Bool
-	onSubscriptionStartFn func(ctx *Context, input []byte) (err error)
+	onSubscriptionStartFn func(ctx *Context, input []byte) (close bool, err error)
 }
 
-func (f *_fakeStream) OnSubscriptionStart(ctx *Context, input []byte) (err error) {
+func (f *_fakeStream) OnSubscriptionStart(ctx *Context, input []byte) (close bool, err error) {
 	if f.onSubscriptionStartFn == nil {
-		return nil
+		return false, nil
 	}
 	return f.onSubscriptionStartFn(ctx, input)
 }
@@ -5454,9 +5454,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (err error) {
+		}, func(ctx *Context, input []byte) (close bool, err error) {
 			called <- true
-			return nil
+			return false, nil
 		})
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
@@ -5486,9 +5486,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (err error) {
+		}, func(ctx *Context, input []byte) (close bool, err error) {
 			ctx.EmitSubscriptionUpdate([]byte(`{"data":{"counter":1000}}`))
-			return nil
+			return false, nil
 		})
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
