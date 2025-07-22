@@ -449,17 +449,12 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 			case rpcField.IsListType:
 				// nested and nullable lists are wrapped in a message, therefore we need to handle them differently
 				// than repeated fields.
-
-				// if !data.Get(rpcField.JSONPath).Exists() {
-				// 	if rpcField.Optional {
-				// 		continue
-				// 	}
-				// }
-
-				if rpcField.Optional {
-					if !data.Get(rpcField.JSONPath).Exists() {
-						continue
+				if !data.Get(rpcField.JSONPath).Exists() {
+					if !rpcField.Optional {
+						p.report.AddInternalError(fmt.Errorf("field %s is required but has no value", rpcField.JSONPath))
 					}
+
+					continue
 				}
 
 				if rpcField.ListMetadata == nil {
