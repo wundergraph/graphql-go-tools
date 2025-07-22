@@ -197,11 +197,8 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 }
 
 const (
-	ReasonStage1Unique                                = "stage1: unique"
-	ReasonStage1SameSourceParent                      = "stage1: same source parent of unique node"
-	ReasonStage1SameSourceLeafChild                   = "stage1: same source leaf child of unique node"
-	ReasonStage1SameSourceLeafSibling                 = "stage1: same source leaf sibling of unique node"
-	ReasonStage1SameSourceChildWithPossibleSelections = "stage1: select non leaf child of unique node which have possible child selections on the same source"
+	ReasonStage1Unique           = "stage1: unique"
+	ReasonStage1SameSourceParent = "stage1: same source parent of unique node"
 
 	ReasonStage2SameSourceNodeOfSelectedParent  = "stage2: node on the same source as selected parent"
 	ReasonStage2SameSourceNodeOfSelectedChild   = "stage2: node on the same source as selected child"
