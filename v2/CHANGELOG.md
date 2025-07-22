@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.209](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.208...v2.0.0-rc.209) (2025-07-22)
+
+
+### Bug Fixes
+
+* merge inline fragment and field selections together ([#1240](https://github.com/wundergraph/graphql-go-tools/issues/1240)) ([99f2b32](https://github.com/wundergraph/graphql-go-tools/commit/99f2b321990591f51a1dd0f84e6b3696fb457d33))
+
 ## [2.0.0-rc.208](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.207...v2.0.0-rc.208) (2025-07-18)
 
 
