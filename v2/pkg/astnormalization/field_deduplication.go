@@ -5,6 +5,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
+// deduplicateFields registers a visitor to remove duplicate fields in a GraphQL operation.
 func deduplicateFields(walker *astvisitor.Walker) {
 	visitor := deduplicateFieldsVisitor{
 		Walker: walker,

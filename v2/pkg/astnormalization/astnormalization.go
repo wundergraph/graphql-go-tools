@@ -3,7 +3,7 @@ Package astnormalization helps to transform parsed GraphQL AST's into a easier t
 
 # Example
 
-This examples shows how the normalization package helps "simplifying" a GraphQL AST.
+This example shows how the normalization package helps "simplify" a GraphQL AST.
 
 Input:
 
@@ -76,7 +76,7 @@ import (
 )
 
 // NormalizeOperation creates a default Normalizer and applies all rules to a given AST
-// In case you're using OperationNormalizer in a hot path you shouldn't be using this function.
+// In case you're using OperationNormalizer in a hot path, you shouldn't be using this function.
 // Create a new OperationNormalizer using NewNormalizer() instead and re-use it.
 func NormalizeOperation(operation, definition *ast.Document, report *operationreport.Report) {
 	normalizer := NewNormalizer(false, false)
@@ -193,11 +193,11 @@ func WithNormalizeDefinition() Option {
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 9)
 
-	// NOTE: normalization rules for variables relies on the fact that
-	// we will visit only single operation, so it is important to remove non-matching operations
+	// NOTE: normalization rules for variables rely on the fact that
+	// we will visit only a single operation, so it is important to remove non-matching operations
 	if o.options.removeNotMatchingOperationDefinitions {
 		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalker(2)
-		// this rule do not walk deep into ast, so separate walk not expensive,
+		// This rule does not walk deep into ast, so a separate walk is not expensive,
 		// but we could not mix this walk with other rules, because they need to go deep
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&removeNotMatchingOperationDefinitionsWalker)
 
@@ -212,7 +212,6 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	directiveIncludeSkip(&directivesIncludeSkip)
 
 	cleanup := astvisitor.NewWalker(8)
-	mergeFieldSelections(&cleanup)
 	deduplicateFields(&cleanup)
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
@@ -272,7 +271,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
-		name:   "mergeFieldSelections, deduplicateFields, deleteUnusedVariables",
+		name:   "deduplicateFields, deleteUnusedVariables",
 		walker: &cleanup,
 	})
 
@@ -332,7 +331,7 @@ func (o *OperationNormalizer) NormalizeNamedOperation(operation, definition *ast
 		}
 
 		// NOTE: debug code - do not remove
-		// printed, _ := astprinter.PrintStringIndent(operation, definition, "  ")
+		// printed, _ := astprinter.PrintStringIndent(operation, "  ")
 		// fmt.Println("\n\nNormalizeOperation stage:", o.operationWalkers[i].name)
 		// fmt.Println(printed)
 		// fmt.Println("variables:", string(operation.Input.Variables))

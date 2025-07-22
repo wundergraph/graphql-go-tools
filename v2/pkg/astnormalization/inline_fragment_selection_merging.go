@@ -7,6 +7,8 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
+// mergeInlineFragmentSelections registers a visitor that
+// merges inline fragment and field selections.
 func mergeInlineFragmentSelections(walker *astvisitor.Walker) {
 	visitor := inlineFragmentSelectionMergeVisitor{
 		Walker: walker,
@@ -54,33 +56,88 @@ func (f *inlineFragmentSelectionMergeVisitor) mergeInlineFragments(left, right i
 	return true
 }
 
+func (f *inlineFragmentSelectionMergeVisitor) fieldsCanMerge(left, right int) bool {
+	leftName := f.operation.FieldNameBytes(left)
+	rightName := f.operation.FieldNameBytes(right)
+	leftAlias := f.operation.FieldAliasBytes(left)
+	rightAlias := f.operation.FieldAliasBytes(right)
+
+	if !bytes.Equal(leftName, rightName) || !bytes.Equal(leftAlias, rightAlias) {
+		return false
+	}
+
+	leftDirectives := f.operation.FieldDirectives(left)
+	rightDirectives := f.operation.FieldDirectives(right)
+
+	return f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives)
+}
+
+func (f *inlineFragmentSelectionMergeVisitor) fieldsHaveSelections(left, right int) bool {
+	return f.operation.Fields[left].HasSelections && f.operation.Fields[right].HasSelections
+}
+
+func (f *inlineFragmentSelectionMergeVisitor) mergeFields(left, right int) (ok bool) {
+	var leftSet, rightSet int
+	leftSet, ok = f.operation.FieldSelectionSet(left)
+	if !ok {
+		return false
+	}
+	rightSet, ok = f.operation.FieldSelectionSet(right)
+	if !ok {
+		return false
+	}
+
+	f.operation.AppendSelectionSet(leftSet, rightSet)
+	return true
+}
+
 func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
-	if len(f.operation.SelectionSets[ref].SelectionRefs) < 2 {
+	selectionRefs := f.operation.SelectionSets[ref].SelectionRefs
+	if len(selectionRefs) < 2 {
 		return
 	}
 
-	for _, leftSelection := range f.operation.SelectionSets[ref].SelectionRefs {
-		if !f.operation.SelectionIsInlineFragmentSelection(leftSelection) {
+	for i, leftSelection := range selectionRefs {
+		leftKind := f.operation.SelectionKind(leftSelection)
+		if leftKind != ast.SelectionKindInlineFragment && leftKind != ast.SelectionKindField {
 			continue
 		}
-		leftInlineFragment := f.operation.Selections[leftSelection].Ref
-		for i, rightSelection := range f.operation.SelectionSets[ref].SelectionRefs {
-			if !f.operation.SelectionIsInlineFragmentSelection(rightSelection) {
+		leftRef := f.operation.Selections[leftSelection].Ref
+
+		for j := i + 1; j < len(selectionRefs); j++ {
+			rightSelection := selectionRefs[j]
+			rightKind := f.operation.SelectionKind(rightSelection)
+			if leftKind != rightKind {
 				continue
-			}
-			if leftSelection == rightSelection {
-				continue
-			}
-			rightInlineFragment := f.operation.Selections[rightSelection].Ref
-			if !f.fragmentsCanBeMerged(leftInlineFragment, rightInlineFragment) {
-				continue
-			}
-			if f.mergeInlineFragments(leftInlineFragment, rightInlineFragment) {
-				f.operation.RemoveFromSelectionSet(ref, i)
-				f.RevisitNode()
 			}
 
-			return
+			rightRef := f.operation.Selections[rightSelection].Ref
+
+			// Handle Inline Fragments.
+			if leftKind == ast.SelectionKindInlineFragment {
+				if !f.fragmentsCanBeMerged(leftRef, rightRef) {
+					continue
+				}
+				if f.mergeInlineFragments(leftRef, rightRef) {
+					f.operation.RemoveFromSelectionSet(ref, j)
+					f.RevisitNode()
+					return
+				}
+				continue
+			}
+
+			// Handle Fields.
+			if !f.fieldsHaveSelections(leftRef, rightRef) {
+				continue
+			}
+			if !f.fieldsCanMerge(leftRef, rightRef) {
+				continue
+			}
+			if f.mergeFields(leftRef, rightRef) {
+				f.operation.RemoveFromSelectionSet(ref, j)
+				f.RevisitNode()
+				return
+			}
 		}
 	}
 }
