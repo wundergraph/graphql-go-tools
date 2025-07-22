@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.210](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.209...v2.0.0-rc.210) (2025-07-22)
+
+
+### Bug Fixes
+
+* planner fixes for parent entity jumps and unique nodes selections ([#1230](https://github.com/wundergraph/graphql-go-tools/issues/1230)) ([1a7ed16](https://github.com/wundergraph/graphql-go-tools/commit/1a7ed16008de28adebdb0fb3485ba2ea5205d8e8))
+
 ## [2.0.0-rc.209](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.208...v2.0.0-rc.209) (2025-07-22)
 
 
