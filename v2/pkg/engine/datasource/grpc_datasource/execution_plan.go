@@ -180,13 +180,17 @@ type RPCField struct {
 	Message *RPCMessage
 }
 
+// ListMetadata contains the metadata for the list type
 type ListMetadata struct {
-	ItemTypeName string
+	// NestingLevel is the nesting level of the list type
 	NestingLevel int
-	LevelInfo    []ListMetadataItem
+	// LevelInfo contains the metadata for each nesting level of the list
+	LevelInfo []LevelInfo
 }
 
-type ListMetadataItem struct {
+// LevelInfo contains the metadata for the list type
+type LevelInfo struct {
+	// Optional indicates if the field is optional
 	Optional bool
 }
 
@@ -219,6 +223,11 @@ func (r *RPCField) AliasOrPath() string {
 	}
 
 	return r.JSONPath
+}
+
+// IsOptionalScalar checks if the field is an optional scalar value.
+func (r *RPCField) IsOptionalScalar() bool {
+	return r.Optional && r.Message == nil
 }
 
 // RPCFields is a list of RPCFields that provides helper methods

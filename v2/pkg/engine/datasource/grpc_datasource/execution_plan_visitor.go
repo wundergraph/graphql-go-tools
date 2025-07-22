@@ -359,13 +359,11 @@ func (r *rpcPlanVisitor) buildField(fd int, fieldName, fieldAlias string) RPCFie
 		// for nullable or nested lists we need to build a wrapper message
 		// Nullability is handled by the datasource during the execution.
 		case r.typeIsNullableOrNestedList(fdt):
-			field.ListMetadata = r.createListMetadata(fdt, r.definition.ResolveTypeNameString(fdt))
-			field.TypeName = DataTypeMessage.String()
+			field.ListMetadata = r.createListMetadata(fdt)
 			field.IsListType = true
 		default:
 			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
 			field.Repeated = true
-			field.TypeName = typeName.String()
 		}
 	}
 
@@ -483,9 +481,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 
 		// For nullable or nested lists we need to build a wrapper message
 		if r.typeIsNullableOrNestedList(typeRef) {
-			field.JSONPath = ""
-			field.Message = r.buildListMessage(typeRef, baseType, fieldName)
-			field.TypeName = DataTypeMessage.String()
+			field.ListMetadata = r.createListMetadata(typeRef)
 			field.Repeated = false
 			field.IsListType = true
 		}
@@ -501,98 +497,6 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 		r.walker.Stop()
 		return
 	}
-}
-
-func (r *rpcPlanVisitor) typeIsNonNullList(typeRef int) bool {
-	return r.definition.TypeIsList(typeRef) && r.definition.TypeIsNonNull(typeRef)
-}
-
-func (r *rpcPlanVisitor) createListMetadata(typeRef int, graphqlTypeName string) *ListMetadata {
-	nestingLevel := r.definition.TypeNumberOfListWraps(typeRef)
-
-	md := &ListMetadata{
-		ItemTypeName: graphqlTypeName,
-		NestingLevel: nestingLevel,
-		LevelInfo:    make([]ListMetadataItem, nestingLevel),
-	}
-
-	for i := 0; i < nestingLevel; i++ {
-		md.LevelInfo[i] = ListMetadataItem{
-			Optional: !r.definition.TypeIsNonNull(typeRef),
-		}
-
-		typeRef = r.unwrapListNesting(typeRef)
-	}
-
-	return md
-}
-
-func (r *rpcPlanVisitor) buildListMessage(typeRef int, graphqlTypeName, jsonPath string) *RPCMessage {
-	nestingLevel := r.definition.TypeNumberOfListWraps(typeRef)
-
-	dataType := r.toDataType(&r.definition.Types[typeRef])
-
-	rootMessage := &RPCMessage{}
-	currentMessage := rootMessage
-	for i := nestingLevel; i > 0; i-- {
-		// Add the prefix to the name of the current message.
-		currentMessage.Name = strings.Repeat(knownListWrapperPrefix, i) + graphqlTypeName
-		if i == 1 {
-			currentMessage.Fields = RPCFields{
-				{
-					Name:     "items",
-					TypeName: dataType.String(),
-					Repeated: true,
-					JSONPath: jsonPath,
-				},
-			}
-			break
-		}
-
-		// for nested lists we need to create a new message for each level.
-		nextMessage := &RPCMessage{}
-		currentMessage.Fields = RPCFields{
-			{
-				Name:     "list",
-				TypeName: DataTypeMessage.String(),
-				Message: &RPCMessage{
-					Name: "List",
-					Fields: RPCFields{
-						{
-							Name:     "items",
-							Repeated: true,
-							TypeName: DataTypeMessage.String(),
-							Optional: !r.definition.TypeIsNonNull(typeRef),
-							Message:  nextMessage,
-						},
-					},
-				},
-			},
-		}
-
-		// Set the current message to the next message.
-		currentMessage = nextMessage
-		// Unwrap the list nesting.
-		typeRef = r.unwrapListNesting(typeRef)
-	}
-
-	return rootMessage
-}
-
-func (r *rpcPlanVisitor) unwrapListNesting(typeRef int) int {
-	if !r.definition.TypeIsList(typeRef) {
-		return typeRef
-	}
-
-	if r.definition.TypeIsNonNull(typeRef) {
-		typeRef = r.definition.Types[typeRef].OfType
-	}
-
-	if r.definition.Types[typeRef].TypeKind == ast.TypeKindList {
-		typeRef = r.definition.Types[typeRef].OfType
-	}
-
-	return typeRef
 }
 
 // buildMessageFromNode builds a message structure from an AST node.
@@ -620,27 +524,13 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 	}
 
 	parentTypeName := r.definition.InputObjectTypeDefinitionNameString(parentTypeRef)
+	mappedName := r.resolveFieldMapping(parentTypeName, fieldName)
 
 	// If the type is not an object, directly add the field to the request message
 	// TODO: check interfaces, unions, etc.
 	if underlyingTypeNode.Kind != ast.NodeKindInputObjectTypeDefinition {
-
 		dt := r.toDataType(&inputValueDefinitionType)
-		field := RPCField{
-			Name:     r.resolveFieldMapping(parentTypeName, fieldName),
-			Repeated: r.typeIsNonNullList(typeRef),
-			Optional: !r.definition.TypeIsNonNull(typeRef),
-			TypeName: dt.String(),
-			JSONPath: fieldName,
-		}
-
-		if r.typeIsNullableOrNestedList(typeRef) {
-			field.JSONPath = ""
-			field.Message = r.buildListMessage(typeRef, underlyingTypeName, fieldName)
-			field.TypeName = DataTypeMessage.String()
-			field.Repeated = false
-			field.IsListType = true
-		}
+		field := r.buildInputMessageField(typeRef, mappedName, fieldName, dt)
 
 		if dt == DataTypeEnum {
 			field.EnumName = underlyingTypeName
@@ -655,15 +545,10 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 		Name: underlyingTypeName,
 	}
 
-	// TODO in case of a list make sure the message ancestor is the last message in the list
+	field := r.buildInputMessageField(typeRef, mappedName, fieldName, DataTypeMessage)
+	field.Message = msg
 
-	r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
-		TypeName: DataTypeMessage.String(),
-		JSONPath: fieldName,
-		Message:  msg,
-		Repeated: r.definition.TypeIsList(typeRef),
-	})
+	r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
 
 	r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
 	r.planInfo.currentRequestMessage = msg
@@ -672,6 +557,69 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 
 	r.planInfo.currentRequestMessage = r.planInfo.requestMessageAncestors[len(r.planInfo.requestMessageAncestors)-1]
 	r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
+}
+
+func (r *rpcPlanVisitor) buildInputMessageField(typeRef int, fieldName, jsonPath string, dt DataType) RPCField {
+	field := RPCField{
+		Name:     fieldName,
+		Optional: !r.definition.TypeIsNonNull(typeRef),
+		TypeName: dt.String(),
+		JSONPath: jsonPath,
+	}
+
+	if r.definition.TypeIsList(typeRef) {
+		switch {
+		// for nullable or nested lists we need to build a wrapper message
+		// Nullability is handled by the datasource during the execution.
+		case r.typeIsNullableOrNestedList(typeRef):
+			field.ListMetadata = r.createListMetadata(typeRef)
+			field.IsListType = true
+		default:
+			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
+			field.Repeated = true
+		}
+	}
+
+	return field
+}
+
+func (r *rpcPlanVisitor) typeIsNonNullList(typeRef int) bool {
+	return r.definition.TypeIsList(typeRef) && r.definition.TypeIsNonNull(typeRef)
+}
+
+func (r *rpcPlanVisitor) createListMetadata(typeRef int) *ListMetadata {
+	nestingLevel := r.definition.TypeNumberOfListWraps(typeRef)
+
+	md := &ListMetadata{
+		NestingLevel: nestingLevel,
+		LevelInfo:    make([]LevelInfo, nestingLevel),
+	}
+
+	for i := 0; i < nestingLevel; i++ {
+		md.LevelInfo[i] = LevelInfo{
+			Optional: !r.definition.TypeIsNonNull(typeRef),
+		}
+
+		typeRef = r.unwrapListNesting(typeRef)
+	}
+
+	return md
+}
+
+func (r *rpcPlanVisitor) unwrapListNesting(typeRef int) int {
+	if !r.definition.TypeIsList(typeRef) {
+		return typeRef
+	}
+
+	if r.definition.TypeIsNonNull(typeRef) {
+		typeRef = r.definition.Types[typeRef].OfType
+	}
+
+	if r.definition.Types[typeRef].TypeKind == ast.TypeKindList {
+		typeRef = r.definition.Types[typeRef].OfType
+	}
+
+	return typeRef
 }
 
 func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {

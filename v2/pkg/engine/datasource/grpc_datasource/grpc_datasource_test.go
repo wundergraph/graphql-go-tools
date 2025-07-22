@@ -2319,8 +2319,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		},
 		{
 			name: "Should handle BlogPost query by ID",
-			query: `query {
-				blogPostById(id: "test-blog-1") {
+			query: `query($id: ID!) {
+				blogPostById(id: $id) {
 					id
 					title
 					content
@@ -2328,7 +2328,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					tagGroups
 				}
 			}`,
-			vars: "{}",
+			vars: `{"variables":{"id":"test-blog-1"}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				blogPost, ok := data["blogPostById"].(map[string]interface{})
 				require.True(t, ok, "blogPostById should be an object")
@@ -2340,15 +2340,15 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		},
 		{
 			name: "Should handle Author query by ID",
-			query: `query {
-				authorById(id: "test-author-1") {
+			query: `query($id: ID!) {
+				authorById(id: $id) {
 					id
 					name
 					skills
 					teamsByProject
 				}
 			}`,
-			vars: "{}",
+			vars: `{"variables":{"id":"test-author-1"}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				author, ok := data["authorById"].(map[string]interface{})
 				require.True(t, ok, "authorById should be an object")
@@ -2360,8 +2360,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		},
 		{
 			name: "Should handle BlogPost filtered query",
-			query: `query {
-				blogPostsWithFilter(filter: { title: "Test", hasCategories: true, minTags: 2 }) {
+			query: `query($filter: BlogPostFilter!) {
+				blogPostsWithFilter(filter: $filter) {
 					id
 					title
 					tags
@@ -2369,7 +2369,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					tagGroups
 				}
 			}`,
-			vars: "{}",
+			vars: `{"variables":{"filter":{"title":"Test","hasCategories":true,"minTags":2}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				blogPosts, ok := data["blogPostsWithFilter"].([]interface{})
 				require.True(t, ok, "blogPostsWithFilter should be an array")
@@ -2388,15 +2388,15 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		},
 		{
 			name: "Should handle Author filtered query",
-			query: `query {
-				authorsWithFilter(filter: { name: "Test", hasTeams: true, skillCount: 3 }) {
+			query: `query($filter: AuthorFilter!) {
+				authorsWithFilter(filter: $filter) {
 					id
 					name
 					skills
 					teamsByProject
 				}
 			}`,
-			vars: "{}",
+			vars: `{"variables":{"filter":{"name":"Test","hasTeams":true,"skillCount":3}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				authors, ok := data["authorsWithFilter"].([]interface{})
 				require.True(t, ok, "authorsWithFilter should be an array")
@@ -2414,22 +2414,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		},
 		{
 			name: "Should handle BlogPost creation mutation",
-			query: `mutation {
-				createBlogPost(input: {
-					title: "New Blog Post"
-					content: "Content here"
-					tags: ["tech", "programming"]
-					optionalTags: ["optional1", "optional2"]
-					categories: ["Technology", "Programming"]
-					keywords: ["keyword1", "keyword2"]
-					viewCounts: [100, 200, 300]
-					ratings: [4.5, 5.0, 3.8]
-					isPublished: [true, false, true]
-					tagGroups: [["tech", "go"], ["programming", "backend"]]
-					relatedTopics: [["topic1", "topic2"], ["topic3"]]
-					commentThreads: [["comment1", "comment2"], ["comment3", "comment4"]]
-					suggestions: [["suggestion1"], ["suggestion2", "suggestion3"]]
-				}) {
+			query: `mutation($input: BlogPostInput!) {
+				createBlogPost(input: $input) {
 					id
 					title
 					content
@@ -2439,7 +2425,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					relatedTopics
 				}
 			}`,
-			vars: "{}",
+			vars: `{"variables":{"input":{"title":"New Blog Post","content":"Content here","tags":["tech","programming"],"optionalTags":["optional1","optional2"],"categories":["Technology","Programming"],"keywords":["keyword1","keyword2"],"viewCounts":[100,200,300],"ratings":[4.5,5.0,3.8],"isPublished":[true,false,true],"tagGroups":[["tech","go"],["programming","backend"]],"relatedTopics":[["topic1","topic2"],["topic3"]],"commentThreads":[["comment1","comment2"],["comment3","comment4"]],"suggestions":[["suggestion1"],["suggestion2","suggestion3"]]}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				createBlogPost, ok := data["createBlogPost"].(map[string]interface{})
 				require.True(t, ok, "createBlogPost should be an object")
@@ -2470,16 +2456,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 		},
 		{
 			name: "Should handle Author creation mutation",
-			query: `mutation {
-				createAuthor(input: {
-					name: "New Author"
-					email: "author@example.com"
-					skills: ["Go", "GraphQL", "gRPC"]
-					languages: ["English", "Spanish"]
-					socialLinks: ["twitter.com/author", "github.com/author"]
-					teamsByProject: [["Alice", "Bob"], ["Charlie", "David", "Eve"]]
-					collaborations: [["Project1", "Project2"], ["Project3"]]
-				}) {
+			query: `mutation($input: AuthorInput!) {
+				createAuthor(input: $input) {
 					id
 					name
 					email
@@ -2490,7 +2468,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 					collaborations
 				}
 			}`,
-			vars: "{}",
+			vars: `{"variables":{"input":{"name":"New Author","email":"author@example.com","skills":["Go","GraphQL","gRPC"],"languages":["English","Spanish"],"socialLinks":["twitter.com/author","github.com/author"],"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]],"collaborations":[["Project1","Project2"],["Project3"]]}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				createAuthor, ok := data["createAuthor"].(map[string]interface{})
 				require.True(t, ok, "createAuthor should be an object")

@@ -232,7 +232,7 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 				continue
 			}
 
-			if field.Optional {
+			if field.IsOptionalScalar() {
 				err := d.resolveOptionalField(arena, root, field.JSONPath, msg)
 				if err != nil {
 					return nil, err
@@ -307,7 +307,7 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 				return arena.NewNull(), nil
 			}
 
-			return arena.NewNull(), fmt.Errorf("unable to flatten list structure: message %q is invalid", data.Descriptor().Name())
+			return arena.NewArray(), nil
 		}
 
 		fd = msg.Descriptor().Fields().ByNumber(1)

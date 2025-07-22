@@ -446,11 +446,38 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		if field.MessageRef >= 0 {
 			var fieldMsg *dynamicpb.Message
 
-			// If the field is optional, we are handling a scalar value that is wrapped in a message
-			// as protobuf scalar types are not nullable.
-			if rpcField.Optional {
-				// If we don't have a value for an optional field, we skip it to provide a null message.
+			switch {
+			case rpcField.IsListType:
+				// nested and nullable lists are wrapped in a message, therefore we need to handle them differently
+				// than repeated fields.
+
+				// if !data.Get(rpcField.JSONPath).Exists() {
+				// 	if rpcField.Optional {
+				// 		continue
+				// 	}
+				// }
+
+				if rpcField.Optional {
+					if !data.Get(rpcField.JSONPath).Exists() {
+						continue
+					}
+				}
+
+				if rpcField.ListMetadata == nil {
+					p.report.AddInternalError(fmt.Errorf("list metadata not found for field %s", rpcField.JSONPath))
+					continue
+				}
+
+				fieldMsg = p.buildListMessage(inputMessage.Desc, field, rpcField, data)
+				if fieldMsg == nil {
+					continue
+				}
+			case rpcField.IsOptionalScalar():
+				// If the field is optional, we are handling a scalar value that is wrapped in a message
+				// as protobuf scalar types are not nullable.
+
 				if !data.Get(rpcField.JSONPath).Exists() {
+					// If we don't have a value for an optional field, we skip it to provide a null message.
 					continue
 				}
 
@@ -460,7 +487,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 					rpcField.ToOptionalTypeMessage(p.doc.Messages[field.MessageRef].Name),
 					data,
 				)
-			} else {
+			default:
 				fieldMsg = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
 			}
 
@@ -496,6 +523,88 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 	}
 
 	return message
+}
+
+func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field Field, rpcField *RPCField, data gjson.Result) *dynamicpb.Message {
+	rootMsg := dynamicpb.NewMessage(desc.Fields().ByName(protoref.Name(field.Name)).Message())
+	p.traverseList(rootMsg, 1, field, rpcField, data.Get(rpcField.JSONPath))
+	return rootMsg
+}
+
+func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Field, rpcField *RPCField, data gjson.Result) protoref.Message {
+	fd := rootMsg.Descriptor()
+
+	if level >= rpcField.ListMetadata.NestingLevel {
+		arr := data.Array()
+		// TODO handle optional lists
+		if len(arr) == 0 {
+			if rpcField.ListMetadata.LevelInfo[level-1].Optional {
+				return nil
+			}
+
+			return rootMsg
+		}
+
+		// List wrappers always use field number 1
+		fieldDesc := fd.Fields().ByNumber(1)
+		if fieldDesc == nil {
+			p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
+			return nil
+		}
+
+		itemsField := rootMsg.Mutable(fieldDesc).List()
+
+		switch {
+		case rpcField.Message != nil:
+			for _, element := range arr {
+				msg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
+				itemsField.Append(protoref.ValueOfMessage(msg))
+			}
+		default:
+			for _, element := range arr {
+				itemsField.Append(p.setValueForKind(DataType(fieldDesc.Kind().String()), element))
+			}
+		}
+
+		rootMsg.Set(fieldDesc, protoref.ValueOfList(itemsField))
+		return rootMsg
+	}
+
+	// We always expect a list fields in the root message.
+	listFieldDesc := fd.Fields().ByNumber(1)
+	if listFieldDesc == nil {
+		p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
+		return nil
+	}
+
+	elements := data.Array()
+	newListField := rootMsg.NewField(listFieldDesc)
+	if len(elements) == 0 {
+		if rpcField.ListMetadata.LevelInfo[level-1].Optional {
+			return nil
+		}
+
+		rootMsg.Set(listFieldDesc, newListField)
+		return rootMsg
+	}
+
+	itemsFieldMsg := newListField.Message()
+	itemsFieldDesc := itemsFieldMsg.Descriptor().Fields().ByNumber(1)
+	if itemsFieldDesc == nil {
+		p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, itemsFieldMsg.Descriptor().Name()))
+		return nil
+	}
+
+	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc)
+	for _, element := range elements {
+		newElement := itemsField.List().NewElement()
+		val := p.traverseList(newElement.Message(), level+1, field, rpcField, element)
+		itemsField.List().Append(protoref.ValueOfMessage(val))
+	}
+
+	rootMsg.Set(listFieldDesc, newListField)
+
+	return rootMsg
 }
 
 // setValueForKind converts a gjson.Result value to the appropriate protobuf value

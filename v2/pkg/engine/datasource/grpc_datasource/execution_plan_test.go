@@ -303,6 +303,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 															Name:     "pagination",
 															TypeName: string(DataTypeMessage),
 															JSONPath: "pagination",
+															Optional: true,
 															Message: &RPCMessage{
 																Name: "Pagination",
 																Fields: []RPCField{
@@ -401,6 +402,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 															Name:     "pagination",
 															TypeName: string(DataTypeMessage),
 															JSONPath: "pagination",
+															Optional: true,
 															Message: &RPCMessage{
 																Name: "Pagination",
 																Fields: []RPCField{
@@ -500,6 +502,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 															Name:     "pagination",
 															TypeName: string(DataTypeMessage),
 															JSONPath: "pagination",
+															Optional: true,
 															Message: &RPCMessage{
 																Name: "Pagination",
 																Fields: []RPCField{
@@ -1013,18 +1016,17 @@ func TestQueryExecutionPlans(t *testing.T) {
 															JSONPath: "quantity",
 														},
 														{
-															Name:     "modifiers",
-															TypeName: string(DataTypeMessage),
-															Repeated: false,
-															Optional: true,
-															Message: &RPCMessage{
-																Name: "ListOfString",
-																Fields: []RPCField{
+															Name:       "modifiers",
+															TypeName:   string(DataTypeString),
+															Repeated:   false,
+															Optional:   true,
+															IsListType: true,
+															JSONPath:   "modifiers",
+															ListMetadata: &ListMetadata{
+																NestingLevel: 1,
+																LevelInfo: []LevelInfo{
 																	{
-																		Name:     "items",
-																		TypeName: string(DataTypeString),
-																		Repeated: true,
-																		JSONPath: "modifiers",
+																		Optional: true,
 																	},
 																},
 															},
@@ -1255,6 +1257,7 @@ func TestProductExecutionPlan(t *testing.T) {
 												Name:     "pagination",
 												TypeName: string(DataTypeMessage),
 												JSONPath: "pagination",
+												Optional: true,
 												Message: &RPCMessage{
 													Name: "Pagination",
 													Fields: []RPCField{

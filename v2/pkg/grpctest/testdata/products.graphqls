@@ -198,6 +198,16 @@ type BlogPost {
   relatedTopics: [[String!]]!   # Required groups, optional group content, required topics
   commentThreads: [[String]!]!  # Required threads, required thread content, optional comments
   suggestions: [[String]]       # Optional groups, optional group content, optional suggestions
+  
+  # Single lists with complex types
+  relatedCategories: [Category!]!  # Required list of categories this post belongs to
+  contributors: [User!]!           # Required list of users who contributed
+  mentionedProducts: [Product]     # Optional list of products mentioned
+  mentionedUsers: [User]           # Optional list of users mentioned
+  
+  # Nested lists with complex types
+  categoryGroups: [[Category!]!]!  # Required groups of required categories
+  contributorTeams: [[User!]]      # Optional teams of required contributors
 }
 
 # Author with team structure
@@ -214,6 +224,17 @@ type Author {
   # Nested lists for team organization
   teamsByProject: [[String!]!]! # Projects -> team members (all required)
   collaborations: [[String]]    # Past collaborations grouped (all optional)
+  
+  # Single lists with complex types
+  writtenPosts: [BlogPost]       # Optional list of blog posts they've written
+  favoriteCategories: [Category!]! # Required list of their favorite categories
+  relatedAuthors: [User]         # Optional list of related authors/collaborators
+  productReviews: [Product]      # Optional list of products they've reviewed
+  
+  # Nested lists with complex types
+  authorGroups: [[User!]]        # Optional groups of required authors they work with
+  categoryPreferences: [[Category!]!]! # Required groups of required category preferences
+  projectTeams: [[User]]         # Optional groups of optional users for projects
 }
 
 # Input types
@@ -231,6 +252,11 @@ input BlogPostInput {
   relatedTopics: [[String!]]!
   commentThreads: [[String]!]!
   suggestions: [[String]]
+  
+  # Complex type lists with proper input types
+  relatedCategories: [CategoryInput]   # Single list of categories
+  contributors: [UserInput]           # Single list of contributors
+  categoryGroups: [[CategoryInput!]]  # Nested list of category groups
 }
 
 input AuthorInput {
@@ -241,6 +267,11 @@ input AuthorInput {
   socialLinks: [String]
   teamsByProject: [[String!]!]!
   collaborations: [[String]]
+  
+  # Complex type lists with proper input types
+  favoriteCategories: [CategoryInput!]!  # Single list of favorite categories
+  authorGroups: [[UserInput!]]           # Nested list of author groups
+  projectTeams: [[UserInput]]            # Nested list of project teams (optional)
 }
 
 input BlogPostFilter {

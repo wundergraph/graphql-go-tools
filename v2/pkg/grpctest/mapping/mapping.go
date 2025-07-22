@@ -779,6 +779,24 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"suggestions": {
 					TargetName: "suggestions",
 				},
+				"relatedCategories": {
+					TargetName: "related_categories",
+				},
+				"contributors": {
+					TargetName: "contributors",
+				},
+				"mentionedProducts": {
+					TargetName: "mentioned_products",
+				},
+				"mentionedUsers": {
+					TargetName: "mentioned_users",
+				},
+				"categoryGroups": {
+					TargetName: "category_groups",
+				},
+				"contributorTeams": {
+					TargetName: "contributor_teams",
+				},
 			},
 			"Author": {
 				"id": {
@@ -804,6 +822,27 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"collaborations": {
 					TargetName: "collaborations",
+				},
+				"writtenPosts": {
+					TargetName: "written_posts",
+				},
+				"favoriteCategories": {
+					TargetName: "favorite_categories",
+				},
+				"relatedAuthors": {
+					TargetName: "related_authors",
+				},
+				"productReviews": {
+					TargetName: "product_reviews",
+				},
+				"authorGroups": {
+					TargetName: "author_groups",
+				},
+				"categoryPreferences": {
+					TargetName: "category_preferences",
+				},
+				"projectTeams": {
+					TargetName: "project_teams",
 				},
 			},
 			"BlogPostInput": {
@@ -846,6 +885,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"suggestions": {
 					TargetName: "suggestions",
 				},
+				"relatedCategories": {
+					TargetName: "related_categories",
+				},
+				"contributors": {
+					TargetName: "contributors",
+				},
+				"categoryGroups": {
+					TargetName: "category_groups",
+				},
 			},
 			"AuthorInput": {
 				"name": {
@@ -868,6 +916,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"collaborations": {
 					TargetName: "collaborations",
+				},
+				"favoriteCategories": {
+					TargetName: "favorite_categories",
+				},
+				"authorGroups": {
+					TargetName: "author_groups",
+				},
+				"projectTeams": {
+					TargetName: "project_teams",
 				},
 			},
 			"BlogPostFilter": {

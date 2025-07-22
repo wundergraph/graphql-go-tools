@@ -49,14 +49,45 @@ service ProductService {
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
 }
 
+// Wrapper message for a list of BlogPost.
+message ListOfBlogPost {
+  repeated BlogPost items = 1;
+}
+
 // Wrapper message for a list of Boolean.
 message ListOfBoolean {
   repeated bool items = 1;
 }
 
+// Wrapper message for a list of Category.
+message ListOfCategory {
+  repeated Category items = 1;
+}
+
+// Wrapper message for a list of CategoryInput.
+message ListOfCategoryInput {
+  repeated CategoryInput items = 1;
+}
+
 // Wrapper message for a list of Float.
 message ListOfFloat {
   repeated double items = 1;
+}
+
+// Wrapper message for a list of Category.
+message ListOfListOfCategory {
+  message List {
+    repeated ListOfCategory items = 1;
+  }
+  List list = 1;
+}
+
+// Wrapper message for a list of CategoryInput.
+message ListOfListOfCategoryInput {
+  message List {
+    repeated ListOfCategoryInput items = 1;
+  }
+  List list = 1;
 }
 
 // Wrapper message for a list of String.
@@ -67,14 +98,45 @@ message ListOfListOfString {
   List list = 1;
 }
 
+// Wrapper message for a list of User.
+message ListOfListOfUser {
+  message List {
+    repeated ListOfUser items = 1;
+  }
+  List list = 1;
+}
+
+// Wrapper message for a list of UserInput.
+message ListOfListOfUserInput {
+  message List {
+    repeated ListOfUserInput items = 1;
+  }
+  List list = 1;
+}
+
 // Wrapper message for a list of OrderLine.
 message ListOfOrderLine {
   repeated OrderLine items = 1;
 }
 
+// Wrapper message for a list of Product.
+message ListOfProduct {
+  repeated Product items = 1;
+}
+
 // Wrapper message for a list of String.
 message ListOfString {
   repeated string items = 1;
+}
+
+// Wrapper message for a list of User.
+message ListOfUser {
+  repeated User items = 1;
+}
+
+// Wrapper message for a list of UserInput.
+message ListOfUserInput {
+  repeated UserInput items = 1;
 }
 
 // Key message for Product entity lookup
@@ -551,6 +613,12 @@ message BlogPost {
   ListOfListOfString related_topics = 12;
   ListOfListOfString comment_threads = 13;
   ListOfListOfString suggestions = 14;
+  repeated Category related_categories = 15;
+  repeated User contributors = 16;
+  ListOfProduct mentioned_products = 17;
+  ListOfUser mentioned_users = 18;
+  ListOfListOfCategory category_groups = 19;
+  ListOfListOfUser contributor_teams = 20;
 }
 
 message BlogPostFilter {
@@ -568,6 +636,13 @@ message Author {
   ListOfString social_links = 6;
   ListOfListOfString teams_by_project = 7;
   ListOfListOfString collaborations = 8;
+  ListOfBlogPost written_posts = 9;
+  repeated Category favorite_categories = 10;
+  ListOfUser related_authors = 11;
+  ListOfProduct product_reviews = 12;
+  ListOfListOfUser author_groups = 13;
+  ListOfListOfCategory category_preferences = 14;
+  ListOfListOfUser project_teams = 15;
 }
 
 message AuthorFilter {
@@ -616,6 +691,9 @@ message BlogPostInput {
   ListOfListOfString related_topics = 11;
   ListOfListOfString comment_threads = 12;
   ListOfListOfString suggestions = 13;
+  ListOfCategoryInput related_categories = 14;
+  ListOfUserInput contributors = 15;
+  ListOfListOfCategoryInput category_groups = 16;
 }
 
 message AuthorInput {
@@ -626,6 +704,9 @@ message AuthorInput {
   ListOfString social_links = 5;
   ListOfListOfString teams_by_project = 6;
   ListOfListOfString collaborations = 7;
+  repeated CategoryInput favorite_categories = 8;
+  ListOfListOfUserInput author_groups = 9;
+  ListOfListOfUserInput project_teams = 10;
 }
 
 message NestedTypeB {
