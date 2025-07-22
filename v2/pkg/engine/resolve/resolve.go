@@ -788,9 +788,13 @@ func (r *Resolver) handleRemoveClient(id int64) {
 }
 
 func (r *Resolver) handleTriggerUpdateSubscription(ctx *Context, sub *sub, data []byte) {
+	if err := ctx.ctx.Err(); err != nil {
+		return // no need to schedule an event update when the client already disconnected
+	}
 	skip, err := sub.resolve.Filter.SkipEvent(ctx, data, r.triggerUpdateBuf)
 	if err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
+		return
 	}
 	if skip {
 		return
