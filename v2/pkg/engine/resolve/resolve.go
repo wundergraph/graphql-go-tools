@@ -569,6 +569,19 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
+// callSubscriptionDataSourceStartHook is used to call the OnSubscriptionStart method of the subscription data source
+// if the subscription data source implements the SubscriptionDataSourceHook interface.
+// This is used to allow external code to emit updates on this subscription.
+func callSubscriptionDataSourceStartHook(ctx *Context, source SubscriptionDataSource, input []byte) (err error) {
+	if hook, ok := source.(SubscriptionDataSourceHook); ok {
+		err = hook.OnSubscriptionStart(ctx, input)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
 	var (
 		err error
@@ -590,6 +603,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		s.heartbeat = true
 	}
 
+	// Set the subscription updater to the resolver to allow external code to emit updates
+	// on this subscription
+	add.ctx.SetSubscriptionUpdater(func(data []byte) {
+		r.handleTriggerUpdateSubscription(add.ctx, s, data)
+	})
+
 	// Start the dedicated worker goroutine where the subscription updates are processed
 	// and writes are written to the client in a single threaded manner
 	go s.startWorker()
@@ -602,6 +621,11 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
+		}
+		err = callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
+		if err != nil {
+			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			return
 		}
 		return
 	}
@@ -637,6 +661,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			async.AsyncStop(triggerID)
 		}
 		asyncDataSource = async
+	}
+
+	err = callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
+	if err != nil {
+		r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+		return
 	}
 
 	go func() {
@@ -757,6 +787,30 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 }
 
+func (r *Resolver) handleTriggerUpdateSubscription(ctx *Context, sub *sub, data []byte) {
+	skip, err := sub.resolve.Filter.SkipEvent(ctx, data, r.triggerUpdateBuf)
+	if err != nil {
+		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
+	}
+	if skip {
+		return
+	}
+
+	fn := func() {
+		r.executeSubscriptionUpdate(ctx, sub, data)
+	}
+
+	select {
+	case <-r.ctx.Done():
+		// Skip sending all events if the resolver is shutting down
+		return
+	case <-ctx.ctx.Done():
+		// Skip sending the event if the client disconnected
+	case sub.workChan <- workItem{fn, false}:
+		// Send the event to the subscription worker
+	}
+}
+
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.triggers[id]
 	if !ok {
@@ -767,32 +821,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 
 	for c, s := range trig.subscriptions {
-		c, s := c, s
-		if err := c.ctx.Err(); err != nil {
-			continue // no need to schedule an event update when the client already disconnected
-		}
-		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
-		if err != nil {
-			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
-			continue
-		}
-		if skip {
-			continue
-		}
-
-		fn := func() {
-			r.executeSubscriptionUpdate(c, s, data)
-		}
-
-		select {
-		case <-r.ctx.Done():
-			// Skip sending all events if the resolver is shutting down
-			return
-		case <-c.ctx.Done():
-			// Skip sending the event if the client disconnected
-		case s.workChan <- workItem{fn, false}:
-			// Send the event to the subscription worker
-		}
+		r.handleTriggerUpdateSubscription(c, s, data)
 	}
 }
 

@@ -1946,15 +1946,6 @@ func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input [
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	for _, fn := range s.onSubscriptionStartFns {
-		events, err := fn(ctx)
-		if err != nil {
-			return err
-		}
-		for _, event := range events {
-			updater.Update(event)
-		}
-	}
 	return s.client.SubscribeAsync(ctx, id, options, updater)
 }
 
@@ -1974,15 +1965,6 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater r
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
-	for _, fn := range s.onSubscriptionStartFns {
-		events, err := fn(ctx)
-		if err != nil {
-			return err
-		}
-		for _, event := range events {
-			updater.Update(event)
-		}
-	}
 	return s.client.Subscribe(ctx, options, updater)
 }
 
@@ -2001,4 +1983,17 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 		return err
 	}
 	return s.client.UniqueRequestID(ctx, options, xxh)
+}
+
+func (s *SubscriptionSource) OnSubscriptionStart(ctx *resolve.Context, input []byte) (err error) {
+	for _, fn := range s.onSubscriptionStartFns {
+		events, err := fn(ctx, input)
+		if err != nil {
+			return err
+		}
+		for _, event := range events {
+			ctx.EmitSubscriptionUpdate(event)
+		}
+	}
+	return nil
 }

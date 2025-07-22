@@ -26,3 +26,7 @@ type AsyncSubscriptionDataSource interface {
 	AsyncStop(id uint64)
 	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
 }
+
+type SubscriptionDataSourceHook interface {
+	OnSubscriptionStart(ctx *Context, input []byte) (err error)
+}

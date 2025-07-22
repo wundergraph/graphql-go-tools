@@ -4787,11 +4787,12 @@ func (s *SubscriptionRecorder) Messages() []string {
 	return s.messages
 }
 
-func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte)) *_fakeStream {
+func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), onSubscriptionStartFn func(ctx *Context, input []byte) (err error)) *_fakeStream {
 	return &_fakeStream{
-		messageFunc: messageFunc,
-		delay:       delay,
-		onStart:     onStart,
+		messageFunc:           messageFunc,
+		delay:                 delay,
+		onStart:               onStart,
+		onSubscriptionStartFn: onSubscriptionStartFn,
 	}
 }
 
@@ -4800,10 +4801,18 @@ type messageFunc func(counter int) (message string, done bool)
 var fakeStreamRequestId atomic.Int32
 
 type _fakeStream struct {
-	messageFunc messageFunc
-	onStart     func(input []byte)
-	delay       time.Duration
-	isDone      atomic.Bool
+	messageFunc           messageFunc
+	onStart               func(input []byte)
+	delay                 time.Duration
+	isDone                atomic.Bool
+	onSubscriptionStartFn func(ctx *Context, input []byte) (err error)
+}
+
+func (f *_fakeStream) OnSubscriptionStart(ctx *Context, input []byte) (err error) {
+	if f.onSubscriptionStartFn == nil {
+		return nil
+	}
+	return f.onSubscriptionStartFn(ctx, input)
 }
 
 func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
@@ -5064,7 +5073,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5102,7 +5111,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5135,7 +5144,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 1
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5193,7 +5202,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }","extensions":{"foo":"bar"}}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5221,7 +5230,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"},"initial_payload":{"hello":"world"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5249,7 +5258,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, time.Millisecond*10, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5274,7 +5283,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, time.Millisecond*10, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5299,7 +5308,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5328,7 +5337,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { countryUpdated { name time { local } } }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setupWithAdditionalDataLoad(c, fakeStream)
 
@@ -5357,7 +5366,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, _, _ := setup(c, fakeStream)
 
@@ -5411,7 +5420,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, _, id := setup(c, fakeStream)
 		recorder := &SubscriptionRecorder{
@@ -5433,6 +5442,71 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitClosed(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+
+	t.Run("should call OnSubscriptionStart hook", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		called := make(chan bool, 1)
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx *Context, input []byte) (err error) {
+			called <- true
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		select {
+		case <-called:
+			t.Log("OnSubscriptionStart hook was called")
+		case <-time.After(defaultTimeout):
+			t.Fatal("OnSubscriptionStart hook was not called")
+		}
+
+		recorder.AwaitComplete(t, defaultTimeout)
+	})
+
+	t.Run("OnSubscriptionStart ctx has a working subscription updater", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx *Context, input []byte) (err error) {
+			ctx.EmitSubscriptionUpdate([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 2, len(recorder.Messages()))
+		assert.Equal(t, `{"data":{"counter":1000}}`, recorder.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[1])
 	})
 }
 
@@ -5506,7 +5580,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":2}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5602,7 +5676,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":2}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5696,7 +5770,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":4}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5791,7 +5865,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":"x.4"}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5890,7 +5964,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":"x.2"}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{

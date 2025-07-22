@@ -8902,171 +8902,51 @@ func TestSanitizeKey(t *testing.T) {
 	}
 }
 
-func TestSubscriptionSource_OnSubscriptionStartFns(t *testing.T) {
-	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
-	defer chatServer.Close()
+func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 
-	sendChatMessage := func(t *testing.T, username, message string) {
-		time.Sleep(200 * time.Millisecond)
-		httpClient := http.Client{}
-		req, err := http.NewRequest(
-			http.MethodPost,
-			chatServer.URL,
-			bytes.NewBufferString(fmt.Sprintf(`{"variables": {}, "operationName": "SendMessage", "query": "mutation SendMessage { post(roomName: \"#test\", username: \"%s\", text: \"%s\") { id } }"}`, username, message)),
-		)
-		require.NoError(t, err)
-
-		req.Header.Set("Content-Type", "application/json")
-		resp, err := httpClient.Do(req)
-		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-	}
-
-	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
-		var gqlBody GraphQLBody
-		_ = json.Unmarshal([]byte(body), &gqlBody)
-		options := GraphQLSubscriptionOptions{
-			URL:    chatServer.URL,
-			Body:   gqlBody,
-			Header: nil,
-		}
-
-		optionsBytes, err := json.Marshal(options)
-		require.NoError(t, err)
-
-		return optionsBytes
-	}
-
-	newSubscriptionSource := func(ctx context.Context) SubscriptionSource {
-		httpClient := http.Client{}
-		subscriptionSource := SubscriptionSource{client: NewGraphQLSubscriptionClient(&httpClient, http.DefaultClient, ctx)}
-		return subscriptionSource
-	}
-
-	t.Run("should call the onSubscriptionStartFns at subscription source Start", func(t *testing.T) {
+	t.Run("OnSubscriptionStart calls onSubscriptionStartFns and emits updates returned by the function", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
-		startFnCalled := make(chan *resolve.Context, 1)
-		source := newSubscriptionSource(ctx.Context())
-		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
-			func(ctx *resolve.Context) ([][]byte, error) {
-				startFnCalled <- ctx
-				return nil, nil
+		startFnCalled := make(chan struct {
+			ctx   *resolve.Context
+			input []byte
+		}, 1)
+		subscriptionSource := SubscriptionSource{
+			onSubscriptionStartFns: []OnSubscriptionStartFn{
+				func(ctx *resolve.Context, input []byte) ([][]byte, error) {
+					startFnCalled <- struct {
+						ctx   *resolve.Context
+						input []byte
+					}{ctx, input}
+					return nil, nil
+				},
 			},
 		}
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
+		err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
-
-		select {
-		case <-startFnCalled:
-		case <-time.After(time.Second):
-			t.Fatalf("start fn not called")
-		}
+		require.Len(t, startFnCalled, 1)
+		called := <-startFnCalled
+		assert.Equal(t, ctx, called.ctx)
+		assert.Equal(t, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`), called.input)
 	})
 
-	t.Run("should call the onSubscriptionStartFns at subscription source AsyncStart", func(t *testing.T) {
+	t.Run("OnSubscriptionStart calls onSubscriptionStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		updater := &testSubscriptionUpdater{}
-
-		startFnCalled := make(chan *resolve.Context, 1)
-		source := newSubscriptionSource(ctx.Context())
-		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
-			func(ctx *resolve.Context) ([][]byte, error) {
-				startFnCalled <- ctx
-				return nil, nil
+		subscriptionSource := SubscriptionSource{
+			onSubscriptionStartFns: []OnSubscriptionStartFn{
+				func(ctx *resolve.Context, input []byte) ([][]byte, error) {
+					return nil, errors.New("test error")
+				},
 			},
 		}
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
 
-		err := source.AsyncStart(ctx, 0, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
-
-		username := "myuser"
-		message := "hello world!"
-		go sendChatMessage(t, username, message)
-		updater.AwaitUpdates(t, time.Second, 1)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"myuser"}}}`, updater.updates[0])
-
-		select {
-		case <-startFnCalled:
-		case <-time.After(time.Second):
-			t.Fatalf("start fn not called")
-		}
-	})
-
-	t.Run("if the onSubscriptionStartFns returns an error, the subscription should not async start and return the error", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
-
-		updater := &testSubscriptionUpdater{}
-
-		source := newSubscriptionSource(ctx.Context())
-		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
-			func(ctx *resolve.Context) ([][]byte, error) {
-				return nil, errors.New("test error")
-			},
-		}
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-
-		err := source.AsyncStart(ctx, 0, chatSubscriptionOptions, updater)
+		err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.Error(t, err)
-		require.ErrorContains(t, err, "test error")
-		assert.Len(t, updater.updates, 0)
-	})
-
-	t.Run("if the onSubscriptionStartFns returns an error, the subscription should not start and return the error", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
-
-		updater := &testSubscriptionUpdater{}
-
-		source := newSubscriptionSource(ctx.Context())
-		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
-			func(ctx *resolve.Context) ([][]byte, error) {
-				return nil, errors.New("test error")
-			},
-		}
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-
-		err := source.Start(ctx, chatSubscriptionOptions, updater)
-		require.Error(t, err)
-		require.ErrorContains(t, err, "test error")
-		assert.Len(t, updater.updates, 0)
-	})
-
-	t.Run("if the onSubscriptionStartFns returns a message, the message should be sent to the client", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
-
-		updater := &testSubscriptionUpdater{}
-
-		source := newSubscriptionSource(ctx.Context())
-		source.onSubscriptionStartFns = []OnSubscriptionStartFn{
-			func(ctx *resolve.Context) ([][]byte, error) {
-				return [][]byte{[]byte(`{"data":{"messageAdded":{"text":"hello world!","createdBy":"injection"}}}`)}, nil
-			},
-		}
-		chatSubscriptionOptions := chatServerSubscriptionOptions(t, `{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`)
-
-		err := source.AsyncStart(ctx, 0, chatSubscriptionOptions, updater)
-		require.NoError(t, err)
-		assert.Len(t, updater.updates, 1)
-		assert.Equal(t, `{"data":{"messageAdded":{"text":"hello world!","createdBy":"injection"}}}`, updater.updates[0])
+		assert.ErrorContains(t, err, "test error")
 	})
 }
 
