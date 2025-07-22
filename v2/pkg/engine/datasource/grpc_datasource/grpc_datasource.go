@@ -260,18 +260,6 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 	return root, nil
 }
 
-/*
-	message ListOfListOfString {
-		message List {
-			repeated ListOfString items = 1;
-		}
-		List list = 1;
-	}
-
-	message ListOfString {
-	  repeated string items = 1;
-	}
-*/
 func (d *DataSource) flattenListStructure(arena *astjson.Arena, md *ListMetadata, data protoref.Message, message *RPCMessage) (*astjson.Value, error) {
 	if md == nil {
 		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: list metadata not found")
