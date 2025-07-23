@@ -8904,7 +8904,7 @@ func TestSanitizeKey(t *testing.T) {
 
 func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 
-	t.Run("OnSubscriptionStart calls onSubscriptionStartFns and emits updates returned by the function", func(t *testing.T) {
+	t.Run("OnSubscriptionStart calls onSubscriptionStartFns", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
@@ -8914,12 +8914,12 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 		}, 1)
 		subscriptionSource := SubscriptionSource{
 			onSubscriptionStartFns: []OnSubscriptionStartFn{
-				func(ctx *resolve.Context, input []byte) ([][]byte, bool, error) {
+				func(ctx *resolve.Context, input []byte) (bool, error) {
 					startFnCalled <- struct {
 						ctx   *resolve.Context
 						input []byte
 					}{ctx, input}
-					return nil, false, nil
+					return false, nil
 				},
 			},
 		}
@@ -8939,8 +8939,8 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 
 		subscriptionSource := SubscriptionSource{
 			onSubscriptionStartFns: []OnSubscriptionStartFn{
-				func(ctx *resolve.Context, input []byte) ([][]byte, bool, error) {
-					return nil, false, errors.New("test error")
+				func(ctx *resolve.Context, input []byte) (bool, error) {
+					return false, errors.New("test error")
 				},
 			},
 		}

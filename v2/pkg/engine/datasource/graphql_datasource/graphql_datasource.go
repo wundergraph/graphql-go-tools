@@ -1987,16 +1987,10 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 
 func (s *SubscriptionSource) OnSubscriptionStart(ctx *resolve.Context, input []byte) (close bool, err error) {
 	for _, fn := range s.onSubscriptionStartFns {
-		events, close, err := fn(ctx, input)
-		if err != nil {
+		close, err = fn(ctx, input)
+		if err != nil || close {
 			return close, err
 		}
-		for _, event := range events {
-			ctx.EmitSubscriptionUpdate(event)
-		}
-		if close {
-			return true, nil
-		}
 	}
-	return false, nil
+	return
 }
