@@ -569,14 +569,32 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
-// callSubscriptionDataSourceStartHook is used to call the SubscriptionOnStart method of the subscription data source
-// if the subscription data source implements the SubscriptionDataSourceHook interface.
-// This is used to allow external code to emit updates on this subscription.
-func callSubscriptionDataSourceStartHook(ctx *Context, source SubscriptionDataSource, input []byte) (close bool, err error) {
-	if hook, ok := source.(HookableSubscriptionDataSource); ok {
-		return hook.SubscriptionOnStart(ctx, input)
+func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) {
+	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
+	if !ok {
+		return
 	}
-	return false, nil
+
+	close, errStartHook := hook.SubscriptionOnStart(initialHookCtx, add.input)
+	if errStartHook != nil {
+		r.asyncErrorWriter.WriteError(initialHookCtx, errStartHook, add.resolve.Response, add.writer)
+	}
+	if close {
+		r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
+		return
+	}
+
+	// For each update, check if it should be skipped and execute it if it should not be skipped.
+	// This is not done by adding them to the workChan to avoid blocking the parent thread
+	// if the updates are more than the workChan buffer size.
+	for _, update := range initialHookCtx.updates {
+		if r.shouldSkipEvent(initialHookCtx, s, update) {
+			continue
+		}
+
+		// Execute the update.
+		r.executeSubscriptionUpdate(initialHookCtx, s, update)
+	}
 }
 
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
@@ -604,42 +622,13 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	// This is important because the original context is changed in the parent thread
 	// and could cause data races.
 	initialHookCtx := add.ctx.clone(add.ctx.ctx)
-	initialHooksWork := func() {
-		close, errStartHook := callSubscriptionDataSourceStartHook(initialHookCtx, add.resolve.Trigger.Source, add.input)
-		if errStartHook != nil {
-			r.asyncErrorWriter.WriteError(initialHookCtx, errStartHook, add.resolve.Response, add.writer)
-		}
-		if close {
-			r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
-			return
-		}
 
-		for _, update := range initialHookCtx.updates {
-			if err := initialHookCtx.ctx.Err(); err != nil {
-				return // no need to schedule an event update when the client already disconnected
-			}
-
-			// Skip the update if the filter returns true.
-			skip, err := s.resolve.Filter.SkipEvent(initialHookCtx, update, r.triggerUpdateBuf)
-			if err != nil {
-				r.asyncErrorWriter.WriteError(initialHookCtx, err, s.resolve.Response, s.writer)
-				return
-			}
-			if skip {
-				return
-			}
-
-			// Execute the update.
-			r.executeSubscriptionUpdate(initialHookCtx, s, update)
-		}
-	}
-
-	// Send the initial work to the worker to process the initial updates that were
-	// emitted before the subscription was started. This is operation is never blocking
-	// because workChan is buffered and this is the first work item, before anyone is
-	// allowed to send work items.
+	// Send handleAddSubscriptionInitialHook as the first work sent to the worker to process the hooks
+	// before getting updates from the subscription. This operation is never blocking because workChan
+	// is buffered and this is the first work item, before anyone is allowed to send other work items.
+	// This is important because the hooks need to be executed before the other updates are processed.
 	s.workChan <- workItem{
-		fn:    initialHooksWork,
+		fn:    func() { r.handleAddSubscriptionInitialHook(triggerID, add, initialHookCtx, s) },
 		final: false,
 	}
 
@@ -810,16 +799,23 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 }
 
-func (r *Resolver) handleTriggerUpdateSubscription(ctx *Context, sub *sub, data []byte) {
+func (r *Resolver) shouldSkipEvent(ctx *Context, sub *sub, data []byte) bool {
 	if err := ctx.ctx.Err(); err != nil {
-		return // no need to schedule an event update when the client already disconnected
+		return true // no need to schedule an event update when the client already disconnected
 	}
 	skip, err := sub.resolve.Filter.SkipEvent(ctx, data, r.triggerUpdateBuf)
 	if err != nil {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
-		return
+		return true
 	}
 	if skip {
+		return true
+	}
+	return false
+}
+
+func (r *Resolver) handleTriggerUpdateSubscription(ctx *Context, sub *sub, data []byte) {
+	if r.shouldSkipEvent(ctx, sub, data) {
 		return
 	}
 
