@@ -5508,6 +5508,42 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.Equal(t, `{"data":{"counter":1000}}`, recorder.Messages()[0])
 		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[1])
 	})
+
+	t.Run("SubscriptionOnStart can send a lot of updates without blocking", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		workChanBufferSize := 10000
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx *Context, input []byte) (close bool, err error) {
+			for i := 0; i < workChanBufferSize+1; i++ {
+				ctx.EmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
+			}
+			return false, nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, workChanBufferSize+2, len(recorder.Messages()))
+		for i := 0; i < workChanBufferSize; i++ {
+			assert.Equal(t, fmt.Sprintf(`{"data":{"counter":%d}}`, i+100), recorder.Messages()[i])
+		}
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[workChanBufferSize+1])
+	})
 }
 
 func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {

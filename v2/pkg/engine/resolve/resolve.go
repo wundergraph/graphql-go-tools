@@ -600,11 +600,48 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		s.heartbeat = true
 	}
 
-	// Set the subscription updater to the resolver to allow external code to emit updates
-	// on this subscription
-	add.ctx.SetSubscriptionUpdater(func(data []byte) {
-		r.handleTriggerUpdateSubscription(add.ctx, s, data)
-	})
+	// Clone the context to avoid modifying the original context.
+	// This is important because the original context is changed in the parent thread
+	// and could cause data races.
+	initialHookCtx := add.ctx.clone(add.ctx.ctx)
+	initialHooksWork := func() {
+		close, errStartHook := callSubscriptionDataSourceStartHook(initialHookCtx, add.resolve.Trigger.Source, add.input)
+		if errStartHook != nil {
+			r.asyncErrorWriter.WriteError(initialHookCtx, errStartHook, add.resolve.Response, add.writer)
+		}
+		if close {
+			r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
+			return
+		}
+
+		for _, update := range initialHookCtx.updates {
+			if err := initialHookCtx.ctx.Err(); err != nil {
+				return // no need to schedule an event update when the client already disconnected
+			}
+
+			// Skip the update if the filter returns true.
+			skip, err := s.resolve.Filter.SkipEvent(initialHookCtx, update, r.triggerUpdateBuf)
+			if err != nil {
+				r.asyncErrorWriter.WriteError(initialHookCtx, err, s.resolve.Response, s.writer)
+				return
+			}
+			if skip {
+				return
+			}
+
+			// Execute the update.
+			r.executeSubscriptionUpdate(initialHookCtx, s, update)
+		}
+	}
+
+	// Send the initial work to the worker to process the initial updates that were
+	// emitted before the subscription was started. This is operation is never blocking
+	// because workChan is buffered and this is the first work item, before anyone is
+	// allowed to send work items.
+	s.workChan <- workItem{
+		fn:    initialHooksWork,
+		final: false,
+	}
 
 	// Start the dedicated worker goroutine where the subscription updates are processed
 	// and writes are written to the client in a single threaded manner
@@ -618,13 +655,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
-		}
-		close, errStartHook := callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
-		if errStartHook != nil {
-			r.asyncErrorWriter.WriteError(add.ctx, errStartHook, add.resolve.Response, add.writer)
-		}
-		if close {
-			r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
 		}
 		return
 	}
@@ -660,15 +690,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			async.AsyncStop(triggerID)
 		}
 		asyncDataSource = async
-	}
-
-	close, errStartHook := callSubscriptionDataSourceStartHook(add.ctx, add.resolve.Trigger.Source, add.input)
-	if errStartHook != nil {
-		r.asyncErrorWriter.WriteError(add.ctx, errStartHook, add.resolve.Response, add.writer)
-	}
-	if close {
-		r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
-		return
 	}
 
 	go func() {

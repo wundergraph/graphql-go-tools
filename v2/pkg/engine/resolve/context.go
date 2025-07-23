@@ -33,7 +33,7 @@ type Context struct {
 
 	subgraphErrors error
 
-	subscriptionUpdater func(data []byte)
+	updates [][]byte
 }
 
 type ExecutionOptions struct {
@@ -106,20 +106,11 @@ func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }
 
-// SetSubscriptionUpdater add a function that will be called when EmitSubscriptionUpdate is called
-// usually it is set by the resolver when a subscription is started, but it can be set to nil to disable the feature
-// or set to a different function to extend the behaviour or make it easy to test the subscription update logic
-func (c *Context) SetSubscriptionUpdater(fn func(data []byte)) {
-	c.subscriptionUpdater = fn
-}
-
 // EmitSubscriptionUpdate emits a subscription update to the client
 // if the emitSubscriptionUpdate function is not set, the update is not sent to the client
 // this is used to allow external code to emit updates on this subscription
 func (c *Context) EmitSubscriptionUpdate(data []byte) {
-	if c.subscriptionUpdater != nil {
-		c.subscriptionUpdater(data)
-	}
+	c.updates = append(c.updates, data)
 }
 
 type RateLimitOptions struct {
@@ -208,6 +199,8 @@ func (c *Context) clone(ctx context.Context) *Context {
 		}
 	}
 
+	cpy.updates = append([][]byte(nil), c.updates...)
+
 	return &cpy
 }
 
@@ -223,6 +216,7 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
+	c.updates = nil
 }
 
 type traceStartKey struct{}
