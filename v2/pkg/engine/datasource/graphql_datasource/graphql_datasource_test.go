@@ -8908,17 +8908,16 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
-		startFnCalled := make(chan struct {
+		type fnData struct {
 			ctx   *resolve.Context
 			input []byte
-		}, 1)
+		}
+
+		startFnCalled := make(chan fnData, 1)
 		subscriptionSource := SubscriptionSource{
 			onSubscriptionStartFns: []OnSubscriptionStartFn{
 				func(ctx *resolve.Context, input []byte) (bool, error) {
-					startFnCalled <- struct {
-						ctx   *resolve.Context
-						input []byte
-					}{ctx, input}
+					startFnCalled <- fnData{ctx, input}
 					return false, nil
 				},
 			},
@@ -8927,8 +8926,12 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 		close, err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.NoError(t, err)
 		assert.False(t, close)
-		require.Len(t, startFnCalled, 1)
-		called := <-startFnCalled
+		var called fnData
+		select {
+		case called = <-startFnCalled:
+		case <-time.After(1 * time.Second):
+			t.Fatal("OnSubscriptionStartFn was not called")
+		}
 		assert.Equal(t, ctx, called.ctx)
 		assert.Equal(t, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`), called.input)
 	})
