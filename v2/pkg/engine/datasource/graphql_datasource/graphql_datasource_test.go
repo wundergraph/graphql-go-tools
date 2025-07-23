@@ -8902,9 +8902,9 @@ func TestSanitizeKey(t *testing.T) {
 	}
 }
 
-func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
+func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 
-	t.Run("OnSubscriptionStart calls onSubscriptionStartFns", func(t *testing.T) {
+	t.Run("SubscriptionOnStart calls subscriptionOnStartFns", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
@@ -8915,7 +8915,7 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 
 		startFnCalled := make(chan fnData, 1)
 		subscriptionSource := SubscriptionSource{
-			onSubscriptionStartFns: []OnSubscriptionStartFn{
+			subscriptionOnStartFns: []SubscriptionOnStartFn{
 				func(ctx *resolve.Context, input []byte) (bool, error) {
 					startFnCalled <- fnData{ctx, input}
 					return false, nil
@@ -8923,32 +8923,32 @@ func TestSubscriptionSource_OnSubscriptionStart(t *testing.T) {
 			},
 		}
 
-		close, err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		close, err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.NoError(t, err)
 		assert.False(t, close)
 		var called fnData
 		select {
 		case called = <-startFnCalled:
 		case <-time.After(1 * time.Second):
-			t.Fatal("OnSubscriptionStartFn was not called")
+			t.Fatal("SubscriptionOnStartFn was not called")
 		}
 		assert.Equal(t, ctx, called.ctx)
 		assert.Equal(t, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`), called.input)
 	})
 
-	t.Run("OnSubscriptionStart calls onSubscriptionStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
+	t.Run("SubscriptionOnStart calls subscriptionOnStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
 		ctx := resolve.NewContext(context.Background())
 		defer ctx.Context().Done()
 
 		subscriptionSource := SubscriptionSource{
-			onSubscriptionStartFns: []OnSubscriptionStartFn{
+			subscriptionOnStartFns: []SubscriptionOnStartFn{
 				func(ctx *resolve.Context, input []byte) (bool, error) {
 					return false, errors.New("test error")
 				},
 			},
 		}
 
-		close, err := subscriptionSource.OnSubscriptionStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		close, err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		assert.False(t, close)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "test error")

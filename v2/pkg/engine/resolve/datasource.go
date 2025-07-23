@@ -27,15 +27,15 @@ type AsyncSubscriptionDataSource interface {
 	UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
 }
 
-// SubscriptionDataSourceHookable is a hookable interface for subscription data sources.
+// HookableSubscriptionDataSource is a hookable interface for subscription data sources.
 // It is used to call a function when a subscription is started.
 // This is useful for data sources that need to do some work when a subscription is started,
 // e.g. to establish a connection to the data source or to emit updates to the client.
 // The function is called with the context and the input of the subscription.
 // The function is called before the subscription is started and can be used to emit updates to the client.
-type SubscriptionDataSourceHookable interface {
-	// OnSubscriptionStart is called when a new subscription is created
+type HookableSubscriptionDataSource interface {
+	// SubscriptionOnStart is called when a new subscription is created
 	// If close is true, the subscription is closed.
 	// If an error is returned, the error is propagated to the client.
-	OnSubscriptionStart(ctx *Context, input []byte) (close bool, err error)
+	SubscriptionOnStart(ctx *Context, input []byte) (close bool, err error)
 }

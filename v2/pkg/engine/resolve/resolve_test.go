@@ -4787,12 +4787,12 @@ func (s *SubscriptionRecorder) Messages() []string {
 	return s.messages
 }
 
-func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), onSubscriptionStartFn func(ctx *Context, input []byte) (close bool, err error)) *_fakeStream {
+func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnStartFn func(ctx *Context, input []byte) (close bool, err error)) *_fakeStream {
 	return &_fakeStream{
 		messageFunc:           messageFunc,
 		delay:                 delay,
 		onStart:               onStart,
-		onSubscriptionStartFn: onSubscriptionStartFn,
+		subscriptionOnStartFn: subscriptionOnStartFn,
 	}
 }
 
@@ -4805,14 +4805,14 @@ type _fakeStream struct {
 	onStart               func(input []byte)
 	delay                 time.Duration
 	isDone                atomic.Bool
-	onSubscriptionStartFn func(ctx *Context, input []byte) (close bool, err error)
+	subscriptionOnStartFn func(ctx *Context, input []byte) (close bool, err error)
 }
 
-func (f *_fakeStream) OnSubscriptionStart(ctx *Context, input []byte) (close bool, err error) {
-	if f.onSubscriptionStartFn == nil {
+func (f *_fakeStream) SubscriptionOnStart(ctx *Context, input []byte) (close bool, err error) {
+	if f.subscriptionOnStartFn == nil {
 		return false, nil
 	}
-	return f.onSubscriptionStartFn(ctx, input)
+	return f.subscriptionOnStartFn(ctx, input)
 }
 
 func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
@@ -5444,7 +5444,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		fakeStream.AwaitIsDone(t, defaultTimeout)
 	})
 
-	t.Run("should call OnSubscriptionStart hook", func(t *testing.T) {
+	t.Run("should call SubscriptionOnStart hook", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
@@ -5470,15 +5470,15 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		select {
 		case <-called:
-			t.Log("OnSubscriptionStart hook was called")
+			t.Log("SubscriptionOnStart hook was called")
 		case <-time.After(defaultTimeout):
-			t.Fatal("OnSubscriptionStart hook was not called")
+			t.Fatal("SubscriptionOnStart hook was not called")
 		}
 
 		recorder.AwaitComplete(t, defaultTimeout)
 	})
 
-	t.Run("OnSubscriptionStart ctx has a working subscription updater", func(t *testing.T) {
+	t.Run("SubscriptionOnStart ctx has a working subscription updater", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
 

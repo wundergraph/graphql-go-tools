@@ -451,7 +451,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		Input: string(input),
 		DataSource: &SubscriptionSource{
 			client:                 p.subscriptionClient,
-			onSubscriptionStartFns: p.config.subscription.OnSubscriptionStartFns,
+			subscriptionOnStartFns: p.config.subscription.SubscriptionOnStartFns,
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,
@@ -1941,7 +1941,7 @@ type RegularExpression struct {
 
 type SubscriptionSource struct {
 	client                 GraphQLSubscriptionClient
-	onSubscriptionStartFns []OnSubscriptionStartFn
+	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
 func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
@@ -1992,8 +1992,8 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 	return s.client.UniqueRequestID(ctx, options, xxh)
 }
 
-func (s *SubscriptionSource) OnSubscriptionStart(ctx *resolve.Context, input []byte) (close bool, err error) {
-	for _, fn := range s.onSubscriptionStartFns {
+func (s *SubscriptionSource) SubscriptionOnStart(ctx *resolve.Context, input []byte) (close bool, err error) {
+	for _, fn := range s.subscriptionOnStartFns {
 		close, err = fn(ctx, input)
 		if err != nil || close {
 			return close, err

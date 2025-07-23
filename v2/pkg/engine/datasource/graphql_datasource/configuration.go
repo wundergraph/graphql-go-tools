@@ -104,12 +104,12 @@ type SingleTypeField struct {
 	FieldName string
 }
 
-// OnSubscriptionStartFn defines a hook function that is called when a subscription starts.
+// SubscriptionOnStartFn defines a hook function that is called when a subscription starts.
 // It receives the resolve context and the input of the subscription.
 // The function can return a boolean indicating if the subscription should be closed, and an error.
 // The error is propagated to the client.
 // If close is true, the subscription is closed.
-type OnSubscriptionStartFn func(ctx *resolve.Context, input []byte) (close bool, err error)
+type SubscriptionOnStartFn func(ctx *resolve.Context, input []byte) (close bool, err error)
 
 type SubscriptionConfiguration struct {
 	URL           string
@@ -127,7 +127,7 @@ type SubscriptionConfiguration struct {
 	// these headers by itself.
 	ForwardedClientHeaderRegularExpressions []RegularExpression
 	WsSubProtocol                           string
-	OnSubscriptionStartFns                  []OnSubscriptionStartFn
+	SubscriptionOnStartFns                  []SubscriptionOnStartFn
 }
 
 type FetchConfiguration struct {

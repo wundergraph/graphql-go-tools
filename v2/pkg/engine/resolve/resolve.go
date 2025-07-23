@@ -569,12 +569,12 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
-// callSubscriptionDataSourceStartHook is used to call the OnSubscriptionStart method of the subscription data source
+// callSubscriptionDataSourceStartHook is used to call the SubscriptionOnStart method of the subscription data source
 // if the subscription data source implements the SubscriptionDataSourceHook interface.
 // This is used to allow external code to emit updates on this subscription.
 func callSubscriptionDataSourceStartHook(ctx *Context, source SubscriptionDataSource, input []byte) (close bool, err error) {
-	if hook, ok := source.(SubscriptionDataSourceHookable); ok {
-		return hook.OnSubscriptionStart(ctx, input)
+	if hook, ok := source.(HookableSubscriptionDataSource); ok {
+		return hook.SubscriptionOnStart(ctx, input)
 	}
 	return false, nil
 }
