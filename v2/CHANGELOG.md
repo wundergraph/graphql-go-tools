@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.0.0-rc.210](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.209...v2.0.0-rc.210) (2025-07-22)
+
+
+### Bug Fixes
+
+* planner fixes for parent entity jumps and unique nodes selections ([#1230](https://github.com/wundergraph/graphql-go-tools/issues/1230)) ([1a7ed16](https://github.com/wundergraph/graphql-go-tools/commit/1a7ed16008de28adebdb0fb3485ba2ea5205d8e8))
+
+## [2.0.0-rc.209](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.208...v2.0.0-rc.209) (2025-07-22)
+
+
+### Bug Fixes
+
+* merge inline fragment and field selections together ([#1240](https://github.com/wundergraph/graphql-go-tools/issues/1240)) ([99f2b32](https://github.com/wundergraph/graphql-go-tools/commit/99f2b321990591f51a1dd0f84e6b3696fb457d33))
+
+## [2.0.0-rc.208](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.207...v2.0.0-rc.208) (2025-07-18)
+
+
+### Features
+
+* add depth limit to parser ([#1241](https://github.com/wundergraph/graphql-go-tools/issues/1241)) ([7de2a2e](https://github.com/wundergraph/graphql-go-tools/commit/7de2a2e6302e06f52e869d71546fe60811b89b50))
+
+
+### Bug Fixes
+
+* check that object claims to implement interface ([#1235](https://github.com/wundergraph/graphql-go-tools/issues/1235)) ([5afbc68](https://github.com/wundergraph/graphql-go-tools/commit/5afbc6821a858fac7ce2d3d62559aed196477bb3))
+* use NodeFragmentIsAllowedOnNode to check fragmentSpread ([#1223](https://github.com/wundergraph/graphql-go-tools/issues/1223)) ([e448c81](https://github.com/wundergraph/graphql-go-tools/commit/e448c81e19a0b9955a449dbcdd207f60a7883994))
+
 ## [2.0.0-rc.207](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.206...v2.0.0-rc.207) (2025-07-15)
 
 

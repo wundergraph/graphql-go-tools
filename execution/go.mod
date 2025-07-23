@@ -11,7 +11,7 @@ require (
 	github.com/hashicorp/go-plugin v1.6.3
 	github.com/hashicorp/golang-lru v0.5.4
 	github.com/jensneuse/abstractlogger v0.0.4
-	github.com/sebdah/goldie/v2 v2.5.3
+	github.com/sebdah/goldie/v2 v2.7.1
 	github.com/stretchr/testify v1.10.0
 	github.com/vektah/gqlparser/v2 v2.5.14
 	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
