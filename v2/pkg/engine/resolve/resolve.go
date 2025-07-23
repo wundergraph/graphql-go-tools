@@ -814,26 +814,6 @@ func (r *Resolver) shouldSkipEvent(ctx *Context, sub *sub, data []byte) bool {
 	return false
 }
 
-func (r *Resolver) handleTriggerUpdateSubscription(ctx *Context, sub *sub, data []byte) {
-	if r.shouldSkipEvent(ctx, sub, data) {
-		return
-	}
-
-	fn := func() {
-		r.executeSubscriptionUpdate(ctx, sub, data)
-	}
-
-	select {
-	case <-r.ctx.Done():
-		// Skip sending all events if the resolver is shutting down
-		return
-	case <-ctx.ctx.Done():
-		// Skip sending the event if the client disconnected
-	case sub.workChan <- workItem{fn, false}:
-		// Send the event to the subscription worker
-	}
-}
-
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.triggers[id]
 	if !ok {
@@ -844,7 +824,24 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 
 	for c, s := range trig.subscriptions {
-		r.handleTriggerUpdateSubscription(c, s, data)
+		c, s := c, s
+		if r.shouldSkipEvent(c, s, data) {
+			continue
+		}
+
+		fn := func() {
+			r.executeSubscriptionUpdate(c, s, data)
+		}
+
+		select {
+		case <-r.ctx.Done():
+			// Skip sending all events if the resolver is shutting down
+			return
+		case <-c.ctx.Done():
+			// Skip sending the event if the client disconnected
+		case s.workChan <- workItem{fn, false}:
+			// Send the event to the subscription worker
+		}
 	}
 }
 
