@@ -265,6 +265,14 @@ func (d *DataSource) flattenListStructure(arena *astjson.Arena, md *ListMetadata
 		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: list metadata not found")
 	}
 
+	if !data.IsValid() {
+		if md.LevelInfo[0].Optional {
+			return arena.NewNull(), nil
+		}
+
+		return arena.NewNull(), fmt.Errorf("cannot add null item to response for non nullable list")
+	}
+
 	root := arena.NewArray()
 	return d.traverseList(0, arena, root, md, data, message)
 }
@@ -314,6 +322,14 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 	}
 
 	list := data.Get(fd).List()
+	if !list.IsValid() {
+		if md.LevelInfo[level].Optional {
+			return arena.NewNull(), nil
+		}
+
+		return arena.NewNull(), fmt.Errorf("cannot add null item to response for non nullable list")
+	}
+
 	for i := 0; i < list.Len(); i++ {
 		if message != nil {
 			val, err := d.marshalResponseJSON(arena, message, list.Get(i).Message())

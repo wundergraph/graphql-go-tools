@@ -501,7 +501,6 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		}
 
 		// Handle scalar fields
-		// TODO handle optional fields
 		value := data.Get(rpcField.JSONPath)
 		message.Set(fd.ByName(protoref.Name(field.Name)), p.setValueForKind(field.Type, value))
 	}
