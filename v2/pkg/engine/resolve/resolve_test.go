@@ -5487,7 +5487,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		}, func(ctx *Context, input []byte) (close bool, err error) {
-			ctx.EmitSubscriptionUpdate([]byte(`{"data":{"counter":1000}}`))
+			ctx.TryEmitSubscriptionUpdate([]byte(`{"data":{"counter":1000}}`))
 			return false, nil
 		})
 
@@ -5520,7 +5520,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		}, func(ctx *Context, input []byte) (close bool, err error) {
 			for i := 0; i < workChanBufferSize+1; i++ {
-				ctx.EmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
+				ctx.TryEmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
 			}
 			return false, nil
 		})
@@ -5543,6 +5543,84 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			assert.Equal(t, fmt.Sprintf(`{"data":{"counter":%d}}`, i+100), recorder.Messages()[i])
 		}
 		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[workChanBufferSize+1])
+	})
+
+	t.Run("SubscriptionOnStart can send a lot of updates in a go routine while updates are coming from other sources", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		messagesToSendFromHook := int32(100)
+		messagesDroppedFromHook := &atomic.Int32{}
+		messagesToSendFromOtherSources := int32(100)
+
+		firstMessageArrived := make(chan bool, 1)
+		hookCompleted := make(chan bool, 1)
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			if counter == 0 {
+				select {
+				case firstMessageArrived <- true:
+				default:
+				}
+			}
+			if counter == int(messagesToSendFromOtherSources)-1 {
+				select {
+				case hookCompleted <- true:
+				case <-time.After(defaultTimeout):
+				}
+			}
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == int(messagesToSendFromOtherSources)-1
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx *Context, input []byte) (close bool, err error) {
+			// send the first update immediately
+			done := ctx.TryEmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
+			if !done {
+				messagesDroppedFromHook.Add(1)
+			}
+
+			// start a go routine to send the updates after the source started emitting messages
+			go func() {
+				// Wait for the first message to arrive before sending updates
+				select {
+				case <-firstMessageArrived:
+					for i := 1; i < int(messagesToSendFromHook); i++ {
+						done := ctx.TryEmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
+						if !done {
+							messagesDroppedFromHook.Add(1)
+						}
+					}
+					hookCompleted <- true
+				case <-time.After(defaultTimeout):
+					// if the first message did not arrive, do not send any updates
+					return
+				}
+			}()
+
+			return false, nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout*2)
+
+		var messagesHeartbeat int32
+		for _, m := range recorder.Messages() {
+			if m == "{}" {
+				messagesHeartbeat++
+			}
+		}
+		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources-messagesDroppedFromHook.Load()+messagesHeartbeat), int32(len(recorder.Messages())))
+		assert.Equal(t, `{"data":{"counter":20000}}`, recorder.Messages()[0])
 	})
 }
 

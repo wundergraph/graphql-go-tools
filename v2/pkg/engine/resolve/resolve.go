@@ -570,6 +570,43 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 }
 
 func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) {
+	// Set the emitEventFn to synchronously emit the event to the subscription
+	initialHookCtx.emitEventRWMutex.Lock()
+	initialHookCtx.emitEventFn = func(data []byte) bool {
+		if r.shouldSkipEvent(initialHookCtx, s, data) {
+			return true
+		}
+		r.executeSubscriptionUpdate(initialHookCtx, s, data)
+		return true
+	}
+	initialHookCtx.emitEventRWMutex.Unlock()
+
+	// After the initial hook is executed, there could be other work items in the workChan that need to be processed.
+	// But if the hook starts a go routine, it could emit events while other work items are being processed.
+	// We have to avoid concurrent executeSubscriptionUpdate to the same subscription.
+	// This is done by setting the emitEventFn to add the work item to the workChan after the initial hook is executed.
+	defer func() {
+		initialHookCtx.emitEventRWMutex.Lock()
+		initialHookCtx.emitEventFn = func(data []byte) bool {
+			select {
+			case s.workChan <- workItem{
+				fn: func() {
+					if r.shouldSkipEvent(initialHookCtx, s, data) {
+						return
+					}
+					r.executeSubscriptionUpdate(initialHookCtx, s, data)
+				},
+				final: false,
+			}:
+				return true
+			default:
+				// If the workChan is full, drop the event.
+				return false
+			}
+		}
+		initialHookCtx.emitEventRWMutex.Unlock()
+	}()
+
 	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 	if !ok {
 		return
@@ -584,17 +621,6 @@ func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSu
 		return
 	}
 
-	// For each update, check if it should be skipped and execute it if it should not be skipped.
-	// This is not done by adding them to the workChan to avoid blocking the parent thread
-	// if the updates are more than the workChan buffer size.
-	for _, update := range initialHookCtx.updates {
-		if r.shouldSkipEvent(initialHookCtx, s, update) {
-			continue
-		}
-
-		// Execute the update.
-		r.executeSubscriptionUpdate(initialHookCtx, s, update)
-	}
 }
 
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {

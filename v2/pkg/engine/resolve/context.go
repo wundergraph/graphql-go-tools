@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -33,7 +34,8 @@ type Context struct {
 
 	subgraphErrors error
 
-	updates [][]byte
+	emitEventRWMutex sync.RWMutex
+	emitEventFn      func(data []byte) bool
 }
 
 type ExecutionOptions struct {
@@ -106,11 +108,17 @@ func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }
 
-// EmitSubscriptionUpdate emits a subscription update to the client
-// if the emitSubscriptionUpdate function is not set, the update is not sent to the client
-// this is used to allow external code to emit updates on this subscription
-func (c *Context) EmitSubscriptionUpdate(data []byte) {
-	c.updates = append(c.updates, data)
+// TryEmitSubscriptionUpdate emits a subscription update to the client
+// Returns true if the update was emitted.
+func (c *Context) TryEmitSubscriptionUpdate(data []byte) bool {
+	c.emitEventRWMutex.RLock()
+	emitEventFn := c.emitEventFn
+	c.emitEventRWMutex.RUnlock()
+	if emitEventFn == nil {
+		return false
+	}
+
+	return emitEventFn(data)
 }
 
 type RateLimitOptions struct {
@@ -199,8 +207,6 @@ func (c *Context) clone(ctx context.Context) *Context {
 		}
 	}
 
-	cpy.updates = append([][]byte(nil), c.updates...)
-
 	return &cpy
 }
 
@@ -216,7 +222,6 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
-	c.updates = nil
 }
 
 type traceStartKey struct{}
