@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -571,6 +572,9 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 
 func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) {
 	// Set the emitEventFn to synchronously emit the event to the subscription
+	if initialHookCtx.emitEventRWMutex == nil {
+		initialHookCtx.emitEventRWMutex = &sync.RWMutex{}
+	}
 	initialHookCtx.emitEventRWMutex.Lock()
 	initialHookCtx.emitEventFn = func(data []byte) bool {
 		if r.shouldSkipEvent(initialHookCtx, s, data) {
