@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/wundergraph/astjson"
@@ -32,6 +33,9 @@ type Context struct {
 	fieldRenderer FieldValueRenderer
 
 	subgraphErrors error
+
+	emitEventRWMutex *sync.RWMutex
+	emitEventFn      func(data []byte) bool
 }
 
 type ExecutionOptions struct {
@@ -102,6 +106,22 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
+}
+
+// TryEmitSubscriptionUpdate emits a subscription update to the client
+// Returns true if the update was emitted.
+func (c *Context) TryEmitSubscriptionUpdate(data []byte) bool {
+	if c.emitEventRWMutex == nil {
+		return false
+	}
+	c.emitEventRWMutex.RLock()
+	emitEventFn := c.emitEventFn
+	c.emitEventRWMutex.RUnlock()
+	if emitEventFn == nil {
+		return false
+	}
+
+	return emitEventFn(data)
 }
 
 type RateLimitOptions struct {
@@ -205,6 +225,8 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
+	c.emitEventRWMutex = nil
+	c.emitEventFn = nil
 }
 
 type traceStartKey struct{}
