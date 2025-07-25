@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.211](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.210...v2.0.0-rc.211) (2025-07-25)
+
+
+### Bug Fixes
+
+* test v2 benchmarks on ci ([#1238](https://github.com/wundergraph/graphql-go-tools/issues/1238)) ([d9cfb21](https://github.com/wundergraph/graphql-go-tools/commit/d9cfb2144387ff2e42e5b620ec93abcb11ff314b))
+
 ## [2.0.0-rc.210](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.209...v2.0.0-rc.210) (2025-07-22)
 
 
