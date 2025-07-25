@@ -176,6 +176,116 @@ type NullableFieldsType {
   requiredInt: Int!
 }
 
+# Blog Post with various list types for testing
+type BlogPost {
+  id: ID!
+  title: String!
+  content: String!
+  
+  # Single lists with different nullability
+  tags: [String!]!              # Required list, required items
+  optionalTags: [String!]       # Optional list, required items  
+  categories: [String]!         # Required list, optional items
+  keywords: [String]            # Optional list, optional items
+  
+  # Single lists with different scalar types
+  viewCounts: [Int!]!           # Daily view counts
+  ratings: [Float]              # User ratings (can be null)
+  isPublished: [Boolean!]       # Publication status history
+  
+  # Nested lists (one level deep) with different nullability
+  tagGroups: [[String!]!]!      # Required groups, required group content, required tags
+  relatedTopics: [[String!]]!   # Required groups, optional group content, required topics
+  commentThreads: [[String]!]!  # Required threads, required thread content, optional comments
+  suggestions: [[String]]       # Optional groups, optional group content, optional suggestions
+  
+  # Single lists with complex types
+  relatedCategories: [Category!]!  # Required list of categories this post belongs to
+  contributors: [User!]!           # Required list of users who contributed
+  mentionedProducts: [Product]     # Optional list of products mentioned
+  mentionedUsers: [User]           # Optional list of users mentioned
+  
+  # Nested lists with complex types
+  categoryGroups: [[Category!]!]!  # Required groups of required categories
+  contributorTeams: [[User!]]      # Optional teams of required contributors
+}
+
+# Author with team structure
+type Author {
+  id: ID!
+  name: String!
+  email: String
+  
+  # Single lists
+  skills: [String!]!            # Required skills
+  languages: [String]!         # Required list, optional languages
+  socialLinks: [String]        # Optional social media links
+  
+  # Nested lists for team organization
+  teamsByProject: [[String!]!]! # Projects -> team members (all required)
+  collaborations: [[String]]    # Past collaborations grouped (all optional)
+  
+  # Single lists with complex types
+  writtenPosts: [BlogPost]       # Optional list of blog posts they've written
+  favoriteCategories: [Category!]! # Required list of their favorite categories
+  relatedAuthors: [User]         # Optional list of related authors/collaborators
+  productReviews: [Product]      # Optional list of products they've reviewed
+  
+  # Nested lists with complex types
+  authorGroups: [[User!]]        # Optional groups of required authors they work with
+  categoryPreferences: [[Category!]!]! # Required groups of required category preferences
+  projectTeams: [[User]]         # Optional groups of optional users for projects
+}
+
+# Input types
+input BlogPostInput {
+  title: String!
+  content: String!
+  tags: [String!]!
+  optionalTags: [String!]
+  categories: [String]!
+  keywords: [String]
+  viewCounts: [Int!]!
+  ratings: [Float]
+  isPublished: [Boolean!]
+  tagGroups: [[String!]!]!
+  relatedTopics: [[String!]]!
+  commentThreads: [[String]!]!
+  suggestions: [[String]]
+  
+  # Complex type lists with proper input types
+  relatedCategories: [CategoryInput]   # Single list of categories
+  contributors: [UserInput]           # Single list of contributors
+  categoryGroups: [[CategoryInput!]]  # Nested list of category groups
+}
+
+input AuthorInput {
+  name: String!
+  email: String
+  skills: [String!]!
+  languages: [String]!
+  socialLinks: [String]
+  teamsByProject: [[String!]!]!
+  collaborations: [[String]]
+  
+  # Complex type lists with proper input types
+  favoriteCategories: [CategoryInput!]!  # Single list of favorite categories
+  authorGroups: [[UserInput!]]           # Nested list of author groups
+  projectTeams: [[UserInput]]            # Nested list of project teams (optional)
+}
+
+input BlogPostFilter {
+  title: String
+  hasCategories: Boolean
+  minTags: Int
+}
+
+input AuthorFilter {
+  name: String
+  hasTeams: Boolean
+  skillCount: Int
+}
+
 input NullableFieldsInput {
   name: String!
   optionalString: String
@@ -190,6 +300,11 @@ input NullableFieldsFilter {
   name: String
   optionalString: String
   includeNulls: Boolean
+}
+
+input CategoryInput {
+  name: String!
+  kind: CategoryKind!
 }
 
 type Query {
@@ -225,6 +340,18 @@ type Query {
   nullableFieldsTypeById(id: ID!): NullableFieldsType
   nullableFieldsTypeWithFilter(filter: NullableFieldsFilter!): [NullableFieldsType!]!
   allNullableFieldsTypes: [NullableFieldsType!]!
+  
+  # Blog post queries (testing single and nested lists)
+  blogPost: BlogPost!
+  blogPostById(id: ID!): BlogPost
+  blogPostsWithFilter(filter: BlogPostFilter!): [BlogPost!]!
+  allBlogPosts: [BlogPost!]!
+  
+  # Author queries (testing team structures)
+  author: Author!
+  authorById(id: ID!): Author
+  authorsWithFilter(filter: AuthorFilter!): [Author!]!
+  allAuthors: [Author!]!
 }
 
 input UserInput {
@@ -240,6 +367,14 @@ type Mutation {
   # Nullable fields mutation
   createNullableFieldsType(input: NullableFieldsInput!): NullableFieldsType!
   updateNullableFieldsType(id: ID!, input: NullableFieldsInput!): NullableFieldsType
+  
+  # Blog post mutations (testing single and nested lists)
+  createBlogPost(input: BlogPostInput!): BlogPost!
+  updateBlogPost(id: ID!, input: BlogPostInput!): BlogPost
+  
+  # Author mutations (testing team structures)
+  createAuthor(input: AuthorInput!): Author!
+  updateAuthor(id: ID!, input: AuthorInput!): Author
 }
 
 union _Entity = Product | Storage
