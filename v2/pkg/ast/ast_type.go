@@ -183,9 +183,9 @@ func (d *Document) TypeIsList(ref int) bool {
 // TypeIsNonNullList checks if the type is a non-nullable list.
 // e.g.:
 // * [String!]! -> true
+// * [String]! -> true
 // * [String!] -> false
 // * [String] -> false
-// * [String]! -> true
 func (d *Document) TypeIsNonNullList(ref int) bool {
 	return d.Types[ref].TypeKind == TypeKindNonNull && d.TypeIsList(d.Types[ref].OfType)
 }
