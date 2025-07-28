@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.0.0-rc.211](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.210...v2.0.0-rc.211) (2025-07-28)
+
+
+### Features
+
+* redesign handling for lists in gRPC ([#1246](https://github.com/wundergraph/graphql-go-tools/issues/1246)) ([a06c9db](https://github.com/wundergraph/graphql-go-tools/commit/a06c9db0f2ac6558ef957885784e25e127ff40ae))
+
+
+### Bug Fixes
+
+* disable minifier for gRPC datasource ([#1249](https://github.com/wundergraph/graphql-go-tools/issues/1249)) ([9a26e5c](https://github.com/wundergraph/graphql-go-tools/commit/9a26e5cb4861b3a5f3adfa942970d4e42c05d718))
+* test v2 benchmarks on ci ([#1238](https://github.com/wundergraph/graphql-go-tools/issues/1238)) ([d9cfb21](https://github.com/wundergraph/graphql-go-tools/commit/d9cfb2144387ff2e42e5b620ec93abcb11ff314b))
+
 ## [2.0.0-rc.210](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.209...v2.0.0-rc.210) (2025-07-22)
 
 
