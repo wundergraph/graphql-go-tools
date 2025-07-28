@@ -328,11 +328,7 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 
 	list := msg.Get(fd).List()
 	if !list.IsValid() {
-		if md.LevelInfo[level].Optional {
-			return arena.NewArray(), nil
-		}
-
-		return arena.NewNull(), fmt.Errorf("cannot add null item to response for non nullable list")
+		return arena.NewArray(), nil
 	}
 
 	for i := 0; i < list.Len(); i++ {
