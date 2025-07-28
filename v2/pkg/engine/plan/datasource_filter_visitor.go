@@ -255,9 +255,15 @@ func (f *DataSourceFilter) selectUniqNodeParentsUpToRootNode(i int) {
 		nodesIdsToSelect = append(nodesIdsToSelect, parentIdx)
 
 		if f.nodes.items[parentIdx].IsExternal && !f.nodes.items[i].IsProvided {
-			// such parent can't be selected
-			break
+			// such a parent can't be selected,
+			// so we skip this parent but continue looking for a potential root node higher
+			current = parentIdx
+			continue
 		}
+
+		// TODO: there could be a potential situation when we have selected root node with enabled entity resolver,
+		// but we can't jump to it because no parent could provide a key for it
+		// Need to consider how to move this logic into the selection process of duplicated nodes maybe?
 
 		if f.nodes.items[parentIdx].IsRootNode && !f.nodes.items[parentIdx].DisabledEntityResolver {
 			rootNodeFound = true
