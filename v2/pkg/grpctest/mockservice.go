@@ -35,11 +35,11 @@ func convertCategoryInputsToCategories(inputs []*productv1.CategoryInput) []*pro
 }
 
 func convertCategoryInputListToCategories(inputs *productv1.ListOfCategoryInput) []*productv1.Category {
-	if inputs == nil || inputs.Items == nil {
+	if inputs == nil || inputs.List == nil || inputs.List.Items == nil {
 		return nil
 	}
-	results := make([]*productv1.Category, len(inputs.Items))
-	for i, input := range inputs.Items {
+	results := make([]*productv1.Category, len(inputs.List.Items))
+	for i, input := range inputs.List.Items {
 		results[i] = &productv1.Category{
 			Id:   fmt.Sprintf("cat-list-input-%d", i),
 			Name: input.GetName(),
@@ -50,11 +50,11 @@ func convertCategoryInputListToCategories(inputs *productv1.ListOfCategoryInput)
 }
 
 func convertUserInputsToUsers(inputs *productv1.ListOfUserInput) []*productv1.User {
-	if inputs == nil || inputs.Items == nil {
+	if inputs == nil || inputs.List == nil || inputs.List.Items == nil {
 		return nil
 	}
-	results := make([]*productv1.User, len(inputs.Items))
-	for i, input := range inputs.Items {
+	results := make([]*productv1.User, len(inputs.List.Items))
+	for i, input := range inputs.List.Items {
 		results[i] = &productv1.User{
 			Id:   fmt.Sprintf("user-input-%d", i),
 			Name: input.GetName(),
@@ -74,14 +74,18 @@ func convertNestedUserInputsToUsers(nestedInputs *productv1.ListOfListOfUserInpu
 
 	results := make([]*productv1.ListOfUser, len(nestedInputs.List.Items))
 	for i, userList := range nestedInputs.List.Items {
-		users := make([]*productv1.User, len(userList.Items))
-		for j, userInput := range userList.Items {
+		users := make([]*productv1.User, len(userList.List.Items))
+		for j, userInput := range userList.List.Items {
 			users[j] = &productv1.User{
 				Id:   fmt.Sprintf("nested-user-%d-%d", i, j),
 				Name: userInput.GetName(),
 			}
 		}
-		results[i] = &productv1.ListOfUser{Items: users}
+		results[i] = &productv1.ListOfUser{
+			List: &productv1.ListOfUser_List{
+				Items: users,
+			},
+		}
 	}
 
 	return &productv1.ListOfListOfUser{
@@ -102,15 +106,19 @@ func convertNestedCategoryInputsToCategories(nestedInputs *productv1.ListOfListO
 
 	results := make([]*productv1.ListOfCategory, len(nestedInputs.List.Items))
 	for i, categoryList := range nestedInputs.List.Items {
-		categories := make([]*productv1.Category, len(categoryList.Items))
-		for j, categoryInput := range categoryList.Items {
+		categories := make([]*productv1.Category, len(categoryList.List.Items))
+		for j, categoryInput := range categoryList.List.Items {
 			categories[j] = &productv1.Category{
 				Id:   fmt.Sprintf("nested-cat-%d-%d", i, j),
 				Name: categoryInput.GetName(),
 				Kind: categoryInput.GetKind(),
 			}
 		}
-		results[i] = &productv1.ListOfCategory{Items: categories}
+		results[i] = &productv1.ListOfCategory{
+			List: &productv1.ListOfCategory_List{
+				Items: categories,
+			},
+		}
 	}
 
 	return &productv1.ListOfListOfCategory{
@@ -953,7 +961,9 @@ func (s *MockService) QueryCalculateTotals(ctx context.Context, in *productv1.Qu
 			CustomerName: orderInput.GetCustomerName(),
 			TotalItems:   totalItems,
 			OrderLines: &productv1.ListOfOrderLine{
-				Items: orderLines,
+				List: &productv1.ListOfOrderLine_List{
+					Items: orderLines,
+				},
 			},
 		})
 	}
@@ -972,47 +982,59 @@ func (s *MockService) QueryBlogPost(ctx context.Context, in *productv1.QueryBlog
 		Content: "This is a sample blog post content for testing nested lists.",
 		Tags:    []string{"tech", "programming", "go"},
 		OptionalTags: &productv1.ListOfString{
-			Items: []string{"optional1", "optional2"},
+			List: &productv1.ListOfString_List{
+				Items: []string{"optional1", "optional2"},
+			},
 		},
 		Categories: []string{"Technology", "", "Programming"}, // includes null/empty
 		Keywords: &productv1.ListOfString{
-			Items: []string{"keyword1", "keyword2"},
+			List: &productv1.ListOfString_List{
+				Items: []string{"keyword1", "keyword2"},
+			},
 		},
 		ViewCounts: []int32{100, 150, 200, 250},
 		Ratings: &productv1.ListOfFloat{
-			Items: []float64{4.5, 3.8, 5.0},
+			List: &productv1.ListOfFloat_List{
+				Items: []float64{4.5, 3.8, 5.0},
+			},
 		},
 		IsPublished: &productv1.ListOfBoolean{
-			Items: []bool{false, true, true},
+			List: &productv1.ListOfBoolean_List{
+				Items: []bool{false, true, true},
+			},
 		},
 		TagGroups: &productv1.ListOfListOfString{
 			List: &productv1.ListOfListOfString_List{
 				Items: []*productv1.ListOfString{
-					{Items: []string{"tech", "programming"}},
-					{Items: []string{"golang", "backend"}},
+					{List: &productv1.ListOfString_List{
+						Items: []string{"tech", "programming"},
+					}},
+					{List: &productv1.ListOfString_List{
+						Items: []string{"golang", "backend"},
+					}},
 				},
 			},
 		},
 		RelatedTopics: &productv1.ListOfListOfString{
 			List: &productv1.ListOfListOfString_List{
 				Items: []*productv1.ListOfString{
-					{Items: []string{"microservices", "api"}},
-					{Items: []string{"databases", "performance"}},
+					{List: &productv1.ListOfString_List{Items: []string{"microservices", "api"}}},
+					{List: &productv1.ListOfString_List{Items: []string{"databases", "performance"}}},
 				},
 			},
 		},
 		CommentThreads: &productv1.ListOfListOfString{
 			List: &productv1.ListOfListOfString_List{
 				Items: []*productv1.ListOfString{
-					{Items: []string{"Great post!", "Very helpful"}},
-					{Items: []string{"Could use more examples", "Thanks for sharing"}},
+					{List: &productv1.ListOfString_List{Items: []string{"Great post!", "Very helpful"}}},
+					{List: &productv1.ListOfString_List{Items: []string{"Could use more examples", "Thanks for sharing"}}},
 				},
 			},
 		},
 		Suggestions: &productv1.ListOfListOfString{
 			List: &productv1.ListOfListOfString_List{
 				Items: []*productv1.ListOfString{
-					{Items: []string{"Add code examples", "Include diagrams"}},
+					{List: &productv1.ListOfString_List{Items: []string{"Add code examples", "Include diagrams"}}},
 				},
 			},
 		},
@@ -1025,21 +1047,27 @@ func (s *MockService) QueryBlogPost(ctx context.Context, in *productv1.QueryBlog
 			{Id: "user-2", Name: "Jane Smith"},
 		},
 		MentionedProducts: &productv1.ListOfProduct{
-			Items: []*productv1.Product{
-				{Id: "prod-1", Name: "Sample Product", Price: 99.99},
+			List: &productv1.ListOfProduct_List{
+				Items: []*productv1.Product{
+					{Id: "prod-1", Name: "Sample Product", Price: 99.99},
+				},
 			},
 		},
 		MentionedUsers: &productv1.ListOfUser{
-			Items: []*productv1.User{
-				{Id: "user-3", Name: "Bob Johnson"},
+			List: &productv1.ListOfUser_List{
+				Items: []*productv1.User{
+					{Id: "user-3", Name: "Bob Johnson"},
+				},
 			},
 		},
 		CategoryGroups: &productv1.ListOfListOfCategory{
 			List: &productv1.ListOfListOfCategory_List{
 				Items: []*productv1.ListOfCategory{
-					{Items: []*productv1.Category{
-						{Id: "cat-3", Name: "Web Development", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
-						{Id: "cat-4", Name: "Backend", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+					{List: &productv1.ListOfCategory_List{
+						Items: []*productv1.Category{
+							{Id: "cat-3", Name: "Web Development", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+							{Id: "cat-4", Name: "Backend", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+						},
 					}},
 				},
 			},
@@ -1047,9 +1075,11 @@ func (s *MockService) QueryBlogPost(ctx context.Context, in *productv1.QueryBlog
 		ContributorTeams: &productv1.ListOfListOfUser{
 			List: &productv1.ListOfListOfUser_List{
 				Items: []*productv1.ListOfUser{
-					{Items: []*productv1.User{
-						{Id: "user-4", Name: "Alice Brown"},
-						{Id: "user-5", Name: "Charlie Wilson"},
+					{List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: "user-4", Name: "Alice Brown"},
+							{Id: "user-5", Name: "Charlie Wilson"},
+						},
 					}},
 				},
 			},
@@ -1087,21 +1117,21 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 			TagGroups: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"simple"}},
+						{List: &productv1.ListOfString_List{Items: []string{"simple"}}},
 					},
 				},
 			},
 			RelatedTopics: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"basic"}},
+						{List: &productv1.ListOfString_List{Items: []string{"basic"}}},
 					},
 				},
 			},
 			CommentThreads: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Nice post"}},
+						{List: &productv1.ListOfString_List{Items: []string{"Nice post"}}},
 					},
 				},
 			},
@@ -1115,8 +1145,10 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 			CategoryGroups: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: "cat-group-simple", Name: "Simple Category", Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: "cat-group-simple", Name: "Simple Category", Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1129,50 +1161,58 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 			Content: "Complex content with comprehensive lists",
 			Tags:    []string{"complex", "advanced", "detailed"},
 			OptionalTags: &productv1.ListOfString{
-				Items: []string{"deep-dive", "tutorial"},
+				List: &productv1.ListOfString_List{
+					Items: []string{"deep-dive", "tutorial"},
+				},
 			},
 			Categories: []string{"Advanced", "Tutorial", "Guide"},
 			Keywords: &productv1.ListOfString{
-				Items: []string{"advanced", "complex", "comprehensive"},
+				List: &productv1.ListOfString_List{
+					Items: []string{"advanced", "complex", "comprehensive"},
+				},
 			},
 			ViewCounts: []int32{500, 600, 750, 800, 950},
 			Ratings: &productv1.ListOfFloat{
-				Items: []float64{4.8, 4.9, 4.7, 5.0},
+				List: &productv1.ListOfFloat_List{
+					Items: []float64{4.8, 4.9, 4.7, 5.0},
+				},
 			},
 			IsPublished: &productv1.ListOfBoolean{
-				Items: []bool{false, false, true, true},
+				List: &productv1.ListOfBoolean_List{
+					Items: []bool{false, false, true, true},
+				},
 			},
 			TagGroups: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"advanced", "expert"}},
-						{Items: []string{"tutorial", "guide", "comprehensive"}},
-						{Items: []string{"deep-dive", "detailed"}},
+						{List: &productv1.ListOfString_List{Items: []string{"advanced", "expert"}}},
+						{List: &productv1.ListOfString_List{Items: []string{"tutorial", "guide", "comprehensive"}}},
+						{List: &productv1.ListOfString_List{Items: []string{"deep-dive", "detailed"}}},
 					},
 				},
 			},
 			RelatedTopics: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"architecture", "patterns", "design"}},
-						{Items: []string{"optimization", "performance", "scaling"}},
+						{List: &productv1.ListOfString_List{Items: []string{"architecture", "patterns", "design"}}},
+						{List: &productv1.ListOfString_List{Items: []string{"optimization", "performance", "scaling"}}},
 					},
 				},
 			},
 			CommentThreads: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Excellent deep dive!", "Very thorough"}},
-						{Items: []string{"Could be longer", "More examples please"}},
-						{Items: []string{"Best tutorial I've read", "Thank you!"}},
+						{List: &productv1.ListOfString_List{Items: []string{"Excellent deep dive!", "Very thorough"}}},
+						{List: &productv1.ListOfString_List{Items: []string{"Could be longer", "More examples please"}}},
+						{List: &productv1.ListOfString_List{Items: []string{"Best tutorial I've read", "Thank you!"}}},
 					},
 				},
 			},
 			Suggestions: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Add video content", "Include interactive examples"}},
-						{Items: []string{"Create follow-up posts", "Add Q&A section"}},
+						{List: &productv1.ListOfString_List{Items: []string{"Add video content", "Include interactive examples"}}},
+						{List: &productv1.ListOfString_List{Items: []string{"Create follow-up posts", "Add Q&A section"}}},
 					},
 				},
 			},
@@ -1186,25 +1226,33 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 				{Id: "user-complex-2", Name: "Technical Reviewer"},
 			},
 			MentionedProducts: &productv1.ListOfProduct{
-				Items: []*productv1.Product{
-					{Id: "prod-complex-1", Name: "Advanced IDE", Price: 299.99},
-					{Id: "prod-complex-2", Name: "Profiling Tool", Price: 149.99},
+				List: &productv1.ListOfProduct_List{
+					Items: []*productv1.Product{
+						{Id: "prod-complex-1", Name: "Advanced IDE", Price: 299.99},
+						{Id: "prod-complex-2", Name: "Profiling Tool", Price: 149.99},
+					},
 				},
 			},
 			MentionedUsers: &productv1.ListOfUser{
-				Items: []*productv1.User{
-					{Id: "user-complex-3", Name: "Referenced Expert"},
+				List: &productv1.ListOfUser_List{
+					Items: []*productv1.User{
+						{Id: "user-complex-3", Name: "Referenced Expert"},
+					},
 				},
 			},
 			CategoryGroups: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: "cat-group-1", Name: "System Design", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
-							{Id: "cat-group-2", Name: "Architecture Patterns", Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: "cat-group-1", Name: "System Design", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+								{Id: "cat-group-2", Name: "Architecture Patterns", Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
+							},
 						}},
-						{Items: []*productv1.Category{
-							{Id: "cat-group-3", Name: "Performance", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: "cat-group-3", Name: "Performance", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+							},
 						}},
 					},
 				},
@@ -1212,12 +1260,16 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 			ContributorTeams: &productv1.ListOfListOfUser{
 				List: &productv1.ListOfListOfUser_List{
 					Items: []*productv1.ListOfUser{
-						{Items: []*productv1.User{
-							{Id: "team-complex-1", Name: "Senior Engineer A"},
-							{Id: "team-complex-2", Name: "Senior Engineer B"},
+						{List: &productv1.ListOfUser_List{
+							Items: []*productv1.User{
+								{Id: "team-complex-1", Name: "Senior Engineer A"},
+								{Id: "team-complex-2", Name: "Senior Engineer B"},
+							},
 						}},
-						{Items: []*productv1.User{
-							{Id: "team-complex-3", Name: "QA Lead"},
+						{List: &productv1.ListOfUser_List{
+							Items: []*productv1.User{
+								{Id: "team-complex-3", Name: "QA Lead"},
+							},
 						}},
 					},
 				},
@@ -1236,21 +1288,27 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 			TagGroups: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("tag-%s", id), "group"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("tag-%s", id), "group"},
+						}},
 					},
 				},
 			},
 			RelatedTopics: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("topic-%s", id)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("topic-%s", id)},
+						}},
 					},
 				},
 			},
 			CommentThreads: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("Comment on %s", id)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("Comment on %s", id)},
+						}},
 					},
 				},
 			},
@@ -1264,8 +1322,10 @@ func (s *MockService) QueryBlogPostById(ctx context.Context, in *productv1.Query
 			CategoryGroups: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: fmt.Sprintf("cat-group-%s", id), Name: fmt.Sprintf("Group Category %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: fmt.Sprintf("cat-group-%s", id), Name: fmt.Sprintf("Group Category %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1333,21 +1393,27 @@ func (s *MockService) QueryBlogPostsWithFilter(ctx context.Context, in *productv
 			TagGroups: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("filtered-tag-%d", i)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("filtered-tag-%d", i)},
+						}},
 					},
 				},
 			},
 			RelatedTopics: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("filtered-topic-%d", i)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("filtered-topic-%d", i)},
+						}},
 					},
 				},
 			},
 			CommentThreads: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("Filtered comment %d", i)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("Filtered comment %d", i)},
+						}},
 					},
 				},
 			},
@@ -1361,8 +1427,10 @@ func (s *MockService) QueryBlogPostsWithFilter(ctx context.Context, in *productv
 			CategoryGroups: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: fmt.Sprintf("cat-group-filtered-%d", i), Name: fmt.Sprintf("Filtered Group %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: fmt.Sprintf("cat-group-filtered-%d", i), Name: fmt.Sprintf("Filtered Group %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1387,19 +1455,25 @@ func (s *MockService) QueryAllBlogPosts(ctx context.Context, in *productv1.Query
 		// Vary the optional fields
 		if i%2 == 1 {
 			optionalTags = &productv1.ListOfString{
-				Items: []string{fmt.Sprintf("optional%d", i), "common"},
+				List: &productv1.ListOfString_List{
+					Items: []string{fmt.Sprintf("optional%d", i), "common"},
+				},
 			}
 		}
 
 		if i%3 == 0 {
 			keywords = &productv1.ListOfString{
-				Items: []string{fmt.Sprintf("keyword%d", i)},
+				List: &productv1.ListOfString_List{
+					Items: []string{fmt.Sprintf("keyword%d", i)},
+				},
 			}
 		}
 
 		if i%2 == 0 {
 			ratings = &productv1.ListOfFloat{
-				Items: []float64{float64(i) + 0.5, float64(i) + 1.0},
+				List: &productv1.ListOfFloat_List{
+					Items: []float64{float64(i) + 0.5, float64(i) + 1.0},
+				},
 			}
 		}
 
@@ -1414,26 +1488,34 @@ func (s *MockService) QueryAllBlogPosts(ctx context.Context, in *productv1.Query
 			ViewCounts:   []int32{int32(i * 100), int32(i * 150)},
 			Ratings:      ratings,
 			IsPublished: &productv1.ListOfBoolean{
-				Items: []bool{i%2 == 0, true},
+				List: &productv1.ListOfBoolean_List{
+					Items: []bool{i%2 == 0, true},
+				},
 			},
 			TagGroups: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("group%d", i), "shared"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("group%d", i), "shared"},
+						}},
 					},
 				},
 			},
 			RelatedTopics: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("topic%d", i)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("topic%d", i)},
+						}},
 					},
 				},
 			},
 			CommentThreads: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("Comment for post %d", i)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("Comment for post %d", i)},
+						}},
 					},
 				},
 			},
@@ -1447,8 +1529,10 @@ func (s *MockService) QueryAllBlogPosts(ctx context.Context, in *productv1.Query
 			CategoryGroups: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: fmt.Sprintf("cat-group-all-%d", i), Name: fmt.Sprintf("Group Category %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: fmt.Sprintf("cat-group-all-%d", i), Name: fmt.Sprintf("Group Category %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1474,28 +1558,40 @@ func (s *MockService) QueryAuthor(ctx context.Context, in *productv1.QueryAuthor
 		Skills:    []string{"Go", "GraphQL", "Protocol Buffers"},
 		Languages: []string{"English", "Spanish", ""},
 		SocialLinks: &productv1.ListOfString{
-			Items: []string{"https://twitter.com/author", "https://linkedin.com/in/author"},
+			List: &productv1.ListOfString_List{
+				Items: []string{"https://twitter.com/author", "https://linkedin.com/in/author"},
+			},
 		},
 		TeamsByProject: &productv1.ListOfListOfString{
 			List: &productv1.ListOfListOfString_List{
 				Items: []*productv1.ListOfString{
-					{Items: []string{"Alice", "Bob", "Charlie"}},
-					{Items: []string{"David", "Eve"}},
+					{List: &productv1.ListOfString_List{
+						Items: []string{"Alice", "Bob", "Charlie"},
+					}},
+					{List: &productv1.ListOfString_List{
+						Items: []string{"David", "Eve"},
+					}},
 				},
 			},
 		},
 		Collaborations: &productv1.ListOfListOfString{
 			List: &productv1.ListOfListOfString_List{
 				Items: []*productv1.ListOfString{
-					{Items: []string{"Open Source Project A", "Research Paper B"}},
-					{Items: []string{"Conference Talk C"}},
+					{List: &productv1.ListOfString_List{
+						Items: []string{"Open Source Project A", "Research Paper B"},
+					}},
+					{List: &productv1.ListOfString_List{
+						Items: []string{"Conference Talk C"},
+					}},
 				},
 			},
 		},
 		WrittenPosts: &productv1.ListOfBlogPost{
-			Items: []*productv1.BlogPost{
-				{Id: "blog-1", Title: "GraphQL Best Practices", Content: "Content here..."},
-				{Id: "blog-2", Title: "gRPC vs REST", Content: "Comparison content..."},
+			List: &productv1.ListOfBlogPost_List{
+				Items: []*productv1.BlogPost{
+					{Id: "blog-1", Title: "GraphQL Best Practices", Content: "Content here..."},
+					{Id: "blog-2", Title: "gRPC vs REST", Content: "Comparison content..."},
+				},
 			},
 		},
 		FavoriteCategories: []*productv1.Category{
@@ -1503,25 +1599,33 @@ func (s *MockService) QueryAuthor(ctx context.Context, in *productv1.QueryAuthor
 			{Id: "cat-fav-2", Name: "Technical Writing", Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
 		},
 		RelatedAuthors: &productv1.ListOfUser{
-			Items: []*productv1.User{
-				{Id: "author-rel-1", Name: "Related Author One"},
-				{Id: "author-rel-2", Name: "Related Author Two"},
+			List: &productv1.ListOfUser_List{
+				Items: []*productv1.User{
+					{Id: "author-rel-1", Name: "Related Author One"},
+					{Id: "author-rel-2", Name: "Related Author Two"},
+				},
 			},
 		},
 		ProductReviews: &productv1.ListOfProduct{
-			Items: []*productv1.Product{
-				{Id: "prod-rev-1", Name: "Code Editor Pro", Price: 199.99},
+			List: &productv1.ListOfProduct_List{
+				Items: []*productv1.Product{
+					{Id: "prod-rev-1", Name: "Code Editor Pro", Price: 199.99},
+				},
 			},
 		},
 		AuthorGroups: &productv1.ListOfListOfUser{
 			List: &productv1.ListOfListOfUser_List{
 				Items: []*productv1.ListOfUser{
-					{Items: []*productv1.User{
-						{Id: "group-auth-1", Name: "Team Lead Alpha"},
-						{Id: "group-auth-2", Name: "Senior Dev Beta"},
+					{List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: "group-auth-1", Name: "Team Lead Alpha"},
+							{Id: "group-auth-2", Name: "Senior Dev Beta"},
+						},
 					}},
-					{Items: []*productv1.User{
-						{Id: "group-auth-3", Name: "Junior Dev Gamma"},
+					{List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: "group-auth-3", Name: "Junior Dev Gamma"},
+						},
 					}},
 				},
 			},
@@ -1529,9 +1633,11 @@ func (s *MockService) QueryAuthor(ctx context.Context, in *productv1.QueryAuthor
 		CategoryPreferences: &productv1.ListOfListOfCategory{
 			List: &productv1.ListOfListOfCategory_List{
 				Items: []*productv1.ListOfCategory{
-					{Items: []*productv1.Category{
-						{Id: "pref-cat-1", Name: "Microservices", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
-						{Id: "pref-cat-2", Name: "Cloud Computing", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+					{List: &productv1.ListOfCategory_List{
+						Items: []*productv1.Category{
+							{Id: "pref-cat-1", Name: "Microservices", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+							{Id: "pref-cat-2", Name: "Cloud Computing", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+						},
 					}},
 				},
 			},
@@ -1565,7 +1671,9 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 			TeamsByProject: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Solo"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"Solo"},
+						}},
 					},
 				},
 			},
@@ -1576,8 +1684,10 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 			CategoryPreferences: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: "cat-pref-minimal", Name: "Minimal Preference", Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: "cat-pref-minimal", Name: "Minimal Preference", Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1595,26 +1705,38 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 			Skills:    []string{"Go", "GraphQL", "gRPC", "Microservices", "Kubernetes"},
 			Languages: []string{"English", "French", "German"},
 			SocialLinks: &productv1.ListOfString{
-				Items: []string{
-					"https://github.com/experienced",
-					"https://twitter.com/experienced",
-					"https://medium.com/@experienced",
+				List: &productv1.ListOfString_List{
+					Items: []string{
+						"https://github.com/experienced",
+						"https://twitter.com/experienced",
+						"https://medium.com/@experienced",
+					},
 				},
 			},
 			TeamsByProject: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Senior Dev 1", "Senior Dev 2", "Tech Lead"}},
-						{Items: []string{"Architect", "Principal Engineer"}},
-						{Items: []string{"PM", "Designer", "QA Lead"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"Senior Dev 1", "Senior Dev 2", "Tech Lead"},
+						}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"Architect", "Principal Engineer"},
+						}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"PM", "Designer", "QA Lead"},
+						}},
 					},
 				},
 			},
 			Collaborations: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Major OSS Project", "Industry Standard", "Research Initiative"}},
-						{Items: []string{"Conference Keynote", "Workshop Series"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"Major OSS Project", "Industry Standard", "Research Initiative"},
+						}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"Conference Keynote", "Workshop Series"},
+						}},
 					},
 				},
 			},
@@ -1626,9 +1748,11 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 			CategoryPreferences: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: "cat-pref-experienced-1", Name: "System Architecture", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
-							{Id: "cat-pref-experienced-2", Name: "Team Management", Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: "cat-pref-experienced-1", Name: "System Architecture", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+								{Id: "cat-pref-experienced-2", Name: "Team Management", Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
+							},
 						}},
 					},
 				},
@@ -1646,7 +1770,9 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 			TeamsByProject: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("Team-%s", id)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("Team-%s", id)},
+						}},
 					},
 				},
 			},
@@ -1657,8 +1783,10 @@ func (s *MockService) QueryAuthorById(ctx context.Context, in *productv1.QueryAu
 			CategoryPreferences: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: fmt.Sprintf("cat-pref-%s", id), Name: fmt.Sprintf("Preference %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: fmt.Sprintf("cat-pref-%s", id), Name: fmt.Sprintf("Preference %s", id), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1716,7 +1844,9 @@ func (s *MockService) QueryAuthorsWithFilter(ctx context.Context, in *productv1.
 			teamsByProject = &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("Team%d", i), "SharedTeam"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("Team%d", i), "SharedTeam"},
+						}},
 					},
 				},
 			}
@@ -1737,8 +1867,10 @@ func (s *MockService) QueryAuthorsWithFilter(ctx context.Context, in *productv1.
 			CategoryPreferences: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: fmt.Sprintf("cat-pref-filtered-%d", i), Name: fmt.Sprintf("Filtered Preference %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: fmt.Sprintf("cat-pref-filtered-%d", i), Name: fmt.Sprintf("Filtered Preference %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1769,7 +1901,9 @@ func (s *MockService) QueryAllAuthors(ctx context.Context, in *productv1.QueryAl
 
 		if i%3 == 0 {
 			socialLinks = &productv1.ListOfString{
-				Items: []string{fmt.Sprintf("https://github.com/author%d", i)},
+				List: &productv1.ListOfString_List{
+					Items: []string{fmt.Sprintf("https://github.com/author%d", i)},
+				},
 			}
 		}
 
@@ -1777,7 +1911,9 @@ func (s *MockService) QueryAllAuthors(ctx context.Context, in *productv1.QueryAl
 			collaborations = &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{"Collaboration A", "Collaboration B"}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{"Collaboration A", "Collaboration B"},
+						}},
 					},
 				},
 			}
@@ -1795,7 +1931,9 @@ func (s *MockService) QueryAllAuthors(ctx context.Context, in *productv1.QueryAl
 			TeamsByProject: &productv1.ListOfListOfString{
 				List: &productv1.ListOfListOfString_List{
 					Items: []*productv1.ListOfString{
-						{Items: []string{fmt.Sprintf("Team%d", i)}},
+						{List: &productv1.ListOfString_List{
+							Items: []string{fmt.Sprintf("Team%d", i)},
+						}},
 					},
 				},
 			},
@@ -1806,8 +1944,10 @@ func (s *MockService) QueryAllAuthors(ctx context.Context, in *productv1.QueryAl
 			CategoryPreferences: &productv1.ListOfListOfCategory{
 				List: &productv1.ListOfListOfCategory_List{
 					Items: []*productv1.ListOfCategory{
-						{Items: []*productv1.Category{
-							{Id: fmt.Sprintf("cat-pref-all-%d", i), Name: fmt.Sprintf("All Preference %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+						{List: &productv1.ListOfCategory_List{
+							Items: []*productv1.Category{
+								{Id: fmt.Sprintf("cat-pref-all-%d", i), Name: fmt.Sprintf("All Preference %d", i), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+							},
 						}},
 					},
 				},
@@ -1846,20 +1986,26 @@ func (s *MockService) MutationCreateBlogPost(ctx context.Context, in *productv1.
 		Contributors:      convertUserInputsToUsers(input.GetContributors()),
 		CategoryGroups:    convertNestedCategoryInputsToCategories(input.GetCategoryGroups()),
 		MentionedProducts: &productv1.ListOfProduct{
-			Items: []*productv1.Product{
-				{Id: "prod-1", Name: "Sample Product", Price: 99.99},
+			List: &productv1.ListOfProduct_List{
+				Items: []*productv1.Product{
+					{Id: "prod-1", Name: "Sample Product", Price: 99.99},
+				},
 			},
 		},
 		MentionedUsers: &productv1.ListOfUser{
-			Items: []*productv1.User{
-				{Id: "user-3", Name: "Bob Johnson"},
+			List: &productv1.ListOfUser_List{
+				Items: []*productv1.User{
+					{Id: "user-3", Name: "Bob Johnson"},
+				},
 			},
 		},
 		ContributorTeams: &productv1.ListOfListOfUser{
 			List: &productv1.ListOfListOfUser_List{
 				Items: []*productv1.ListOfUser{
-					{Items: []*productv1.User{
-						{Id: "user-4", Name: "Alice Brown"},
+					{List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: "user-4", Name: "Alice Brown"},
+						},
 					}},
 				},
 			},
@@ -1922,25 +2068,33 @@ func (s *MockService) MutationCreateAuthor(ctx context.Context, in *productv1.Mu
 		ProjectTeams:       convertNestedUserInputsToUsers(input.GetProjectTeams()),
 		// Keep other complex fields with mock data since they're not in the simplified input
 		WrittenPosts: &productv1.ListOfBlogPost{
-			Items: []*productv1.BlogPost{
-				{Id: "blog-created", Title: "Created Post", Content: "Content..."},
+			List: &productv1.ListOfBlogPost_List{
+				Items: []*productv1.BlogPost{
+					{Id: "blog-created", Title: "Created Post", Content: "Content..."},
+				},
 			},
 		},
 		RelatedAuthors: &productv1.ListOfUser{
-			Items: []*productv1.User{
-				{Id: "related-author", Name: "Related Author"},
+			List: &productv1.ListOfUser_List{
+				Items: []*productv1.User{
+					{Id: "related-author", Name: "Related Author"},
+				},
 			},
 		},
 		ProductReviews: &productv1.ListOfProduct{
-			Items: []*productv1.Product{
-				{Id: "reviewed-product", Name: "Code Editor", Price: 199.99},
+			List: &productv1.ListOfProduct_List{
+				Items: []*productv1.Product{
+					{Id: "reviewed-product", Name: "Code Editor", Price: 199.99},
+				},
 			},
 		},
 		CategoryPreferences: &productv1.ListOfListOfCategory{
 			List: &productv1.ListOfListOfCategory_List{
 				Items: []*productv1.ListOfCategory{
-					{Items: []*productv1.Category{
-						{Id: "pref-cat", Name: "Backend Development", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+					{List: &productv1.ListOfCategory_List{
+						Items: []*productv1.Category{
+							{Id: "pref-cat", Name: "Backend Development", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+						},
 					}},
 				},
 			},

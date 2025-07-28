@@ -51,29 +51,39 @@ service ProductService {
 
 // Wrapper message for a list of BlogPost.
 message ListOfBlogPost {
-  repeated BlogPost items = 1;
+  message List {
+    repeated BlogPost items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of Boolean.
 message ListOfBoolean {
-  repeated bool items = 1;
+  message List {
+    repeated bool items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of Category.
 message ListOfCategory {
-  repeated Category items = 1;
+  message List {
+    repeated Category items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of CategoryInput.
 message ListOfCategoryInput {
-  repeated CategoryInput items = 1;
+  message List {
+    repeated CategoryInput items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of Float.
 message ListOfFloat {
-  repeated double items = 1;
+  message List {
+    repeated double items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of Category.
 message ListOfListOfCategory {
   message List {
@@ -81,7 +91,6 @@ message ListOfListOfCategory {
   }
   List list = 1;
 }
-
 // Wrapper message for a list of CategoryInput.
 message ListOfListOfCategoryInput {
   message List {
@@ -89,7 +98,6 @@ message ListOfListOfCategoryInput {
   }
   List list = 1;
 }
-
 // Wrapper message for a list of String.
 message ListOfListOfString {
   message List {
@@ -97,7 +105,6 @@ message ListOfListOfString {
   }
   List list = 1;
 }
-
 // Wrapper message for a list of User.
 message ListOfListOfUser {
   message List {
@@ -105,7 +112,6 @@ message ListOfListOfUser {
   }
   List list = 1;
 }
-
 // Wrapper message for a list of UserInput.
 message ListOfListOfUserInput {
   message List {
@@ -113,32 +119,41 @@ message ListOfListOfUserInput {
   }
   List list = 1;
 }
-
 // Wrapper message for a list of OrderLine.
 message ListOfOrderLine {
-  repeated OrderLine items = 1;
+  message List {
+    repeated OrderLine items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of Product.
 message ListOfProduct {
-  repeated Product items = 1;
+  message List {
+    repeated Product items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of String.
 message ListOfString {
-  repeated string items = 1;
+  message List {
+    repeated string items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of User.
 message ListOfUser {
-  repeated User items = 1;
+  message List {
+    repeated User items = 1;
+  }
+  List list = 1;
 }
-
 // Wrapper message for a list of UserInput.
 message ListOfUserInput {
-  repeated UserInput items = 1;
+  message List {
+    repeated UserInput items = 1;
+  }
+  List list = 1;
 }
-
 // Key message for Product entity lookup
 message LookupProductByIdRequestKey {
   // Key field for Product entity lookup.

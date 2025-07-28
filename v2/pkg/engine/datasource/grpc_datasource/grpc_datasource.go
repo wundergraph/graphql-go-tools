@@ -9,6 +9,7 @@ package grpcdatasource
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -262,7 +263,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 func (d *DataSource) flattenListStructure(arena *astjson.Arena, md *ListMetadata, data protoref.Message, message *RPCMessage) (*astjson.Value, error) {
 	if md == nil {
-		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: list metadata not found")
+		return arena.NewNull(), errors.New("unable to flatten list structure: list metadata not found")
+	}
+
+	if len(md.LevelInfo) < md.NestingLevel {
+		return arena.NewNull(), errors.New("unable to flatten list structure: nesting level data does not match the number of levels in the list metadata")
 	}
 
 	if !data.IsValid() {
@@ -270,7 +275,7 @@ func (d *DataSource) flattenListStructure(arena *astjson.Arena, md *ListMetadata
 			return arena.NewNull(), nil
 		}
 
-		return arena.NewNull(), fmt.Errorf("cannot add null item to response for non nullable list")
+		return arena.NewNull(), errors.New("cannot add null item to response for non nullable list")
 	}
 
 	root := arena.NewArray()
@@ -288,25 +293,25 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field with number %d not found in message %q", 1, data.Descriptor().Name())
 	}
 
+	if fd.Kind() != protoref.MessageKind {
+		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a message", fd.Name())
+	}
+
+	msg := data.Get(fd).Message()
+	if !msg.IsValid() {
+		if md.LevelInfo[level].Optional {
+			return arena.NewNull(), nil
+		}
+
+		return arena.NewArray(), nil
+	}
+
+	fd = msg.Descriptor().Fields().ByNumber(1)
+	if !fd.IsList() {
+		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a list", fd.Name())
+	}
+
 	if level < md.NestingLevel-1 {
-		if fd.Kind() != protoref.MessageKind {
-			return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a message", fd.Name())
-		}
-
-		msg := data.Get(fd).Message()
-		if !msg.IsValid() {
-			if md.LevelInfo[level].Optional {
-				return arena.NewNull(), nil
-			}
-
-			return arena.NewArray(), nil
-		}
-
-		fd = msg.Descriptor().Fields().ByNumber(1)
-		if !fd.IsList() {
-			return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a list", fd.Name())
-		}
-
 		list := msg.Get(fd).List()
 		for i := 0; i < list.Len(); i++ {
 			next := arena.NewArray()
@@ -321,7 +326,7 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 		return current, nil
 	}
 
-	list := data.Get(fd).List()
+	list := msg.Get(fd).List()
 	if !list.IsValid() {
 		if md.LevelInfo[level].Optional {
 			return arena.NewNull(), nil

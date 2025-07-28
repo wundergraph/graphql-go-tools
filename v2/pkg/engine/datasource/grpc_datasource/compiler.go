@@ -515,55 +515,6 @@ func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field Fi
 }
 
 func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Field, rpcField *RPCField, data gjson.Result) protoref.Message {
-	if level >= rpcField.ListMetadata.NestingLevel {
-		arr := data.Array()
-		if len(arr) == 0 {
-			if rpcField.ListMetadata.LevelInfo[level-1].Optional {
-				return nil
-			}
-
-			return rootMsg
-		}
-
-		// List wrappers always use field number 1
-		fieldDesc := rootMsg.Descriptor().Fields().ByNumber(1)
-		if fieldDesc == nil {
-			p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
-			return nil
-		}
-
-		itemsField := rootMsg.Mutable(fieldDesc).List()
-
-		switch DataType(rpcField.TypeName) {
-		case DataTypeMessage:
-			itemsFieldMsg, ok := p.doc.MessageByName(rpcField.Message.Name)
-			if !ok {
-				p.report.AddInternalError(fmt.Errorf("message %s not found in document", rpcField.Message.Name))
-				return nil
-			}
-
-			for _, element := range arr {
-				if msg := p.buildProtoMessage(itemsFieldMsg, rpcField.Message, element); msg != nil {
-					itemsField.Append(protoref.ValueOfMessage(msg))
-				}
-			}
-		case DataTypeEnum:
-			for _, element := range arr {
-				if val := p.getEnumValue(rpcField.EnumName, element); val != nil {
-					itemsField.Append(*val)
-				}
-			}
-		default:
-			for _, element := range arr {
-				itemsField.Append(p.setValueForKind(DataType(fieldDesc.Kind().String()), element))
-			}
-		}
-
-		rootMsg.Set(fieldDesc, protoref.ValueOfList(itemsField))
-		return rootMsg
-	}
-
-	// For nested Lists we always expect a "list" field in the root message with field number 1
 	listFieldDesc := rootMsg.Descriptor().Fields().ByNumber(1)
 	if listFieldDesc == nil {
 		p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
@@ -589,16 +540,47 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 		return nil
 	}
 
-	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc)
+	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc).List()
+
+	if level >= rpcField.ListMetadata.NestingLevel {
+		switch DataType(rpcField.TypeName) {
+		case DataTypeMessage:
+			itemsFieldMsg, ok := p.doc.MessageByName(rpcField.Message.Name)
+			if !ok {
+				p.report.AddInternalError(fmt.Errorf("message %s not found in document", rpcField.Message.Name))
+				return nil
+			}
+
+			for _, element := range elements {
+				if msg := p.buildProtoMessage(itemsFieldMsg, rpcField.Message, element); msg != nil {
+					itemsField.Append(protoref.ValueOfMessage(msg))
+				}
+			}
+		case DataTypeEnum:
+			for _, element := range elements {
+				if val := p.getEnumValue(rpcField.EnumName, element); val != nil {
+					itemsField.Append(*val)
+				}
+			}
+		default:
+			for _, element := range elements {
+				itemsField.Append(p.setValueForKind(DataType(itemsFieldDesc.Kind().String()), element))
+			}
+		}
+
+		itemsFieldMsg.Set(itemsFieldDesc, protoref.ValueOfList(itemsField))
+		rootMsg.Set(listFieldDesc, newListField)
+		return rootMsg
+	}
+
 	for _, element := range elements {
-		newElement := itemsField.List().NewElement()
+		newElement := itemsField.NewElement()
 		if val := p.traverseList(newElement.Message(), level+1, field, rpcField, element); val != nil {
-			itemsField.List().Append(protoref.ValueOfMessage(val))
+			itemsField.Append(protoref.ValueOfMessage(val))
 		}
 	}
 
 	rootMsg.Set(listFieldDesc, newListField)
-
 	return rootMsg
 }
 

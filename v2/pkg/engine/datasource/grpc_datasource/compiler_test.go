@@ -440,7 +440,9 @@ func TestCompileNestedLists(t *testing.T) {
 
 		modifiersMsg := linesMsg.Get(modifiersDesc).Message()
 		require.True(t, modifiersMsg.IsValid(), "expected modifiers message to be valid")
-		modifiersList := modifiersMsg.Get(modifiersMsg.Descriptor().Fields().ByName("items")).List()
+		modifiersListMsg := modifiersMsg.Get(modifiersMsg.Descriptor().Fields().ByName("list")).Message()
+		modifiersList := modifiersListMsg.Get(modifiersListMsg.Descriptor().Fields().ByName("items")).List()
+
 		require.True(t, modifiersList.IsValid(), "expected modifiers list to be valid")
 		require.Equal(t, 2, modifiersList.Len())
 		require.Equal(t, "modifier1", modifiersList.Get(0).String())

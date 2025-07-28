@@ -80,7 +80,7 @@ func (CategoryKind) EnumDescriptor() ([]byte, []int) {
 // Wrapper message for a list of BlogPost.
 type ListOfBlogPost struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*BlogPost            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfBlogPost_List   `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -115,9 +115,9 @@ func (*ListOfBlogPost) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ListOfBlogPost) GetItems() []*BlogPost {
+func (x *ListOfBlogPost) GetList() *ListOfBlogPost_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -125,7 +125,7 @@ func (x *ListOfBlogPost) GetItems() []*BlogPost {
 // Wrapper message for a list of Boolean.
 type ListOfBoolean struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []bool                 `protobuf:"varint,1,rep,packed,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfBoolean_List    `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -160,9 +160,9 @@ func (*ListOfBoolean) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ListOfBoolean) GetItems() []bool {
+func (x *ListOfBoolean) GetList() *ListOfBoolean_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -170,7 +170,7 @@ func (x *ListOfBoolean) GetItems() []bool {
 // Wrapper message for a list of Category.
 type ListOfCategory struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*Category            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfCategory_List   `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -205,17 +205,17 @@ func (*ListOfCategory) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ListOfCategory) GetItems() []*Category {
+func (x *ListOfCategory) GetList() *ListOfCategory_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
 
 // Wrapper message for a list of CategoryInput.
 type ListOfCategoryInput struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*CategoryInput       `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	state         protoimpl.MessageState    `protogen:"open.v1"`
+	List          *ListOfCategoryInput_List `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -250,9 +250,9 @@ func (*ListOfCategoryInput) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ListOfCategoryInput) GetItems() []*CategoryInput {
+func (x *ListOfCategoryInput) GetList() *ListOfCategoryInput_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -260,7 +260,7 @@ func (x *ListOfCategoryInput) GetItems() []*CategoryInput {
 // Wrapper message for a list of Float.
 type ListOfFloat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []float64              `protobuf:"fixed64,1,rep,packed,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfFloat_List      `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -295,9 +295,9 @@ func (*ListOfFloat) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{4}
 }
 
-func (x *ListOfFloat) GetItems() []float64 {
+func (x *ListOfFloat) GetList() *ListOfFloat_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -530,7 +530,7 @@ func (x *ListOfListOfUserInput) GetList() *ListOfListOfUserInput_List {
 // Wrapper message for a list of OrderLine.
 type ListOfOrderLine struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*OrderLine           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfOrderLine_List  `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -565,9 +565,9 @@ func (*ListOfOrderLine) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ListOfOrderLine) GetItems() []*OrderLine {
+func (x *ListOfOrderLine) GetList() *ListOfOrderLine_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -575,7 +575,7 @@ func (x *ListOfOrderLine) GetItems() []*OrderLine {
 // Wrapper message for a list of Product.
 type ListOfProduct struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*Product             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfProduct_List    `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -610,9 +610,9 @@ func (*ListOfProduct) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{11}
 }
 
-func (x *ListOfProduct) GetItems() []*Product {
+func (x *ListOfProduct) GetList() *ListOfProduct_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -620,7 +620,7 @@ func (x *ListOfProduct) GetItems() []*Product {
 // Wrapper message for a list of String.
 type ListOfString struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []string               `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfString_List     `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -655,9 +655,9 @@ func (*ListOfString) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *ListOfString) GetItems() []string {
+func (x *ListOfString) GetList() *ListOfString_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -665,7 +665,7 @@ func (x *ListOfString) GetItems() []string {
 // Wrapper message for a list of User.
 type ListOfUser struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*User                `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfUser_List       `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -700,9 +700,9 @@ func (*ListOfUser) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *ListOfUser) GetItems() []*User {
+func (x *ListOfUser) GetList() *ListOfUser_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -710,7 +710,7 @@ func (x *ListOfUser) GetItems() []*User {
 // Wrapper message for a list of UserInput.
 type ListOfUserInput struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*UserInput           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	List          *ListOfUserInput_List  `protobuf:"bytes,1,opt,name=list,proto3" json:"list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -745,9 +745,9 @@ func (*ListOfUserInput) Descriptor() ([]byte, []int) {
 	return file_product_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ListOfUserInput) GetItems() []*UserInput {
+func (x *ListOfUserInput) GetList() *ListOfUserInput_List {
 	if x != nil {
-		return x.Items
+		return x.List
 	}
 	return nil
 }
@@ -7028,6 +7028,226 @@ func (x *CategoryInput) GetKind() CategoryKind {
 	return CategoryKind_CATEGORY_KIND_UNSPECIFIED
 }
 
+type ListOfBlogPost_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*BlogPost            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfBlogPost_List) Reset() {
+	*x = ListOfBlogPost_List{}
+	mi := &file_product_proto_msgTypes[132]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfBlogPost_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfBlogPost_List) ProtoMessage() {}
+
+func (x *ListOfBlogPost_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[132]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfBlogPost_List.ProtoReflect.Descriptor instead.
+func (*ListOfBlogPost_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{0, 0}
+}
+
+func (x *ListOfBlogPost_List) GetItems() []*BlogPost {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfBoolean_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []bool                 `protobuf:"varint,1,rep,packed,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfBoolean_List) Reset() {
+	*x = ListOfBoolean_List{}
+	mi := &file_product_proto_msgTypes[133]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfBoolean_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfBoolean_List) ProtoMessage() {}
+
+func (x *ListOfBoolean_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[133]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfBoolean_List.ProtoReflect.Descriptor instead.
+func (*ListOfBoolean_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *ListOfBoolean_List) GetItems() []bool {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfCategory_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*Category            `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfCategory_List) Reset() {
+	*x = ListOfCategory_List{}
+	mi := &file_product_proto_msgTypes[134]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfCategory_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfCategory_List) ProtoMessage() {}
+
+func (x *ListOfCategory_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[134]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfCategory_List.ProtoReflect.Descriptor instead.
+func (*ListOfCategory_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{2, 0}
+}
+
+func (x *ListOfCategory_List) GetItems() []*Category {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfCategoryInput_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*CategoryInput       `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfCategoryInput_List) Reset() {
+	*x = ListOfCategoryInput_List{}
+	mi := &file_product_proto_msgTypes[135]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfCategoryInput_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfCategoryInput_List) ProtoMessage() {}
+
+func (x *ListOfCategoryInput_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[135]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfCategoryInput_List.ProtoReflect.Descriptor instead.
+func (*ListOfCategoryInput_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{3, 0}
+}
+
+func (x *ListOfCategoryInput_List) GetItems() []*CategoryInput {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfFloat_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []float64              `protobuf:"fixed64,1,rep,packed,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfFloat_List) Reset() {
+	*x = ListOfFloat_List{}
+	mi := &file_product_proto_msgTypes[136]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfFloat_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfFloat_List) ProtoMessage() {}
+
+func (x *ListOfFloat_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[136]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfFloat_List.ProtoReflect.Descriptor instead.
+func (*ListOfFloat_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{4, 0}
+}
+
+func (x *ListOfFloat_List) GetItems() []float64 {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 type ListOfListOfCategory_List struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Items         []*ListOfCategory      `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
@@ -7037,7 +7257,7 @@ type ListOfListOfCategory_List struct {
 
 func (x *ListOfListOfCategory_List) Reset() {
 	*x = ListOfListOfCategory_List{}
-	mi := &file_product_proto_msgTypes[132]
+	mi := &file_product_proto_msgTypes[137]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7049,7 +7269,7 @@ func (x *ListOfListOfCategory_List) String() string {
 func (*ListOfListOfCategory_List) ProtoMessage() {}
 
 func (x *ListOfListOfCategory_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[132]
+	mi := &file_product_proto_msgTypes[137]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7081,7 +7301,7 @@ type ListOfListOfCategoryInput_List struct {
 
 func (x *ListOfListOfCategoryInput_List) Reset() {
 	*x = ListOfListOfCategoryInput_List{}
-	mi := &file_product_proto_msgTypes[133]
+	mi := &file_product_proto_msgTypes[138]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7093,7 +7313,7 @@ func (x *ListOfListOfCategoryInput_List) String() string {
 func (*ListOfListOfCategoryInput_List) ProtoMessage() {}
 
 func (x *ListOfListOfCategoryInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[133]
+	mi := &file_product_proto_msgTypes[138]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7125,7 +7345,7 @@ type ListOfListOfString_List struct {
 
 func (x *ListOfListOfString_List) Reset() {
 	*x = ListOfListOfString_List{}
-	mi := &file_product_proto_msgTypes[134]
+	mi := &file_product_proto_msgTypes[139]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7137,7 +7357,7 @@ func (x *ListOfListOfString_List) String() string {
 func (*ListOfListOfString_List) ProtoMessage() {}
 
 func (x *ListOfListOfString_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[134]
+	mi := &file_product_proto_msgTypes[139]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7169,7 +7389,7 @@ type ListOfListOfUser_List struct {
 
 func (x *ListOfListOfUser_List) Reset() {
 	*x = ListOfListOfUser_List{}
-	mi := &file_product_proto_msgTypes[135]
+	mi := &file_product_proto_msgTypes[140]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7181,7 +7401,7 @@ func (x *ListOfListOfUser_List) String() string {
 func (*ListOfListOfUser_List) ProtoMessage() {}
 
 func (x *ListOfListOfUser_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[135]
+	mi := &file_product_proto_msgTypes[140]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7213,7 +7433,7 @@ type ListOfListOfUserInput_List struct {
 
 func (x *ListOfListOfUserInput_List) Reset() {
 	*x = ListOfListOfUserInput_List{}
-	mi := &file_product_proto_msgTypes[136]
+	mi := &file_product_proto_msgTypes[141]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -7225,7 +7445,7 @@ func (x *ListOfListOfUserInput_List) String() string {
 func (*ListOfListOfUserInput_List) ProtoMessage() {}
 
 func (x *ListOfListOfUserInput_List) ProtoReflect() protoreflect.Message {
-	mi := &file_product_proto_msgTypes[136]
+	mi := &file_product_proto_msgTypes[141]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -7248,20 +7468,250 @@ func (x *ListOfListOfUserInput_List) GetItems() []*ListOfUserInput {
 	return nil
 }
 
+type ListOfOrderLine_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*OrderLine           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfOrderLine_List) Reset() {
+	*x = ListOfOrderLine_List{}
+	mi := &file_product_proto_msgTypes[142]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfOrderLine_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfOrderLine_List) ProtoMessage() {}
+
+func (x *ListOfOrderLine_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[142]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfOrderLine_List.ProtoReflect.Descriptor instead.
+func (*ListOfOrderLine_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{10, 0}
+}
+
+func (x *ListOfOrderLine_List) GetItems() []*OrderLine {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfProduct_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*Product             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfProduct_List) Reset() {
+	*x = ListOfProduct_List{}
+	mi := &file_product_proto_msgTypes[143]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfProduct_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfProduct_List) ProtoMessage() {}
+
+func (x *ListOfProduct_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[143]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfProduct_List.ProtoReflect.Descriptor instead.
+func (*ListOfProduct_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{11, 0}
+}
+
+func (x *ListOfProduct_List) GetItems() []*Product {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfString_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []string               `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfString_List) Reset() {
+	*x = ListOfString_List{}
+	mi := &file_product_proto_msgTypes[144]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfString_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfString_List) ProtoMessage() {}
+
+func (x *ListOfString_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[144]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfString_List.ProtoReflect.Descriptor instead.
+func (*ListOfString_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{12, 0}
+}
+
+func (x *ListOfString_List) GetItems() []string {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfUser_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*User                `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfUser_List) Reset() {
+	*x = ListOfUser_List{}
+	mi := &file_product_proto_msgTypes[145]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfUser_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfUser_List) ProtoMessage() {}
+
+func (x *ListOfUser_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[145]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfUser_List.ProtoReflect.Descriptor instead.
+func (*ListOfUser_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{13, 0}
+}
+
+func (x *ListOfUser_List) GetItems() []*User {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
+type ListOfUserInput_List struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Items         []*UserInput           `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListOfUserInput_List) Reset() {
+	*x = ListOfUserInput_List{}
+	mi := &file_product_proto_msgTypes[146]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListOfUserInput_List) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListOfUserInput_List) ProtoMessage() {}
+
+func (x *ListOfUserInput_List) ProtoReflect() protoreflect.Message {
+	mi := &file_product_proto_msgTypes[146]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListOfUserInput_List.ProtoReflect.Descriptor instead.
+func (*ListOfUserInput_List) Descriptor() ([]byte, []int) {
+	return file_product_proto_rawDescGZIP(), []int{14, 0}
+}
+
+func (x *ListOfUserInput_List) GetItems() []*UserInput {
+	if x != nil {
+		return x.Items
+	}
+	return nil
+}
+
 var File_product_proto protoreflect.FileDescriptor
 
 const file_product_proto_rawDesc = "" +
 	"\n" +
-	"\rproduct.proto\x12\tproductv1\x1a\x1egoogle/protobuf/wrappers.proto\";\n" +
-	"\x0eListOfBlogPost\x12)\n" +
-	"\x05items\x18\x01 \x03(\v2\x13.productv1.BlogPostR\x05items\"%\n" +
-	"\rListOfBoolean\x12\x14\n" +
-	"\x05items\x18\x01 \x03(\bR\x05items\";\n" +
-	"\x0eListOfCategory\x12)\n" +
-	"\x05items\x18\x01 \x03(\v2\x13.productv1.CategoryR\x05items\"E\n" +
-	"\x13ListOfCategoryInput\x12.\n" +
-	"\x05items\x18\x01 \x03(\v2\x18.productv1.CategoryInputR\x05items\"#\n" +
-	"\vListOfFloat\x12\x14\n" +
+	"\rproduct.proto\x12\tproductv1\x1a\x1egoogle/protobuf/wrappers.proto\"w\n" +
+	"\x0eListOfBlogPost\x122\n" +
+	"\x04list\x18\x01 \x01(\v2\x1e.productv1.ListOfBlogPost.ListR\x04list\x1a1\n" +
+	"\x04List\x12)\n" +
+	"\x05items\x18\x01 \x03(\v2\x13.productv1.BlogPostR\x05items\"`\n" +
+	"\rListOfBoolean\x121\n" +
+	"\x04list\x18\x01 \x01(\v2\x1d.productv1.ListOfBoolean.ListR\x04list\x1a\x1c\n" +
+	"\x04List\x12\x14\n" +
+	"\x05items\x18\x01 \x03(\bR\x05items\"w\n" +
+	"\x0eListOfCategory\x122\n" +
+	"\x04list\x18\x01 \x01(\v2\x1e.productv1.ListOfCategory.ListR\x04list\x1a1\n" +
+	"\x04List\x12)\n" +
+	"\x05items\x18\x01 \x03(\v2\x13.productv1.CategoryR\x05items\"\x86\x01\n" +
+	"\x13ListOfCategoryInput\x127\n" +
+	"\x04list\x18\x01 \x01(\v2#.productv1.ListOfCategoryInput.ListR\x04list\x1a6\n" +
+	"\x04List\x12.\n" +
+	"\x05items\x18\x01 \x03(\v2\x18.productv1.CategoryInputR\x05items\"\\\n" +
+	"\vListOfFloat\x12/\n" +
+	"\x04list\x18\x01 \x01(\v2\x1b.productv1.ListOfFloat.ListR\x04list\x1a\x1c\n" +
+	"\x04List\x12\x14\n" +
 	"\x05items\x18\x01 \x03(\x01R\x05items\"\x89\x01\n" +
 	"\x14ListOfListOfCategory\x128\n" +
 	"\x04list\x18\x01 \x01(\v2$.productv1.ListOfListOfCategory.ListR\x04list\x1a7\n" +
@@ -7282,17 +7732,27 @@ const file_product_proto_rawDesc = "" +
 	"\x15ListOfListOfUserInput\x129\n" +
 	"\x04list\x18\x01 \x01(\v2%.productv1.ListOfListOfUserInput.ListR\x04list\x1a8\n" +
 	"\x04List\x120\n" +
-	"\x05items\x18\x01 \x03(\v2\x1a.productv1.ListOfUserInputR\x05items\"=\n" +
-	"\x0fListOfOrderLine\x12*\n" +
-	"\x05items\x18\x01 \x03(\v2\x14.productv1.OrderLineR\x05items\"9\n" +
-	"\rListOfProduct\x12(\n" +
-	"\x05items\x18\x01 \x03(\v2\x12.productv1.ProductR\x05items\"$\n" +
-	"\fListOfString\x12\x14\n" +
-	"\x05items\x18\x01 \x03(\tR\x05items\"3\n" +
+	"\x05items\x18\x01 \x03(\v2\x1a.productv1.ListOfUserInputR\x05items\"z\n" +
+	"\x0fListOfOrderLine\x123\n" +
+	"\x04list\x18\x01 \x01(\v2\x1f.productv1.ListOfOrderLine.ListR\x04list\x1a2\n" +
+	"\x04List\x12*\n" +
+	"\x05items\x18\x01 \x03(\v2\x14.productv1.OrderLineR\x05items\"t\n" +
+	"\rListOfProduct\x121\n" +
+	"\x04list\x18\x01 \x01(\v2\x1d.productv1.ListOfProduct.ListR\x04list\x1a0\n" +
+	"\x04List\x12(\n" +
+	"\x05items\x18\x01 \x03(\v2\x12.productv1.ProductR\x05items\"^\n" +
+	"\fListOfString\x120\n" +
+	"\x04list\x18\x01 \x01(\v2\x1c.productv1.ListOfString.ListR\x04list\x1a\x1c\n" +
+	"\x04List\x12\x14\n" +
+	"\x05items\x18\x01 \x03(\tR\x05items\"k\n" +
 	"\n" +
-	"ListOfUser\x12%\n" +
-	"\x05items\x18\x01 \x03(\v2\x0f.productv1.UserR\x05items\"=\n" +
-	"\x0fListOfUserInput\x12*\n" +
+	"ListOfUser\x12.\n" +
+	"\x04list\x18\x01 \x01(\v2\x1a.productv1.ListOfUser.ListR\x04list\x1a-\n" +
+	"\x04List\x12%\n" +
+	"\x05items\x18\x01 \x03(\v2\x0f.productv1.UserR\x05items\"z\n" +
+	"\x0fListOfUserInput\x123\n" +
+	"\x04list\x18\x01 \x01(\v2\x1f.productv1.ListOfUserInput.ListR\x04list\x1a2\n" +
+	"\x04List\x12*\n" +
 	"\x05items\x18\x01 \x03(\v2\x14.productv1.UserInputR\x05items\"-\n" +
 	"\x1bLookupProductByIdRequestKey\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\"V\n" +
@@ -7740,7 +8200,7 @@ func file_product_proto_rawDescGZIP() []byte {
 }
 
 var file_product_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 137)
+var file_product_proto_msgTypes = make([]protoimpl.MessageInfo, 147)
 var file_product_proto_goTypes = []any{
 	(CategoryKind)(0),                                 // 0: productv1.CategoryKind
 	(*ListOfBlogPost)(nil),                            // 1: productv1.ListOfBlogPost
@@ -7875,254 +8335,274 @@ var file_product_proto_goTypes = []any{
 	(*ActionSuccess)(nil),                             // 130: productv1.ActionSuccess
 	(*ActionError)(nil),                               // 131: productv1.ActionError
 	(*CategoryInput)(nil),                             // 132: productv1.CategoryInput
-	(*ListOfListOfCategory_List)(nil),                 // 133: productv1.ListOfListOfCategory.List
-	(*ListOfListOfCategoryInput_List)(nil),            // 134: productv1.ListOfListOfCategoryInput.List
-	(*ListOfListOfString_List)(nil),                   // 135: productv1.ListOfListOfString.List
-	(*ListOfListOfUser_List)(nil),                     // 136: productv1.ListOfListOfUser.List
-	(*ListOfListOfUserInput_List)(nil),                // 137: productv1.ListOfListOfUserInput.List
-	(*wrapperspb.Int32Value)(nil),                     // 138: google.protobuf.Int32Value
-	(*wrapperspb.StringValue)(nil),                    // 139: google.protobuf.StringValue
-	(*wrapperspb.DoubleValue)(nil),                    // 140: google.protobuf.DoubleValue
-	(*wrapperspb.BoolValue)(nil),                      // 141: google.protobuf.BoolValue
+	(*ListOfBlogPost_List)(nil),                       // 133: productv1.ListOfBlogPost.List
+	(*ListOfBoolean_List)(nil),                        // 134: productv1.ListOfBoolean.List
+	(*ListOfCategory_List)(nil),                       // 135: productv1.ListOfCategory.List
+	(*ListOfCategoryInput_List)(nil),                  // 136: productv1.ListOfCategoryInput.List
+	(*ListOfFloat_List)(nil),                          // 137: productv1.ListOfFloat.List
+	(*ListOfListOfCategory_List)(nil),                 // 138: productv1.ListOfListOfCategory.List
+	(*ListOfListOfCategoryInput_List)(nil),            // 139: productv1.ListOfListOfCategoryInput.List
+	(*ListOfListOfString_List)(nil),                   // 140: productv1.ListOfListOfString.List
+	(*ListOfListOfUser_List)(nil),                     // 141: productv1.ListOfListOfUser.List
+	(*ListOfListOfUserInput_List)(nil),                // 142: productv1.ListOfListOfUserInput.List
+	(*ListOfOrderLine_List)(nil),                      // 143: productv1.ListOfOrderLine.List
+	(*ListOfProduct_List)(nil),                        // 144: productv1.ListOfProduct.List
+	(*ListOfString_List)(nil),                         // 145: productv1.ListOfString.List
+	(*ListOfUser_List)(nil),                           // 146: productv1.ListOfUser.List
+	(*ListOfUserInput_List)(nil),                      // 147: productv1.ListOfUserInput.List
+	(*wrapperspb.Int32Value)(nil),                     // 148: google.protobuf.Int32Value
+	(*wrapperspb.StringValue)(nil),                    // 149: google.protobuf.StringValue
+	(*wrapperspb.DoubleValue)(nil),                    // 150: google.protobuf.DoubleValue
+	(*wrapperspb.BoolValue)(nil),                      // 151: google.protobuf.BoolValue
 }
 var file_product_proto_depIdxs = []int32{
-	112, // 0: productv1.ListOfBlogPost.items:type_name -> productv1.BlogPost
-	105, // 1: productv1.ListOfCategory.items:type_name -> productv1.Category
-	132, // 2: productv1.ListOfCategoryInput.items:type_name -> productv1.CategoryInput
-	133, // 3: productv1.ListOfListOfCategory.list:type_name -> productv1.ListOfListOfCategory.List
-	134, // 4: productv1.ListOfListOfCategoryInput.list:type_name -> productv1.ListOfListOfCategoryInput.List
-	135, // 5: productv1.ListOfListOfString.list:type_name -> productv1.ListOfListOfString.List
-	136, // 6: productv1.ListOfListOfUser.list:type_name -> productv1.ListOfListOfUser.List
-	137, // 7: productv1.ListOfListOfUserInput.list:type_name -> productv1.ListOfListOfUserInput.List
-	127, // 8: productv1.ListOfOrderLine.items:type_name -> productv1.OrderLine
-	94,  // 9: productv1.ListOfProduct.items:type_name -> productv1.Product
-	96,  // 10: productv1.ListOfUser.items:type_name -> productv1.User
-	116, // 11: productv1.ListOfUserInput.items:type_name -> productv1.UserInput
-	16,  // 12: productv1.LookupProductByIdRequest.keys:type_name -> productv1.LookupProductByIdRequestKey
-	94,  // 13: productv1.LookupProductByIdResponse.result:type_name -> productv1.Product
-	19,  // 14: productv1.LookupStorageByIdRequest.keys:type_name -> productv1.LookupStorageByIdRequestKey
-	95,  // 15: productv1.LookupStorageByIdResponse.result:type_name -> productv1.Storage
-	96,  // 16: productv1.QueryUsersResponse.users:type_name -> productv1.User
-	96,  // 17: productv1.QueryUserResponse.user:type_name -> productv1.User
-	97,  // 18: productv1.QueryNestedTypeResponse.nested_type:type_name -> productv1.NestedTypeA
-	98,  // 19: productv1.QueryRecursiveTypeResponse.recursive_type:type_name -> productv1.RecursiveType
-	99,  // 20: productv1.QueryTypeFilterWithArgumentsResponse.type_filter_with_arguments:type_name -> productv1.TypeWithMultipleFilterFields
-	100, // 21: productv1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> productv1.FilterTypeInput
-	99,  // 22: productv1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> productv1.TypeWithMultipleFilterFields
-	101, // 23: productv1.QueryComplexFilterTypeRequest.filter:type_name -> productv1.ComplexFilterTypeInput
-	102, // 24: productv1.QueryComplexFilterTypeResponse.complex_filter_type:type_name -> productv1.TypeWithComplexFilterInput
-	103, // 25: productv1.QueryCalculateTotalsRequest.orders:type_name -> productv1.OrderInput
-	104, // 26: productv1.QueryCalculateTotalsResponse.calculate_totals:type_name -> productv1.Order
-	105, // 27: productv1.QueryCategoriesResponse.categories:type_name -> productv1.Category
-	0,   // 28: productv1.QueryCategoriesByKindRequest.kind:type_name -> productv1.CategoryKind
-	105, // 29: productv1.QueryCategoriesByKindResponse.categories_by_kind:type_name -> productv1.Category
-	0,   // 30: productv1.QueryCategoriesByKindsRequest.kinds:type_name -> productv1.CategoryKind
-	105, // 31: productv1.QueryCategoriesByKindsResponse.categories_by_kinds:type_name -> productv1.Category
-	106, // 32: productv1.QueryFilterCategoriesRequest.filter:type_name -> productv1.CategoryFilter
-	105, // 33: productv1.QueryFilterCategoriesResponse.filter_categories:type_name -> productv1.Category
-	107, // 34: productv1.QueryRandomPetResponse.random_pet:type_name -> productv1.Animal
-	107, // 35: productv1.QueryAllPetsResponse.all_pets:type_name -> productv1.Animal
-	108, // 36: productv1.QuerySearchRequest.input:type_name -> productv1.SearchInput
-	109, // 37: productv1.QuerySearchResponse.search:type_name -> productv1.SearchResult
-	109, // 38: productv1.QueryRandomSearchResultResponse.random_search_result:type_name -> productv1.SearchResult
-	110, // 39: productv1.QueryNullableFieldsTypeResponse.nullable_fields_type:type_name -> productv1.NullableFieldsType
-	110, // 40: productv1.QueryNullableFieldsTypeByIdResponse.nullable_fields_type_by_id:type_name -> productv1.NullableFieldsType
-	111, // 41: productv1.QueryNullableFieldsTypeWithFilterRequest.filter:type_name -> productv1.NullableFieldsFilter
-	110, // 42: productv1.QueryNullableFieldsTypeWithFilterResponse.nullable_fields_type_with_filter:type_name -> productv1.NullableFieldsType
-	110, // 43: productv1.QueryAllNullableFieldsTypesResponse.all_nullable_fields_types:type_name -> productv1.NullableFieldsType
-	112, // 44: productv1.QueryBlogPostResponse.blog_post:type_name -> productv1.BlogPost
-	112, // 45: productv1.QueryBlogPostByIdResponse.blog_post_by_id:type_name -> productv1.BlogPost
-	113, // 46: productv1.QueryBlogPostsWithFilterRequest.filter:type_name -> productv1.BlogPostFilter
-	112, // 47: productv1.QueryBlogPostsWithFilterResponse.blog_posts_with_filter:type_name -> productv1.BlogPost
-	112, // 48: productv1.QueryAllBlogPostsResponse.all_blog_posts:type_name -> productv1.BlogPost
-	114, // 49: productv1.QueryAuthorResponse.author:type_name -> productv1.Author
-	114, // 50: productv1.QueryAuthorByIdResponse.author_by_id:type_name -> productv1.Author
-	115, // 51: productv1.QueryAuthorsWithFilterRequest.filter:type_name -> productv1.AuthorFilter
-	114, // 52: productv1.QueryAuthorsWithFilterResponse.authors_with_filter:type_name -> productv1.Author
-	114, // 53: productv1.QueryAllAuthorsResponse.all_authors:type_name -> productv1.Author
-	116, // 54: productv1.MutationCreateUserRequest.input:type_name -> productv1.UserInput
-	96,  // 55: productv1.MutationCreateUserResponse.create_user:type_name -> productv1.User
-	117, // 56: productv1.MutationPerformActionRequest.input:type_name -> productv1.ActionInput
-	118, // 57: productv1.MutationPerformActionResponse.perform_action:type_name -> productv1.ActionResult
-	119, // 58: productv1.MutationCreateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
-	110, // 59: productv1.MutationCreateNullableFieldsTypeResponse.create_nullable_fields_type:type_name -> productv1.NullableFieldsType
-	119, // 60: productv1.MutationUpdateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
-	110, // 61: productv1.MutationUpdateNullableFieldsTypeResponse.update_nullable_fields_type:type_name -> productv1.NullableFieldsType
-	120, // 62: productv1.MutationCreateBlogPostRequest.input:type_name -> productv1.BlogPostInput
-	112, // 63: productv1.MutationCreateBlogPostResponse.create_blog_post:type_name -> productv1.BlogPost
-	120, // 64: productv1.MutationUpdateBlogPostRequest.input:type_name -> productv1.BlogPostInput
-	112, // 65: productv1.MutationUpdateBlogPostResponse.update_blog_post:type_name -> productv1.BlogPost
-	121, // 66: productv1.MutationCreateAuthorRequest.input:type_name -> productv1.AuthorInput
-	114, // 67: productv1.MutationCreateAuthorResponse.create_author:type_name -> productv1.Author
-	121, // 68: productv1.MutationUpdateAuthorRequest.input:type_name -> productv1.AuthorInput
-	114, // 69: productv1.MutationUpdateAuthorResponse.update_author:type_name -> productv1.Author
-	122, // 70: productv1.NestedTypeA.b:type_name -> productv1.NestedTypeB
-	98,  // 71: productv1.RecursiveType.recursive_type:type_name -> productv1.RecursiveType
-	124, // 72: productv1.ComplexFilterTypeInput.filter:type_name -> productv1.FilterType
-	126, // 73: productv1.OrderInput.lines:type_name -> productv1.OrderLineInput
-	11,  // 74: productv1.Order.order_lines:type_name -> productv1.ListOfOrderLine
-	0,   // 75: productv1.Category.kind:type_name -> productv1.CategoryKind
-	0,   // 76: productv1.CategoryFilter.category:type_name -> productv1.CategoryKind
-	125, // 77: productv1.CategoryFilter.pagination:type_name -> productv1.Pagination
-	128, // 78: productv1.Animal.cat:type_name -> productv1.Cat
-	129, // 79: productv1.Animal.dog:type_name -> productv1.Dog
-	138, // 80: productv1.SearchInput.limit:type_name -> google.protobuf.Int32Value
-	94,  // 81: productv1.SearchResult.product:type_name -> productv1.Product
-	96,  // 82: productv1.SearchResult.user:type_name -> productv1.User
-	105, // 83: productv1.SearchResult.category:type_name -> productv1.Category
-	139, // 84: productv1.NullableFieldsType.optional_string:type_name -> google.protobuf.StringValue
-	138, // 85: productv1.NullableFieldsType.optional_int:type_name -> google.protobuf.Int32Value
-	140, // 86: productv1.NullableFieldsType.optional_float:type_name -> google.protobuf.DoubleValue
-	141, // 87: productv1.NullableFieldsType.optional_boolean:type_name -> google.protobuf.BoolValue
-	139, // 88: productv1.NullableFieldsFilter.name:type_name -> google.protobuf.StringValue
-	139, // 89: productv1.NullableFieldsFilter.optional_string:type_name -> google.protobuf.StringValue
-	141, // 90: productv1.NullableFieldsFilter.include_nulls:type_name -> google.protobuf.BoolValue
-	13,  // 91: productv1.BlogPost.optional_tags:type_name -> productv1.ListOfString
-	13,  // 92: productv1.BlogPost.keywords:type_name -> productv1.ListOfString
-	5,   // 93: productv1.BlogPost.ratings:type_name -> productv1.ListOfFloat
-	2,   // 94: productv1.BlogPost.is_published:type_name -> productv1.ListOfBoolean
-	8,   // 95: productv1.BlogPost.tag_groups:type_name -> productv1.ListOfListOfString
-	8,   // 96: productv1.BlogPost.related_topics:type_name -> productv1.ListOfListOfString
-	8,   // 97: productv1.BlogPost.comment_threads:type_name -> productv1.ListOfListOfString
-	8,   // 98: productv1.BlogPost.suggestions:type_name -> productv1.ListOfListOfString
-	105, // 99: productv1.BlogPost.related_categories:type_name -> productv1.Category
-	96,  // 100: productv1.BlogPost.contributors:type_name -> productv1.User
-	12,  // 101: productv1.BlogPost.mentioned_products:type_name -> productv1.ListOfProduct
-	14,  // 102: productv1.BlogPost.mentioned_users:type_name -> productv1.ListOfUser
-	6,   // 103: productv1.BlogPost.category_groups:type_name -> productv1.ListOfListOfCategory
-	9,   // 104: productv1.BlogPost.contributor_teams:type_name -> productv1.ListOfListOfUser
-	139, // 105: productv1.BlogPostFilter.title:type_name -> google.protobuf.StringValue
-	141, // 106: productv1.BlogPostFilter.has_categories:type_name -> google.protobuf.BoolValue
-	138, // 107: productv1.BlogPostFilter.min_tags:type_name -> google.protobuf.Int32Value
-	139, // 108: productv1.Author.email:type_name -> google.protobuf.StringValue
-	13,  // 109: productv1.Author.social_links:type_name -> productv1.ListOfString
-	8,   // 110: productv1.Author.teams_by_project:type_name -> productv1.ListOfListOfString
-	8,   // 111: productv1.Author.collaborations:type_name -> productv1.ListOfListOfString
-	1,   // 112: productv1.Author.written_posts:type_name -> productv1.ListOfBlogPost
-	105, // 113: productv1.Author.favorite_categories:type_name -> productv1.Category
-	14,  // 114: productv1.Author.related_authors:type_name -> productv1.ListOfUser
-	12,  // 115: productv1.Author.product_reviews:type_name -> productv1.ListOfProduct
-	9,   // 116: productv1.Author.author_groups:type_name -> productv1.ListOfListOfUser
-	6,   // 117: productv1.Author.category_preferences:type_name -> productv1.ListOfListOfCategory
-	9,   // 118: productv1.Author.project_teams:type_name -> productv1.ListOfListOfUser
-	139, // 119: productv1.AuthorFilter.name:type_name -> google.protobuf.StringValue
-	141, // 120: productv1.AuthorFilter.has_teams:type_name -> google.protobuf.BoolValue
-	138, // 121: productv1.AuthorFilter.skill_count:type_name -> google.protobuf.Int32Value
-	130, // 122: productv1.ActionResult.action_success:type_name -> productv1.ActionSuccess
-	131, // 123: productv1.ActionResult.action_error:type_name -> productv1.ActionError
-	139, // 124: productv1.NullableFieldsInput.optional_string:type_name -> google.protobuf.StringValue
-	138, // 125: productv1.NullableFieldsInput.optional_int:type_name -> google.protobuf.Int32Value
-	140, // 126: productv1.NullableFieldsInput.optional_float:type_name -> google.protobuf.DoubleValue
-	141, // 127: productv1.NullableFieldsInput.optional_boolean:type_name -> google.protobuf.BoolValue
-	13,  // 128: productv1.BlogPostInput.optional_tags:type_name -> productv1.ListOfString
-	13,  // 129: productv1.BlogPostInput.keywords:type_name -> productv1.ListOfString
-	5,   // 130: productv1.BlogPostInput.ratings:type_name -> productv1.ListOfFloat
-	2,   // 131: productv1.BlogPostInput.is_published:type_name -> productv1.ListOfBoolean
-	8,   // 132: productv1.BlogPostInput.tag_groups:type_name -> productv1.ListOfListOfString
-	8,   // 133: productv1.BlogPostInput.related_topics:type_name -> productv1.ListOfListOfString
-	8,   // 134: productv1.BlogPostInput.comment_threads:type_name -> productv1.ListOfListOfString
-	8,   // 135: productv1.BlogPostInput.suggestions:type_name -> productv1.ListOfListOfString
-	4,   // 136: productv1.BlogPostInput.related_categories:type_name -> productv1.ListOfCategoryInput
-	15,  // 137: productv1.BlogPostInput.contributors:type_name -> productv1.ListOfUserInput
-	7,   // 138: productv1.BlogPostInput.category_groups:type_name -> productv1.ListOfListOfCategoryInput
-	139, // 139: productv1.AuthorInput.email:type_name -> google.protobuf.StringValue
-	13,  // 140: productv1.AuthorInput.social_links:type_name -> productv1.ListOfString
-	8,   // 141: productv1.AuthorInput.teams_by_project:type_name -> productv1.ListOfListOfString
-	8,   // 142: productv1.AuthorInput.collaborations:type_name -> productv1.ListOfListOfString
-	132, // 143: productv1.AuthorInput.favorite_categories:type_name -> productv1.CategoryInput
-	10,  // 144: productv1.AuthorInput.author_groups:type_name -> productv1.ListOfListOfUserInput
-	10,  // 145: productv1.AuthorInput.project_teams:type_name -> productv1.ListOfListOfUserInput
-	123, // 146: productv1.NestedTypeB.c:type_name -> productv1.NestedTypeC
-	125, // 147: productv1.FilterType.pagination:type_name -> productv1.Pagination
-	13,  // 148: productv1.OrderLineInput.modifiers:type_name -> productv1.ListOfString
-	13,  // 149: productv1.OrderLine.modifiers:type_name -> productv1.ListOfString
-	0,   // 150: productv1.CategoryInput.kind:type_name -> productv1.CategoryKind
-	3,   // 151: productv1.ListOfListOfCategory.List.items:type_name -> productv1.ListOfCategory
-	4,   // 152: productv1.ListOfListOfCategoryInput.List.items:type_name -> productv1.ListOfCategoryInput
-	13,  // 153: productv1.ListOfListOfString.List.items:type_name -> productv1.ListOfString
-	14,  // 154: productv1.ListOfListOfUser.List.items:type_name -> productv1.ListOfUser
-	15,  // 155: productv1.ListOfListOfUserInput.List.items:type_name -> productv1.ListOfUserInput
-	17,  // 156: productv1.ProductService.LookupProductById:input_type -> productv1.LookupProductByIdRequest
-	20,  // 157: productv1.ProductService.LookupStorageById:input_type -> productv1.LookupStorageByIdRequest
-	90,  // 158: productv1.ProductService.MutationCreateAuthor:input_type -> productv1.MutationCreateAuthorRequest
-	86,  // 159: productv1.ProductService.MutationCreateBlogPost:input_type -> productv1.MutationCreateBlogPostRequest
-	82,  // 160: productv1.ProductService.MutationCreateNullableFieldsType:input_type -> productv1.MutationCreateNullableFieldsTypeRequest
-	78,  // 161: productv1.ProductService.MutationCreateUser:input_type -> productv1.MutationCreateUserRequest
-	80,  // 162: productv1.ProductService.MutationPerformAction:input_type -> productv1.MutationPerformActionRequest
-	92,  // 163: productv1.ProductService.MutationUpdateAuthor:input_type -> productv1.MutationUpdateAuthorRequest
-	88,  // 164: productv1.ProductService.MutationUpdateBlogPost:input_type -> productv1.MutationUpdateBlogPostRequest
-	84,  // 165: productv1.ProductService.MutationUpdateNullableFieldsType:input_type -> productv1.MutationUpdateNullableFieldsTypeRequest
-	76,  // 166: productv1.ProductService.QueryAllAuthors:input_type -> productv1.QueryAllAuthorsRequest
-	68,  // 167: productv1.ProductService.QueryAllBlogPosts:input_type -> productv1.QueryAllBlogPostsRequest
-	60,  // 168: productv1.ProductService.QueryAllNullableFieldsTypes:input_type -> productv1.QueryAllNullableFieldsTypesRequest
-	48,  // 169: productv1.ProductService.QueryAllPets:input_type -> productv1.QueryAllPetsRequest
-	70,  // 170: productv1.ProductService.QueryAuthor:input_type -> productv1.QueryAuthorRequest
-	72,  // 171: productv1.ProductService.QueryAuthorById:input_type -> productv1.QueryAuthorByIdRequest
-	74,  // 172: productv1.ProductService.QueryAuthorsWithFilter:input_type -> productv1.QueryAuthorsWithFilterRequest
-	62,  // 173: productv1.ProductService.QueryBlogPost:input_type -> productv1.QueryBlogPostRequest
-	64,  // 174: productv1.ProductService.QueryBlogPostById:input_type -> productv1.QueryBlogPostByIdRequest
-	66,  // 175: productv1.ProductService.QueryBlogPostsWithFilter:input_type -> productv1.QueryBlogPostsWithFilterRequest
-	36,  // 176: productv1.ProductService.QueryCalculateTotals:input_type -> productv1.QueryCalculateTotalsRequest
-	38,  // 177: productv1.ProductService.QueryCategories:input_type -> productv1.QueryCategoriesRequest
-	40,  // 178: productv1.ProductService.QueryCategoriesByKind:input_type -> productv1.QueryCategoriesByKindRequest
-	42,  // 179: productv1.ProductService.QueryCategoriesByKinds:input_type -> productv1.QueryCategoriesByKindsRequest
-	34,  // 180: productv1.ProductService.QueryComplexFilterType:input_type -> productv1.QueryComplexFilterTypeRequest
-	44,  // 181: productv1.ProductService.QueryFilterCategories:input_type -> productv1.QueryFilterCategoriesRequest
-	26,  // 182: productv1.ProductService.QueryNestedType:input_type -> productv1.QueryNestedTypeRequest
-	54,  // 183: productv1.ProductService.QueryNullableFieldsType:input_type -> productv1.QueryNullableFieldsTypeRequest
-	56,  // 184: productv1.ProductService.QueryNullableFieldsTypeById:input_type -> productv1.QueryNullableFieldsTypeByIdRequest
-	58,  // 185: productv1.ProductService.QueryNullableFieldsTypeWithFilter:input_type -> productv1.QueryNullableFieldsTypeWithFilterRequest
-	46,  // 186: productv1.ProductService.QueryRandomPet:input_type -> productv1.QueryRandomPetRequest
-	52,  // 187: productv1.ProductService.QueryRandomSearchResult:input_type -> productv1.QueryRandomSearchResultRequest
-	28,  // 188: productv1.ProductService.QueryRecursiveType:input_type -> productv1.QueryRecursiveTypeRequest
-	50,  // 189: productv1.ProductService.QuerySearch:input_type -> productv1.QuerySearchRequest
-	30,  // 190: productv1.ProductService.QueryTypeFilterWithArguments:input_type -> productv1.QueryTypeFilterWithArgumentsRequest
-	32,  // 191: productv1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> productv1.QueryTypeWithMultipleFilterFieldsRequest
-	24,  // 192: productv1.ProductService.QueryUser:input_type -> productv1.QueryUserRequest
-	22,  // 193: productv1.ProductService.QueryUsers:input_type -> productv1.QueryUsersRequest
-	18,  // 194: productv1.ProductService.LookupProductById:output_type -> productv1.LookupProductByIdResponse
-	21,  // 195: productv1.ProductService.LookupStorageById:output_type -> productv1.LookupStorageByIdResponse
-	91,  // 196: productv1.ProductService.MutationCreateAuthor:output_type -> productv1.MutationCreateAuthorResponse
-	87,  // 197: productv1.ProductService.MutationCreateBlogPost:output_type -> productv1.MutationCreateBlogPostResponse
-	83,  // 198: productv1.ProductService.MutationCreateNullableFieldsType:output_type -> productv1.MutationCreateNullableFieldsTypeResponse
-	79,  // 199: productv1.ProductService.MutationCreateUser:output_type -> productv1.MutationCreateUserResponse
-	81,  // 200: productv1.ProductService.MutationPerformAction:output_type -> productv1.MutationPerformActionResponse
-	93,  // 201: productv1.ProductService.MutationUpdateAuthor:output_type -> productv1.MutationUpdateAuthorResponse
-	89,  // 202: productv1.ProductService.MutationUpdateBlogPost:output_type -> productv1.MutationUpdateBlogPostResponse
-	85,  // 203: productv1.ProductService.MutationUpdateNullableFieldsType:output_type -> productv1.MutationUpdateNullableFieldsTypeResponse
-	77,  // 204: productv1.ProductService.QueryAllAuthors:output_type -> productv1.QueryAllAuthorsResponse
-	69,  // 205: productv1.ProductService.QueryAllBlogPosts:output_type -> productv1.QueryAllBlogPostsResponse
-	61,  // 206: productv1.ProductService.QueryAllNullableFieldsTypes:output_type -> productv1.QueryAllNullableFieldsTypesResponse
-	49,  // 207: productv1.ProductService.QueryAllPets:output_type -> productv1.QueryAllPetsResponse
-	71,  // 208: productv1.ProductService.QueryAuthor:output_type -> productv1.QueryAuthorResponse
-	73,  // 209: productv1.ProductService.QueryAuthorById:output_type -> productv1.QueryAuthorByIdResponse
-	75,  // 210: productv1.ProductService.QueryAuthorsWithFilter:output_type -> productv1.QueryAuthorsWithFilterResponse
-	63,  // 211: productv1.ProductService.QueryBlogPost:output_type -> productv1.QueryBlogPostResponse
-	65,  // 212: productv1.ProductService.QueryBlogPostById:output_type -> productv1.QueryBlogPostByIdResponse
-	67,  // 213: productv1.ProductService.QueryBlogPostsWithFilter:output_type -> productv1.QueryBlogPostsWithFilterResponse
-	37,  // 214: productv1.ProductService.QueryCalculateTotals:output_type -> productv1.QueryCalculateTotalsResponse
-	39,  // 215: productv1.ProductService.QueryCategories:output_type -> productv1.QueryCategoriesResponse
-	41,  // 216: productv1.ProductService.QueryCategoriesByKind:output_type -> productv1.QueryCategoriesByKindResponse
-	43,  // 217: productv1.ProductService.QueryCategoriesByKinds:output_type -> productv1.QueryCategoriesByKindsResponse
-	35,  // 218: productv1.ProductService.QueryComplexFilterType:output_type -> productv1.QueryComplexFilterTypeResponse
-	45,  // 219: productv1.ProductService.QueryFilterCategories:output_type -> productv1.QueryFilterCategoriesResponse
-	27,  // 220: productv1.ProductService.QueryNestedType:output_type -> productv1.QueryNestedTypeResponse
-	55,  // 221: productv1.ProductService.QueryNullableFieldsType:output_type -> productv1.QueryNullableFieldsTypeResponse
-	57,  // 222: productv1.ProductService.QueryNullableFieldsTypeById:output_type -> productv1.QueryNullableFieldsTypeByIdResponse
-	59,  // 223: productv1.ProductService.QueryNullableFieldsTypeWithFilter:output_type -> productv1.QueryNullableFieldsTypeWithFilterResponse
-	47,  // 224: productv1.ProductService.QueryRandomPet:output_type -> productv1.QueryRandomPetResponse
-	53,  // 225: productv1.ProductService.QueryRandomSearchResult:output_type -> productv1.QueryRandomSearchResultResponse
-	29,  // 226: productv1.ProductService.QueryRecursiveType:output_type -> productv1.QueryRecursiveTypeResponse
-	51,  // 227: productv1.ProductService.QuerySearch:output_type -> productv1.QuerySearchResponse
-	31,  // 228: productv1.ProductService.QueryTypeFilterWithArguments:output_type -> productv1.QueryTypeFilterWithArgumentsResponse
-	33,  // 229: productv1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> productv1.QueryTypeWithMultipleFilterFieldsResponse
-	25,  // 230: productv1.ProductService.QueryUser:output_type -> productv1.QueryUserResponse
-	23,  // 231: productv1.ProductService.QueryUsers:output_type -> productv1.QueryUsersResponse
-	194, // [194:232] is the sub-list for method output_type
-	156, // [156:194] is the sub-list for method input_type
-	156, // [156:156] is the sub-list for extension type_name
-	156, // [156:156] is the sub-list for extension extendee
-	0,   // [0:156] is the sub-list for field type_name
+	133, // 0: productv1.ListOfBlogPost.list:type_name -> productv1.ListOfBlogPost.List
+	134, // 1: productv1.ListOfBoolean.list:type_name -> productv1.ListOfBoolean.List
+	135, // 2: productv1.ListOfCategory.list:type_name -> productv1.ListOfCategory.List
+	136, // 3: productv1.ListOfCategoryInput.list:type_name -> productv1.ListOfCategoryInput.List
+	137, // 4: productv1.ListOfFloat.list:type_name -> productv1.ListOfFloat.List
+	138, // 5: productv1.ListOfListOfCategory.list:type_name -> productv1.ListOfListOfCategory.List
+	139, // 6: productv1.ListOfListOfCategoryInput.list:type_name -> productv1.ListOfListOfCategoryInput.List
+	140, // 7: productv1.ListOfListOfString.list:type_name -> productv1.ListOfListOfString.List
+	141, // 8: productv1.ListOfListOfUser.list:type_name -> productv1.ListOfListOfUser.List
+	142, // 9: productv1.ListOfListOfUserInput.list:type_name -> productv1.ListOfListOfUserInput.List
+	143, // 10: productv1.ListOfOrderLine.list:type_name -> productv1.ListOfOrderLine.List
+	144, // 11: productv1.ListOfProduct.list:type_name -> productv1.ListOfProduct.List
+	145, // 12: productv1.ListOfString.list:type_name -> productv1.ListOfString.List
+	146, // 13: productv1.ListOfUser.list:type_name -> productv1.ListOfUser.List
+	147, // 14: productv1.ListOfUserInput.list:type_name -> productv1.ListOfUserInput.List
+	16,  // 15: productv1.LookupProductByIdRequest.keys:type_name -> productv1.LookupProductByIdRequestKey
+	94,  // 16: productv1.LookupProductByIdResponse.result:type_name -> productv1.Product
+	19,  // 17: productv1.LookupStorageByIdRequest.keys:type_name -> productv1.LookupStorageByIdRequestKey
+	95,  // 18: productv1.LookupStorageByIdResponse.result:type_name -> productv1.Storage
+	96,  // 19: productv1.QueryUsersResponse.users:type_name -> productv1.User
+	96,  // 20: productv1.QueryUserResponse.user:type_name -> productv1.User
+	97,  // 21: productv1.QueryNestedTypeResponse.nested_type:type_name -> productv1.NestedTypeA
+	98,  // 22: productv1.QueryRecursiveTypeResponse.recursive_type:type_name -> productv1.RecursiveType
+	99,  // 23: productv1.QueryTypeFilterWithArgumentsResponse.type_filter_with_arguments:type_name -> productv1.TypeWithMultipleFilterFields
+	100, // 24: productv1.QueryTypeWithMultipleFilterFieldsRequest.filter:type_name -> productv1.FilterTypeInput
+	99,  // 25: productv1.QueryTypeWithMultipleFilterFieldsResponse.type_with_multiple_filter_fields:type_name -> productv1.TypeWithMultipleFilterFields
+	101, // 26: productv1.QueryComplexFilterTypeRequest.filter:type_name -> productv1.ComplexFilterTypeInput
+	102, // 27: productv1.QueryComplexFilterTypeResponse.complex_filter_type:type_name -> productv1.TypeWithComplexFilterInput
+	103, // 28: productv1.QueryCalculateTotalsRequest.orders:type_name -> productv1.OrderInput
+	104, // 29: productv1.QueryCalculateTotalsResponse.calculate_totals:type_name -> productv1.Order
+	105, // 30: productv1.QueryCategoriesResponse.categories:type_name -> productv1.Category
+	0,   // 31: productv1.QueryCategoriesByKindRequest.kind:type_name -> productv1.CategoryKind
+	105, // 32: productv1.QueryCategoriesByKindResponse.categories_by_kind:type_name -> productv1.Category
+	0,   // 33: productv1.QueryCategoriesByKindsRequest.kinds:type_name -> productv1.CategoryKind
+	105, // 34: productv1.QueryCategoriesByKindsResponse.categories_by_kinds:type_name -> productv1.Category
+	106, // 35: productv1.QueryFilterCategoriesRequest.filter:type_name -> productv1.CategoryFilter
+	105, // 36: productv1.QueryFilterCategoriesResponse.filter_categories:type_name -> productv1.Category
+	107, // 37: productv1.QueryRandomPetResponse.random_pet:type_name -> productv1.Animal
+	107, // 38: productv1.QueryAllPetsResponse.all_pets:type_name -> productv1.Animal
+	108, // 39: productv1.QuerySearchRequest.input:type_name -> productv1.SearchInput
+	109, // 40: productv1.QuerySearchResponse.search:type_name -> productv1.SearchResult
+	109, // 41: productv1.QueryRandomSearchResultResponse.random_search_result:type_name -> productv1.SearchResult
+	110, // 42: productv1.QueryNullableFieldsTypeResponse.nullable_fields_type:type_name -> productv1.NullableFieldsType
+	110, // 43: productv1.QueryNullableFieldsTypeByIdResponse.nullable_fields_type_by_id:type_name -> productv1.NullableFieldsType
+	111, // 44: productv1.QueryNullableFieldsTypeWithFilterRequest.filter:type_name -> productv1.NullableFieldsFilter
+	110, // 45: productv1.QueryNullableFieldsTypeWithFilterResponse.nullable_fields_type_with_filter:type_name -> productv1.NullableFieldsType
+	110, // 46: productv1.QueryAllNullableFieldsTypesResponse.all_nullable_fields_types:type_name -> productv1.NullableFieldsType
+	112, // 47: productv1.QueryBlogPostResponse.blog_post:type_name -> productv1.BlogPost
+	112, // 48: productv1.QueryBlogPostByIdResponse.blog_post_by_id:type_name -> productv1.BlogPost
+	113, // 49: productv1.QueryBlogPostsWithFilterRequest.filter:type_name -> productv1.BlogPostFilter
+	112, // 50: productv1.QueryBlogPostsWithFilterResponse.blog_posts_with_filter:type_name -> productv1.BlogPost
+	112, // 51: productv1.QueryAllBlogPostsResponse.all_blog_posts:type_name -> productv1.BlogPost
+	114, // 52: productv1.QueryAuthorResponse.author:type_name -> productv1.Author
+	114, // 53: productv1.QueryAuthorByIdResponse.author_by_id:type_name -> productv1.Author
+	115, // 54: productv1.QueryAuthorsWithFilterRequest.filter:type_name -> productv1.AuthorFilter
+	114, // 55: productv1.QueryAuthorsWithFilterResponse.authors_with_filter:type_name -> productv1.Author
+	114, // 56: productv1.QueryAllAuthorsResponse.all_authors:type_name -> productv1.Author
+	116, // 57: productv1.MutationCreateUserRequest.input:type_name -> productv1.UserInput
+	96,  // 58: productv1.MutationCreateUserResponse.create_user:type_name -> productv1.User
+	117, // 59: productv1.MutationPerformActionRequest.input:type_name -> productv1.ActionInput
+	118, // 60: productv1.MutationPerformActionResponse.perform_action:type_name -> productv1.ActionResult
+	119, // 61: productv1.MutationCreateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
+	110, // 62: productv1.MutationCreateNullableFieldsTypeResponse.create_nullable_fields_type:type_name -> productv1.NullableFieldsType
+	119, // 63: productv1.MutationUpdateNullableFieldsTypeRequest.input:type_name -> productv1.NullableFieldsInput
+	110, // 64: productv1.MutationUpdateNullableFieldsTypeResponse.update_nullable_fields_type:type_name -> productv1.NullableFieldsType
+	120, // 65: productv1.MutationCreateBlogPostRequest.input:type_name -> productv1.BlogPostInput
+	112, // 66: productv1.MutationCreateBlogPostResponse.create_blog_post:type_name -> productv1.BlogPost
+	120, // 67: productv1.MutationUpdateBlogPostRequest.input:type_name -> productv1.BlogPostInput
+	112, // 68: productv1.MutationUpdateBlogPostResponse.update_blog_post:type_name -> productv1.BlogPost
+	121, // 69: productv1.MutationCreateAuthorRequest.input:type_name -> productv1.AuthorInput
+	114, // 70: productv1.MutationCreateAuthorResponse.create_author:type_name -> productv1.Author
+	121, // 71: productv1.MutationUpdateAuthorRequest.input:type_name -> productv1.AuthorInput
+	114, // 72: productv1.MutationUpdateAuthorResponse.update_author:type_name -> productv1.Author
+	122, // 73: productv1.NestedTypeA.b:type_name -> productv1.NestedTypeB
+	98,  // 74: productv1.RecursiveType.recursive_type:type_name -> productv1.RecursiveType
+	124, // 75: productv1.ComplexFilterTypeInput.filter:type_name -> productv1.FilterType
+	126, // 76: productv1.OrderInput.lines:type_name -> productv1.OrderLineInput
+	11,  // 77: productv1.Order.order_lines:type_name -> productv1.ListOfOrderLine
+	0,   // 78: productv1.Category.kind:type_name -> productv1.CategoryKind
+	0,   // 79: productv1.CategoryFilter.category:type_name -> productv1.CategoryKind
+	125, // 80: productv1.CategoryFilter.pagination:type_name -> productv1.Pagination
+	128, // 81: productv1.Animal.cat:type_name -> productv1.Cat
+	129, // 82: productv1.Animal.dog:type_name -> productv1.Dog
+	148, // 83: productv1.SearchInput.limit:type_name -> google.protobuf.Int32Value
+	94,  // 84: productv1.SearchResult.product:type_name -> productv1.Product
+	96,  // 85: productv1.SearchResult.user:type_name -> productv1.User
+	105, // 86: productv1.SearchResult.category:type_name -> productv1.Category
+	149, // 87: productv1.NullableFieldsType.optional_string:type_name -> google.protobuf.StringValue
+	148, // 88: productv1.NullableFieldsType.optional_int:type_name -> google.protobuf.Int32Value
+	150, // 89: productv1.NullableFieldsType.optional_float:type_name -> google.protobuf.DoubleValue
+	151, // 90: productv1.NullableFieldsType.optional_boolean:type_name -> google.protobuf.BoolValue
+	149, // 91: productv1.NullableFieldsFilter.name:type_name -> google.protobuf.StringValue
+	149, // 92: productv1.NullableFieldsFilter.optional_string:type_name -> google.protobuf.StringValue
+	151, // 93: productv1.NullableFieldsFilter.include_nulls:type_name -> google.protobuf.BoolValue
+	13,  // 94: productv1.BlogPost.optional_tags:type_name -> productv1.ListOfString
+	13,  // 95: productv1.BlogPost.keywords:type_name -> productv1.ListOfString
+	5,   // 96: productv1.BlogPost.ratings:type_name -> productv1.ListOfFloat
+	2,   // 97: productv1.BlogPost.is_published:type_name -> productv1.ListOfBoolean
+	8,   // 98: productv1.BlogPost.tag_groups:type_name -> productv1.ListOfListOfString
+	8,   // 99: productv1.BlogPost.related_topics:type_name -> productv1.ListOfListOfString
+	8,   // 100: productv1.BlogPost.comment_threads:type_name -> productv1.ListOfListOfString
+	8,   // 101: productv1.BlogPost.suggestions:type_name -> productv1.ListOfListOfString
+	105, // 102: productv1.BlogPost.related_categories:type_name -> productv1.Category
+	96,  // 103: productv1.BlogPost.contributors:type_name -> productv1.User
+	12,  // 104: productv1.BlogPost.mentioned_products:type_name -> productv1.ListOfProduct
+	14,  // 105: productv1.BlogPost.mentioned_users:type_name -> productv1.ListOfUser
+	6,   // 106: productv1.BlogPost.category_groups:type_name -> productv1.ListOfListOfCategory
+	9,   // 107: productv1.BlogPost.contributor_teams:type_name -> productv1.ListOfListOfUser
+	149, // 108: productv1.BlogPostFilter.title:type_name -> google.protobuf.StringValue
+	151, // 109: productv1.BlogPostFilter.has_categories:type_name -> google.protobuf.BoolValue
+	148, // 110: productv1.BlogPostFilter.min_tags:type_name -> google.protobuf.Int32Value
+	149, // 111: productv1.Author.email:type_name -> google.protobuf.StringValue
+	13,  // 112: productv1.Author.social_links:type_name -> productv1.ListOfString
+	8,   // 113: productv1.Author.teams_by_project:type_name -> productv1.ListOfListOfString
+	8,   // 114: productv1.Author.collaborations:type_name -> productv1.ListOfListOfString
+	1,   // 115: productv1.Author.written_posts:type_name -> productv1.ListOfBlogPost
+	105, // 116: productv1.Author.favorite_categories:type_name -> productv1.Category
+	14,  // 117: productv1.Author.related_authors:type_name -> productv1.ListOfUser
+	12,  // 118: productv1.Author.product_reviews:type_name -> productv1.ListOfProduct
+	9,   // 119: productv1.Author.author_groups:type_name -> productv1.ListOfListOfUser
+	6,   // 120: productv1.Author.category_preferences:type_name -> productv1.ListOfListOfCategory
+	9,   // 121: productv1.Author.project_teams:type_name -> productv1.ListOfListOfUser
+	149, // 122: productv1.AuthorFilter.name:type_name -> google.protobuf.StringValue
+	151, // 123: productv1.AuthorFilter.has_teams:type_name -> google.protobuf.BoolValue
+	148, // 124: productv1.AuthorFilter.skill_count:type_name -> google.protobuf.Int32Value
+	130, // 125: productv1.ActionResult.action_success:type_name -> productv1.ActionSuccess
+	131, // 126: productv1.ActionResult.action_error:type_name -> productv1.ActionError
+	149, // 127: productv1.NullableFieldsInput.optional_string:type_name -> google.protobuf.StringValue
+	148, // 128: productv1.NullableFieldsInput.optional_int:type_name -> google.protobuf.Int32Value
+	150, // 129: productv1.NullableFieldsInput.optional_float:type_name -> google.protobuf.DoubleValue
+	151, // 130: productv1.NullableFieldsInput.optional_boolean:type_name -> google.protobuf.BoolValue
+	13,  // 131: productv1.BlogPostInput.optional_tags:type_name -> productv1.ListOfString
+	13,  // 132: productv1.BlogPostInput.keywords:type_name -> productv1.ListOfString
+	5,   // 133: productv1.BlogPostInput.ratings:type_name -> productv1.ListOfFloat
+	2,   // 134: productv1.BlogPostInput.is_published:type_name -> productv1.ListOfBoolean
+	8,   // 135: productv1.BlogPostInput.tag_groups:type_name -> productv1.ListOfListOfString
+	8,   // 136: productv1.BlogPostInput.related_topics:type_name -> productv1.ListOfListOfString
+	8,   // 137: productv1.BlogPostInput.comment_threads:type_name -> productv1.ListOfListOfString
+	8,   // 138: productv1.BlogPostInput.suggestions:type_name -> productv1.ListOfListOfString
+	4,   // 139: productv1.BlogPostInput.related_categories:type_name -> productv1.ListOfCategoryInput
+	15,  // 140: productv1.BlogPostInput.contributors:type_name -> productv1.ListOfUserInput
+	7,   // 141: productv1.BlogPostInput.category_groups:type_name -> productv1.ListOfListOfCategoryInput
+	149, // 142: productv1.AuthorInput.email:type_name -> google.protobuf.StringValue
+	13,  // 143: productv1.AuthorInput.social_links:type_name -> productv1.ListOfString
+	8,   // 144: productv1.AuthorInput.teams_by_project:type_name -> productv1.ListOfListOfString
+	8,   // 145: productv1.AuthorInput.collaborations:type_name -> productv1.ListOfListOfString
+	132, // 146: productv1.AuthorInput.favorite_categories:type_name -> productv1.CategoryInput
+	10,  // 147: productv1.AuthorInput.author_groups:type_name -> productv1.ListOfListOfUserInput
+	10,  // 148: productv1.AuthorInput.project_teams:type_name -> productv1.ListOfListOfUserInput
+	123, // 149: productv1.NestedTypeB.c:type_name -> productv1.NestedTypeC
+	125, // 150: productv1.FilterType.pagination:type_name -> productv1.Pagination
+	13,  // 151: productv1.OrderLineInput.modifiers:type_name -> productv1.ListOfString
+	13,  // 152: productv1.OrderLine.modifiers:type_name -> productv1.ListOfString
+	0,   // 153: productv1.CategoryInput.kind:type_name -> productv1.CategoryKind
+	112, // 154: productv1.ListOfBlogPost.List.items:type_name -> productv1.BlogPost
+	105, // 155: productv1.ListOfCategory.List.items:type_name -> productv1.Category
+	132, // 156: productv1.ListOfCategoryInput.List.items:type_name -> productv1.CategoryInput
+	3,   // 157: productv1.ListOfListOfCategory.List.items:type_name -> productv1.ListOfCategory
+	4,   // 158: productv1.ListOfListOfCategoryInput.List.items:type_name -> productv1.ListOfCategoryInput
+	13,  // 159: productv1.ListOfListOfString.List.items:type_name -> productv1.ListOfString
+	14,  // 160: productv1.ListOfListOfUser.List.items:type_name -> productv1.ListOfUser
+	15,  // 161: productv1.ListOfListOfUserInput.List.items:type_name -> productv1.ListOfUserInput
+	127, // 162: productv1.ListOfOrderLine.List.items:type_name -> productv1.OrderLine
+	94,  // 163: productv1.ListOfProduct.List.items:type_name -> productv1.Product
+	96,  // 164: productv1.ListOfUser.List.items:type_name -> productv1.User
+	116, // 165: productv1.ListOfUserInput.List.items:type_name -> productv1.UserInput
+	17,  // 166: productv1.ProductService.LookupProductById:input_type -> productv1.LookupProductByIdRequest
+	20,  // 167: productv1.ProductService.LookupStorageById:input_type -> productv1.LookupStorageByIdRequest
+	90,  // 168: productv1.ProductService.MutationCreateAuthor:input_type -> productv1.MutationCreateAuthorRequest
+	86,  // 169: productv1.ProductService.MutationCreateBlogPost:input_type -> productv1.MutationCreateBlogPostRequest
+	82,  // 170: productv1.ProductService.MutationCreateNullableFieldsType:input_type -> productv1.MutationCreateNullableFieldsTypeRequest
+	78,  // 171: productv1.ProductService.MutationCreateUser:input_type -> productv1.MutationCreateUserRequest
+	80,  // 172: productv1.ProductService.MutationPerformAction:input_type -> productv1.MutationPerformActionRequest
+	92,  // 173: productv1.ProductService.MutationUpdateAuthor:input_type -> productv1.MutationUpdateAuthorRequest
+	88,  // 174: productv1.ProductService.MutationUpdateBlogPost:input_type -> productv1.MutationUpdateBlogPostRequest
+	84,  // 175: productv1.ProductService.MutationUpdateNullableFieldsType:input_type -> productv1.MutationUpdateNullableFieldsTypeRequest
+	76,  // 176: productv1.ProductService.QueryAllAuthors:input_type -> productv1.QueryAllAuthorsRequest
+	68,  // 177: productv1.ProductService.QueryAllBlogPosts:input_type -> productv1.QueryAllBlogPostsRequest
+	60,  // 178: productv1.ProductService.QueryAllNullableFieldsTypes:input_type -> productv1.QueryAllNullableFieldsTypesRequest
+	48,  // 179: productv1.ProductService.QueryAllPets:input_type -> productv1.QueryAllPetsRequest
+	70,  // 180: productv1.ProductService.QueryAuthor:input_type -> productv1.QueryAuthorRequest
+	72,  // 181: productv1.ProductService.QueryAuthorById:input_type -> productv1.QueryAuthorByIdRequest
+	74,  // 182: productv1.ProductService.QueryAuthorsWithFilter:input_type -> productv1.QueryAuthorsWithFilterRequest
+	62,  // 183: productv1.ProductService.QueryBlogPost:input_type -> productv1.QueryBlogPostRequest
+	64,  // 184: productv1.ProductService.QueryBlogPostById:input_type -> productv1.QueryBlogPostByIdRequest
+	66,  // 185: productv1.ProductService.QueryBlogPostsWithFilter:input_type -> productv1.QueryBlogPostsWithFilterRequest
+	36,  // 186: productv1.ProductService.QueryCalculateTotals:input_type -> productv1.QueryCalculateTotalsRequest
+	38,  // 187: productv1.ProductService.QueryCategories:input_type -> productv1.QueryCategoriesRequest
+	40,  // 188: productv1.ProductService.QueryCategoriesByKind:input_type -> productv1.QueryCategoriesByKindRequest
+	42,  // 189: productv1.ProductService.QueryCategoriesByKinds:input_type -> productv1.QueryCategoriesByKindsRequest
+	34,  // 190: productv1.ProductService.QueryComplexFilterType:input_type -> productv1.QueryComplexFilterTypeRequest
+	44,  // 191: productv1.ProductService.QueryFilterCategories:input_type -> productv1.QueryFilterCategoriesRequest
+	26,  // 192: productv1.ProductService.QueryNestedType:input_type -> productv1.QueryNestedTypeRequest
+	54,  // 193: productv1.ProductService.QueryNullableFieldsType:input_type -> productv1.QueryNullableFieldsTypeRequest
+	56,  // 194: productv1.ProductService.QueryNullableFieldsTypeById:input_type -> productv1.QueryNullableFieldsTypeByIdRequest
+	58,  // 195: productv1.ProductService.QueryNullableFieldsTypeWithFilter:input_type -> productv1.QueryNullableFieldsTypeWithFilterRequest
+	46,  // 196: productv1.ProductService.QueryRandomPet:input_type -> productv1.QueryRandomPetRequest
+	52,  // 197: productv1.ProductService.QueryRandomSearchResult:input_type -> productv1.QueryRandomSearchResultRequest
+	28,  // 198: productv1.ProductService.QueryRecursiveType:input_type -> productv1.QueryRecursiveTypeRequest
+	50,  // 199: productv1.ProductService.QuerySearch:input_type -> productv1.QuerySearchRequest
+	30,  // 200: productv1.ProductService.QueryTypeFilterWithArguments:input_type -> productv1.QueryTypeFilterWithArgumentsRequest
+	32,  // 201: productv1.ProductService.QueryTypeWithMultipleFilterFields:input_type -> productv1.QueryTypeWithMultipleFilterFieldsRequest
+	24,  // 202: productv1.ProductService.QueryUser:input_type -> productv1.QueryUserRequest
+	22,  // 203: productv1.ProductService.QueryUsers:input_type -> productv1.QueryUsersRequest
+	18,  // 204: productv1.ProductService.LookupProductById:output_type -> productv1.LookupProductByIdResponse
+	21,  // 205: productv1.ProductService.LookupStorageById:output_type -> productv1.LookupStorageByIdResponse
+	91,  // 206: productv1.ProductService.MutationCreateAuthor:output_type -> productv1.MutationCreateAuthorResponse
+	87,  // 207: productv1.ProductService.MutationCreateBlogPost:output_type -> productv1.MutationCreateBlogPostResponse
+	83,  // 208: productv1.ProductService.MutationCreateNullableFieldsType:output_type -> productv1.MutationCreateNullableFieldsTypeResponse
+	79,  // 209: productv1.ProductService.MutationCreateUser:output_type -> productv1.MutationCreateUserResponse
+	81,  // 210: productv1.ProductService.MutationPerformAction:output_type -> productv1.MutationPerformActionResponse
+	93,  // 211: productv1.ProductService.MutationUpdateAuthor:output_type -> productv1.MutationUpdateAuthorResponse
+	89,  // 212: productv1.ProductService.MutationUpdateBlogPost:output_type -> productv1.MutationUpdateBlogPostResponse
+	85,  // 213: productv1.ProductService.MutationUpdateNullableFieldsType:output_type -> productv1.MutationUpdateNullableFieldsTypeResponse
+	77,  // 214: productv1.ProductService.QueryAllAuthors:output_type -> productv1.QueryAllAuthorsResponse
+	69,  // 215: productv1.ProductService.QueryAllBlogPosts:output_type -> productv1.QueryAllBlogPostsResponse
+	61,  // 216: productv1.ProductService.QueryAllNullableFieldsTypes:output_type -> productv1.QueryAllNullableFieldsTypesResponse
+	49,  // 217: productv1.ProductService.QueryAllPets:output_type -> productv1.QueryAllPetsResponse
+	71,  // 218: productv1.ProductService.QueryAuthor:output_type -> productv1.QueryAuthorResponse
+	73,  // 219: productv1.ProductService.QueryAuthorById:output_type -> productv1.QueryAuthorByIdResponse
+	75,  // 220: productv1.ProductService.QueryAuthorsWithFilter:output_type -> productv1.QueryAuthorsWithFilterResponse
+	63,  // 221: productv1.ProductService.QueryBlogPost:output_type -> productv1.QueryBlogPostResponse
+	65,  // 222: productv1.ProductService.QueryBlogPostById:output_type -> productv1.QueryBlogPostByIdResponse
+	67,  // 223: productv1.ProductService.QueryBlogPostsWithFilter:output_type -> productv1.QueryBlogPostsWithFilterResponse
+	37,  // 224: productv1.ProductService.QueryCalculateTotals:output_type -> productv1.QueryCalculateTotalsResponse
+	39,  // 225: productv1.ProductService.QueryCategories:output_type -> productv1.QueryCategoriesResponse
+	41,  // 226: productv1.ProductService.QueryCategoriesByKind:output_type -> productv1.QueryCategoriesByKindResponse
+	43,  // 227: productv1.ProductService.QueryCategoriesByKinds:output_type -> productv1.QueryCategoriesByKindsResponse
+	35,  // 228: productv1.ProductService.QueryComplexFilterType:output_type -> productv1.QueryComplexFilterTypeResponse
+	45,  // 229: productv1.ProductService.QueryFilterCategories:output_type -> productv1.QueryFilterCategoriesResponse
+	27,  // 230: productv1.ProductService.QueryNestedType:output_type -> productv1.QueryNestedTypeResponse
+	55,  // 231: productv1.ProductService.QueryNullableFieldsType:output_type -> productv1.QueryNullableFieldsTypeResponse
+	57,  // 232: productv1.ProductService.QueryNullableFieldsTypeById:output_type -> productv1.QueryNullableFieldsTypeByIdResponse
+	59,  // 233: productv1.ProductService.QueryNullableFieldsTypeWithFilter:output_type -> productv1.QueryNullableFieldsTypeWithFilterResponse
+	47,  // 234: productv1.ProductService.QueryRandomPet:output_type -> productv1.QueryRandomPetResponse
+	53,  // 235: productv1.ProductService.QueryRandomSearchResult:output_type -> productv1.QueryRandomSearchResultResponse
+	29,  // 236: productv1.ProductService.QueryRecursiveType:output_type -> productv1.QueryRecursiveTypeResponse
+	51,  // 237: productv1.ProductService.QuerySearch:output_type -> productv1.QuerySearchResponse
+	31,  // 238: productv1.ProductService.QueryTypeFilterWithArguments:output_type -> productv1.QueryTypeFilterWithArgumentsResponse
+	33,  // 239: productv1.ProductService.QueryTypeWithMultipleFilterFields:output_type -> productv1.QueryTypeWithMultipleFilterFieldsResponse
+	25,  // 240: productv1.ProductService.QueryUser:output_type -> productv1.QueryUserResponse
+	23,  // 241: productv1.ProductService.QueryUsers:output_type -> productv1.QueryUsersResponse
+	204, // [204:242] is the sub-list for method output_type
+	166, // [166:204] is the sub-list for method input_type
+	166, // [166:166] is the sub-list for extension type_name
+	166, // [166:166] is the sub-list for extension extendee
+	0,   // [0:166] is the sub-list for field type_name
 }
 
 func init() { file_product_proto_init() }
@@ -8149,7 +8629,7 @@ func file_product_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_product_proto_rawDesc), len(file_product_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   137,
+			NumMessages:   147,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
