@@ -270,3 +270,27 @@ func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
 	}
 	return
 }
+
+// ResolveNestedListOrListType returns the underlying type of a list.
+// In contrast to ResolveListOrNameType, this function does not unwrap a non-null type.
+// e.g.:
+// * [[String]] -> [String]
+// * [[String]!] -> [String]!
+// * [String!]! -> String!
+// * [String]! -> String
+func (d *Document) ResolveNestedListOrListType(ref int) int {
+	if !d.TypeIsList(ref) {
+		return ref
+	}
+
+	graphqlType := d.Types[ref]
+	if graphqlType.TypeKind == TypeKindNonNull {
+		graphqlType = d.Types[graphqlType.OfType]
+	}
+
+	if graphqlType.TypeKind == TypeKindList {
+		return graphqlType.OfType
+	}
+
+	return ref
+}

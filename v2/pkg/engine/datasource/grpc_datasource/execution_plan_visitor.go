@@ -596,26 +596,10 @@ func (r *rpcPlanVisitor) createListMetadata(typeRef int) *ListMetadata {
 			Optional: !r.definition.TypeIsNonNull(typeRef),
 		}
 
-		typeRef = r.unwrapListNesting(typeRef)
+		typeRef = r.definition.ResolveNestedListOrListType(typeRef)
 	}
 
 	return md
-}
-
-func (r *rpcPlanVisitor) unwrapListNesting(typeRef int) int {
-	if !r.definition.TypeIsList(typeRef) {
-		return typeRef
-	}
-
-	if r.definition.TypeIsNonNull(typeRef) {
-		typeRef = r.definition.Types[typeRef].OfType
-	}
-
-	if r.definition.Types[typeRef].TypeKind == ast.TypeKindList {
-		typeRef = r.definition.Types[typeRef].OfType
-	}
-
-	return typeRef
 }
 
 func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
