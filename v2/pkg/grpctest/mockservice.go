@@ -3,6 +3,7 @@ package grpctest
 import (
 	context "context"
 	"fmt"
+	"math"
 	"math/rand"
 	"strconv"
 
@@ -210,7 +211,7 @@ func (s *MockService) QueryAllNullableFieldsTypes(ctx context.Context, in *produ
 		Name:            "Full Data Entry",
 		OptionalString:  &wrapperspb.StringValue{Value: "Optional String Value"},
 		OptionalInt:     &wrapperspb.Int32Value{Value: 42},
-		OptionalFloat:   &wrapperspb.DoubleValue{Value: 3.14},
+		OptionalFloat:   &wrapperspb.DoubleValue{Value: math.MaxFloat64},
 		OptionalBoolean: &wrapperspb.BoolValue{Value: true},
 		RequiredString:  "Required String 1",
 		RequiredInt:     100,

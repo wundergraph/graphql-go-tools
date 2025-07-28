@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -631,7 +632,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
-		require.Equal(t, `{"data":{"allNullableFieldsTypes":[{"id":"nullable-1","name":"Full Data Entry","optionalString":"Optional String Value","optionalInt":42,"optionalFloat":3.14,"optionalBoolean":true,"requiredString":"Required String 1","requiredInt":100},{"id":"nullable-2","name":"Partial Data Entry","optionalString":"Only string is set","optionalInt":null,"optionalFloat":null,"optionalBoolean":false,"requiredString":"Required String 2","requiredInt":200},{"id":"nullable-3","name":"Minimal Data Entry","optionalString":null,"optionalInt":null,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Required String 3","requiredInt":300}]}}`, response)
+		require.Equal(t, `{"data":{"allNullableFieldsTypes":[{"id":"nullable-1","name":"Full Data Entry","optionalString":"Optional String Value","optionalInt":42,"optionalFloat":1.7976931348623157e+308,"optionalBoolean":true,"requiredString":"Required String 1","requiredInt":100},{"id":"nullable-2","name":"Partial Data Entry","optionalString":"Only string is set","optionalInt":null,"optionalFloat":null,"optionalBoolean":false,"requiredString":"Required String 2","requiredInt":200},{"id":"nullable-3","name":"Minimal Data Entry","optionalString":null,"optionalInt":null,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Required String 3","requiredInt":300}]}}`, response)
 	})
 
 	t.Run("should handle nullable fields query with filter", func(t *testing.T) {
@@ -677,8 +678,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 				"input": map[string]any{
 					"name":            "Created Type",
 					"optionalString":  "Optional Value",
-					"optionalInt":     42,
-					"optionalFloat":   3.14,
+					"optionalInt":     math.MaxInt32,
+					"optionalFloat":   math.MaxFloat64,
 					"optionalBoolean": true,
 					"requiredString":  "Required Value",
 					"requiredInt":     100,
@@ -703,8 +704,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, response, `"name":"Created Type"`)
 		require.Contains(t, response, `"optionalString":"Optional Value"`)
-		require.Contains(t, response, `"optionalInt":42`)
-		require.Contains(t, response, `"optionalFloat":3.14`)
+		require.Contains(t, response, `"optionalInt":2147483647`)
+		require.Contains(t, response, `"optionalFloat":1.7976931348623157e+308`)
 		require.Contains(t, response, `"optionalBoolean":true`)
 		require.Contains(t, response, `"requiredString":"Required Value"`)
 		require.Contains(t, response, `"requiredInt":100`)
