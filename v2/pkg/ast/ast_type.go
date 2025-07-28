@@ -280,7 +280,7 @@ func (d *Document) ResolveListOrNameType(ref int) (typeRef int) {
 // * [String]! -> String
 func (d *Document) ResolveNestedListOrListType(ref int) int {
 	if !d.TypeIsList(ref) {
-		return ref
+		return InvalidRef
 	}
 
 	graphqlType := d.Types[ref]

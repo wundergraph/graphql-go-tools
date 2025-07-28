@@ -597,6 +597,10 @@ func (r *rpcPlanVisitor) createListMetadata(typeRef int) *ListMetadata {
 		}
 
 		typeRef = r.definition.ResolveNestedListOrListType(typeRef)
+		if typeRef == ast.InvalidRef {
+			r.walker.StopWithInternalErr(fmt.Errorf("unable to resolve underlying list type for ref: %d", typeRef))
+			return nil
+		}
 	}
 
 	return md
