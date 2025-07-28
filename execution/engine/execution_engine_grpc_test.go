@@ -860,12 +860,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
-		require.Contains(t, response, `"tagGroups":`)
-		require.Contains(t, response, `"relatedTopics":`)
-		require.Contains(t, response, `"commentThreads":`)
-		require.Contains(t, response, `"suggestions":`)
-		// Verify nested structure with arrays of arrays
-		require.Contains(t, response, `[[`)
+		require.Equal(t, `{"data":{"blogPost":{"id":"blog-default","title":"Default Blog Post","tagGroups":[["tech","programming"],["golang","backend"]],"relatedTopics":[["microservices","api"],["databases","performance"]],"commentThreads":[["Great post!","Very helpful"],["Could use more examples","Thanks for sharing"]],"suggestions":[["Add code examples","Include diagrams"]]}}}`, response)
 	})
 
 	t.Run("should handle BlogPost query with complex lists", func(t *testing.T) {
@@ -1045,10 +1040,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
-		require.Contains(t, response, `"teamsByProject":`)
-		require.Contains(t, response, `"collaborations":`)
-		// Verify nested structure
-		require.Contains(t, response, `[[`)
+		require.Equal(t, `{"data":{"author":{"id":"author-default","name":"Default Author","teamsByProject":[["Alice","Bob","Charlie"],["David","Eve"]],"collaborations":[["Open Source Project A","Research Paper B"],["Conference Talk C"]]}}}`, response)
 	})
 
 	t.Run("should handle Author query with complex lists", func(t *testing.T) {

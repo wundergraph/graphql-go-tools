@@ -212,6 +212,8 @@ func (d *Document) ServiceByRef(ref int) Service {
 
 // MessageByName returns a Message by its name.
 // Returns an empty Message if no message with the given name exists.
+// We only expect this function to return false if either the message name was provided incorrectly,
+// or the schema and mapping was not properly configured.
 func (d *Document) MessageByName(name string) (Message, bool) {
 	for _, m := range d.Messages {
 		if m.Name == name {
@@ -446,9 +448,15 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 			var fieldMsg *dynamicpb.Message
 
 			switch {
+
 			case rpcField.IsListType:
-				// nested and nullable lists are wrapped in a message, therefore we need to handle them differently
-				// than repeated fields.
+				// Nested and nullable lists are wrapped in a message, therefore we need to handle them differently
+				// than repeated fields. We need to do this because protobuf repeated fields are not nullable and cannot be nested.
+				//
+				// message BlogPost {
+				//   ListOfBoolean is_published = 1;
+				//   ListOfListOfString related_topics = 2;
+				// }
 				if !data.Get(rpcField.JSONPath).Exists() {
 					if !rpcField.Optional {
 						p.report.AddInternalError(fmt.Errorf("field %s is required but has no value", rpcField.JSONPath))
@@ -508,12 +516,31 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 	return message
 }
 
+// buildListMessage creates a new protobuf message, which reflects a wrapper type to work with a list in GraphQL.
+// A list wrapper type has an inner message type, which contains a repeated field.
+// We need this to make sure we can differentiate between a null list and an empty list, as repeated fields are not nullable.
+//
+//	message ListOfFloat {
+//	  message List {
+//	    repeated double items = 1;
+//	  }
+//	  List list = 1;
+//	}
 func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field Field, rpcField *RPCField, data gjson.Result) *dynamicpb.Message {
 	rootMsg := dynamicpb.NewMessage(desc.Fields().ByName(protoref.Name(field.Name)).Message())
 	p.traverseList(rootMsg, 1, field, rpcField, data.Get(rpcField.JSONPath))
 	return rootMsg
 }
 
+// traverseList makes sure we can handle nested lists properly.
+// A nested list follows the same structure as a regular list, but references the lower nested message list wrapper.
+//
+//	message ListOfListOfString {
+//	  message List {
+//	    repeated ListOfString items = 1;
+//	  }
+//	  List list = 1;
+//	}
 func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Field, rpcField *RPCField, data gjson.Result) protoref.Message {
 	listFieldDesc := rootMsg.Descriptor().Fields().ByNumber(1)
 	if listFieldDesc == nil {

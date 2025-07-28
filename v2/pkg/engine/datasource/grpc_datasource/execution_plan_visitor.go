@@ -454,7 +454,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			TypeName: DataTypeMessage.String(),
 			JSONPath: jsonPath,
 			Message:  msg,
-			Repeated: r.typeIsNonNullList(typeRef),
+			Repeated: r.definition.TypeIsNonNullList(typeRef),
 		})
 
 		// Add the current request message to the ancestors and set the current request message to the new message.
@@ -475,7 +475,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
 			TypeName: dt.String(),
 			JSONPath: jsonPath,
-			Repeated: r.typeIsNonNullList(typeRef),
+			Repeated: r.definition.TypeIsNonNullList(typeRef),
 			Optional: !r.definition.TypeIsNonNull(typeRef),
 		}
 
@@ -581,10 +581,6 @@ func (r *rpcPlanVisitor) buildInputMessageField(typeRef int, fieldName, jsonPath
 	}
 
 	return field
-}
-
-func (r *rpcPlanVisitor) typeIsNonNullList(typeRef int) bool {
-	return r.definition.TypeIsList(typeRef) && r.definition.TypeIsNonNull(typeRef)
 }
 
 func (r *rpcPlanVisitor) createListMetadata(typeRef int) *ListMetadata {
