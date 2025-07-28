@@ -299,11 +299,12 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 
 	msg := data.Get(fd).Message()
 	if !msg.IsValid() {
+		// If the message is not valid we can either return null if the list is nullable or an error if it is non nullable.
 		if md.LevelInfo[level].Optional {
 			return arena.NewNull(), nil
 		}
 
-		return arena.NewArray(), nil
+		return arena.NewArray(), fmt.Errorf("cannot add null item to response for non nullable list")
 	}
 
 	fd = msg.Descriptor().Fields().ByNumber(1)
@@ -328,6 +329,8 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 
 	list := msg.Get(fd).List()
 	if !list.IsValid() {
+		// If the list is not valid, we return an empty array here as the
+		// nullabilty is checked on the outer List wrapper type.
 		return arena.NewArray(), nil
 	}
 
