@@ -168,9 +168,27 @@ type RPCField struct {
 	StaticValue string
 	// Optional indicates if the field is optional
 	Optional bool
+	// IsListType indicates if the field is a list wrapper type
+	IsListType bool
+	// ListMetadata contains the metadata for the list type
+	ListMetadata *ListMetadata
 	// Message represents the nested message type definition for complex fields.
 	// This enables recursive construction of nested protobuf message structures.
 	Message *RPCMessage
+}
+
+// ListMetadata contains the metadata for the list type
+type ListMetadata struct {
+	// NestingLevel is the nesting level of the list type
+	NestingLevel int
+	// LevelInfo contains the metadata for each nesting level of the list
+	LevelInfo []LevelInfo
+}
+
+// LevelInfo contains the metadata for the list type
+type LevelInfo struct {
+	// Optional indicates if the field is optional
+	Optional bool
 }
 
 // ToOptionalTypeMessage returns a message that wraps the scalar value in a message
@@ -192,7 +210,6 @@ func (r *RPCField) ToOptionalTypeMessage(protoName string) *RPCMessage {
 			},
 		},
 	}
-
 }
 
 // AliasOrPath returns the alias of the field if it exists, otherwise it returns the JSONPath.
@@ -202,6 +219,11 @@ func (r *RPCField) AliasOrPath() string {
 	}
 
 	return r.JSONPath
+}
+
+// IsOptionalScalar checks if the field is an optional scalar value.
+func (r *RPCField) IsOptionalScalar() bool {
+	return r.Optional && r.TypeName != string(DataTypeMessage)
 }
 
 // RPCFields is a list of RPCFields that provides helper methods

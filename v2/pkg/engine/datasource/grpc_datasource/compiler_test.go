@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // Complete valid protobuf definition with service and message definitions
@@ -290,4 +291,161 @@ func TestBuildProtoMessage(t *testing.T) {
 
 	require.Equal(t, 1, len(invocations))
 
+}
+
+func TestCompileNestedLists(t *testing.T) {
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+	require.NoError(t, err)
+
+	plan := &RPCExecutionPlan{
+		Calls: []RPCCall{
+			{
+				ServiceName: "Products",
+				MethodName:  "QueryCalculateTotals",
+				Request: RPCMessage{
+					Name: "QueryCalculateTotalsRequest",
+					Fields: []RPCField{
+						{
+							Name:     "orders",
+							TypeName: string(DataTypeMessage),
+							JSONPath: "orders",
+							Repeated: true,
+							Message: &RPCMessage{
+								Name: "OrderInput",
+								Fields: []RPCField{
+									{
+										Name:     "order_id",
+										TypeName: string(DataTypeString),
+										JSONPath: "orderId",
+									},
+									{
+										Name:     "customer_name",
+										TypeName: string(DataTypeString),
+										JSONPath: "customerName",
+									},
+									{
+										Name:     "lines",
+										TypeName: string(DataTypeMessage),
+										JSONPath: "lines",
+										Repeated: true,
+										Message: &RPCMessage{
+											Name: "OrderLineInput",
+											Fields: []RPCField{
+												{
+													Name:     "product_id",
+													TypeName: string(DataTypeString),
+													JSONPath: "productId",
+												},
+												{
+													Name:     "quantity",
+													TypeName: string(DataTypeInt32),
+													JSONPath: "quantity",
+												},
+												{
+													Name:       "modifiers",
+													TypeName:   string(DataTypeString),
+													JSONPath:   "modifiers",
+													Optional:   true,
+													IsListType: true,
+													ListMetadata: &ListMetadata{
+														NestingLevel: 1,
+														LevelInfo: []LevelInfo{
+															{
+																Optional: true,
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				Response: RPCMessage{
+					Name: "QueryCalculateTotalsResponse",
+					Fields: []RPCField{
+						{
+							Name:     "calculate_totals",
+							TypeName: string(DataTypeMessage),
+							JSONPath: "calculateTotals",
+							Repeated: true,
+							Message: &RPCMessage{
+								Name: "Order",
+								Fields: []RPCField{
+									{
+										Name:     "order_id",
+										TypeName: string(DataTypeString),
+										JSONPath: "orderId",
+									},
+									{
+										Name:     "customer_name",
+										TypeName: string(DataTypeString),
+										JSONPath: "customerName",
+									},
+									{
+										Name:     "total_items",
+										TypeName: string(DataTypeInt32),
+										JSONPath: "totalItems",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	invocations, err := compiler.Compile(plan, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
+	require.NoError(t, err)
+	require.Equal(t, 1, len(invocations))
+
+	proto := invocations[0].Input.ProtoReflect()
+
+	msgDesc := proto.Descriptor()
+
+	ordersDesc := msgDesc.Fields().ByName("orders")
+	require.True(t, proto.Has(ordersDesc))
+	orders := proto.Get(ordersDesc)
+	require.True(t, orders.IsValid())
+
+	require.True(t, ordersDesc.IsList())
+	ordersList := orders.List()
+
+	orderMsg := ordersList.Get(0).Message()
+	orderDesc := orderMsg.Descriptor()
+	require.True(t, ordersList.Get(0).Message().Has(orderDesc.Fields().ByName("order_id")))
+	require.True(t, ordersList.Get(0).Message().Has(orderDesc.Fields().ByName("customer_name")))
+	require.True(t, ordersList.Get(0).Message().Has(orderDesc.Fields().ByName("lines")))
+
+	linesList := ordersList.Get(0).Message().Get(orderDesc.Fields().ByName("lines")).List()
+	require.True(t, linesList.IsValid())
+
+	require.Equal(t, 1, linesList.Len())
+
+	for i := 0; i < linesList.Len(); i++ {
+		linesMsg := linesList.Get(i).Message()
+
+		linesDesc := linesMsg.Descriptor().Fields()
+
+		require.True(t, linesMsg.Has(linesDesc.ByName("product_id")))
+		require.True(t, linesMsg.Has(linesDesc.ByName("quantity")))
+		require.True(t, linesMsg.Has(linesDesc.ByName("modifiers")))
+
+		modifiersDesc := linesDesc.ByName("modifiers")
+		require.True(t, modifiersDesc.Kind() == protoreflect.MessageKind)
+
+		modifiersMsg := linesMsg.Get(modifiersDesc).Message()
+		require.True(t, modifiersMsg.IsValid(), "expected modifiers message to be valid")
+		modifiersListMsg := modifiersMsg.Get(modifiersMsg.Descriptor().Fields().ByName("list")).Message()
+		modifiersList := modifiersListMsg.Get(modifiersListMsg.Descriptor().Fields().ByName("items")).List()
+
+		require.True(t, modifiersList.IsValid(), "expected modifiers list to be valid")
+		require.Equal(t, 2, modifiersList.Len())
+		require.Equal(t, "modifier1", modifiersList.Get(0).String())
+		require.Equal(t, "modifier2", modifiersList.Get(1).String())
+	}
 }
