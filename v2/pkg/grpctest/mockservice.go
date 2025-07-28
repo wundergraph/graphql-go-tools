@@ -2042,6 +2042,35 @@ func (s *MockService) MutationUpdateBlogPost(ctx context.Context, in *productv1.
 		RelatedTopics:  input.GetRelatedTopics(),
 		CommentThreads: input.GetCommentThreads(),
 		Suggestions:    input.GetSuggestions(),
+		// Convert input types to output types
+		RelatedCategories: convertCategoryInputListToCategories(input.GetRelatedCategories()),
+		Contributors:      convertUserInputsToUsers(input.GetContributors()),
+		CategoryGroups:    convertNestedCategoryInputsToCategories(input.GetCategoryGroups()),
+		MentionedProducts: &productv1.ListOfProduct{
+			List: &productv1.ListOfProduct_List{
+				Items: []*productv1.Product{
+					{Id: "prod-updated", Name: "Updated Product", Price: 149.99},
+				},
+			},
+		},
+		MentionedUsers: &productv1.ListOfUser{
+			List: &productv1.ListOfUser_List{
+				Items: []*productv1.User{
+					{Id: "user-updated", Name: "Updated User"},
+				},
+			},
+		},
+		ContributorTeams: &productv1.ListOfListOfUser{
+			List: &productv1.ListOfListOfUser_List{
+				Items: []*productv1.ListOfUser{
+					{List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: "user-team-updated", Name: "Updated Team Member"},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	return &productv1.MutationUpdateBlogPostResponse{
@@ -2125,6 +2154,43 @@ func (s *MockService) MutationUpdateAuthor(ctx context.Context, in *productv1.Mu
 		SocialLinks:    input.GetSocialLinks(),
 		TeamsByProject: input.GetTeamsByProject(),
 		Collaborations: input.GetCollaborations(),
+		// Convert input types to output types for complex fields
+		FavoriteCategories: convertCategoryInputsToCategories(input.GetFavoriteCategories()),
+		AuthorGroups:       convertNestedUserInputsToUsers(input.GetAuthorGroups()),
+		ProjectTeams:       convertNestedUserInputsToUsers(input.GetProjectTeams()),
+		// Keep other complex fields with mock data since they're not in the simplified input
+		WrittenPosts: &productv1.ListOfBlogPost{
+			List: &productv1.ListOfBlogPost_List{
+				Items: []*productv1.BlogPost{
+					{Id: "blog-updated", Title: "Updated Post", Content: "Updated content..."},
+				},
+			},
+		},
+		RelatedAuthors: &productv1.ListOfUser{
+			List: &productv1.ListOfUser_List{
+				Items: []*productv1.User{
+					{Id: "related-author-updated", Name: "Updated Related Author"},
+				},
+			},
+		},
+		ProductReviews: &productv1.ListOfProduct{
+			List: &productv1.ListOfProduct_List{
+				Items: []*productv1.Product{
+					{Id: "reviewed-product-updated", Name: "Updated Code Editor", Price: 249.99},
+				},
+			},
+		},
+		CategoryPreferences: &productv1.ListOfListOfCategory{
+			List: &productv1.ListOfListOfCategory_List{
+				Items: []*productv1.ListOfCategory{
+					{List: &productv1.ListOfCategory_List{
+						Items: []*productv1.Category{
+							{Id: "pref-cat-updated", Name: "Updated Backend Development", Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+						},
+					}},
+				},
+			},
+		},
 	}
 
 	return &productv1.MutationUpdateAuthorResponse{
