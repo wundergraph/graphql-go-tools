@@ -1628,6 +1628,10 @@ func (s *MockService) QueryAuthor(ctx context.Context, in *productv1.QueryAuthor
 							{Id: "group-auth-3", Name: "Junior Dev Gamma"},
 						},
 					}},
+					// empty list
+					{List: &productv1.ListOfUser_List{}},
+					// null item
+					nil,
 				},
 			},
 		},

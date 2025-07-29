@@ -1432,4 +1432,23 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		require.Contains(t, response, `"teamsByProject":`)
 		require.Contains(t, response, `"favoriteCategories":`)
 	})
+
+	t.Run("should handle empty and nullable list items", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "EmptyAndNullableListItems",
+			Query: `query EmptyAndNullableListItems {
+				author {
+					id
+					authorGroups {
+						id
+						name
+					}
+				}
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"author":{"id":"author-default","authorGroups":[[{"id":"group-auth-1","name":"Team Lead Alpha"},{"id":"group-auth-2","name":"Senior Dev Beta"}],[{"id":"group-auth-3","name":"Junior Dev Gamma"}],[],null]}}}`, response)
+	})
 }
