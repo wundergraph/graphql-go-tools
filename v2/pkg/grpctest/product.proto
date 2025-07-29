@@ -11,6 +11,10 @@ service ProductService {
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
   // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
+  rpc MutationBulkCreateAuthors(MutationBulkCreateAuthorsRequest) returns (MutationBulkCreateAuthorsResponse) {}
+  rpc MutationBulkCreateBlogPosts(MutationBulkCreateBlogPostsRequest) returns (MutationBulkCreateBlogPostsResponse) {}
+  rpc MutationBulkUpdateAuthors(MutationBulkUpdateAuthorsRequest) returns (MutationBulkUpdateAuthorsResponse) {}
+  rpc MutationBulkUpdateBlogPosts(MutationBulkUpdateBlogPostsRequest) returns (MutationBulkUpdateBlogPostsResponse) {}
   rpc MutationCreateAuthor(MutationCreateAuthorRequest) returns (MutationCreateAuthorResponse) {}
   rpc MutationCreateBlogPost(MutationCreateBlogPostRequest) returns (MutationCreateBlogPostResponse) {}
   rpc MutationCreateNullableFieldsType(MutationCreateNullableFieldsTypeRequest) returns (MutationCreateNullableFieldsTypeResponse) {}
@@ -29,6 +33,8 @@ service ProductService {
   rpc QueryBlogPost(QueryBlogPostRequest) returns (QueryBlogPostResponse) {}
   rpc QueryBlogPostById(QueryBlogPostByIdRequest) returns (QueryBlogPostByIdResponse) {}
   rpc QueryBlogPostsWithFilter(QueryBlogPostsWithFilterRequest) returns (QueryBlogPostsWithFilterResponse) {}
+  rpc QueryBulkSearchAuthors(QueryBulkSearchAuthorsRequest) returns (QueryBulkSearchAuthorsResponse) {}
+  rpc QueryBulkSearchBlogPosts(QueryBulkSearchBlogPostsRequest) returns (QueryBulkSearchBlogPostsResponse) {}
   rpc QueryCalculateTotals(QueryCalculateTotalsRequest) returns (QueryCalculateTotalsResponse) {}
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
   rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
@@ -49,10 +55,38 @@ service ProductService {
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
 }
 
+// Wrapper message for a list of AuthorFilter.
+message ListOfAuthorFilter {
+  message List {
+    repeated AuthorFilter items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of AuthorInput.
+message ListOfAuthorInput {
+  message List {
+    repeated AuthorInput items = 1;
+  }
+  List list = 1;
+}
 // Wrapper message for a list of BlogPost.
 message ListOfBlogPost {
   message List {
     repeated BlogPost items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of BlogPostFilter.
+message ListOfBlogPostFilter {
+  message List {
+    repeated BlogPostFilter items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of BlogPostInput.
+message ListOfBlogPostInput {
+  message List {
+    repeated BlogPostInput items = 1;
   }
   List list = 1;
 }
@@ -434,6 +468,22 @@ message QueryAllAuthorsRequest {
 message QueryAllAuthorsResponse {
   repeated Author all_authors = 1;
 }
+// Request message for bulkSearchAuthors operation.
+message QueryBulkSearchAuthorsRequest {
+  ListOfAuthorFilter filters = 1;
+}
+// Response message for bulkSearchAuthors operation.
+message QueryBulkSearchAuthorsResponse {
+  repeated Author bulk_search_authors = 1;
+}
+// Request message for bulkSearchBlogPosts operation.
+message QueryBulkSearchBlogPostsRequest {
+  ListOfBlogPostFilter filters = 1;
+}
+// Response message for bulkSearchBlogPosts operation.
+message QueryBulkSearchBlogPostsResponse {
+  repeated BlogPost bulk_search_blog_posts = 1;
+}
 // Request message for createUser operation.
 message MutationCreateUserRequest {
   UserInput input = 1;
@@ -500,6 +550,38 @@ message MutationUpdateAuthorRequest {
 // Response message for updateAuthor operation.
 message MutationUpdateAuthorResponse {
   Author update_author = 1;
+}
+// Request message for bulkCreateAuthors operation.
+message MutationBulkCreateAuthorsRequest {
+  ListOfAuthorInput authors = 1;
+}
+// Response message for bulkCreateAuthors operation.
+message MutationBulkCreateAuthorsResponse {
+  repeated Author bulk_create_authors = 1;
+}
+// Request message for bulkUpdateAuthors operation.
+message MutationBulkUpdateAuthorsRequest {
+  ListOfAuthorInput authors = 1;
+}
+// Response message for bulkUpdateAuthors operation.
+message MutationBulkUpdateAuthorsResponse {
+  repeated Author bulk_update_authors = 1;
+}
+// Request message for bulkCreateBlogPosts operation.
+message MutationBulkCreateBlogPostsRequest {
+  ListOfBlogPostInput blog_posts = 1;
+}
+// Response message for bulkCreateBlogPosts operation.
+message MutationBulkCreateBlogPostsResponse {
+  repeated BlogPost bulk_create_blog_posts = 1;
+}
+// Request message for bulkUpdateBlogPosts operation.
+message MutationBulkUpdateBlogPostsRequest {
+  ListOfBlogPostInput blog_posts = 1;
+}
+// Response message for bulkUpdateBlogPosts operation.
+message MutationBulkUpdateBlogPostsResponse {
+  repeated BlogPost bulk_update_blog_posts = 1;
 }
 
 message Product {

@@ -222,7 +222,7 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 			if field.IsListType {
 				arr, err := d.flattenListStructure(arena, field.ListMetadata, msg, field.Message)
 				if err != nil {
-					return nil, err
+					return nil, fmt.Errorf("unable to flatten list structure for field %q: %w", field.AliasOrPath(), err)
 				}
 
 				root.Set(field.AliasOrPath(), arr)
@@ -263,11 +263,11 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 
 func (d *DataSource) flattenListStructure(arena *astjson.Arena, md *ListMetadata, data protoref.Message, message *RPCMessage) (*astjson.Value, error) {
 	if md == nil {
-		return arena.NewNull(), errors.New("unable to flatten list structure: list metadata not found")
+		return arena.NewNull(), errors.New("list metadata not found")
 	}
 
 	if len(md.LevelInfo) < md.NestingLevel {
-		return arena.NewNull(), errors.New("unable to flatten list structure: nesting level data does not match the number of levels in the list metadata")
+		return arena.NewNull(), errors.New("nesting level data does not match the number of levels in the list metadata")
 	}
 
 	if !data.IsValid() {
@@ -290,11 +290,11 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 	// List wrappers always use field number 1
 	fd := data.Descriptor().Fields().ByNumber(1)
 	if fd == nil {
-		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field with number %d not found in message %q", 1, data.Descriptor().Name())
+		return arena.NewNull(), fmt.Errorf("field with number %d not found in message %q", 1, data.Descriptor().Name())
 	}
 
 	if fd.Kind() != protoref.MessageKind {
-		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a message", fd.Name())
+		return arena.NewNull(), fmt.Errorf("field %q is not a message", fd.Name())
 	}
 
 	msg := data.Get(fd).Message()
@@ -309,7 +309,7 @@ func (d *DataSource) traverseList(level int, arena *astjson.Arena, current *astj
 
 	fd = msg.Descriptor().Fields().ByNumber(1)
 	if !fd.IsList() {
-		return arena.NewNull(), fmt.Errorf("unable to flatten list structure: field %q is not a list", fd.Name())
+		return arena.NewNull(), fmt.Errorf("field %q is not a list", fd.Name())
 	}
 
 	if level < md.NestingLevel-1 {
