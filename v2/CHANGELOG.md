@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.214](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.213...v2.0.0-rc.214) (2025-07-29)
+
+
+### Bug Fixes
+
+* handle nullable and nested argument lists properly ([#1254](https://github.com/wundergraph/graphql-go-tools/issues/1254)) ([67af556](https://github.com/wundergraph/graphql-go-tools/commit/67af5568bff4da601bbbb9082158087223581d6d))
+
 ## [2.0.0-rc.213](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.212...v2.0.0-rc.213) (2025-07-28)
 
 
