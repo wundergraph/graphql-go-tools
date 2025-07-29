@@ -1,0 +1,40 @@
+package postprocess
+
+import (
+	"fmt"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"strings"
+)
+
+// fetchIDAppender is a processor to append fetchIDs to the operation names propagated downstream.
+type fetchIDAppender struct {
+	disable bool
+}
+
+func (f *fetchIDAppender) ProcessFetchTree(root *resolve.FetchTreeNode) {
+	if f.disable {
+		return
+	}
+	f.traverseNode(root)
+}
+
+func (f *fetchIDAppender) traverseNode(node *resolve.FetchTreeNode) {
+	if node == nil {
+		return
+	}
+	switch node.Kind {
+	case resolve.FetchTreeNodeKindSingle:
+		f.traverseSingleFetch(node.Item.Fetch.(*resolve.SingleFetch))
+	case resolve.FetchTreeNodeKindParallel, resolve.FetchTreeNodeKindSequence:
+		for i := range node.ChildNodes {
+			f.traverseNode(node.ChildNodes[i])
+		}
+	}
+}
+
+func (f *fetchIDAppender) traverseSingleFetch(fetch *resolve.SingleFetch) {
+	if fetch.OperationName != "" {
+		expandedName := fmt.Sprintf("%s__%d", fetch.OperationName, fetch.FetchID)
+		fetch.Input = strings.Replace(fetch.Input, fetch.OperationName, expandedName, 1)
+	}
+}

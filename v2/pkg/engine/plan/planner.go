@@ -24,14 +24,16 @@ type Planner struct {
 	prepareOperationWalker *astvisitor.Walker
 }
 
-// NewPlanner creates a new Planner from the Configuration
+// NewPlanner creates a new Planner from the Configuration.
+//
 // NOTE: All stateful DataSources should be initiated with the same context.Context object provided to the PlannerFactory.
-// The context.Context object is used to determine the lifecycle of stateful DataSources
-// It's important to note that stateful DataSources must be closed when they are no longer being used
+// The context.Context object is used to determine the lifecycle of stateful DataSources.
+// It's important to note that stateful DataSources must be closed when they are no longer being used.
+//
 // Stateful DataSources could be those that initiate a WebSocket connection to an origin, a database client, a streaming client, etc...
-// To ensure that there are no memory leaks, it's therefore important to add a cancel func or timeout to the context.Context
-// At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object
-// If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them
+// To ensure that there are no memory leaks, it's therefore important to add a cancel func or timeout to the context.Context.
+// At the time when the resolver and all operations should be garbage collected, ensure to first cancel or timeout the ctx object.
+// If you don't cancel the context.Context, the goroutines will run indefinitely and there's no reference left to stop them.
 func NewPlanner(config Configuration) (*Planner, error) {
 	if config.Logger == nil {
 		config.Logger = abstractlogger.Noop{}
