@@ -1856,7 +1856,7 @@ func (s *MockService) QueryAuthorsWithFilter(ctx context.Context, in *productv1.
 				},
 			}
 		} else {
-			teamsByProject = &productv1.ListOfListOfString{}
+			teamsByProject = &productv1.ListOfListOfString{List: &productv1.ListOfListOfString_List{}}
 		}
 
 		results = append(results, &productv1.Author{
@@ -2200,5 +2200,517 @@ func (s *MockService) MutationUpdateAuthor(ctx context.Context, in *productv1.Mu
 
 	return &productv1.MutationUpdateAuthorResponse{
 		UpdateAuthor: result,
+	}, nil
+}
+
+// Bulk operation implementations
+func (s *MockService) QueryBulkSearchAuthors(ctx context.Context, in *productv1.QueryBulkSearchAuthorsRequest) (*productv1.QueryBulkSearchAuthorsResponse, error) {
+	var allResults []*productv1.Author
+
+	// Handle nullable list - if filters is nil, return empty results
+	if in.Filters == nil {
+		return &productv1.QueryBulkSearchAuthorsResponse{
+			BulkSearchAuthors: allResults,
+		}, nil
+	}
+
+	// Process each filter in the list
+	if in.Filters.List != nil {
+		for i, filter := range in.Filters.List.Items {
+			// Create mock results for each filter
+			for j := 1; j <= 2; j++ {
+				name := fmt.Sprintf("Bulk Author %d-%d", i+1, j)
+				if filter.Name != nil {
+					name = fmt.Sprintf("%s - Bulk %d-%d", filter.Name.GetValue(), i+1, j)
+				}
+
+				var skills []string
+				skillCount := int32(3)
+				if filter.SkillCount != nil {
+					skillCount = filter.SkillCount.GetValue()
+				}
+				for k := int32(0); k < skillCount; k++ {
+					skills = append(skills, fmt.Sprintf("BulkSkill%d", k+1))
+				}
+
+				var teamsByProject *productv1.ListOfListOfString
+				if filter.HasTeams != nil && filter.HasTeams.GetValue() {
+					teamsByProject = &productv1.ListOfListOfString{
+						List: &productv1.ListOfListOfString_List{
+							Items: []*productv1.ListOfString{
+								{List: &productv1.ListOfString_List{
+									Items: []string{fmt.Sprintf("BulkTeam%d", j), "SharedBulkTeam"},
+								}},
+							},
+						},
+					}
+				} else {
+					teamsByProject = &productv1.ListOfListOfString{List: &productv1.ListOfListOfString_List{}}
+				}
+
+				allResults = append(allResults, &productv1.Author{
+					Id:             fmt.Sprintf("bulk-author-%d-%d", i+1, j),
+					Name:           name,
+					Skills:         skills,
+					Languages:      []string{"English", fmt.Sprintf("BulkLang%d", j)},
+					TeamsByProject: teamsByProject,
+					FavoriteCategories: []*productv1.Category{
+						{Id: fmt.Sprintf("bulk-cat-%d-%d", i+1, j), Name: fmt.Sprintf("Bulk Category %d-%d", i+1, j), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+					},
+					CategoryPreferences: &productv1.ListOfListOfCategory{
+						List: &productv1.ListOfListOfCategory_List{
+							Items: []*productv1.ListOfCategory{
+								{List: &productv1.ListOfCategory_List{
+									Items: []*productv1.Category{
+										{Id: fmt.Sprintf("bulk-pref-%d-%d", i+1, j), Name: fmt.Sprintf("Bulk Preference %d-%d", i+1, j), Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
+									},
+								}},
+							},
+						},
+					},
+				})
+			}
+		}
+	}
+
+	return &productv1.QueryBulkSearchAuthorsResponse{
+		BulkSearchAuthors: allResults,
+	}, nil
+}
+
+func (s *MockService) QueryBulkSearchBlogPosts(ctx context.Context, in *productv1.QueryBulkSearchBlogPostsRequest) (*productv1.QueryBulkSearchBlogPostsResponse, error) {
+	var allResults []*productv1.BlogPost
+
+	// Handle nullable list - if filters is nil, return empty results
+	if in.Filters == nil {
+		return &productv1.QueryBulkSearchBlogPostsResponse{
+			BulkSearchBlogPosts: allResults,
+		}, nil
+	}
+
+	// Process each filter in the list
+	if in.Filters.List != nil {
+		for i, filter := range in.Filters.List.Items {
+			// Create mock results for each filter
+			for j := 1; j <= 2; j++ {
+				title := fmt.Sprintf("Bulk Blog Post %d-%d", i+1, j)
+				if filter.Title != nil {
+					title = fmt.Sprintf("%s - Bulk %d-%d", filter.Title.GetValue(), i+1, j)
+				}
+
+				var categories []string
+				if filter.HasCategories != nil && filter.HasCategories.GetValue() {
+					categories = []string{fmt.Sprintf("BulkCategory%d", j), "SharedBulkCategory"}
+				} else {
+					categories = []string{}
+				}
+
+				minTags := int32(2)
+				if filter.MinTags != nil {
+					minTags = filter.MinTags.GetValue()
+				}
+				var tags []string
+				for k := int32(0); k < minTags; k++ {
+					tags = append(tags, fmt.Sprintf("BulkTag%d", k+1))
+				}
+
+				allResults = append(allResults, &productv1.BlogPost{
+					Id:         fmt.Sprintf("bulk-post-%d-%d", i+1, j),
+					Title:      title,
+					Content:    fmt.Sprintf("Bulk content for post %d-%d", i+1, j),
+					Tags:       tags,
+					Categories: categories,
+					ViewCounts: []int32{100, 150, 200},
+					TagGroups: &productv1.ListOfListOfString{
+						List: &productv1.ListOfListOfString_List{
+							Items: []*productv1.ListOfString{
+								{List: &productv1.ListOfString_List{
+									Items: []string{fmt.Sprintf("BulkGroup%d", j)},
+								}},
+							},
+						},
+					},
+					RelatedTopics: &productv1.ListOfListOfString{
+						List: &productv1.ListOfListOfString_List{
+							Items: []*productv1.ListOfString{
+								{List: &productv1.ListOfString_List{
+									Items: []string{fmt.Sprintf("BulkTopic%d", j)},
+								}},
+							},
+						},
+					},
+					CommentThreads: &productv1.ListOfListOfString{
+						List: &productv1.ListOfListOfString_List{
+							Items: []*productv1.ListOfString{
+								{List: &productv1.ListOfString_List{
+									Items: []string{fmt.Sprintf("BulkComment%d", j)},
+								}},
+							},
+						},
+					},
+					RelatedCategories: []*productv1.Category{
+						{Id: fmt.Sprintf("bulk-rel-cat-%d-%d", i+1, j), Name: fmt.Sprintf("Bulk Related %d-%d", i+1, j), Kind: productv1.CategoryKind_CATEGORY_KIND_OTHER},
+					},
+					Contributors: []*productv1.User{
+						{Id: fmt.Sprintf("bulk-contrib-%d-%d", i+1, j), Name: fmt.Sprintf("Bulk Contributor %d-%d", i+1, j)},
+					},
+					CategoryGroups: &productv1.ListOfListOfCategory{
+						List: &productv1.ListOfListOfCategory_List{
+							Items: []*productv1.ListOfCategory{
+								{List: &productv1.ListOfCategory_List{
+									Items: []*productv1.Category{
+										{Id: fmt.Sprintf("bulk-grp-cat-%d-%d", i+1, j), Name: fmt.Sprintf("Bulk Group Cat %d-%d", i+1, j), Kind: productv1.CategoryKind_CATEGORY_KIND_BOOK},
+									},
+								}},
+							},
+						},
+					},
+				})
+			}
+		}
+	}
+
+	return &productv1.QueryBulkSearchBlogPostsResponse{
+		BulkSearchBlogPosts: allResults,
+	}, nil
+}
+
+func (s *MockService) MutationBulkCreateAuthors(ctx context.Context, in *productv1.MutationBulkCreateAuthorsRequest) (*productv1.MutationBulkCreateAuthorsResponse, error) {
+	var results []*productv1.Author
+
+	// Handle nullable list - if authors is nil, return empty results
+	if in.Authors == nil {
+		return &productv1.MutationBulkCreateAuthorsResponse{
+			BulkCreateAuthors: results,
+		}, nil
+	}
+
+	// Process each author input in the list
+	if in.Authors.List != nil {
+		for i, authorInput := range in.Authors.List.Items {
+			// Convert nested UserInput lists to Users for complex fields
+			var authorGroups *productv1.ListOfListOfUser
+			if authorInput.AuthorGroups != nil {
+				authorGroups = convertNestedUserInputsToUsers(authorInput.AuthorGroups)
+			}
+
+			var projectTeams *productv1.ListOfListOfUser
+			if authorInput.ProjectTeams != nil {
+				projectTeams = convertNestedUserInputsToUsers(authorInput.ProjectTeams)
+			}
+
+			// Convert CategoryInput list to Categories
+			var favoriteCategories []*productv1.Category
+			if authorInput.FavoriteCategories != nil {
+				favoriteCategories = convertCategoryInputsToCategories(authorInput.FavoriteCategories)
+			}
+
+			author := &productv1.Author{
+				Id:                 fmt.Sprintf("bulk-created-author-%d", i+1),
+				Name:               authorInput.Name,
+				Email:              authorInput.Email,
+				Skills:             authorInput.Skills,
+				Languages:          authorInput.Languages,
+				SocialLinks:        authorInput.SocialLinks,
+				TeamsByProject:     authorInput.TeamsByProject,
+				Collaborations:     authorInput.Collaborations,
+				FavoriteCategories: favoriteCategories,
+				AuthorGroups:       authorGroups,
+				ProjectTeams:       projectTeams,
+				// Add required complex fields with mock data
+				WrittenPosts: &productv1.ListOfBlogPost{
+					List: &productv1.ListOfBlogPost_List{
+						Items: []*productv1.BlogPost{
+							{Id: fmt.Sprintf("bulk-blog-%d", i+1), Title: fmt.Sprintf("Bulk Created Post %d", i+1), Content: "Bulk created content..."},
+						},
+					},
+				},
+				RelatedAuthors: &productv1.ListOfUser{
+					List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: fmt.Sprintf("bulk-rel-author-%d", i+1), Name: fmt.Sprintf("Bulk Related Author %d", i+1)},
+						},
+					},
+				},
+				ProductReviews: &productv1.ListOfProduct{
+					List: &productv1.ListOfProduct_List{
+						Items: []*productv1.Product{
+							{Id: fmt.Sprintf("bulk-prod-%d", i+1), Name: fmt.Sprintf("Bulk Product %d", i+1), Price: 99.99},
+						},
+					},
+				},
+				CategoryPreferences: &productv1.ListOfListOfCategory{
+					List: &productv1.ListOfListOfCategory_List{
+						Items: []*productv1.ListOfCategory{
+							{List: &productv1.ListOfCategory_List{
+								Items: []*productv1.Category{
+									{Id: fmt.Sprintf("bulk-cat-pref-%d", i+1), Name: fmt.Sprintf("Bulk Category Preference %d", i+1), Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+								},
+							}},
+						},
+					},
+				},
+			}
+
+			results = append(results, author)
+		}
+	}
+
+	return &productv1.MutationBulkCreateAuthorsResponse{
+		BulkCreateAuthors: results,
+	}, nil
+}
+
+func (s *MockService) MutationBulkUpdateAuthors(ctx context.Context, in *productv1.MutationBulkUpdateAuthorsRequest) (*productv1.MutationBulkUpdateAuthorsResponse, error) {
+	var results []*productv1.Author
+
+	// Handle nullable list - if authors is nil, return empty results
+	if in.Authors == nil {
+		return &productv1.MutationBulkUpdateAuthorsResponse{
+			BulkUpdateAuthors: results,
+		}, nil
+	}
+
+	// Process each author input in the list
+	if in.Authors.List != nil {
+		for i, authorInput := range in.Authors.List.Items {
+			// Convert nested UserInput lists to Users for complex fields
+			var authorGroups *productv1.ListOfListOfUser
+			if authorInput.AuthorGroups != nil {
+				authorGroups = convertNestedUserInputsToUsers(authorInput.AuthorGroups)
+			}
+
+			var projectTeams *productv1.ListOfListOfUser
+			if authorInput.ProjectTeams != nil {
+				projectTeams = convertNestedUserInputsToUsers(authorInput.ProjectTeams)
+			}
+
+			// Convert CategoryInput list to Categories
+			var favoriteCategories []*productv1.Category
+			if authorInput.FavoriteCategories != nil {
+				favoriteCategories = convertCategoryInputsToCategories(authorInput.FavoriteCategories)
+			}
+
+			author := &productv1.Author{
+				Id:                 fmt.Sprintf("bulk-updated-author-%d", i+1),
+				Name:               authorInput.Name,
+				Email:              authorInput.Email,
+				Skills:             authorInput.Skills,
+				Languages:          authorInput.Languages,
+				SocialLinks:        authorInput.SocialLinks,
+				TeamsByProject:     authorInput.TeamsByProject,
+				Collaborations:     authorInput.Collaborations,
+				FavoriteCategories: favoriteCategories,
+				AuthorGroups:       authorGroups,
+				ProjectTeams:       projectTeams,
+				// Add required complex fields with mock data
+				WrittenPosts: &productv1.ListOfBlogPost{
+					List: &productv1.ListOfBlogPost_List{
+						Items: []*productv1.BlogPost{
+							{Id: fmt.Sprintf("bulk-updated-blog-%d", i+1), Title: fmt.Sprintf("Bulk Updated Post %d", i+1), Content: "Bulk updated content..."},
+						},
+					},
+				},
+				RelatedAuthors: &productv1.ListOfUser{
+					List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: fmt.Sprintf("bulk-updated-rel-author-%d", i+1), Name: fmt.Sprintf("Bulk Updated Related Author %d", i+1)},
+						},
+					},
+				},
+				ProductReviews: &productv1.ListOfProduct{
+					List: &productv1.ListOfProduct_List{
+						Items: []*productv1.Product{
+							{Id: fmt.Sprintf("bulk-updated-prod-%d", i+1), Name: fmt.Sprintf("Bulk Updated Product %d", i+1), Price: 149.99},
+						},
+					},
+				},
+				CategoryPreferences: &productv1.ListOfListOfCategory{
+					List: &productv1.ListOfListOfCategory_List{
+						Items: []*productv1.ListOfCategory{
+							{List: &productv1.ListOfCategory_List{
+								Items: []*productv1.Category{
+									{Id: fmt.Sprintf("bulk-updated-cat-pref-%d", i+1), Name: fmt.Sprintf("Bulk Updated Category Preference %d", i+1), Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS},
+								},
+							}},
+						},
+					},
+				},
+			}
+
+			results = append(results, author)
+		}
+	}
+
+	return &productv1.MutationBulkUpdateAuthorsResponse{
+		BulkUpdateAuthors: results,
+	}, nil
+}
+
+func (s *MockService) MutationBulkCreateBlogPosts(ctx context.Context, in *productv1.MutationBulkCreateBlogPostsRequest) (*productv1.MutationBulkCreateBlogPostsResponse, error) {
+	var results []*productv1.BlogPost
+
+	// Handle nullable list - if blogPosts is nil, return empty results
+	if in.BlogPosts == nil {
+		return &productv1.MutationBulkCreateBlogPostsResponse{
+			BulkCreateBlogPosts: results,
+		}, nil
+	}
+
+	// Process each blog post input in the list
+	if in.BlogPosts.List != nil {
+		for i, blogPostInput := range in.BlogPosts.List.Items {
+			// Convert CategoryInput lists to Categories
+			var relatedCategories []*productv1.Category
+			if blogPostInput.RelatedCategories != nil {
+				relatedCategories = convertCategoryInputListToCategories(blogPostInput.RelatedCategories)
+			}
+
+			var contributors []*productv1.User
+			if blogPostInput.Contributors != nil {
+				contributors = convertUserInputsToUsers(blogPostInput.Contributors)
+			}
+
+			var categoryGroups *productv1.ListOfListOfCategory
+			if blogPostInput.CategoryGroups != nil {
+				categoryGroups = convertNestedCategoryInputsToCategories(blogPostInput.CategoryGroups)
+			}
+
+			blogPost := &productv1.BlogPost{
+				Id:                fmt.Sprintf("bulk-created-post-%d", i+1),
+				Title:             blogPostInput.Title,
+				Content:           blogPostInput.Content,
+				Tags:              blogPostInput.Tags,
+				OptionalTags:      blogPostInput.OptionalTags,
+				Categories:        blogPostInput.Categories,
+				Keywords:          blogPostInput.Keywords,
+				ViewCounts:        blogPostInput.ViewCounts,
+				Ratings:           blogPostInput.Ratings,
+				IsPublished:       blogPostInput.IsPublished,
+				TagGroups:         blogPostInput.TagGroups,
+				RelatedTopics:     blogPostInput.RelatedTopics,
+				CommentThreads:    blogPostInput.CommentThreads,
+				Suggestions:       blogPostInput.Suggestions,
+				RelatedCategories: relatedCategories,
+				Contributors:      contributors,
+				CategoryGroups:    categoryGroups,
+				// Add required fields with mock data
+				MentionedProducts: &productv1.ListOfProduct{
+					List: &productv1.ListOfProduct_List{
+						Items: []*productv1.Product{
+							{Id: fmt.Sprintf("bulk-prod-%d", i+1), Name: fmt.Sprintf("Bulk Created Product %d", i+1), Price: 99.99},
+						},
+					},
+				},
+				MentionedUsers: &productv1.ListOfUser{
+					List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: fmt.Sprintf("bulk-user-%d", i+1), Name: fmt.Sprintf("Bulk Created User %d", i+1)},
+						},
+					},
+				},
+				ContributorTeams: &productv1.ListOfListOfUser{
+					List: &productv1.ListOfListOfUser_List{
+						Items: []*productv1.ListOfUser{
+							{List: &productv1.ListOfUser_List{
+								Items: []*productv1.User{
+									{Id: fmt.Sprintf("bulk-team-%d", i+1), Name: fmt.Sprintf("Bulk Created Team Member %d", i+1)},
+								},
+							}},
+						},
+					},
+				},
+			}
+
+			results = append(results, blogPost)
+		}
+	}
+
+	return &productv1.MutationBulkCreateBlogPostsResponse{
+		BulkCreateBlogPosts: results,
+	}, nil
+}
+
+func (s *MockService) MutationBulkUpdateBlogPosts(ctx context.Context, in *productv1.MutationBulkUpdateBlogPostsRequest) (*productv1.MutationBulkUpdateBlogPostsResponse, error) {
+	var results []*productv1.BlogPost
+
+	// Handle nullable list - if blogPosts is nil, return empty results
+	if in.BlogPosts == nil {
+		return &productv1.MutationBulkUpdateBlogPostsResponse{
+			BulkUpdateBlogPosts: results,
+		}, nil
+	}
+
+	// Process each blog post input in the list
+	if in.BlogPosts.List != nil {
+		for i, blogPostInput := range in.BlogPosts.List.Items {
+			// Convert CategoryInput lists to Categories
+			var relatedCategories []*productv1.Category
+			if blogPostInput.RelatedCategories != nil {
+				relatedCategories = convertCategoryInputListToCategories(blogPostInput.RelatedCategories)
+			}
+
+			var contributors []*productv1.User
+			if blogPostInput.Contributors != nil {
+				contributors = convertUserInputsToUsers(blogPostInput.Contributors)
+			}
+
+			var categoryGroups *productv1.ListOfListOfCategory
+			if blogPostInput.CategoryGroups != nil {
+				categoryGroups = convertNestedCategoryInputsToCategories(blogPostInput.CategoryGroups)
+			}
+
+			blogPost := &productv1.BlogPost{
+				Id:                fmt.Sprintf("bulk-updated-post-%d", i+1),
+				Title:             blogPostInput.Title,
+				Content:           blogPostInput.Content,
+				Tags:              blogPostInput.Tags,
+				OptionalTags:      blogPostInput.OptionalTags,
+				Categories:        blogPostInput.Categories,
+				Keywords:          blogPostInput.Keywords,
+				ViewCounts:        blogPostInput.ViewCounts,
+				Ratings:           blogPostInput.Ratings,
+				IsPublished:       blogPostInput.IsPublished,
+				TagGroups:         blogPostInput.TagGroups,
+				RelatedTopics:     blogPostInput.RelatedTopics,
+				CommentThreads:    blogPostInput.CommentThreads,
+				Suggestions:       blogPostInput.Suggestions,
+				RelatedCategories: relatedCategories,
+				Contributors:      contributors,
+				CategoryGroups:    categoryGroups,
+				// Add required fields with mock data
+				MentionedProducts: &productv1.ListOfProduct{
+					List: &productv1.ListOfProduct_List{
+						Items: []*productv1.Product{
+							{Id: fmt.Sprintf("bulk-updated-prod-%d", i+1), Name: fmt.Sprintf("Bulk Updated Product %d", i+1), Price: 149.99},
+						},
+					},
+				},
+				MentionedUsers: &productv1.ListOfUser{
+					List: &productv1.ListOfUser_List{
+						Items: []*productv1.User{
+							{Id: fmt.Sprintf("bulk-updated-user-%d", i+1), Name: fmt.Sprintf("Bulk Updated User %d", i+1)},
+						},
+					},
+				},
+				ContributorTeams: &productv1.ListOfListOfUser{
+					List: &productv1.ListOfListOfUser_List{
+						Items: []*productv1.ListOfUser{
+							{List: &productv1.ListOfUser_List{
+								Items: []*productv1.User{
+									{Id: fmt.Sprintf("bulk-updated-team-%d", i+1), Name: fmt.Sprintf("Bulk Updated Team Member %d", i+1)},
+								},
+							}},
+						},
+					},
+				},
+			}
+
+			results = append(results, blogPost)
+		}
+	}
+
+	return &productv1.MutationBulkUpdateBlogPostsResponse{
+		BulkUpdateBlogPosts: results,
 	}, nil
 }

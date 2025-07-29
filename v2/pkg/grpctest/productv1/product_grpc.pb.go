@@ -21,6 +21,10 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ProductService_LookupProductById_FullMethodName                 = "/productv1.ProductService/LookupProductById"
 	ProductService_LookupStorageById_FullMethodName                 = "/productv1.ProductService/LookupStorageById"
+	ProductService_MutationBulkCreateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkCreateAuthors"
+	ProductService_MutationBulkCreateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkCreateBlogPosts"
+	ProductService_MutationBulkUpdateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkUpdateAuthors"
+	ProductService_MutationBulkUpdateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
 	ProductService_MutationCreateAuthor_FullMethodName              = "/productv1.ProductService/MutationCreateAuthor"
 	ProductService_MutationCreateBlogPost_FullMethodName            = "/productv1.ProductService/MutationCreateBlogPost"
 	ProductService_MutationCreateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationCreateNullableFieldsType"
@@ -39,6 +43,8 @@ const (
 	ProductService_QueryBlogPost_FullMethodName                     = "/productv1.ProductService/QueryBlogPost"
 	ProductService_QueryBlogPostById_FullMethodName                 = "/productv1.ProductService/QueryBlogPostById"
 	ProductService_QueryBlogPostsWithFilter_FullMethodName          = "/productv1.ProductService/QueryBlogPostsWithFilter"
+	ProductService_QueryBulkSearchAuthors_FullMethodName            = "/productv1.ProductService/QueryBulkSearchAuthors"
+	ProductService_QueryBulkSearchBlogPosts_FullMethodName          = "/productv1.ProductService/QueryBulkSearchBlogPosts"
 	ProductService_QueryCalculateTotals_FullMethodName              = "/productv1.ProductService/QueryCalculateTotals"
 	ProductService_QueryCategories_FullMethodName                   = "/productv1.ProductService/QueryCategories"
 	ProductService_QueryCategoriesByKind_FullMethodName             = "/productv1.ProductService/QueryCategoriesByKind"
@@ -69,6 +75,10 @@ type ProductServiceClient interface {
 	LookupProductById(ctx context.Context, in *LookupProductByIdRequest, opts ...grpc.CallOption) (*LookupProductByIdResponse, error)
 	// Lookup Storage entity by id
 	LookupStorageById(ctx context.Context, in *LookupStorageByIdRequest, opts ...grpc.CallOption) (*LookupStorageByIdResponse, error)
+	MutationBulkCreateAuthors(ctx context.Context, in *MutationBulkCreateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkCreateAuthorsResponse, error)
+	MutationBulkCreateBlogPosts(ctx context.Context, in *MutationBulkCreateBlogPostsRequest, opts ...grpc.CallOption) (*MutationBulkCreateBlogPostsResponse, error)
+	MutationBulkUpdateAuthors(ctx context.Context, in *MutationBulkUpdateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkUpdateAuthorsResponse, error)
+	MutationBulkUpdateBlogPosts(ctx context.Context, in *MutationBulkUpdateBlogPostsRequest, opts ...grpc.CallOption) (*MutationBulkUpdateBlogPostsResponse, error)
 	MutationCreateAuthor(ctx context.Context, in *MutationCreateAuthorRequest, opts ...grpc.CallOption) (*MutationCreateAuthorResponse, error)
 	MutationCreateBlogPost(ctx context.Context, in *MutationCreateBlogPostRequest, opts ...grpc.CallOption) (*MutationCreateBlogPostResponse, error)
 	MutationCreateNullableFieldsType(ctx context.Context, in *MutationCreateNullableFieldsTypeRequest, opts ...grpc.CallOption) (*MutationCreateNullableFieldsTypeResponse, error)
@@ -87,6 +97,8 @@ type ProductServiceClient interface {
 	QueryBlogPost(ctx context.Context, in *QueryBlogPostRequest, opts ...grpc.CallOption) (*QueryBlogPostResponse, error)
 	QueryBlogPostById(ctx context.Context, in *QueryBlogPostByIdRequest, opts ...grpc.CallOption) (*QueryBlogPostByIdResponse, error)
 	QueryBlogPostsWithFilter(ctx context.Context, in *QueryBlogPostsWithFilterRequest, opts ...grpc.CallOption) (*QueryBlogPostsWithFilterResponse, error)
+	QueryBulkSearchAuthors(ctx context.Context, in *QueryBulkSearchAuthorsRequest, opts ...grpc.CallOption) (*QueryBulkSearchAuthorsResponse, error)
+	QueryBulkSearchBlogPosts(ctx context.Context, in *QueryBulkSearchBlogPostsRequest, opts ...grpc.CallOption) (*QueryBulkSearchBlogPostsResponse, error)
 	QueryCalculateTotals(ctx context.Context, in *QueryCalculateTotalsRequest, opts ...grpc.CallOption) (*QueryCalculateTotalsResponse, error)
 	QueryCategories(ctx context.Context, in *QueryCategoriesRequest, opts ...grpc.CallOption) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(ctx context.Context, in *QueryCategoriesByKindRequest, opts ...grpc.CallOption) (*QueryCategoriesByKindResponse, error)
@@ -129,6 +141,46 @@ func (c *productServiceClient) LookupStorageById(ctx context.Context, in *Lookup
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LookupStorageByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_LookupStorageById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationBulkCreateAuthors(ctx context.Context, in *MutationBulkCreateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkCreateAuthorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationBulkCreateAuthorsResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationBulkCreateAuthors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationBulkCreateBlogPosts(ctx context.Context, in *MutationBulkCreateBlogPostsRequest, opts ...grpc.CallOption) (*MutationBulkCreateBlogPostsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationBulkCreateBlogPostsResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationBulkCreateBlogPosts_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationBulkUpdateAuthors(ctx context.Context, in *MutationBulkUpdateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkUpdateAuthorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationBulkUpdateAuthorsResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationBulkUpdateAuthors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) MutationBulkUpdateBlogPosts(ctx context.Context, in *MutationBulkUpdateBlogPostsRequest, opts ...grpc.CallOption) (*MutationBulkUpdateBlogPostsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MutationBulkUpdateBlogPostsResponse)
+	err := c.cc.Invoke(ctx, ProductService_MutationBulkUpdateBlogPosts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -309,6 +361,26 @@ func (c *productServiceClient) QueryBlogPostsWithFilter(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryBlogPostsWithFilterResponse)
 	err := c.cc.Invoke(ctx, ProductService_QueryBlogPostsWithFilter_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryBulkSearchAuthors(ctx context.Context, in *QueryBulkSearchAuthorsRequest, opts ...grpc.CallOption) (*QueryBulkSearchAuthorsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryBulkSearchAuthorsResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryBulkSearchAuthors_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryBulkSearchBlogPosts(ctx context.Context, in *QueryBulkSearchBlogPostsRequest, opts ...grpc.CallOption) (*QueryBulkSearchBlogPostsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryBulkSearchBlogPostsResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryBulkSearchBlogPosts_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -505,6 +577,10 @@ type ProductServiceServer interface {
 	LookupProductById(context.Context, *LookupProductByIdRequest) (*LookupProductByIdResponse, error)
 	// Lookup Storage entity by id
 	LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error)
+	MutationBulkCreateAuthors(context.Context, *MutationBulkCreateAuthorsRequest) (*MutationBulkCreateAuthorsResponse, error)
+	MutationBulkCreateBlogPosts(context.Context, *MutationBulkCreateBlogPostsRequest) (*MutationBulkCreateBlogPostsResponse, error)
+	MutationBulkUpdateAuthors(context.Context, *MutationBulkUpdateAuthorsRequest) (*MutationBulkUpdateAuthorsResponse, error)
+	MutationBulkUpdateBlogPosts(context.Context, *MutationBulkUpdateBlogPostsRequest) (*MutationBulkUpdateBlogPostsResponse, error)
 	MutationCreateAuthor(context.Context, *MutationCreateAuthorRequest) (*MutationCreateAuthorResponse, error)
 	MutationCreateBlogPost(context.Context, *MutationCreateBlogPostRequest) (*MutationCreateBlogPostResponse, error)
 	MutationCreateNullableFieldsType(context.Context, *MutationCreateNullableFieldsTypeRequest) (*MutationCreateNullableFieldsTypeResponse, error)
@@ -523,6 +599,8 @@ type ProductServiceServer interface {
 	QueryBlogPost(context.Context, *QueryBlogPostRequest) (*QueryBlogPostResponse, error)
 	QueryBlogPostById(context.Context, *QueryBlogPostByIdRequest) (*QueryBlogPostByIdResponse, error)
 	QueryBlogPostsWithFilter(context.Context, *QueryBlogPostsWithFilterRequest) (*QueryBlogPostsWithFilterResponse, error)
+	QueryBulkSearchAuthors(context.Context, *QueryBulkSearchAuthorsRequest) (*QueryBulkSearchAuthorsResponse, error)
+	QueryBulkSearchBlogPosts(context.Context, *QueryBulkSearchBlogPostsRequest) (*QueryBulkSearchBlogPostsResponse, error)
 	QueryCalculateTotals(context.Context, *QueryCalculateTotalsRequest) (*QueryCalculateTotalsResponse, error)
 	QueryCategories(context.Context, *QueryCategoriesRequest) (*QueryCategoriesResponse, error)
 	QueryCategoriesByKind(context.Context, *QueryCategoriesByKindRequest) (*QueryCategoriesByKindResponse, error)
@@ -556,6 +634,18 @@ func (UnimplementedProductServiceServer) LookupProductById(context.Context, *Loo
 }
 func (UnimplementedProductServiceServer) LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LookupStorageById not implemented")
+}
+func (UnimplementedProductServiceServer) MutationBulkCreateAuthors(context.Context, *MutationBulkCreateAuthorsRequest) (*MutationBulkCreateAuthorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationBulkCreateAuthors not implemented")
+}
+func (UnimplementedProductServiceServer) MutationBulkCreateBlogPosts(context.Context, *MutationBulkCreateBlogPostsRequest) (*MutationBulkCreateBlogPostsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationBulkCreateBlogPosts not implemented")
+}
+func (UnimplementedProductServiceServer) MutationBulkUpdateAuthors(context.Context, *MutationBulkUpdateAuthorsRequest) (*MutationBulkUpdateAuthorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationBulkUpdateAuthors not implemented")
+}
+func (UnimplementedProductServiceServer) MutationBulkUpdateBlogPosts(context.Context, *MutationBulkUpdateBlogPostsRequest) (*MutationBulkUpdateBlogPostsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MutationBulkUpdateBlogPosts not implemented")
 }
 func (UnimplementedProductServiceServer) MutationCreateAuthor(context.Context, *MutationCreateAuthorRequest) (*MutationCreateAuthorResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MutationCreateAuthor not implemented")
@@ -610,6 +700,12 @@ func (UnimplementedProductServiceServer) QueryBlogPostById(context.Context, *Que
 }
 func (UnimplementedProductServiceServer) QueryBlogPostsWithFilter(context.Context, *QueryBlogPostsWithFilterRequest) (*QueryBlogPostsWithFilterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryBlogPostsWithFilter not implemented")
+}
+func (UnimplementedProductServiceServer) QueryBulkSearchAuthors(context.Context, *QueryBulkSearchAuthorsRequest) (*QueryBulkSearchAuthorsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryBulkSearchAuthors not implemented")
+}
+func (UnimplementedProductServiceServer) QueryBulkSearchBlogPosts(context.Context, *QueryBulkSearchBlogPostsRequest) (*QueryBulkSearchBlogPostsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryBulkSearchBlogPosts not implemented")
 }
 func (UnimplementedProductServiceServer) QueryCalculateTotals(context.Context, *QueryCalculateTotalsRequest) (*QueryCalculateTotalsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryCalculateTotals not implemented")
@@ -718,6 +814,78 @@ func _ProductService_LookupStorageById_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).LookupStorageById(ctx, req.(*LookupStorageByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationBulkCreateAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationBulkCreateAuthorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationBulkCreateAuthors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationBulkCreateAuthors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationBulkCreateAuthors(ctx, req.(*MutationBulkCreateAuthorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationBulkCreateBlogPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationBulkCreateBlogPostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationBulkCreateBlogPosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationBulkCreateBlogPosts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationBulkCreateBlogPosts(ctx, req.(*MutationBulkCreateBlogPostsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationBulkUpdateAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationBulkUpdateAuthorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationBulkUpdateAuthors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationBulkUpdateAuthors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationBulkUpdateAuthors(ctx, req.(*MutationBulkUpdateAuthorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_MutationBulkUpdateBlogPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MutationBulkUpdateBlogPostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).MutationBulkUpdateBlogPosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_MutationBulkUpdateBlogPosts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).MutationBulkUpdateBlogPosts(ctx, req.(*MutationBulkUpdateBlogPostsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1042,6 +1210,42 @@ func _ProductService_QueryBlogPostsWithFilter_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).QueryBlogPostsWithFilter(ctx, req.(*QueryBlogPostsWithFilterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryBulkSearchAuthors_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryBulkSearchAuthorsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryBulkSearchAuthors(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryBulkSearchAuthors_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryBulkSearchAuthors(ctx, req.(*QueryBulkSearchAuthorsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryBulkSearchBlogPosts_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryBulkSearchBlogPostsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryBulkSearchBlogPosts(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryBulkSearchBlogPosts_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryBulkSearchBlogPosts(ctx, req.(*QueryBulkSearchBlogPostsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1386,6 +1590,22 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_LookupStorageById_Handler,
 		},
 		{
+			MethodName: "MutationBulkCreateAuthors",
+			Handler:    _ProductService_MutationBulkCreateAuthors_Handler,
+		},
+		{
+			MethodName: "MutationBulkCreateBlogPosts",
+			Handler:    _ProductService_MutationBulkCreateBlogPosts_Handler,
+		},
+		{
+			MethodName: "MutationBulkUpdateAuthors",
+			Handler:    _ProductService_MutationBulkUpdateAuthors_Handler,
+		},
+		{
+			MethodName: "MutationBulkUpdateBlogPosts",
+			Handler:    _ProductService_MutationBulkUpdateBlogPosts_Handler,
+		},
+		{
 			MethodName: "MutationCreateAuthor",
 			Handler:    _ProductService_MutationCreateAuthor_Handler,
 		},
@@ -1456,6 +1676,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryBlogPostsWithFilter",
 			Handler:    _ProductService_QueryBlogPostsWithFilter_Handler,
+		},
+		{
+			MethodName: "QueryBulkSearchAuthors",
+			Handler:    _ProductService_QueryBulkSearchAuthors_Handler,
+		},
+		{
+			MethodName: "QueryBulkSearchBlogPosts",
+			Handler:    _ProductService_QueryBulkSearchBlogPosts_Handler,
 		},
 		{
 			MethodName: "QueryCalculateTotals",

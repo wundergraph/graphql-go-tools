@@ -352,6 +352,12 @@ type Query {
   authorById(id: ID!): Author
   authorsWithFilter(filter: AuthorFilter!): [Author!]!
   allAuthors: [Author!]!
+  
+  # Bulk search operations for authors
+  bulkSearchAuthors(filters: [AuthorFilter!]): [Author!]!
+  
+  # Bulk search operations for blog posts
+  bulkSearchBlogPosts(filters: [BlogPostFilter!]): [BlogPost!]!
 }
 
 input UserInput {
@@ -375,7 +381,17 @@ type Mutation {
   # Author mutations (testing team structures)
   createAuthor(input: AuthorInput!): Author!
   updateAuthor(id: ID!, input: AuthorInput!): Author
+  
+  # Bulk operations for authors
+  bulkCreateAuthors(authors: [AuthorInput!]): [Author!]!
+  bulkUpdateAuthors(authors: [AuthorInput!]): [Author!]!
+  
+  # Bulk operations for blog posts
+  bulkCreateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
+  bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
 }
+
+
 
 union _Entity = Product | Storage
 scalar _Any

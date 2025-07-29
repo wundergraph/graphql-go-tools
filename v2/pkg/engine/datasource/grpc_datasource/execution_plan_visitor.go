@@ -440,6 +440,10 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 		jsonPath = r.operation.Input.ByteSliceString(r.operation.VariableValues[argument.Value.Ref].Name)
 	}
 
+	rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
+	baseType := r.definition.NodeNameString(rootNode)
+	mappedInputName := r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName)
+
 	// If the underlying type is an input object type, create a new message and add it to the current request message.
 	switch underlyingTypeNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition:
@@ -448,14 +452,9 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 			Fields: RPCFields{},
 		}
 
-		// Add a field of type message to the current request message.
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, RPCField{
-			Name:     r.resolveFieldMapping(underlyingTypeName, fieldName),
-			TypeName: DataTypeMessage.String(),
-			JSONPath: jsonPath,
-			Message:  msg,
-			Repeated: r.definition.TypeIsNonNullList(typeRef),
-		})
+		field := r.buildInputMessageField(typeRef, mappedInputName, jsonPath, DataTypeMessage)
+		field.Message = msg
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
 
 		// Add the current request message to the ancestors and set the current request message to the new message.
 		r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
@@ -467,30 +466,10 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 		r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
 
 	case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
-		rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
-		baseType := r.definition.NodeNameString(rootNode)
 		dt := r.toDataType(&r.definition.Types[typeRef])
 
-		field := RPCField{
-			Name:     r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName),
-			TypeName: dt.String(),
-			JSONPath: jsonPath,
-			Repeated: r.definition.TypeIsNonNullList(typeRef),
-			Optional: !r.definition.TypeIsNonNull(typeRef),
-		}
-
-		// For nullable or nested lists we need to build a wrapper message
-		if r.typeIsNullableOrNestedList(typeRef) {
-			field.ListMetadata = r.createListMetadata(typeRef)
-			field.Repeated = false
-			field.IsListType = true
-		}
-
-		if dt == DataTypeEnum {
-			field.EnumName = underlyingTypeName
-		}
-
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields,
+			r.buildInputMessageField(typeRef, mappedInputName, jsonPath, dt))
 	default:
 		// TODO unions, interfaces, etc.
 		r.walker.Report.AddInternalError(fmt.Errorf("unsupported type: %s", underlyingTypeNode.Kind))
@@ -527,16 +506,11 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 	mappedName := r.resolveFieldMapping(parentTypeName, fieldName)
 
 	// If the type is not an object, directly add the field to the request message
-	// TODO: check interfaces, unions, etc.
 	if underlyingTypeNode.Kind != ast.NodeKindInputObjectTypeDefinition {
 		dt := r.toDataType(&inputValueDefinitionType)
-		field := r.buildInputMessageField(typeRef, mappedName, fieldName, dt)
 
-		if dt == DataTypeEnum {
-			field.EnumName = underlyingTypeName
-		}
-
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
+		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields,
+			r.buildInputMessageField(typeRef, mappedName, fieldName, dt))
 
 		return
 	}
@@ -578,6 +552,10 @@ func (r *rpcPlanVisitor) buildInputMessageField(typeRef int, fieldName, jsonPath
 			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
 			field.Repeated = true
 		}
+	}
+
+	if dt == DataTypeEnum {
+		field.EnumName = r.definition.ResolveTypeNameString(typeRef)
 	}
 
 	return field

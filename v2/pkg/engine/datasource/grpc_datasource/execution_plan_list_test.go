@@ -997,6 +997,99 @@ func TestListParametersExecutionPlan(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Should create an execution plan for bulk search authors",
+			query: `query BulkSearchAuthors($filters: [AuthorFilter!]) { bulkSearchAuthors(filters: $filters) { id name email skills } }`,
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryBulkSearchAuthors",
+						Request: RPCMessage{
+							Name: "QueryBulkSearchAuthorsRequest",
+							Fields: []RPCField{
+								{
+									Name:       "filters",
+									TypeName:   string(DataTypeMessage),
+									JSONPath:   "filters",
+									IsListType: true,
+									Optional:   true,
+									ListMetadata: &ListMetadata{
+										NestingLevel: 1,
+										LevelInfo: []LevelInfo{
+											{
+												Optional: true,
+											},
+										},
+									},
+									Message: &RPCMessage{
+										Name: "AuthorFilter",
+										Fields: []RPCField{
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+												Optional: true,
+											},
+											{
+												Name:     "has_teams",
+												TypeName: string(DataTypeBool),
+												JSONPath: "hasTeams",
+												Optional: true,
+											},
+											{
+												Name:     "skill_count",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "skillCount",
+												Optional: true,
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "QueryBulkSearchAuthorsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "bulk_search_authors",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "bulkSearchAuthors",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "Author",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "email",
+												TypeName: string(DataTypeString),
+												JSONPath: "email",
+												Optional: true,
+											},
+											{
+												Name:     "skills",
+												TypeName: string(DataTypeString),
+												JSONPath: "skills",
+												Repeated: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

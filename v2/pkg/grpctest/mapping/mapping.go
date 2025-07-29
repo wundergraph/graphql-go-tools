@@ -151,6 +151,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryAllAuthorsRequest",
 				Response: "QueryAllAuthorsResponse",
 			},
+			"bulkSearchAuthors": {
+				RPC:      "QueryBulkSearchAuthors",
+				Request:  "QueryBulkSearchAuthorsRequest",
+				Response: "QueryBulkSearchAuthorsResponse",
+			},
+			"bulkSearchBlogPosts": {
+				RPC:      "QueryBulkSearchBlogPosts",
+				Request:  "QueryBulkSearchBlogPostsRequest",
+				Response: "QueryBulkSearchBlogPostsResponse",
+			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap{
 			"createUser": {
@@ -192,6 +202,26 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				RPC:      "MutationUpdateAuthor",
 				Request:  "MutationUpdateAuthorRequest",
 				Response: "MutationUpdateAuthorResponse",
+			},
+			"bulkCreateAuthors": {
+				RPC:      "MutationBulkCreateAuthors",
+				Request:  "MutationBulkCreateAuthorsRequest",
+				Response: "MutationBulkCreateAuthorsResponse",
+			},
+			"bulkUpdateAuthors": {
+				RPC:      "MutationBulkUpdateAuthors",
+				Request:  "MutationBulkUpdateAuthorsRequest",
+				Response: "MutationBulkUpdateAuthorsResponse",
+			},
+			"bulkCreateBlogPosts": {
+				RPC:      "MutationBulkCreateBlogPosts",
+				Request:  "MutationBulkCreateBlogPostsRequest",
+				Response: "MutationBulkCreateBlogPostsResponse",
+			},
+			"bulkUpdateBlogPosts": {
+				RPC:      "MutationBulkUpdateBlogPosts",
+				Request:  "MutationBulkUpdateBlogPostsRequest",
+				Response: "MutationBulkUpdateBlogPostsResponse",
 			},
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
@@ -350,6 +380,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"allAuthors": {
 					TargetName: "all_authors",
 				},
+				"bulkSearchAuthors": {
+					TargetName: "bulk_search_authors",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
+				"bulkSearchBlogPosts": {
+					TargetName: "bulk_search_blog_posts",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -401,6 +443,30 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: map[string]string{
 						"id":    "id",
 						"input": "input",
+					},
+				},
+				"bulkCreateAuthors": {
+					TargetName: "bulk_create_authors",
+					ArgumentMappings: map[string]string{
+						"authors": "authors",
+					},
+				},
+				"bulkUpdateAuthors": {
+					TargetName: "bulk_update_authors",
+					ArgumentMappings: map[string]string{
+						"authors": "authors",
+					},
+				},
+				"bulkCreateBlogPosts": {
+					TargetName: "bulk_create_blog_posts",
+					ArgumentMappings: map[string]string{
+						"blogPosts": "blog_posts",
+					},
+				},
+				"bulkUpdateBlogPosts": {
+					TargetName: "bulk_update_blog_posts",
+					ArgumentMappings: map[string]string{
+						"blogPosts": "blog_posts",
 					},
 				},
 			},

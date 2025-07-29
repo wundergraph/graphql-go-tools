@@ -40,8 +40,8 @@ func runTest(t *testing.T, testCase testCase) {
 	walker.Walk(&queryDoc, &schemaDoc, &report)
 
 	if report.HasErrors() {
-		require.NotEmpty(t, testCase.expectedError)
-		require.Contains(t, report.Error(), testCase.expectedError)
+		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", report.Error())
+		require.Contains(t, report.Error(), testCase.expectedError, "expected error to contain: %s, got: %s", testCase.expectedError, report.Error())
 		return
 	}
 
