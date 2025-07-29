@@ -451,7 +451,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		Input: string(input),
 		DataSource: &SubscriptionSource{
 			client:                 p.subscriptionClient,
-			subscriptionOnStartFns: p.config.subscription.SubscriptionOnStartFns,
+			subscriptionOnStartFns: p.config.subscription.StartupHooks,
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,

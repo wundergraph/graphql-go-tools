@@ -615,7 +615,6 @@ func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSu
 	}
 	if close {
 		r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
-		return
 	}
 
 }
@@ -831,10 +830,7 @@ func (r *Resolver) shouldSkipEvent(ctx *Context, sub *sub, data []byte) bool {
 		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
 		return true
 	}
-	if skip {
-		return true
-	}
-	return false
+	return skip
 }
 
 func (r *Resolver) handleTriggerUpdateQueueWorkItem(c *Context, s *sub, data []byte) {

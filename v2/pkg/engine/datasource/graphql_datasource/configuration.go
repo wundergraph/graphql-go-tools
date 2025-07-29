@@ -127,7 +127,8 @@ type SubscriptionConfiguration struct {
 	// these headers by itself.
 	ForwardedClientHeaderRegularExpressions []RegularExpression
 	WsSubProtocol                           string
-	SubscriptionOnStartFns                  []SubscriptionOnStartFn
+	// StartupHooks contains the method called when a subscription is started
+	StartupHooks []SubscriptionOnStartFn
 }
 
 type FetchConfiguration struct {
