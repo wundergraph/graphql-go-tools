@@ -38,9 +38,9 @@ jobs:
         with:
           go-version: ^${{ matrix.go }}
         id: go
-      - name: CI
+      - name: Quick tests & benchmarks
         working-directory: v2
-        run: make ci
+        run: make test-quick
       - name: Run tests under race detector
         working-directory: v2
         if: runner.os != 'Windows' # These are very slow on Windows, skip them

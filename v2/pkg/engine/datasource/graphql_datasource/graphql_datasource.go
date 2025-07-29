@@ -1436,7 +1436,8 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	}
 }
 
-// printOperation - prints normalized upstream operation
+// printOperation returns normalized and validated upstream operation, optionally minified.
+// Errors encountered during processing terminate the operation, and nils are returned.
 func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []byte) {
 
 	kit := p.getKit()
@@ -1449,8 +1450,8 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 		return nil, nil
 	}
 
-	// When datasource is nested and definition query type do not contain operation field
-	// we have to replace a query type with a current root type
+	// When datasource is nested and definition's query type does not contain operation field
+	// we have to replace a query type with a current root type.
 	p.replaceQueryType(definition)
 
 	// normalize upstream operation
@@ -1484,7 +1485,8 @@ func (p *Planner[T]) printOperation() (operationBytes []byte, variablesBytes []b
 	rawOperationBytes := make([]byte, kit.buf.Len())
 	copy(rawOperationBytes, kit.buf.Bytes())
 
-	if p.minifier != nil && len(rawOperationBytes) > 140 {
+	// gRPC DataSource requires minification to be disabled.
+	if p.minifier != nil && !p.config.IsGRPC() && len(rawOperationBytes) > 140 {
 		kit.buf.Reset()
 		madeReplacements, err := p.minifier.Minify(rawOperationBytes, definition, astminify.MinifyOptions{
 			SortAST: true,
@@ -1597,7 +1599,7 @@ func (p *Planner[T]) replaceQueryType(definition *ast.Document) {
 	definition.ReplaceRootOperationTypeDefinition(p.rootTypeName, ast.OperationTypeQuery)
 }
 
-// normalizeOperation - normalizes operation against definition.
+// normalizeOperation normalizes operation against definition.
 func (p *Planner[T]) normalizeOperation(operation, definition *ast.Document, report *operationreport.Report) (ok bool) {
 	report.Reset()
 	normalizer := astnormalization.NewWithOpts(
@@ -1612,6 +1614,7 @@ func (p *Planner[T]) normalizeOperation(operation, definition *ast.Document, rep
 	return !report.HasErrors()
 }
 
+// handleFieldAlias determines the appropriate field name and alias for a given field reference.
 func (p *Planner[T]) handleFieldAlias(ref int) (newFieldName string, alias ast.Alias) {
 	fieldName := p.visitor.Operation.FieldNameString(ref)
 	alias = ast.Alias{
@@ -1651,7 +1654,7 @@ func (p *Planner[T]) handleFieldAlias(ref int) (newFieldName string, alias ast.A
 	return fieldName, alias
 }
 
-// addField - add a field to an upstream operation
+// addField adds a field referenced by ref to the upstream operation.
 func (p *Planner[T]) addField(ref int) (upstreamFieldRef int) {
 	fieldName, alias := p.handleFieldAlias(ref)
 
@@ -1674,7 +1677,7 @@ func (p *Planner[T]) addField(ref int) (upstreamFieldRef int) {
 type OnWsConnectionInitCallback func(ctx context.Context, url string, header http.Header) (json.RawMessage, error)
 
 type printKit struct {
-	buf        *bytes.Buffer
+	buf        *bytes.Buffer // output goes here
 	parser     *astparser.Parser
 	printer    *astprinter.Printer
 	validator  *astvalidation.OperationValidator
@@ -1738,9 +1741,9 @@ func NewFactory(executionContext context.Context, httpClient *http.Client, subsc
 	}, nil
 }
 
-// NewFactory (GRPC) creates a new factory for the GraphQL datasource planner
+// NewFactoryGRPC creates a gRPC factory for the GraphQL datasource planner.
 // Graphql Datasource could be stateful in case you are using subscriptions,
-// make sure you are using the same execution context for all datasources
+// make sure you are using the same execution context for all datasources.
 func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConnInterface) (*Factory[Configuration], error) {
 	if executionContext == nil {
 		return nil, fmt.Errorf("execution context is required")
@@ -1760,7 +1763,7 @@ func NewFactoryGRPC(executionContext context.Context, grpcClient grpc.ClientConn
 // This factory is used when the gRPC client is provided by a function.
 // This is useful when you don't want to provide a static client to the factory and let the consumer
 // decide how to provide the client to the datasource.
-// For example when you need to recreate the client in case of a connection error.
+// For example, when you need to recreate the client in case of a connection error.
 func NewFactoryGRPCClientProvider(executionContext context.Context, clientProvider func() grpc.ClientConnInterface) (*Factory[Configuration], error) {
 	if executionContext == nil {
 		return nil, fmt.Errorf("execution context is required")
