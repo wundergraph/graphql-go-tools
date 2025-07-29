@@ -6,6 +6,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -534,7 +535,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
-		require.Equal(t, `{"data":{"nullableFieldsTypeById":{"id":"full-data","name":"Full Data by ID","optionalString":"All fields populated","optionalInt":123,"optionalFloat":12.34000015258789,"optionalBoolean":false,"requiredString":"Required by ID","requiredInt":456}}}`, response)
+		require.Equal(t, `{"data":{"nullableFieldsTypeById":{"id":"full-data","name":"Full Data by ID","optionalString":"All fields populated","optionalInt":123,"optionalFloat":12.34,"optionalBoolean":false,"requiredString":"Required by ID","requiredInt":456}}}`, response)
 	})
 
 	t.Run("should handle nullable fields query by ID with partial data", func(t *testing.T) {
@@ -631,7 +632,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
 
 		require.NoError(t, err)
-		require.Equal(t, `{"data":{"allNullableFieldsTypes":[{"id":"nullable-1","name":"Full Data Entry","optionalString":"Optional String Value","optionalInt":42,"optionalFloat":3.140000104904175,"optionalBoolean":true,"requiredString":"Required String 1","requiredInt":100},{"id":"nullable-2","name":"Partial Data Entry","optionalString":"Only string is set","optionalInt":null,"optionalFloat":null,"optionalBoolean":false,"requiredString":"Required String 2","requiredInt":200},{"id":"nullable-3","name":"Minimal Data Entry","optionalString":null,"optionalInt":null,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Required String 3","requiredInt":300}]}}`, response)
+		require.Equal(t, `{"data":{"allNullableFieldsTypes":[{"id":"nullable-1","name":"Full Data Entry","optionalString":"Optional String Value","optionalInt":42,"optionalFloat":1.7976931348623157e+308,"optionalBoolean":true,"requiredString":"Required String 1","requiredInt":100},{"id":"nullable-2","name":"Partial Data Entry","optionalString":"Only string is set","optionalInt":null,"optionalFloat":null,"optionalBoolean":false,"requiredString":"Required String 2","requiredInt":200},{"id":"nullable-3","name":"Minimal Data Entry","optionalString":null,"optionalInt":null,"optionalFloat":null,"optionalBoolean":null,"requiredString":"Required String 3","requiredInt":300}]}}`, response)
 	})
 
 	t.Run("should handle nullable fields query with filter", func(t *testing.T) {
@@ -677,8 +678,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 				"input": map[string]any{
 					"name":            "Created Type",
 					"optionalString":  "Optional Value",
-					"optionalInt":     42,
-					"optionalFloat":   3.14,
+					"optionalInt":     math.MaxInt32,
+					"optionalFloat":   math.MaxFloat64,
 					"optionalBoolean": true,
 					"requiredString":  "Required Value",
 					"requiredInt":     100,
@@ -703,8 +704,8 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 		require.NoError(t, err)
 		require.Contains(t, response, `"name":"Created Type"`)
 		require.Contains(t, response, `"optionalString":"Optional Value"`)
-		require.Contains(t, response, `"optionalInt":42`)
-		require.Contains(t, response, `"optionalFloat":3.14`)
+		require.Contains(t, response, `"optionalInt":2147483647`)
+		require.Contains(t, response, `"optionalFloat":1.7976931348623157e+308`)
 		require.Contains(t, response, `"optionalBoolean":true`)
 		require.Contains(t, response, `"requiredString":"Required Value"`)
 		require.Contains(t, response, `"requiredInt":100`)
@@ -808,5 +809,627 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"updateNullableFieldsType":null}}`, response)
+	})
+
+	// BlogPost and Author list tests
+	t.Run("should handle BlogPost query with scalar lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "BlogPostScalarListsQuery",
+			Query: `query BlogPostScalarListsQuery { 
+				blogPost { 
+					id 
+					title 
+					content 
+					tags 
+					optionalTags 
+					categories 
+					keywords 
+					viewCounts 
+					ratings 
+					isPublished 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"tags":`)
+		require.Contains(t, response, `"optionalTags":`)
+		require.Contains(t, response, `"categories":`)
+		require.Contains(t, response, `"keywords":`)
+		require.Contains(t, response, `"viewCounts":`)
+		require.Contains(t, response, `"ratings":`)
+		require.Contains(t, response, `"isPublished":`)
+	})
+
+	t.Run("should handle BlogPost query with nested scalar lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "BlogPostNestedScalarListsQuery",
+			Query: `query BlogPostNestedScalarListsQuery { 
+				blogPost { 
+					id 
+					title 
+					tagGroups 
+					relatedTopics 
+					commentThreads 
+					suggestions 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"blogPost":{"id":"blog-default","title":"Default Blog Post","tagGroups":[["tech","programming"],["golang","backend"]],"relatedTopics":[["microservices","api"],["databases","performance"]],"commentThreads":[["Great post!","Very helpful"],["Could use more examples","Thanks for sharing"]],"suggestions":[["Add code examples","Include diagrams"]]}}}`, response)
+	})
+
+	t.Run("should handle BlogPost query with complex lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "BlogPostComplexListsQuery",
+			Query: `query BlogPostComplexListsQuery { 
+				blogPost { 
+					id 
+					title 
+					relatedCategories { 
+						id 
+						name 
+						kind 
+					} 
+					contributors { 
+						id 
+						name 
+					} 
+					mentionedProducts { 
+						id 
+						name 
+						price 
+					} 
+					mentionedUsers { 
+						id 
+						name 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"relatedCategories":`)
+		require.Contains(t, response, `"contributors":`)
+		require.Contains(t, response, `"mentionedProducts":`)
+		require.Contains(t, response, `"mentionedUsers":`)
+		// Verify complex objects within lists
+		require.Contains(t, response, `"kind":`)
+		require.Contains(t, response, `"price":`)
+	})
+
+	t.Run("should handle BlogPost query with nested complex lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "BlogPostNestedComplexListsQuery",
+			Query: `query BlogPostNestedComplexListsQuery { 
+				blogPost { 
+					id 
+					title 
+					categoryGroups { 
+						id 
+						name 
+						kind 
+					} 
+					contributorTeams { 
+						id 
+						name 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"categoryGroups":`)
+		require.Contains(t, response, `"contributorTeams":`)
+		// Verify nested complex objects
+		require.Contains(t, response, `"kind":`)
+	})
+
+	t.Run("should handle BlogPost query by ID", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "BlogPostByIdQuery",
+			Variables: stringify(map[string]any{
+				"id": "test-blog-1",
+			}),
+			Query: `query BlogPostByIdQuery($id: ID!) { 
+				blogPostById(id: $id) { 
+					id 
+					title 
+					content 
+					tags 
+					tagGroups 
+					relatedCategories { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"id":"test-blog-1"`)
+		require.Contains(t, response, `"title":"Blog Post test-blog-1"`)
+		require.Contains(t, response, `"tags":`)
+		require.Contains(t, response, `"tagGroups":`)
+		require.Contains(t, response, `"relatedCategories":`)
+	})
+
+	t.Run("should handle BlogPost filtered query", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "BlogPostFilteredQuery",
+			Variables: stringify(map[string]any{
+				"filter": map[string]any{
+					"title":         "Test",
+					"hasCategories": true,
+					"minTags":       2,
+				},
+			}),
+			Query: `query BlogPostFilteredQuery($filter: BlogPostFilter!) { 
+				blogPostsWithFilter(filter: $filter) { 
+					id 
+					title 
+					tags 
+					categories 
+					tagGroups 
+					relatedCategories { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"blogPostsWithFilter":`)
+		require.Contains(t, response, `"tags":`)
+		require.Contains(t, response, `"categories":`)
+		require.Contains(t, response, `"tagGroups":`)
+		require.Contains(t, response, `"relatedCategories":`)
+	})
+
+	t.Run("should handle Author query with scalar lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AuthorScalarListsQuery",
+			Query: `query AuthorScalarListsQuery { 
+				author { 
+					id 
+					name 
+					email 
+					skills 
+					languages 
+					socialLinks 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"skills":`)
+		require.Contains(t, response, `"languages":`)
+		require.Contains(t, response, `"socialLinks":`)
+	})
+
+	t.Run("should handle Author query with nested scalar lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AuthorNestedScalarListsQuery",
+			Query: `query AuthorNestedScalarListsQuery { 
+				author { 
+					id 
+					name 
+					teamsByProject 
+					collaborations 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Equal(t, `{"data":{"author":{"id":"author-default","name":"Default Author","teamsByProject":[["Alice","Bob","Charlie"],["David","Eve"]],"collaborations":[["Open Source Project A","Research Paper B"],["Conference Talk C"]]}}}`, response)
+	})
+
+	t.Run("should handle Author query with complex lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AuthorComplexListsQuery",
+			Query: `query AuthorComplexListsQuery { 
+				author { 
+					id 
+					name 
+					writtenPosts { 
+						id 
+						title 
+						content 
+					} 
+					favoriteCategories { 
+						id 
+						name 
+						kind 
+					} 
+					relatedAuthors { 
+						id 
+						name 
+					} 
+					productReviews { 
+						id 
+						name 
+						price 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"writtenPosts":`)
+		require.Contains(t, response, `"favoriteCategories":`)
+		require.Contains(t, response, `"relatedAuthors":`)
+		require.Contains(t, response, `"productReviews":`)
+		// Verify complex objects within lists
+		require.Contains(t, response, `"title":`)
+		require.Contains(t, response, `"kind":`)
+		require.Contains(t, response, `"price":`)
+	})
+
+	t.Run("should handle Author query with nested complex lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AuthorNestedComplexListsQuery",
+			Query: `query AuthorNestedComplexListsQuery { 
+				author { 
+					id 
+					name 
+					authorGroups { 
+						id 
+						name 
+					} 
+					categoryPreferences { 
+						id 
+						name 
+						kind 
+					} 
+					projectTeams { 
+						id 
+						name 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"authorGroups":`)
+		require.Contains(t, response, `"categoryPreferences":`)
+		require.Contains(t, response, `"projectTeams":`)
+		// Verify nested complex objects
+		require.Contains(t, response, `"kind":`)
+	})
+
+	t.Run("should handle Author query by ID", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AuthorByIdQuery",
+			Variables: stringify(map[string]any{
+				"id": "test-author-1",
+			}),
+			Query: `query AuthorByIdQuery($id: ID!) { 
+				authorById(id: $id) { 
+					id 
+					name 
+					skills 
+					teamsByProject 
+					favoriteCategories { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"id":"test-author-1"`)
+		require.Contains(t, response, `"name":"Author test-author-1"`)
+		require.Contains(t, response, `"skills":`)
+		require.Contains(t, response, `"teamsByProject":`)
+		require.Contains(t, response, `"favoriteCategories":`)
+	})
+
+	t.Run("should handle Author filtered query", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AuthorFilteredQuery",
+			Variables: stringify(map[string]any{
+				"filter": map[string]any{
+					"name":       "Test",
+					"hasTeams":   true,
+					"skillCount": 3,
+				},
+			}),
+			Query: `query AuthorFilteredQuery($filter: AuthorFilter!) { 
+				authorsWithFilter(filter: $filter) { 
+					id 
+					name 
+					skills 
+					teamsByProject 
+					favoriteCategories { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"authorsWithFilter":`)
+		require.Contains(t, response, `"skills":`)
+		require.Contains(t, response, `"teamsByProject":`)
+		require.Contains(t, response, `"favoriteCategories":`)
+	})
+
+	t.Run("should handle BlogPost creation mutation with complex input lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "CreateBlogPostMutation",
+			Variables: stringify(map[string]any{
+				"input": map[string]any{
+					"title":        "Complex Lists Blog Post",
+					"content":      "Testing complex input lists",
+					"tags":         []string{"graphql", "grpc", "lists"},
+					"optionalTags": []string{"optional1", "optional2"},
+					"categories":   []string{"Technology", "Programming"},
+					"keywords":     []string{"nested", "complex", "types"},
+					"viewCounts":   []int{150, 250, 350},
+					"ratings":      []float64{4.2, 4.8, 3.9},
+					"isPublished":  []bool{true, false, true},
+					"tagGroups": [][]string{
+						{"graphql", "schema"},
+						{"grpc", "protobuf"},
+						{"lists", "arrays"},
+					},
+					"relatedTopics": [][]string{
+						{"backend", "api"},
+						{"frontend", "ui"},
+					},
+					"commentThreads": [][]string{
+						{"Great post!", "Thanks for sharing"},
+						{"Very helpful", "Keep it up"},
+					},
+					"suggestions": [][]string{
+						{"Add examples"},
+						{"More details", "Better formatting"},
+					},
+					"relatedCategories": []map[string]any{
+						{"name": "Web Development", "kind": "ELECTRONICS"},
+						{"name": "API Design", "kind": "OTHER"},
+					},
+					"contributors": []map[string]any{
+						{"name": "Alice Developer"},
+						{"name": "Bob Engineer"},
+					},
+					"categoryGroups": [][]map[string]any{
+						{
+							{"name": "Backend", "kind": "ELECTRONICS"},
+							{"name": "Database", "kind": "OTHER"},
+						},
+						{
+							{"name": "Frontend", "kind": "ELECTRONICS"},
+						},
+					},
+				},
+			}),
+			Query: `mutation CreateBlogPostMutation($input: BlogPostInput!) { 
+				createBlogPost(input: $input) { 
+					id 
+					title 
+					content 
+					tags 
+					optionalTags 
+					categories 
+					keywords 
+					viewCounts 
+					ratings 
+					isPublished 
+					tagGroups 
+					relatedTopics 
+					commentThreads 
+					suggestions 
+					relatedCategories { 
+						id 
+						name 
+						kind 
+					} 
+					contributors { 
+						id 
+						name 
+					} 
+					categoryGroups { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"title":"Complex Lists Blog Post"`)
+		require.Contains(t, response, `"content":"Testing complex input lists"`)
+		require.Contains(t, response, `"tags":["graphql","grpc","lists"]`)
+		require.Contains(t, response, `"optionalTags":["optional1","optional2"]`)
+		require.Contains(t, response, `"categories":["Technology","Programming"]`)
+		require.Contains(t, response, `"keywords":["nested","complex","types"]`)
+		require.Contains(t, response, `"viewCounts":[150,250,350]`)
+		require.Contains(t, response, `"ratings":[4.2,4.8,3.9]`)
+		require.Contains(t, response, `"isPublished":[true,false,true]`)
+		require.Contains(t, response, `"tagGroups":[["graphql","schema"],["grpc","protobuf"],["lists","arrays"]]`)
+		require.Contains(t, response, `"relatedTopics":[["backend","api"],["frontend","ui"]]`)
+		require.Contains(t, response, `"relatedCategories":`)
+		require.Contains(t, response, `"contributors":`)
+		require.Contains(t, response, `"categoryGroups":`)
+		require.Contains(t, response, `"name":"Web Development"`)
+		require.Contains(t, response, `"name":"Alice Developer"`)
+		require.Contains(t, response, `"name":"Backend"`)
+	})
+
+	t.Run("should handle Author creation mutation with complex input lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "CreateAuthorMutation",
+			Variables: stringify(map[string]any{
+				"input": map[string]any{
+					"name":        "New Author",
+					"email":       "author@example.com",
+					"skills":      []string{"Go", "GraphQL", "gRPC"},
+					"languages":   []string{"English", "Spanish"},
+					"socialLinks": []string{"twitter.com/author", "github.com/author"},
+					"teamsByProject": [][]string{
+						{"Alice", "Bob"},
+						{"Charlie", "David", "Eve"},
+					},
+					"collaborations": [][]string{
+						{"Project1", "Project2"},
+						{"Project3"},
+					},
+					"favoriteCategories": []map[string]any{
+						{"name": "Backend Development", "kind": "ELECTRONICS"},
+						{"name": "API Design", "kind": "OTHER"},
+					},
+					"authorGroups": [][]map[string]any{
+						{
+							{"name": "Go Team"},
+							{"name": "GraphQL Team"},
+						},
+					},
+					"projectTeams": [][]map[string]any{
+						{
+							{"name": "Team Lead"},
+							{"name": "Senior Dev"},
+						},
+						{
+							{"name": "Junior Dev"},
+						},
+					},
+				},
+			}),
+			Query: `mutation CreateAuthorMutation($input: AuthorInput!) { 
+				createAuthor(input: $input) { 
+					id 
+					name 
+					email 
+					skills 
+					languages 
+					socialLinks 
+					teamsByProject 
+					collaborations 
+					favoriteCategories { 
+						id 
+						name 
+						kind 
+					} 
+					authorGroups { 
+						id 
+						name 
+					} 
+					projectTeams { 
+						id 
+						name 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"name":"New Author"`)
+		require.Contains(t, response, `"email":"author@example.com"`)
+		require.Contains(t, response, `"skills":["Go","GraphQL","gRPC"]`)
+		require.Contains(t, response, `"languages":["English","Spanish"]`)
+		require.Contains(t, response, `"socialLinks":["twitter.com/author","github.com/author"]`)
+		require.Contains(t, response, `"teamsByProject":[["Alice","Bob"],["Charlie","David","Eve"]]`)
+		require.Contains(t, response, `"collaborations":[["Project1","Project2"],["Project3"]]`)
+		require.Contains(t, response, `"favoriteCategories":`)
+		require.Contains(t, response, `"authorGroups":`)
+		require.Contains(t, response, `"projectTeams":`)
+		require.Contains(t, response, `"name":"Backend Development"`)
+		require.Contains(t, response, `"name":"Go Team"`)
+	})
+
+	t.Run("should handle all BlogPosts query with lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AllBlogPostsQuery",
+			Query: `query AllBlogPostsQuery { 
+				allBlogPosts { 
+					id 
+					title 
+					tags 
+					tagGroups 
+					viewCounts 
+					ratings 
+					relatedCategories { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"allBlogPosts":`)
+		require.Contains(t, response, `"tags":`)
+		require.Contains(t, response, `"tagGroups":`)
+		require.Contains(t, response, `"viewCounts":`)
+		require.Contains(t, response, `"ratings":`)
+		require.Contains(t, response, `"relatedCategories":`)
+	})
+
+	t.Run("should handle all Authors query with lists", func(t *testing.T) {
+		operation := graphql.Request{
+			OperationName: "AllAuthorsQuery",
+			Query: `query AllAuthorsQuery { 
+				allAuthors { 
+					id 
+					name 
+					skills 
+					teamsByProject 
+					favoriteCategories { 
+						id 
+						name 
+						kind 
+					} 
+				} 
+			}`,
+		}
+
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.DefaultGRPCMapping()))
+
+		require.NoError(t, err)
+		require.Contains(t, response, `"allAuthors":`)
+		require.Contains(t, response, `"skills":`)
+		require.Contains(t, response, `"teamsByProject":`)
+		require.Contains(t, response, `"favoriteCategories":`)
 	})
 }

@@ -1,9 +1,9 @@
 syntax = "proto3";
 package productv1;
 
-import "google/protobuf/wrappers.proto";
-
 option go_package = "cosmo/pkg/proto/productv1;productv1";
+
+import "google/protobuf/wrappers.proto";
 
 // Service definition for ProductService
 service ProductService {
@@ -11,9 +11,24 @@ service ProductService {
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
   // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
+  rpc MutationCreateAuthor(MutationCreateAuthorRequest) returns (MutationCreateAuthorResponse) {}
+  rpc MutationCreateBlogPost(MutationCreateBlogPostRequest) returns (MutationCreateBlogPostResponse) {}
+  rpc MutationCreateNullableFieldsType(MutationCreateNullableFieldsTypeRequest) returns (MutationCreateNullableFieldsTypeResponse) {}
   rpc MutationCreateUser(MutationCreateUserRequest) returns (MutationCreateUserResponse) {}
   rpc MutationPerformAction(MutationPerformActionRequest) returns (MutationPerformActionResponse) {}
+  rpc MutationUpdateAuthor(MutationUpdateAuthorRequest) returns (MutationUpdateAuthorResponse) {}
+  rpc MutationUpdateBlogPost(MutationUpdateBlogPostRequest) returns (MutationUpdateBlogPostResponse) {}
+  rpc MutationUpdateNullableFieldsType(MutationUpdateNullableFieldsTypeRequest) returns (MutationUpdateNullableFieldsTypeResponse) {}
+  rpc QueryAllAuthors(QueryAllAuthorsRequest) returns (QueryAllAuthorsResponse) {}
+  rpc QueryAllBlogPosts(QueryAllBlogPostsRequest) returns (QueryAllBlogPostsResponse) {}
+  rpc QueryAllNullableFieldsTypes(QueryAllNullableFieldsTypesRequest) returns (QueryAllNullableFieldsTypesResponse) {}
   rpc QueryAllPets(QueryAllPetsRequest) returns (QueryAllPetsResponse) {}
+  rpc QueryAuthor(QueryAuthorRequest) returns (QueryAuthorResponse) {}
+  rpc QueryAuthorById(QueryAuthorByIdRequest) returns (QueryAuthorByIdResponse) {}
+  rpc QueryAuthorsWithFilter(QueryAuthorsWithFilterRequest) returns (QueryAuthorsWithFilterResponse) {}
+  rpc QueryBlogPost(QueryBlogPostRequest) returns (QueryBlogPostResponse) {}
+  rpc QueryBlogPostById(QueryBlogPostByIdRequest) returns (QueryBlogPostByIdResponse) {}
+  rpc QueryBlogPostsWithFilter(QueryBlogPostsWithFilterRequest) returns (QueryBlogPostsWithFilterResponse) {}
   rpc QueryCalculateTotals(QueryCalculateTotalsRequest) returns (QueryCalculateTotalsResponse) {}
   rpc QueryCategories(QueryCategoriesRequest) returns (QueryCategoriesResponse) {}
   rpc QueryCategoriesByKind(QueryCategoriesByKindRequest) returns (QueryCategoriesByKindResponse) {}
@@ -21,6 +36,9 @@ service ProductService {
   rpc QueryComplexFilterType(QueryComplexFilterTypeRequest) returns (QueryComplexFilterTypeResponse) {}
   rpc QueryFilterCategories(QueryFilterCategoriesRequest) returns (QueryFilterCategoriesResponse) {}
   rpc QueryNestedType(QueryNestedTypeRequest) returns (QueryNestedTypeResponse) {}
+  rpc QueryNullableFieldsType(QueryNullableFieldsTypeRequest) returns (QueryNullableFieldsTypeResponse) {}
+  rpc QueryNullableFieldsTypeById(QueryNullableFieldsTypeByIdRequest) returns (QueryNullableFieldsTypeByIdResponse) {}
+  rpc QueryNullableFieldsTypeWithFilter(QueryNullableFieldsTypeWithFilterRequest) returns (QueryNullableFieldsTypeWithFilterResponse) {}
   rpc QueryRandomPet(QueryRandomPetRequest) returns (QueryRandomPetResponse) {}
   rpc QueryRandomSearchResult(QueryRandomSearchResultRequest) returns (QueryRandomSearchResultResponse) {}
   rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
@@ -29,15 +47,113 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
-  // Nullable fields RPCs
-  rpc QueryNullableFieldsType(QueryNullableFieldsTypeRequest) returns (QueryNullableFieldsTypeResponse) {}
-  rpc QueryNullableFieldsTypeById(QueryNullableFieldsTypeByIdRequest) returns (QueryNullableFieldsTypeByIdResponse) {}
-  rpc QueryNullableFieldsTypeWithFilter(QueryNullableFieldsTypeWithFilterRequest) returns (QueryNullableFieldsTypeWithFilterResponse) {}
-  rpc QueryAllNullableFieldsTypes(QueryAllNullableFieldsTypesRequest) returns (QueryAllNullableFieldsTypesResponse) {}
-  rpc MutationCreateNullableFieldsType(MutationCreateNullableFieldsTypeRequest) returns (MutationCreateNullableFieldsTypeResponse) {}
-  rpc MutationUpdateNullableFieldsType(MutationUpdateNullableFieldsTypeRequest) returns (MutationUpdateNullableFieldsTypeResponse) {}
 }
 
+// Wrapper message for a list of BlogPost.
+message ListOfBlogPost {
+  message List {
+    repeated BlogPost items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Boolean.
+message ListOfBoolean {
+  message List {
+    repeated bool items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Category.
+message ListOfCategory {
+  message List {
+    repeated Category items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of CategoryInput.
+message ListOfCategoryInput {
+  message List {
+    repeated CategoryInput items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Float.
+message ListOfFloat {
+  message List {
+    repeated double items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Category.
+message ListOfListOfCategory {
+  message List {
+    repeated ListOfCategory items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of CategoryInput.
+message ListOfListOfCategoryInput {
+  message List {
+    repeated ListOfCategoryInput items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of String.
+message ListOfListOfString {
+  message List {
+    repeated ListOfString items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of User.
+message ListOfListOfUser {
+  message List {
+    repeated ListOfUser items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of UserInput.
+message ListOfListOfUserInput {
+  message List {
+    repeated ListOfUserInput items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of OrderLine.
+message ListOfOrderLine {
+  message List {
+    repeated OrderLine items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Product.
+message ListOfProduct {
+  message List {
+    repeated Product items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of String.
+message ListOfString {
+  message List {
+    repeated string items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of User.
+message ListOfUser {
+  message List {
+    repeated User items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of UserInput.
+message ListOfUserInput {
+  message List {
+    repeated UserInput items = 1;
+  }
+  List list = 1;
+}
 // Key message for Product entity lookup
 message LookupProductByIdRequestKey {
   // Key field for Product entity lookup.
@@ -228,23 +344,6 @@ message QueryRandomSearchResultRequest {
 message QueryRandomSearchResultResponse {
   SearchResult random_search_result = 1;
 }
-// Request message for createUser operation.
-message MutationCreateUserRequest {
-  UserInput input = 1;
-}
-// Response message for createUser operation.
-message MutationCreateUserResponse {
-  User create_user = 1;
-}
-// Request message for performAction operation.
-message MutationPerformActionRequest {
-  ActionInput input = 1;
-}
-// Response message for performAction operation.
-message MutationPerformActionResponse {
-  ActionResult perform_action = 1;
-}
-
 // Request message for nullableFieldsType operation.
 message QueryNullableFieldsTypeRequest {
 }
@@ -275,6 +374,82 @@ message QueryAllNullableFieldsTypesRequest {
 message QueryAllNullableFieldsTypesResponse {
   repeated NullableFieldsType all_nullable_fields_types = 1;
 }
+// Request message for blogPost operation.
+message QueryBlogPostRequest {
+}
+// Response message for blogPost operation.
+message QueryBlogPostResponse {
+  BlogPost blog_post = 1;
+}
+// Request message for blogPostById operation.
+message QueryBlogPostByIdRequest {
+  string id = 1;
+}
+// Response message for blogPostById operation.
+message QueryBlogPostByIdResponse {
+  BlogPost blog_post_by_id = 1;
+}
+// Request message for blogPostsWithFilter operation.
+message QueryBlogPostsWithFilterRequest {
+  BlogPostFilter filter = 1;
+}
+// Response message for blogPostsWithFilter operation.
+message QueryBlogPostsWithFilterResponse {
+  repeated BlogPost blog_posts_with_filter = 1;
+}
+// Request message for allBlogPosts operation.
+message QueryAllBlogPostsRequest {
+}
+// Response message for allBlogPosts operation.
+message QueryAllBlogPostsResponse {
+  repeated BlogPost all_blog_posts = 1;
+}
+// Request message for author operation.
+message QueryAuthorRequest {
+}
+// Response message for author operation.
+message QueryAuthorResponse {
+  Author author = 1;
+}
+// Request message for authorById operation.
+message QueryAuthorByIdRequest {
+  string id = 1;
+}
+// Response message for authorById operation.
+message QueryAuthorByIdResponse {
+  Author author_by_id = 1;
+}
+// Request message for authorsWithFilter operation.
+message QueryAuthorsWithFilterRequest {
+  AuthorFilter filter = 1;
+}
+// Response message for authorsWithFilter operation.
+message QueryAuthorsWithFilterResponse {
+  repeated Author authors_with_filter = 1;
+}
+// Request message for allAuthors operation.
+message QueryAllAuthorsRequest {
+}
+// Response message for allAuthors operation.
+message QueryAllAuthorsResponse {
+  repeated Author all_authors = 1;
+}
+// Request message for createUser operation.
+message MutationCreateUserRequest {
+  UserInput input = 1;
+}
+// Response message for createUser operation.
+message MutationCreateUserResponse {
+  User create_user = 1;
+}
+// Request message for performAction operation.
+message MutationPerformActionRequest {
+  ActionInput input = 1;
+}
+// Response message for performAction operation.
+message MutationPerformActionResponse {
+  ActionResult perform_action = 1;
+}
 // Request message for createNullableFieldsType operation.
 message MutationCreateNullableFieldsTypeRequest {
   NullableFieldsInput input = 1;
@@ -291,6 +466,40 @@ message MutationUpdateNullableFieldsTypeRequest {
 // Response message for updateNullableFieldsType operation.
 message MutationUpdateNullableFieldsTypeResponse {
   NullableFieldsType update_nullable_fields_type = 1;
+}
+// Request message for createBlogPost operation.
+message MutationCreateBlogPostRequest {
+  BlogPostInput input = 1;
+}
+// Response message for createBlogPost operation.
+message MutationCreateBlogPostResponse {
+  BlogPost create_blog_post = 1;
+}
+// Request message for updateBlogPost operation.
+message MutationUpdateBlogPostRequest {
+  string id = 1;
+  BlogPostInput input = 2;
+}
+// Response message for updateBlogPost operation.
+message MutationUpdateBlogPostResponse {
+  BlogPost update_blog_post = 1;
+}
+// Request message for createAuthor operation.
+message MutationCreateAuthorRequest {
+  AuthorInput input = 1;
+}
+// Response message for createAuthor operation.
+message MutationCreateAuthorResponse {
+  Author create_author = 1;
+}
+// Request message for updateAuthor operation.
+message MutationUpdateAuthorRequest {
+  string id = 1;
+  AuthorInput input = 2;
+}
+// Response message for updateAuthor operation.
+message MutationUpdateAuthorResponse {
+  Author update_author = 1;
 }
 
 message Product {
@@ -353,7 +562,7 @@ message Order {
   string order_id = 1;
   string customer_name = 2;
   int32 total_items = 3;
-  repeated OrderLine order_lines = 4;
+  ListOfOrderLine order_lines = 4;
 }
 
 message Category {
@@ -376,7 +585,7 @@ message Animal {
 
 message SearchInput {
   string query = 1;
-  int32 limit = 2;
+  google.protobuf.Int32Value limit = 2;
 }
 
 message SearchResult {
@@ -385,6 +594,76 @@ message SearchResult {
   User user = 2;
   Category category = 3;
   }
+}
+
+message NullableFieldsType {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue optional_string = 3;
+  google.protobuf.Int32Value optional_int = 4;
+  google.protobuf.DoubleValue optional_float = 5;
+  google.protobuf.BoolValue optional_boolean = 6;
+  string required_string = 7;
+  int32 required_int = 8;
+}
+
+message NullableFieldsFilter {
+  google.protobuf.StringValue name = 1;
+  google.protobuf.StringValue optional_string = 2;
+  google.protobuf.BoolValue include_nulls = 3;
+}
+
+message BlogPost {
+  string id = 1;
+  string title = 2;
+  string content = 3;
+  repeated string tags = 4;
+  ListOfString optional_tags = 5;
+  repeated string categories = 6;
+  ListOfString keywords = 7;
+  repeated int32 view_counts = 8;
+  ListOfFloat ratings = 9;
+  ListOfBoolean is_published = 10;
+  ListOfListOfString tag_groups = 11;
+  ListOfListOfString related_topics = 12;
+  ListOfListOfString comment_threads = 13;
+  ListOfListOfString suggestions = 14;
+  repeated Category related_categories = 15;
+  repeated User contributors = 16;
+  ListOfProduct mentioned_products = 17;
+  ListOfUser mentioned_users = 18;
+  ListOfListOfCategory category_groups = 19;
+  ListOfListOfUser contributor_teams = 20;
+}
+
+message BlogPostFilter {
+  google.protobuf.StringValue title = 1;
+  google.protobuf.BoolValue has_categories = 2;
+  google.protobuf.Int32Value min_tags = 3;
+}
+
+message Author {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue email = 3;
+  repeated string skills = 4;
+  repeated string languages = 5;
+  ListOfString social_links = 6;
+  ListOfListOfString teams_by_project = 7;
+  ListOfListOfString collaborations = 8;
+  ListOfBlogPost written_posts = 9;
+  repeated Category favorite_categories = 10;
+  ListOfUser related_authors = 11;
+  ListOfProduct product_reviews = 12;
+  ListOfListOfUser author_groups = 13;
+  ListOfListOfCategory category_preferences = 14;
+  ListOfListOfUser project_teams = 15;
+}
+
+message AuthorFilter {
+  google.protobuf.StringValue name = 1;
+  google.protobuf.BoolValue has_teams = 2;
+  google.protobuf.Int32Value skill_count = 3;
 }
 
 message UserInput {
@@ -401,6 +680,48 @@ message ActionResult {
   ActionSuccess action_success = 1;
   ActionError action_error = 2;
   }
+}
+
+message NullableFieldsInput {
+  string name = 1;
+  google.protobuf.StringValue optional_string = 2;
+  google.protobuf.Int32Value optional_int = 3;
+  google.protobuf.DoubleValue optional_float = 4;
+  google.protobuf.BoolValue optional_boolean = 5;
+  string required_string = 6;
+  int32 required_int = 7;
+}
+
+message BlogPostInput {
+  string title = 1;
+  string content = 2;
+  repeated string tags = 3;
+  ListOfString optional_tags = 4;
+  repeated string categories = 5;
+  ListOfString keywords = 6;
+  repeated int32 view_counts = 7;
+  ListOfFloat ratings = 8;
+  ListOfBoolean is_published = 9;
+  ListOfListOfString tag_groups = 10;
+  ListOfListOfString related_topics = 11;
+  ListOfListOfString comment_threads = 12;
+  ListOfListOfString suggestions = 13;
+  ListOfCategoryInput related_categories = 14;
+  ListOfUserInput contributors = 15;
+  ListOfListOfCategoryInput category_groups = 16;
+}
+
+message AuthorInput {
+  string name = 1;
+  google.protobuf.StringValue email = 2;
+  repeated string skills = 3;
+  repeated string languages = 4;
+  ListOfString social_links = 5;
+  ListOfListOfString teams_by_project = 6;
+  ListOfListOfString collaborations = 7;
+  repeated CategoryInput favorite_categories = 8;
+  ListOfListOfUserInput author_groups = 9;
+  ListOfListOfUserInput project_teams = 10;
 }
 
 message NestedTypeB {
@@ -429,13 +750,13 @@ message Pagination {
 message OrderLineInput {
   string product_id = 1;
   int32 quantity = 2;
-  repeated string modifiers = 3;
+  ListOfString modifiers = 3;
 }
 
 message OrderLine {
   string product_id = 1;
   int32 quantity = 2;
-  repeated string modifiers = 3;
+  ListOfString modifiers = 3;
 }
 
 enum CategoryKind {
@@ -470,30 +791,7 @@ message ActionError {
   string code = 2;
 }
 
-// New messages for testing nullable fields
-message NullableFieldsType {
-  string id = 1;
-  string name = 2;
-  google.protobuf.StringValue optional_string = 3;
-  google.protobuf.Int32Value optional_int = 4;
-  google.protobuf.FloatValue optional_float = 5;
-  google.protobuf.BoolValue optional_boolean = 6;
-  string required_string = 7;
-  int32 required_int = 8;
-}
-
-message NullableFieldsInput {
+message CategoryInput {
   string name = 1;
-  google.protobuf.StringValue optional_string = 2;
-  google.protobuf.Int32Value optional_int = 3;
-  google.protobuf.FloatValue optional_float = 4;
-  google.protobuf.BoolValue optional_boolean = 5;
-  string required_string = 6;
-  int32 required_int = 7;
-}
-
-message NullableFieldsFilter {
-  google.protobuf.StringValue name = 1;
-  google.protobuf.StringValue optional_string = 2;
-  google.protobuf.BoolValue include_nulls = 3;
+  CategoryKind kind = 2;
 }

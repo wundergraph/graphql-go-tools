@@ -260,6 +260,94 @@ func GetFieldConfigurations() plan.FieldConfigurations {
 				},
 			},
 		},
+		{
+			TypeName:  "Query",
+			FieldName: "blogPostById",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "blogPostsWithFilter",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filter",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "authorById",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Query",
+			FieldName: "authorsWithFilter",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "filter",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "createBlogPost",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "updateBlogPost",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "createAuthor",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
+		{
+			TypeName:  "Mutation",
+			FieldName: "updateAuthor",
+			Arguments: []plan.ArgumentConfiguration{
+				{
+					Name:       "id",
+					SourceType: plan.FieldArgumentSource,
+				},
+				{
+					Name:       "input",
+					SourceType: plan.FieldArgumentSource,
+				},
+			},
+		},
 	}
 }
 
@@ -305,6 +393,14 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"nullableFieldsTypeById",
 					"nullableFieldsTypeWithFilter",
 					"allNullableFieldsTypes",
+					"blogPost",
+					"blogPostById",
+					"blogPostsWithFilter",
+					"allBlogPosts",
+					"author",
+					"authorById",
+					"authorsWithFilter",
+					"allAuthors",
 				},
 			},
 			{
@@ -314,6 +410,10 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"performAction",
 					"createNullableFieldsType",
 					"updateNullableFieldsType",
+					"createBlogPost",
+					"updateBlogPost",
+					"createAuthor",
+					"updateAuthor",
 				},
 			},
 		},
@@ -579,6 +679,110 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 					"name",
 					"optionalString",
 					"includeNulls",
+				},
+			},
+			{
+				TypeName: "BlogPost",
+				FieldNames: []string{
+					"id",
+					"title",
+					"content",
+					"tags",
+					"optionalTags",
+					"categories",
+					"keywords",
+					"viewCounts",
+					"ratings",
+					"isPublished",
+					"tagGroups",
+					"relatedTopics",
+					"commentThreads",
+					"suggestions",
+					"relatedCategories",
+					"contributors",
+					"mentionedProducts",
+					"mentionedUsers",
+					"categoryGroups",
+					"contributorTeams",
+				},
+			},
+			{
+				TypeName: "Author",
+				FieldNames: []string{
+					"id",
+					"name",
+					"email",
+					"skills",
+					"languages",
+					"socialLinks",
+					"teamsByProject",
+					"collaborations",
+					"writtenPosts",
+					"favoriteCategories",
+					"relatedAuthors",
+					"productReviews",
+					"authorGroups",
+					"categoryPreferences",
+					"projectTeams",
+				},
+			},
+			{
+				TypeName: "BlogPostInput",
+				FieldNames: []string{
+					"title",
+					"content",
+					"tags",
+					"optionalTags",
+					"categories",
+					"keywords",
+					"viewCounts",
+					"ratings",
+					"isPublished",
+					"tagGroups",
+					"relatedTopics",
+					"commentThreads",
+					"suggestions",
+					"relatedCategories",
+					"contributors",
+					"categoryGroups",
+				},
+			},
+			{
+				TypeName: "AuthorInput",
+				FieldNames: []string{
+					"name",
+					"email",
+					"skills",
+					"languages",
+					"socialLinks",
+					"teamsByProject",
+					"collaborations",
+					"favoriteCategories",
+					"authorGroups",
+					"projectTeams",
+				},
+			},
+			{
+				TypeName: "BlogPostFilter",
+				FieldNames: []string{
+					"title",
+					"hasCategories",
+					"minTags",
+				},
+			},
+			{
+				TypeName: "AuthorFilter",
+				FieldNames: []string{
+					"name",
+					"hasTeams",
+					"skillCount",
+				},
+			},
+			{
+				TypeName: "CategoryInput",
+				FieldNames: []string{
+					"name",
+					"kind",
 				},
 			},
 		},
