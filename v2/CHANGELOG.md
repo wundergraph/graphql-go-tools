@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.0-rc.213](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.212...v2.0.0-rc.213) (2025-07-28)
+
+
+### Bug Fixes
+
+* fix parent node jump lookup ([#1252](https://github.com/wundergraph/graphql-go-tools/issues/1252)) ([9fb01be](https://github.com/wundergraph/graphql-go-tools/commit/9fb01be8188dcab52feb0877ab8f2a023143cb51))
+
+## [2.0.0-rc.212](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.211...v2.0.0-rc.212) (2025-07-28)
+
+
+### Bug Fixes
+
+* handle null only for outer list ([#1250](https://github.com/wundergraph/graphql-go-tools/issues/1250)) ([0e055a4](https://github.com/wundergraph/graphql-go-tools/commit/0e055a447f4201f5b8c24e9786be71f6265457b6))
+
 ## [2.0.0-rc.211](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.210...v2.0.0-rc.211) (2025-07-28)
 
 
