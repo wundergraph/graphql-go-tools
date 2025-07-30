@@ -39,5 +39,9 @@ func (f *fetchIDAppender) traverseSingleFetch(fetch *resolve.SingleFetch) {
 	if fetch.OperationName != "" {
 		expandedName := fmt.Sprintf("%s__%d", fetch.OperationName, fetch.FetchID)
 		fetch.Input = strings.Replace(fetch.Input, fetch.OperationName, expandedName, 1)
+		if fetch.QueryPlan != nil {
+			// Needed for debugging of query plans
+			fetch.QueryPlan.Query = strings.Replace(fetch.QueryPlan.Query, fetch.OperationName, expandedName, 1)
+		}
 	}
 }
