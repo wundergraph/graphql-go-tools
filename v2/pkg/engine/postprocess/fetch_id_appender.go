@@ -24,7 +24,9 @@ func (f *fetchIDAppender) traverseNode(node *resolve.FetchTreeNode) {
 	}
 	switch node.Kind {
 	case resolve.FetchTreeNodeKindSingle:
-		f.traverseSingleFetch(node.Item.Fetch.(*resolve.SingleFetch))
+		if singleFetch, ok := node.Item.Fetch.(*resolve.SingleFetch); ok {
+			f.traverseSingleFetch(singleFetch)
+		}
 	case resolve.FetchTreeNodeKindParallel, resolve.FetchTreeNodeKindSequence:
 		for i := range node.ChildNodes {
 			f.traverseNode(node.ChildNodes[i])

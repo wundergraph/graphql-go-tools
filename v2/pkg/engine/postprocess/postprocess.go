@@ -157,6 +157,7 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		p.createFetchTree(t.Response.Response)
 		p.appendTriggerToFetchTree(t.Response)
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
+		p.appendFetchID.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 		for i := range p.processFetchTree {
