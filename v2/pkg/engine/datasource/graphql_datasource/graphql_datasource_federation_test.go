@@ -1565,6 +1565,61 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											FieldName: "user",
 										},
 									},
+									ProvidesData: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name: []byte("user"),
+												Value: &resolve.Object{
+													Path:     []string{"user"},
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("account"),
+															Value: &resolve.Object{
+																Path:     []string{"account"},
+																Nullable: true,
+																Fields: []*resolve.Field{
+																	{
+																		Name: []byte("__typename"),
+																		Value: &resolve.String{
+																			Path: []string{"__typename"},
+																		},
+																	},
+																	{
+																		Name: []byte("id"),
+																		Value: &resolve.Scalar{
+																			Path: []string{"id"},
+																		},
+																	},
+																	{
+																		Name: []byte("info"),
+																		Value: &resolve.Object{
+																			Path:     []string{"info"},
+																			Nullable: true,
+																			Fields: []*resolve.Field{
+																				{
+																					Name: []byte("a"),
+																					Value: &resolve.Scalar{
+																						Path: []string{"a"},
+																					},
+																				},
+																				{
+																					Name: []byte("b"),
+																					Value: &resolve.Scalar{
+																						Path: []string{"b"},
+																					},
+																				},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
 								},
 							}),
 							resolve.SingleWithPath(&resolve.SingleFetch{
@@ -1587,6 +1642,40 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 									},
 									OperationType: ast.OperationTypeQuery,
+									ProvidesData: &resolve.Object{
+										Fields: []*resolve.Field{
+											{
+												Name:        []byte("__typename"),
+												OnTypeNames: [][]byte{[]byte("Account")},
+												Value: &resolve.String{
+													Path: []string{"__typename"},
+												},
+											},
+											{
+												Name:        []byte("name"),
+												OnTypeNames: [][]byte{[]byte("Account")},
+												Value: &resolve.Scalar{
+													Path: []string{"name"},
+												},
+											},
+											{
+												Name:        []byte("shippingInfo"),
+												OnTypeNames: [][]byte{[]byte("Account")},
+												Value: &resolve.Object{
+													Path:     []string{"shippingInfo"},
+													Nullable: true,
+													Fields: []*resolve.Field{
+														{
+															Name: []byte("zip"),
+															Value: &resolve.Scalar{
+																Path: []string{"zip"},
+															},
+														},
+													},
+												},
+											},
+										},
+									},
 								},
 								DataSourceIdentifier: []byte("graphql_datasource.Source"),
 								FetchConfiguration: resolve.FetchConfiguration{
