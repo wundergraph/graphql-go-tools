@@ -2,8 +2,9 @@ package postprocess
 
 import (
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // fetchIDAppender is a processor to append fetchIDs to the operation names propagated downstream.
