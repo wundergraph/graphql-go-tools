@@ -1732,3 +1732,134 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 	astjson.DeduplicateObjectKeysRecursively(v)
 	return v.MarshalTo(nil), nil
 }
+
+func (l *Loader) canSkipFetch(info *FetchInfo, items []*astjson.Value) ([]*astjson.Value, bool) {
+	if info == nil || info.OperationType != ast.OperationTypeQuery {
+		return items, false
+	}
+	if len(items) == 1 && items[0].Type() == astjson.TypeNull {
+		return items, true
+	}
+
+	// If ProvidesData is nil, we cannot validate the data - do not skip fetch
+	if info.ProvidesData == nil {
+		return items, false
+	}
+
+	// Check each item and remove those that have sufficient data
+	remaining := make([]*astjson.Value, 0, len(items))
+	for _, item := range items {
+		if !l.validateItemHasRequiredData(item, info.ProvidesData) {
+			remaining = append(remaining, item)
+		}
+	}
+
+	// Return the remaining items and whether fetch can be skipped
+	return remaining, len(remaining) == 0
+}
+
+// validateItemHasRequiredData checks if the given item contains all required data
+// as specified by the provided Object schema
+func (l *Loader) validateItemHasRequiredData(item *astjson.Value, obj *Object) bool {
+	if obj == nil {
+		return true
+	}
+
+	// Validate each field in the object
+	for _, field := range obj.Fields {
+		if !l.validateFieldData(item, field) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// validateFieldData validates a single field against the item data
+func (l *Loader) validateFieldData(item *astjson.Value, field *Field) bool {
+	fieldValue := item.Get(unsafebytes.BytesToString(field.Name))
+
+	// Check if field exists
+	if fieldValue == nil {
+		// Field is missing - this fails validation regardless of nullability
+		// Even nullable fields must be present (can be null, but not missing)
+		return false
+	}
+
+	// Validate the field value against its specification
+	return l.validateNodeValue(fieldValue, field.Value)
+}
+
+// validateScalarData validates scalar field data
+func (l *Loader) validateScalarData(value *astjson.Value, scalar *Scalar) bool {
+	if value.Type() == astjson.TypeNull {
+		// Null is only allowed if the scalar is nullable
+		return scalar.Nullable
+	}
+
+	// Any non-null value is acceptable for a scalar
+	return true
+}
+
+// validateObjectData validates object field data
+func (l *Loader) validateObjectData(value *astjson.Value, obj *Object) bool {
+	if value.Type() == astjson.TypeNull {
+		// Null is only allowed if the object is nullable
+		return obj.Nullable
+	}
+
+	if value.Type() != astjson.TypeObject {
+		// Must be an object (or null if nullable)
+		return false
+	}
+
+	// Recursively validate the object's fields
+	return l.validateItemHasRequiredData(value, obj)
+}
+
+// validateArrayData validates array field data
+func (l *Loader) validateArrayData(value *astjson.Value, arr *Array) bool {
+	if value.Type() == astjson.TypeNull {
+		// Null is only allowed if the array is nullable
+		return arr.Nullable
+	}
+
+	if value.Type() != astjson.TypeArray {
+		// Must be an array (or null if nullable)
+		return false
+	}
+
+	// If there's no item specification, we just validate the array exists
+	if arr.Item == nil {
+		return true
+	}
+
+	// Validate each item in the array
+	arrayItems, err := value.Array()
+	if err != nil {
+		return false
+	}
+
+	for _, item := range arrayItems {
+		if !l.validateNodeValue(item, arr.Item) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// validateNodeValue validates a value against a Node specification
+func (l *Loader) validateNodeValue(value *astjson.Value, nodeSpec Node) bool {
+	switch v := nodeSpec.(type) {
+	case *Scalar:
+		return l.validateScalarData(value, v)
+	case *Object:
+		return l.validateObjectData(value, v)
+	case *Array:
+		return l.validateArrayData(value, v)
+	default:
+		// Unknown type - assume invalid
+		return false
+	}
+}
