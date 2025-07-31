@@ -393,6 +393,7 @@ type FetchInfo struct {
 	RootFields     []GraphCoordinate
 	OperationType  ast.OperationType
 	QueryPlan      *QueryPlan
+	ProvidesData   *Object
 }
 
 type GraphCoordinate struct {
