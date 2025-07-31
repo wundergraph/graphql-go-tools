@@ -1190,6 +1190,25 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 		return
 	}
 
+	// Check if this is a __typename field and if we already have one with the same name and path
+	if bytes.Equal(fieldName, literal.TYPENAME) && len(v.plannerCurrentFields[plannerID]) > 0 {
+		currentFields := v.plannerCurrentFields[plannerID][len(v.plannerCurrentFields[plannerID])-1]
+
+		// Check if we already have a __typename field with the same name and path
+		for _, existingField := range *currentFields.fields {
+			if bytes.Equal(existingField.Name, []byte(fieldAliasOrName)) {
+				// For __typename fields, the path is [fieldAliasOrName]
+				// Check if the existing field has the same path
+				if existingValue, ok := existingField.Value.(*resolve.Scalar); ok {
+					if len(existingValue.Path) > 0 && existingValue.Path[0] == fieldAliasOrName {
+						// We already have this __typename field with the same name and path, skip it
+						return
+					}
+				}
+			}
+		}
+	}
+
 	// Get the field definition
 	fieldDefinition, ok := v.Walker.FieldDefinition(fieldRef)
 	if !ok {
@@ -1204,7 +1223,7 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 
 	// Create the field
 	field := &resolve.Field{
-		Name:        fieldName,
+		Name:        []byte(fieldAliasOrName),
 		Value:       fieldValue,
 		OnTypeNames: onTypeNames,
 	}
