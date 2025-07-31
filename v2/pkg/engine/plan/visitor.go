@@ -28,6 +28,7 @@ type QueryPlanProvider interface {
 	IncludeQueryPlanInFetchConfiguration()
 }
 
+// Visitor creates the shape of resolve.GraphQLResponse.
 type Visitor struct {
 	Operation, Definition        *ast.Document
 	Walker                       *astvisitor.Walker
@@ -1611,7 +1612,7 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 
 func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 	fetchConfig := config.planner.ConfigureFetch()
-	// If the datasource is missing, we can anticipate that configure fetch failed
+	// If the datasource is missing, we can expect that configure fetch failed
 	if fetchConfig.DataSource == nil {
 		return
 	}

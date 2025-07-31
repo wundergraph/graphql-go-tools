@@ -2217,7 +2217,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__service_a {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+											Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__service_a__0 {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+											OperationName:  "CompositeKey__service_a",
 											DataSource:     &Source{},
 											PostProcessing: DefaultPostProcessingConfiguration,
 										},
@@ -2229,7 +2230,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+											OperationName: "CompositeKey__service_b",
 											Variables: resolve.NewVariables(
 												&resolve.ResolvableObjectVariable{
 													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2281,7 +2283,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										DataSourceIdentifier: []byte("graphql_datasource.Source"),
 										FetchConfiguration: resolve.FetchConfiguration{
-											Input: `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+											Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__2($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+											OperationName: "CompositeKey__service_b",
 											Variables: resolve.NewVariables(
 												&resolve.ResolvableObjectVariable{
 													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -2997,7 +3000,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__s_rvic_e_a {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+										Input:          `{"method":"POST","url":"http://service-a","body":{"query":"query CompositeKey__s_rvic_e_a__0 {user {__typename account {id} id} otherUser {__typename account {id} id}}"}}`,
+										OperationName:  "CompositeKey__s_rvic_e_a",
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
 									},
@@ -3009,7 +3013,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName: "CompositeKey__service_b",
 										Variables: resolve.NewVariables(
 											&resolve.ResolvableObjectVariable{
 												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -3061,7 +3066,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									DataSourceIdentifier: []byte("graphql_datasource.Source"),
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input: `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:         `{"method":"POST","url":"http://service-b","body":{"query":"query CompositeKey__service_b__2($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename foo}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName: "CompositeKey__service_b",
 										Variables: resolve.NewVariables(
 											&resolve.ResolvableObjectVariable{
 												Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
@@ -12205,7 +12211,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 							Fetches: resolve.Sequence(
 								resolve.Single(&resolve.SingleFetch{
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service {accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
+										Input:          `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service__0 {accounts {__typename ... on User {__typename id} ... on Admin {__typename adminID} ... on Moderator {__typename moderatorID}}}"}}`,
+										OperationName:  "Accounts__first_service",
 										PostProcessing: DefaultPostProcessingConfiguration,
 										DataSource:     &Source{},
 									},
@@ -12216,7 +12223,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										FetchID:           1,
 										DependsOnFetchIDs: []int{0},
 									}, FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query Accounts__second_service($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://second.service","body":{"query":"query Accounts__second_service__1($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename name} ... on Admin {__typename adminName}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName:                         "Accounts__second_service",
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -12267,7 +12275,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DependsOnFetchIDs: []int{0},
 									},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query Accounts__third_service($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject address {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://third.service","body":{"query":"query Accounts__third_service__2($representations: [_Any!]!){_entities(representations: $representations){... on Moderator {__typename subject address {__typename id}}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName:                         "Accounts__third_service",
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
@@ -12304,7 +12313,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										DependsOnFetchIDs: []int{2},
 									},
 									FetchConfiguration: resolve.FetchConfiguration{
-										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
+										Input:                                 `{"method":"POST","url":"http://first.service","body":{"query":"query Accounts__first_service__3($representations: [_Any!]!){_entities(representations: $representations){... on Address {__typename zip}}}","variables":{"representations":[$$0$$]}}}`,
+										OperationName:                         "Accounts__first_service",
 										DataSource:                            &Source{},
 										SetTemplateOutputToNullOnVariableNull: true,
 										RequiresEntityBatchFetch:              true,
