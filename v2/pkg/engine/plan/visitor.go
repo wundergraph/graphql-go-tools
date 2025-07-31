@@ -1234,14 +1234,25 @@ func (v *Visitor) trackFieldForPlanner(plannerID int, fieldRef int) {
 		*currentFields.fields = append(*currentFields.fields, field)
 	}
 
-	// If the field value is an object, push it onto the stack for this planner
-	if obj, ok := fieldValue.(*resolve.Object); ok {
-		v.Walker.DefferOnEnterField(func() {
-			v.plannerCurrentFields[plannerID] = append(v.plannerCurrentFields[plannerID], objectFields{
-				popOnField: fieldRef,
-				fields:     &obj.Fields,
+	for {
+		// for loop to unwrap array item
+		switch node := fieldValue.(type) {
+		case *resolve.Array:
+			// unwrap and check type again
+			fieldValue = node.Item
+		case *resolve.Object:
+			// if the field value is an object, add it to the current fields stack
+			v.Walker.DefferOnEnterField(func() {
+				v.plannerCurrentFields[plannerID] = append(v.plannerCurrentFields[plannerID], objectFields{
+					popOnField: fieldRef,
+					fields:     &node.Fields,
+				})
 			})
-		})
+			return
+		default:
+			// field value is a scalar or null, we don't add it to the stack
+			return
+		}
 	}
 }
 
