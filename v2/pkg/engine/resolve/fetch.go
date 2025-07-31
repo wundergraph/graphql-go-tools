@@ -291,23 +291,40 @@ type FetchConfiguration struct {
 	Input      string
 	Variables  Variables
 	DataSource DataSource
-	// RequiresParallelListItemFetch is used to indicate that the single fetches should be executed without batching
-	// When we have multiple fetches attached to the object - after post-processing of a plan we will get ParallelListItemFetch instead of ParallelFetch
+
+	// RequiresParallelListItemFetch indicates that the single fetches should be executed without batching.
+	// If we have multiple fetches attached to the object, then after post-processing of a plan
+	// we will get ParallelListItemFetch instead of ParallelFetch.
+	// Happens only for objects under the array path and used only for the introspection.
 	RequiresParallelListItemFetch bool
-	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object. After post-processing, we will get EntityFetch
+
+	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object.
+	// After post-processing, we will get EntityFetch.
 	RequiresEntityFetch bool
-	// RequiresEntityBatchFetch indicates that entity fetches on array items could be batched. After post-processing, we will get EntityBatchFetch
+
+	// RequiresEntityBatchFetch indicates that entity fetches on array items should be batched.
+	// After post-processing, we will get EntityBatchFetch.
 	RequiresEntityBatchFetch bool
-	PostProcessing           PostProcessingConfiguration
+
+	// PostProcessing specifies the data and error extraction path in the response along with
+	// the merge path where will insert the response.
+	PostProcessing PostProcessingConfiguration
+
 	// SetTemplateOutputToNullOnVariableNull will safely return "null" if one of the template variables renders to null
 	// This is the case, e.g. when using batching and one sibling is null, resulting in a null value for one batch item
 	// Returning null in this case tells the batch implementation to skip this item
 	SetTemplateOutputToNullOnVariableNull bool
-	QueryPlan                             *QueryPlan
-	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName) and which fields from other fetches they depend on
+
+	QueryPlan *QueryPlan
+
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
+	// and which fields from other fetches they depend on.
 	// This information is useful to understand why a fetch depends on other fetches,
 	// and how multiple dependencies lead to a chain of fetches
 	CoordinateDependencies []FetchDependency
+
+	// OperationName is non-empty when the operation name is propagated the downstream subgraph fetch.
+	OperationName string
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {

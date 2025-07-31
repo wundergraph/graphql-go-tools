@@ -51,6 +51,7 @@ var (
 	}
 )
 
+// Planner creates the subgraph operation.
 type Planner[T Configuration] struct {
 	id                                   int
 	debug                                bool
@@ -78,6 +79,10 @@ type Planner[T Configuration] struct {
 	insideCustomScalarField            bool
 	customScalarFieldRef               int
 	parentTypeNodes                    []ast.Node
+
+	// propagatedOperationName is non-empty when the operation name is propagated
+	// to the downstream subgraph fetch.
+	propagatedOperationName string
 
 	// federation
 
@@ -387,6 +392,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
+		OperationName:                         p.propagatedOperationName,
 	}
 }
 
@@ -524,6 +530,7 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 
 	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
 		operation := p.buildUpstreamOperationName(ref)
+		p.propagatedOperationName = operation
 		if operation != "" {
 			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)
 		}
@@ -809,6 +816,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
 	p.queryPlan = nil
+	p.propagatedOperationName = ""
 
 	// reset information about root type
 	p.rootTypeName = ""

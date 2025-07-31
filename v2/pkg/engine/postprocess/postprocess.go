@@ -22,6 +22,7 @@ type Processor struct {
 	disableExtractFetches bool
 	collectDataSourceInfo bool
 	resolveInputTemplates *resolveInputTemplates
+	appendFetchID         *fetchIDAppender
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
 	processFetchTree      []FetchTreeProcessor
@@ -32,6 +33,7 @@ type processorOptions struct {
 	disableCreateConcreteSingleFetchTypes bool
 	disableOrderSequenceByDependencies    bool
 	disableMergeFields                    bool
+	disableRewriteOpNames                 bool
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
@@ -101,6 +103,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		resolveInputTemplates: &resolveInputTemplates{
 			disable: opts.disableResolveInputTemplates,
 		},
+		appendFetchID: &fetchIDAppender{
+			disable: opts.disableRewriteOpNames,
+		},
 		dedupe: &deduplicateSingleFetches{
 			disable: opts.disableDeduplicateSingleFetches,
 		},
@@ -139,6 +144,8 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		// NOTE: deduplication relies on the fact that the fetch tree
 		// have flat structure of child fetches
 		p.dedupe.ProcessFetchTree(t.Response.Fetches)
+		// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
+		p.appendFetchID.ProcessFetchTree(t.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Fetches)
@@ -150,6 +157,7 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		p.createFetchTree(t.Response.Response)
 		p.appendTriggerToFetchTree(t.Response)
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
+		p.appendFetchID.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 		for i := range p.processFetchTree {
