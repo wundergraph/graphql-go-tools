@@ -1581,7 +1581,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 																Fields: []*resolve.Field{
 																	{
 																		Name: []byte("__typename"),
-																		Value: &resolve.String{
+																		Value: &resolve.Scalar{
 																			Path: []string{"__typename"},
 																		},
 																	},
@@ -1645,9 +1645,8 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									ProvidesData: &resolve.Object{
 										Fields: []*resolve.Field{
 											{
-												Name:        []byte("__typename"),
-												OnTypeNames: [][]byte{[]byte("Account")},
-												Value: &resolve.String{
+												Name: []byte("__typename"),
+												Value: &resolve.Scalar{
 													Path: []string{"__typename"},
 												},
 											},
