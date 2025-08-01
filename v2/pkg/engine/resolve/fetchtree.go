@@ -7,7 +7,7 @@ import (
 
 type FetchTreeNode struct {
 	Kind FetchTreeNodeKind `json:"kind"`
-	// Only set for subscription
+	// Trigger is only set for subscription
 	Trigger         *FetchTreeNode   `json:"trigger"`
 	Item            *FetchItem       `json:"item"`
 	ChildNodes      []*FetchTreeNode `json:"child_nodes"`
@@ -306,6 +306,14 @@ func (p *PlanPrinter) printPlanNode(plan *FetchTreeQueryPlanNode, increaseDepth 
 	case FetchTreeNodeKindSingle:
 		p.printFetchInfo(plan.Fetch)
 	case FetchTreeNodeKindSequence:
+		// Special case for Subscriptions
+		if plan.Trigger != nil {
+			p.print("Trigger {")
+			p.depth++
+			p.printFetchInfo(plan.Trigger)
+			p.depth--
+			p.print("}")
+		}
 		manyChilds := len(plan.Children) > 1
 		if manyChilds {
 			p.print("Sequence {")
@@ -351,6 +359,8 @@ func (p *PlanPrinter) printFetchInfo(fetch *FetchTreeQueryPlan) {
 	}
 }
 
+// printQuery replaces the first line of a query with "{" and prints into p.
+// It expects a multi-line formatted query.
 func (p *PlanPrinter) printQuery(query string) {
 	lines := strings.Split(query, "\n")
 	lines[0] = "{"

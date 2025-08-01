@@ -4878,7 +4878,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 						DataSourceID:   "0",
 						DataSourceName: "counter",
 						QueryPlan: &QueryPlan{
-							Query: "subscription { counter }",
+							Query: "subscription {\n    counter\n}",
 						},
 					},
 				},
@@ -5316,7 +5316,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorder.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 1, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription { counter }"}}}}`,
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription {\n    counter\n}"}}}}`,
 		}, recorder.Messages())
 	})
 
