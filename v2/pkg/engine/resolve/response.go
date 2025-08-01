@@ -20,6 +20,7 @@ type GraphQLSubscriptionTrigger struct {
 	Variables      Variables
 	Source         SubscriptionDataSource
 	PostProcessing PostProcessingConfiguration
+	QueryPlan      *QueryPlan
 }
 
 type GraphQLResponse struct {

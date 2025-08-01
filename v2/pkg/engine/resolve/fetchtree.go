@@ -7,7 +7,7 @@ import (
 
 type FetchTreeNode struct {
 	Kind FetchTreeNodeKind `json:"kind"`
-	// Only set for subscription
+	// Trigger is only set for subscription
 	Trigger         *FetchTreeNode   `json:"trigger"`
 	Item            *FetchItem       `json:"item"`
 	ChildNodes      []*FetchTreeNode `json:"child_nodes"`
@@ -306,15 +306,42 @@ func (p *PlanPrinter) printPlanNode(plan *FetchTreeQueryPlanNode, increaseDepth 
 	case FetchTreeNodeKindSingle:
 		p.printFetchInfo(plan.Fetch)
 	case FetchTreeNodeKindSequence:
-		manyChilds := len(plan.Children) > 1
-		if manyChilds {
+		isSubscription := plan.Trigger != nil
+		hasChildren := len(plan.Children) > 0
+		// Special case for Subscriptions:
+		// "Primary" key has plan.Trigger. "Rest" has plan.Children
+		if isSubscription {
+			p.print("Subscription {")
+			p.depth++
+			p.print("Primary: {")
+			p.depth++
+			p.printFetchInfo(plan.Trigger)
+			p.depth--
+			p.print("},") // Primary
+			if hasChildren {
+				p.print("Rest: {")
+				p.depth++
+			}
+		}
+
+		isSequence := len(plan.Children) > 1
+		if isSequence {
 			p.print("Sequence {")
 		}
 		for _, child := range plan.Children {
-			p.printPlanNode(child, manyChilds)
+			p.printPlanNode(child, isSequence)
 		}
-		if manyChilds {
+		if isSequence {
 			p.print("}")
+		}
+
+		if isSubscription {
+			if hasChildren {
+				p.depth--
+				p.print("},") // Rest
+			}
+			p.depth--
+			p.print("}") // Subscription
 		}
 	case FetchTreeNodeKindParallel:
 		p.print("Parallel {")
@@ -351,8 +378,18 @@ func (p *PlanPrinter) printFetchInfo(fetch *FetchTreeQueryPlan) {
 	}
 }
 
+// printQuery replaces the first line of a query with "{" and prints into p.
+// It expects a multi-line formatted query. As a fallback for a single-line query,
+// it will print such a query as it is.
 func (p *PlanPrinter) printQuery(query string) {
+	if query == "" {
+		return
+	}
 	lines := strings.Split(query, "\n")
+	if len(lines) == 1 {
+		p.print(query)
+		return
+	}
 	lines[0] = "{"
 	lines[len(lines)-1] = "}"
 	p.print(lines...)

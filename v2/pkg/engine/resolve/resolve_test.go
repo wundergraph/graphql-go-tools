@@ -4878,7 +4878,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 						DataSourceID:   "0",
 						DataSourceName: "counter",
 						QueryPlan: &QueryPlan{
-							Query: "subscription { counter }",
+							Query: "subscription {\n    counter\n}",
 						},
 					},
 				},
@@ -4954,7 +4954,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 						DataSourceID:   "0",
 						DataSourceName: "country",
 						QueryPlan: &QueryPlan{
-							Query: "subscription { countryUpdated { name time { local } } }",
+							Query: "subscription {\n    countryUpdated {\n        name\n        time {\n            local\n        }\n        }\n}",
 						},
 					},
 				},
@@ -5316,7 +5316,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorder.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 1, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription { counter }"}}}}`,
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription {\n    counter\n}"}}}}`,
 		}, recorder.Messages())
 	})
 
@@ -5345,7 +5345,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorder.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 1, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"countryUpdated","subgraphName":"country","subgraphId":"0","fetchId":0,"query":"subscription { countryUpdated { name time { local } } }"},"children":[{"kind":"Single","fetch":{"kind":"Single","path":"countryUpdated.time","subgraphName":"time","subgraphId":"1","fetchId":1,"dependsOnFetchIds":[0],"query":"query($representations: [_Any!]!){\n    _entities(representations: $representations){\n        ... on Time {\n            __typename\n            local\n        }\n    }\n}"}}]}}}`,
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"countryUpdated","subgraphName":"country","subgraphId":"0","fetchId":0,"query":"subscription {\n    countryUpdated {\n        name\n        time {\n            local\n        }\n        }\n}"},"children":[{"kind":"Single","fetch":{"kind":"Single","path":"countryUpdated.time","subgraphName":"time","subgraphId":"1","fetchId":1,"dependsOnFetchIds":[0],"query":"query($representations: [_Any!]!){\n    _entities(representations: $representations){\n        ... on Time {\n            __typename\n            local\n        }\n    }\n}"}}]}}}`,
 		}, recorder.Messages())
 	})
 

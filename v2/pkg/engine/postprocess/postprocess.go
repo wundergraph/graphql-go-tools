@@ -3,8 +3,6 @@ package postprocess
 import (
 	"slices"
 
-	"github.com/buger/jsonparser"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -202,11 +200,8 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	}
 }
 
-func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
-	// Using json parser here because input is not yet valid JSON
-	v, _ := jsonparser.GetString(res.Trigger.Input, "body", "query")
-
-	rootData := res.Response.Data
+func (p *Processor) appendTriggerToFetchTree(sub *resolve.GraphQLSubscription) {
+	rootData := sub.Response.Data
 	if rootData == nil || len(rootData.Fields) == 0 {
 		return
 	}
@@ -216,7 +211,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 		return
 	}
 
-	res.Response.Fetches.Trigger = &resolve.FetchTreeNode{
+	sub.Response.Fetches.Trigger = &resolve.FetchTreeNode{
 		Kind: resolve.FetchTreeNodeKindTrigger,
 		Item: &resolve.FetchItem{
 			Fetch: &resolve.SingleFetch{
@@ -226,9 +221,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 				Info: &resolve.FetchInfo{
 					DataSourceID:   info.Source.IDs[0],
 					DataSourceName: info.Source.Names[0],
-					QueryPlan: &resolve.QueryPlan{
-						Query: v,
-					},
+					QueryPlan:      sub.Trigger.QueryPlan,
 				},
 			},
 			ResponsePath: info.Name,
