@@ -1280,6 +1280,7 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.Variables = subscription.Variables
 	v.subscription.Trigger.Source = subscription.DataSource
 	v.subscription.Trigger.PostProcessing = subscription.PostProcessing
+	v.subscription.Trigger.QueryPlan = subscription.QueryPlan
 	v.resolveInputTemplates(config, &subscription.Input, &v.subscription.Trigger.Variables)
 	v.subscription.Trigger.Input = []byte(subscription.Input)
 	v.subscription.Filter = config.filter
