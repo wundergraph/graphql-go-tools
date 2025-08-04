@@ -218,21 +218,25 @@ func testMapping() *GRPCMapping {
 			},
 		},
 		SubscriptionRPCs: RPCConfigMap{},
-		EntityRPCs: map[string]EntityRPCConfig{
+		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupProductById",
-					Request:  "LookupProductByIdRequest",
-					Response: "LookupProductByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupProductById",
+						Request:  "LookupProductByIdRequest",
+						Response: "LookupProductByIdResponse",
+					},
 				},
 			},
 			"Storage": {
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupStorageById",
-					Request:  "LookupStorageByIdRequest",
-					Response: "LookupStorageByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupStorageById",
+						Request:  "LookupStorageByIdRequest",
+						Response: "LookupStorageByIdResponse",
+					},
 				},
 			},
 		},
@@ -622,6 +626,14 @@ func testMapping() *GRPCMapping {
 			"ComplexFilterTypeInput": {
 				"filter": {
 					TargetName: "filter",
+				},
+			},
+			"FilterTypeInput": {
+				"filterField1": {
+					TargetName: "filter_field_1",
+				},
+				"filterField2": {
+					TargetName: "filter_field_2",
 				},
 			},
 			"Category": {

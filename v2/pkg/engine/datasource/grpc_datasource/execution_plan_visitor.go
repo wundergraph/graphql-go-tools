@@ -1,11 +1,12 @@
 package grpcdatasource
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -16,21 +17,10 @@ type keyField struct {
 	fieldType string
 }
 
-type entityInfo struct {
-	name                    string
-	keyFields               []keyField
-	keyTypeName             string
-	entityRootFieldRef      int
-	entityInlineFragmentRef int
-}
-
 type planningInfo struct {
-	entityInfo entityInfo
 	// resolvers      []string
 	operationType      ast.OperationType
 	operationFieldName string
-	isEntityLookup     bool
-	methodName         string
 
 	requestMessageAncestors []*RPCMessage
 	currentRequestMessage   *RPCMessage
@@ -43,64 +33,66 @@ type planningInfo struct {
 }
 
 type rpcPlanVisitor struct {
-	walker     *astvisitor.Walker
-	operation  *ast.Document
-	definition *ast.Document
-	planInfo   planningInfo
+	walker            *astvisitor.Walker
+	operation         *ast.Document
+	definition        *ast.Document
+	planCtx           *rpcPlanningContext
+	planInfo          planningInfo
+	federationConfigs plan.FederationFieldConfigurations
 
-	subgraphName           string
-	mapping                *GRPCMapping
-	plan                   *RPCExecutionPlan
-	operationDefinitionRef int
-	operationFieldRef      int
-	operationFieldRefs     []int
-	currentCall            *RPCCall
-	currentCallID          int
+	subgraphName       string
+	mapping            *GRPCMapping
+	plan               *RPCExecutionPlan
+	operationFieldRef  int
+	operationFieldRefs []int
+	currentCall        *RPCCall
+	currentCallID      int
 }
 
 type rpcPlanVisitorConfig struct {
-	subgraphName string
-	mapping      *GRPCMapping
+	subgraphName      string
+	mapping           *GRPCMapping
+	federationConfigs plan.FederationFieldConfigurations
 }
 
 // newRPCPlanVisitor creates a new RPCPlanVisitor.
 // It registers the visitor with the walker and returns it.
 func newRPCPlanVisitor(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	visitor := &rpcPlanVisitor{
-		walker:                 walker,
-		plan:                   &RPCExecutionPlan{},
-		subgraphName:           cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
-		mapping:                config.mapping,
-		operationDefinitionRef: -1,
-		operationFieldRef:      -1,
+		walker:            walker,
+		plan:              &RPCExecutionPlan{},
+		subgraphName:      cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
+		mapping:           config.mapping,
+		operationFieldRef: -1,
+		federationConfigs: config.federationConfigs,
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterEnterOperationVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
-	walker.RegisterInlineFragmentVisitor(visitor)
 	walker.RegisterEnterArgumentVisitor(visitor)
 
 	return visitor
+}
+
+func (r *rpcPlanVisitor) ExecutionPlan() *RPCExecutionPlan {
+	return r.plan
 }
 
 // EnterDocument implements astvisitor.EnterDocumentVisitor.
 func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.Document) {
 	r.definition = definition
 	r.operation = operation
+
+	r.planCtx = newRPCPlanningContext(operation, definition, r.mapping)
 }
 
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
 // This is called when entering the operation definition node.
 // It retrieves information about the operation
 // and creates a new group in the plan.
-//
-// The function also checks if this is an entity lookup operation,
-// which requires special handling.
 func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
-	r.operationDefinitionRef = ref
-
 	// Retrieves the fields from the root selection set.
 	// These fields determine the names for the RPC functions to call.
 	// TODO: handle fragments on root level `... on Query {}`
@@ -117,10 +109,6 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 //
 // TODO handle field arguments to define resolvers
 func (r *rpcPlanVisitor) EnterArgument(ref int) {
-	if r.planInfo.isEntityLookup {
-		return
-	}
-
 	a := r.walker.Ancestor()
 	if a.Kind != ast.NodeKindField && a.Ref != r.operationFieldRef {
 		return
@@ -137,9 +125,6 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
 // Checks if this is in the root level below the operation definition.
-//
-// TODO handle multiple entity lookups in a single query.
-// We need to create a new call for each entity lookup.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
 		return
@@ -151,7 +136,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 
 	// In nested selection sets, a new message needs to be created, which will be added to the current response message.
 	if r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message == nil {
-		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.newMessageFromSelectionSet(ref)
+		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 	}
 
 	// Add the current response message to the ancestors and set the current response message to the current field message
@@ -230,58 +215,26 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 	}
 }
 
-// EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
-func (r *rpcPlanVisitor) EnterInlineFragment(ref int) {
-	entityInfo := &r.planInfo.entityInfo
-	if entityInfo.entityRootFieldRef != -1 && entityInfo.entityInlineFragmentRef == -1 {
-		entityInfo.entityInlineFragmentRef = ref
-		r.resolveEntityInformation(ref)
-		r.scaffoldEntityLookup()
-
-		return
-	}
-}
-
-// LeaveInlineFragment implements astvisitor.InlineFragmentVisitor.
-func (r *rpcPlanVisitor) LeaveInlineFragment(ref int) {
-	if ref == r.planInfo.entityInfo.entityInlineFragmentRef {
-		r.planInfo.entityInfo.entityInlineFragmentRef = -1
-	}
-}
-
-func (r *rpcPlanVisitor) IsRootField() bool {
-	return len(r.walker.Ancestors) == 2 && r.walker.Ancestors[0].Kind == ast.NodeKindOperationDefinition
-}
-
-func (r *rpcPlanVisitor) IsInlineFragmentField() (int, bool) {
-	if len(r.walker.Ancestors) < 2 {
-		return -1, false
-	}
-
-	node := r.walker.Ancestors[len(r.walker.Ancestors)-2]
-	if node.Kind != ast.NodeKindInlineFragment {
-		return -1, false
-	}
-
-	return node.Ref, true
-}
-
 func (r *rpcPlanVisitor) handleRootField(ref int) error {
 	r.operationFieldRef = ref
 	r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
 
 	r.currentCall = &RPCCall{
-		CallID:      r.currentCallID,
-		ServiceName: r.resolveServiceName(),
+		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
 
 	// attempt to resolve the name from the mapping
-	if err := r.resolveRPCMethodMapping(); err != nil {
+	rpcConfig, err := r.planCtx.resolveRPCMethodMapping(r.planInfo.operationType, r.planInfo.operationFieldName)
+	if err != nil {
 		return err
 	}
+
+	r.currentCall.MethodName = rpcConfig.RPC
+	r.currentCall.Request.Name = rpcConfig.Request
+	r.currentCall.Response.Name = rpcConfig.Response
 
 	return nil
 }
@@ -289,7 +242,7 @@ func (r *rpcPlanVisitor) handleRootField(ref int) error {
 // EnterField implements astvisitor.EnterFieldVisitor.
 func (r *rpcPlanVisitor) EnterField(ref int) {
 	fieldName := r.operation.FieldNameString(ref)
-	if r.IsRootField() {
+	if r.walker.InRootField() {
 		if err := r.handleRootField(ref); err != nil {
 			r.walker.StopWithInternalErr(err)
 			return
@@ -297,16 +250,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	}
 
 	if fieldName == "_entities" {
-		// _entities is a special field that is used to look up entities
-		// Entity lookups are handled differently as we use special types for
-		// Providing variables (_Any) and the response type is a Union that needs to be
-		// determined from the first inline fragment.
-		r.planInfo.entityInfo = entityInfo{
-			entityRootFieldRef:      ref,
-			entityInlineFragmentRef: -1,
-		}
-		r.planInfo.isEntityLookup = true
-		r.planInfo.entityInfo.entityRootFieldRef = ref
+		r.walker.StopWithInternalErr(errors.New("entities field is not supported in this visitor"))
 		return
 	}
 
@@ -324,9 +268,14 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
-	field := r.buildField(fd, fieldName, fieldAlias)
+	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fd, fieldName, fieldAlias)
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
 
-	if ref, ok := r.IsInlineFragmentField(); ok && !r.planInfo.isEntityLookup {
+	// check if we are inside of an inline fragment
+	if ref, ok := r.walker.ResolveInlineFragment(); ok {
 		if r.planInfo.currentResponseMessage.FieldSelectionSet == nil {
 			r.planInfo.currentResponseMessage.FieldSelectionSet = make(RPCFieldSelectionSet)
 		}
@@ -339,63 +288,12 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	r.planInfo.currentResponseMessage.Fields = append(r.planInfo.currentResponseMessage.Fields, field)
 }
 
-// buildField builds a field from a field definition.
-// It handles lists, enums, and other types.
-func (r *rpcPlanVisitor) buildField(fd int, fieldName, fieldAlias string) RPCField {
-	fdt := r.definition.FieldDefinitionType(fd)
-	typeName := r.toDataType(&r.definition.Types[fdt])
-	parentTypeName := r.walker.EnclosingTypeDefinition.NameString(r.definition)
-
-	field := RPCField{
-		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
-		Alias:    fieldAlias,
-		Optional: !r.definition.TypeIsNonNull(fdt),
-		JSONPath: fieldName,
-		TypeName: typeName.String(),
-	}
-
-	if r.definition.TypeIsList(fdt) {
-		switch {
-		// for nullable or nested lists we need to build a wrapper message
-		// Nullability is handled by the datasource during the execution.
-		case r.typeIsNullableOrNestedList(fdt):
-			field.ListMetadata = r.createListMetadata(fdt)
-			field.IsListType = true
-		default:
-			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
-			field.Repeated = true
-		}
-	}
-
-	if typeName == DataTypeEnum {
-		field.EnumName = r.definition.FieldDefinitionTypeNameString(fd)
-	}
-
-	if fieldName == "__typename" {
-		field.StaticValue = parentTypeName
-	}
-
-	return field
-}
-
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitor) LeaveField(ref int) {
-	if ref == r.planInfo.entityInfo.entityRootFieldRef {
-		r.planInfo.entityInfo.entityRootFieldRef = -1
-	}
-
 	// If we are not in the operation field, we can increment the response field index.
-	if !r.IsRootField() {
+	if !r.walker.InRootField() {
 		r.planInfo.currentResponseFieldIndex++
 		return
-	}
-
-	// If we left the operation field, we need to finalize the current call and prepare the next one.
-	if r.currentCall.MethodName == "" {
-		methodName := r.rpcMethodName()
-		r.currentCall.MethodName = methodName
-		r.currentCall.Request.Name = methodName + "Request"
-		r.currentCall.Response.Name = methodName + "Response"
 	}
 
 	r.plan.Calls[r.currentCallID] = *r.currentCall
@@ -407,16 +305,6 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	}
 
 	r.planInfo.currentResponseFieldIndex = 0
-}
-
-// newMessageFromSelectionSet creates a new message from a selection set.
-func (r *rpcPlanVisitor) newMessageFromSelectionSet(ref int) *RPCMessage {
-	message := &RPCMessage{
-		Name:   r.walker.EnclosingTypeDefinition.NameString(r.definition),
-		Fields: make(RPCFields, 0, len(r.operation.SelectionSets[ref].SelectionRefs)),
-	}
-
-	return message
 }
 
 // enrichRequestMessageFromInputArgument constructs a request message from an input argument based on its type.
@@ -466,7 +354,7 @@ func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef i
 		r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
 
 	case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
-		dt := r.toDataType(&r.definition.Types[typeRef])
+		dt := r.planCtx.toDataType(&r.definition.Types[typeRef])
 
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields,
 			r.buildInputMessageField(typeRef, mappedInputName, jsonPath, dt))
@@ -507,7 +395,7 @@ func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentType
 
 	// If the type is not an object, directly add the field to the request message
 	if underlyingTypeNode.Kind != ast.NodeKindInputObjectTypeDefinition {
-		dt := r.toDataType(&inputValueDefinitionType)
+		dt := r.planCtx.toDataType(&inputValueDefinitionType)
 
 		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields,
 			r.buildInputMessageField(typeRef, mappedName, fieldName, dt))
@@ -545,8 +433,13 @@ func (r *rpcPlanVisitor) buildInputMessageField(typeRef int, fieldName, jsonPath
 		switch {
 		// for nullable or nested lists we need to build a wrapper message
 		// Nullability is handled by the datasource during the execution.
-		case r.typeIsNullableOrNestedList(typeRef):
-			field.ListMetadata = r.createListMetadata(typeRef)
+		case r.planCtx.typeIsNullableOrNestedList(typeRef):
+			md, err := r.planCtx.createListMetadata(typeRef)
+			if err != nil {
+				r.walker.StopWithInternalErr(err)
+				return field
+			}
+			field.ListMetadata = md
 			field.IsListType = true
 		default:
 			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
@@ -561,156 +454,6 @@ func (r *rpcPlanVisitor) buildInputMessageField(typeRef int, fieldName, jsonPath
 	return field
 }
 
-func (r *rpcPlanVisitor) createListMetadata(typeRef int) *ListMetadata {
-	nestingLevel := r.definition.TypeNumberOfListWraps(typeRef)
-
-	md := &ListMetadata{
-		NestingLevel: nestingLevel,
-		LevelInfo:    make([]LevelInfo, nestingLevel),
-	}
-
-	for i := 0; i < nestingLevel; i++ {
-		md.LevelInfo[i] = LevelInfo{
-			Optional: !r.definition.TypeIsNonNull(typeRef),
-		}
-
-		typeRef = r.definition.ResolveNestedListOrListType(typeRef)
-		if typeRef == ast.InvalidRef {
-			r.walker.StopWithInternalErr(fmt.Errorf("unable to resolve underlying list type for ref: %d", typeRef))
-			return nil
-		}
-	}
-
-	return md
-}
-
-func (r *rpcPlanVisitor) resolveEntityInformation(inlineFragmentRef int) {
-	// TODO support multiple entities in a single query
-	if !r.planInfo.isEntityLookup || r.planInfo.entityInfo.name != "" {
-		return
-	}
-
-	fragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
-	node, found := r.definition.NodeByNameStr(fragmentName)
-	if !found {
-		return
-	}
-
-	// Only process object type definitions
-	// TODO: handle interfaces
-	if node.Kind != ast.NodeKindObjectTypeDefinition {
-		return
-	}
-
-	// An entity must at least have a key directive
-	def := r.definition.ObjectTypeDefinitions[node.Ref]
-	if !def.HasDirectives {
-		return
-	}
-
-	// TODO: We currently only support one key directive per entity
-	// We need to get the used key from the graphql datasource.
-	for _, directiveRef := range def.Directives.Refs {
-		if r.definition.DirectiveNameString(directiveRef) != federationKeyDirectiveName {
-			continue
-		}
-
-		r.planInfo.entityInfo.name = fragmentName
-
-		directive := r.definition.Directives[directiveRef]
-		for _, argRef := range directive.Arguments.Refs {
-			if r.definition.ArgumentNameString(argRef) != "fields" {
-				continue
-			}
-			argument := r.definition.Arguments[argRef]
-			keyFieldName := r.definition.ValueContentString(argument.Value)
-
-			fieldDef, ok := r.definition.NodeFieldDefinitionByName(node, ast.ByteSlice(keyFieldName))
-			if !ok {
-				r.walker.Report.AddExternalError(operationreport.ExternalError{
-					Message: fmt.Sprintf("Field %s not found in definition", keyFieldName),
-				})
-				return
-			}
-
-			fdt := r.definition.FieldDefinitionType(fieldDef)
-			ft := r.definition.Types[fdt]
-
-			r.planInfo.entityInfo.keyFields =
-				append(r.planInfo.entityInfo.keyFields, keyField{
-					fieldName: keyFieldName,
-					fieldType: r.toDataType(&ft).String(),
-				})
-		}
-
-		break
-	}
-
-	keyFields := make([]string, 0, len(r.planInfo.entityInfo.keyFields))
-	for _, key := range r.planInfo.entityInfo.keyFields {
-		keyFields = append(keyFields, key.fieldName)
-	}
-
-	if ei, exists := r.mapping.EntityRPCs[r.planInfo.entityInfo.name]; exists {
-		r.currentCall.Request.Name = ei.RPCConfig.Request
-		r.currentCall.Response.Name = ei.RPCConfig.Response
-		r.planInfo.methodName = ei.RPCConfig.RPC
-	}
-
-	r.planInfo.entityInfo.keyTypeName = r.planInfo.entityInfo.name + "By" + strings.Join(titleSlice(keyFields), "And")
-}
-
-// scaffoldEntityLookup creates the entity lookup call structure
-// by creating the key field message and adding it to the current request message.
-// It also adds the results message to the current response message.
-func (r *rpcPlanVisitor) scaffoldEntityLookup() {
-	if !r.planInfo.isEntityLookup {
-		return
-	}
-
-	entityInfo := &r.planInfo.entityInfo
-	keyFieldMessage := &RPCMessage{
-		Name: r.rpcMethodName() + "Key",
-	}
-	for _, key := range entityInfo.keyFields {
-		keyFieldMessage.Fields = append(keyFieldMessage.Fields, RPCField{
-			Name:     key.fieldName,
-			TypeName: key.fieldType,
-			JSONPath: key.fieldName,
-		})
-	}
-
-	r.planInfo.currentRequestMessage.Fields = []RPCField{
-		{
-			Name:     "keys",
-			TypeName: DataTypeMessage.String(),
-			Repeated: true, // The inputs are always a list of objects
-			JSONPath: "representations",
-			Message:  keyFieldMessage,
-		},
-	}
-
-	// The proto response message has a field `result` which is a list of entities.
-	// As this is a special case we directly map it to _entities.
-	r.planInfo.currentResponseMessage.Fields = []RPCField{
-		{
-			Name:     "result",
-			TypeName: DataTypeMessage.String(),
-			JSONPath: "_entities",
-			Repeated: true,
-		},
-	}
-}
-
-func (r *rpcPlanVisitor) resolveServiceName() string {
-	if r.mapping == nil || r.mapping.Service == "" {
-		return r.subgraphName
-	}
-
-	return r.mapping.Service
-}
-
-// resolveFieldMapping resolves the field mapping for a field.
 // This applies both for complex types in the input and for all fields in the response.
 func (r *rpcPlanVisitor) resolveFieldMapping(typeName, fieldName string) string {
 	grpcFieldName, ok := r.mapping.ResolveFieldMapping(typeName, fieldName)
@@ -732,151 +475,4 @@ func (r *rpcPlanVisitor) resolveInputArgument(baseType string, fieldRef int, arg
 	}
 
 	return grpcFieldName
-}
-
-func (r *rpcPlanVisitor) resolveRPCMethodMapping() error {
-	if r.mapping == nil {
-		return nil
-	}
-
-	if r.planInfo.isEntityLookup && r.planInfo.entityInfo.name != "" {
-		// Resolving the entity lookup method name is done differently
-		return nil
-	}
-
-	var rpcConfig RPCConfig
-	var ok bool
-
-	switch r.planInfo.operationType {
-	case ast.OperationTypeQuery:
-		rpcConfig, ok = r.mapping.QueryRPCs[r.planInfo.operationFieldName]
-	case ast.OperationTypeMutation:
-		rpcConfig, ok = r.mapping.MutationRPCs[r.planInfo.operationFieldName]
-	case ast.OperationTypeSubscription:
-		rpcConfig, ok = r.mapping.SubscriptionRPCs[r.planInfo.operationFieldName]
-	}
-
-	// if we don't have a mapping, we can skip the operation
-	if !ok {
-		return nil
-	}
-
-	// We require all fields to be present when defining a mapping for the operation
-	if rpcConfig.RPC == "" {
-		return fmt.Errorf("no rpc method name mapping found for operation %s", r.planInfo.operationFieldName)
-	}
-
-	if rpcConfig.Request == "" {
-		return fmt.Errorf("no request message name mapping found for operation %s", r.planInfo.operationFieldName)
-	}
-
-	if rpcConfig.Response == "" {
-		return fmt.Errorf("no response message name mapping found for operation %s", r.planInfo.operationFieldName)
-	}
-
-	r.currentCall.MethodName = rpcConfig.RPC
-	r.currentCall.Request.Name = rpcConfig.Request
-	r.currentCall.Response.Name = rpcConfig.Response
-
-	return nil
-}
-
-// rpcMethodName determines the appropriate method name based on operation type.
-func (r *rpcPlanVisitor) rpcMethodName() string {
-	if r.planInfo.methodName != "" {
-		return r.planInfo.methodName
-	}
-
-	switch r.planInfo.operationType {
-	case ast.OperationTypeQuery:
-		r.planInfo.methodName = r.buildQueryMethodName()
-	case ast.OperationTypeMutation:
-		r.planInfo.methodName = r.buildMutationMethodName()
-	case ast.OperationTypeSubscription:
-		r.planInfo.methodName = r.buildSubscriptionMethodName()
-	}
-
-	return r.planInfo.methodName
-}
-
-// buildQueryMethodName constructs a method name for query operations.
-func (r *rpcPlanVisitor) buildQueryMethodName() string {
-	if r.planInfo.isEntityLookup && r.planInfo.entityInfo.name != "" {
-		return "Lookup" + r.planInfo.entityInfo.keyTypeName
-	}
-
-	return "Query" + cases.Title(language.Und, cases.NoLower).String(r.planInfo.operationFieldName)
-}
-
-// buildMutationMethodName constructs a method name for mutation operations.
-func (r *rpcPlanVisitor) buildMutationMethodName() string {
-	// TODO implement mutation method name handling
-	return "Mutation" + cases.Title(language.Und, cases.NoLower).String(r.planInfo.operationFieldName)
-}
-
-// buildSubscriptionMethodName constructs a method name for subscription operations.
-func (r *rpcPlanVisitor) buildSubscriptionMethodName() string {
-	// TODO implement subscription method name handling
-	return "Subscription" + cases.Title(language.Und, cases.NoLower).String(r.planInfo.operationFieldName)
-}
-
-// toDataType converts an ast.Type to a DataType.
-// It handles the different type kinds and non-null types.
-func (r *rpcPlanVisitor) toDataType(t *ast.Type) DataType {
-	switch t.TypeKind {
-	case ast.TypeKindNamed:
-		return r.parseGraphQLType(t)
-	case ast.TypeKindList:
-		return r.toDataType(&r.definition.Types[t.OfType])
-	case ast.TypeKindNonNull:
-		return r.toDataType(&r.definition.Types[t.OfType])
-	}
-
-	return DataTypeUnknown
-}
-
-// parseGraphQLType parses an ast.Type and returns the corresponding DataType.
-// It handles the different type kinds and non-null types.
-func (r *rpcPlanVisitor) parseGraphQLType(t *ast.Type) DataType {
-	dt := r.definition.Input.ByteSliceString(t.Name)
-
-	// Retrieve the node to check the kind
-	node, found := r.definition.NodeByNameStr(dt)
-	if !found {
-		return DataTypeUnknown
-	}
-
-	// For non-scalar types, return the corresponding DataType
-	switch node.Kind {
-	case ast.NodeKindInterfaceTypeDefinition:
-		fallthrough
-	case ast.NodeKindUnionTypeDefinition:
-		fallthrough
-	case ast.NodeKindObjectTypeDefinition, ast.NodeKindInputObjectTypeDefinition:
-		return DataTypeMessage
-	case ast.NodeKindEnumTypeDefinition:
-		return DataTypeEnum
-	default:
-		return fromGraphQLType(dt)
-	}
-}
-
-func (r *rpcPlanVisitor) typeIsNullableOrNestedList(typeRef int) bool {
-	if !r.definition.TypeIsNonNull(typeRef) && r.definition.TypeIsList(typeRef) {
-		return true
-	}
-
-	if r.definition.TypeNumberOfListWraps(typeRef) > 1 {
-		return true
-	}
-
-	return false
-}
-
-// titleSlice capitalizes the first letter of each string in a slice.
-func titleSlice(s []string) []string {
-	for i, v := range s {
-		s[i] = cases.Title(language.Und, cases.NoLower).String(v)
-	}
-	return s
 }

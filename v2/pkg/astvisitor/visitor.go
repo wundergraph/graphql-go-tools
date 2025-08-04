@@ -3998,3 +3998,27 @@ func (w *Walker) FieldDefinitionDirectiveArgumentValueByName(field int, directiv
 
 	return w.definition.DirectiveArgumentValueByName(directive, argumentName)
 }
+
+// InRootField returns true if the current field is a root field.
+func (w *Walker) InRootField() bool {
+	return w.CurrentKind == ast.NodeKindField &&
+		len(w.Ancestors) == 2 &&
+		w.Ancestors[0].Kind == ast.NodeKindOperationDefinition
+}
+
+// ResolveInlineFragment returns the inline fragment ref if the current field is inside of
+// an inline fragment.
+// It returns the inline fragment ref and true if the current field is inside of an inline fragment.
+// It returns -1 and false if the current field is not inside of an inline fragment.
+func (w *Walker) ResolveInlineFragment() (int, bool) {
+	if len(w.Ancestors) < 2 {
+		return -1, false
+	}
+
+	node := w.Ancestors[len(w.Ancestors)-2]
+	if node.Kind != ast.NodeKindInlineFragment {
+		return -1, false
+	}
+
+	return node.Ref, true
+}

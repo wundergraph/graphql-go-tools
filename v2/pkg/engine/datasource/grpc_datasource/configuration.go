@@ -17,7 +17,7 @@ type GRPCMapping struct {
 	// SubscriptionRPCs maps GraphQL subscription fields to the corresponding gRPC RPC configurations
 	SubscriptionRPCs RPCConfigMap
 	// EntityRPCs defines how GraphQL types are resolved as entities using specific RPCs
-	EntityRPCs map[string]EntityRPCConfig
+	EntityRPCs map[string][]EntityRPCConfig
 	// Fields defines the field mappings between GraphQL types and gRPC messages
 	Fields map[string]FieldMap
 	// EnumValues defines the enum values for each enum type
@@ -120,4 +120,19 @@ func (g *GRPCMapping) ResolveEnumValue(enumName, enumValue string) (string, bool
 	}
 
 	return "", false
+}
+
+func (g *GRPCMapping) ResolveEntityRPCConfig(typeName, key string) (RPCConfig, bool) {
+	rpcConfig, ok := g.EntityRPCs[typeName]
+	if !ok {
+		return RPCConfig{}, false
+	}
+
+	for _, ei := range rpcConfig {
+		if ei.Key == key {
+			return ei.RPCConfig, true
+		}
+	}
+
+	return RPCConfig{}, false
 }

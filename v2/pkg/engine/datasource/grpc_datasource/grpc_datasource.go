@@ -17,10 +17,12 @@ import (
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -32,11 +34,12 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // transforms the responses back to GraphQL format.
 type DataSource struct {
 	// Invocations is a list of gRPC invocations to be executed
-	plan     *RPCExecutionPlan
-	cc       grpc.ClientConnInterface
-	rc       *RPCCompiler
-	mapping  *GRPCMapping
-	disabled bool
+	plan              *RPCExecutionPlan
+	cc                grpc.ClientConnInterface
+	rc                *RPCCompiler
+	mapping           *GRPCMapping
+	federationConfigs plan.FederationFieldConfigurations
+	disabled          bool
 }
 
 type ProtoConfig struct {
@@ -44,28 +47,30 @@ type ProtoConfig struct {
 }
 
 type DataSourceConfig struct {
-	Operation    *ast.Document
-	Definition   *ast.Document
-	Compiler     *RPCCompiler
-	SubgraphName string
-	Mapping      *GRPCMapping
-	Disabled     bool
+	Operation         *ast.Document
+	Definition        *ast.Document
+	Compiler          *RPCCompiler
+	SubgraphName      string
+	Mapping           *GRPCMapping
+	FederationConfigs plan.FederationFieldConfigurations
+	Disabled          bool
 }
 
 // NewDataSource creates a new gRPC datasource
 func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-	planner := NewPlanner(config.SubgraphName, config.Mapping)
+	planner := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
 	plan, err := planner.PlanOperation(config.Operation, config.Definition)
 	if err != nil {
 		return nil, err
 	}
 
 	return &DataSource{
-		plan:     plan,
-		cc:       client,
-		rc:       config.Compiler,
-		mapping:  config.Mapping,
-		disabled: config.Disabled,
+		plan:              plan,
+		cc:                client,
+		rc:                config.Compiler,
+		mapping:           config.Mapping,
+		federationConfigs: config.FederationConfigs,
+		disabled:          config.Disabled,
 	}, nil
 }
 
@@ -97,6 +102,10 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	for _, invocation := range invocations {
 		// Invoke the gRPC method - this will populate invocation.Output
 		methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
+
+		b, _ := protojson.Marshal(invocation.Input)
+		fmt.Println(string(b))
+
 		err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
 		if err != nil {
 			out.Write(writeErrorBytes(err))

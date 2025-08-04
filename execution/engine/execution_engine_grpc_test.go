@@ -234,7 +234,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         "query UserQuery { users { id name } }",
 		}
 
-		response, err := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.MustDefaultGRPCMapping(t)))
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`, response)
 	})
@@ -255,7 +255,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			`,
 		}
 
-		response, err := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.MustDefaultGRPCMapping(t)))
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"user":{"id":"1","name":"User 1"}}}`, response)
 	})

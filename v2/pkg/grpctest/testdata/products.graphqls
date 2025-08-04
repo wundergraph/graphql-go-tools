@@ -11,6 +11,13 @@ type Storage @key(fields: "id") {
   location: String!
 }
 
+type Warehouse @key(fields: "id") @key(fields: "slug") {
+  id: ID!
+  slug: String!
+  name: String!
+  location: String!
+}
+
 type User {
   id: ID!
   name: String!
@@ -393,5 +400,5 @@ type Mutation {
 
 
 
-union _Entity = Product | Storage
+union _Entity = Product | Storage | Warehouse
 scalar _Any

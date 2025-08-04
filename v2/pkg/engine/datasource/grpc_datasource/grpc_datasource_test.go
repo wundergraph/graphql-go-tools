@@ -125,6 +125,14 @@ func Test_DataSource_Load(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
@@ -176,10 +184,21 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
 						TargetName: "complex_filter_type",
+						ArgumentMappings: map[string]string{
+							"filter": "filter",
+						},
 					},
 				},
 				"FilterType": {
@@ -255,10 +274,21 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
 						TargetName: "complex_filter_type",
+						ArgumentMappings: map[string]string{
+							"filter": "filter",
+						},
 					},
 				},
 				"FilterType": {
@@ -346,6 +376,31 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
+		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"user": {
+					RPC:      "QueryUser",
+					Request:  "QueryUserRequest",
+					Response: "QueryUserResponse",
+				},
+			},
+			Fields: map[string]FieldMap{
+				"Query": {
+					"user": {
+						TargetName: "user",
+					},
+				},
+				"User": {
+					"id": {
+						TargetName: "id",
+					},
+					"name": {
+						TargetName: "name",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
