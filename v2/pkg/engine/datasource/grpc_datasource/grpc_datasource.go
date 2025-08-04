@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 )
 
@@ -102,9 +101,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	for _, invocation := range invocations {
 		// Invoke the gRPC method - this will populate invocation.Output
 		methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
-
-		b, _ := protojson.Marshal(invocation.Input)
-		fmt.Println(string(b))
 
 		err := d.cc.Invoke(ctx, methodName, invocation.Input, invocation.Output)
 		if err != nil {
