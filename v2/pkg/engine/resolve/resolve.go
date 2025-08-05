@@ -149,6 +149,8 @@ type ResolverOptions struct {
 	MaxSubscriptionFetchTimeout time.Duration
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
 	ApolloRouterCompatibilitySubrequestHTTPError bool
+
+	Caches map[string]LoaderCache
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -231,6 +233,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			allowedSubgraphErrorFields:                   allowedErrorFields,
 			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
+			caches: options.Caches,
 		},
 	}
 }
