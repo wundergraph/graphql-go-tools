@@ -114,6 +114,13 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
+
+	cache              LoaderCache
+	cacheMustBeUpdated bool
+	cacheKeys          []string
+	cacheItems         []*astjson.Value
+	cacheTTL           time.Duration
+	cacheSkippedFetch  bool
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -134,6 +141,8 @@ type Loader struct {
 	resolvable *Resolvable
 	ctx        *Context
 	info       *GraphQLResponseInfo
+
+	caches map[string]LoaderCache
 
 	propagateSubgraphErrors           bool
 	propagateSubgraphStatusCodes      bool
@@ -251,9 +260,15 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		res := &result{
 			out: &bytes.Buffer{},
 		}
-		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
+		skip, err := l.tryCacheLoadFetch(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
+		}
+		if !skip {
+			err = l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
+			if err != nil {
+				return err
+			}
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
@@ -265,9 +280,15 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		res := &result{
 			out: &bytes.Buffer{},
 		}
-		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
+		skip, err := l.tryCacheLoadFetch(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
+		}
+		if !skip {
+			err = l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
@@ -278,9 +299,15 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		res := &result{
 			out: &bytes.Buffer{},
 		}
-		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
+		skip, err := l.tryCacheLoadFetch(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
+		}
+		if !skip {
+			err = l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 		err = l.mergeResult(item, res, items)
 		if l.ctx.LoaderHooks != nil {
@@ -415,10 +442,81 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 	return arr
 }
 
+type LoaderCache interface {
+	Get(ctx context.Context, keys []string) ([][]byte, error)
+	Set(ctx context.Context, keys []string, items [][]byte, ttl time.Duration) error
+	Delete(ctx context.Context, keys []string) error
+}
+
+func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg FetchCacheConfiguration, inputItems []*astjson.Value, res *result) (skipFetch bool, err error) {
+	if !cfg.Enabled {
+		return false, nil
+	}
+	if cfg.CacheKeyTemplate == nil {
+		return false, nil
+	}
+	if l.caches == nil {
+		return false, nil
+	}
+	res.cache = l.caches[cfg.CacheName]
+	if res.cache == nil {
+		return false, nil
+	}
+	res.cacheKeys = make([]string, 0, len(inputItems))
+	buf := &bytes.Buffer{}
+	for _, item := range inputItems {
+		err = cfg.CacheKeyTemplate.Render(l.ctx, item, buf)
+		if err != nil {
+			return false, err
+		}
+		if buf.Len() == 0 {
+			// If the cache key is empty, we skip the cache
+			continue
+		}
+		res.cacheKeys = append(res.cacheKeys, buf.String())
+		buf.Reset()
+	}
+	if len(res.cacheKeys) == 0 {
+		// If no cache keys were generated, we skip the cache
+		return false, nil
+	}
+	cachedItems, err := res.cache.Get(ctx, res.cacheKeys)
+	if err != nil {
+		return false, err
+	}
+	res.cacheItems = make([]*astjson.Value, len(cachedItems))
+	for i := range cachedItems {
+		if cachedItems[i] == nil {
+			res.cacheItems[i] = astjson.NullValue
+			continue
+		}
+		res.cacheItems[i], err = astjson.ParseBytesWithoutCache(cachedItems[i])
+		if err != nil {
+			return false, errors.WithStack(err)
+		}
+	}
+	missing, canSkip := l.canSkipFetch(info, res.cacheItems)
+	if canSkip {
+		res.cacheSkippedFetch = true
+		return true, nil
+	}
+	res.cacheMustBeUpdated = true
+	res.cacheTTL = cfg.TTL
+	_ = missing
+	return false, nil
+}
+
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		res.out = &bytes.Buffer{}
+		skip, err := l.tryCacheLoadFetch(ctx, f.Info, f.Caching, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if skip {
+			return nil
+		}
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
@@ -451,9 +549,23 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		return nil
 	case *EntityFetch:
 		res.out = &bytes.Buffer{}
+		skip, err := l.tryCacheLoadFetch(ctx, f.Info, f.Caching, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if skip {
+			return nil
+		}
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
 		res.out = &bytes.Buffer{}
+		skip, err := l.tryCacheLoadFetch(ctx, f.Info, f.Caching, items, res)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		if skip {
+			return nil
+		}
 		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil
@@ -513,11 +625,23 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return nil
 	}
+	if res.cacheSkippedFetch {
+		for i, item := range res.cacheItems {
+			_, _, err := astjson.MergeValues(items[i], item)
+			if err != nil {
+				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
+			}
+		}
+		return nil
+	}
 	if res.fetchSkipped {
 		return nil
 	}
 	if res.out.Len() == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
+	}
+	if res.cacheMustBeUpdated {
+		defer l.updateCache(res, items)
 	}
 	value, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
@@ -656,6 +780,27 @@ func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffe
 	}
 	_, _ = out.Write(errorsInvalidInputFooter)
 	return nil
+}
+
+func (l *Loader) updateCache(res *result, items []*astjson.Value) {
+	if res.cache == nil || len(res.cacheKeys) == 0 || len(res.cacheItems) == 0 {
+		return
+	}
+	var (
+		keys       []string
+		cacheItems [][]byte
+	)
+	for i, item := range res.cacheItems {
+		if item != nil && item.Type() == astjson.TypeNull && items[i] != nil && items[i].Type() != astjson.TypeNull {
+			keys = append(keys, res.cacheKeys[i])
+			value := items[i].MarshalTo(nil)
+			cacheItems = append(cacheItems, value)
+		}
+	}
+	err := res.cache.Set(context.Background(), keys, cacheItems, res.cacheTTL)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {

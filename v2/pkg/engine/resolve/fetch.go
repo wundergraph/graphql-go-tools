@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -168,6 +169,7 @@ type BatchEntityFetch struct {
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
 	CoordinateDependencies []FetchDependency
+	Caching                FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -215,6 +217,7 @@ type EntityFetch struct {
 	DataSourceIdentifier   []byte
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
+	Caching                FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -325,6 +328,8 @@ type FetchConfiguration struct {
 
 	// OperationName is non-empty when the operation name is propagated the downstream subgraph fetch.
 	OperationName string
+
+	Caching FetchCacheConfiguration
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -358,6 +363,19 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	return true
+}
+
+type FetchCacheConfiguration struct {
+	// Enabled indicates if caching is enabled for this fetch
+	Enabled bool
+	// CacheName is the name of the cache to use for this fetch
+	CacheName string
+	// TTL is the time to live which will be set for new cache entries
+	TTL time.Duration
+	// CacheKeyTemplate can be used to render a cache key for the fetch.
+	// In case of a root fetch, the variables will be one or more field arguments
+	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
+	CacheKeyTemplate *InputTemplate
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

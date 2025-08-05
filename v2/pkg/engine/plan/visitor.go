@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/astjson"
 
@@ -1632,6 +1633,23 @@ func (v *Visitor) configureObjectFetch(config *objectFetchConfiguration) {
 func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external resolve.FetchConfiguration) *resolve.SingleFetch {
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
+
+	cacheKeyTemplate := &resolve.InputTemplate{
+		SetTemplateOutputToNullOnVariableNull: false,
+		Segments:                              make([]resolve.TemplateSegment, len(external.Variables)),
+	}
+
+	for i, variable := range external.Variables {
+		segment := variable.TemplateSegment()
+		cacheKeyTemplate.Segments[i] = segment
+	}
+
+	external.Caching = resolve.FetchCacheConfiguration{
+		Enabled:          true,
+		CacheName:        "default",
+		TTL:              time.Second * time.Duration(30),
+		CacheKeyTemplate: cacheKeyTemplate,
+	}
 
 	singleFetch := &resolve.SingleFetch{
 		FetchConfiguration: external,

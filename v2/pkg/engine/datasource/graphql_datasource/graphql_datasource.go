@@ -843,12 +843,13 @@ func (p *Planner[T]) addRepresentationsVariable() {
 		return
 	}
 
-	variable, _ := p.variables.AddVariable(p.buildRepresentationsVariable())
+	representationsVariable := resolve.NewResolvableObjectVariable(p.buildRepresentationsVariable())
+	variable, _ := p.variables.AddVariable(representationsVariable)
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))
 }
 
-func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
+func (p *Planner[T]) buildRepresentationsVariable() *resolve.Object {
 	objects := make([]*resolve.Object, 0, len(p.dataSourcePlannerConfig.RequiredFields))
 	for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
 		node, err := buildRepresentationVariableNode(p.visitor.Definition, cfg, p.dataSourceConfig.FederationConfiguration())
@@ -860,9 +861,7 @@ func (p *Planner[T]) buildRepresentationsVariable() resolve.Variable {
 		objects = append(objects, node)
 	}
 
-	return resolve.NewResolvableObjectVariable(
-		mergeRepresentationVariableNodes(objects),
-	)
+	return mergeRepresentationVariableNodes(objects)
 }
 
 func (p *Planner[T]) addRepresentationsQuery() {
