@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.215](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.214...v2.0.0-rc.215) (2025-07-31)
+
+
+### Bug Fixes
+
+* make propagated operation names unique ([#1256](https://github.com/wundergraph/graphql-go-tools/issues/1256)) ([c2be87e](https://github.com/wundergraph/graphql-go-tools/commit/c2be87e80965697d51fb162d3614db7d135dbd8f))
+
 ## [2.0.0-rc.214](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.213...v2.0.0-rc.214) (2025-07-29)
 
 
