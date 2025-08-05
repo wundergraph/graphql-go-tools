@@ -570,7 +570,7 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
-func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) {
+func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) (bool, error) {
 	// Set the emitEventFn to synchronously emit the event to the subscription
 	if initialHookCtx.emitEventRWMutex == nil {
 		initialHookCtx.emitEventRWMutex = &sync.RWMutex{}
@@ -606,17 +606,10 @@ func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSu
 
 	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 	if !ok {
-		return
+		return false, nil
 	}
 
-	close, errStartHook := hook.SubscriptionOnStart(initialHookCtx, add.input)
-	if errStartHook != nil {
-		r.asyncErrorWriter.WriteError(initialHookCtx, errStartHook, add.resolve.Response, add.writer)
-	}
-	if close {
-		r.closeTrigger(triggerID, SubscriptionCloseKindNormal)
-	}
-
+	return hook.SubscriptionOnStart(initialHookCtx, add.input)
 }
 
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
@@ -649,8 +642,16 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	// before getting updates from the subscription. This operation is never blocking because workChan
 	// is buffered and this is the first work item, before anyone is allowed to send other work items.
 	// This is important because the hooks need to be executed before the other updates are processed.
+	initialHooksClose := make(chan bool)
 	s.workChan <- workItem{
-		fn:    func() { r.handleAddSubscriptionInitialHook(triggerID, add, initialHookCtx, s) },
+		fn: func() {
+			close, err := r.handleAddSubscriptionInitialHook(triggerID, add, initialHookCtx, s)
+			if err != nil {
+				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			}
+			// Send the close signal to the goroutine that starts the datasource subscription
+			initialHooksClose <- close
+		},
 		final: false,
 	}
 
@@ -706,6 +707,14 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	go func() {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
+		}
+		// Wait for the initial hook to complete
+		close := <-initialHooksClose
+		// If the initial hook closes the subscription, we don't have to connect to the origin
+		// and we can close trigger the close action and return early
+		if close {
+			_ = r.emitTriggerClose(triggerID)
+			return
 		}
 		if asyncDataSource != nil {
 			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
