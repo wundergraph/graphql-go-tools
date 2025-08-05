@@ -178,7 +178,11 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	}
 
 	if fc.requiredFields != "" {
-		r.planCtx.ensureRequiredFields(r.planInfo.currentResponseMessage, &fc)
+		if err := r.planCtx.ensureRequiredFields(r.planInfo.currentResponseMessage, &fc); err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+
 	}
 
 	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
