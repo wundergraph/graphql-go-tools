@@ -10,9 +10,18 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
+// directiveIncludeSkip registers a visitor to handle @include and @skip directives.
+// It deletes nodes that are evaluated as unused by the directives.
 func directiveIncludeSkip(walker *astvisitor.Walker) {
+	directiveIncludeSkipKeepNodes(walker, false)
+}
+
+// directiveIncludeSkipKeepNodes registers a visitor to handle @include and @skip directives.
+// If keepNodes is true, it unconditionally removes the directives and keeps parent nodes.
+func directiveIncludeSkipKeepNodes(walker *astvisitor.Walker, keepNodes bool) {
 	visitor := directiveIncludeSkipVisitor{
-		Walker: walker,
+		Walker:    walker,
+		keepNodes: keepNodes,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterDirectiveVisitor(&visitor)
@@ -21,6 +30,7 @@ func directiveIncludeSkip(walker *astvisitor.Walker) {
 type directiveIncludeSkipVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
+	keepNodes             bool
 }
 
 func (d *directiveIncludeSkipVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -62,7 +72,7 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 	default:
 		return
 	}
-	if skip {
+	if !d.keepNodes && bool(skip) {
 		d.handleRemoveNode()
 	} else {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
@@ -91,7 +101,7 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	default:
 		return
 	}
-	if include {
+	if d.keepNodes || bool(include) {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	} else {
 		d.handleRemoveNode()
