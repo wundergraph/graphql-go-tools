@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.216](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.215...v2.0.0-rc.216) (2025-08-06)
+
+
+### Bug Fixes
+
+* generate query plans for subscriptions ([#1260](https://github.com/wundergraph/graphql-go-tools/issues/1260)) ([560a89d](https://github.com/wundergraph/graphql-go-tools/commit/560a89d9f8d3797cd93c1fea136df5ab54b5bd0e))
+
 ## [2.0.0-rc.215](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.214...v2.0.0-rc.215) (2025-07-31)
 
 
