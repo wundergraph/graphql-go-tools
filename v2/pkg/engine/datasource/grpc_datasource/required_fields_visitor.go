@@ -75,6 +75,11 @@ func (r *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
+	if len(r.message.Fields) == 0 {
+		r.walker.StopWithInternalErr(errors.New("cannot access last field: message has no fields"))
+		return
+	}
+
 	lastField := &r.message.Fields[len(r.message.Fields)-1]
 	if lastField.Message == nil {
 		lastField.Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)

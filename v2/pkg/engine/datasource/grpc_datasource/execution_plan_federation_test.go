@@ -1117,7 +1117,7 @@ func TestEntityKeys(t *testing.T) {
 	}
 }
 
-func TestRequriedFields(t *testing.T) {
+func TestRequiredFields(t *testing.T) {
 	tests := []struct {
 		name              string
 		query             string
@@ -1405,11 +1405,6 @@ func runFederationTest(t *testing.T, tt struct {
 		astvalidation.DefaultDefinitionValidator().Validate(&definition, &report)
 		if report.HasErrors() {
 			t.Fatalf("failed to validate schema: %s", report.Error())
-		}
-
-		operation, report = astparser.ParseGraphqlDocumentString(tt.query)
-		if report.HasErrors() {
-			t.Fatalf("failed to parse query: %s", report.Error())
 		}
 
 		operation, report = astparser.ParseGraphqlDocumentString(tt.query)
