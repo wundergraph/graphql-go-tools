@@ -191,45 +191,36 @@ func compareKeyFields(left, right string) bool {
 }
 
 func stripSelectionSets(keyString string) string {
+	depth := 0
 
-	selectionSetQueue := []struct{}{}
-	currentIndex := 0
+	lastIndex := len(keyString) - 1
+	var prev rune
 
 	keyString = strings.ReplaceAll(keyString, ",", " ")
 
 	var sb strings.Builder
 
-	for i := range keyString {
-		switch keyString[i] {
+	for i, r := range keyString {
+		switch r {
 		case runes.LBRACE:
-			selectionSetQueue = append(selectionSetQueue, struct{}{})
+			depth++
 		case runes.RBRACE:
-			currentIndex = i + 1
-			if len(selectionSetQueue) == 0 {
-				continue
-			}
-			selectionSetQueue = selectionSetQueue[:len(selectionSetQueue)-1]
-		case runes.SPACE:
-			if len(selectionSetQueue) > 0 {
+			if depth == 0 {
 				continue
 			}
 
-			key := strings.TrimSpace(keyString[currentIndex:i])
-			currentIndex = i + 1
-
-			if key == "" {
-				continue
+			depth--
+		case runes.COMMA:
+			if i < lastIndex && keyString[i+1] != runes.SPACE {
+				sb.WriteRune(runes.SPACE)
+			}
+		default:
+			if depth != 0 || (r == runes.SPACE && prev == runes.SPACE) {
+				break
 			}
 
-			sb.WriteString(key)
-			sb.WriteRune(runes.SPACE)
-		}
-	}
-
-	if currentIndex < len(keyString) && len(selectionSetQueue) == 0 {
-		key := strings.TrimSpace(keyString[currentIndex:])
-		if key != "" {
-			sb.WriteString(key)
+			sb.WriteRune(r)
+			prev = r
 		}
 	}
 
