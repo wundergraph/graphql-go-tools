@@ -1859,6 +1859,47 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			},
 		},
 		{
+			name:  "Query nullable fields type with all fields and aliases",
+			query: `query { nullableFieldsType { id name optionalString1: optionalString optionalInt1: optionalInt optionalFloat1: optionalFloat optionalBoolean1: optionalBoolean requiredString1: requiredString requiredInt1: requiredInt } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, nullableFieldsType, "id")
+				require.Contains(t, nullableFieldsType, "name")
+				require.Contains(t, nullableFieldsType, "requiredString1")
+				require.Contains(t, nullableFieldsType, "requiredInt1")
+
+				require.NotEmpty(t, nullableFieldsType["id"], "id should not be empty")
+				require.NotEmpty(t, nullableFieldsType["name"], "name should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredString1"], "requiredString1 should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredInt1"], "requiredInt1 should not be empty")
+
+				// Check optional fields are present (but may be null)
+				require.Contains(t, nullableFieldsType, "optionalString1")
+				require.Contains(t, nullableFieldsType, "optionalInt1")
+				require.Contains(t, nullableFieldsType, "optionalFloat1")
+				require.Contains(t, nullableFieldsType, "optionalBoolean1")
+
+				// Verify types of non-null optional fields
+				if nullableFieldsType["optionalString1"] != nil {
+					require.IsType(t, "", nullableFieldsType["optionalString1"])
+				}
+				if nullableFieldsType["optionalInt1"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalInt1"]) // JSON numbers are float64
+				}
+				if nullableFieldsType["optionalFloat1"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalFloat1"])
+				}
+				if nullableFieldsType["optionalBoolean1"] != nil {
+					require.IsType(t, false, nullableFieldsType["optionalBoolean1"])
+				}
+			},
+		},
+		{
 			name:  "Query nullable fields type by ID",
 			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString requiredString } }`,
 			vars:  `{"variables":{"id":"full-data"}}`,

@@ -235,7 +235,7 @@ func (d *DataSource) marshalResponseJSON(arena *astjson.Arena, message *RPCMessa
 			}
 
 			if field.IsOptionalScalar() {
-				err := d.resolveOptionalField(arena, root, field.JSONPath, msg)
+				err := d.resolveOptionalField(arena, root, field.AliasOrPath(), msg)
 				if err != nil {
 					return nil, err
 				}
