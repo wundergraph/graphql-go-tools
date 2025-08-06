@@ -668,6 +668,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
+		// if the trigger is already initialized, we need to read from initialHooksClose to avoid blocking
+		// the worker goroutine
+		<-initialHooksClose
 		return
 	}
 
