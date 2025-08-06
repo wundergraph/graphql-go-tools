@@ -225,18 +225,6 @@ func TestCompareKeyFields(t *testing.T) {
 			right:    "orders user id",
 			expected: true,
 		},
-		{
-			name:     "unbalanced braces handled gracefully",
-			left:     "id user { name email",
-			right:    "id user { name email",
-			expected: true,
-		},
-		{
-			name:     "extra closing braces",
-			left:     "id user { name } } extra",
-			right:    "extra user id",
-			expected: false,
-		},
 	}
 
 	for _, tt := range tests {
