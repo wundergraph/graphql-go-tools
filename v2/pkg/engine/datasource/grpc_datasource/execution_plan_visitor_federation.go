@@ -3,12 +3,10 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/runes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -33,48 +31,6 @@ func newFederationConfigData(entityTypeName string) federationConfigData {
 		keyFields:      "",
 		requiredFields: "",
 	}
-}
-
-func (f *federationConfigData) getRootKeyNames() []string {
-	keys := make([]string, 0)
-
-	selectionSetQueue := []struct{}{}
-	currentIndex := 0
-
-	for i := range f.keyFields {
-		switch f.keyFields[i] {
-		case runes.LBRACE:
-			selectionSetQueue = append(selectionSetQueue, struct{}{})
-		case runes.RBRACE:
-			if len(selectionSetQueue) == 0 {
-				continue
-			}
-			selectionSetQueue = selectionSetQueue[:len(selectionSetQueue)-1]
-			currentIndex = i + 1
-		case runes.SPACE:
-			if len(selectionSetQueue) > 0 {
-				continue
-			}
-
-			key := strings.TrimSpace(f.keyFields[currentIndex:i])
-			currentIndex = i + 1
-
-			if key == "" {
-				continue
-			}
-
-			keys = append(keys, key)
-		}
-	}
-
-	if currentIndex < len(f.keyFields) {
-		key := strings.TrimSpace(f.keyFields[currentIndex:])
-		if key != "" {
-			keys = append(keys, key)
-		}
-	}
-
-	return keys
 }
 
 type rpcPlanVisitorFederation struct {

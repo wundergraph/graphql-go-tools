@@ -1,5 +1,11 @@
 package grpcdatasource
 
+import (
+	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/runes"
+)
+
 type (
 	// RPCConfigMap is a map of RPC names to RPC configurations
 	RPCConfigMap map[string]RPCConfig
@@ -129,10 +135,103 @@ func (g *GRPCMapping) ResolveEntityRPCConfig(typeName, key string) (RPCConfig, b
 	}
 
 	for _, ei := range rpcConfig {
-		if ei.Key == key {
+		if compareKeyFields(ei.Key, key) {
 			return ei.RPCConfig, true
 		}
+
 	}
 
 	return RPCConfig{}, false
+}
+
+type keySet map[string]struct{}
+
+func (k keySet) add(keys ...string) {
+	for _, key := range keys {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey != "" {
+			k[trimmedKey] = struct{}{}
+		}
+	}
+}
+
+func (k keySet) equals(other keySet) bool {
+	if len(k) != len(other) {
+		return false
+	}
+
+	for key := range k {
+		if _, ok := other[key]; !ok {
+			return false
+		}
+	}
+
+	return true
+}
+
+// We compare only top level key
+func compareKeyFields(left, right string) bool {
+	if left == right {
+		return true
+	}
+
+	left = stripSelectionSets(left)
+	right = stripSelectionSets(right)
+
+	leftKeys := strings.Split(left, " ")
+	rightKeys := strings.Split(right, " ")
+
+	leftSet := make(keySet)
+	leftSet.add(leftKeys...)
+
+	rightSet := make(keySet)
+	rightSet.add(rightKeys...)
+
+	return leftSet.equals(rightSet)
+}
+
+func stripSelectionSets(keyString string) string {
+
+	selectionSetQueue := []struct{}{}
+	currentIndex := 0
+
+	keyString = strings.ReplaceAll(keyString, ",", " ")
+
+	var sb strings.Builder
+
+	for i := range keyString {
+		switch keyString[i] {
+		case runes.LBRACE:
+			selectionSetQueue = append(selectionSetQueue, struct{}{})
+		case runes.RBRACE:
+			currentIndex = i + 1
+			if len(selectionSetQueue) == 0 {
+				continue
+			}
+			selectionSetQueue = selectionSetQueue[:len(selectionSetQueue)-1]
+		case runes.SPACE:
+			if len(selectionSetQueue) > 0 {
+				continue
+			}
+
+			key := strings.TrimSpace(keyString[currentIndex:i])
+			currentIndex = i + 1
+
+			if key == "" {
+				continue
+			}
+
+			sb.WriteString(key)
+			sb.WriteRune(runes.SPACE)
+		}
+	}
+
+	if currentIndex < len(keyString) && len(selectionSetQueue) == 0 {
+		key := strings.TrimSpace(keyString[currentIndex:])
+		if key != "" {
+			sb.WriteString(key)
+		}
+	}
+
+	return strings.TrimSpace(sb.String())
 }

@@ -11,7 +11,6 @@ import (
 )
 
 const (
-	federationKeyDirectiveName = "key"
 	// knownTypeOptionalFieldValueName is the name of the field that is used to wrap optional scalar values
 	// in a message as protobuf scalar types are not nullable.
 	knownTypeOptionalFieldValueName = "value"

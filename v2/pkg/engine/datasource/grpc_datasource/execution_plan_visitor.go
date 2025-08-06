@@ -12,13 +12,7 @@ import (
 	"golang.org/x/text/language"
 )
 
-type keyField struct {
-	fieldName string
-	fieldType string
-}
-
 type planningInfo struct {
-	// resolvers      []string
 	operationType      ast.OperationType
 	operationFieldName string
 

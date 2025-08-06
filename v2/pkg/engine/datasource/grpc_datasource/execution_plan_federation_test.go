@@ -2,7 +2,6 @@ package grpcdatasource
 
 import (
 	"fmt"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -890,6 +889,227 @@ func TestEntityKeys(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:  "Order in a compound key should not matter",
+			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name  } } }`,
+			schema: testFederationSchemaString(`
+			type Query {
+				_entities(representations: [_Any!]!): [_Entity]!
+			}
+			type User @key(fields: "id name") {
+				id: ID!
+				name: String!
+			}
+			`, []string{"User"}),
+			mapping: &GRPCMapping{
+				Service: "Products",
+				EntityRPCs: map[string][]EntityRPCConfig{
+					"User": {
+						{
+							Key: "name id",
+							RPCConfig: RPCConfig{
+								RPC:      "LookupUserByIdAndName",
+								Request:  "LookupUserByIdAndNameRequest",
+								Response: "LookupUserByIdAndNameResponse",
+							},
+						},
+					},
+				},
+			},
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id name",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserByIdAndName",
+						Request: RPCMessage{
+							Name: "LookupUserByIdAndNameRequest",
+							Fields: []RPCField{
+								{
+									Name:     "keys",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "representations",
+									Message: &RPCMessage{
+										Name: "LookupUserByIdAndNameKey",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupUserByIdAndNameResponse",
+							Fields: []RPCField{
+								{
+									Name:     "result",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:        "__typename",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "__typename",
+												StaticValue: "User",
+											},
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Nested fields in a compound key should be ignored",
+			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name  } } }`,
+			schema: testFederationSchemaString(`
+			type Query {
+				_entities(representations: [_Any!]!): [_Entity]!
+			}
+			
+			type Address {
+				id: ID!
+				street: String!
+			}
+			type User @key(fields: "id name address { id }") {
+				id: ID!
+				name: String!
+				address: Address!
+			}
+			`, []string{"User"}),
+			mapping: &GRPCMapping{
+				Service: "Products",
+				EntityRPCs: map[string][]EntityRPCConfig{
+					"User": {
+						{
+							Key: "name id address",
+							RPCConfig: RPCConfig{
+								RPC:      "LookupUserByIdAndNameAndAddress",
+								Request:  "LookupUserByIdAndNameAndAddressRequest",
+								Response: "LookupUserByIdAndNameAndAddressResponse",
+							},
+						},
+					},
+				},
+			},
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id name address { id }",
+				},
+			},
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "LookupUserByIdAndNameAndAddress",
+						Request: RPCMessage{
+							Name: "LookupUserByIdAndNameAndAddressRequest",
+							Fields: []RPCField{
+								{
+									Name:     "keys",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "representations",
+									Message: &RPCMessage{
+										Name: "LookupUserByIdAndNameAndAddressKey",
+										Fields: []RPCField{
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+											{
+												Name:     "address",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "address",
+												Message: &RPCMessage{
+													Name: "Address",
+													Fields: []RPCField{
+														{
+															Name:     "id",
+															TypeName: string(DataTypeString),
+															JSONPath: "id",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "LookupUserByIdAndNameAndAddressResponse",
+							Fields: []RPCField{
+								{
+									Name:     "result",
+									TypeName: string(DataTypeMessage),
+									Repeated: true,
+									JSONPath: "_entities",
+									Message: &RPCMessage{
+										Name: "User",
+										Fields: []RPCField{
+											{
+												Name:        "__typename",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "__typename",
+												StaticValue: "User",
+											},
+											{
+												Name:     "id",
+												TypeName: string(DataTypeString),
+												JSONPath: "id",
+											},
+											{
+												Name:     "name",
+												TypeName: string(DataTypeString),
+												JSONPath: "name",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1222,107 +1442,4 @@ func testFederationSchemaString(schema string, entities []string) string {
 	union _Entity = %s
 	scalar _Any
 	`, schema, entityUnion)
-}
-
-func TestRootKeyNames(t *testing.T) {
-	tests := []struct {
-		name      string
-		keyFields string
-		expected  []string
-	}{
-		{
-			name:      "Should return root key names with nested fields",
-			keyFields: "id address { id }",
-			expected:  []string{"id", "address"},
-		},
-		{
-			name:      "Should handle single field",
-			keyFields: "id",
-			expected:  []string{"id"},
-		},
-		{
-			name:      "Should handle multiple simple fields",
-			keyFields: "id name email status",
-			expected:  []string{"id", "name", "email", "status"},
-		},
-		{
-			name:      "Should handle mixed simple and complex fields",
-			keyFields: "id user { name email } status",
-			expected:  []string{"id", "user", "status"},
-		},
-		{
-			name:      "Should handle multiple nested objects",
-			keyFields: "id user { name email } address { street city } status",
-			expected:  []string{"id", "user", "address", "status"},
-		},
-		{
-			name:      "Should handle deeply nested fields",
-			keyFields: "id user { profile { personal { name age } } }",
-			expected:  []string{"id", "user"},
-		},
-		{
-			name:      "Should handle fields with underscores and numbers",
-			keyFields: "user_id item_2 product_variant { sku_code }",
-			expected:  []string{"user_id", "item_2", "product_variant"},
-		},
-		{
-			name:      "Should handle camelCase fields",
-			keyFields: "userId firstName lastName userProfile { emailAddress }",
-			expected:  []string{"userId", "firstName", "lastName", "userProfile"},
-		},
-		{
-			name:      "Should handle empty string",
-			keyFields: "",
-			expected:  []string{},
-		},
-		{
-			name:      "Should handle whitespace only",
-			keyFields: "   \t\n  ",
-			expected:  []string{},
-		},
-		{
-			name:      "Should handle extra whitespace",
-			keyFields: "  id   name    address  {  street  city  }   status  ",
-			expected:  []string{"id", "name", "address", "status"},
-		},
-		{
-			name:      "Should handle nested braces",
-			keyFields: "id organization { department { team { lead { name } } } }",
-			expected:  []string{"id", "organization"},
-		},
-		{
-			name:      "Should handle multiple levels of nesting",
-			keyFields: "id user { contact { phone { primary secondary } email } } metadata { tags }",
-			expected:  []string{"id", "user", "metadata"},
-		},
-		{
-			name:      "Should handle fields with dashes",
-			keyFields: "user-id product-code shipping-address { street-name }",
-			expected:  []string{"user-id", "product-code", "shipping-address"},
-		},
-		{
-			name:      "Should handle single nested field",
-			keyFields: "user { id }",
-			expected:  []string{"user"},
-		},
-		{
-			name:      "Should handle adjacent nested fields",
-			keyFields: "user { name } address { street }",
-			expected:  []string{"user", "address"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-
-			fc := federationConfigData{
-				keyFields: tt.keyFields,
-			}
-			t.Logf("keyFields: %s", tt.keyFields)
-			actual := fc.getRootKeyNames()
-			if !reflect.DeepEqual(actual, tt.expected) {
-				t.Fatalf("expected %v, got %v", tt.expected, actual)
-			}
-		})
-	}
 }
