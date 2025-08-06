@@ -4801,6 +4801,7 @@ type messageFunc func(counter int) (message string, done bool)
 var fakeStreamRequestId atomic.Int32
 
 type _fakeStream struct {
+	uniqueRequestFn       func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
 	messageFunc           messageFunc
 	onStart               func(input []byte)
 	delay                 time.Duration
@@ -4830,6 +4831,10 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 }
 
 func (f *_fakeStream) UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+	if f.uniqueRequestFn != nil {
+		return f.uniqueRequestFn(ctx, input, xxh)
+	}
+
 	_, err = xxh.WriteString(fmt.Sprintf("%d", fakeStreamRequestId.Add(1)))
 	if err != nil {
 		return
@@ -5621,6 +5626,56 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources-messagesDroppedFromHook.Load()+messagesHeartbeat), int32(len(recorder.Messages())))
 		assert.Equal(t, `{"data":{"counter":20000}}`, recorder.Messages()[0])
+	})
+
+	t.Run("it is possible to have two subscriptions to the same trigger", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx *Context, input []byte) (close bool, err error) {
+			return false, nil
+		})
+		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+			_, err = xxh.WriteString("unique")
+			if err != nil {
+				return
+			}
+			_, err = xxh.Write(input)
+			return err
+		}
+
+		resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
+		_, _, recorder2, id2 := setup(c, fakeStream)
+		id2.ConnectionID = id1.ConnectionID + 1
+		id2.SubscriptionID = id1.SubscriptionID + 1
+
+		ctx1 := &Context{
+			ctx: context.Background(),
+		}
+		ctx2 := &Context{
+			ctx: context.Background(),
+		}
+
+		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
+		assert.NoError(t, err1)
+
+		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
+		assert.NoError(t, err2)
+
+		// complete is called only on the last recorder
+		recorder1.AwaitComplete(t, defaultTimeout)
+		require.Equal(t, 101, len(recorder1.Messages()))
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder1.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":100}}`, recorder1.Messages()[100])
+
+		recorder2.AwaitComplete(t, defaultTimeout)
+		require.Equal(t, 101, len(recorder2.Messages()))
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
 	})
 }
 
