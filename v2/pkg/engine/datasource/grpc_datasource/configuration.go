@@ -193,14 +193,13 @@ func compareKeyFields(left, right string) bool {
 func stripSelectionSets(keyString string) string {
 	depth := 0
 
-	lastIndex := len(keyString) - 1
 	var prev rune
 
 	keyString = strings.ReplaceAll(keyString, ",", " ")
 
 	var sb strings.Builder
 
-	for i, r := range keyString {
+	for _, r := range keyString {
 		switch r {
 		case runes.LBRACE:
 			depth++
@@ -210,10 +209,6 @@ func stripSelectionSets(keyString string) string {
 			}
 
 			depth--
-		case runes.COMMA:
-			if i < lastIndex && keyString[i+1] != runes.SPACE {
-				sb.WriteRune(runes.SPACE)
-			}
 		default:
 			if depth != 0 || (r == runes.SPACE && prev == runes.SPACE) {
 				break
