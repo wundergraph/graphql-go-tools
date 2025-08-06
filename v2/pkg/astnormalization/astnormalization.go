@@ -150,6 +150,7 @@ type options struct {
 	removeUnusedVariables                 bool
 	removeNotMatchingOperationDefinitions bool
 	normalizeDefinition                   bool
+	ignoreSkipInclude                     bool
 }
 
 type Option func(options *options)
@@ -190,6 +191,12 @@ func WithNormalizeDefinition() Option {
 	}
 }
 
+func WithIgnoreSkipInclude() Option {
+	return func(options *options) {
+		options.ignoreSkipInclude = true
+	}
+}
+
 func (o *OperationNormalizer) setupOperationWalkers() {
 	o.operationWalkers = make([]walkerStage, 0, 9)
 
@@ -209,7 +216,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 
 	directivesIncludeSkip := astvisitor.NewWalker(8)
 	preventFragmentCycles(&directivesIncludeSkip)
-	directiveIncludeSkip(&directivesIncludeSkip)
+	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
 
 	cleanup := astvisitor.NewWalker(8)
 	deduplicateFields(&cleanup)

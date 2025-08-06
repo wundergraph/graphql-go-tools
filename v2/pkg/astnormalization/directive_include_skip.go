@@ -10,9 +10,18 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
+// directiveIncludeSkip registers a visitor to handle @include and @skip directives.
+// It deletes nodes that are evaluated as unused by the directives.
 func directiveIncludeSkip(walker *astvisitor.Walker) {
+	directiveIncludeSkipKeepNodes(walker, false)
+}
+
+// directiveIncludeSkipKeepNodes registers a visitor to handle @include and @skip directives.
+// If keepNodes is true, it unconditionally removes the directives and keeps parent nodes.
+func directiveIncludeSkipKeepNodes(walker *astvisitor.Walker, keepNodes bool) {
 	visitor := directiveIncludeSkipVisitor{
-		Walker: walker,
+		Walker:    walker,
+		keepNodes: keepNodes,
 	}
 	walker.RegisterEnterDocumentVisitor(&visitor)
 	walker.RegisterEnterDirectiveVisitor(&visitor)
@@ -21,6 +30,7 @@ func directiveIncludeSkip(walker *astvisitor.Walker) {
 type directiveIncludeSkipVisitor struct {
 	*astvisitor.Walker
 	operation, definition *ast.Document
+	keepNodes             bool
 }
 
 func (d *directiveIncludeSkipVisitor) EnterDocument(operation, definition *ast.Document) {
@@ -62,8 +72,8 @@ func (d *directiveIncludeSkipVisitor) handleSkip(ref int) {
 	default:
 		return
 	}
-	if skip {
-		d.handleRemoveNode()
+	if !d.keepNodes && bool(skip) {
+		d.removeParentNode()
 	} else {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	}
@@ -91,10 +101,10 @@ func (d *directiveIncludeSkipVisitor) handleInclude(ref int) {
 	default:
 		return
 	}
-	if include {
+	if d.keepNodes || bool(include) {
 		d.operation.RemoveDirectiveFromNode(d.Ancestors[len(d.Ancestors)-1], ref)
 	} else {
-		d.handleRemoveNode()
+		d.removeParentNode()
 	}
 }
 
@@ -114,17 +124,19 @@ func (d *directiveIncludeSkipVisitor) getVariableValue(name string) (value, vali
 	return false, false
 }
 
-func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
+func (d *directiveIncludeSkipVisitor) removeParentNode() {
 	if len(d.Ancestors) < 2 {
 		return
 	}
 
-	removed := d.operation.RemoveNodeFromSelectionSetNode(d.Ancestors[len(d.Ancestors)-1], d.Ancestors[len(d.Ancestors)-2])
+	parent := d.Ancestors[len(d.Ancestors)-1]
+	grandParent := d.Ancestors[len(d.Ancestors)-2]
+	removed := d.operation.RemoveNodeFromSelectionSetNode(parent, grandParent)
 	if !removed {
 		return
 	}
 
-	if d.Ancestors[len(d.Ancestors)-2].Kind != ast.NodeKindSelectionSet {
+	if grandParent.Kind != ast.NodeKindSelectionSet {
 		return
 	}
 
@@ -133,7 +145,7 @@ func (d *directiveIncludeSkipVisitor) handleRemoveNode() {
 	// So we have to add a __typename selection to the selection set,
 	// but as this selection was not added by user it should not be added to resolved data
 
-	selectionSetRef := d.Ancestors[len(d.Ancestors)-2].Ref
+	selectionSetRef := grandParent.Ref
 
 	if d.operation.SelectionSetIsEmpty(selectionSetRef) {
 		selectionRef, _ := d.typeNameSelection()

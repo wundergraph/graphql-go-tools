@@ -1,6 +1,10 @@
 package astnormalization
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+)
 
 func TestDirectiveIncludeVisitor(t *testing.T) {
 	t.Run("remove static include true on inline fragment", func(t *testing.T) {
@@ -315,5 +319,81 @@ func TestDirectiveIncludeVisitor(t *testing.T) {
 						__internal__typename_placeholder: __typename
 					}
 				}`, `{"yes":true,"no":false}`)
+	})
+
+	t.Run("keepNodes", func(t *testing.T) {
+		keepNodes := func(walker *astvisitor.Walker) {
+			directiveIncludeSkipKeepNodes(walker, true)
+		}
+
+		t.Run("skip should keep nodes", func(t *testing.T) {
+			runWithVariables(t, keepNodes, testDefinition, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... @skip(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":true,"no":false}`)
+		})
+		t.Run("include should keep nodes", func(t *testing.T) {
+			runWithVariables(t, keepNodes, testDefinition, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @include(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{"yes":true,"no":false}`)
+		})
+		t.Run("include/skip should keep nodes using default values", func(t *testing.T) {
+			runWithVariables(t, keepNodes, testDefinition, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... @include(if: $yes) {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name @skip(if: $no)
+					}
+				}`, `
+				query($yes: Boolean = false, $no: Boolean = true) {
+					dog {
+						... {
+							includeName: name
+						}
+					}
+					withAlias: dog {
+						name
+					}
+				}`, `{}`)
+		})
 	})
 }

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.217](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.216...v2.0.0-rc.217) (2025-08-06)
+
+
+### Bug Fixes
+
+* add an option to ignore skip/include directives ([#1261](https://github.com/wundergraph/graphql-go-tools/issues/1261)) ([dfd6523](https://github.com/wundergraph/graphql-go-tools/commit/dfd65236170251c7e195015130da8b9eceeddf3a))
+
 ## [2.0.0-rc.216](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.215...v2.0.0-rc.216) (2025-08-06)
 
 
