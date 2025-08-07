@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.218](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.217...v2.0.0-rc.218) (2025-08-07)
+
+
+### Bug Fixes
+
+* fix rewriting an interface object implementing interface ([#1265](https://github.com/wundergraph/graphql-go-tools/issues/1265)) ([8c8c9de](https://github.com/wundergraph/graphql-go-tools/commit/8c8c9deaccfb9b9657a0d2cef9923d9caaf94a61))
+
 ## [2.0.0-rc.217](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.216...v2.0.0-rc.217) (2025-08-06)
 
 
