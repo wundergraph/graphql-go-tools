@@ -3727,6 +3727,93 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				}`,
 			shouldRewrite: false,
 		},
+		{
+			name: "field is an interface with concrete type fragments. one of implementing types is interface object",
+			definition: `
+				interface Named {
+					name: String!
+				}
+
+				type User implements Named {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+		
+				type Admin implements Account & Named {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				interface Account implements Named {
+					id: ID!
+					name: String!
+					title: String!
+				}
+
+				type Query {
+					user: Named!
+				}`,
+			upstreamDefinition: `
+				interface Named {
+					name: String!
+				}
+
+				type User implements Named {
+					id: ID!
+					name: String!
+					surname: String!
+				}
+
+				type Account implements Named  @interfaceObject @key(fields: "id") {
+					id: ID!
+					name: String!
+				}
+
+				type Query {
+					user: Named!
+				}`,
+			dsConfiguration: dsb().
+				RootNode("Account", "id", "title").
+				RootNode("User", "id", "name", "surname").
+				WithMetadata(func(m *FederationMetaData) {
+					m.InterfaceObjects = []EntityInterfaceConfiguration{
+						{
+							InterfaceTypeName: "Account",
+							ConcreteTypeNames: []string{"Admin", "User"},
+						},
+					}
+				}).
+				DS(),
+			fieldName: "user",
+			operation: `
+				query {
+					__typename
+					user {
+						id
+						... on Account {
+							... on Admin {
+								title
+							}
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					__typename
+					user {
+						... on Admin {
+							id
+							title
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
 	}
 
 	for _, testCase := range testCases {
