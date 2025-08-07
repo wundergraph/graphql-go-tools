@@ -58,8 +58,8 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		subgraphName: cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:      config.mapping,
 		entityInfo: entityInfo{
-			entityRootFieldRef:      -1,
-			entityInlineFragmentRef: -1,
+			entityRootFieldRef:      ast.InvalidRef,
+			entityInlineFragmentRef: ast.InvalidRef,
 		},
 		federationConfigData: parseFederationConfigData(config.federationConfigs),
 	}

@@ -4012,12 +4012,12 @@ func (w *Walker) InRootField() bool {
 // It returns -1 and false if the current field is not inside of an inline fragment.
 func (w *Walker) ResolveInlineFragment() (int, bool) {
 	if len(w.Ancestors) < 2 {
-		return -1, false
+		return ast.InvalidRef, false
 	}
 
 	node := w.Ancestors[len(w.Ancestors)-2]
 	if node.Kind != ast.NodeKindInlineFragment {
-		return -1, false
+		return ast.InvalidRef, false
 	}
 
 	return node.Ref, true
