@@ -608,16 +608,16 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 				mapping:      testMapping(),
 			})
 
-			rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
+			plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-			if report.HasErrors() {
+			if err != nil {
 				require.NotEmpty(t, tt.expectedError)
-				require.Contains(t, report.Error(), tt.expectedError)
+				require.Contains(t, err.Error(), tt.expectedError)
 				return
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			diff := cmp.Diff(tt.expectedPlan, plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}
@@ -873,16 +873,16 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 				mapping:      testMapping(),
 			})
 
-			rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
+			plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-			if report.HasErrors() {
+			if err != nil {
 				require.NotEmpty(t, tt.expectedError)
-				require.Contains(t, report.Error(), tt.expectedError)
+				require.Contains(t, err.Error(), tt.expectedError)
 				return
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			diff := cmp.Diff(tt.expectedPlan, plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}

@@ -34,16 +34,16 @@ func runTest(t *testing.T, testCase testCase) {
 		mapping:      testMapping(),
 	})
 
-	rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
+	plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-	if report.HasErrors() {
-		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", report.Error())
-		require.Contains(t, report.Error(), testCase.expectedError, "expected error to contain: %s, got: %s", testCase.expectedError, report.Error())
+	if err != nil {
+		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", err.Error())
+		require.Contains(t, err.Error(), testCase.expectedError, "expected error to contain: %s, got: %s", testCase.expectedError, err.Error())
 		return
 	}
 
 	require.Empty(t, testCase.expectedError)
-	diff := cmp.Diff(testCase.expectedPlan, rpcPlanVisitor.plan)
+	diff := cmp.Diff(testCase.expectedPlan, plan)
 	if diff != "" {
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
