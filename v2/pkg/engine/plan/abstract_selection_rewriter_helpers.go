@@ -551,7 +551,7 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 			return []string{fieldTypeName}, false, nil
 		}
 
-		// if it is doesn't implement interface type the config is corrupted
+		// if it doesn't implement an interface type the config is corrupted
 		return nil, false, errors.New("unexpected error: field type do not implement the interface in the federated graph schema")
 	}
 
