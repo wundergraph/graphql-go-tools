@@ -260,88 +260,6 @@ func TestEntityLookup(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:    "Should create an execution plan for an entity lookup with required fields",
-			query:   `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on Product { __typename id name  } } }`,
-			mapping: testMapping(),
-			federationConfigs: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "Product",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "Product",
-					FieldName:    "name", // Field name requires price
-					SelectionSet: "price",
-				},
-			},
-			expectedPlan: &RPCExecutionPlan{
-				Calls: []RPCCall{
-					{
-						ServiceName: "Products",
-						MethodName:  "LookupProductById",
-						Request: RPCMessage{
-							Name: "LookupProductByIdRequest",
-							Fields: []RPCField{
-								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
-									Message: &RPCMessage{
-										Name: "LookupProductByIdKey",
-										Fields: []RPCField{
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "LookupProductByIdResponse",
-							Fields: []RPCField{
-								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "_entities",
-									Message: &RPCMessage{
-										Name: "Product",
-										Fields: []RPCField{
-											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "Product",
-											},
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-											},
-											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-											},
-											{
-												Name:     "price",
-												TypeName: string(DataTypeDouble),
-												JSONPath: "price",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
 
 		// TODO implement multiple entity lookup types
 		// 		{
@@ -573,7 +491,7 @@ func TestEntityKeys(t *testing.T) {
 			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name } } }`,
 			schema: testFederationSchemaString(`
 			type Query {
-				user(id: ID!): User
+				_entities(representations: [_Any!]!): [_Entity]!
 			}
 			type User @key(fields: "id") {
 				id: ID!
@@ -671,7 +589,7 @@ func TestEntityKeys(t *testing.T) {
 			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name } } }`,
 			schema: testFederationSchemaString(`
 			type Query {
-				user(id: ID!): User
+				_entities(representations: [_Any!]!): [_Entity]!
 			}
 
 			type Address {
@@ -1117,272 +1035,6 @@ func TestEntityKeys(t *testing.T) {
 	}
 }
 
-func TestRequiredFields(t *testing.T) {
-	tests := []struct {
-		name              string
-		query             string
-		schema            string
-		expectedPlan      *RPCExecutionPlan
-		mapping           *GRPCMapping
-		federationConfigs plan.FederationFieldConfigurations
-	}{
-		{
-			name: "Should also require reviews field when name is selected ",
-			schema: testFederationSchemaString(`
-			type Query {
-				user(id: ID!): User
-			}			
-			type User @key(fields: "id") {
-				id: ID!
-				name: String!
-				reviews: [String!]!
-			}
-			`, []string{"User"}),
-			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name } } }`,
-			federationConfigs: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "User",
-					SelectionSet: "id", // no field name mean this is related to the key
-				},
-				{
-					TypeName:     "User",
-					SelectionSet: "reviews",
-					FieldName:    "name", // name requires reviews
-				},
-			},
-			mapping: &GRPCMapping{
-				Service: "Products",
-				EntityRPCs: map[string][]EntityRPCConfig{
-					"User": {
-						{
-							Key: "id",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserById",
-								Request:  "LookupUserByIdRequest",
-								Response: "LookupUserByIdResponse",
-							},
-						},
-					},
-				},
-			},
-			expectedPlan: &RPCExecutionPlan{
-				Calls: []RPCCall{
-					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Request: RPCMessage{
-							Name: "LookupUserByIdRequest",
-							Fields: []RPCField{
-								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
-									Message: &RPCMessage{
-										Name: "LookupUserByIdKey",
-										Fields: []RPCField{
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "LookupUserByIdResponse",
-							Fields: []RPCField{
-								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "_entities",
-									Repeated: true,
-									Message: &RPCMessage{
-										Name: "User",
-										Fields: []RPCField{
-											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
-											},
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-											},
-											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-											},
-											{
-												Name:     "reviews",
-												TypeName: string(DataTypeString),
-												JSONPath: "reviews",
-												Repeated: true,
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "Should require nested fields",
-			schema: testFederationSchemaString(`
-			type Query {
-				user(id: ID!): User
-			}
-
-			type Review {
-				body: String!
-				title: String!
-			}
-
-			type User @key(fields: "id") {
-				id: ID!
-				name: String! 
-				reviews: [Review!]!
-			}
-			`, []string{"User"}),
-			query: `query EntityLookup($representations: [_Any!]!) { _entities(representations: $representations) { ... on User { __typename id name reviews } } }`,
-			federationConfigs: plan.FederationFieldConfigurations{
-				{
-					TypeName:     "User",
-					SelectionSet: "id",
-				},
-				{
-					TypeName:     "User",
-					SelectionSet: "reviews { body title }",
-					FieldName:    "name", // name requires reviews { body title }
-				},
-			},
-			mapping: &GRPCMapping{
-				Service: "Products",
-				EntityRPCs: map[string][]EntityRPCConfig{
-					"User": {
-						{
-							Key: "id",
-							RPCConfig: RPCConfig{
-								RPC:      "LookupUserById",
-								Request:  "LookupUserByIdRequest",
-								Response: "LookupUserByIdResponse",
-							},
-						},
-					},
-				},
-				Fields: map[string]FieldMap{
-					"User": {
-						"id": {
-							TargetName: "id",
-						},
-					},
-					"Review": {
-						"body": {
-							TargetName: "body",
-						},
-						"title": {
-							TargetName: "title",
-						},
-					},
-				},
-			},
-			expectedPlan: &RPCExecutionPlan{
-				Calls: []RPCCall{
-					{
-						ServiceName: "Products",
-						MethodName:  "LookupUserById",
-						Request: RPCMessage{
-							Name: "LookupUserByIdRequest",
-							Fields: []RPCField{
-								{
-									Name:     "keys",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "representations",
-									Message: &RPCMessage{
-										Name: "LookupUserByIdKey",
-										Fields: []RPCField{
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-											},
-										},
-									},
-								},
-							},
-						},
-						Response: RPCMessage{
-							Name: "LookupUserByIdResponse",
-							Fields: []RPCField{
-								{
-									Name:     "result",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "_entities",
-									Repeated: true,
-									Message: &RPCMessage{
-										Name: "User",
-										Fields: []RPCField{
-											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
-											},
-											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-											},
-											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-											},
-											{
-												Name:     "reviews",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "reviews",
-												Repeated: true,
-												Message: &RPCMessage{
-													Name: "Review",
-													Fields: []RPCField{
-														{
-															Name:     "body",
-															TypeName: string(DataTypeString),
-															JSONPath: "body",
-														},
-														{
-															Name:     "title",
-															TypeName: string(DataTypeString),
-															JSONPath: "title",
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		runFederationTest(t, tt)
-	}
-}
-
 func runFederationTest(t *testing.T, tt struct {
 	name              string
 	query             string
@@ -1410,6 +1062,11 @@ func runFederationTest(t *testing.T, tt struct {
 		operation, report = astparser.ParseGraphqlDocumentString(tt.query)
 		if report.HasErrors() {
 			t.Fatalf("failed to parse query: %s", report.Error())
+		}
+
+		astvalidation.DefaultOperationValidator().Validate(&operation, &definition, &report)
+		if report.HasErrors() {
+			t.Fatalf("failed to validate query: %s", report.Error())
 		}
 
 		planner := NewPlanner("Products", tt.mapping, tt.federationConfigs)

@@ -1859,7 +1859,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			},
 		},
 		{
-			name:  "Query nullable fields type with all fields and aliases",
+			name:  "Query nullable fields type with all aliased fields",
 			query: `query { nullableFieldsType { id name optionalString1: optionalString optionalInt1: optionalInt optionalFloat1: optionalFloat optionalBoolean1: optionalBoolean requiredString1: requiredString requiredInt1: requiredInt } }`,
 			vars:  "{}",
 			validate: func(t *testing.T, data map[string]interface{}) {

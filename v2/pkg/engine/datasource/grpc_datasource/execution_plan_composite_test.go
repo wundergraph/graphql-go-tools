@@ -6,7 +6,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	grpctest "github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 )
 
@@ -604,14 +603,12 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			walker := astvisitor.NewWalker(48)
-
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+			rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 				subgraphName: "Products",
 				mapping:      testMapping(),
 			})
 
-			walker.Walk(&queryDoc, &schemaDoc, &report)
+			rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
 			if report.HasErrors() {
 				require.NotEmpty(t, tt.expectedError)
@@ -871,14 +868,12 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			walker := astvisitor.NewWalker(48)
-
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+			rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 				subgraphName: "Products",
 				mapping:      testMapping(),
 			})
 
-			walker.Walk(&queryDoc, &schemaDoc, &report)
+			rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
 			if report.HasErrors() {
 				require.NotEmpty(t, tt.expectedError)

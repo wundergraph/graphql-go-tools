@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
 type testCase struct {
@@ -30,14 +29,12 @@ func runTest(t *testing.T, testCase testCase) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
-	walker := astvisitor.NewWalker(48)
-
-	rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+	rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 		subgraphName: "Products",
 		mapping:      testMapping(),
 	})
 
-	walker.Walk(&queryDoc, &schemaDoc, &report)
+	rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
 	if report.HasErrors() {
 		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", report.Error())
@@ -1093,23 +1090,21 @@ func TestQueryExecutionPlans(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			walker := astvisitor.NewWalker(48)
-
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+			rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 				subgraphName: "Products",
 				mapping:      tt.mapping,
 			})
 
-			walker.Walk(&queryDoc, &schemaDoc, &report)
+			plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-			if report.HasErrors() {
-				require.Contains(t, report.Error(), tt.expectedError)
+			if err != nil {
+				require.Contains(t, err.Error(), tt.expectedError)
 				require.NotEmpty(t, tt.expectedError)
 				return
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			diff := cmp.Diff(tt.expectedPlan, plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}

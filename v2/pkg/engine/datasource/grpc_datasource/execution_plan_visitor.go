@@ -27,12 +27,11 @@ type planningInfo struct {
 }
 
 type rpcPlanVisitor struct {
-	walker            *astvisitor.Walker
-	operation         *ast.Document
-	definition        *ast.Document
-	planCtx           *rpcPlanningContext
-	planInfo          planningInfo
-	federationConfigs plan.FederationFieldConfigurations
+	walker     *astvisitor.Walker
+	operation  *ast.Document
+	definition *ast.Document
+	planCtx    *rpcPlanningContext
+	planInfo   planningInfo
 
 	subgraphName       string
 	mapping            *GRPCMapping
@@ -51,14 +50,14 @@ type rpcPlanVisitorConfig struct {
 
 // newRPCPlanVisitor creates a new RPCPlanVisitor.
 // It registers the visitor with the walker and returns it.
-func newRPCPlanVisitor(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *rpcPlanVisitor {
+func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
+	walker := astvisitor.NewWalker(48)
 	visitor := &rpcPlanVisitor{
-		walker:            walker,
+		walker:            &walker,
 		plan:              &RPCExecutionPlan{},
 		subgraphName:      cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:           config.mapping,
 		operationFieldRef: -1,
-		federationConfigs: config.federationConfigs,
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -70,8 +69,14 @@ func newRPCPlanVisitor(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *
 	return visitor
 }
 
-func (r *rpcPlanVisitor) ExecutionPlan() *RPCExecutionPlan {
-	return r.plan
+func (r *rpcPlanVisitor) PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error) {
+	report := &operationreport.Report{}
+	r.walker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return nil, fmt.Errorf("unable to plan operation: %w", report)
+	}
+
+	return r.plan, nil
 }
 
 // EnterDocument implements astvisitor.EnterDocumentVisitor.
@@ -155,7 +160,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 }
 
 func (r *rpcPlanVisitor) handleCompositeType(node ast.Node) error {
-	if node.Ref < 0 {
+	if node.Ref == ast.InvalidRef {
 		return nil
 	}
 

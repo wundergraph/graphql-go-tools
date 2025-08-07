@@ -50,9 +50,10 @@ type rpcPlanVisitorFederation struct {
 	currentCallIndex int
 }
 
-func newRPCPlanVisitorFederation(walker *astvisitor.Walker, config rpcPlanVisitorConfig) *rpcPlanVisitorFederation {
+func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFederation {
+	walker := astvisitor.NewWalker(48)
 	visitor := &rpcPlanVisitorFederation{
-		walker:       walker,
+		walker:       &walker,
 		plan:         &RPCExecutionPlan{},
 		subgraphName: cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
 		mapping:      config.mapping,
@@ -72,8 +73,14 @@ func newRPCPlanVisitorFederation(walker *astvisitor.Walker, config rpcPlanVisito
 	return visitor
 }
 
-func (r *rpcPlanVisitorFederation) ExecutionPlan() *RPCExecutionPlan {
-	return r.plan
+func (r *rpcPlanVisitorFederation) PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error) {
+	report := &operationreport.Report{}
+	r.walker.Walk(operation, definition, report)
+	if report.HasErrors() {
+		return nil, fmt.Errorf("unable to plan operation: %w", report)
+	}
+
+	return r.plan, nil
 }
 
 // EnterDocument implements astvisitor.EnterDocumentVisitor.
@@ -96,10 +103,6 @@ func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 
 // EnterInlineFragment implements astvisitor.InlineFragmentVisitor.
 func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
-	// if !r.IsEntityInlineFragment(ref) {
-	// 	return
-	// }
-
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(ref)
 	fc, ok := r.FederationConfigDataByEntityTypeName(fragmentName)
 	if !ok {
@@ -124,21 +127,6 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 	if r.entityInfo.entityInlineFragmentRef != ref {
 		// We only handle the entity inline fragment
 		return
-	}
-
-	// We need to ensure that all the fields that are in the required fields are also present in the response message.
-	fc, found := r.FederationConfigDataByEntityTypeName(r.entityInfo.typeName)
-	if !found {
-		r.walker.StopWithInternalErr(errors.New("federation config data not found for entity type name: " + r.entityInfo.typeName))
-		return
-	}
-
-	if fc.requiredFields != "" {
-		if err := r.planCtx.ensureRequiredFields(r.planInfo.currentResponseMessage, &fc); err != nil {
-			r.walker.StopWithInternalErr(err)
-			return
-		}
-
 	}
 
 	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
@@ -195,7 +183,7 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 }
 
 func (r *rpcPlanVisitorFederation) handleCompositeType(node ast.Node) error {
-	if node.Ref < 0 {
+	if node.Ref == ast.InvalidRef {
 		return nil
 	}
 
@@ -261,7 +249,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		// determined from the first inline fragment.
 		r.entityInfo = entityInfo{
 			entityRootFieldRef:      ref,
-			entityInlineFragmentRef: -1,
+			entityInlineFragmentRef: ast.InvalidRef,
 		}
 
 		r.entityInfo.entityRootFieldRef = ref
@@ -402,12 +390,6 @@ func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurati
 	typeNameIndex := 0
 
 	for _, fc := range federationConfigs {
-		// If the entity is not resolvable, we skip it
-		// TODO: Is this needed?
-		if fc.DisableEntityResolver {
-			continue
-		}
-
 		// Create a new entity type if it doesn't exist
 		if _, ok := typeNameIndexSet[fc.TypeName]; !ok {
 			out = append(out, newFederationConfigData(fc.TypeName))

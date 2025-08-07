@@ -5,9 +5,7 @@ import (
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 const (
@@ -285,55 +283,35 @@ func (r *RPCExecutionPlan) String() string {
 }
 
 type PlanVisitor interface {
-	ExecutionPlan() *RPCExecutionPlan
+	PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error)
 }
 
-type Planner struct {
-	visitor PlanVisitor
-	walker  *astvisitor.Walker
-}
-
-// NewPlanner returns a new Planner instance.
+// NewPlanner returns a new PlanVisitor instance.
 //
 // The planner is responsible for creating an RPCExecutionPlan from a given
 // GraphQL operation. It is used by the engine to execute operations against
 // gRPC services.
-func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs plan.FederationFieldConfigurations) *Planner {
-	walker := astvisitor.NewWalker(48)
-
+func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs plan.FederationFieldConfigurations) PlanVisitor {
 	if mapping == nil {
 		mapping = new(GRPCMapping)
 	}
 
 	var visitor PlanVisitor
 	if len(federationConfigs) > 0 {
-		visitor = newRPCPlanVisitorFederation(&walker, rpcPlanVisitorConfig{
+		visitor = newRPCPlanVisitorFederation(rpcPlanVisitorConfig{
 			subgraphName:      subgraphName,
 			mapping:           mapping,
 			federationConfigs: federationConfigs,
 		})
 	} else {
-		visitor = newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+		visitor = newRPCPlanVisitor(rpcPlanVisitorConfig{
 			subgraphName:      subgraphName,
 			mapping:           mapping,
 			federationConfigs: federationConfigs,
 		})
 	}
 
-	return &Planner{
-		visitor: visitor,
-		walker:  &walker,
-	}
-}
-
-func (p *Planner) PlanOperation(operation, definition *ast.Document) (*RPCExecutionPlan, error) {
-	report := &operationreport.Report{}
-	p.walker.Walk(operation, definition, report)
-	if report.HasErrors() {
-		return nil, fmt.Errorf("unable to plan operation: %w", report)
-	}
-
-	return p.visitor.ExecutionPlan(), nil
+	return visitor
 }
 
 // formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation
@@ -544,19 +522,6 @@ func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fiel
 	}
 
 	return field, nil
-}
-
-func (r *rpcPlanningContext) ensureRequiredFields(message *RPCMessage, fc *federationConfigData) error {
-	// If the message is nil, we can't add any fields to it.
-	if message == nil {
-		return nil
-	}
-
-	walker := astvisitor.WalkerFromPool()
-	defer walker.Release()
-
-	requiredFieldsVisitor := newRequiredFieldsVisitor(walker, message, r)
-	return requiredFieldsVisitor.visitRequiredFields(r.definition, fc.entityTypeName, fc.requiredFields)
 }
 
 func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
