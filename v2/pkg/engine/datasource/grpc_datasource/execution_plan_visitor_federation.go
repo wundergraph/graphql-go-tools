@@ -161,6 +161,10 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message = r.planCtx.newMessageFromSelectionSet(r.walker.EnclosingTypeDefinition, ref)
 	}
 
+	if r.IsEntityInlineFragment(r.walker.Ancestor()) {
+		r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message.AppendTypeNameField(r.entityInfo.typeName)
+	}
+
 	// Add the current response message to the ancestors and set the current response message to the current field message
 	r.planInfo.responseMessageAncestors = append(r.planInfo.responseMessageAncestors, r.planInfo.currentResponseMessage)
 	r.planInfo.currentResponseMessage = r.planInfo.currentResponseMessage.Fields[r.planInfo.currentResponseFieldIndex].Message
@@ -375,12 +379,16 @@ func (r *rpcPlanVisitorFederation) FederationConfigDataByEntityTypeName(entityTy
 	return federationConfigData{}, false
 }
 
-func (r *rpcPlanVisitorFederation) IsEntityInlineFragment(ref int) bool {
+func (r *rpcPlanVisitorFederation) IsEntityInlineFragment(node ast.Node) bool {
+	if node.Kind != ast.NodeKindInlineFragment {
+		return false
+	}
+
 	if r.entityInfo.entityInlineFragmentRef == ast.InvalidRef {
 		return false
 	}
 
-	return r.entityInfo.entityInlineFragmentRef == ref
+	return r.entityInfo.entityInlineFragmentRef == node.Ref
 }
 
 func parseFederationConfigData(federationConfigs plan.FederationFieldConfigurations) []federationConfigData {

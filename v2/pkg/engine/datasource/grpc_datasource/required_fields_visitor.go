@@ -49,6 +49,7 @@ func (r *requiredFieldsVisitor) visitRequiredFields(definition *ast.Document, ty
 		return report
 	}
 
+	r.message.MemberTypes = []string{typeName}
 	r.walker.Walk(doc, definition, report)
 	if report.HasErrors() {
 		return report

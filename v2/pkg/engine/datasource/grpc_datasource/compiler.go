@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/bufbuild/protocompile"
 	"github.com/tidwall/gjson"
@@ -433,6 +434,12 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 			for _, element := range elements {
 				switch field.Type {
 				case DataTypeMessage:
+					// If we handle entity lookups, we get a list of representation variables that need to
+					// be applied to the correct type names.
+					if !isAllowedForTypename(rpcField.Message, element) {
+						continue
+					}
+
 					fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
 					list.Append(protoref.ValueOfMessage(fieldMsg))
 				default:
@@ -784,4 +791,27 @@ func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 		Optional:   f.Cardinality() == protoref.Optional,
 		MessageRef: -1,
 	}
+}
+
+func isAllowedForTypename(message *RPCMessage, element gjson.Result) bool {
+	if message == nil {
+		// We assume that having a nil message expects a null value.
+		return true
+	}
+
+	// If we don't have a member types, we assume that the message is allowed for all types.
+	if message.MemberTypes == nil {
+		return true
+	}
+
+	typeName := element.Get("__typename")
+	if !typeName.Exists() {
+		// If we don't have a type name, we assume that the message is allowed for all types.
+		return true
+	}
+
+	typeString := typeName.String()
+
+	// If we have a type name, we need to check if the message is restricted to a specific type.
+	return slices.Contains(message.MemberTypes, typeString)
 }

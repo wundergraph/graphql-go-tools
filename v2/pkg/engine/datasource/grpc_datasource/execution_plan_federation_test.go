@@ -62,7 +62,8 @@ func TestEntityLookup(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupProductByIdKey",
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -144,7 +145,8 @@ func TestEntityLookup(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupProductByIdKey",
+										Name:        "LookupProductByIdKey",
+										MemberTypes: []string{"Product"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -207,7 +209,8 @@ func TestEntityLookup(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupStorageByIdKey",
+										Name:        "LookupStorageByIdKey",
+										MemberTypes: []string{"Storage"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -535,7 +538,8 @@ func TestEntityKeys(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupUserByIdKey",
+										Name:        "LookupUserByIdKey",
+										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -643,7 +647,8 @@ func TestEntityKeys(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupUserByIdAndAddressKey",
+										Name:        "LookupUserByIdAndAddressKey",
+										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -754,7 +759,8 @@ func TestEntityKeys(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupUserByIdAndNameKey",
+										Name:        "LookupUserByIdAndNameKey",
+										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -854,7 +860,8 @@ func TestEntityKeys(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupUserByIdAndNameKey",
+										Name:        "LookupUserByIdAndNameKey",
+										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
 												Name:     "id",
@@ -960,7 +967,8 @@ func TestEntityKeys(t *testing.T) {
 									Repeated: true,
 									JSONPath: "representations",
 									Message: &RPCMessage{
-										Name: "LookupUserByIdAndNameAndAddressKey",
+										Name:        "LookupUserByIdAndNameAndAddressKey",
+										MemberTypes: []string{"User"},
 										Fields: []RPCField{
 											{
 												Name:     "id",

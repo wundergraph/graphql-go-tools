@@ -11,8 +11,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc"
@@ -495,10 +497,9 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
-	ds := &DataSource{}
-
 	arena := astjson.Arena{}
-	responseJSON, err := ds.marshalResponseJSON(&arena, &response, responseMessage)
+	jsonBuilder := newJSONBuilder(nil, gjson.Result{})
+	responseJSON, err := jsonBuilder.marshalResponseJSON(&arena, &response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
 }
@@ -3460,6 +3461,124 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				SubgraphName: "Products",
 				Mapping:      testMapping(),
 				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}
+
+func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name:  "Query nullable fields type with all fields",
+			query: `query { _entities(representations: $representations) { ...on Product { id name } ...on Storage { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Storage","id":"3"},
+				{"__typename":"Product","id":"2"},
+				{"__typename":"Storage","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, entities[0], "id")
+				require.Contains(t, entities[0], "name")
+				require.Contains(t, entities[1], "id")
+				require.Contains(t, entities[1], "name")
+
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				product, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "product should be an object")
+				require.Equal(t, "1", product["id"])
+				require.Equal(t, "Product 1", product["name"])
+
+				storage, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage should be an object")
+				require.Equal(t, "3", storage["id"])
+				require.Equal(t, "Storage 3", storage["name"])
+
+				product2, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "product2 should be an object")
+				require.Equal(t, "2", product2["id"])
+				require.Equal(t, "Product 2", product2["name"])
+
+				storage2, ok := entities[3].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "4", storage2["id"])
+				require.Equal(t, "Storage 4", storage2["name"])
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
 			})
 			require.NoError(t, err)
 
