@@ -6,7 +6,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	grpctest "github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 )
 
@@ -604,23 +603,21 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			walker := astvisitor.NewWalker(48)
-
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+			rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 				subgraphName: "Products",
 				mapping:      testMapping(),
 			})
 
-			walker.Walk(&queryDoc, &schemaDoc, &report)
+			plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-			if report.HasErrors() {
+			if err != nil {
 				require.NotEmpty(t, tt.expectedError)
-				require.Contains(t, report.Error(), tt.expectedError)
+				require.Contains(t, err.Error(), tt.expectedError)
 				return
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			diff := cmp.Diff(tt.expectedPlan, plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}
@@ -871,23 +868,21 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			walker := astvisitor.NewWalker(48)
-
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+			rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 				subgraphName: "Products",
 				mapping:      testMapping(),
 			})
 
-			walker.Walk(&queryDoc, &schemaDoc, &report)
+			plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-			if report.HasErrors() {
+			if err != nil {
 				require.NotEmpty(t, tt.expectedError)
-				require.Contains(t, report.Error(), tt.expectedError)
+				require.Contains(t, err.Error(), tt.expectedError)
 				return
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			diff := cmp.Diff(tt.expectedPlan, plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}

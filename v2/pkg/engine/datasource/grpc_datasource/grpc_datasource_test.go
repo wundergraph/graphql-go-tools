@@ -11,8 +11,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc"
@@ -125,6 +127,14 @@ func Test_DataSource_Load(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
@@ -176,10 +186,21 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
 						TargetName: "complex_filter_type",
+						ArgumentMappings: map[string]string{
+							"filter": "filter",
+						},
 					},
 				},
 				"FilterType": {
@@ -255,10 +276,21 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
 						TargetName: "complex_filter_type",
+						ArgumentMappings: map[string]string{
+							"filter": "filter",
+						},
 					},
 				},
 				"FilterType": {
@@ -346,6 +378,31 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
+		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"user": {
+					RPC:      "QueryUser",
+					Request:  "QueryUserRequest",
+					Response: "QueryUserResponse",
+				},
+			},
+			Fields: map[string]FieldMap{
+				"Query": {
+					"user": {
+						TargetName: "user",
+					},
+				},
+				"User": {
+					"id": {
+						TargetName: "id",
+					},
+					"name": {
+						TargetName: "name",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -440,10 +497,9 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
-	ds := &DataSource{}
-
 	arena := astjson.Arena{}
-	responseJSON, err := ds.marshalResponseJSON(&arena, &response, responseMessage)
+	jsonBuilder := newJSONBuilder(nil, gjson.Result{})
+	responseJSON, err := jsonBuilder.marshalResponseJSON(&arena, &response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
 }
@@ -1800,6 +1856,47 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 				}
 				if nullableFieldsType["optionalBoolean"] != nil {
 					require.IsType(t, false, nullableFieldsType["optionalBoolean"])
+				}
+			},
+		},
+		{
+			name:  "Query nullable fields type with all aliased fields",
+			query: `query { nullableFieldsType { id name optionalString1: optionalString optionalInt1: optionalInt optionalFloat1: optionalFloat optionalBoolean1: optionalBoolean requiredString1: requiredString requiredInt1: requiredInt } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, nullableFieldsType, "id")
+				require.Contains(t, nullableFieldsType, "name")
+				require.Contains(t, nullableFieldsType, "requiredString1")
+				require.Contains(t, nullableFieldsType, "requiredInt1")
+
+				require.NotEmpty(t, nullableFieldsType["id"], "id should not be empty")
+				require.NotEmpty(t, nullableFieldsType["name"], "name should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredString1"], "requiredString1 should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredInt1"], "requiredInt1 should not be empty")
+
+				// Check optional fields are present (but may be null)
+				require.Contains(t, nullableFieldsType, "optionalString1")
+				require.Contains(t, nullableFieldsType, "optionalInt1")
+				require.Contains(t, nullableFieldsType, "optionalFloat1")
+				require.Contains(t, nullableFieldsType, "optionalBoolean1")
+
+				// Verify types of non-null optional fields
+				if nullableFieldsType["optionalString1"] != nil {
+					require.IsType(t, "", nullableFieldsType["optionalString1"])
+				}
+				if nullableFieldsType["optionalInt1"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalInt1"]) // JSON numbers are float64
+				}
+				if nullableFieldsType["optionalFloat1"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalFloat1"])
+				}
+				if nullableFieldsType["optionalBoolean1"] != nil {
+					require.IsType(t, false, nullableFieldsType["optionalBoolean1"])
 				}
 			},
 		},
@@ -3364,6 +3461,124 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				SubgraphName: "Products",
 				Mapping:      testMapping(),
 				Compiler:     compiler,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp struct {
+				Data   map[string]interface{} `json:"data"`
+				Errors []struct {
+					Message string `json:"message"`
+				} `json:"errors,omitempty"`
+			}
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+			require.Empty(t, resp.Errors, "Response should not contain errors")
+			require.NotEmpty(t, resp.Data, "Response should contain data")
+
+			// Run the validation function
+			tc.validate(t, resp.Data)
+		})
+	}
+}
+
+func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+	}{
+		{
+			name:  "Query nullable fields type with all fields",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { id name } ...on Storage { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Storage","id":"3"},
+				{"__typename":"Product","id":"2"},
+				{"__typename":"Storage","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, entities[0], "id")
+				require.Contains(t, entities[0], "name")
+				require.Contains(t, entities[1], "id")
+				require.Contains(t, entities[1], "name")
+
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				product, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "product should be an object")
+				require.Equal(t, "1", product["id"])
+				require.Equal(t, "Product 1", product["name"])
+
+				storage, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage should be an object")
+				require.Equal(t, "3", storage["id"])
+				require.Equal(t, "Storage 3", storage["name"])
+
+				product2, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "product2 should be an object")
+				require.Equal(t, "2", product2["id"])
+				require.Equal(t, "Product 2", product2["name"])
+
+				storage2, ok := entities[3].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "4", storage2["id"])
+				require.Equal(t, "Storage 4", storage2["name"])
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
 			})
 			require.NoError(t, err)
 
