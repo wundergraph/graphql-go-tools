@@ -109,9 +109,7 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*a
 }
 
 func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
-
 	root := astjson.Arena{}
-	defer root.Reset()
 
 	entities := root.NewObject()
 	entities.Set(entityPath, root.NewArray())
@@ -453,7 +451,6 @@ func (j *jsonBuilder) setArrayItem(index int, arena *astjson.Arena, array *astjs
 
 func (j *jsonBuilder) toDataObject(root *astjson.Value) *astjson.Value {
 	a := astjson.Arena{}
-	defer a.Reset()
 	data := a.NewObject()
 	data.Set(dataPath, root)
 	return data

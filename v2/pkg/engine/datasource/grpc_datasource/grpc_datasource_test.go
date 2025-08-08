@@ -3502,7 +3502,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 	}{
 		{
 			name:  "Query nullable fields type with all fields",
-			query: `query { _entities(representations: $representations) { ...on Product { id name } ...on Storage { id name } } }`,
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { id name } ...on Storage { id name } } }`,
 			vars: `{"variables":{"representations":[
 				{"__typename":"Product","id":"1"},
 				{"__typename":"Storage","id":"3"},
