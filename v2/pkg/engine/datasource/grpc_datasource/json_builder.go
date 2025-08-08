@@ -474,8 +474,10 @@ func (j *jsonBuilder) setJSONValue(arena *astjson.Arena, root *astjson.Value, na
 		}
 	case protoref.StringKind:
 		root.Set(name, arena.NewString(data.Get(fd).String()))
-	case protoref.Int32Kind, protoref.Int64Kind:
+	case protoref.Int32Kind:
 		root.Set(name, arena.NewNumberInt(int(data.Get(fd).Int())))
+	case protoref.Int64Kind:
+		root.Set(name, arena.NewNumberString(strconv.FormatInt(data.Get(fd).Int(), 10)))
 	case protoref.Uint32Kind, protoref.Uint64Kind:
 		root.Set(name, arena.NewNumberString(strconv.FormatUint(data.Get(fd).Uint(), 10)))
 	case protoref.FloatKind, protoref.DoubleKind:
@@ -521,8 +523,10 @@ func (j *jsonBuilder) setArrayItem(index int, arena *astjson.Arena, array *astjs
 		}
 	case protoref.StringKind:
 		array.SetArrayItem(index, arena.NewString(data.String()))
-	case protoref.Int32Kind, protoref.Int64Kind:
+	case protoref.Int32Kind:
 		array.SetArrayItem(index, arena.NewNumberInt(int(data.Int())))
+	case protoref.Int64Kind:
+		array.SetArrayItem(index, arena.NewNumberString(strconv.FormatInt(data.Int(), 10)))
 	case protoref.Uint32Kind, protoref.Uint64Kind:
 		array.SetArrayItem(index, arena.NewNumberString(strconv.FormatUint(data.Uint(), 10)))
 	case protoref.FloatKind, protoref.DoubleKind:
