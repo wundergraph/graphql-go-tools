@@ -169,14 +169,12 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 
 	// Merge left entities using index mapping to preserve order
 	for index, lr := range leftRepresentations {
-		resultIndex := j.indexMap.getResultIndex(lr, index)
-		arr.SetArrayItem(resultIndex, lr)
+		arr.SetArrayItem(j.indexMap.getResultIndex(lr, index), lr)
 	}
 
 	// Merge right entities using index mapping to preserve order
 	for index, rr := range rightRepresentations {
-		resultIndex := j.indexMap.getResultIndex(rr, index)
-		arr.SetArrayItem(resultIndex, rr)
+		arr.SetArrayItem(j.indexMap.getResultIndex(rr, index), rr)
 	}
 
 	return entities, nil
