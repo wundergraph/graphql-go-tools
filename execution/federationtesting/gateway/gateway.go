@@ -34,11 +34,13 @@ func NewGateway(
 	gqlHandlerFactory HandlerFactory,
 	httpClient *http.Client,
 	logger log.Logger,
+	loaderCaches map[string]resolve.LoaderCache,
 ) *Gateway {
 	return &Gateway{
 		gqlHandlerFactory: gqlHandlerFactory,
 		httpClient:        httpClient,
 		logger:            logger,
+		loaderCaches:      loaderCaches,
 
 		mu:        &sync.Mutex{},
 		readyCh:   make(chan struct{}),
@@ -50,6 +52,7 @@ type Gateway struct {
 	gqlHandlerFactory HandlerFactory
 	httpClient        *http.Client
 	logger            log.Logger
+	loaderCaches      map[string]resolve.LoaderCache
 
 	gqlHandler http.Handler
 	mu         *sync.Mutex
@@ -82,6 +85,7 @@ func (g *Gateway) UpdateDataSources(subgraphsConfigs []engine.SubgraphConfigurat
 
 	executionEngine, err := engine.NewExecutionEngine(ctx, g.logger, engineConfig, resolve.ResolverOptions{
 		MaxConcurrency: 1024,
+		Caches:         g.loaderCaches,
 	})
 	if err != nil {
 		g.logger.Error("create engine: %v", log.Error(err))
