@@ -118,7 +118,11 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 
 	r.entityInfo.entityInlineFragmentRef = ref
 	r.entityInfo.typeName = fragmentName
-	r.resolveEntityInformation(ref, fc)
+	if err := r.resolveEntityInformation(ref, fc); err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
 	r.scaffoldEntityLookup(fc)
 }
 
@@ -305,29 +309,29 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 	r.planInfo.currentResponseFieldIndex = 0
 }
 
-func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef int, fc federationConfigData) {
+func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef int, fc federationConfigData) error {
 	fragmentName := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
 	node, found := r.definition.NodeByNameStr(r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef))
 	if !found {
-		r.walker.StopWithInternalErr(errors.New("definition node not found for inline fragment: " + fragmentName))
-		return
+		return errors.New("definition node not found for inline fragment: " + fragmentName)
 	}
 
 	// Only process object type definitions
 	// TODO: handle interfaces
 	if node.Kind != ast.NodeKindObjectTypeDefinition {
-		return
+		return nil
 	}
 
 	rpcConfig, exists := r.mapping.ResolveEntityRPCConfig(fc.entityTypeName, fc.keyFields)
 	if !exists {
-		r.walker.StopWithInternalErr(fmt.Errorf("entity type %s not found in mapping", fc.entityTypeName))
-		return
+		return fmt.Errorf("entity type %s not found in mapping", fc.entityTypeName)
 	}
 
 	r.currentCall.Request.Name = rpcConfig.Request
 	r.currentCall.Response.Name = rpcConfig.Response
 	r.currentCall.MethodName = rpcConfig.RPC
+
+	return nil
 }
 
 // scaffoldEntityLookup creates the entity lookup call structure
