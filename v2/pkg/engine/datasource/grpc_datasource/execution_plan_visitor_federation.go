@@ -321,6 +321,7 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 
 	rpcConfig, exists := r.mapping.ResolveEntityRPCConfig(fc.entityTypeName, fc.keyFields)
 	if !exists {
+		r.walker.StopWithInternalErr(fmt.Errorf("entity type %s not found in mapping", fc.entityTypeName))
 		return
 	}
 
