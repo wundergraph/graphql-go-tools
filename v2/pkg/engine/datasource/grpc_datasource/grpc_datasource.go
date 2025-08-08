@@ -92,8 +92,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return err
 	}
 
-	a := astjson.Arena{}
-
 	responses := make([]*astjson.Value, len(invocations))
 	errGrp, errGrpCtx := errgroup.WithContext(ctx)
 
@@ -101,6 +99,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	// make gRPC calls
 	for index, invocation := range invocations {
 		errGrp.Go(func() error {
+			a := astjson.Arena{}
 			// Invoke the gRPC method - this will populate invocation.Output
 			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
 
@@ -109,12 +108,15 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return err
 			}
 
+			mu.Lock()
+			defer mu.Unlock()
+
 			response, err := builder.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
 			if err != nil {
 				return err
 			}
 
-			d.synchronizedSetResponse(&mu, responses, index, response)
+			responses[index] = response
 			return nil
 		})
 	}
@@ -124,6 +126,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return nil
 	}
 
+	a := astjson.Arena{}
 	root := a.NewObject()
 	for _, response := range responses {
 		root, err = builder.mergeValues(root, response)
@@ -137,13 +140,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	out.Write(data.MarshalTo(nil))
 
 	return nil
-}
-
-func (d *DataSource) synchronizedSetResponse(mu *sync.Mutex, responses []*astjson.Value, index int, response *astjson.Value) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	responses[index] = response
 }
 
 // LoadWithFiles implements resolve.DataSource interface.
