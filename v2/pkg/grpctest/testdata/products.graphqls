@@ -393,5 +393,5 @@ type Mutation {
 
 
 
-union _Entity = Product | Storage | Warehouse
+union _Entity = Product | Storage
 scalar _Any
