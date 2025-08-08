@@ -105,6 +105,10 @@ func (r *RPCMessage) SelectValidTypes(typeName string) []string {
 }
 
 func (r *RPCMessage) AppendTypeNameField(typeName string) {
+	if r.Fields != nil && r.Fields.Exists("__typename", "") {
+		return
+	}
+
 	r.Fields = append(r.Fields, RPCField{
 		Name:        "__typename",
 		TypeName:    DataTypeString.String(),
