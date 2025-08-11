@@ -719,8 +719,8 @@ func (c *pathBuilderVisitor) isAllFieldDependenciesOnSameDataSource(fieldRef int
 
 func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion) (plannerIdx int, planned bool) {
 	for plannerIdx, plannerConfig := range c.planners {
-		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
+		planningBehaviour := dsConfiguration.PlanningBehavior()
 		currentPlannerDSHash := dsConfiguration.Hash()
 
 		hasSuggestion := suggestion != nil
@@ -1237,9 +1237,9 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 	c.removeArrayField(ref)
 }
 
-// addPlannerPathForTypename adds a path for the __typename field
-// adding __typename should be done only in case particular planner has parent path
-// otherwise it will be added to all planners and will cause visiting of incorrect selection sets
+// addPlannerPathForTypename adds a path for the __typename field.
+// It should be called only if a particular planner has the parentPath,
+// otherwise it will add to all planners and will cause visiting of incorrect selection sets.
 func (c *pathBuilderVisitor) addPlannerPathForTypename(
 	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string,
 	planningBehaviour DataSourcePlanningBehavior,

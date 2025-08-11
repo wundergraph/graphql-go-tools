@@ -64,7 +64,8 @@ type fieldSelectionRewriter struct {
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
 
-	skipFieldRefs []int
+	skipFieldRefs    []int
+	enforceRewriting bool
 }
 
 type RewriteResult struct {
@@ -74,11 +75,16 @@ type RewriteResult struct {
 
 var resultNotRewritten = RewriteResult{}
 
-func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document) *fieldSelectionRewriter {
-	return &fieldSelectionRewriter{
-		operation:  operation,
-		definition: definition,
+func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, upstreamDefinition *ast.Document, dsConfiguration DataSource) *fieldSelectionRewriter {
+	r := fieldSelectionRewriter{
+		operation:          operation,
+		definition:         definition,
+		upstreamDefinition: upstreamDefinition,
+		dsConfiguration:    dsConfiguration,
 	}
+	behavior := r.dsConfiguration.PlanningBehavior()
+	r.enforceRewriting = behavior.OperationEnforceRewritingFragmentSelections
+	return &r
 }
 
 func (r *fieldSelectionRewriter) SetUpstreamDefinition(upstreamDefinition *ast.Document) {
@@ -169,7 +175,7 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 }
 
 func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, unionTypeNames, entityNames []string) (needRewrite bool) {
-	if r.dsConfiguration.UpstreamKind() == "grpc" {
+	if r.enforceRewriting {
 		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
 			selectionSetInfo.hasInlineFragmentsOnUnions ||
 			selectionSetInfo.hasInlineFragmentsOnObjects {
@@ -353,7 +359,7 @@ func (r *fieldSelectionRewriter) rewriteObjectSelection(fieldRef int, fieldInfo 
 }
 
 func (r *fieldSelectionRewriter) objectFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, objectTypeName string) (needRewrite bool) {
-	if r.dsConfiguration.UpstreamKind() == "grpc" {
+	if r.enforceRewriting {
 		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
 			selectionSetInfo.hasInlineFragmentsOnUnions ||
 			selectionSetInfo.hasInlineFragmentsOnObjects {
@@ -426,7 +432,7 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 }
 
 func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
-	if r.dsConfiguration.UpstreamKind() == "grpc" {
+	if r.enforceRewriting {
 		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
 			selectionSetInfo.hasInlineFragmentsOnUnions ||
 			selectionSetInfo.hasInlineFragmentsOnObjects {

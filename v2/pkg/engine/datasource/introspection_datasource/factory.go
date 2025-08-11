@@ -30,8 +30,10 @@ func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Doc
 	return nil, false
 }
 
-const Kind = "introspection"
-
-func (f *Factory[T]) UpstreamKind() string {
-	return Kind
+func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
+	}
 }

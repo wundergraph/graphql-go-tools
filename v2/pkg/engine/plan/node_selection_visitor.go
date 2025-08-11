@@ -9,12 +9,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-// nodeSelectionVisitor - walks through the operation multiple times to rewrite operation
+// nodeSelectionVisitor walks through the operation multiple times to rewrite it
 // to be able to resolve fields from different datasources.
-// During walks, it is adding required fields and rewrites abstract selection if it is necessary.
-// We are revisiting query when we have:
-// - new required fields were added to operation
-// - when we have rewritten abstract field selection set
+// This visitor might add required fields and rewrite abstract selection if necessary.
+// This visitor will walk the operation again if it has:
+//   - added new required fields to the operation,
+//   - rewritten an abstract field selection set.
 type nodeSelectionVisitor struct {
 	debug DebugConfiguration
 
@@ -22,10 +22,10 @@ type nodeSelectionVisitor struct {
 	operation, definition *ast.Document // graphql operation and schema documents
 	walker                *astvisitor.Walker
 
-	dataSources     []DataSource     // data sources configurations, which used by the current operation
+	dataSources     []DataSource     // data sources configurations, used by the current operation
 	nodeSuggestions *NodeSuggestions // nodeSuggestions holds information about suggested data sources for each field
 
-	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add required fields
 	skipFieldsRefs   []int // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
@@ -649,9 +649,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	rewriter := newFieldSelectionRewriter(c.operation, c.definition)
-	rewriter.SetUpstreamDefinition(upstreamSchema)
-	rewriter.SetDatasourceConfiguration(ds)
+	rewriter := newFieldSelectionRewriter(c.operation, c.definition, upstreamSchema, ds)
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {

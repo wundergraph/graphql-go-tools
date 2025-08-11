@@ -26,10 +26,8 @@ func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Doc
 	return nil, false
 }
 
-const Kind = "static"
-
-func (f *Factory[T]) UpstreamKind() string {
-	return Kind
+func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{}
 }
 
 type Configuration struct {
@@ -53,14 +51,6 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 	// skip, not required
 	return
 }
-
-func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
-	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: false,
-	}
-}
-
 func (p *Planner[T]) Register(_ *plan.Visitor, configuration plan.DataSourceConfiguration[T], _ plan.DataSourcePlannerConfiguration) error {
 	p.config = Configuration(configuration.CustomConfiguration())
 	return nil

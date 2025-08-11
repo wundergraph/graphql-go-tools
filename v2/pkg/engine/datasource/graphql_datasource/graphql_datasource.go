@@ -269,14 +269,6 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 	return "", false
 }
 
-func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
-	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      true,
-		OverrideFieldPathFromAlias: true,
-		IncludeTypeNameFields:      true,
-	}
-}
-
 func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 
 	p.visitor = visitor
@@ -1825,13 +1817,16 @@ func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguratio
 	return schema, true
 }
 
-const Kind = "graphql"
-
-func (f *Factory[T]) UpstreamKind() string {
-	if f.grpcClient != nil {
-		return grpcdatasource.Kind
+func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
+	b := plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      true,
+		OverrideFieldPathFromAlias: true,
+		IncludeTypeNameFields:      true,
 	}
-	return Kind
+	if f.grpcClient != nil || f.grpcClientProvider != nil {
+		b.OperationEnforceRewritingFragmentSelections = true
+	}
+	return b
 }
 
 type Source struct {

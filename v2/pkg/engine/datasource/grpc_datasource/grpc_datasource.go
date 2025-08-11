@@ -25,8 +25,6 @@ import (
 // Verify DataSource implements the resolve.DataSource interface
 var _ resolve.DataSource = (*DataSource)(nil)
 
-const Kind = "grpc"
-
 // DataSource implements the resolve.DataSource interface for gRPC services.
 // It handles the conversion of GraphQL queries to gRPC requests and
 // transforms the responses back to GraphQL format.

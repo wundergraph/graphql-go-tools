@@ -993,7 +993,6 @@ func (s *StatefulSource) Start() {
 
 type FakeFactory[T any] struct {
 	upstreamSchema *ast.Document
-	upstreamKinder func() string
 	behavior       *DataSourcePlanningBehavior
 }
 
@@ -1001,8 +1000,11 @@ func (f *FakeFactory[T]) UpstreamSchema(_ DataSourceConfiguration[T]) (*ast.Docu
 	return f.upstreamSchema, true
 }
 
-func (f *FakeFactory[T]) UpstreamKind() string {
-	return f.upstreamKinder()
+func (f *FakeFactory[T]) PlanningBehavior() DataSourcePlanningBehavior {
+	if f.behavior == nil {
+		f.behavior = &DataSourcePlanningBehavior{}
+	}
+	return *f.behavior
 }
 
 func (f *FakeFactory[T]) Planner(_ abstractlogger.Logger) DataSourcePlanner[T] {

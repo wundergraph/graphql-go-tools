@@ -14,7 +14,7 @@ import (
 
 type DSHash uint64
 
-// PlannerFactory is the factory for the creation of the concrete DataSourcePlanner
+// PlannerFactory creates concrete DataSourcePlanner's.
 // For stateful datasources, the factory should contain execution context
 // Once the context gets canceled, all stateful DataSources must close their connections and cleanup themselves.
 type PlannerFactory[DataSourceSpecificConfiguration any] interface {
@@ -28,7 +28,7 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 	Context() context.Context
 
 	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
-	UpstreamKind() string
+	PlanningBehavior() DataSourcePlanningBehavior
 }
 
 type DataSourceMetadata struct {
@@ -251,16 +251,13 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
-type DataSourceUpstream interface {
-	UpstreamSchema() (*ast.Document, bool)
-	UpstreamKind() string
-}
-
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
-	DataSourceUpstream
+
+	UpstreamSchema() (*ast.Document, bool)
+	PlanningBehavior() DataSourcePlanningBehavior
 
 	Id() string
 	Name() string
@@ -295,8 +292,8 @@ func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
 	return d.factory.UpstreamSchema(d)
 }
 
-func (d *dataSourceConfiguration[T]) UpstreamKind() string {
-	return d.factory.UpstreamKind()
+func (d *dataSourceConfiguration[T]) PlanningBehavior() DataSourcePlanningBehavior {
+	return d.factory.PlanningBehavior()
 }
 
 func (d *dataSourceConfiguration[T]) Id() string {
@@ -375,18 +372,21 @@ func (d *DirectiveConfigurations) RenameTypeNameOnMatchBytes(directiveName []byt
 	return directiveName
 }
 
+// DataSourcePlanningBehavior is a way to configure planning per DataSource statically.
 type DataSourcePlanningBehavior struct {
-	// MergeAliasedRootNodes will reuse a data source for multiple root fields with aliases if true.
+	// MergeAliasedRootNodes set to true will reuse a data source for multiple root fields with aliases.
 	// Example:
 	//  {
 	//    rootField
 	//    alias: rootField
 	//  }
-	// On dynamic data sources (e.g. GraphQL, SQL, ...) this should return true and for
-	// static data sources (e.g. REST, static, GRPC...) it should be false.
+	// On dynamic data sources (GraphQL, SQL) this should be set to true,
+	// and for static data sources (REST, static, GRPC) it should be false.
 	MergeAliasedRootNodes bool
-	// OverrideFieldPathFromAlias will let the planner know if the response path should also be aliased (= true)
-	// or not (= false)
+
+	// OverrideFieldPathFromAlias set to true will let the planner know
+	// if the response path should also be aliased.
+	//
 	// Example:
 	//  {
 	//    rootField
@@ -395,8 +395,13 @@ type DataSourcePlanningBehavior struct {
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
-	// IncludeTypeNameFields should be set to true if the planner allows to plan __typename fields
+
+	// IncludeTypeNameFields set to true will require the planner to plan __typename fields.
 	IncludeTypeNameFields bool
+
+	// If true then planner will rewrite the operation
+	// to flatten inline fragments to only the concrete types.
+	OperationEnforceRewritingFragmentSelections bool
 }
 
 type DataSourceFetchPlanner interface {
@@ -405,13 +410,13 @@ type DataSourceFetchPlanner interface {
 }
 
 type DataSourceBehavior interface {
-	DataSourcePlanningBehavior() DataSourcePlanningBehavior
-	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias
-	// It's required to set OverrideFieldPathFromAlias to true
-	// This function is useful in the following scenario
-	// 1. The downstream Query doesn't contain an alias
-	// 2. The path configuration rewrites the field to an existing field
-	// 3. The DataSourcePlanner is using an alias to the upstream
+	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias.
+	// It requires DataSourcePlanningBehavior.OverrideFieldPathFromAlias to be set to true.
+	// This function is useful in the following scenarios:
+	// 1. The downstream Query doesn't contain an alias,
+	// 2. The path configuration rewrites the field to an existing field,
+	// 3. The DataSourcePlanner using an alias to the upstream.
+	//
 	// Example:
 	//
 	// type Query {

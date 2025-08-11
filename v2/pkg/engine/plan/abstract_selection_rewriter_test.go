@@ -48,17 +48,15 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		}
 		require.NotEqual(t, ast.InvalidRef, fieldRef)
 
-		// Schema is working here, but it parses just the schema without merging with the base,
-		// as we do for the upstreamDef.
+		// Schema parses just the schema without merging with the base schema.
+		// In fact, rewriter does not use def from the FakeFactory.
 		ds := testCase.dsBuilder.
-			Schema(testCase.definition).
+			Schema(testCase.upstreamDefinition).
 			DS()
 
 		node, _ := def.Index.FirstNodeByNameStr(testCase.enclosingTypeName)
 
-		rewriter := newFieldSelectionRewriter(&op, &def)
-		rewriter.SetUpstreamDefinition(&upstreamDef)
-		rewriter.SetDatasourceConfiguration(ds)
+		rewriter := newFieldSelectionRewriter(&op, &def, &upstreamDef, ds)
 
 		result, err := rewriter.RewriteFieldSelection(fieldRef, node)
 		require.NoError(t, err)
@@ -203,7 +201,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 
 		type User implements Named & Numbered {
 			id: ID
-			named: String
+			name: String
 			number: Int
 		}`
 
@@ -214,7 +212,9 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
 			dsBuilder: dsb().
-				UpstreamKind("grpc").
+				WithBehavior(DataSourcePlanningBehavior{
+					OperationEnforceRewritingFragmentSelections: true,
+				}).
 				RootNode("Query", "named", "union").
 				RootNode("User", "id", "name", "number").
 				ChildNode("Named", "name").
@@ -255,7 +255,9 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
 			dsBuilder: dsb().
-				UpstreamKind("grpc").
+				WithBehavior(DataSourcePlanningBehavior{
+					OperationEnforceRewritingFragmentSelections: true,
+				}).
 				RootNode("Query", "named", "union").
 				RootNode("User", "id", "name", "number").
 				ChildNode("Named", "name").
