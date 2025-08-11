@@ -12,13 +12,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
-type Configuration struct {
-	Data string `json:"data"`
-}
-
 type Factory[T Configuration] struct{}
 
-func (f *Factory[T]) Planner(logger abstractlogger.Logger) plan.DataSourcePlanner[T] {
+func (f *Factory[T]) Planner(_ abstractlogger.Logger) plan.DataSourcePlanner[T] {
 	return &Planner[T]{}
 }
 
@@ -26,8 +22,18 @@ func (f *Factory[T]) Context() context.Context {
 	return context.TODO()
 }
 
-func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
 	return nil, false
+}
+
+const Kind = "static"
+
+func (f *Factory[T]) UpstreamKind() string {
+	return Kind
+}
+
+type Configuration struct {
+	Data string `json:"data"`
 }
 
 type Planner[T Configuration] struct {

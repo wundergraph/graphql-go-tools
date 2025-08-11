@@ -15,8 +15,8 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 	type testCase struct {
 		name               string
 		definition         string
-		upstreamDefinition string
-		dsConfiguration    DataSource
+		upstreamDefinition string // will be used by dsBuilder for dataSourceConfiguration.factory
+		dsBuilder          *dsBuilder
 		operation          string
 		expectedOperation  string
 		enclosingTypeName  string // default is "Query"
@@ -46,12 +46,19 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				break
 			}
 		}
+		require.NotEqual(t, ast.InvalidRef, fieldRef)
+
+		// Schema is working here, but it parses just the schema without merging with the base,
+		// as we do for the upstreamDef.
+		ds := testCase.dsBuilder.
+			Schema(testCase.definition).
+			DS()
 
 		node, _ := def.Index.FirstNodeByNameStr(testCase.enclosingTypeName)
 
 		rewriter := newFieldSelectionRewriter(&op, &def)
 		rewriter.SetUpstreamDefinition(&upstreamDef)
-		rewriter.SetDatasourceConfiguration(testCase.dsConfiguration)
+		rewriter.SetDatasourceConfiguration(ds)
 
 		result, err := rewriter.RewriteFieldSelection(fieldRef, node)
 		require.NoError(t, err)
@@ -176,10 +183,113 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				TypeName:     "B",
 				SelectionSet: "id",
 			},
-		}).
-		DS()
+		})
+
+	definitionB := `
+		type Query {
+			named: Named
+			union: U
+		}
+
+		union U = User
+
+		interface Named {
+			name: String
+		}
+
+		interface Numbered {
+			number: Int
+		}
+
+		type User implements Named & Numbered {
+			id: ID
+			named: String
+			number: Int
+		}`
 
 	testCases := []testCase{
+		{
+			name:               "should flatten interfaces for grpc",
+			fieldName:          "named",
+			definition:         definitionB,
+			upstreamDefinition: definitionB,
+			dsBuilder: dsb().
+				UpstreamKind("grpc").
+				RootNode("Query", "named", "union").
+				RootNode("User", "id", "name", "number").
+				ChildNode("Named", "name").
+				ChildNode("Numbered", "number").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}),
+			operation: `
+				query {
+					named {
+						... on Numbered {
+							... on User {
+								name
+							}
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					named {
+						... on User {
+							id
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "should flatten union for grpc",
+			fieldName:          "union",
+			definition:         definitionB,
+			upstreamDefinition: definitionB,
+			dsBuilder: dsb().
+				UpstreamKind("grpc").
+				RootNode("Query", "named", "union").
+				RootNode("User", "id", "name", "number").
+				ChildNode("Named", "name").
+				ChildNode("Numbered", "number").
+				KeysMetadata(FederationFieldConfigurations{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+				}),
+			operation: `
+				query {
+					union {
+						... on Numbered {
+							... on User {
+								name
+							}
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					union {
+						... on User {
+							id
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
 		{
 			name:       "one field is external. query without fragments",
 			definition: definition,
@@ -204,7 +314,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -217,8 +327,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -287,7 +396,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -300,8 +409,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -371,7 +479,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -384,8 +492,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -459,7 +566,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -472,8 +579,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -547,7 +653,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -565,8 +671,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Moderator",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -621,7 +726,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -634,8 +739,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -664,7 +768,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "no shared fields. query has user fragment",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -677,8 +781,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -702,7 +805,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "only __typename as a shared field. query has user fragment",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -715,8 +818,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -761,7 +863,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "isUser").
 				RootNode("Admin", "id").
@@ -774,8 +876,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -827,7 +928,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "isUser").
 				RootNode("Admin", "id").
@@ -840,8 +941,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -894,7 +994,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -907,8 +1007,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					accounts {
@@ -955,7 +1054,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -968,8 +1067,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					accounts {
@@ -1020,7 +1118,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					iface: Node!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "isUser").
 				RootNode("Admin", "id").
@@ -1033,8 +1131,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1067,7 +1164,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "one field is external. query has admin and user fragment, all fragments has shared field",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "isUser").
 				RootNode("Admin", "id").
@@ -1080,8 +1177,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1116,7 +1212,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "all fields local. query without fragments",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name").
 				RootNode("Admin", "id", "name").
@@ -1129,8 +1225,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1150,7 +1245,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "all fields local but one of the fields has requires directive. query without fragments",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name").
 				RootNode("Admin", "id", "name").
@@ -1172,8 +1267,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 							SelectionSet: "any",
 						},
 					}
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1204,7 +1298,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "all fields local. query has user fragment",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id", "name").
@@ -1217,8 +1311,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1244,11 +1337,10 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "all fields local. query with user fragment. types are not entities",
 			definition:         definition,
 			upstreamDefinition: definition,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				ChildNode("User", "id", "name", "isUser").
-				ChildNode("Admin", "id", "name").
-				DS(),
+				ChildNode("Admin", "id", "name"),
 			operation: `
 				query {
 					iface {
@@ -1306,7 +1398,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					iface: Node!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id", "name").
@@ -1319,8 +1411,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1357,7 +1448,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					iface: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				ChildNode("User", "id", "name", "isUser").
 				KeysMetadata(FederationFieldConfigurations{
@@ -1365,8 +1456,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "User",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -1441,7 +1531,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					container: ContainerInterface!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "container").
 				ChildNode("Container", "iface").
 				ChildNode("ContainerInterface", "iface").
@@ -1456,8 +1546,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					container {
@@ -1536,7 +1625,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					container: ContainerInterface!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "container").
 				ChildNode("Container", "node").
 				ChildNode("ContainerInterface", "node").
@@ -1551,8 +1640,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					container {
@@ -1609,7 +1697,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id", "name").
@@ -1628,8 +1716,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Moderator",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1683,7 +1770,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id", "name").
@@ -1711,8 +1798,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 							SelectionSet: "importantNote",
 						},
 					}
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1774,7 +1860,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -1793,8 +1879,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Moderator",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1851,7 +1936,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -1865,8 +1950,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1920,7 +2004,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -1934,8 +2018,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -1993,7 +2076,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -2007,8 +2090,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -2072,7 +2154,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Moderator", "id", "name", "isModerator").
@@ -2087,8 +2169,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -2145,7 +2226,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					accounts: [Account!]!
 				}
 			`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface", "accounts").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -2159,8 +2240,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "accounts",
 			operation: `
 				query {
@@ -2218,7 +2298,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					iface: HasName!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -2232,8 +2312,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -2311,7 +2390,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					returnsUnion: Account!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -2325,8 +2404,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					returnsUnion {
@@ -2398,7 +2476,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					returnsUnion: Account!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "returnsUnion").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -2411,8 +2489,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					returnsUnion {
@@ -2480,7 +2557,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					returnsUnion: Account!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "returnsUnion").
 				RootNode("User", "id", "name", "isUser").
 				RootNode("Admin", "id").
@@ -2494,8 +2571,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					returnsUnion {
@@ -2567,7 +2643,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					iface: HasName!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "title").
 				RootNode("Admin", "id", "name", "title").
@@ -2582,8 +2658,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -2613,7 +2688,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: false,
 		},
 		{
-			name: "everything is local, nested interface selections with typename, first interface is differs from field return type",
+			name: "everything is local, nested interface selections with typename, first interface differs from field return type",
 			definition: `
 				interface HasName {
 					name: String!
@@ -2662,7 +2737,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					iface: HasName!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name", "title").
 				RootNode("Admin", "id", "name", "title").
@@ -2677,8 +2752,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -2736,7 +2810,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					returnsUser: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "returnsUser").
 				RootNode("User", "id", "name").
 				KeysMetadata(FederationFieldConfigurations{
@@ -2744,8 +2818,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "User",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					returnsUser {
@@ -2801,7 +2874,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					iface: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name").
 				ChildNode("Account", "id").
@@ -2810,8 +2883,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "User",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -2871,7 +2943,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type QueryType {
 					iface: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "iface").
 				RootNode("User", "id", "name").
 				ChildNode("Account", "id").
@@ -2880,8 +2952,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "User",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			operation: `
 				query {
 					iface {
@@ -2907,7 +2978,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is union - union fragment wrapped into concrete type fragment with different from wrapping type fragments",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -2940,7 +3011,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is union - union fragment wrapped into concrete type fragment with matching to wrapping type fragment",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -2970,7 +3041,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is union - select not existing in the current subgraph type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -2999,7 +3070,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is interface - select not existing in the current subgraph type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3028,7 +3099,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - interface fragment inside concrete type fragment with matching type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3056,7 +3127,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - interface fragment inside concrete type fragment with not matching type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3082,7 +3153,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - interface fragment inside concrete type fragment select shared field",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3108,7 +3179,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - multiple level of nesting interface and union fragments with concrete types on different levels",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3146,7 +3217,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a interface - union fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3178,7 +3249,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a interface - interface fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3210,7 +3281,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a union - union fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -3245,7 +3316,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a union - interface fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsConfiguration:    dsConfigurationA,
+			dsBuilder:          dsConfigurationA,
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -3309,7 +3380,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					user: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "user").
 				RootNode("User", "id").
 				ChildNode("Account", "id").
@@ -3322,8 +3393,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "user",
 			operation: `
 				query {
@@ -3388,7 +3458,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					user: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "user").
 				RootNode("User", "id").
 				ChildNode("Account", "id").
@@ -3401,8 +3471,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "user",
 			operation: `
 				query {
@@ -3489,7 +3558,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					user: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "user").
 				RootNode("User", "id").
 				ChildNode("Account", "id").
@@ -3502,8 +3571,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						TypeName:     "Admin",
 						SelectionSet: "id",
 					},
-				}).
-				DS(),
+				}),
 			fieldName: "user",
 			operation: `
 				query {
@@ -3598,12 +3666,11 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					user: User!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Query", "user").
 				ChildNode("User", "id", "name", "surname").
 				ChildNode("Admin", "id", "name", "login").
-				ChildNode("Account", "id").
-				DS(),
+				ChildNode("Account", "id"),
 			fieldName: "user",
 			operation: `
 				query {
@@ -3695,7 +3762,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					id: ID!
 					title: String!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Account", "id", "title").
 				WithMetadata(func(m *FederationMetaData) {
 					m.InterfaceObjects = []EntityInterfaceConfiguration{
@@ -3704,8 +3771,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 							ConcreteTypeNames: []string{"Admin", "User"},
 						},
 					}
-				}).
-				DS(),
+				}),
 			fieldName: "name",
 			operation: `
 				query {
@@ -3774,7 +3840,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 				type Query {
 					user: Named!
 				}`,
-			dsConfiguration: dsb().
+			dsBuilder: dsb().
 				RootNode("Account", "id", "title").
 				RootNode("User", "id", "name", "surname").
 				WithMetadata(func(m *FederationMetaData) {
@@ -3784,8 +3850,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 							ConcreteTypeNames: []string{"Admin", "User"},
 						},
 					}
-				}).
-				DS(),
+				}),
 			fieldName: "user",
 			operation: `
 				query {

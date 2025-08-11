@@ -312,8 +312,14 @@ func (f *Factory[T]) Context() context.Context {
 	return f.executionContext
 }
 
-func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
 	return nil, false
+}
+
+const Kind = "pubsub"
+
+func (f *Factory[T]) UpstreamKind() string {
+	return Kind
 }
 
 func buildEventDataBytes(ref int, visitor *plan.Visitor, variables *resolve.Variables) ([]byte, error) {

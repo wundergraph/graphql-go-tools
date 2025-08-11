@@ -169,6 +169,13 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 }
 
 func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, unionTypeNames, entityNames []string) (needRewrite bool) {
+	if r.dsConfiguration.UpstreamKind() == "grpc" {
+		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
+			selectionSetInfo.hasInlineFragmentsOnUnions ||
+			selectionSetInfo.hasInlineFragmentsOnObjects {
+			return true
+		}
+	}
 	if selectionSetInfo.hasInlineFragmentsOnObjects {
 		// when we have types not exists in the current datasource - we need to rewrite
 		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, unionTypeNames) {
@@ -346,6 +353,13 @@ func (r *fieldSelectionRewriter) rewriteObjectSelection(fieldRef int, fieldInfo 
 }
 
 func (r *fieldSelectionRewriter) objectFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, objectTypeName string) (needRewrite bool) {
+	if r.dsConfiguration.UpstreamKind() == "grpc" {
+		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
+			selectionSetInfo.hasInlineFragmentsOnUnions ||
+			selectionSetInfo.hasInlineFragmentsOnObjects {
+			return true
+		}
+	}
 	if selectionSetInfo.hasInlineFragmentsOnObjects {
 		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, []string{objectTypeName}) {
 			return true
@@ -412,6 +426,14 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 }
 
 func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
+	if r.dsConfiguration.UpstreamKind() == "grpc" {
+		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
+			selectionSetInfo.hasInlineFragmentsOnUnions ||
+			selectionSetInfo.hasInlineFragmentsOnObjects {
+			return true
+		}
+	}
+
 	// when we do not have fragments
 	if !selectionSetInfo.hasInlineFragmentsOnInterfaces &&
 		!selectionSetInfo.hasInlineFragmentsOnUnions &&
@@ -436,9 +458,10 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 			return true
 		}
 
-		// in case it is an interface object, and we have fragments on concrete types - we have to add shared __typename selection
-		// it will mean that we will rewrite a query to separate concrete type fragments, but due to nature of the interface object
-		// they eventually will be flattened by datasource into a single fragment or just a flatten query.
+		// In case it is an interface object, and we have fragments on concrete types - we have to add shared __typename selection.
+		// It will mean that we will rewrite a query to separate concrete type fragments,
+		// but due to the nature of the interface object, they eventually will be flattened by datasource
+		// into a single fragment or just a flattened query.
 		// So it should be safe to rewrite a field.
 		if selectionSetInfo.isInterfaceObject {
 			return !selectionSetInfo.hasTypeNameSelection

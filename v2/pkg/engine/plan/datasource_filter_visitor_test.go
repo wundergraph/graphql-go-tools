@@ -16,12 +16,16 @@ import (
 )
 
 type dsBuilder struct {
-	ds       *dataSourceConfiguration[any]
-	behavior *DataSourcePlanningBehavior
+	ds             *dataSourceConfiguration[any]
+	behavior       *DataSourcePlanningBehavior
+	upstreamKinder func() string
 }
 
 func dsb() *dsBuilder {
-	return &dsBuilder{ds: &dataSourceConfiguration[any]{DataSourceMetadata: &DataSourceMetadata{}}}
+	return &dsBuilder{
+		ds:             &dataSourceConfiguration[any]{DataSourceMetadata: &DataSourceMetadata{}},
+		upstreamKinder: func() string { return "fake" },
+	}
 }
 
 func (b *dsBuilder) RootNode(typeName string, fieldNames ...string) *dsBuilder {
@@ -58,9 +62,14 @@ func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
 	b.ds.factory = &FakeFactory[any]{
 		upstreamSchema: &def,
+		upstreamKinder: b.upstreamKinder,
 		behavior:       b.behavior,
 	}
+	return b
+}
 
+func (b *dsBuilder) UpstreamKind(kind string) *dsBuilder {
+	b.upstreamKinder = func() string { return kind }
 	return b
 }
 
@@ -83,7 +92,6 @@ func (b *dsBuilder) Id(id string) *dsBuilder {
 	b.ds.id = id
 	return b
 }
-
 func (b *dsBuilder) DS() DataSource {
 	if err := b.ds.DataSourceMetadata.Init(); err != nil {
 		panic(err)

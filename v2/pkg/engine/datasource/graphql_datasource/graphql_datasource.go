@@ -1825,6 +1825,15 @@ func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguratio
 	return schema, true
 }
 
+const Kind = "graphql"
+
+func (f *Factory[T]) UpstreamKind() string {
+	if f.grpcClient != nil {
+		return grpcdatasource.Kind
+	}
+	return Kind
+}
+
 type Source struct {
 	httpClient *http.Client
 }

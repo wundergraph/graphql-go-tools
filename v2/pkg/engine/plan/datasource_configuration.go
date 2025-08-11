@@ -16,31 +16,37 @@ type DSHash uint64
 
 // PlannerFactory is the factory for the creation of the concrete DataSourcePlanner
 // For stateful datasources, the factory should contain execution context
-// Once the context gets cancelled, all stateful DataSources must close their connections and cleanup themselves.
+// Once the context gets canceled, all stateful DataSources must close their connections and cleanup themselves.
 type PlannerFactory[DataSourceSpecificConfiguration any] interface {
+
 	// Planner creates a new DataSourcePlanner
 	Planner(logger abstractlogger.Logger) DataSourcePlanner[DataSourceSpecificConfiguration]
+
 	// Context returns the execution context of the factory
 	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
+
 	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
+	UpstreamKind() string
 }
 
 type DataSourceMetadata struct {
-	// FederationMetaData - describes the behavior of the DataSource in the context of the Federation
+	// FederationMetaData describes the behavior of the DataSource in the context of the Federation.
 	FederationMetaData
 
-	// RootNodes - defines the nodes where the responsibility of the DataSource begins
-	// RootNode is a node from which you could start a query or a subquery
-	// Note: for federation root nodes are root query type fields, entity type fields, and entity object fields
+	// RootNodes defines the nodes where the responsibility of the DataSource begins.
+	// RootNode is a node from which you could start a query or a subquery.
+	// Note: for federation root nodes are root query type fields, entity type fields, and entity object fields.
 	RootNodes TypeFields
-	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
-	// They are always required for the Graphql datasources cause each field could have its own datasource
-	// For any flat datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
-	// Note: for federation child nodes are non-entity type fields and interface type fields
-	// Note: Unions are not present in the child or root nodes
+
+	// ChildNodes describes additional fields which will be requested along with fields that the datasource has.
+	// They are always required for the Graphql datasources because each field could have its own datasource.
+	// For a flat datasource (HTTP/REST or GRPC) we could not request fewer fields, as we always get a full response.
+	// Note: for federation child nodes are non-entity type fields and interface type fields.
+	// Note: Unions are not present in the child or root nodes.
 	ChildNodes TypeFields
+
 	Directives *DirectiveConfigurations
 
 	rootNodesIndex  map[string]fieldsIndex
@@ -245,15 +251,17 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
-type DataSourceUpstreamSchema interface {
+type DataSourceUpstream interface {
 	UpstreamSchema() (*ast.Document, bool)
+	UpstreamKind() string
 }
 
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
-	DataSourceUpstreamSchema
+	DataSourceUpstream
+
 	Id() string
 	Name() string
 	Hash() DSHash
@@ -285,6 +293,10 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 
 func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
 	return d.factory.UpstreamSchema(d)
+}
+
+func (d *dataSourceConfiguration[T]) UpstreamKind() string {
+	return d.factory.UpstreamKind()
 }
 
 func (d *dataSourceConfiguration[T]) Id() string {

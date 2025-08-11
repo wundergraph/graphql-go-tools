@@ -26,6 +26,12 @@ func (f *Factory[T]) Context() context.Context {
 	return context.TODO()
 }
 
-func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
 	return nil, false
+}
+
+const Kind = "introspection"
+
+func (f *Factory[T]) UpstreamKind() string {
+	return Kind
 }
