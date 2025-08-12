@@ -1821,10 +1821,8 @@ func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 	b := plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      true,
 		OverrideFieldPathFromAlias: true,
-		IncludeTypeNameFields:      true,
-	}
-	if f.grpcClient != nil || f.grpcClientProvider != nil {
-		b.OperationEnforceRewritingFragmentSelections = true
+		AllowToPlanTypeNameFields:  true,
+		AlwaysFlattenFragments:     f.grpcClient != nil || f.grpcClientProvider != nil,
 	}
 	return b
 }

@@ -72,6 +72,15 @@ func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	return b
 }
 
+func (b *dsBuilder) SchemaMergedWithBase(schema string) *dsBuilder {
+	def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+	b.ds.factory = &FakeFactory[any]{
+		upstreamSchema: &def,
+		behavior:       b.behavior,
+	}
+	return b
+}
+
 func (b *dsBuilder) KeysMetadata(keys FederationFieldConfigurations) *dsBuilder {
 	b.ds.FederationMetaData.Keys = keys
 	return b

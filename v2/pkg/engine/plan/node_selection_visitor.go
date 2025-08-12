@@ -644,12 +644,12 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	}
 	c.visitedFieldsAbstractChecks[fieldRef] = struct{}{}
 
-	upstreamSchema, ok := ds.UpstreamSchema()
+	_, ok := ds.UpstreamSchema()
 	if !ok {
 		return
 	}
 
-	rewriter := newFieldSelectionRewriter(c.operation, c.definition, upstreamSchema, ds)
+	rewriter := newFieldSelectionRewriter(c.operation, c.definition, ds)
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {

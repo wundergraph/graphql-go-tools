@@ -30,8 +30,6 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		op := unsafeparser.ParseGraphqlDocumentString(testCase.operation)
 		def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(testCase.definition)
 
-		upstreamDef := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(testCase.upstreamDefinition)
-
 		if testCase.fieldName == "" {
 			testCase.fieldName = "iface"
 		}
@@ -48,15 +46,13 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 		}
 		require.NotEqual(t, ast.InvalidRef, fieldRef)
 
-		// Schema parses just the schema without merging with the base schema.
-		// In fact, rewriter does not use def from the FakeFactory.
 		ds := testCase.dsBuilder.
-			Schema(testCase.upstreamDefinition).
+			SchemaMergedWithBase(testCase.upstreamDefinition).
 			DS()
 
 		node, _ := def.Index.FirstNodeByNameStr(testCase.enclosingTypeName)
 
-		rewriter := newFieldSelectionRewriter(&op, &def, &upstreamDef, ds)
+		rewriter := newFieldSelectionRewriter(&op, &def, ds)
 
 		result, err := rewriter.RewriteFieldSelection(fieldRef, node)
 		require.NoError(t, err)
@@ -213,7 +209,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			upstreamDefinition: definitionB,
 			dsBuilder: dsb().
 				WithBehavior(DataSourcePlanningBehavior{
-					OperationEnforceRewritingFragmentSelections: true,
+					AlwaysFlattenFragments: true,
 				}).
 				RootNode("Query", "named", "union").
 				RootNode("User", "id", "name", "number").
@@ -256,7 +252,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			upstreamDefinition: definitionB,
 			dsBuilder: dsb().
 				WithBehavior(DataSourcePlanningBehavior{
-					OperationEnforceRewritingFragmentSelections: true,
+					AlwaysFlattenFragments: true,
 				}).
 				RootNode("Query", "named", "union").
 				RootNode("User", "id", "name", "number").

@@ -1238,16 +1238,16 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 }
 
 // addPlannerPathForTypename adds a path for the __typename field.
-// It should be called only if a particular planner has the parentPath,
-// otherwise it will add to all planners and will cause visiting of incorrect selection sets.
 func (c *pathBuilderVisitor) addPlannerPathForTypename(
 	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string,
 	planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
+	// Adding __typename should happen only if particular planner has parent path,
+	// otherwise it will be added to all planners and will cause visiting of incorrect selection sets.
 	if fieldName != typeNameField {
 		return false
 	}
-	if !planningBehaviour.IncludeTypeNameFields {
+	if !planningBehaviour.AllowToPlanTypeNameFields {
 		return false
 	}
 

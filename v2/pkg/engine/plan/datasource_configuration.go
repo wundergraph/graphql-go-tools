@@ -32,19 +32,21 @@ type PlannerFactory[DataSourceSpecificConfiguration any] interface {
 }
 
 type DataSourceMetadata struct {
-	// FederationMetaData describes the behavior of the DataSource in the context of the Federation.
+	// FederationMetaData has federation-specific configuration for entity interfaces and
+	// the @key, @requires, @provides directives.
 	FederationMetaData
 
 	// RootNodes defines the nodes where the responsibility of the DataSource begins.
 	// RootNode is a node from which you could start a query or a subquery.
-	// Note: for federation root nodes are root query type fields, entity type fields, and entity object fields.
+	// For a federation, RootNodes contain root query type fields, entity type fields,
+	// and entity object fields.
 	RootNodes TypeFields
 
-	// ChildNodes describes additional fields which will be requested along with fields that the datasource has.
-	// They are always required for the Graphql datasources because each field could have its own datasource.
-	// For a flat datasource (HTTP/REST or GRPC) we could not request fewer fields, as we always get a full response.
-	// Note: for federation child nodes are non-entity type fields and interface type fields.
-	// Note: Unions are not present in the child or root nodes.
+	// ChildNodes describes additional fields, which are requested along with fields that the datasource has.
+	// They're always required for the Graphql datasources because each field could have its own datasource.
+	// For a flat datasource (HTTP/REST or GRPC) we couldn't request fewer fields, as we always get a full response.
+	// For a federation, ChildNodes contain non-entity type fields and interface type fields.
+	// Unions shouldn't be present in the child or root nodes.
 	ChildNodes TypeFields
 
 	Directives *DirectiveConfigurations
@@ -372,7 +374,7 @@ func (d *DirectiveConfigurations) RenameTypeNameOnMatchBytes(directiveName []byt
 	return directiveName
 }
 
-// DataSourcePlanningBehavior is a way to configure planning per DataSource statically.
+// DataSourcePlanningBehavior contains DataSource-specific planning flags.
 type DataSourcePlanningBehavior struct {
 	// MergeAliasedRootNodes set to true will reuse a data source for multiple root fields with aliases.
 	// Example:
@@ -396,12 +398,12 @@ type DataSourcePlanningBehavior struct {
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
 
-	// IncludeTypeNameFields set to true will require the planner to plan __typename fields.
-	IncludeTypeNameFields bool
+	// AllowToPlanTypeNameFields set to true will allow the planner to plan __typename fields.
+	AllowToPlanTypeNameFields bool
 
 	// If true then planner will rewrite the operation
 	// to flatten inline fragments to only the concrete types.
-	OperationEnforceRewritingFragmentSelections bool
+	AlwaysFlattenFragments bool
 }
 
 type DataSourceFetchPlanner interface {

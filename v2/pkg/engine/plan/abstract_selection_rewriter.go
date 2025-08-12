@@ -64,8 +64,8 @@ type fieldSelectionRewriter struct {
 	upstreamDefinition *ast.Document
 	dsConfiguration    DataSource
 
-	skipFieldRefs    []int
-	enforceRewriting bool
+	skipFieldRefs []int
+	alwaysRewrite bool
 }
 
 type RewriteResult struct {
@@ -75,24 +75,18 @@ type RewriteResult struct {
 
 var resultNotRewritten = RewriteResult{}
 
-func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, upstreamDefinition *ast.Document, dsConfiguration DataSource) *fieldSelectionRewriter {
-	r := fieldSelectionRewriter{
+func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, dsConfiguration DataSource) *fieldSelectionRewriter {
+	upstreamDefinition, ok := dsConfiguration.UpstreamSchema()
+	if !ok {
+		panic("upstream schema is not defined")
+	}
+	return &fieldSelectionRewriter{
 		operation:          operation,
 		definition:         definition,
 		upstreamDefinition: upstreamDefinition,
 		dsConfiguration:    dsConfiguration,
+		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments,
 	}
-	behavior := r.dsConfiguration.PlanningBehavior()
-	r.enforceRewriting = behavior.OperationEnforceRewritingFragmentSelections
-	return &r
-}
-
-func (r *fieldSelectionRewriter) SetUpstreamDefinition(upstreamDefinition *ast.Document) {
-	r.upstreamDefinition = upstreamDefinition
-}
-
-func (r *fieldSelectionRewriter) SetDatasourceConfiguration(dsConfiguration DataSource) {
-	r.dsConfiguration = dsConfiguration
 }
 
 func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (res RewriteResult, err error) {
@@ -174,13 +168,16 @@ func (r *fieldSelectionRewriter) processUnionSelection(fieldRef int, unionDefRef
 	}, nil
 }
 
+func (r *fieldSelectionRewriter) mustRewrite(s selectionSetInfo) bool {
+	return r.alwaysRewrite &&
+		(s.hasInlineFragmentsOnInterfaces ||
+			s.hasInlineFragmentsOnUnions ||
+			s.hasInlineFragmentsOnObjects)
+}
+
 func (r *fieldSelectionRewriter) unionFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, unionTypeNames, entityNames []string) (needRewrite bool) {
-	if r.enforceRewriting {
-		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
-			selectionSetInfo.hasInlineFragmentsOnUnions ||
-			selectionSetInfo.hasInlineFragmentsOnObjects {
-			return true
-		}
+	if r.mustRewrite(selectionSetInfo) {
+		return true
 	}
 	if selectionSetInfo.hasInlineFragmentsOnObjects {
 		// when we have types not exists in the current datasource - we need to rewrite
@@ -359,12 +356,8 @@ func (r *fieldSelectionRewriter) rewriteObjectSelection(fieldRef int, fieldInfo 
 }
 
 func (r *fieldSelectionRewriter) objectFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, objectTypeName string) (needRewrite bool) {
-	if r.enforceRewriting {
-		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
-			selectionSetInfo.hasInlineFragmentsOnUnions ||
-			selectionSetInfo.hasInlineFragmentsOnObjects {
-			return true
-		}
+	if r.mustRewrite(selectionSetInfo) {
+		return true
 	}
 	if selectionSetInfo.hasInlineFragmentsOnObjects {
 		if r.objectFragmentsRequiresCleanup(selectionSetInfo.inlineFragmentsOnObjects, []string{objectTypeName}) {
@@ -432,12 +425,8 @@ func (r *fieldSelectionRewriter) processInterfaceSelection(fieldRef int, interfa
 }
 
 func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSetInfo selectionSetInfo, interfaceTypeNames []string, entityNames []string) (needRewrite bool) {
-	if r.enforceRewriting {
-		if selectionSetInfo.hasInlineFragmentsOnInterfaces ||
-			selectionSetInfo.hasInlineFragmentsOnUnions ||
-			selectionSetInfo.hasInlineFragmentsOnObjects {
-			return true
-		}
+	if r.mustRewrite(selectionSetInfo) {
+		return true
 	}
 
 	// when we do not have fragments
