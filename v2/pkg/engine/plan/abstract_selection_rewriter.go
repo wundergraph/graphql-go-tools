@@ -13,9 +13,11 @@ import (
 )
 
 var (
-	FieldDoesntHaveSelectionSetErr          = errors.New("unexpected error: field does not have a selection set")
-	InlineFragmentDoesntHaveSelectionSetErr = errors.New("unexpected error: inline fragment does not have a selection set")
-	InlineFragmentTypeIsNotExistsErr        = errors.New("unexpected error: inline fragment type condition does not exists")
+	ErrFieldDoesntHaveSelectionSet          = errors.New("unexpected error: field does not have a selection set")
+	ErrInlineFragmentDoesntHaveSelectionSet = errors.New("unexpected error: inline fragment does not have a selection set")
+	ErrInlineFragmentTypeIsNotExists        = errors.New("unexpected error: inline fragment type condition does not exists")
+
+	ErrNoUpstreamSchema = errors.New("unexpected error: upstream schema is not defined in DataSource")
 )
 
 /*
@@ -75,10 +77,10 @@ type RewriteResult struct {
 
 var resultNotRewritten = RewriteResult{}
 
-func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, dsConfiguration DataSource) *fieldSelectionRewriter {
+func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, dsConfiguration DataSource) (*fieldSelectionRewriter, error) {
 	upstreamDefinition, ok := dsConfiguration.UpstreamSchema()
 	if !ok {
-		panic("upstream schema is not defined")
+		return nil, ErrNoUpstreamSchema
 	}
 	return &fieldSelectionRewriter{
 		operation:          operation,
@@ -86,7 +88,7 @@ func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document
 		upstreamDefinition: upstreamDefinition,
 		dsConfiguration:    dsConfiguration,
 		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments,
-	}
+	}, nil
 }
 
 func (r *fieldSelectionRewriter) RewriteFieldSelection(fieldRef int, enclosingNode ast.Node) (res RewriteResult, err error) {
@@ -273,7 +275,7 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefRef int) (res RewriteResult, err error) {
 	selectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
 	if !ok {
-		return resultNotRewritten, FieldDoesntHaveSelectionSetErr
+		return resultNotRewritten, ErrFieldDoesntHaveSelectionSet
 	}
 
 	fieldTypeName := r.definition.ObjectTypeDefinitionNameBytes(objectDefRef)

@@ -649,7 +649,11 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	rewriter := newFieldSelectionRewriter(c.operation, c.definition, ds)
+	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds)
+	if err != nil {
+		c.walker.StopWithInternalErr(err)
+		return
+	}
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {

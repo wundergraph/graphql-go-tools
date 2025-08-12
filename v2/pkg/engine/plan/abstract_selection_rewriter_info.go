@@ -83,7 +83,7 @@ func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int
 func (r *fieldSelectionRewriter) collectFieldInformation(fieldRef int) (selectionSetInfo, error) {
 	fieldSelectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
 	if !ok {
-		return selectionSetInfo{}, FieldDoesntHaveSelectionSetErr
+		return selectionSetInfo{}, ErrFieldDoesntHaveSelectionSet
 	}
 
 	return r.collectSelectionSetInformation(fieldSelectionSetRef)
@@ -101,7 +101,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	typeCondition := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
 	inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
 	if !ok {
-		return InlineFragmentDoesntHaveSelectionSetErr
+		return ErrInlineFragmentDoesntHaveSelectionSet
 	}
 
 	hasDirectives := r.operation.InlineFragmentHasDirectives(inlineFragmentRef)
@@ -110,7 +110,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	// because it could be absent in the current SUBGRAPH document
 	definitionNode, hasNode := r.definition.NodeByNameStr(typeCondition)
 	if !hasNode {
-		return InlineFragmentTypeIsNotExistsErr
+		return ErrInlineFragmentTypeIsNotExists
 	}
 
 	selectionSetInfo, err := r.collectSelectionSetInformation(inlineFragmentSelectionSetRef)
