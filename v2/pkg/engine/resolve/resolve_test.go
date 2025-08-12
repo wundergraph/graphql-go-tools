@@ -4777,6 +4777,10 @@ func (s *SubscriptionRecorder) Complete() {
 	s.complete.Store(true)
 }
 
+func (s *SubscriptionRecorder) Heartbeat() error {
+	return nil
+}
+
 func (s *SubscriptionRecorder) Close(_ SubscriptionCloseKind) {
 	s.closed.Store(true)
 }

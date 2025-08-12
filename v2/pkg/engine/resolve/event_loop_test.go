@@ -51,6 +51,10 @@ func (f *FakeSubscriptionWriter) Complete() {
 	f.messageCountOnComplete = len(f.writtenMessages)
 }
 
+func (f *FakeSubscriptionWriter) Heartbeat() error {
+	return nil
+}
+
 func (f *FakeSubscriptionWriter) Close(SubscriptionCloseKind) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
