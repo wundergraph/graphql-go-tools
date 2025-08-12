@@ -397,7 +397,7 @@ func (c *pathBuilderVisitor) EnterSelectionSet(ref int) {
 
 		hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
 		hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
-		if !(hasRootNode || hasChildNode) {
+		if !hasRootNode && !hasChildNode {
 			// we need to check also if an enclosing type is a union
 			// because we don't have root/child node for a union type
 			if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
