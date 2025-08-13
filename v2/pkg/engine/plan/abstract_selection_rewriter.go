@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	ErrFieldDoesntHaveSelectionSet          = errors.New("unexpected error: field does not have a selection set")
-	ErrInlineFragmentDoesntHaveSelectionSet = errors.New("unexpected error: inline fragment does not have a selection set")
-	ErrInlineFragmentTypeIsNotExists        = errors.New("unexpected error: inline fragment type condition does not exists")
+	ErrFieldHasNoSelectionSet          = errors.New("unexpected error: field does not have a selection set")
+	ErrInlineFragmentHasNoSelectionSet = errors.New("unexpected error: inline fragment does not have a selection set")
+	ErrInlineFragmentHasNoCondition    = errors.New("unexpected error: inline fragment type condition does not exists")
 
 	ErrNoUpstreamSchema = errors.New("unexpected error: upstream schema is not defined in DataSource")
 )
@@ -275,7 +275,7 @@ func (r *fieldSelectionRewriter) replaceFieldSelections(fieldRef int, newSelecti
 func (r *fieldSelectionRewriter) processObjectSelection(fieldRef int, objectDefRef int) (res RewriteResult, err error) {
 	selectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
 	if !ok {
-		return resultNotRewritten, ErrFieldDoesntHaveSelectionSet
+		return resultNotRewritten, ErrFieldHasNoSelectionSet
 	}
 
 	fieldTypeName := r.definition.ObjectTypeDefinitionNameBytes(objectDefRef)

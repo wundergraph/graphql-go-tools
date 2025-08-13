@@ -163,22 +163,25 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			id: ID!
 		}`
 
-	dsConfigurationA := dsb().
-		RootNode("Query", "u1").
-		RootNode("A", "id").
-		RootNode("B", "id").
-		ChildNode("Inter1", "id").
-		ChildNode("Inter2", "id").
-		KeysMetadata(FederationFieldConfigurations{
-			{
-				TypeName:     "A",
-				SelectionSet: "id",
-			},
-			{
-				TypeName:     "B",
-				SelectionSet: "id",
-			},
-		})
+	// dsBuilderA is a function to make sure that each test starts from a clean state.
+	dsBuilderA := func() *dsBuilder {
+		return dsb().
+			RootNode("Query", "u1").
+			RootNode("A", "id").
+			RootNode("B", "id").
+			ChildNode("Inter1", "id").
+			ChildNode("Inter2", "id").
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "A",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "B",
+					SelectionSet: "id",
+				},
+			})
+	}
 
 	definitionB := `
 		type Query {
@@ -202,25 +205,29 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			number: Int
 		}`
 
+	dsBuilderB := func() *dsBuilder {
+		return dsb().
+			RootNode("Query", "named", "union").
+			RootNode("User", "id", "name", "number").
+			ChildNode("Named", "name").
+			ChildNode("Numbered", "number").
+			KeysMetadata(FederationFieldConfigurations{
+				{
+					TypeName:     "User",
+					SelectionSet: "id",
+				},
+			})
+	}
+
 	testCases := []testCase{
 		{
 			name:               "should flatten interfaces for grpc",
 			fieldName:          "named",
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
-			dsBuilder: dsb().
+			dsBuilder: dsBuilderB().
 				WithBehavior(DataSourcePlanningBehavior{
 					AlwaysFlattenFragments: true,
-				}).
-				RootNode("Query", "named", "union").
-				RootNode("User", "id", "name", "number").
-				ChildNode("Named", "name").
-				ChildNode("Numbered", "number").
-				KeysMetadata(FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
 				}),
 			operation: `
 				query {
@@ -251,19 +258,9 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			fieldName:          "union",
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
-			dsBuilder: dsb().
+			dsBuilder: dsBuilderB().
 				WithBehavior(DataSourcePlanningBehavior{
 					AlwaysFlattenFragments: true,
-				}).
-				RootNode("Query", "named", "union").
-				RootNode("User", "id", "name", "number").
-				ChildNode("Named", "name").
-				ChildNode("Numbered", "number").
-				KeysMetadata(FederationFieldConfigurations{
-					{
-						TypeName:     "User",
-						SelectionSet: "id",
-					},
 				}),
 			operation: `
 				query {
@@ -288,6 +285,74 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 					}
 				}`,
 			shouldRewrite: true,
+		},
+		{
+			name:               "should not flatten interfaces for non-grpc",
+			fieldName:          "named",
+			definition:         definitionB,
+			upstreamDefinition: definitionB,
+			dsBuilder:          dsBuilderB(),
+			operation: `
+				query {
+					named {
+						... on Numbered {
+							... on User {
+								name
+							}
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					named {
+						... on Numbered {
+							... on User {
+								name
+							}
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: false,
+		},
+		{
+			name:               "should not flatten union for non-grpc",
+			fieldName:          "union",
+			definition:         definitionB,
+			upstreamDefinition: definitionB,
+			dsBuilder:          dsBuilderB(),
+			operation: `
+				query {
+					union {
+						... on Numbered {
+							... on User {
+								name
+							}
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					union {
+						... on Numbered {
+							... on User {
+								name
+							}
+						}
+						... on User {
+							id
+						}
+					}
+				}`,
+			shouldRewrite: false,
 		},
 		{
 			name:       "one field is external. query without fragments",
@@ -2977,7 +3042,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is union - union fragment wrapped into concrete type fragment with different from wrapping type fragments",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -3010,7 +3075,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is union - union fragment wrapped into concrete type fragment with matching to wrapping type fragment",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -3040,7 +3105,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is union - select not existing in the current subgraph type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -3069,7 +3134,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is interface - select not existing in the current subgraph type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3098,7 +3163,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - interface fragment inside concrete type fragment with matching type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3126,7 +3191,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - interface fragment inside concrete type fragment with not matching type",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3152,7 +3217,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - interface fragment inside concrete type fragment select shared field",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3178,7 +3243,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is an interface - multiple level of nesting interface and union fragments with concrete types on different levels",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3216,7 +3281,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a interface - union fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3248,7 +3313,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a interface - interface fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "i1",
 			operation: `
 				query {
@@ -3280,7 +3345,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a union - union fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "u1",
 			operation: `
 				query {
@@ -3315,7 +3380,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			name:               "field is a union - interface fragment is not exists in the current subgraph",
 			definition:         definitionA,
 			upstreamDefinition: upstreamDefinitionA,
-			dsBuilder:          dsConfigurationA,
+			dsBuilder:          dsBuilderA(),
 			fieldName:          "u1",
 			operation: `
 				query {

@@ -37,14 +37,14 @@ type DataSourceMetadata struct {
 	FederationMetaData
 
 	// RootNodes defines the nodes where the responsibility of the DataSource begins.
-	// RootNode is a node from which you could start a query or a subquery.
+	// RootNode is a node from which we could start a query or a subquery.
 	// For a federation, RootNodes contain root query type fields, entity type fields,
 	// and entity object fields.
 	RootNodes TypeFields
 
 	// ChildNodes describes additional fields, which are requested along with fields that the datasource has.
-	// They're always required for the Graphql datasources because each field could have its own datasource.
-	// For a flat datasource (HTTP/REST or GRPC) we couldn't request fewer fields, as we always get a full response.
+	// They're always required for Graphql datasources because each field could have its own datasource.
+	// For a flat datasource (HTTP/REST or GRPC) we cannot request fewer fields, as we always get a full response.
 	// For a federation, ChildNodes contain non-entity type fields and interface type fields.
 	// Unions shouldn't be present in the child or root nodes.
 	ChildNodes TypeFields
