@@ -275,14 +275,6 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{}
 }
 
-func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
-	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      false,
-		OverrideFieldPathFromAlias: false,
-		IncludeTypeNameFields:      true,
-	}
-}
-
 func (p *Planner[T]) DownstreamResponseFieldAlias(_ int) (alias string, exists bool) {
 	return "", false
 }
@@ -312,8 +304,16 @@ func (f *Factory[T]) Context() context.Context {
 	return f.executionContext
 }
 
-func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
+func (f *Factory[T]) UpstreamSchema(_ plan.DataSourceConfiguration[T]) (*ast.Document, bool) {
 	return nil, false
+}
+
+func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
+	return plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      false,
+		OverrideFieldPathFromAlias: false,
+		AllowPlanningTypeName:      true,
+	}
 }
 
 func buildEventDataBytes(ref int, visitor *plan.Visitor, variables *resolve.Variables) ([]byte, error) {

@@ -14,33 +14,41 @@ import (
 
 type DSHash uint64
 
-// PlannerFactory is the factory for the creation of the concrete DataSourcePlanner
+// PlannerFactory creates concrete DataSourcePlanner's.
 // For stateful datasources, the factory should contain execution context
-// Once the context gets cancelled, all stateful DataSources must close their connections and cleanup themselves.
+// Once the context gets canceled, all stateful DataSources must close their connections and cleanup themselves.
 type PlannerFactory[DataSourceSpecificConfiguration any] interface {
+
 	// Planner creates a new DataSourcePlanner
 	Planner(logger abstractlogger.Logger) DataSourcePlanner[DataSourceSpecificConfiguration]
+
 	// Context returns the execution context of the factory
 	// For stateful datasources, the factory should contain cancellable global execution context
 	// This method serves as a flag that factory should have a context
 	Context() context.Context
+
 	UpstreamSchema(dataSourceConfig DataSourceConfiguration[DataSourceSpecificConfiguration]) (*ast.Document, bool)
+	PlanningBehavior() DataSourcePlanningBehavior
 }
 
 type DataSourceMetadata struct {
-	// FederationMetaData - describes the behavior of the DataSource in the context of the Federation
+	// FederationMetaData has federation-specific configuration for entity interfaces and
+	// the @key, @requires, @provides directives.
 	FederationMetaData
 
-	// RootNodes - defines the nodes where the responsibility of the DataSource begins
-	// RootNode is a node from which you could start a query or a subquery
-	// Note: for federation root nodes are root query type fields, entity type fields, and entity object fields
+	// RootNodes defines the nodes where the responsibility of the DataSource begins.
+	// RootNode is a node from which we could start a query or a subquery.
+	// For a federation, RootNodes contain root query type fields, entity type fields,
+	// and entity object fields.
 	RootNodes TypeFields
-	// ChildNodes - describes additional fields which will be requested along with fields which has a datasources
-	// They are always required for the Graphql datasources cause each field could have its own datasource
-	// For any flat datasource like HTTP/REST or GRPC we could not request fewer fields, as we always get a full response
-	// Note: for federation child nodes are non-entity type fields and interface type fields
-	// Note: Unions are not present in the child or root nodes
+
+	// ChildNodes describes additional fields, which are requested along with fields that the datasource has.
+	// They're always required for Graphql datasources because each field could have its own datasource.
+	// For a flat datasource (HTTP/REST or GRPC) we cannot request fewer fields, as we always get a full response.
+	// For a federation, ChildNodes contain non-entity type fields and interface type fields.
+	// Unions shouldn't be present in the child or root nodes.
 	ChildNodes TypeFields
+
 	Directives *DirectiveConfigurations
 
 	rootNodesIndex  map[string]fieldsIndex
@@ -245,15 +253,14 @@ type DataSourceConfiguration[T any] interface {
 	CustomConfiguration() T
 }
 
-type DataSourceUpstreamSchema interface {
-	UpstreamSchema() (*ast.Document, bool)
-}
-
 type DataSource interface {
 	FederationInfo
 	NodesInfo
 	DirectivesConfigurations
-	DataSourceUpstreamSchema
+
+	UpstreamSchema() (*ast.Document, bool)
+	PlanningBehavior() DataSourcePlanningBehavior
+
 	Id() string
 	Name() string
 	Hash() DSHash
@@ -285,6 +292,10 @@ func (d *dataSourceConfiguration[T]) CreatePlannerConfiguration(logger abstractl
 
 func (d *dataSourceConfiguration[T]) UpstreamSchema() (*ast.Document, bool) {
 	return d.factory.UpstreamSchema(d)
+}
+
+func (d *dataSourceConfiguration[T]) PlanningBehavior() DataSourcePlanningBehavior {
+	return d.factory.PlanningBehavior()
 }
 
 func (d *dataSourceConfiguration[T]) Id() string {
@@ -363,18 +374,21 @@ func (d *DirectiveConfigurations) RenameTypeNameOnMatchBytes(directiveName []byt
 	return directiveName
 }
 
+// DataSourcePlanningBehavior contains DataSource-specific planning flags.
 type DataSourcePlanningBehavior struct {
-	// MergeAliasedRootNodes will reuse a data source for multiple root fields with aliases if true.
+	// MergeAliasedRootNodes set to true will reuse a data source for multiple root fields with aliases.
 	// Example:
 	//  {
 	//    rootField
 	//    alias: rootField
 	//  }
-	// On dynamic data sources (e.g. GraphQL, SQL, ...) this should return true and for
-	// static data sources (e.g. REST, static, GRPC...) it should be false.
+	// On dynamic data sources (GraphQL, SQL) this should be set to true,
+	// and for static data sources (REST, static, gRPC) it should be false.
 	MergeAliasedRootNodes bool
-	// OverrideFieldPathFromAlias will let the planner know if the response path should also be aliased (= true)
-	// or not (= false)
+
+	// OverrideFieldPathFromAlias set to true will let the planner know
+	// if the response path should also be aliased.
+	//
 	// Example:
 	//  {
 	//    rootField
@@ -383,8 +397,13 @@ type DataSourcePlanningBehavior struct {
 	// When true expected response will be { "rootField": ..., "alias": ... }
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
-	// IncludeTypeNameFields should be set to true if the planner allows to plan __typename fields
-	IncludeTypeNameFields bool
+
+	// AllowPlanningTypeName set to true will allow the planner to plan __typename fields.
+	AllowPlanningTypeName bool
+
+	// If true then planner will rewrite the operation
+	// to flatten inline fragments to only the concrete types.
+	AlwaysFlattenFragments bool
 }
 
 type DataSourceFetchPlanner interface {
@@ -393,13 +412,13 @@ type DataSourceFetchPlanner interface {
 }
 
 type DataSourceBehavior interface {
-	DataSourcePlanningBehavior() DataSourcePlanningBehavior
-	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias
-	// It's required to set OverrideFieldPathFromAlias to true
-	// This function is useful in the following scenario
-	// 1. The downstream Query doesn't contain an alias
-	// 2. The path configuration rewrites the field to an existing field
-	// 3. The DataSourcePlanner is using an alias to the upstream
+	// DownstreamResponseFieldAlias allows the DataSourcePlanner to overwrite the response path with an alias.
+	// It requires DataSourcePlanningBehavior.OverrideFieldPathFromAlias to be set to true.
+	// This function is useful in the following scenarios:
+	// 1. The downstream Query doesn't contain an alias,
+	// 2. The path configuration rewrites the field to an existing field,
+	// 3. The DataSourcePlanner using an alias to the upstream.
+	//
 	// Example:
 	//
 	// type Query {

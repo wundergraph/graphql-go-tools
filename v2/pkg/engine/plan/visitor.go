@@ -1021,7 +1021,8 @@ func (v *Visitor) resolveFieldPath(ref int) []string {
 
 	aliasOverride := false
 	if plannerConfig != nil && plannerConfig.Planner() != nil {
-		aliasOverride = plannerConfig.DataSourcePlanningBehavior().OverrideFieldPathFromAlias
+		behavior := plannerConfig.DataSourceConfiguration().PlanningBehavior()
+		aliasOverride = behavior.OverrideFieldPathFromAlias
 	}
 
 	for i := range v.Config.Fields {

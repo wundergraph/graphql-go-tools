@@ -8,7 +8,6 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -21,7 +20,9 @@ type dsBuilder struct {
 }
 
 func dsb() *dsBuilder {
-	return &dsBuilder{ds: &dataSourceConfiguration[any]{DataSourceMetadata: &DataSourceMetadata{}}}
+	return &dsBuilder{
+		ds: &dataSourceConfiguration[any]{DataSourceMetadata: &DataSourceMetadata{}},
+	}
 }
 
 func (b *dsBuilder) RootNode(typeName string, fieldNames ...string) *dsBuilder {
@@ -54,13 +55,29 @@ func (b *dsBuilder) AddChildNodeExternalFieldNames(typeName string, fieldNames .
 	return b
 }
 
+func (b *dsBuilder) WithBehavior(behavior DataSourcePlanningBehavior) *dsBuilder {
+	if b.ds.factory != nil {
+		panic("WithBehavior should be used before the Schema method")
+	}
+	b.behavior = &behavior
+	return b
+}
+
 func (b *dsBuilder) Schema(schema string) *dsBuilder {
 	def := unsafeparser.ParseGraphqlDocumentString(schema)
 	b.ds.factory = &FakeFactory[any]{
 		upstreamSchema: &def,
 		behavior:       b.behavior,
 	}
+	return b
+}
 
+func (b *dsBuilder) SchemaMergedWithBase(schema string) *dsBuilder {
+	def := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(schema)
+	b.ds.factory = &FakeFactory[any]{
+		upstreamSchema: &def,
+		behavior:       b.behavior,
+	}
 	return b
 }
 
@@ -83,17 +100,11 @@ func (b *dsBuilder) Id(id string) *dsBuilder {
 	b.ds.id = id
 	return b
 }
-
 func (b *dsBuilder) DS() DataSource {
 	if err := b.ds.DataSourceMetadata.Init(); err != nil {
 		panic(err)
 	}
 	return b.ds
-}
-
-func (b *dsBuilder) WithBehavior(behavior DataSourcePlanningBehavior) *dsBuilder {
-	b.behavior = &behavior
-	return b
 }
 
 func strptr(s string) *string { return &s }
