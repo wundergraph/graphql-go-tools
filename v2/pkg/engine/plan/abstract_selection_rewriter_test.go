@@ -221,7 +221,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 
 	testCases := []testCase{
 		{
-			name:               "should flatten interfaces for grpc",
+			name:               "should flatten interfaces for gRPC",
 			fieldName:          "named",
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
@@ -254,7 +254,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name:               "should flatten union for grpc",
+			name:               "should flatten union for gRPC",
 			fieldName:          "union",
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
@@ -287,7 +287,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: true,
 		},
 		{
-			name:               "should not flatten interfaces for non-grpc",
+			name:               "should not flatten interfaces for non-gRPC",
 			fieldName:          "named",
 			definition:         definitionB,
 			upstreamDefinition: definitionB,
@@ -321,7 +321,7 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			shouldRewrite: false,
 		},
 		{
-			name:               "should not flatten union for non-grpc",
+			name:               "should not flatten union for non-gRPC",
 			fieldName:          "union",
 			definition:         definitionB,
 			upstreamDefinition: definitionB,

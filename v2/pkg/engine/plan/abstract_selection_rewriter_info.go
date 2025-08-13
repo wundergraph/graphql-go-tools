@@ -140,7 +140,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 			typeNamesImplementingInterface: typeNamesImplementingInterface,
 		}
 
-		// NOTE: We are getting type names implementing interface from the current SUBGRAPH definion
+		// NOTE: We are getting type names implementing interface from the current SUBGRAPH definition
 		// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
 		upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
 		if hasUpstreamNode {
@@ -163,7 +163,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 			unionMemberTypeNames:    unionMemberTypeNames,
 		}
 
-		// NOTE: We are getting type names of union members from the current SUBGRAPH definion
+		// NOTE: We are getting type names of union members from the current SUBGRAPH definition
 		// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
 		upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
 		if hasUpstreamNode {

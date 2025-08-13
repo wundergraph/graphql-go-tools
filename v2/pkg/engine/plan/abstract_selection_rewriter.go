@@ -15,7 +15,7 @@ import (
 var (
 	ErrFieldHasNoSelectionSet          = errors.New("unexpected error: field does not have a selection set")
 	ErrInlineFragmentHasNoSelectionSet = errors.New("unexpected error: inline fragment does not have a selection set")
-	ErrInlineFragmentHasNoCondition    = errors.New("unexpected error: inline fragment type condition does not exists")
+	ErrInlineFragmentHasNoCondition    = errors.New("unexpected error: inline fragment type condition does not exist")
 
 	ErrNoUpstreamSchema = errors.New("unexpected error: upstream schema is not defined in DataSource")
 )
@@ -638,7 +638,7 @@ func (r *fieldSelectionRewriter) collectChangedRefs(fieldRef int, fieldRefsPaths
 	for fieldRef, path := range fieldRefsPaths {
 		newRefs, ok := pathsToRefs[path]
 		if !ok {
-			// TODO: some path actually could dissapear due to rewrite
+			// TODO: some paths could actually disappear due to rewrite
 			continue
 		}
 

@@ -383,7 +383,7 @@ type DataSourcePlanningBehavior struct {
 	//    alias: rootField
 	//  }
 	// On dynamic data sources (GraphQL, SQL) this should be set to true,
-	// and for static data sources (REST, static, GRPC) it should be false.
+	// and for static data sources (REST, static, gRPC) it should be false.
 	MergeAliasedRootNodes bool
 
 	// OverrideFieldPathFromAlias set to true will let the planner know
