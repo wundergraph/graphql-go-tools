@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.220](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.219...v2.0.0-rc.220) (2025-08-13)
+
+
+### Features
+
+* rewrite abstract fragments for grpc ([#1268](https://github.com/wundergraph/graphql-go-tools/issues/1268)) ([ebe1e53](https://github.com/wundergraph/graphql-go-tools/commit/ebe1e533aedc63b5970f476cb1bf37e88c6c21c4))
+
 ## [2.0.0-rc.219](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.218...v2.0.0-rc.219) (2025-08-08)
 
 
