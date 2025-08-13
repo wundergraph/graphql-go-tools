@@ -1247,7 +1247,7 @@ func (c *pathBuilderVisitor) addPlannerPathForTypename(
 	if fieldName != typeNameField {
 		return false
 	}
-	if !planningBehaviour.AllowToPlanTypeNameFields {
+	if !planningBehaviour.AllowPlanningTypeName {
 		return false
 	}
 

@@ -312,7 +312,7 @@ func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: false,
-		AllowToPlanTypeNameFields:  true,
+		AllowPlanningTypeName:      true,
 	}
 }
 

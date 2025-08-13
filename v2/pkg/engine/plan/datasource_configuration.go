@@ -398,8 +398,8 @@ type DataSourcePlanningBehavior struct {
 	// When false expected response will be { "rootField": ..., "original": ... }
 	OverrideFieldPathFromAlias bool
 
-	// AllowToPlanTypeNameFields set to true will allow the planner to plan __typename fields.
-	AllowToPlanTypeNameFields bool
+	// AllowPlanningTypeName set to true will allow the planner to plan __typename fields.
+	AllowPlanningTypeName bool
 
 	// If true then planner will rewrite the operation
 	// to flatten inline fragments to only the concrete types.

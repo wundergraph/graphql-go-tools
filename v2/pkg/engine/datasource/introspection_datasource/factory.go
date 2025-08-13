@@ -34,6 +34,6 @@ func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
 	return plan.DataSourcePlanningBehavior{
 		MergeAliasedRootNodes:      false,
 		OverrideFieldPathFromAlias: true,
-		AllowToPlanTypeNameFields:  true,
+		AllowPlanningTypeName:      true,
 	}
 }
