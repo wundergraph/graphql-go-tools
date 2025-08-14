@@ -1957,17 +1957,15 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 				messageStr := string(data)
 				t.Logf("Received message: %s", messageStr)
 
-				if messageStr == `{"type":"ping"}` {
+				switch messageStr {
+				case `{"type":"ping"}`:
 					receivedPing = true
-					close(pingReceived) // Signal that we received the ping
-					// Respond with pong
+					close(pingReceived)
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"pong"}`))
 					assert.NoError(t, err)
-
-					// Send another data message
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
 					assert.NoError(t, err)
-				} else if messageStr == `{"id":"1","type":"complete"}` {
+				case `{"id":"1","type":"complete"}`:
 					receivedComplete = true
 				}
 			}

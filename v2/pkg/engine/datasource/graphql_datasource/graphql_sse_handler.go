@@ -158,7 +158,8 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 					// ignore garbage
 					continue
 				case nil:
-					if valueType == jsonparser.Array {
+					switch valueType {
+					case jsonparser.Array:
 						response := []byte(`{}`)
 						response, err = jsonparser.Set(response, val, "errors")
 						if err != nil {
@@ -167,10 +168,9 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 							errCh <- []byte(internalError)
 							return
 						}
-
 						errCh <- response
 						return
-					} else if valueType == jsonparser.Object {
+					case jsonparser.Object:
 						response := []byte(`{"errors":[]}`)
 						response, err = jsonparser.Set(response, val, "errors", "[0]")
 						if err != nil {
@@ -179,8 +179,12 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 							errCh <- []byte(internalError)
 							return
 						}
-
 						errCh <- response
+						return
+					default:
+						// don't crash on unexpected payloads from upstream
+						h.log.Error(fmt.Sprintf("unexpected value type: %d", valueType))
+						errCh <- []byte(internalError)
 						return
 					}
 

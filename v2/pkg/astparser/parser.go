@@ -885,17 +885,16 @@ func (p *Parser) ParseType() (ref int) {
 
 	first := p.peek()
 
-	if first == keyword.IDENT {
+	switch first {
+	case keyword.IDENT:
 		tok := p.read()
 		ref = p.document.AddNamedTypeWithPosition(tok.Literal, tok.TextPosition)
-	} else if first == keyword.LBRACK {
-
+	case keyword.LBRACK:
 		openList := p.read()
 		ofType := p.ParseType()
 		closeList := p.mustRead(keyword.RBRACK)
-
 		ref = p.document.AddListTypeWithPosition(ofType, openList.TextPosition, closeList.TextPosition)
-	} else {
+	default:
 		p.errUnexpectedToken(p.read(), keyword.IDENT, keyword.LBRACK)
 		return
 	}
