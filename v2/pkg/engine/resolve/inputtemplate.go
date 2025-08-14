@@ -50,7 +50,10 @@ func SetInputUndefinedVariables(preparedInput *bytes.Buffer, undefinedVariables 
 	return nil
 }
 
-var setTemplateOutputNull = errors.New("set to null")
+// errSetTemplateOutputNull is a private sentinel used for control flow to signal
+// that the template output should be set to JSON null. It must not be surfaced
+// to callers; renderSegments intercepts it and writes literal.NULL instead.
+var errSetTemplateOutputNull = errors.New("set to null")
 
 func (i *InputTemplate) Render(ctx *Context, data *astjson.Value, preparedInput *bytes.Buffer) error {
 	var undefinedVariables []string
@@ -91,7 +94,7 @@ func (i *InputTemplate) renderSegments(ctx *Context, data *astjson.Value, segmen
 			}
 
 			if err != nil {
-				if errors.Is(err, setTemplateOutputNull) {
+				if errors.Is(err, errSetTemplateOutputNull) {
 					preparedInput.Reset()
 					_, _ = preparedInput.Write(literal.NULL)
 					return nil
@@ -108,7 +111,7 @@ func (i *InputTemplate) renderObjectVariable(ctx context.Context, variables *ast
 	value := variables.Get(segment.VariableSourcePath...)
 	if value == nil || value.Type() == astjson.TypeNull {
 		if i.SetTemplateOutputToNullOnVariableNull {
-			return setTemplateOutputNull
+			return errSetTemplateOutputNull
 		}
 		_, _ = preparedInput.Write(literal.NULL)
 		return nil
