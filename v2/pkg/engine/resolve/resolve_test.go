@@ -90,12 +90,12 @@ var multipartSubHeartbeatInterval = 100 * time.Millisecond
 
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
-		MaxConcurrency:                1024,
-		Debug:                         false,
-		PropagateSubgraphErrors:       true,
-		PropagateSubgraphStatusCodes:  true,
-		AsyncErrorWriter:              &TestErrorWriter{},
-		MultipartSubHeartbeatInterval: multipartSubHeartbeatInterval,
+		MaxConcurrency:               1024,
+		Debug:                        false,
+		PropagateSubgraphErrors:      true,
+		PropagateSubgraphStatusCodes: true,
+		AsyncErrorWriter:             &TestErrorWriter{},
+		SubHeartbeatInterval:         multipartSubHeartbeatInterval,
 	})
 }
 
