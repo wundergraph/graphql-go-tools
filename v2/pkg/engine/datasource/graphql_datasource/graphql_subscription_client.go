@@ -582,6 +582,7 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 	if err != nil {
 		return nil, "", err
 	}
+
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 		return nil, "", &UpgradeRequestError{
 			URL:        u,
