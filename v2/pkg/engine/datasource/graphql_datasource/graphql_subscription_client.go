@@ -486,6 +486,8 @@ func (u *UpgradeRequestError) Error() string {
 }
 
 func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (*connection, error) {
+	// Any failure will be stored here, needed for defer().
+	var err error
 
 	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
@@ -496,35 +498,43 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 		return nil, fmt.Errorf("failed to dial connection")
 	}
 
-	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
+	// conn is not nil. Any errored return below could lead to a leaking connection.
+	// To avoid this, close connection if failure happened.
+	defer func() {
+		if err != nil {
+			conn.Close()
+		}
+	}()
+
+	initMsg, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(options.InitialPayload) > 0 {
-		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.InitialPayload, "payload")
+		initMsg, err = jsonparser.Set(initMsg, options.InitialPayload, "payload")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if options.Body.Extensions != nil {
-		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.Body.Extensions, "payload", "extensions")
+		initMsg, err = jsonparser.Set(initMsg, options.Body.Extensions, "payload", "extensions")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// init + ack
-	if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+	if err = conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
 		return nil, err
 	}
-	err = wsutil.WriteClientText(conn, connectionInitMessage)
+	err = wsutil.WriteClientText(conn, initMsg)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
+	if err = waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
 		return nil, err
 	}
 
@@ -580,10 +590,15 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	upgradeResponse, err := c.httpClient.Do(req)
 	if err != nil {
+		if conn != nil {
+			conn.Close()
+		}
 		return nil, "", err
 	}
 
+	// On failed upgrade, we close the connection here without transferring ownership to the callee.
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		upgradeResponse.Body.Close()
 		return nil, "", &UpgradeRequestError{
 			URL:        u,
 			StatusCode: upgradeResponse.StatusCode,
@@ -592,6 +607,7 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	accept := computeAcceptKey(challengeKey)
 	if upgradeResponse.Header.Get("Sec-WebSocket-Accept") != accept {
+		upgradeResponse.Body.Close()
 		return nil, "", fmt.Errorf("invalid Sec-WebSocket-Accept")
 	}
 
