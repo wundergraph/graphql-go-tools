@@ -182,7 +182,10 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 						errCh <- response
 						return
 					default:
-						panic(fmt.Sprintf("unexpected value type: %d", valueType))
+						// don't crash on unexpected payloads from upstream
+						h.log.Error(fmt.Sprintf("unexpected value type: %d", valueType))
+						errCh <- []byte(internalError)
+						return
 					}
 
 				default:

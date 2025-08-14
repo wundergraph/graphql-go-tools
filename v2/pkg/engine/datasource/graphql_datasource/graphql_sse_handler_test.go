@@ -312,56 +312,99 @@ func TestGraphQLSubscriptionClientSubscribe_SSE_Error_Without_Header(t *testing.
 		t.Skip("skipping test on windows")
 	}
 
-	serverDone := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Make sure that the writer supports flushing.
-		flusher, ok := w.(http.Flusher)
-		require.True(t, ok)
+	testCases := []struct {
+		name         string
+		errorMessage string
+		expectedErr  string
+	}{
+		{
+			name:         "object_error_value",
+			errorMessage: `{"errors":{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]},"data":null}`,
+			expectedErr:  `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`,
+		},
+		{
+			name:         "list_error_value",
+			errorMessage: `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}],"data":null}`,
+			expectedErr:  `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`,
+		},
+		{
+			name:         "string_error_value",
+			errorMessage: `{"errors": "some string error"}`,
+			expectedErr:  `{"errors":[{"message":"internal error"}]}`,
+		},
+		{
+			name:         "number_error_value",
+			errorMessage: `{"errors": 123}`,
+			expectedErr:  `{"errors":[{"message":"internal error"}]}`,
+		},
+		{
+			name:         "boolean_true_error_value",
+			errorMessage: `{"errors": true}`,
+			expectedErr:  `{"errors":[{"message":"internal error"}]}`,
+		},
+		{
+			name:         "null_error_value",
+			errorMessage: `{"errors": null}`,
+			expectedErr:  `{"errors":[{"message":"internal error"}]}`,
+		},
+	}
 
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			serverDone := make(chan struct{})
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// Make sure that the writer supports flushing.
+				flusher, ok := w.(http.Flusher)
+				require.True(t, ok)
 
-		_, _ = fmt.Fprintf(w, "%s\n\n", `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}],"data":null}`)
-		flusher.Flush()
+				w.Header().Set("Content-Type", "text/event-stream")
+				w.Header().Set("Cache-Control", "no-cache")
+				w.Header().Set("Connection", "keep-alive")
+				w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		close(serverDone)
-	}))
-	defer server.Close()
+				// Send the malformed error message WITHOUT the "data:" prefix
+				// This triggers the error parsing logic in the default case
+				_, _ = fmt.Fprintf(w, "%s\n\n", tc.errorMessage)
+				flusher.Flush()
 
-	serverCtx, serverCancel := context.WithCancel(context.Background())
+				close(serverDone)
+			}))
+			defer server.Close()
 
-	ctx, clientCancel := context.WithCancel(context.Background())
+			serverCtx, serverCancel := context.WithCancel(context.Background())
 
-	client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
-		WithReadTimeout(time.Millisecond),
-		WithLogger(logger()),
-	)
+			ctx, clientCancel := context.WithCancel(context.Background())
 
-	updater := &testSubscriptionUpdater{}
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithReadTimeout(time.Millisecond),
+				WithLogger(logger()),
+			)
 
-	go func() {
-		err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-			URL: server.URL,
-			Body: GraphQLBody{
-				Query: `subscription {messageAdded(roomName: "room"){text}}`,
-			},
-			UseSSE: true,
-		}, updater)
-		assert.NoError(t, err)
-	}()
+			updater := &testSubscriptionUpdater{}
 
-	updater.AwaitUpdates(t, time.Second, 1)
-	assert.Equal(t, 1, len(updater.updates))
-	assert.Equal(t, `{"errors":[{"message":"Unexpected error.","locations":[{"line":2,"column":3}],"path":["countdown"]}]}`, updater.updates[0])
+			go func() {
+				err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+					URL: server.URL,
+					Body: GraphQLBody{
+						Query: `subscription {messageAdded(roomName: "room"){text}}`,
+					},
+					UseSSE: true,
+				}, updater)
+				assert.NoError(t, err)
+			}()
 
-	clientCancel()
-	assert.Eventuallyf(t, func() bool {
-		<-serverDone
-		return true
-	}, time.Second, time.Millisecond*10, "server did not close")
-	serverCancel()
+			updater.AwaitUpdates(t, time.Second, 1)
+			assert.Equal(t, 1, len(updater.updates))
+			assert.Equal(t, tc.expectedErr, updater.updates[0])
+
+			clientCancel()
+			assert.Eventuallyf(t, func() bool {
+				<-serverDone
+				return true
+			}, time.Second, time.Millisecond*10, "server did not close")
+			serverCancel()
+		})
+	}
 }
 
 func TestGraphQLSubscriptionClientSubscribe_QueryParams(t *testing.T) {
