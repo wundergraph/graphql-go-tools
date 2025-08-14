@@ -500,11 +500,11 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 
 	// conn is not nil. Any errored return below could lead to a leaking connection.
 	// To avoid this, close connection if failure happened.
-	defer func() {
-		if err != nil {
-			conn.Close()
-		}
-	}()
+	// defer func() {
+	// 	if err != nil {
+	// 		conn.Close()
+	// 	}
+	// }()
 
 	initMsg, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
@@ -596,6 +596,8 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	// On failed upgrade, we close the connection here without transferring ownership to the callee.
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		// Drain to EOF to allow connection reuse by net/http.
+		_, _ = io.Copy(io.Discard, upgradeResponse.Body)
 		upgradeResponse.Body.Close()
 		return nil, "", &UpgradeRequestError{
 			URL:        u,
@@ -605,6 +607,7 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	accept := computeAcceptKey(challengeKey)
 	if upgradeResponse.Header.Get("Sec-WebSocket-Accept") != accept {
+		_, _ = io.Copy(io.Discard, upgradeResponse.Body)
 		upgradeResponse.Body.Close()
 		return nil, "", fmt.Errorf("invalid Sec-WebSocket-Accept")
 	}
