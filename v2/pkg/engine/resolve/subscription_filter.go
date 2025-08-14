@@ -3,7 +3,7 @@ package resolve
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"regexp"
 
 	"github.com/buger/jsonparser"
@@ -77,8 +77,9 @@ var (
 	// findArray is a regex to find all array values in a string
 	// e.g. [1, 2, 3] or ["a", "b", "c"]
 	// it will skip prefix and suffix non array values, e.g. "foo[1, 2, 3]bar" will return [1, 2, 3]
-	findArray                         = regexp.MustCompile(`\[(.*?)\]`)
-	InvalidSubscriptionFilterTemplate = fmt.Errorf("invalid subscription filter template")
+	findArray = regexp.MustCompile(`\[(.*?)\]`)
+
+	ErrInvalidSubscriptionFilterTemplate = errors.New("invalid subscription filter template")
 )
 
 func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *bytes.Buffer) (bool, error) {
@@ -191,7 +192,7 @@ func (f *SubscriptionFieldFilter) SkipEvent(ctx *Context, data []byte, buf *byte
 			continue
 		}
 		if len(matches) != 1 || len(matches[0]) != 2 {
-			return false, InvalidSubscriptionFilterTemplate
+			return false, ErrInvalidSubscriptionFilterTemplate
 		}
 		arrayValue := matches[0][0]
 		arrayMatch := false
