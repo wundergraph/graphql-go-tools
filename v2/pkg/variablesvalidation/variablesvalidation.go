@@ -133,7 +133,7 @@ func (v *variablesVisitor) renderPath() string {
 		out.Write(item.name)
 		if item.kind == pathItemKindArray {
 			out.WriteString("[")
-			out.WriteString(fmt.Sprintf("%d", item.arrayIndex))
+			fmt.Fprint(out, item.arrayIndex)
 			out.WriteString("]")
 		}
 	}

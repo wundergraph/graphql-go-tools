@@ -205,7 +205,7 @@ func (p *pathVisitor) EnterDocument(operation, definition *ast.Document) {
 }
 
 func (p *pathVisitor) EnterField(ref int) {
-	p.out.Write([]byte(fmt.Sprintf("EnterField: %s, path: %s\n", p.op.FieldNameUnsafeString(ref), p.Path)))
+	fmt.Fprintf(p.out, "EnterField: %s, path: %s\n", p.op.FieldNameUnsafeString(ref), p.Path)
 }
 
 func TestVisitWithSkip(t *testing.T) {
