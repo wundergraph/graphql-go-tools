@@ -119,16 +119,16 @@ func TestEventLoop(t *testing.T) {
 	testReporter := &TestReporter{}
 
 	resolver := New(resolverCtx, ResolverOptions{
-		MaxConcurrency:                1024,
-		Debug:                         false,
-		AsyncErrorWriter:              ew,
-		PropagateSubgraphErrors:       false,
-		PropagateSubgraphStatusCodes:  false,
-		SubgraphErrorPropagationMode:  SubgraphErrorPropagationModePassThrough,
-		DefaultErrorExtensionCode:     "TEST",
-		MaxRecyclableParserSize:       1024 * 1024,
-		MultipartSubHeartbeatInterval: DefaultHeartbeatInterval,
-		Reporter:                      testReporter,
+		MaxConcurrency:               1024,
+		Debug:                        false,
+		AsyncErrorWriter:             ew,
+		PropagateSubgraphErrors:      false,
+		PropagateSubgraphStatusCodes: false,
+		SubgraphErrorPropagationMode: SubgraphErrorPropagationModePassThrough,
+		DefaultErrorExtensionCode:    "TEST",
+		MaxRecyclableParserSize:      1024 * 1024,
+		SubHeartbeatInterval:         DefaultHeartbeatInterval,
+		Reporter:                     testReporter,
 	})
 
 	subscription := &GraphQLSubscription{
