@@ -590,9 +590,7 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	upgradeResponse, err := c.httpClient.Do(req)
 	if err != nil {
-		if conn != nil {
-			conn.Close()
-		}
+		// GotConn is not called on error.
 		return nil, "", err
 	}
 
