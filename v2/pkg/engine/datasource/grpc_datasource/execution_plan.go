@@ -331,17 +331,17 @@ func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs pla
 func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 	indentStr := strings.Repeat(" ", indent)
 
-	sb.WriteString(fmt.Sprintf("%sName: %s\n", indentStr, message.Name))
-	sb.WriteString(fmt.Sprintf("%sFields:\n", indentStr))
+	fmt.Fprintf(sb, "%sName: %s\n", indentStr, message.Name)
+	fmt.Fprintf(sb, "%sFields:\n", indentStr)
 
 	for _, field := range message.Fields {
-		sb.WriteString(fmt.Sprintf("%s  - Name: %s\n", indentStr, field.Name))
-		sb.WriteString(fmt.Sprintf("%s    TypeName: %s\n", indentStr, field.TypeName))
-		sb.WriteString(fmt.Sprintf("%s    Repeated: %v\n", indentStr, field.Repeated))
-		sb.WriteString(fmt.Sprintf("%s    JSONPath: %s\n", indentStr, field.JSONPath))
+		fmt.Fprintf(sb, "%s  - Name: %s\n", indentStr, field.Name)
+		fmt.Fprintf(sb, "%s    TypeName: %s\n", indentStr, field.TypeName)
+		fmt.Fprintf(sb, "%s    Repeated: %v\n", indentStr, field.Repeated)
+		fmt.Fprintf(sb, "%s    JSONPath: %s\n", indentStr, field.JSONPath)
 
 		if field.Message != nil {
-			sb.WriteString(fmt.Sprintf("%s    Message:\n", indentStr))
+			fmt.Fprintf(sb, "%s    Message:\n", indentStr)
 			formatRPCMessage(sb, *field.Message, indent+6)
 		}
 	}

@@ -293,7 +293,7 @@ func DoMultipartForm(
 		}
 		hasWrittenFileName = true
 
-		fileMap.WriteString(fmt.Sprintf(`"%d":["%s"]`, i, file.variablePath))
+		fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
 
 		key := fmt.Sprintf("%d", i)
 		_, _ = h.WriteString(file.Path())
