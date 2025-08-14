@@ -21,10 +21,6 @@ const (
 	DefaultHeartbeatInterval = 5 * time.Second
 )
 
-var (
-	multipartHeartbeat = []byte("{}")
-)
-
 // ConnectionIDs is used to create unique connection IDs for each subscription
 // Whenever a new connection is created, use this to generate a new ID
 // It is public because it can be used in more high level packages to instantiate a new connection
@@ -143,8 +139,8 @@ type ResolverOptions struct {
 	ResolvableOptions ResolvableOptions
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
-	// MultipartSubHeartbeatInterval defines the interval in which a heartbeat is sent to all multipart subscriptions
-	MultipartSubHeartbeatInterval time.Duration
+	// SubHeartbeatInterval defines the interval in which a heartbeat is sent to all subscriptions (whether or not this does anything is determined by the subscription response writer)
+	SubHeartbeatInterval time.Duration
 	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	MaxSubscriptionFetchTimeout time.Duration
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
@@ -158,8 +154,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		options.MaxConcurrency = 32
 	}
 
-	if options.MultipartSubHeartbeatInterval <= 0 {
-		options.MultipartSubHeartbeatInterval = DefaultHeartbeatInterval
+	if options.SubHeartbeatInterval <= 0 {
+		options.SubHeartbeatInterval = DefaultHeartbeatInterval
 	}
 
 	// We transform the allowed fields into a map for faster lookups
@@ -202,7 +198,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
 		allowedErrorExtensionFields:  allowedExtensionFields,
 		allowedErrorFields:           allowedErrorFields,
-		heartbeatInterval:            options.MultipartSubHeartbeatInterval,
+		heartbeatInterval:            options.SubHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
@@ -330,7 +326,7 @@ func (s *sub) startWorkerWithHeartbeat() {
 
 			return
 		case <-heartbeatTicker.C:
-			s.resolver.handleHeartbeat(s, multipartHeartbeat)
+			s.resolver.handleHeartbeat(s)
 		case work := <-s.workChan:
 			work.fn()
 
@@ -501,7 +497,7 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 }
 
 // handleHeartbeat sends a heartbeat to the client. It needs to be executed on the same goroutine as the writer.
-func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
+func (r *Resolver) handleHeartbeat(sub *sub) {
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat\n")
 	}
@@ -518,7 +514,7 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 		fmt.Printf("resolver:heartbeat:subscription:%d\n", sub.id.SubscriptionID)
 	}
 
-	if _, err := sub.writer.Write(data); err != nil {
+	if err := sub.writer.Heartbeat(); err != nil {
 		if errors.Is(err, context.Canceled) {
 			// If Write fails (e.g. client disconnected), remove the subscription.
 			_ = r.AsyncUnsubscribeSubscription(sub.id)
@@ -526,16 +522,11 @@ func (r *Resolver) handleHeartbeat(sub *sub, data []byte) {
 		}
 		r.asyncErrorWriter.WriteError(sub.ctx, err, nil, sub.writer)
 	}
-	err := sub.writer.Flush()
-	if err != nil {
-		// If flush fails (e.g. client disconnected), remove the subscription.
-		_ = r.AsyncUnsubscribeSubscription(sub.id)
-		return
-	}
 
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", sub.id.SubscriptionID)
 	}
+
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
 	}
