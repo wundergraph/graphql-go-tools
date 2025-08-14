@@ -4778,6 +4778,9 @@ func (s *SubscriptionRecorder) Complete() {
 }
 
 func (s *SubscriptionRecorder) Heartbeat() error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	s.messages = append(s.messages, "heartbeat")
 	return nil
 }
 

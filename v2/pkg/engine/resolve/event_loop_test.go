@@ -51,7 +51,11 @@ func (f *FakeSubscriptionWriter) Complete() {
 	f.messageCountOnComplete = len(f.writtenMessages)
 }
 
+// Heartbeat writes directly to the writtenMessages slice, as the real implementations implicitly flush
 func (f *FakeSubscriptionWriter) Heartbeat() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.writtenMessages = append(f.writtenMessages, string("heartbeat"))
 	return nil
 }
 
