@@ -25,7 +25,7 @@ func (s *SynchronousResponsePlan) SetFlushInterval(interval int64) {
 	s.FlushInterval = interval
 }
 
-func (_ *SynchronousResponsePlan) PlanKind() Kind {
+func (*SynchronousResponsePlan) PlanKind() Kind {
 	return SynchronousResponseKind
 }
 
@@ -38,6 +38,6 @@ func (s *SubscriptionResponsePlan) SetFlushInterval(interval int64) {
 	s.FlushInterval = interval
 }
 
-func (_ *SubscriptionResponsePlan) PlanKind() Kind {
+func (*SubscriptionResponsePlan) PlanKind() Kind {
 	return SubscriptionResponseKind
 }

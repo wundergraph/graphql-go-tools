@@ -14,7 +14,7 @@ type CustomNode struct {
 	Path     []string
 }
 
-func (_ *CustomNode) NodeKind() NodeKind {
+func (*CustomNode) NodeKind() NodeKind {
 	return NodeKindCustom
 }
 

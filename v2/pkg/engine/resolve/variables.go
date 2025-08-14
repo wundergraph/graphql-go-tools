@@ -81,7 +81,7 @@ func (c *ContextVariable) Equals(another Variable) bool {
 	return true
 }
 
-func (_ *ContextVariable) GetVariableKind() VariableKind {
+func (*ContextVariable) GetVariableKind() VariableKind {
 	return ContextVariableKind
 }
 
