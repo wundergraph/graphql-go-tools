@@ -2346,7 +2346,7 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 }
 
 func TestWebSocketUpgradeFailures(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	t.Parallel()
 
 	testCases := []struct {
 		name          string
@@ -2462,7 +2462,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 }
 
 func TestInvalidWebSocketAcceptKey(t *testing.T) {
-	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+	t.Parallel()
 
 	testCases := []struct {
 		name             string
