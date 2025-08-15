@@ -4621,7 +4621,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	writer := graphql.NewEngineResultWriter()
 	engine := newEngine()
 	require.NoError(b, engine.Execute(ctx, &req, &writer))
-	require.JSONEq(b, string(expectedResponse), writer.String())
+	require.Equal(b, string(expectedResponse), writer.String())
 
 	pool := sync.Pool{
 		New: func() interface{} {
@@ -4638,10 +4638,8 @@ func BenchmarkIntrospection(b *testing.B) {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
 			require.NoError(b, bc.engine.Execute(ctx, &req, bc.writer))
-			if !bytes.Equal(expectedResponse, bc.writer.Bytes()) {
-				require.JSONEq(b, string(expectedResponse), bc.writer.String())
-			}
-
+			require.True(b, bytes.Equal(expectedResponse, bc.writer.Bytes()))
+			// no point to use JSONEq here because JSONEq would contaminate results
 			pool.Put(bc)
 		}
 	})
