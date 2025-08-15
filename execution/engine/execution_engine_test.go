@@ -4584,12 +4584,11 @@ func BenchmarkIntrospection(b *testing.B) {
 	expectedResponseIndented, err := os.ReadFile("testdata/full_introspection.json")
 	require.NoError(b, err)
 
-	// Minify the JSON to match the engine output format
-	var jsonData interface{}
-	err = json.Unmarshal(expectedResponseIndented, &jsonData)
+	// Minify the JSON to match the engine output format (preserve key order)
+	var buf bytes.Buffer
+	err = json.Compact(&buf, expectedResponseIndented)
 	require.NoError(b, err)
-	expectedResponse, err := json.Marshal(jsonData)
-	require.NoError(b, err)
+	expectedResponse := buf.Bytes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
