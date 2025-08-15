@@ -500,11 +500,11 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 
 	// conn is not nil. Any errored return below could lead to a leaking connection.
 	// To avoid this, close connection if failure happened.
-	// defer func() {
-	// 	if err != nil {
-	// 		conn.Close()
-	// 	}
-	// }()
+	defer func() {
+		if err != nil {
+			conn.Close()
+		}
+	}()
 
 	initMsg, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
@@ -594,7 +594,8 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 		return nil, "", err
 	}
 
-	// On failed upgrade, we close the connection here without transferring ownership to the callee.
+	// On failed upgrades, we close the body without transferring ownership to the caller.
+
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
 		// Drain to EOF to allow connection reuse by net/http.
 		_, _ = io.Copy(io.Discard, upgradeResponse.Body)

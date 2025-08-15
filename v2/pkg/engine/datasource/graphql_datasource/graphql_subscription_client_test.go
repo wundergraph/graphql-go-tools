@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -2012,6 +2013,8 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		select {
 		case <-pingReceived:
 			t.Log("Ping received successfully")
+			// don't unsubscribe immediately, give the server time to send a payload
+			time.Sleep(50 * time.Millisecond)
 		case <-time.After(2 * time.Second):
 			t.Log("Timed out waiting for ping, will unsubscribe anyway")
 		}
@@ -2340,6 +2343,217 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 	client.Unsubscribe(subscriptionID)
 	clientCancel() // Cancel client context
 	serverCancel() // Cancel server context (though serverDone should ensure it exited)
+}
+
+func TestWebSocketUpgradeFailures(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	testCases := []struct {
+		name          string
+		statusCode    int
+		headers       map[string]string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "HTTP 400 Bad Request",
+			statusCode:    http.StatusBadRequest,
+			headers:       map[string]string{"Content-Type": "text/plain"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 401 Unauthorized",
+			statusCode:    http.StatusUnauthorized,
+			headers:       map[string]string{"WWW-Authenticate": "Bearer"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 403 Forbidden",
+			statusCode:    http.StatusForbidden,
+			headers:       map[string]string{"Content-Type": "application/json"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 404 Not Found",
+			statusCode:    http.StatusNotFound,
+			headers:       map[string]string{"Content-Type": "text/html"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 500 Internal Server Error",
+			statusCode:    http.StatusInternalServerError,
+			headers:       map[string]string{"Content-Type": "application/json"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 502 Bad Gateway",
+			statusCode:    http.StatusBadGateway,
+			headers:       map[string]string{"Content-Type": "text/html"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 503 Service Unavailable",
+			statusCode:    http.StatusServiceUnavailable,
+			headers:       map[string]string{"Retry-After": "60"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 200 OK (wrong status for WebSocket)",
+			statusCode:    http.StatusOK,
+			headers:       map[string]string{"Content-Type": "application/json"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for key, value := range tc.headers {
+					w.Header().Set(key, value)
+				}
+				w.WriteHeader(tc.statusCode)
+				fmt.Fprintf(w, `{"error": "WebSocket upgrade failed", "status": %d}`, tc.statusCode)
+			}))
+			defer server.Close()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithLogger(logger()),
+			).(*subscriptionClient)
+
+			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
+
+			updater := &testSubscriptionUpdater{}
+			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+				URL: wsURL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+			}, updater)
+
+			if tc.expectError {
+				require.ErrorContains(t, err, tc.errorContains)
+
+				// Verify the error is of the correct type
+				var upgradeErr *UpgradeRequestError
+				require.ErrorAs(t, err, &upgradeErr)
+				require.Equal(t, tc.statusCode, upgradeErr.StatusCode)
+			} else {
+				assert.NoError(t, err, "Expected no error for status code %d", tc.statusCode)
+			}
+
+			// Give some time for any async cleanup
+			time.Sleep(50 * time.Millisecond)
+		})
+	}
+}
+
+func TestInvalidWebSocketAcceptKey(t *testing.T) {
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	testCases := []struct {
+		name             string
+		acceptKeyHandler func(challengeKey string) string
+		expectError      bool
+		errorContains    string
+	}{
+		{
+			name: "Missing Sec-WebSocket-Accept header",
+			acceptKeyHandler: func(challengeKey string) string {
+				return "" // Don't set the header
+			},
+			expectError:   true,
+			errorContains: "invalid Sec-WebSocket-Accept",
+		},
+		{
+			name: "Malformed base64 Sec-WebSocket-Accept",
+			acceptKeyHandler: func(challengeKey string) string {
+				return "not-valid-base64!!!"
+			},
+			expectError:   true,
+			errorContains: "invalid Sec-WebSocket-Accept",
+		},
+		{
+			name: "Correct length but wrong content",
+			acceptKeyHandler: func(challengeKey string) string {
+				return base64.StdEncoding.EncodeToString([]byte("wrong-content-here-20-bytes"))
+			},
+			expectError:   true,
+			errorContains: "invalid Sec-WebSocket-Accept",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var receivedChallengeKey string
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedChallengeKey = r.Header.Get("Sec-WebSocket-Key")
+				require.NotEmpty(t, receivedChallengeKey, "Challenge key should be present in request")
+
+				w.Header().Set("Upgrade", "websocket")
+				w.Header().Set("Connection", "Upgrade")
+				w.Header().Set("Sec-WebSocket-Version", "13")
+
+				acceptKey := tc.acceptKeyHandler(receivedChallengeKey)
+				if acceptKey != "" {
+					w.Header().Set("Sec-WebSocket-Accept", acceptKey)
+				}
+				// If acceptKey is empty, we don't set the header (simulating missing header)
+
+				w.WriteHeader(http.StatusSwitchingProtocols)
+
+				// Close the connection immediately to prevent hanging
+				// This simulates a server that sends 101 but then closes
+				if hijacker, ok := w.(http.Hijacker); ok {
+					conn, _, err := hijacker.Hijack()
+					if err == nil {
+						conn.Close()
+					}
+				}
+			}))
+			defer server.Close()
+
+			// Create subscription client
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithLogger(logger()),
+			).(*subscriptionClient)
+
+			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
+
+			updater := &testSubscriptionUpdater{}
+			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+				URL: wsURL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+			}, updater)
+
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.errorContains)
+			require.NotEmpty(t, receivedChallengeKey)
+
+			// Give some time for any async cleanup
+			time.Sleep(50 * time.Millisecond)
+		})
+	}
 }
 
 func TestRequestHash(t *testing.T) {
