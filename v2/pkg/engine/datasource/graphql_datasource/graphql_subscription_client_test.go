@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -1893,13 +1894,15 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows as it's not reliable")
 	}
+	t.Parallel()
 
 	t.Run("client sends ping message after configured interval", func(t *testing.T) {
 		t.Parallel()
 
-		// Create channel to signal server done
-		serverDone := make(chan struct{})
-		pingReceived := make(chan struct{}) // Add channel to signal ping received
+		serverDone := make(chan struct{}) // to signal server done
+		// buffered channels and non-blocking send to avoid double-close panics if events repeat
+		pingReceived := make(chan struct{}, 1) // signaled when the server receives a ping
+		payloadSend := make(chan struct{}, 1)  // signaled when the server sends a payload
 
 		// Create test server that will handle the WebSocket connection
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1960,11 +1963,18 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 				switch messageStr {
 				case `{"type":"ping"}`:
 					receivedPing = true
-					close(pingReceived)
+					select {
+					case pingReceived <- struct{}{}:
+					default:
+					}
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"pong"}`))
 					assert.NoError(t, err)
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
 					assert.NoError(t, err)
+					select {
+					case payloadSend <- struct{}{}:
+					default:
+					}
 				case `{"id":"1","type":"complete"}`:
 					receivedComplete = true
 				}
@@ -1983,7 +1993,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		defer serverCancel()
 
 		// Create subscription client with a short ping interval for testing
-		pingInterval := 500 * time.Millisecond
+		pingInterval := 400 * time.Millisecond
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 			WithPingInterval(pingInterval),
@@ -2014,6 +2024,13 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 			t.Log("Ping received successfully")
 		case <-time.After(2 * time.Second):
 			t.Log("Timed out waiting for ping, will unsubscribe anyway")
+		}
+		// don't unsubscribe immediately, give the server time to send a payload
+		select {
+		case <-payloadSend:
+			t.Log("Payload sent successfully")
+		case <-time.After(2 * time.Second):
+			t.Log("Timed out waiting for sent payload, will unsubscribe anyway")
 		}
 
 		// Cleanup
@@ -2080,11 +2097,11 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 
 			if string(data) == `{"type":"pong"}` {
 				assert.Equal(t, websocket.MessageText, msgType)
-				close(pongReceived)
-
 				// Send another data message
 				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
 				assert.NoError(t, err)
+
+				close(pongReceived)
 			}
 
 			// Wait for client to unsubscribe (complete message)
@@ -2136,8 +2153,12 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		// Wait some time to allow subscription processing
-		time.Sleep(2 * time.Second)
+		select {
+		case <-pongReceived:
+			t.Log("Server received pong successfully")
+		case <-time.After(2 * time.Second):
+			t.Log("Timed out waiting for pong in server, will unsubscribe anyway")
+		}
 
 		// Verify we receive at least the initial data
 		updater.mux.Lock()
@@ -2149,18 +2170,17 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		updater.mux.Unlock()
 
 		assert.GreaterOrEqual(t, updatesCount, 1)
-		if updatesCount > 0 {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
-		}
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
 
 		// Cleanup
 		client.Unsubscribe(2)
+		t.Log("client unsubscribed")
 
 		// Wait for server to finish
 		select {
 		case <-serverDone:
 			// Server completed successfully
-		case <-time.After(5 * time.Second):
+		case <-time.After(2 * time.Second):
 			t.Fatal("Timed out waiting for server to complete")
 		}
 
@@ -2340,6 +2360,213 @@ func TestClientClosesConnectionOnPingTimeout(t *testing.T) {
 	client.Unsubscribe(subscriptionID)
 	clientCancel() // Cancel client context
 	serverCancel() // Cancel server context (though serverDone should ensure it exited)
+}
+
+func TestWebSocketUpgradeFailures(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		statusCode    int
+		headers       map[string]string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "HTTP 400 Bad Request",
+			statusCode:    http.StatusBadRequest,
+			headers:       map[string]string{"Content-Type": "text/plain"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 401 Unauthorized",
+			statusCode:    http.StatusUnauthorized,
+			headers:       map[string]string{"WWW-Authenticate": "Bearer"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 403 Forbidden",
+			statusCode:    http.StatusForbidden,
+			headers:       map[string]string{"Content-Type": "application/json"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 404 Not Found",
+			statusCode:    http.StatusNotFound,
+			headers:       map[string]string{"Content-Type": "text/html"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 500 Internal Server Error",
+			statusCode:    http.StatusInternalServerError,
+			headers:       map[string]string{"Content-Type": "application/json"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 502 Bad Gateway",
+			statusCode:    http.StatusBadGateway,
+			headers:       map[string]string{"Content-Type": "text/html"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 503 Service Unavailable",
+			statusCode:    http.StatusServiceUnavailable,
+			headers:       map[string]string{"Retry-After": "60"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+		{
+			name:          "HTTP 200 OK (wrong status for WebSocket)",
+			statusCode:    http.StatusOK,
+			headers:       map[string]string{"Content-Type": "application/json"},
+			expectError:   true,
+			errorContains: "failed to upgrade connection",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				for key, value := range tc.headers {
+					w.Header().Set(key, value)
+				}
+				w.WriteHeader(tc.statusCode)
+				fmt.Fprintf(w, `{"error": "WebSocket upgrade failed", "status": %d}`, tc.statusCode)
+			}))
+			defer server.Close()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithLogger(logger()),
+			).(*subscriptionClient)
+
+			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
+
+			updater := &testSubscriptionUpdater{}
+			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+				URL: wsURL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+			}, updater)
+
+			if tc.expectError {
+				require.ErrorContains(t, err, tc.errorContains)
+
+				// Verify the error is of the correct type
+				var upgradeErr *UpgradeRequestError
+				require.ErrorAs(t, err, &upgradeErr)
+				require.Equal(t, tc.statusCode, upgradeErr.StatusCode)
+				require.Equal(t, server.URL, upgradeErr.URL)
+			} else {
+				assert.NoError(t, err, "Expected no error for status code %d", tc.statusCode)
+			}
+		})
+	}
+}
+
+func TestInvalidWebSocketAcceptKey(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name             string
+		acceptKeyHandler func(challengeKey string) string
+		expectError      bool
+		errorContains    string
+	}{
+		{
+			name: "Missing Sec-WebSocket-Accept header",
+			acceptKeyHandler: func(challengeKey string) string {
+				return "" // Don't set the header
+			},
+			expectError:   true,
+			errorContains: "invalid Sec-WebSocket-Accept",
+		},
+		{
+			name: "Malformed base64 Sec-WebSocket-Accept",
+			acceptKeyHandler: func(challengeKey string) string {
+				return "not-valid-base64!!!"
+			},
+			expectError:   true,
+			errorContains: "invalid Sec-WebSocket-Accept",
+		},
+		{
+			name: "Correct length but wrong content",
+			acceptKeyHandler: func(challengeKey string) string {
+				// 20 bytes (not the SHA-1 of challengeKey+GUID)
+				return base64.StdEncoding.EncodeToString([]byte("12345678901234567890"))
+			},
+			expectError:   true,
+			errorContains: "invalid Sec-WebSocket-Accept",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var receivedChallengeKey string
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				receivedChallengeKey = r.Header.Get("Sec-WebSocket-Key")
+				require.NotEmpty(t, receivedChallengeKey, "Challenge key should be present in request")
+
+				w.Header().Set("Upgrade", "websocket")
+				w.Header().Set("Connection", "Upgrade")
+				w.Header().Set("Sec-WebSocket-Version", "13")
+
+				acceptKey := tc.acceptKeyHandler(receivedChallengeKey)
+				if acceptKey != "" {
+					w.Header().Set("Sec-WebSocket-Accept", acceptKey)
+				}
+				// If acceptKey is empty, we don't set the header (simulating missing header)
+
+				w.WriteHeader(http.StatusSwitchingProtocols)
+
+				// Close the connection immediately to prevent hanging
+				// This simulates a server that sends 101 but then closes
+				if hijacker, ok := w.(http.Hijacker); ok {
+					conn, _, err := hijacker.Hijack()
+					if err == nil {
+						conn.Close()
+					}
+				}
+			}))
+			defer server.Close()
+
+			// Create subscription client
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			serverCtx, serverCancel := context.WithCancel(context.Background())
+			defer serverCancel()
+
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+				WithLogger(logger()),
+			).(*subscriptionClient)
+
+			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
+
+			updater := &testSubscriptionUpdater{}
+			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
+				URL: wsURL,
+				Body: GraphQLBody{
+					Query: `subscription {messageAdded(roomName: "room"){text}}`,
+				},
+			}, updater)
+
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.errorContains)
+			require.NotEmpty(t, receivedChallengeKey)
+		})
+	}
 }
 
 func TestRequestHash(t *testing.T) {
