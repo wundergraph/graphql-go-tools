@@ -2450,6 +2450,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 				var upgradeErr *UpgradeRequestError
 				require.ErrorAs(t, err, &upgradeErr)
 				require.Equal(t, tc.statusCode, upgradeErr.StatusCode)
+				require.Equal(t, server.URL, upgradeErr.URL)
 			} else {
 				assert.NoError(t, err, "Expected no error for status code %d", tc.statusCode)
 			}
