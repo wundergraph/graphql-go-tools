@@ -1900,7 +1900,8 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 
 		// Create channel to signal server done
 		serverDone := make(chan struct{})
-		pingReceived := make(chan struct{}) // Add channel to signal ping received
+		pingReceived := make(chan struct{}) // closed when the server receives a ping
+		payloadSend := make(chan struct{})  // closed when the server sends a payload
 
 		// Create test server that will handle the WebSocket connection
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1966,6 +1967,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 					assert.NoError(t, err)
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
 					assert.NoError(t, err)
+					close(payloadSend)
 				case `{"id":"1","type":"complete"}`:
 					receivedComplete = true
 				}
@@ -2013,10 +2015,15 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		select {
 		case <-pingReceived:
 			t.Log("Ping received successfully")
-			// don't unsubscribe immediately, give the server time to send a payload
-			time.Sleep(50 * time.Millisecond)
 		case <-time.After(2 * time.Second):
 			t.Log("Timed out waiting for ping, will unsubscribe anyway")
+		}
+		// don't unsubscribe immediately, give the server time to send a payload
+		select {
+		case <-payloadSend:
+			t.Log("Payload sent successfully")
+		case <-time.After(2 * time.Second):
+			t.Log("Timed out waiting for sent payload, will unsubscribe anyway")
 		}
 
 		// Cleanup
@@ -2083,11 +2090,11 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 
 			if string(data) == `{"type":"pong"}` {
 				assert.Equal(t, websocket.MessageText, msgType)
-				close(pongReceived)
-
 				// Send another data message
 				err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
 				assert.NoError(t, err)
+
+				close(pongReceived)
 			}
 
 			// Wait for client to unsubscribe (complete message)
@@ -2139,8 +2146,12 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		}, updater)
 		assert.NoError(t, err)
 
-		// Wait some time to allow subscription processing
-		time.Sleep(2 * time.Second)
+		select {
+		case <-pongReceived:
+			t.Log("Server received pong successfully")
+		case <-time.After(2 * time.Second):
+			t.Log("Timed out waiting for pong in server, will unsubscribe anyway")
+		}
 
 		// Verify we receive at least the initial data
 		updater.mux.Lock()
@@ -2152,18 +2163,17 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		updater.mux.Unlock()
 
 		assert.GreaterOrEqual(t, updatesCount, 1)
-		if updatesCount > 0 {
-			assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
-		}
+		assert.Equal(t, `{"data":{"messageAdded":{"text":"initial data"}}}`, firstUpdate)
 
 		// Cleanup
 		client.Unsubscribe(2)
+		t.Log("client unsubscribed")
 
 		// Wait for server to finish
 		select {
 		case <-serverDone:
 			// Server completed successfully
-		case <-time.After(5 * time.Second):
+		case <-time.After(2 * time.Second):
 			t.Fatal("Timed out waiting for server to complete")
 		}
 
@@ -2454,9 +2464,6 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 			} else {
 				assert.NoError(t, err, "Expected no error for status code %d", tc.statusCode)
 			}
-
-			// Give some time for any async cleanup
-			time.Sleep(50 * time.Millisecond)
 		})
 	}
 }
@@ -2550,9 +2557,6 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 			require.Error(t, err)
 			require.ErrorContains(t, err, tc.errorContains)
 			require.NotEmpty(t, receivedChallengeKey)
-
-			// Give some time for any async cleanup
-			time.Sleep(50 * time.Millisecond)
 		})
 	}
 }

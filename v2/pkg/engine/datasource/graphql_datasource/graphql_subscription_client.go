@@ -486,7 +486,7 @@ func (u *UpgradeRequestError) Error() string {
 }
 
 func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (*connection, error) {
-	// Any failure will be stored here, needed for defer().
+	// Any failure will be stored here, needed for deferred body closer.
 	var err error
 
 	conn, subProtocol, err := c.dial(requestContext, options)
@@ -590,7 +590,6 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	upgradeResponse, err := c.httpClient.Do(req)
 	if err != nil {
-		// GotConn is not called on error.
 		return nil, "", err
 	}
 
