@@ -1894,14 +1894,15 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows as it's not reliable")
 	}
+	t.Parallel()
 
 	t.Run("client sends ping message after configured interval", func(t *testing.T) {
 		t.Parallel()
 
-		// Create channel to signal server done
-		serverDone := make(chan struct{})
-		pingReceived := make(chan struct{}) // closed when the server receives a ping
-		payloadSend := make(chan struct{})  // closed when the server sends a payload
+		serverDone := make(chan struct{}) // to signal server done
+		// buffered channels and non-blocking send to avoid double-close panics if events repeat
+		pingReceived := make(chan struct{}, 1) // signaled when the server receives a ping
+		payloadSend := make(chan struct{}, 1)  // signaled when the server sends a payload
 
 		// Create test server that will handle the WebSocket connection
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1962,12 +1963,18 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 				switch messageStr {
 				case `{"type":"ping"}`:
 					receivedPing = true
-					close(pingReceived)
+					select {
+					case pingReceived <- struct{}{}:
+					default:
+					}
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"pong"}`))
 					assert.NoError(t, err)
 					err = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":"1","type":"next","payload":{"data":{"messageAdded":{"text":"after ping-pong"}}}}`))
 					assert.NoError(t, err)
-					close(payloadSend)
+					select {
+					case payloadSend <- struct{}{}:
+					default:
+					}
 				case `{"id":"1","type":"complete"}`:
 					receivedComplete = true
 				}
@@ -1986,7 +1993,7 @@ func TestClientToSubgraphPingPong(t *testing.T) {
 		defer serverCancel()
 
 		// Create subscription client with a short ping interval for testing
-		pingInterval := 500 * time.Millisecond
+		pingInterval := 400 * time.Millisecond
 		client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
 			WithLogger(logger()),
 			WithPingInterval(pingInterval),
@@ -2496,7 +2503,8 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 		{
 			name: "Correct length but wrong content",
 			acceptKeyHandler: func(challengeKey string) string {
-				return base64.StdEncoding.EncodeToString([]byte("wrong-content-here-20-bytes"))
+				// 20 bytes (not the SHA-1 of challengeKey+GUID)
+				return base64.StdEncoding.EncodeToString([]byte("12345678901234567890"))
 			},
 			expectError:   true,
 			errorContains: "invalid Sec-WebSocket-Accept",
