@@ -33,14 +33,6 @@ A field resolver is conceptually a function that takes several inputs and return
 3. **List Resolvers**: Return arrays of values or objects
 4. **Custom Scalar Resolvers**: Handle custom scalar types like Date, JSON, etc.
 
-### Benefits of Field Resolvers
-
-- **Granular Control**: Each field can have custom logic for data fetching
-- **Composition**: Data from multiple sources can be combined at the field level
-- **Optimization**: Resolvers can implement batching, caching, and other performance optimizations
-- **Security**: Field-level authorization can be implemented in resolvers
-- **Flexibility**: Different fields can use different data sources or computation methods
-
 ### Example
 
 Consider a GraphQL schema that demonstrates field resolvers with arguments:
@@ -63,8 +55,8 @@ type Post {
   title: String!
   content(format: ContentFormat = MARKDOWN): String!
   comments(limit: Int = 5, orderBy: CommentOrder): [Comment!]!
-  likes(count: Boolean = false): LikesResult!
 }
+
 
 enum PostStatus {
   DRAFT
@@ -148,6 +140,36 @@ We want to fetch the posts for the user with the id `123`, and also compute the 
 service UserService {
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse);
   rpc ResolveUserPosts(ResolveUserPostsRequest) returns (ResolveUserPostsResponse);
+  rpc ResolvePostContent(ResolvePostContentRequest) returns (ResolvePostContentResponse);
+  rpc ResolvePostComments(ResolvePostCommentsRequest) returns (ResolvePostCommentsResponse);
+}
+
+enum PostStatus {
+  POST_STATUS_UNSPECIFIED = 0;
+  POST_STATUS_DRAFT = 1;
+  POST_STATUS_PUBLISHED = 2;
+  POST_STATUS_ARCHIVED = 3;
+}
+
+enum PostOrderBy {
+  POST_ORDER_BY_UNSPECIFIED = 0;
+  POST_ORDER_BY_CREATED_AT = 1;
+  POST_ORDER_BY_TITLE = 2;
+  POST_ORDER_BY_POPULARITY = 3;
+}
+
+enum ContentFormat {
+  CONTENT_FORMAT_UNSPECIFIED = 0;
+  CONTENT_FORMAT_MARKDOWN = 1;
+  CONTENT_FORMAT_HTML = 2;
+  CONTENT_FORMAT_PLAIN = 3;
+}
+
+enum CommentOrder {
+  COMMENT_ORDER_UNSPECIFIED = 0;
+  COMMENT_ORDER_NEWEST = 1;
+  COMMENT_ORDER_OLDEST = 2;
+  COMMENT_ORDER_POPULAR = 3;
 }
 
 message QueryUserRequest {
@@ -158,11 +180,15 @@ message QueryUserResponse {
   User user = 1;
 }
 
+// Field resolver for User.posts
 message ResolveUserPostsInput {
-    string id = 1;
-    int32 limit = 2;
-    PostStatus status = 3;
-    PostOrderBy orderBy = 4;
+    User parent = 1;  // The parent User object
+    message Args {
+        int32 limit = 1;
+        PostStatus status = 2;
+        PostOrderBy orderBy = 3;
+    }
+    Args args = 2;
 }
 
 message ResolveUserPostsRequest {
@@ -176,6 +202,50 @@ message ResolveUserPostsOutput {
 message ResolveUserPostsResponse {
   repeated ResolveUserPostsOutput output = 1;
 }
+
+// Field resolver for Post.content
+message ResolvePostContentInput {
+    Post parent = 1;  // The parent Post object
+    message Args {
+        ContentFormat format = 1;
+    }
+    Args args = 2;
+}
+
+message ResolvePostContentRequest {
+    repeated ResolvePostContentInput input = 1;
+}
+
+message ResolvePostContentOutput {
+    string content = 1;
+}
+
+message ResolvePostContentResponse {
+    repeated ResolvePostContentOutput output = 1;
+}
+
+// Field resolver for Post.comments
+message ResolvePostCommentsInput {
+    Post parent = 1;  // The parent Post object
+    message Args {
+        int32 limit = 1;
+        CommentOrder orderBy = 2;
+    }
+    Args args = 2;
+}
+
+message ResolvePostCommentsRequest {
+    repeated ResolvePostCommentsInput input = 1;
+}
+
+message ResolvePostCommentsOutput {
+    repeated Comment comments = 1;
+}
+
+message ResolvePostCommentsResponse {
+    repeated ResolvePostCommentsOutput output = 1;
+}
+
 
 ```
 
