@@ -65,7 +65,7 @@ type Resolver struct {
 
 	propagateSubgraphErrors      bool
 	propagateSubgraphStatusCodes bool
-	// Multipart heartbeat interval
+	// Subscription heartbeat interval
 	heartbeatInterval time.Duration
 	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	maxSubscriptionFetchTimeout time.Duration
@@ -306,8 +306,8 @@ func (s *sub) startWorker() {
 	s.startWorkerWithoutHeartbeat()
 }
 
-// startWorkerWithHeartbeat is similar to startWorker but sends heartbeats to the client when
-// subscription over multipart is used. It sends a heartbeat to the client every heartbeatInterval.
+// startWorkerWithHeartbeat is similar to startWorker but sends heartbeats to the client when enabled.
+// It sends a heartbeat to the client every heartbeatInterval. Heartbeats are handled by the SubscriptionResponseWriter interface.
 // TODO: Implement a shared timer implementation to avoid creating a new ticker for each subscription.
 func (s *sub) startWorkerWithHeartbeat() {
 	heartbeatTicker := time.NewTicker(s.resolver.heartbeatInterval)
@@ -515,16 +515,13 @@ func (r *Resolver) handleHeartbeat(sub *sub) {
 	}
 
 	if err := sub.writer.Heartbeat(); err != nil {
-		if errors.Is(err, context.Canceled) {
-			// If Write fails (e.g. client disconnected), remove the subscription.
-			_ = r.AsyncUnsubscribeSubscription(sub.id)
-			return
-		}
-		r.asyncErrorWriter.WriteError(sub.ctx, err, nil, sub.writer)
+		// If heartbeat fails (e.g. client disconnected), remove the subscription.
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		return
 	}
 
 	if r.options.Debug {
-		fmt.Printf("resolver:heartbeat:subscription:flushed:%d\n", sub.id.SubscriptionID)
+		fmt.Printf("resolver:heartbeat:subscription:done:%d\n", sub.id.SubscriptionID)
 	}
 
 	if r.reporter != nil {
