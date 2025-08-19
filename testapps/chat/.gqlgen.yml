@@ -1,3 +1,0 @@
-models:
-  Chatroom:
-    model:  github.com/wundergraph/graphql-go-tools/testapps/chat.Chatroom

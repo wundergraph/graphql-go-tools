@@ -26,7 +26,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-// mockPlugin is the plugin implementation for the test
+// mockPlugin is the plugin implementation for the test.
 type mockPlugin struct {
 	plugin.Plugin
 }
