@@ -650,7 +650,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
 			}
 			// Send the close signal to the goroutine that starts the datasource subscription
-			initialHooksClose <- true
+			initialHooksClose <- (err != nil)
 		},
 		final: false,
 	}
