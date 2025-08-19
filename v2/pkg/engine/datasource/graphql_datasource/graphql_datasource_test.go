@@ -8916,16 +8916,15 @@ func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 		startFnCalled := make(chan fnData, 1)
 		subscriptionSource := SubscriptionSource{
 			subscriptionOnStartFns: []SubscriptionOnStartFn{
-				func(ctx *resolve.Context, input []byte) (bool, error) {
+				func(ctx *resolve.Context, input []byte) error {
 					startFnCalled <- fnData{ctx, input}
-					return false, nil
+					return nil
 				},
 			},
 		}
 
-		close, err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.NoError(t, err)
-		assert.False(t, close)
 		var called fnData
 		select {
 		case called = <-startFnCalled:
@@ -8942,14 +8941,13 @@ func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 
 		subscriptionSource := SubscriptionSource{
 			subscriptionOnStartFns: []SubscriptionOnStartFn{
-				func(ctx *resolve.Context, input []byte) (bool, error) {
-					return false, errors.New("test error")
+				func(ctx *resolve.Context, input []byte) error {
+					return errors.New("test error")
 				},
 			},
 		}
 
-		close, err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
-		assert.False(t, close)
+		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "test error")
 	})

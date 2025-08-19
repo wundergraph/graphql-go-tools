@@ -106,10 +106,8 @@ type SingleTypeField struct {
 
 // SubscriptionOnStartFn defines a hook function that is called when a subscription starts.
 // It receives the resolve context and the input of the subscription.
-// The function can return a boolean indicating if the subscription should be closed, and an error.
-// The error is propagated to the client.
-// If close is true, the subscription is closed.
-type SubscriptionOnStartFn func(ctx *resolve.Context, input []byte) (close bool, err error)
+// The function can return an error.
+type SubscriptionOnStartFn func(ctx *resolve.Context, input []byte) (err error)
 
 type SubscriptionConfiguration struct {
 	URL           string

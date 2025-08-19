@@ -1995,11 +1995,11 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 	return s.client.UniqueRequestID(ctx, options, xxh)
 }
 
-func (s *SubscriptionSource) SubscriptionOnStart(ctx *resolve.Context, input []byte) (close bool, err error) {
+func (s *SubscriptionSource) SubscriptionOnStart(ctx *resolve.Context, input []byte) (err error) {
 	for _, fn := range s.subscriptionOnStartFns {
-		close, err = fn(ctx, input)
-		if err != nil || close {
-			return close, err
+		err = fn(ctx, input)
+		if err != nil {
+			return err
 		}
 	}
 	return
