@@ -23,13 +23,20 @@ type GraphQLSubscriptionTrigger struct {
 	QueryPlan      *QueryPlan
 }
 
+// GraphQLResponse contains intermediate and final data of the response.
+// Fields are filled in this order:
+//
+//  1. Planner fills RawFetches and Info fields.
+//  2. PostProcessor fills Fetches and DataSources fields.
+//  3. Resolver fills the Data.
 type GraphQLResponse struct {
-	Data            *Object
-	RenameTypeNames []RenameTypeName
-	Info            *GraphQLResponseInfo
-	Fetches         *FetchTreeNode
-	RawFetches      []*FetchItem
-	DataSources     []DataSourceInfo
+	RawFetches []*FetchItem
+	Info       *GraphQLResponseInfo
+
+	Fetches     *FetchTreeNode
+	DataSources []DataSourceInfo
+
+	Data *Object
 }
 
 type GraphQLResponseInfo struct {

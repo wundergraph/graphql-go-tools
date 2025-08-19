@@ -12,6 +12,7 @@ import (
 // nodeSelectionVisitor walks through the operation multiple times to rewrite it
 // to be able to resolve fields from different datasources.
 // This visitor might add required fields and rewrite abstract selection if necessary.
+//
 // This visitor will walk the operation again if it has:
 //   - added new required fields to the operation,
 //   - rewritten an abstract field selection set.

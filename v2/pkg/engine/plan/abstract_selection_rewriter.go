@@ -663,7 +663,6 @@ type AbstractFieldPathCollector struct {
 	definition *ast.Document
 
 	targetFieldRef int
-	allow          bool
 	fieldRefPaths  map[int]string
 	pathFieldRefs  map[string][]int
 	fieldToPath    bool
