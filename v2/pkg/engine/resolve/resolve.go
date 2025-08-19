@@ -570,7 +570,7 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
-func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) (bool, error) {
+func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) (error) {
 	// Set the emitEventFn to synchronously emit the event to the subscription
 	if initialHookCtx.emitEventRWMutex == nil {
 		initialHookCtx.emitEventRWMutex = &sync.RWMutex{}
@@ -606,7 +606,7 @@ func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSu
 
 	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 	if !ok {
-		return false, nil
+		return nil
 	}
 
 	return hook.SubscriptionOnStart(initialHookCtx, add.input)
@@ -645,12 +645,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	initialHooksClose := make(chan bool)
 	s.workChan <- workItem{
 		fn: func() {
-			close, err := r.handleAddSubscriptionInitialHook(triggerID, add, initialHookCtx, s)
+			err := r.handleAddSubscriptionInitialHook(triggerID, add, initialHookCtx, s)
 			if err != nil {
 				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
 			}
 			// Send the close signal to the goroutine that starts the datasource subscription
-			initialHooksClose <- close
+			initialHooksClose <- true
 		},
 		final: false,
 	}

@@ -35,7 +35,6 @@ type AsyncSubscriptionDataSource interface {
 // The function is called before the subscription is started and can be used to emit updates to the client.
 type HookableSubscriptionDataSource interface {
 	// SubscriptionOnStart is called when a new subscription is created
-	// If close is true, the subscription is closed.
 	// If an error is returned, the error is propagated to the client.
-	SubscriptionOnStart(ctx *Context, input []byte) (close bool, err error)
+	SubscriptionOnStart(ctx *Context, input []byte) (err error)
 }

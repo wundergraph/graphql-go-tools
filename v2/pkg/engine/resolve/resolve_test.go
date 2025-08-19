@@ -4787,7 +4787,7 @@ func (s *SubscriptionRecorder) Messages() []string {
 	return s.messages
 }
 
-func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnStartFn func(ctx *Context, input []byte) (close bool, err error)) *_fakeStream {
+func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnStartFn func(ctx *Context, input []byte) (err error)) *_fakeStream {
 	return &_fakeStream{
 		messageFunc:           messageFunc,
 		delay:                 delay,
@@ -4806,12 +4806,12 @@ type _fakeStream struct {
 	onStart               func(input []byte)
 	delay                 time.Duration
 	isDone                atomic.Bool
-	subscriptionOnStartFn func(ctx *Context, input []byte) (close bool, err error)
+	subscriptionOnStartFn func(ctx *Context, input []byte) (err error)
 }
 
-func (f *_fakeStream) SubscriptionOnStart(ctx *Context, input []byte) (close bool, err error) {
+func (f *_fakeStream) SubscriptionOnStart(ctx *Context, input []byte) (err error) {
 	if f.subscriptionOnStartFn == nil {
-		return false, nil
+		return nil
 	}
 	return f.subscriptionOnStartFn(ctx, input)
 }
@@ -5459,9 +5459,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (close bool, err error) {
+		}, func(ctx *Context, input []byte) (err error) {
 			called <- true
-			return false, nil
+			return nil
 		})
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
@@ -5491,9 +5491,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (close bool, err error) {
+		}, func(ctx *Context, input []byte) (err error) {
 			ctx.TryEmitSubscriptionUpdate([]byte(`{"data":{"counter":1000}}`))
-			return false, nil
+			return nil
 		})
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
@@ -5523,11 +5523,11 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (close bool, err error) {
+		}, func(ctx *Context, input []byte) (err error) {
 			for i := 0; i < workChanBufferSize+1; i++ {
 				ctx.TryEmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
 			}
-			return false, nil
+			return nil
 		})
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
@@ -5576,7 +5576,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == int(messagesToSendFromOtherSources)-1
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (close bool, err error) {
+		}, func(ctx *Context, input []byte) (err error) {
 			// send the first update immediately
 			accepted := ctx.TryEmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
 			if !accepted {
@@ -5601,7 +5601,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				}
 			}()
 
-			return false, nil
+			return nil
 		})
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
@@ -5636,8 +5636,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx *Context, input []byte) (close bool, err error) {
-			return false, nil
+		}, func(ctx *Context, input []byte) (err error) {
+			return nil
 		})
 		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
 			_, err = xxh.WriteString("unique")
