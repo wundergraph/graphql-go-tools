@@ -11,11 +11,6 @@ use (
 	// execution
 	execution
 
-	// testapps
-	testapps/chat
-	testapps/kafka_pubsub
-	testapps/kafka_pubsub/transactional_producer
-
 	// v2
 	v2
 )

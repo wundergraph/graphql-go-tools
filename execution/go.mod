@@ -19,7 +19,7 @@ require (
 	github.com/wundergraph/cosmo/router v0.0.0-20240729154441-b20b00e892c6
 	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.186
 	go.uber.org/atomic v1.11.0
-	google.golang.org/grpc v1.68.1
+	google.golang.org/grpc v1.71.0
 	google.golang.org/protobuf v1.36.4
 )
 
