@@ -598,7 +598,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		ctx:       ctx,
 	}
 
-	startHook := func() {
+	startHook := func() bool {
 		hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 		if ok {
 			// Clone the context to avoid modifying the original context.
@@ -611,8 +611,10 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
 				_ = r.emitTriggerClose(triggerID)
 				cancel()
+				return true
 			}
 		}
+		return false
 	}
 
 	// Start the dedicated worker goroutine where the subscription updates are processed
@@ -662,7 +664,10 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
-		startHook()
+		close := startHook()
+		if close {
+			return
+		}
 		if asyncDataSource != nil {
 			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
 		} else {
