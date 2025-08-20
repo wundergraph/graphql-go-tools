@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -489,7 +488,7 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
 	case subscriptionEventKindTriggerUpdate:
-		r.handleTriggerUpdate(event.triggerID, event.data, event.pinnedSubscription)
+		r.handleTriggerUpdate(event.triggerID, event.data)
 	case subscriptionEventKindTriggerComplete:
 		r.handleTriggerComplete(event.triggerID)
 	case subscriptionEventKindTriggerInitialized:
@@ -570,48 +569,6 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
-func (r *Resolver) handleAddSubscriptionInitialHook(triggerID uint64, add *addSubscription, initialHookCtx *Context, s *sub) (error) {
-	// Set the emitEventFn to synchronously emit the event to the subscription
-	if initialHookCtx.emitEventRWMutex == nil {
-		initialHookCtx.emitEventRWMutex = &sync.RWMutex{}
-	}
-	initialHookCtx.emitEventRWMutex.Lock()
-	initialHookCtx.emitEventFn = func(data []byte) bool {
-		if r.shouldSkipEvent(initialHookCtx, s, data) {
-			return true
-		}
-		r.executeSubscriptionUpdate(initialHookCtx, s, data)
-		return true
-	}
-	initialHookCtx.emitEventRWMutex.Unlock()
-
-	// After the initial hook is executed, there could be other work items in the workChan that need to be processed.
-	// But if the hook starts a go routine, it could emit events while other work items are being processed.
-	// Also the workChan could be closed while the go routine is running.
-	// We have to avoid concurrent executeSubscriptionUpdate to the same subscription.
-	// To avoid this, after the initial hook is executed, we add the work item to the events channel with a pinned subscription.
-	defer func() {
-		initialHookCtx.emitEventRWMutex.Lock()
-		initialHookCtx.emitEventFn = func(data []byte) bool {
-			r.events <- subscriptionEvent{
-				triggerID:          triggerID,
-				kind:               subscriptionEventKindTriggerUpdate,
-				data:               data,
-				pinnedSubscription: s,
-			}
-			return true
-		}
-		initialHookCtx.emitEventRWMutex.Unlock()
-	}()
-
-	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
-	if !ok {
-		return nil
-	}
-
-	return hook.SubscriptionOnStart(initialHookCtx, add.input)
-}
-
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
 	var (
 		err error
@@ -633,26 +590,29 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		s.heartbeat = true
 	}
 
-	// Clone the context to avoid modifying the original context.
-	// This is important because the original context is changed in the parent thread
-	// and could cause data races.
-	initialHookCtx := add.ctx.clone(add.ctx.ctx)
+	ctx, cancel := context.WithCancel(xcontext.Detach(add.ctx.Context()))
+	updater := &subscriptionUpdater{
+		debug:     r.options.Debug,
+		triggerID: triggerID,
+		ch:        r.events,
+		ctx:       ctx,
+	}
 
-	// Send handleAddSubscriptionInitialHook as the first work sent to the worker to process the hooks
-	// before getting updates from the subscription. This operation is never blocking because workChan
-	// is buffered and this is the first work item, before anyone is allowed to send other work items.
-	// This is important because the hooks need to be executed before the other updates are processed.
-	initialHooksClose := make(chan bool)
-	s.workChan <- workItem{
-		fn: func() {
-			err := r.handleAddSubscriptionInitialHook(triggerID, add, initialHookCtx, s)
+	startHook := func() {
+		hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
+		if ok {
+			// Clone the context to avoid modifying the original context.
+			// This is important because the original context is changed in the parent thread
+			// and could cause data races.
+			initialHookCtx := add.ctx.clone(add.ctx.ctx)
+			initialHookCtx.emitEventFn = updater.Update
+			err := hook.SubscriptionOnStart(initialHookCtx, add.input)
 			if err != nil {
 				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+				_ = r.emitTriggerClose(triggerID)
+				cancel()
 			}
-			// Send the close signal to the goroutine that starts the datasource subscription
-			initialHooksClose <- (err != nil)
-		},
-		final: false,
+		}
 	}
 
 	// Start the dedicated worker goroutine where the subscription updates are processed
@@ -668,21 +628,12 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		// if the trigger is already initialized, we need to read from initialHooksClose to avoid blocking
-		// the worker goroutine
-		<-initialHooksClose
+		go startHook()
 		return
 	}
 
 	if r.options.Debug {
 		fmt.Printf("resolver:create:trigger:%d\n", triggerID)
-	}
-	ctx, cancel := context.WithCancel(xcontext.Detach(add.ctx.Context()))
-	updater := &subscriptionUpdater{
-		debug:     r.options.Debug,
-		triggerID: triggerID,
-		ch:        r.events,
-		ctx:       ctx,
 	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
@@ -711,14 +662,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
-		// Wait for the initial hook to complete
-		close := <-initialHooksClose
-		// If the initial hook closes the subscription, we don't have to connect to the origin
-		// and we can close trigger the close action and return early
-		if close {
-			_ = r.emitTriggerClose(triggerID)
-			return
-		}
+		startHook()
 		if asyncDataSource != nil {
 			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
 		} else {
@@ -846,26 +790,10 @@ func (r *Resolver) shouldSkipEvent(ctx *Context, sub *sub, data []byte) bool {
 }
 
 func (r *Resolver) handleTriggerUpdateQueueWorkItem(c *Context, s *sub, data []byte) {
-	if r.shouldSkipEvent(c, s, data) {
-		return
-	}
-
-	fn := func() {
-		r.executeSubscriptionUpdate(c, s, data)
-	}
-
-	select {
-	case <-r.ctx.Done():
-		// Skip sending all events if the resolver is shutting down
-		return
-	case <-c.ctx.Done():
-		// Skip sending the event if the client disconnected
-	case s.workChan <- workItem{fn, false}:
-		// Send the event to the subscription worker
-	}
+	
 }
 
-func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, pinnedSubscription *sub) {
+func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.triggers[id]
 	if !ok {
 		return
@@ -874,13 +802,33 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, pinnedSubscriptio
 		fmt.Printf("resolver:trigger:update:%d\n", id)
 	}
 
-	if pinnedSubscription != nil {
-		r.handleTriggerUpdateQueueWorkItem(pinnedSubscription.ctx, pinnedSubscription, data)
-		return
-	}
-
 	for c, s := range trig.subscriptions {
-		r.handleTriggerUpdateQueueWorkItem(c, s, data)
+		c, s := c, s
+		if err := c.ctx.Err(); err != nil {
+			continue // no need to schedule an event update when the client already disconnected
+		}
+		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
+		if err != nil {
+			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
+			continue
+		}
+		if skip {
+			continue
+		}
+		
+		fn := func() {
+			r.executeSubscriptionUpdate(c, s, data)
+		}
+
+		select {
+		case <-r.ctx.Done():
+			// Skip sending all events if the resolver is shutting down
+			return
+		case <-c.ctx.Done():
+			// Skip sending the event if the client disconnected
+		case s.workChan <- workItem{fn, false}:
+			// Send the event to the subscription worker
+		}
 	}
 }
 
