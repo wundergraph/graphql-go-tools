@@ -5578,10 +5578,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		}, func(ctx *Context, input []byte) (err error) {
 			// send the first update immediately
-			accepted := ctx.EmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
-			if !accepted {
-				messagesDroppedFromHook.Add(1)
-			}
+			ctx.EmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
 
 			// start a go routine to send the updates after the source started emitting messages
 			go func() {
@@ -5589,10 +5586,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				select {
 				case <-firstMessageArrived:
 					for i := 1; i < int(messagesToSendFromHook); i++ {
-						accepted := ctx.EmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
-						if !accepted {
-							messagesDroppedFromHook.Add(1)
-						}
+						ctx.EmitSubscriptionUpdate([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
 					}
 					hookCompleted <- true
 				case <-time.After(defaultTimeout):
