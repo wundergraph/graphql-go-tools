@@ -815,7 +815,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 		if skip {
 			continue
 		}
-		
+
 		fn := func() {
 			r.executeSubscriptionUpdate(c, s, data)
 		}
@@ -1272,7 +1272,6 @@ type subscriptionEvent struct {
 	kind               subscriptionEventKind
 	data               []byte
 	addSubscription    *addSubscription
-	pinnedSubscription *sub
 	closeKind          SubscriptionCloseKind
 }
 
