@@ -777,22 +777,6 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 }
 
-func (r *Resolver) shouldSkipEvent(ctx *Context, sub *sub, data []byte) bool {
-	if err := ctx.ctx.Err(); err != nil {
-		return true // no need to schedule an event update when the client already disconnected
-	}
-	skip, err := sub.resolve.Filter.SkipEvent(ctx, data, r.triggerUpdateBuf)
-	if err != nil {
-		r.asyncErrorWriter.WriteError(ctx, err, sub.resolve.Response, sub.writer)
-		return true
-	}
-	return skip
-}
-
-func (r *Resolver) handleTriggerUpdateQueueWorkItem(c *Context, s *sub, data []byte) {
-	
-}
-
 func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.triggers[id]
 	if !ok {

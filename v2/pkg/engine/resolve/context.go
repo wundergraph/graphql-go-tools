@@ -106,15 +106,13 @@ func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
 }
 
-// TryEmitSubscriptionUpdate emits a subscription update to the client
-// Returns true if the update was emitted.
-func (c *Context) TryEmitSubscriptionUpdate(data []byte) bool {
+// EmitSubscriptionUpdate emits a subscription update to the client
+func (c *Context) EmitSubscriptionUpdate(data []byte) {
 	emitEventFn := c.emitEventFn
 	if emitEventFn == nil {
-		return false
+		return
 	}
 	emitEventFn(data)
-	return true
 }
 
 type RateLimitOptions struct {
