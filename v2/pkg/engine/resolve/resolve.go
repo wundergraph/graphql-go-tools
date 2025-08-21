@@ -598,15 +598,13 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		ctx:       ctx,
 	}
 
-	startHook := func() bool {
+	processHooks := func() bool {
 		hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 		if ok {
-			// Clone the context to avoid modifying the original context.
-			// This is important because the original context is changed in the parent thread
-			// and could cause data races.
-			initialHookCtx := add.ctx.clone(add.ctx.ctx)
+			// Copy the ctx because we don't want to add the emit event fn to the parent context
+			initialHookCtx := *add.ctx
 			initialHookCtx.emitEventFn = updater.Update
-			err := hook.SubscriptionOnStart(initialHookCtx, add.input)
+			err := hook.SubscriptionOnStart(&initialHookCtx, add.input)
 			if err != nil {
 				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
 				_ = r.emitTriggerClose(triggerID)
@@ -630,7 +628,8 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		go startHook()
+		// hooks should be processed in a go routine to avoid locking the subscrption event loop
+		go processHooks()
 		return
 	}
 
@@ -664,7 +663,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
-		close := startHook()
+		// hooks should be processed in sync to avoid opening a trigger if not needed
+		close := processHooks()
+		// If the hook returns true, the subscription is closed and we don't need to start the data source
 		if close {
 			return
 		}
