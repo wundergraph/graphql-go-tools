@@ -165,12 +165,12 @@ type ResolverOptions struct {
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
 	ApolloRouterCompatibilitySubrequestHTTPError bool
 
-	// PropagateFieldsRequestedBy enables sending to upstream subgraphs the "fieldsRequestedBy"
-	// extension that contains information why each field was requested.
+	// PropagateFieldsRequestedBy enables sending to upstream subgraphs (only) the "fieldsRequestedBy"
+	// extension that explains why each field was requested. This flag does not expose the data to clients.
 	PropagateFieldsRequestedBy bool
 }
 
-// New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
+// New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
 func New(ctx context.Context, options ResolverOptions) *Resolver {
 	// options.Debug = true
 	if options.MaxConcurrency <= 0 {

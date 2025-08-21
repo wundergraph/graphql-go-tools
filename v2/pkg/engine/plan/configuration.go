@@ -27,10 +27,11 @@ type Configuration struct {
 
 	MinifySubgraphOperations bool
 
-	// Tests can suppress generating resolve.FieldInfo in the planner.
+	// DisableIncludeInfo controls whether the planner generates resolve.FieldInfo (useful in tests).
 	DisableIncludeInfo bool
 
-	// Test can suppress generating field dependencies structures in the planner.
+	// DisableIncludeFieldDependencies controls whether the planner generates
+	// field dependency structures (useful in tests).
 	DisableIncludeFieldDependencies bool
 }
 

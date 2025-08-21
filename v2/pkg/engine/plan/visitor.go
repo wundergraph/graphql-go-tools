@@ -46,7 +46,7 @@ type Visitor struct {
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
-	fieldRefRequestedBy          map[int][]int // inverse of fieldRefDependsOnFieldRefs
+	fieldRefAllowsFieldRefs      map[int][]int // inverse of fieldRefDependsOnFieldRefs
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
@@ -636,6 +636,7 @@ func (v *Visitor) LeaveField(ref int) {
 // skipField returns true if the field is a dependency and should not be included in the response.
 // Consequently, if we don't skip the field, the client requested it in the query.
 func (v *Visitor) skipField(ref int) bool {
+	// If this grows, switch to map[int]struct{} for O(1).
 	for _, skipRef := range v.skipFieldsRefs {
 		if skipRef == ref {
 			return true
@@ -1354,7 +1355,7 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 		}
 		dependency := resolve.FetchDependency{
 			Coordinate: resolve.GraphCoordinate{
-				FieldName: strings.Clone(v.Operation.FieldNameString(fieldRef)),
+				FieldName: v.Operation.FieldNameString(fieldRef),
 				TypeName:  v.fieldEnclosingTypeNames[fieldRef],
 			},
 			IsUserRequested: userRequestedField,
@@ -1373,7 +1374,7 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 					FetchID:  fetchID,
 					Subgraph: ofc.sourceName,
 					Coordinate: resolve.GraphCoordinate{
-						FieldName: strings.Clone(v.Operation.FieldNameString(depFieldRef)),
+						FieldName: v.Operation.FieldNameString(depFieldRef),
 						TypeName:  v.fieldEnclosingTypeNames[depFieldRef],
 					},
 				}
@@ -1413,7 +1414,7 @@ func (v *Visitor) buildFieldsRequestedBy(fetchID int) []resolve.RequestedField {
 		}
 		requested.ByUser = !v.skipField(fieldRef)
 
-		requestedByRefs, ok := v.fieldRefRequestedBy[fieldRef]
+		requestedByRefs, ok := v.fieldRefAllowsFieldRefs[fieldRef]
 		if !ok {
 			if requested.ByUser {
 				result = append(result, requested)
@@ -1429,8 +1430,8 @@ func (v *Visitor) buildFieldsRequestedBy(fetchID int) []resolve.RequestedField {
 			}
 
 			// find the subgraph's name by iterating over planners that are responsible for reqByRef
-			for _, fetchID := range depFieldPlanners {
-				ofc := v.planners[fetchID].ObjectFetchConfiguration()
+			for _, plannerID := range depFieldPlanners {
+				ofc := v.planners[plannerID].ObjectFetchConfiguration()
 				if ofc == nil {
 					continue
 				}
@@ -1449,7 +1450,7 @@ func (v *Visitor) buildFieldsRequestedBy(fetchID int) []resolve.RequestedField {
 
 			}
 		}
-		if len(requested.BySubgraphs) > 0 {
+		if requested.ByUser || len(requested.BySubgraphs) > 0 {
 			slices.Sort(requested.BySubgraphs)
 			requested.BySubgraphs = slices.Compact(requested.BySubgraphs)
 			result = append(result, requested)

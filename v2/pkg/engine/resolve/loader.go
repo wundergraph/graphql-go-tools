@@ -1562,7 +1562,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			return
 		}
 	}
-	if l.propagateFieldsRequestedBy {
+	if l.propagateFieldsRequestedBy && !IsIntrospectionDataSource(res.ds.ID) {
 		fieldsRequestedBy := fetchItem.Fetch.RequestedFields()
 		if fieldsRequestedBy != nil {
 			// We expect that body.extensions is an object

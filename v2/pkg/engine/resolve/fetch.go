@@ -413,9 +413,8 @@ type FetchDependencyOrigin struct {
 	IsRequires bool `json:"isRequires"`
 }
 
-// RequestedField contains an answer about who requested a specific TypeName, FieldName combination.
-// It can be requested by set Subgraphs and by a User.
-
+// RequestedField explains who requested a specific (typeName, fieldName) combination.
+// A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
 type RequestedField struct {
 	TypeName         string   `json:"typeName"`
 	FieldName        string   `json:"fieldName"`
