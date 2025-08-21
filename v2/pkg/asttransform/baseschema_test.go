@@ -2,10 +2,7 @@ package asttransform_test
 
 import (
 	"bytes"
-	"os"
 	"testing"
-
-	"github.com/jensneuse/diffview"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -14,9 +11,19 @@ import (
 )
 
 func runTestMerge(definition, fixtureName string) func(t *testing.T) {
+	return runTestMergeWithDefer(definition, fixtureName, false)
+}
+
+func runTestMergeWithDefer(definition, fixtureName string, internalDefer bool) func(t *testing.T) {
 	return func(t *testing.T) {
 		doc := unsafeparser.ParseGraphqlDocumentString(definition)
-		err := asttransform.MergeDefinitionWithBaseSchema(&doc)
+		var err error
+		if internalDefer {
+			err = asttransform.MergeDefinitionWithBaseSchemaWithOptions(&doc, asttransform.Options{InternalDefer: true})
+		} else {
+			err = asttransform.MergeDefinitionWithBaseSchema(&doc)
+		}
+
 		if err != nil {
 			panic(err)
 		}
@@ -27,13 +34,6 @@ func runTestMerge(definition, fixtureName string) func(t *testing.T) {
 		}
 		got := buf.Bytes()
 		goldie.Assert(t, fixtureName, got)
-		if t.Failed() {
-			want, err := os.ReadFile("./fixtures/" + fixtureName + ".golden")
-			if err != nil {
-				panic(err)
-			}
-			diffview.NewGoland().DiffViewBytes(fixtureName, want, got)
-		}
 	}
 }
 
@@ -56,6 +56,11 @@ func TestMergeDefinitionWithBaseSchema(t *testing.T) {
 				m: String!
 			}
 	`, "mutation_only"))
+	t.Run("mutation only - internal defer", runTestMergeWithDefer(`
+			type Mutation {
+				m: String!
+			}
+	`, "mutation_only_internal_defer", true))
 	t.Run("schema with mutation", runTestMerge(`
 			schema {
 				mutation: Mutation
