@@ -150,6 +150,8 @@ type Loader struct {
 	allowedSubgraphErrorFields map[string]struct{}
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
+
+	propagateFieldsRequestedBy bool
 }
 
 func (l *Loader) Free() {
@@ -1558,6 +1560,23 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		if res.err != nil {
 			res.err = errors.WithStack(res.err)
 			return
+		}
+	}
+	if l.propagateFieldsRequestedBy {
+		fieldsRequestedBy := fetchItem.Fetch.RequestedFields()
+		if fieldsRequestedBy != nil {
+			// We expect that body.extensions is an object
+			var encoded []byte
+			encoded, res.err = json.Marshal(fieldsRequestedBy)
+			if res.err != nil {
+				res.err = errors.WithStack(res.err)
+				return
+			}
+			input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "fieldsRequestedBy")
+			if res.err != nil {
+				res.err = errors.WithStack(res.err)
+				return
+			}
 		}
 	}
 	if l.ctx.TracingOptions.Enable {

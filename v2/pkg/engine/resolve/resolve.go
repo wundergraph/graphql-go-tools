@@ -114,41 +114,60 @@ type ResolverOptions struct {
 
 	// PropagateSubgraphErrors adds Subgraph Errors to the response
 	PropagateSubgraphErrors bool
+
 	// PropagateSubgraphStatusCodes adds the status code of the Subgraph to the extensions field of a Subgraph Error
 	PropagateSubgraphStatusCodes bool
+
 	// SubgraphErrorPropagationMode defines how Subgraph Errors are propagated
 	// SubgraphErrorPropagationModeWrapped wraps Subgraph Errors in a Subgraph Error to prevent leaking internal information
 	// SubgraphErrorPropagationModePassThrough passes Subgraph Errors through without modification
 	SubgraphErrorPropagationMode SubgraphErrorPropagationMode
+
 	// RewriteSubgraphErrorPaths rewrites the paths of Subgraph Errors to match the path of the field from the perspective of the client
 	// This means that nested entity requests will have their paths rewritten from e.g. "_entities.foo.bar" to "person.foo.bar" if the root field above is "person"
 	RewriteSubgraphErrorPaths bool
+
 	// OmitSubgraphErrorLocations omits the locations field of Subgraph Errors
 	OmitSubgraphErrorLocations bool
+
 	// OmitSubgraphErrorExtensions omits the extensions field of Subgraph Errors
 	OmitSubgraphErrorExtensions bool
+
 	// AllowAllErrorExtensionFields allows all fields in the extensions field of a root subgraph error
 	AllowAllErrorExtensionFields bool
+
 	// AllowedErrorExtensionFields defines which fields are allowed in the extensions field of a root subgraph error
 	AllowedErrorExtensionFields []string
+
 	// AttachServiceNameToErrorExtensions attaches the service name to the extensions field of a root subgraph error
 	AttachServiceNameToErrorExtensions bool
+
 	// DefaultErrorExtensionCode is the default error code to use for subgraph errors if no code is provided
 	DefaultErrorExtensionCode string
+
 	// MaxRecyclableParserSize limits the size of the Parser that can be recycled back into the Pool.
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
+
 	// ResolvableOptions are configuration options for the Resolvable struct
 	ResolvableOptions ResolvableOptions
+
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
+
 	// MultipartSubHeartbeatInterval defines the interval in which a heartbeat is sent to all multipart subscriptions
 	MultipartSubHeartbeatInterval time.Duration
+
 	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	MaxSubscriptionFetchTimeout time.Duration
+
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
 	ApolloRouterCompatibilitySubrequestHTTPError bool
+
+	// PropagateFieldsRequestedBy enables sending to upstream subgraphs the "fieldsRequestedBy"
+	// extension that contains information why each field was requested.
+	PropagateFieldsRequestedBy bool
 }
 
 // New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
@@ -231,6 +250,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			allowedSubgraphErrorFields:                   allowedErrorFields,
 			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
+			propagateFieldsRequestedBy:                   options.PropagateFieldsRequestedBy,
 		},
 	}
 }

@@ -3094,6 +3094,45 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
+										FieldsRequestedBy: []resolve.RequestedField{
+											{
+												TypeName:         "Address",
+												FieldName:        "line1",
+												BySubgraphs:      []string{"account.service"},
+												ReasonIsRequires: true,
+											},
+											{
+												TypeName:         "Address",
+												FieldName:        "line2",
+												BySubgraphs:      []string{"account.service"},
+												ReasonIsRequires: true,
+											},
+											{
+												TypeName:  "Address",
+												FieldName: "id",
+												BySubgraphs: []string{
+													"account.service",
+													"address-enricher.service",
+													"address.service",
+												},
+												ReasonIsKey: true,
+											},
+											{
+												TypeName:  "Account",
+												FieldName: "address",
+												ByUser:    true,
+											},
+											{
+												TypeName:  "User",
+												FieldName: "account",
+												ByUser:    true,
+											},
+											{
+												TypeName:  "Query",
+												FieldName: "user",
+												ByUser:    true,
+											},
+										},
 									},
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
@@ -3139,6 +3178,25 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														IsKey: true,
 													},
 												},
+											},
+										},
+										FieldsRequestedBy: []resolve.RequestedField{
+											{
+												TypeName:         "Address",
+												FieldName:        "country",
+												BySubgraphs:      []string{"address.service"},
+												ReasonIsRequires: true,
+											},
+											{
+												TypeName:         "Address",
+												FieldName:        "city",
+												BySubgraphs:      []string{"address.service"},
+												ReasonIsRequires: true,
+											},
+											{
+												TypeName:  "Account",
+												FieldName: "address",
+												ByUser:    true,
 											},
 										},
 										PostProcessing:      SingleEntityPostProcessingConfiguration,
@@ -3232,6 +3290,25 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														IsKey: true,
 													},
 												},
+											},
+										},
+										FieldsRequestedBy: []resolve.RequestedField{
+											{
+												TypeName:         "Address",
+												FieldName:        "line3",
+												BySubgraphs:      []string{"account.service"},
+												ReasonIsRequires: true,
+											},
+											{
+												TypeName:         "Address",
+												FieldName:        "zip",
+												BySubgraphs:      []string{"account.service"},
+												ReasonIsRequires: true,
+											},
+											{
+												TypeName:  "Account",
+												FieldName: "address",
+												ByUser:    true,
 											},
 										},
 										Variables: []resolve.Variable{
@@ -3338,6 +3415,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														IsKey: true,
 													},
 												},
+											},
+										},
+										FieldsRequestedBy: []resolve.RequestedField{
+											{
+												TypeName:  "Address",
+												FieldName: "fullAddress",
+												ByUser:    true,
+											},
+											{
+												TypeName:  "Account",
+												FieldName: "address",
+												ByUser:    true,
 											},
 										},
 										RequiresEntityFetch: true,
