@@ -20,9 +20,8 @@ import (
 // - missing path, which was not planned on the previous walks
 // - we have fields which are waiting for dependencies
 type pathBuilderVisitor struct {
-	logger                             abstractlogger.Logger
-	plannerConfiguration               *Configuration
-	suggestionsSelectionReasonsEnabled bool
+	logger               abstractlogger.Logger
+	plannerConfiguration *Configuration
 
 	operationName         string        // graphql query name
 	operation, definition *ast.Document // graphql operation and schema documents
@@ -39,7 +38,6 @@ type pathBuilderVisitor struct {
 	parentTypeNodes               []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
 	arrayFields                   []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
 	selectionSetRefs              []selectionSetTypeInfo // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs                []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 	missingPathTracker            map[string]struct{}    // missingPathTracker is a map of paths which will be added on secondary runs
 	potentiallyMissingPathTracker map[string]struct{}    // potentiallyMissingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker              []pathConfiguration    // addedPathTracker is a list of paths which were added
@@ -315,12 +313,6 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 		c.mutationRootFieldPlanners = make([]int, 0, 2)
 	} else {
 		c.mutationRootFieldPlanners = c.mutationRootFieldPlanners[:0]
-	}
-
-	if c.skipFieldsRefs == nil {
-		c.skipFieldsRefs = make([]int, 0, 8)
-	} else {
-		c.skipFieldsRefs = c.skipFieldsRefs[:0]
 	}
 
 	c.missingPathTracker = make(map[string]struct{})

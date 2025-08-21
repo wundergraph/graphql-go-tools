@@ -27,13 +27,26 @@ const (
 )
 
 type NodeSelectionResult struct {
-	dataSources              []DataSource                                     // data sources configurations, which used by the current operation
-	nodeSuggestions          *NodeSuggestions                                 // nodeSuggestions holds information about suggested data sources for each field
-	fieldDependsOn           map[fieldIndexKey][]int                          // fieldDependsOn is a map[fieldIndexKey][]fieldRef - holds list of field refs which are required by a field ref, e.g. field should be planned only after required fields were planned
-	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration // fieldRequirementsConfigs is a map[fieldIndexKey]FederationFieldConfiguration - holds a list of required configuratuibs for a field ref to later built representation variables
-	skipFieldsRefs           []int                                            // skipFieldsRefs holds required field refs added by planner and should not be added to user response
-	fieldRefDependsOn        map[int][]int
-	fieldDependencyKind      map[fieldDependencyKey]fieldDependencyKind
+	// data sources configurations, used by the current operation
+	dataSources []DataSource
+
+	// nodeSuggestions holds information about suggested data sources for each field
+	nodeSuggestions *NodeSuggestions
+
+	// fieldDependsOn maps fieldIndexKey to a list of fields refs. Those fields should be planned
+	// before the fieldIndexKey.fieldRef.
+	fieldDependsOn map[fieldIndexKey][]int
+
+	// fieldRequirementsConfigs maps fieldIndexKey to a list of required configurations that are
+	// used later to build representation variables.
+	fieldRequirementsConfigs map[fieldIndexKey][]FederationFieldConfiguration
+
+	// skipFieldsRefs holds required field refs added by the planner.
+	// These fields should not be added to user response.
+	skipFieldsRefs []int
+
+	fieldRefDependsOn   map[int][]int
+	fieldDependencyKind map[fieldDependencyKey]fieldDependencyKind
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
