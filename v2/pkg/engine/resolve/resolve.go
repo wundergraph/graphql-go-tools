@@ -277,6 +277,7 @@ type trigger struct {
 	subscriptions map[*Context]*sub
 	// initialized is set to true when the trigger is started and initialized
 	initialized bool
+	updater     *subscriptionUpdater
 }
 
 // workItem is used to encapsulate a function that needs to be
@@ -488,7 +489,7 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
 	case subscriptionEventKindTriggerUpdate:
-		r.handleTriggerUpdate(event.triggerID, event.data)
+		r.handleTriggerUpdate(event.triggerID, event.data, event.pinnedSubscription)
 	case subscriptionEventKindTriggerComplete:
 		r.handleTriggerComplete(event.triggerID)
 	case subscriptionEventKindTriggerInitialized:
@@ -590,25 +591,19 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		s.heartbeat = true
 	}
 
-	ctx, cancel := context.WithCancel(xcontext.Detach(add.ctx.Context()))
-	updater := &subscriptionUpdater{
-		debug:     r.options.Debug,
-		triggerID: triggerID,
-		ch:        r.events,
-		ctx:       ctx,
-	}
-
-	processHooks := func() bool {
+	processHooks := func(updater *subscriptionUpdater) bool {
 		hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 		if ok {
+			// copy the subscriptionUpdater to add a pinned subscription
+			pinnedUpdater := *updater
+			pinnedUpdater.pinnedSubscription = s
 			// Copy the ctx because we don't want to add the emit event fn to the parent context
 			initialHookCtx := *add.ctx
-			initialHookCtx.emitEventFn = updater.Update
+			initialHookCtx.emitEventFn = pinnedUpdater.Update
 			err := hook.SubscriptionOnStart(&initialHookCtx, add.input)
 			if err != nil {
 				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
-				_ = r.emitTriggerClose(triggerID)
-				cancel()
+			    _ = r.AsyncUnsubscribeSubscription(add.id)
 				return true
 			}
 		}
@@ -629,18 +624,26 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
 		// hooks should be processed in a go routine to avoid locking the subscription event loop
-		go processHooks()
+		go processHooks(trig.updater)
 		return
 	}
 
 	if r.options.Debug {
 		fmt.Printf("resolver:create:trigger:%d\n", triggerID)
 	}
+	ctx, cancel := context.WithCancel(xcontext.Detach(add.ctx.Context()))
+	updater := &subscriptionUpdater{
+		debug:     r.options.Debug,
+		triggerID: triggerID,
+		ch:        r.events,
+		ctx:       ctx,
+	}
 	cloneCtx := add.ctx.clone(ctx)
 	trig = &trigger{
 		id:            triggerID,
 		subscriptions: make(map[*Context]*sub),
 		cancel:        cancel,
+		updater:       updater,
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
@@ -664,15 +667,15 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 		// hooks should be processed in sync to avoid opening a trigger if not needed
-		close := processHooks()
+		close := processHooks(trig.updater)
 		// If the hook returns true, the subscription is closed and we don't need to start the data source
 		if close {
 			return
 		}
 		if asyncDataSource != nil {
-			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
+			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, trig.updater)
 		} else {
-			err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, trig.updater)
 		}
 		if err != nil {
 			if r.options.Debug {
@@ -783,7 +786,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 }
 
-func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
+func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, pinnedSubscription *sub) {
 	trig, ok := r.triggers[id]
 	if !ok {
 		return
@@ -793,6 +796,9 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 
 	for c, s := range trig.subscriptions {
+		if pinnedSubscription != nil && pinnedSubscription != s {
+			continue
+		}
 		c, s := c, s
 		if err := c.ctx.Err(); err != nil {
 			continue // no need to schedule an event update when the client already disconnected
@@ -1192,6 +1198,7 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
+	pinnedSubscription *sub
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1207,6 +1214,7 @@ func (s *subscriptionUpdater) Update(data []byte) {
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindTriggerUpdate,
 		data:      data,
+		pinnedSubscription: s.pinnedSubscription,
 	}:
 	}
 }
@@ -1263,6 +1271,7 @@ type subscriptionEvent struct {
 	data               []byte
 	addSubscription    *addSubscription
 	closeKind          SubscriptionCloseKind
+	pinnedSubscription *sub
 }
 
 type addSubscription struct {

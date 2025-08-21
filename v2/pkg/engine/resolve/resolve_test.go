@@ -5514,6 +5514,90 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[1])
 	})
 
+	t.Run("SubscriptionOnStart ctx updater only updates the pinned subscription", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		executed := atomic.Bool{}
+		subsStarted := sync.WaitGroup{}
+		subsStarted.Add(2)
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID: 1,
+			SubscriptionID: 2,
+		}
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx *Context, input []byte) (err error) {
+			if executed.Load() {
+				return
+			}
+			executed.Store(true)
+			ctx.EmitSubscriptionUpdate([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+			return nil
+		}
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		ctx2 := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		subsStarted.Done()
+
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+		subsStarted.Done()
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		recorders := []*SubscriptionRecorder{recorder, recorder2}
+
+		recorderWith1Message := false
+		recorderWith2Messages := false
+
+		for _, r := range recorders {
+			if len(r.Messages()) == 2 {
+				recorderWith2Messages = true
+				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
+			}
+			if len(r.Messages()) == 1 {
+				recorderWith1Message = true
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[0])
+			}
+		}
+
+		assert.True(t, recorderWith1Message)
+		assert.True(t, recorderWith2Messages)
+	})
+
 	t.Run("SubscriptionOnStart can send a lot of updates without blocking", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
