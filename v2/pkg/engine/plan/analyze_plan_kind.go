@@ -23,6 +23,7 @@ func AnalyzePlanKind(operation, definition *ast.Document, operationName string) 
 		return ast.OperationTypeUnknown, false, report
 	}
 	operationType = visitor.operationType
+	// TODO: this should be done differently
 	streaming = visitor.hasDeferDirective || visitor.hasStreamDirective
 	return
 }

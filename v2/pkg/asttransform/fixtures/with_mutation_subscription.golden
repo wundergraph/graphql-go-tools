@@ -241,3 +241,11 @@ enum __TypeKind {
     "Indicates this type is a non-null. 'ofType' is a valid field."
     NON_NULL
 }
+
+"Directs the executor to defer this fragment when the if argument is true or undefined."
+directive @defer(
+    "A unique identifier for the results."
+    label: String
+    "Controls whether the fragment will be deferred, usually via a variable."
+    if: Boolean! = true
+) on FRAGMENT_SPREAD | INLINE_FRAGMENT
