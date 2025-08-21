@@ -1,29 +1,10 @@
 schema {
-    query: Query
     mutation: Mutation
-    subscription: Subscription
+    query: Query
 }
 
 type Mutation {
     m: String!
-    __typename: String!
-}
-
-type Subscription {
-    s: String!
-}
-
-type Query {
-    hello(name: String): Hello!
-    __schema: __Schema!
-    __type(name: String!): __Type
-    __typename: String!
-}
-
-type Hello {
-    hello: String!
-    object: String!
-    adminInformation: String!
     __typename: String!
 }
 
@@ -236,9 +217,16 @@ enum __TypeKind {
 }
 
 "Directs the executor to defer this fragment when the if argument is true or undefined."
-directive @defer(
+directive @defer_internal(
+    id: String!
     "A unique identifier for the results."
     label: String
     "Controls whether the fragment will be deferred, usually via a variable."
     if: Boolean! = true
-) on FRAGMENT_SPREAD | INLINE_FRAGMENT
+) repeatable on FIELD
+
+type Query {
+    __schema: __Schema!
+    __type(name: String!): __Type
+    __typename: String!
+}
