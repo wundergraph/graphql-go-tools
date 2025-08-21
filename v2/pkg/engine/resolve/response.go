@@ -23,7 +23,7 @@ type GraphQLSubscriptionTrigger struct {
 	QueryPlan      *QueryPlan
 }
 
-// GraphQLResponse contains an ordered tree of fetches and a shape of response.
+// GraphQLResponse contains an ordered tree of fetches and the response shape.
 // Fields are filled in this order:
 //
 //  1. Planner fills RawFetches and Info fields.
