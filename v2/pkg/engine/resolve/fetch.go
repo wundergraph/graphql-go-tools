@@ -152,7 +152,7 @@ func (ppc *PostProcessingConfiguration) Equals(other *PostProcessingConfiguratio
 	return true
 }
 
-func (_ *SingleFetch) FetchKind() FetchKind {
+func (*SingleFetch) FetchKind() FetchKind {
 	return FetchKindSingle
 }
 
@@ -200,7 +200,7 @@ type BatchInput struct {
 	Footer       InputTemplate
 }
 
-func (_ *BatchEntityFetch) FetchKind() FetchKind {
+func (*BatchEntityFetch) FetchKind() FetchKind {
 	return FetchKindEntityBatch
 }
 
@@ -239,7 +239,7 @@ type EntityInput struct {
 	Footer      InputTemplate
 }
 
-func (_ *EntityFetch) FetchKind() FetchKind {
+func (*EntityFetch) FetchKind() FetchKind {
 	return FetchKindEntity
 }
 
@@ -260,7 +260,7 @@ func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
 	return p.Fetch.FetchConfiguration.CoordinateDependencies
 }
 
-func (_ *ParallelListItemFetch) FetchKind() FetchKind {
+func (*ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
 }
 
