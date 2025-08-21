@@ -76,7 +76,7 @@ type TestErrorWriter struct {
 }
 
 func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer) {
-	_, err = w.Write([]byte(fmt.Sprintf(`{"errors":[{"message":"%s"}],"data":null}`, err.Error())))
+	_, err = fmt.Fprintf(w, `{"errors":[{"message":"%s"}],"data":null}`, err.Error())
 	if err != nil {
 		panic(err)
 	}
@@ -4821,7 +4821,7 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 }
 
 func (f *_fakeStream) UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
-	_, err = xxh.WriteString(fmt.Sprintf("%d", fakeStreamRequestId.Add(1)))
+	_, err = fmt.Fprint(xxh, fakeStreamRequestId.Add(1))
 	if err != nil {
 		return
 	}

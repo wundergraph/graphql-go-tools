@@ -912,7 +912,7 @@ func (p *Planner[T]) fieldDefinition(fieldName, typeName string) *ast.FieldDefin
 func (p *Planner[T]) isOnTypeInlineFragmentAllowed() bool {
 	p.DebugPrint("isOnTypeInlineFragmentAllowed")
 
-	if !(len(p.nodes) > 1 && p.nodes[len(p.nodes)-1].Kind == ast.NodeKindSelectionSet) {
+	if len(p.nodes) <= 1 || p.nodes[len(p.nodes)-1].Kind != ast.NodeKindSelectionSet {
 		return true
 	}
 
@@ -926,7 +926,7 @@ func (p *Planner[T]) isOnTypeInlineFragmentAllowed() bool {
 }
 
 func (p *Planner[T]) isInEntitiesSelectionSet() bool {
-	if !(len(p.nodes) > 2) {
+	if len(p.nodes) <= 2 {
 		return false
 	}
 

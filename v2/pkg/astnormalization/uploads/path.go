@@ -21,7 +21,7 @@ func (v *Path) render() string {
 		}
 		out.Write(item.name)
 		if item.kind == pathItemKindArray {
-			out.WriteString(fmt.Sprintf("%d", item.arrayIndex))
+			fmt.Fprintf(out, "%d", item.arrayIndex)
 		}
 	}
 	return out.String()
