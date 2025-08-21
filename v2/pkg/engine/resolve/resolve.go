@@ -628,7 +628,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		// hooks should be processed in a go routine to avoid locking the subscrption event loop
+		// hooks should be processed in a go routine to avoid locking the subscription event loop
 		go processHooks()
 		return
 	}
