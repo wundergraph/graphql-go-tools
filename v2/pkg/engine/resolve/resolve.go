@@ -139,8 +139,8 @@ type ResolverOptions struct {
 	ResolvableOptions ResolvableOptions
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
-	// SubHeartbeatInterval defines the interval in which a heartbeat is sent to all subscriptions (whether or not this does anything is determined by the subscription response writer)
-	SubHeartbeatInterval time.Duration
+	// SubscriptionHeartbeatInterval defines the interval in which a heartbeat is sent to all subscriptions (whether or not this does anything is determined by the subscription response writer)
+	SubscriptionHeartbeatInterval time.Duration
 	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	MaxSubscriptionFetchTimeout time.Duration
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
@@ -154,8 +154,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		options.MaxConcurrency = 32
 	}
 
-	if options.SubHeartbeatInterval <= 0 {
-		options.SubHeartbeatInterval = DefaultHeartbeatInterval
+	if options.SubscriptionHeartbeatInterval <= 0 {
+		options.SubscriptionHeartbeatInterval = DefaultHeartbeatInterval
 	}
 
 	// We transform the allowed fields into a map for faster lookups
@@ -198,7 +198,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		triggerUpdateBuf:             bytes.NewBuffer(make([]byte, 0, 1024)),
 		allowedErrorExtensionFields:  allowedExtensionFields,
 		allowedErrorFields:           allowedErrorFields,
-		heartbeatInterval:            options.SubHeartbeatInterval,
+		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
