@@ -6,6 +6,7 @@ test:
 .PHONY: test-quick
 test-quick:
 	go test -count=1 ./...
+	go test -run=xxxx -bench=. -benchtime=1x ./...
 
 # updateTestFixtures will update all! golden fixtures
 .PHONY: updateTestFixtures
