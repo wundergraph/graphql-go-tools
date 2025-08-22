@@ -8350,6 +8350,7 @@ func TestSubscriptionSource_Start(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	}
 
 	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {
@@ -8477,6 +8478,7 @@ func TestSubscription_GTWS_SubProtocol(t *testing.T) {
 		resp, err := httpClient.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.NoError(t, resp.Body.Close())
 	}
 
 	chatServerSubscriptionOptions := func(t *testing.T, body string) []byte {

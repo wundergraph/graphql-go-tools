@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.221](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.220...v2.0.0-rc.221) (2025-08-21)
+
+
+### Bug Fixes
+
+* always close response body ([#1276](https://github.com/wundergraph/graphql-go-tools/issues/1276)) ([9069cc9](https://github.com/wundergraph/graphql-go-tools/commit/9069cc9b88bae6c64a9438bb08d6f5b4a5103c78))
+
 ## [2.0.0-rc.220](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.219...v2.0.0-rc.220) (2025-08-13)
 
 
