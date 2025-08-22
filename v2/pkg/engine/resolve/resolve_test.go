@@ -86,16 +86,16 @@ func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 	}
 }
 
-var multipartSubHeartbeatInterval = 100 * time.Millisecond
+var subscriptionHeartbeatInterval = 100 * time.Millisecond
 
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
-		MaxConcurrency:               1024,
-		Debug:                        false,
-		PropagateSubgraphErrors:      true,
-		PropagateSubgraphStatusCodes: true,
-		AsyncErrorWriter:             &TestErrorWriter{},
-		SubHeartbeatInterval:         multipartSubHeartbeatInterval,
+		MaxConcurrency:                1024,
+		Debug:                         false,
+		PropagateSubgraphErrors:       true,
+		PropagateSubgraphStatusCodes:  true,
+		AsyncErrorWriter:              &TestErrorWriter{},
+		SubscriptionHeartbeatInterval: subscriptionHeartbeatInterval,
 	})
 }
 
