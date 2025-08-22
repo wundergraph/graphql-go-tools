@@ -370,11 +370,7 @@ func (p *Parser) operationTypeFromIdentKeyword(key identkeyword.IdentKeyword) as
 
 func (p *Parser) parseDirectiveList() (list ast.DirectiveList) {
 
-	for {
-
-		if p.peek() != keyword.AT {
-			break
-		}
+	for p.peek() == keyword.AT {
 
 		at := p.read()
 		name := p.mustRead(keyword.IDENT)

@@ -65,6 +65,7 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	req = req.WithContext(ctx)
 	resp, err := g.httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -80,6 +81,7 @@ func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath
 	req = req.WithContext(ctx)
 	resp, err := g.httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	return responseBodyBytes
@@ -91,7 +93,7 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	conn, _, _, err := ws.Dial(ctx, addr)
 	require.NoError(t, err)
 	// 1. send connection init
-	initialClientMessage := subscription.Message{
+	initialClientMessage := subscription.Message{ //nolint:staticcheck
 		Id:      "",
 		Type:    subscription.MessageTypeConnectionInit,
 		Payload: nil,
@@ -103,6 +105,7 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	serverMessage := g.readMessageFromServer(t, conn)
 	assert.Equal(t, `{"id":"","type":"connection_ack","payload":null}`, string(serverMessage))
 	// 3. send `start` message with subscription operation
+	//nolint:staticcheck
 	startSubscriptionMessage := subscription.Message{
 		Id:      "1",
 		Type:    subscription.MessageTypeStart,
@@ -129,6 +132,7 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	return messageCh
 }
 
+//nolint:staticcheck
 func (g *GraphqlClient) sendMessageToServer(clientConn net.Conn, message subscription.Message) error {
 	messageBytes, err := json.Marshal(message)
 	if err != nil {

@@ -30,6 +30,8 @@ func NewWebsocketSubscriptionClient(logger abstractlogger.Logger, clientConn net
 }
 
 // ReadFromClient will read a subscription message from the websocket client.
+//
+//nolint:staticcheck
 func (w *WebsocketSubscriptionClient) ReadFromClient() (message *subscription.Message, err error) {
 	var data []byte
 	var opCode ws.OpCode
@@ -66,6 +68,8 @@ func (w *WebsocketSubscriptionClient) ReadFromClient() (message *subscription.Me
 }
 
 // WriteToClient will write a subscription message to the websocket client.
+//
+//nolint:staticcheck
 func (w *WebsocketSubscriptionClient) WriteToClient(message subscription.Message) error {
 	if w.isClosedConnection {
 		return nil

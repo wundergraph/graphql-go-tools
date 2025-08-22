@@ -60,7 +60,7 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           working-directory: v2
-          version: v1.62.2
+          version: v2.3.1
           args: --timeout=3m
   ci:
     name: CI Success
