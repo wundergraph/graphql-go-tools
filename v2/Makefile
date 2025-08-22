@@ -25,6 +25,10 @@ updateTestFixtures:
 format:
 	go fmt ./...
 
+lint:
+	golangci-lint run
+	cd ../execution && golangci-lint run
+
 .PHONY: prepare-merge
 prepare-merge: format test
 
