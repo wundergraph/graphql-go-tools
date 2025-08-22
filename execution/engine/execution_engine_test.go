@@ -857,7 +857,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					mustConfiguration(t, graphql_datasource.ConfigurationInput{
 						Fetch: &graphql_datasource.FetchConfiguration{
 							URL:    "https://example.com/",
-							Method: "GET",
+							Method: "POST",
 						},
 						SchemaConfiguration: mustSchemaConfig(
 							t,
