@@ -306,7 +306,7 @@ func (f *FederationEngineConfigFactory) subgraphDataSourceConfiguration(engineCo
 			subscriptionUseSSE = *in.CustomGraphql.Subscription.UseSSE
 		}
 	}
-	// dataSourceRules := FetchURLRules(&routerEngineConfig.Headers, routerConfig.Subgraphs, subscriptionUrl)
+	// dataSourceRules := FetchURLRules(&routerEngineConfig.Headers, routerConfig.BySubgraphs, subscriptionUrl)
 	// forwardedClientHeaders, forwardedClientRegexps, err := PropagatedHeaders(dataSourceRules)
 	// if err != nil {
 	// 	return nil, fmt.Errorf("error parsing header rules for data source %s: %w", in.Id, err)

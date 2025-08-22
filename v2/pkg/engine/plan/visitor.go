@@ -46,6 +46,7 @@ type Visitor struct {
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
+	fieldRefAllowsFieldRefs      map[int][]int // inverse of fieldRefDependsOnFieldRefs
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
@@ -54,13 +55,13 @@ type Visitor struct {
 	indirectInterfaceFields      map[int]indirectInterfaceField
 	pathCache                    map[astvisitor.VisitorKind]map[int]string
 
-	// plannerFields tells which fields are planned on which planners
-	// map plannerID -> []fieldRef
+	// plannerFields maps plannerID to fieldRefs planned on this planner.
 	plannerFields map[int][]int
-	// fieldPlanners tells which planners a field was planned on
-	// map fieldRef -> []plannerID
+
+	// fieldPlanners maps fieldRef to the plannerIDs where it was planned on.
 	fieldPlanners map[int][]int
-	// fieldEnclosingTypeNames stores the enclosing type names for each field ref
+
+	// fieldEnclosingTypeNames maps fieldRef to the enclosing type name.
 	fieldEnclosingTypeNames map[int]string
 }
 
@@ -632,7 +633,10 @@ func (v *Visitor) LeaveField(ref int) {
 	}
 }
 
+// skipField returns true if the field is a dependency and should not be included in the response.
+// Consequently, if we don't skip the field, the client requested it in the query.
 func (v *Visitor) skipField(ref int) bool {
+	// If this grows, switch to map[int]struct{} for O(1).
 	for _, skipRef := range v.skipFieldsRefs {
 		if skipRef == ref {
 			return true
@@ -1330,7 +1334,8 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	}
 
 	if !v.Config.DisableIncludeFieldDependencies {
-		singleFetch.FetchConfiguration.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
+		singleFetch.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
+		singleFetch.WhoRequestedFields = v.buildRequestedFields(internal.fetchID)
 	}
 
 	return singleFetch
@@ -1343,8 +1348,6 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 	}
 	dependencies := make([]resolve.FetchDependency, 0, len(fields))
 	for _, fieldRef := range fields {
-		// skipField returns true if the field is a dependency and should not be included in the response
-		// consequently, if we don't skip the field, the client requested it in the query
 		userRequestedField := !v.skipField(fieldRef)
 		deps, ok := v.fieldRefDependsOnFieldRefs[fieldRef]
 		if !ok {
@@ -1352,7 +1355,7 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 		}
 		dependency := resolve.FetchDependency{
 			Coordinate: resolve.GraphCoordinate{
-				FieldName: strings.Clone(v.Operation.FieldNameString(fieldRef)),
+				FieldName: v.Operation.FieldNameString(fieldRef),
 				TypeName:  v.fieldEnclosingTypeNames[fieldRef],
 			},
 			IsUserRequested: userRequestedField,
@@ -1371,7 +1374,7 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 					FetchID:  fetchID,
 					Subgraph: ofc.sourceName,
 					Coordinate: resolve.GraphCoordinate{
-						FieldName: strings.Clone(v.Operation.FieldNameString(depFieldRef)),
+						FieldName: v.Operation.FieldNameString(depFieldRef),
 						TypeName:  v.fieldEnclosingTypeNames[depFieldRef],
 					},
 				}
@@ -1391,4 +1394,68 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 		dependencies = append(dependencies, dependency)
 	}
 	return dependencies
+}
+
+func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
+	fields, ok := v.plannerFields[fetchID]
+	if !ok {
+		return nil
+	}
+	result := make([]resolve.RequestedField, 0, len(fields))
+
+	for _, fieldRef := range fields {
+		fieldName := v.Operation.FieldNameString(fieldRef)
+		if fieldName == "__typename" {
+			continue
+		}
+		requested := resolve.RequestedField{
+			TypeName:  v.fieldEnclosingTypeNames[fieldRef],
+			FieldName: fieldName,
+		}
+		requested.ByUser = !v.skipField(fieldRef)
+
+		requestedByRefs, ok := v.fieldRefAllowsFieldRefs[fieldRef]
+		if !ok {
+			if requested.ByUser {
+				result = append(result, requested)
+			}
+			continue
+		}
+
+		requested.BySubgraphs = make([]string, 0, len(requestedByRefs))
+		for _, reqByRef := range requestedByRefs {
+			depFieldPlanners, ok := v.fieldPlanners[reqByRef]
+			if !ok {
+				continue
+			}
+
+			// find the subgraph's name by iterating over planners that are responsible for reqByRef
+			for _, plannerID := range depFieldPlanners {
+				ofc := v.planners[plannerID].ObjectFetchConfiguration()
+				if ofc == nil {
+					continue
+				}
+				requested.BySubgraphs = append(requested.BySubgraphs, ofc.sourceName)
+
+				depKind, ok := v.fieldDependencyKind[fieldDependencyKey{field: reqByRef, dependsOn: fieldRef}]
+				if !ok {
+					continue
+				}
+				switch depKind {
+				case fieldDependencyKindKey:
+					requested.ReasonIsKey = true
+				case fieldDependencyKindRequires:
+					requested.ReasonIsRequires = true
+				}
+
+			}
+		}
+		if requested.ByUser || len(requested.BySubgraphs) > 0 {
+			slices.Sort(requested.BySubgraphs)
+			requested.BySubgraphs = slices.Compact(requested.BySubgraphs)
+			result = append(result, requested)
+		}
+	}
+
+	return result
 }
