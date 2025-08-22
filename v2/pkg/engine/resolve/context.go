@@ -32,8 +32,6 @@ type Context struct {
 	fieldRenderer FieldValueRenderer
 
 	subgraphErrors error
-
-	emitEventFn      func(data []byte)
 }
 
 type ExecutionOptions struct {
@@ -104,15 +102,6 @@ func (c *Context) SetAuthorizer(authorizer Authorizer) {
 
 func (c *Context) SetEngineLoaderHooks(hooks LoaderHooks) {
 	c.LoaderHooks = hooks
-}
-
-// EmitSubscriptionUpdate emits a subscription update to the client
-func (c *Context) EmitSubscriptionUpdate(data []byte) {
-	emitEventFn := c.emitEventFn
-	if emitEventFn == nil {
-		return
-	}
-	emitEventFn(data)
 }
 
 type RateLimitOptions struct {
@@ -216,7 +205,6 @@ func (c *Context) Free() {
 	c.subgraphErrors = nil
 	c.authorizer = nil
 	c.LoaderHooks = nil
-	c.emitEventFn = nil
 }
 
 type traceStartKey struct{}

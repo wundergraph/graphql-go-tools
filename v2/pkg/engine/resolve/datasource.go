@@ -36,5 +36,5 @@ type AsyncSubscriptionDataSource interface {
 type HookableSubscriptionDataSource interface {
 	// SubscriptionOnStart is called when a new subscription is created
 	// If an error is returned, the error is propagated to the client.
-	SubscriptionOnStart(ctx *Context, input []byte) (err error)
+	SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error)
 }

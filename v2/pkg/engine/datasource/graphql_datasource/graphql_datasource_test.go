@@ -8905,18 +8905,20 @@ func TestSanitizeKey(t *testing.T) {
 func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 
 	t.Run("SubscriptionOnStart calls subscriptionOnStartFns", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
+		ctx := &resolve.StartupHookContext{
+			Context: context.Background(),
+			Updater: func(data []byte) {},
+		}
 
 		type fnData struct {
-			ctx   *resolve.Context
+			ctx   *resolve.StartupHookContext
 			input []byte
 		}
 
 		startFnCalled := make(chan fnData, 1)
 		subscriptionSource := SubscriptionSource{
 			subscriptionOnStartFns: []SubscriptionOnStartFn{
-				func(ctx *resolve.Context, input []byte) error {
+				func(ctx *resolve.StartupHookContext, input []byte) error {
 					startFnCalled <- fnData{ctx, input}
 					return nil
 				},
@@ -8936,12 +8938,14 @@ func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 	})
 
 	t.Run("SubscriptionOnStart calls subscriptionOnStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
-		ctx := resolve.NewContext(context.Background())
-		defer ctx.Context().Done()
+		ctx := &resolve.StartupHookContext{
+			Context: context.Background(),
+			Updater: func(data []byte) {},
+		}
 
 		subscriptionSource := SubscriptionSource{
 			subscriptionOnStartFns: []SubscriptionOnStartFn{
-				func(ctx *resolve.Context, input []byte) error {
+				func(ctx *resolve.StartupHookContext, input []byte) error {
 					return errors.New("test error")
 				},
 			},

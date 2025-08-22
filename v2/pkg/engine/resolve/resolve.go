@@ -488,8 +488,10 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 		r.handleCompleteSubscription(event.id)
 	case subscriptionEventKindRemoveClient:
 		r.handleRemoveClient(event.id.ConnectionID)
+	case subscriptionEventKindUpdateSubscription:
+		r.handleUpdateSubscription(event.triggerID, event.data, event.id)
 	case subscriptionEventKindTriggerUpdate:
-		r.handleTriggerUpdate(event.triggerID, event.data, event.pinnedSubscription)
+		r.handleTriggerUpdate(event.triggerID, event.data)
 	case subscriptionEventKindTriggerComplete:
 		r.handleTriggerComplete(event.triggerID)
 	case subscriptionEventKindTriggerInitialized:
@@ -570,6 +572,36 @@ func (r *Resolver) handleTriggerComplete(triggerID uint64) {
 	r.completeTrigger(triggerID)
 }
 
+type StartupHookContext struct {
+	Context context.Context
+	Updater func(data []byte)
+}
+
+func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscriptionUpdater) error {
+	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
+	if ok {
+		hookCtx := StartupHookContext{
+			Context: add.ctx.Context(),
+			Updater: func(data []byte) {
+				// Writing on the updater channel is safe but has to happen outside of the event loop
+				// to respect order and not block the event loop
+				updater.UpdateSubscription(add.id, data)
+			},
+		}
+
+		err := hook.SubscriptionOnStart(hookCtx, add.input)
+		if err != nil {
+			if r.options.Debug {
+				fmt.Printf("resolver:trigger:subscription:startup:failed:%d\n", add.id.SubscriptionID)
+			}
+			r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
+			_ = r.AsyncUnsubscribeSubscription(add.id)
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription) {
 	var (
 		err error
@@ -591,25 +623,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		s.heartbeat = true
 	}
 
-	processHooks := func(updater *subscriptionUpdater) bool {
-		hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
-		if ok {
-			// copy the subscriptionUpdater to add a pinned subscription
-			pinnedUpdater := *updater
-			pinnedUpdater.pinnedSubscription = s
-			// Copy the ctx because we don't want to add the emit event fn to the parent context
-			initialHookCtx := *add.ctx
-			initialHookCtx.emitEventFn = pinnedUpdater.Update
-			err := hook.SubscriptionOnStart(&initialHookCtx, add.input)
-			if err != nil {
-				r.asyncErrorWriter.WriteError(add.ctx, err, add.resolve.Response, add.writer)
-			    _ = r.AsyncUnsubscribeSubscription(add.id)
-				return true
-			}
-		}
-		return false
-	}
-
 	// Start the dedicated worker goroutine where the subscription updates are processed
 	// and writes are written to the client in a single threaded manner
 	go s.startWorker()
@@ -623,8 +636,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		// hooks should be processed in a go routine to avoid locking the subscription event loop
-		go processHooks(trig.updater)
+		r.executeStartupHooks(add, trig.updater)
 		return
 	}
 
@@ -666,12 +678,13 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
-		// hooks should be processed in sync to avoid opening a trigger if not needed
-		close := processHooks(trig.updater)
-		// If the hook returns true, the subscription is closed and we don't need to start the data source
-		if close {
+
+		// This is blocking so the startup hook can decide if a subscription should be started or not by returning an error
+		err = r.executeStartupHooks(add, trig.updater)
+		if err != nil {
 			return
 		}
+
 		if asyncDataSource != nil {
 			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, trig.updater)
 		} else {
@@ -786,7 +799,7 @@ func (r *Resolver) handleRemoveClient(id int64) {
 	}
 }
 
-func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, pinnedSubscription *sub) {
+func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	trig, ok := r.triggers[id]
 	if !ok {
 		return
@@ -796,35 +809,54 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte, pinnedSubscriptio
 	}
 
 	for c, s := range trig.subscriptions {
-		if pinnedSubscription != nil && pinnedSubscription != s {
-			continue
-		}
-		c, s := c, s
-		if err := c.ctx.Err(); err != nil {
-			continue // no need to schedule an event update when the client already disconnected
-		}
-		skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
-		if err != nil {
-			r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
-			continue
-		}
-		if skip {
-			continue
-		}
+		r.sendUpdateToSubscription(id, data, c, s)
+	}
+}
 
-		fn := func() {
-			r.executeSubscriptionUpdate(c, s, data)
-		}
+func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifier SubscriptionIdentifier) {
+	trig, ok := r.triggers[id]
+	if !ok {
+		return
+	}
 
-		select {
-		case <-r.ctx.Done():
-			// Skip sending all events if the resolver is shutting down
-			return
-		case <-c.ctx.Done():
-			// Skip sending the event if the client disconnected
-		case s.workChan <- workItem{fn, false}:
-			// Send the event to the subscription worker
+	if r.options.Debug {
+		fmt.Printf("resolver:trigger:subscription:update:%d:%d,%d\n", id, subIdentifier.ConnectionID, subIdentifier.SubscriptionID)
+	}
+
+	for c, s := range trig.subscriptions {
+		if s.id != subIdentifier {
+			continue
 		}
+		r.sendUpdateToSubscription(id, data, c, s)
+		break
+	}
+}
+
+func (r *Resolver) sendUpdateToSubscription(id uint64, data []byte, c *Context, s *sub) {
+	if err := c.ctx.Err(); err != nil {
+		return // no need to schedule an event update when the client already disconnected
+	}
+	skip, err := s.resolve.Filter.SkipEvent(c, data, r.triggerUpdateBuf)
+	if err != nil {
+		r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
+		return
+	}
+	if skip {
+		return
+	}
+
+	fn := func() {
+		r.executeSubscriptionUpdate(c, s, data)
+	}
+
+	select {
+	case <-r.ctx.Done():
+		// Skip sending all events if the resolver is shutting down
+		return
+	case <-c.ctx.Done():
+		// Skip sending the event if the client disconnected
+	case s.workChan <- workItem{fn, false}:
+		// Send the event to the subscription worker
 	}
 }
 
@@ -1198,7 +1230,6 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
-	pinnedSubscription *sub
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1214,7 +1245,24 @@ func (s *subscriptionUpdater) Update(data []byte) {
 		triggerID: s.triggerID,
 		kind:      subscriptionEventKindTriggerUpdate,
 		data:      data,
-		pinnedSubscription: s.pinnedSubscription,
+	}:
+	}
+}
+
+func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data []byte) {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:update:%d\n", s.triggerID)
+	}
+
+	select {
+	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindUpdateSubscription,
+		data:      data,
+		id:        id,
 	}:
 	}
 }
@@ -1265,13 +1313,12 @@ func (s *subscriptionUpdater) Close(kind SubscriptionCloseKind) {
 }
 
 type subscriptionEvent struct {
-	triggerID          uint64
-	id                 SubscriptionIdentifier
-	kind               subscriptionEventKind
-	data               []byte
-	addSubscription    *addSubscription
-	closeKind          SubscriptionCloseKind
-	pinnedSubscription *sub
+	triggerID       uint64
+	id              SubscriptionIdentifier
+	kind            subscriptionEventKind
+	data            []byte
+	addSubscription *addSubscription
+	closeKind       SubscriptionCloseKind
 }
 
 type addSubscription struct {
@@ -1295,6 +1342,7 @@ const (
 	subscriptionEventKindRemoveClient
 	subscriptionEventKindTriggerInitialized
 	subscriptionEventKindTriggerClose
+	subscriptionEventKindUpdateSubscription
 )
 
 type SubscriptionUpdater interface {

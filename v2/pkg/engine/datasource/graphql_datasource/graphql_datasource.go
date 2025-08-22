@@ -1995,12 +1995,11 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 	return s.client.UniqueRequestID(ctx, options, xxh)
 }
 
-func (s *SubscriptionSource) SubscriptionOnStart(ctx *resolve.Context, input []byte) (err error) {
+// SubscriptionOnStart is called when a subscription is started.
+// Each hook is called in a separate goroutine.
+func (s *SubscriptionSource) SubscriptionOnStart(ctx *resolve.StartupHookContext, input []byte) (err error) {
 	for _, fn := range s.subscriptionOnStartFns {
-		err = fn(ctx, input)
-		if err != nil {
-			return err
-		}
+		return fn(ctx, input)
 	}
-	return
+	return nil
 }
