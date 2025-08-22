@@ -3094,7 +3094,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
-										FieldsRequestedBy: []resolve.RequestedField{
+										WhoRequestedFields: []resolve.RequestedField{
 											{
 												TypeName:         "Address",
 												FieldName:        "line1",
@@ -3180,7 +3180,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 										},
-										FieldsRequestedBy: []resolve.RequestedField{
+										WhoRequestedFields: []resolve.RequestedField{
 											{
 												TypeName:         "Address",
 												FieldName:        "country",
@@ -3292,7 +3292,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 										},
-										FieldsRequestedBy: []resolve.RequestedField{
+										WhoRequestedFields: []resolve.RequestedField{
 											{
 												TypeName:         "Address",
 												FieldName:        "line3",
@@ -3417,7 +3417,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 										},
-										FieldsRequestedBy: []resolve.RequestedField{
+										WhoRequestedFields: []resolve.RequestedField{
 											{
 												TypeName:  "Address",
 												FieldName: "fullAddress",

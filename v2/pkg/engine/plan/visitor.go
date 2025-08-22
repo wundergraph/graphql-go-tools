@@ -1335,7 +1335,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 
 	if !v.Config.DisableIncludeFieldDependencies {
 		singleFetch.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
-		singleFetch.FieldsRequestedBy = v.buildFieldsRequestedBy(internal.fetchID)
+		singleFetch.WhoRequestedFields = v.buildRequestedFields(internal.fetchID)
 	}
 
 	return singleFetch
@@ -1396,7 +1396,7 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 	return dependencies
 }
 
-func (v *Visitor) buildFieldsRequestedBy(fetchID int) []resolve.RequestedField {
+func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 	fields, ok := v.plannerFields[fetchID]
 	if !ok {
 		return nil

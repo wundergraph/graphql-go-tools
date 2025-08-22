@@ -151,7 +151,7 @@ type Loader struct {
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
 
-	propagateFieldsRequestedBy bool
+	propagateWhoRequestedFields bool
 }
 
 func (l *Loader) Free() {
@@ -1562,17 +1562,17 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			return
 		}
 	}
-	if l.propagateFieldsRequestedBy && !IsIntrospectionDataSource(res.ds.ID) {
+	if l.propagateWhoRequestedFields && !IsIntrospectionDataSource(res.ds.ID) {
 		fieldsRequestedBy := fetchItem.Fetch.RequestedFields()
 		if fieldsRequestedBy != nil {
-			// We expect that body.extensions is an object
 			var encoded []byte
 			encoded, res.err = json.Marshal(fieldsRequestedBy)
 			if res.err != nil {
 				res.err = errors.WithStack(res.err)
 				return
 			}
-			input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "fieldsRequestedBy")
+			// We expect that body.extensions is an object
+			input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "whoRequestedFields")
 			if res.err != nil {
 				res.err = errors.WithStack(res.err)
 				return
