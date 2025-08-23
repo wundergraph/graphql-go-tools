@@ -107,7 +107,7 @@ type SingleTypeField struct {
 // SubscriptionOnStartFn defines a hook function that is called when a subscription starts.
 // It receives the resolve context and the input of the subscription.
 // The function can return an error.
-type SubscriptionOnStartFn func(ctx *resolve.StartupHookContext, input []byte) (err error)
+type SubscriptionOnStartFn func(ctx resolve.StartupHookContext, input []byte) (err error)
 
 type SubscriptionConfiguration struct {
 	URL           string
