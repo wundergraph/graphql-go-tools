@@ -239,6 +239,16 @@ func testMapping() *GRPCMapping {
 					},
 				},
 			},
+			"Warehouse": {
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupWarehouseById",
+						Request:  "LookupWarehouseByIdRequest",
+						Response: "LookupWarehouseByIdResponse",
+					},
+				},
+			},
 		},
 		EnumValues: map[string][]EnumValueMapping{
 			"CategoryKind": {
@@ -484,6 +494,17 @@ func testMapping() *GRPCMapping {
 				},
 			},
 			"Storage": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
+			"Warehouse": {
 				"id": {
 					TargetName: "id",
 				},

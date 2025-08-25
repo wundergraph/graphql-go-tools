@@ -11,6 +11,13 @@ type Storage @key(fields: "id") {
   location: String!
 }
 
+type Warehouse @key(fields: "id") {
+  id: ID!
+  name: String!
+  location: String!
+}
+
+
 type User {
   id: ID!
   name: String!

@@ -246,6 +246,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					},
 				},
 			},
+			"Warehouse": {
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupWarehouseById",
+						Request:  "LookupWarehouseByIdRequest",
+						Response: "LookupWarehouseByIdResponse",
+					},
+				},
+			},
 		},
 		EnumValues: map[string][]grpcdatasource.EnumValueMapping{
 			"CategoryKind": {
@@ -491,6 +501,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 			},
 			"Storage": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
+			"Warehouse": {
 				"id": {
 					TargetName: "id",
 				},
