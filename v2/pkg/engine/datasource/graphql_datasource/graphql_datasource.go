@@ -450,7 +450,8 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 	return plan.SubscriptionConfiguration{
 		Input: string(input),
 		DataSource: &SubscriptionSource{
-			client: p.subscriptionClient,
+			client:                 p.subscriptionClient,
+			subscriptionOnStartFns: p.config.subscription.StartupHooks,
 		},
 		Variables:      p.variables,
 		PostProcessing: DefaultPostProcessingConfiguration,
@@ -1942,7 +1943,8 @@ type RegularExpression struct {
 }
 
 type SubscriptionSource struct {
-	client GraphQLSubscriptionClient
+	client                 GraphQLSubscriptionClient
+	subscriptionOnStartFns []SubscriptionOnStartFn
 }
 
 func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
@@ -1991,4 +1993,13 @@ func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte,
 		return err
 	}
 	return s.client.UniqueRequestID(ctx, options, xxh)
+}
+
+// SubscriptionOnStart is called when a subscription is started.
+// Each hook is called in a separate goroutine.
+func (s *SubscriptionSource) SubscriptionOnStart(ctx resolve.StartupHookContext, input []byte) (err error) {
+	for _, fn := range s.subscriptionOnStartFns {
+		return fn(ctx, input)
+	}
+	return nil
 }
