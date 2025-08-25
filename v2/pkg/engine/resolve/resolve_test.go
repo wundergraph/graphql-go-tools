@@ -5598,6 +5598,77 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.True(t, recorderWith2Messages)
 	})
 
+	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		subsStarted := sync.WaitGroup{}
+		subsStarted.Add(2)
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID: 1,
+			SubscriptionID: 2,
+		}
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+			_, err = xxh.WriteString("unique")
+			return
+		}
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		ctx2 := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		subsStarted.Done()
+
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+		subsStarted.Done()
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		recorders := []*SubscriptionRecorder{recorder, recorder2}
+
+		for _, r := range recorders {
+			if len(r.Messages()) == 2 {
+				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
+			} else {
+				assert.Fail(t, "should not be here")
+			}
+		}
+	})
+
 	t.Run("SubscriptionOnStart can send a lot of updates without blocking", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
 		defer cancel()
