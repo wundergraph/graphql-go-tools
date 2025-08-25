@@ -601,6 +601,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if batch == nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 	}
+
+	if b, i := len(batch), len(items); b != i {
+		return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, i, b))
+	}
+
 	if res.batchStats != nil {
 		for i, stats := range res.batchStats {
 			for _, item := range stats {
@@ -953,6 +958,7 @@ const (
 	emptyGraphQLResponse        = "empty response"
 	invalidGraphQLResponse      = "invalid JSON"
 	invalidGraphQLResponseShape = "no data or errors in response"
+	invalidBatchItemCount       = "returned items from batch do not match the number of items in the request. Expected %d, got %d"
 )
 
 func (l *Loader) renderAtPathErrorPart(path string) string {
