@@ -8905,20 +8905,20 @@ func TestSanitizeKey(t *testing.T) {
 func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 
 	t.Run("SubscriptionOnStart calls subscriptionOnStartFns", func(t *testing.T) {
-		ctx := &resolve.StartupHookContext{
+		ctx := resolve.StartupHookContext{
 			Context: context.Background(),
 			Updater: func(data []byte) {},
 		}
 
 		type fnData struct {
-			ctx   *resolve.StartupHookContext
+			ctx   resolve.StartupHookContext
 			input []byte
 		}
 
 		startFnCalled := make(chan fnData, 1)
 		subscriptionSource := SubscriptionSource{
 			subscriptionOnStartFns: []SubscriptionOnStartFn{
-				func(ctx *resolve.StartupHookContext, input []byte) error {
+				func(ctx resolve.StartupHookContext, input []byte) error {
 					startFnCalled <- fnData{ctx, input}
 					return nil
 				},
@@ -8933,19 +8933,18 @@ func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
 		case <-time.After(1 * time.Second):
 			t.Fatal("SubscriptionOnStartFn was not called")
 		}
-		assert.Equal(t, ctx, called.ctx)
 		assert.Equal(t, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`), called.input)
 	})
 
 	t.Run("SubscriptionOnStart calls subscriptionOnStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
-		ctx := &resolve.StartupHookContext{
+		ctx := resolve.StartupHookContext{
 			Context: context.Background(),
 			Updater: func(data []byte) {},
 		}
 
 		subscriptionSource := SubscriptionSource{
 			subscriptionOnStartFns: []SubscriptionOnStartFn{
-				func(ctx *resolve.StartupHookContext, input []byte) error {
+				func(ctx resolve.StartupHookContext, input []byte) error {
 					return errors.New("test error")
 				},
 			},
