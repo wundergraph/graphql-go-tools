@@ -19,6 +19,39 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// LookupWarehouseById implements productv1.ProductServiceServer.
+func (s *MockService) LookupWarehouseById(ctx context.Context, in *productv1.LookupWarehouseByIdRequest) (*productv1.LookupWarehouseByIdResponse, error) {
+	var results []*productv1.Warehouse
+
+	// Special requirement: return one less item than requested to test error handling
+	// This deliberately breaks the normal pattern of returning the same number of items as keys
+	keys := in.GetKeys()
+	if len(keys) == 0 {
+		return &productv1.LookupWarehouseByIdResponse{
+			Result: results,
+		}, nil
+	}
+
+	// Return all items except the last one to test error scenarios
+	for i, input := range keys {
+		// Skip the last item to create an intentional mismatch
+		if i == len(keys)-1 {
+			break
+		}
+
+		warehouseId := input.GetId()
+		results = append(results, &productv1.Warehouse{
+			Id:       warehouseId,
+			Name:     fmt.Sprintf("Warehouse %s", warehouseId),
+			Location: fmt.Sprintf("Location %d", rand.Intn(100)),
+		})
+	}
+
+	return &productv1.LookupWarehouseByIdResponse{
+		Result: results,
+	}, nil
+}
+
 // Helper functions to convert input types to output types
 func convertCategoryInputsToCategories(inputs []*productv1.CategoryInput) []*productv1.Category {
 	if inputs == nil {

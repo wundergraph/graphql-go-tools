@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	ProductService_LookupProductById_FullMethodName                 = "/productv1.ProductService/LookupProductById"
 	ProductService_LookupStorageById_FullMethodName                 = "/productv1.ProductService/LookupStorageById"
+	ProductService_LookupWarehouseById_FullMethodName               = "/productv1.ProductService/LookupWarehouseById"
 	ProductService_MutationBulkCreateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkCreateAuthors"
 	ProductService_MutationBulkCreateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkCreateBlogPosts"
 	ProductService_MutationBulkUpdateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkUpdateAuthors"
@@ -75,6 +76,8 @@ type ProductServiceClient interface {
 	LookupProductById(ctx context.Context, in *LookupProductByIdRequest, opts ...grpc.CallOption) (*LookupProductByIdResponse, error)
 	// Lookup Storage entity by id
 	LookupStorageById(ctx context.Context, in *LookupStorageByIdRequest, opts ...grpc.CallOption) (*LookupStorageByIdResponse, error)
+	// Lookup Warehouse entity by id
+	LookupWarehouseById(ctx context.Context, in *LookupWarehouseByIdRequest, opts ...grpc.CallOption) (*LookupWarehouseByIdResponse, error)
 	MutationBulkCreateAuthors(ctx context.Context, in *MutationBulkCreateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkCreateAuthorsResponse, error)
 	MutationBulkCreateBlogPosts(ctx context.Context, in *MutationBulkCreateBlogPostsRequest, opts ...grpc.CallOption) (*MutationBulkCreateBlogPostsResponse, error)
 	MutationBulkUpdateAuthors(ctx context.Context, in *MutationBulkUpdateAuthorsRequest, opts ...grpc.CallOption) (*MutationBulkUpdateAuthorsResponse, error)
@@ -141,6 +144,16 @@ func (c *productServiceClient) LookupStorageById(ctx context.Context, in *Lookup
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(LookupStorageByIdResponse)
 	err := c.cc.Invoke(ctx, ProductService_LookupStorageById_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) LookupWarehouseById(ctx context.Context, in *LookupWarehouseByIdRequest, opts ...grpc.CallOption) (*LookupWarehouseByIdResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(LookupWarehouseByIdResponse)
+	err := c.cc.Invoke(ctx, ProductService_LookupWarehouseById_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -577,6 +590,8 @@ type ProductServiceServer interface {
 	LookupProductById(context.Context, *LookupProductByIdRequest) (*LookupProductByIdResponse, error)
 	// Lookup Storage entity by id
 	LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error)
+	// Lookup Warehouse entity by id
+	LookupWarehouseById(context.Context, *LookupWarehouseByIdRequest) (*LookupWarehouseByIdResponse, error)
 	MutationBulkCreateAuthors(context.Context, *MutationBulkCreateAuthorsRequest) (*MutationBulkCreateAuthorsResponse, error)
 	MutationBulkCreateBlogPosts(context.Context, *MutationBulkCreateBlogPostsRequest) (*MutationBulkCreateBlogPostsResponse, error)
 	MutationBulkUpdateAuthors(context.Context, *MutationBulkUpdateAuthorsRequest) (*MutationBulkUpdateAuthorsResponse, error)
@@ -634,6 +649,9 @@ func (UnimplementedProductServiceServer) LookupProductById(context.Context, *Loo
 }
 func (UnimplementedProductServiceServer) LookupStorageById(context.Context, *LookupStorageByIdRequest) (*LookupStorageByIdResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LookupStorageById not implemented")
+}
+func (UnimplementedProductServiceServer) LookupWarehouseById(context.Context, *LookupWarehouseByIdRequest) (*LookupWarehouseByIdResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LookupWarehouseById not implemented")
 }
 func (UnimplementedProductServiceServer) MutationBulkCreateAuthors(context.Context, *MutationBulkCreateAuthorsRequest) (*MutationBulkCreateAuthorsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MutationBulkCreateAuthors not implemented")
@@ -814,6 +832,24 @@ func _ProductService_LookupStorageById_Handler(srv interface{}, ctx context.Cont
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).LookupStorageById(ctx, req.(*LookupStorageByIdRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_LookupWarehouseById_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LookupWarehouseByIdRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).LookupWarehouseById(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_LookupWarehouseById_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).LookupWarehouseById(ctx, req.(*LookupWarehouseByIdRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1588,6 +1624,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "LookupStorageById",
 			Handler:    _ProductService_LookupStorageById_Handler,
+		},
+		{
+			MethodName: "LookupWarehouseById",
+			Handler:    _ProductService_LookupWarehouseById_Handler,
 		},
 		{
 			MethodName: "MutationBulkCreateAuthors",
