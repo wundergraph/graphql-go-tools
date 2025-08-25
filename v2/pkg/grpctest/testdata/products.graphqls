@@ -400,5 +400,5 @@ type Mutation {
 
 
 
-union _Entity = Product | Storage
+union _Entity = Product | Storage | Warehouse
 scalar _Any
