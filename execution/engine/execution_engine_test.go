@@ -215,7 +215,7 @@ type _executionTestOptions struct {
 	resolvableOptions resolve.ResolvableOptions
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
-	propagateWhoRequestedFields                  bool
+	propagateFieldsRequestedBy                   bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -263,7 +263,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
-				PropagateWhoRequestedFields:                  opts.propagateWhoRequestedFields,
+				PropagateFieldsRequestedBy:                   opts.propagateFieldsRequestedBy,
 			})
 			require.NoError(t, err)
 
@@ -835,7 +835,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"whoRequestedFields":[{"typeName":"Character","fieldName":"name","requestedByUser":true},{"typeName":"Query","fieldName":"hero","requestedByUser":true}]}}`,
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"FieldsRequestedBy":[{"typeName":"Character","fieldName":"name","requestedByUser":true},{"typeName":"Query","fieldName":"hero","requestedByUser":true}]}}`,
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -871,7 +871,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.propagateWhoRequestedFields = true
+			eto.propagateFieldsRequestedBy = true
 		},
 	))
 
@@ -4351,8 +4351,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
 				expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
 			} else {
-				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"whoRequestedFields":[{"typeName":"User","fieldName":"id","requestedBySubgraphs":["id-2"],"reasonIsKey":true},{"typeName":"User","fieldName":"some","requestedByUser":true},{"typeName":"User","fieldName":"id","requestedByUser":true},{"typeName":"Admin","fieldName":"some","requestedByUser":true},{"typeName":"Query","fieldName":"accounts","requestedByUser":true}]}}`
-				expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]},"extensions":{"whoRequestedFields":[{"typeName":"User","fieldName":"title","requestedByUser":true},{"typeName":"User","fieldName":"some","requestedByUser":true}]}}`
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"FieldsRequestedBy":[{"typeName":"User","fieldName":"id","requestedBySubgraphs":["id-2"],"reasonIsKey":true},{"typeName":"User","fieldName":"some","requestedByUser":true},{"typeName":"User","fieldName":"id","requestedByUser":true},{"typeName":"Admin","fieldName":"some","requestedByUser":true},{"typeName":"Query","fieldName":"accounts","requestedByUser":true}]}}`
+				expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]},"extensions":{"FieldsRequestedBy":[{"typeName":"User","fieldName":"title","requestedByUser":true},{"typeName":"User","fieldName":"some","requestedByUser":true}]}}`
 
 			}
 
@@ -4535,7 +4535,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 			},
 			func(eto *_executionTestOptions) {
-				eto.propagateWhoRequestedFields = true
+				eto.propagateFieldsRequestedBy = true
 			},
 		))
 	})

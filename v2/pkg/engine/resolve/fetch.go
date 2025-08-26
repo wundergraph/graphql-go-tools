@@ -106,7 +106,7 @@ func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
 }
 
 func (s *SingleFetch) RequestedFields() []RequestedField {
-	return s.FetchConfiguration.WhoRequestedFields
+	return s.FetchConfiguration.FieldsRequestedBy
 }
 
 func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
@@ -281,7 +281,7 @@ func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
 }
 
 func (p *ParallelListItemFetch) RequestedFields() []RequestedField {
-	return p.Fetch.FetchConfiguration.WhoRequestedFields
+	return p.Fetch.FetchConfiguration.FieldsRequestedBy
 }
 
 func (*ParallelListItemFetch) FetchKind() FetchKind {
@@ -347,7 +347,7 @@ type FetchConfiguration struct {
 	// and how multiple dependencies lead to a chain of fetches
 	CoordinateDependencies []FetchDependency
 
-	WhoRequestedFields []RequestedField
+	FieldsRequestedBy []RequestedField
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
