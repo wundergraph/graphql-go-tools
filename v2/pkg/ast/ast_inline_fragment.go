@@ -86,3 +86,11 @@ func (d *Document) InlineFragmentSelectionSet(ref int) (selectionSetRef int, ok 
 func (d *Document) InlineFragmentDirectives(ref int) []int {
 	return d.InlineFragments[ref].Directives.Refs
 }
+
+func (d *Document) InlineFragmentDirectiveByName(inlineFragmentRef int, directiveName ByteSlice) (ref int, exists bool) {
+	if !d.InlineFragments[inlineFragmentRef].HasDirectives {
+		return InvalidRef, false
+	}
+
+	return d.InlineFragments[inlineFragmentRef].Directives.HasDirectiveByNameBytes(d, directiveName)
+}
