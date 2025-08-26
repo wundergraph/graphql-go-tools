@@ -1242,7 +1242,24 @@ var runWithVariables = func(t *testing.T, normalizeFunc registerNormalizeFunc, d
 	assert.Equal(t, want, got)
 }
 
-var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, indent ...bool) {
+type runOptions struct {
+	indent            bool
+	withInternalDefer bool
+}
+
+var runWithOptions = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options runOptions) {
+	t.Helper()
+	run(t, normalizeFunc, definition, operation, expectedOutput, options)
+}
+
+var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, operation, expectedOutput string, options ...runOptions) {
+	t.Helper()
+
+	var opts runOptions
+
+	if len(options) > 0 {
+		opts = options[0]
+	}
 
 	definitionDocument := unsafeparser.ParseGraphqlDocumentString(definition)
 	err := asttransform.MergeDefinitionWithBaseSchema(&definitionDocument)
@@ -1264,7 +1281,7 @@ var run = func(t *testing.T, normalizeFunc registerNormalizeFunc, definition, op
 	}
 
 	var got, want string
-	if len(indent) > 0 && indent[0] {
+	if opts.indent {
 		got = mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
 		want = mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 	} else {
