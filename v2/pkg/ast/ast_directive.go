@@ -28,6 +28,15 @@ func (l *DirectiveList) HasDirectiveByName(document *Document, name string) bool
 	return false
 }
 
+func (l *DirectiveList) HasDirectiveByNameBytes(document *Document, directiveName ByteSlice) (directiveRef int, exists bool) {
+	for i := range l.Refs {
+		if bytes.Equal(directiveName, document.DirectiveNameBytes(l.Refs[i])) {
+			return l.Refs[i], true
+		}
+	}
+	return InvalidRef, false
+}
+
 func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
 	for i := range l.Refs {
 		if document.DirectiveNameString(l.Refs[i]) == name {
