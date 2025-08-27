@@ -1,9 +1,9 @@
 package plan
 
 type TypeField struct {
-	TypeName           string
-	FieldNames         []string
-	ExternalFieldNames []string
+	TypeName            string
+	FieldNames          []string
+	ExternalFieldNames  []string
 	ProtectedFieldNames []string
 }
 
