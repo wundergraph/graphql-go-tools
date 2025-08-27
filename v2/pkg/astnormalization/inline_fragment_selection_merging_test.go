@@ -216,6 +216,24 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 						}
 					}`)
 		})
+
+		t.Run("fields with the same directives but in different order", func(t *testing.T) {
+			run(t, mergeInlineFragmentSelections, testDefinition, `
+					{
+						field @skip(if: $foo) @include(if: $foo) {
+							subfieldA
+						}
+						field  @include(if: $foo) @skip(if: $foo) {
+							subfieldB
+						}
+					}`, `
+					{
+						field @skip(if: $foo) @include(if: $foo) {
+							subfieldA
+							subfieldB
+						}
+					}`)
+		})
 	})
 	t.Run("fragments and fields", func(t *testing.T) {
 		t.Run("field field fragment", func(t *testing.T) {
@@ -329,6 +347,61 @@ func TestMergeInlineFragmentFieldSelections(t *testing.T) {
 							}
 						}
 					}`)
+		})
+
+		t.Run("with internal defer", func(t *testing.T) {
+			runWithOptions(t, mergeInlineFragmentSelections, testDefinition, `
+					query pet {
+						pet {
+							... on Dog {
+								name @defer_internal(id: "1")
+								nickname @defer_internal(id: "1")
+								nickname @defer_internal(id: "2", parentDeferId: "1")
+								barkVolume @defer_internal(id: "2", parentDeferId: "1")
+							}
+							... on Cat {
+								name
+								extra {
+									bool
+								}
+							}
+							... on Cat {
+								name @defer_internal(id: "3")
+								meowVolume @defer_internal(id: "3")
+								extra @defer_internal(id: "3") {
+									bool @defer_internal(id: "3")
+								}
+							}
+							... on Cat {
+								name @defer_internal(id: "4")
+								nickname @defer_internal(id: "4")
+								meowVolume @defer_internal(id: "4")
+							}
+						}
+					}`,
+				`
+					query pet {
+						pet {
+							... on Dog {
+								name @defer_internal(id: "1")
+								nickname @defer_internal(id: "1")
+								nickname @defer_internal(id: "2", parentDeferId: "1")
+								barkVolume @defer_internal(id: "2", parentDeferId: "1")
+							}
+							... on Cat {
+								name
+								extra {
+									bool
+									bool @defer_internal(id: "3")
+								}
+								name @defer_internal(id: "3")
+								meowVolume @defer_internal(id: "3")
+								name @defer_internal(id: "4")
+								nickname @defer_internal(id: "4")
+								meowVolume @defer_internal(id: "4")
+							}
+						}
+					}`, runOptions{indent: true})
 		})
 
 	})

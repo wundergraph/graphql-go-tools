@@ -2,9 +2,11 @@ package astnormalization
 
 import (
 	"bytes"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
 // mergeInlineFragmentSelections registers a visitor that
@@ -88,8 +90,43 @@ func (f *inlineFragmentSelectionMergeVisitor) mergeFields(left, right int) (ok b
 		return false
 	}
 
+	f.mergeFieldsDefer(left, right)
+
 	f.operation.AppendSelectionSet(leftSet, rightSet)
 	return true
+}
+
+func (f *inlineFragmentSelectionMergeVisitor) mergeFieldsDefer(left, right int) {
+	leftDeferDirectiveRef, leftDeferExists := f.operation.Fields[left].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
+	rightDeferDirectiveRef, rightDeferExists := f.operation.Fields[right].Directives.HasDirectiveByNameBytes(f.operation, literal.DEFER_INTERNAL)
+
+	switch {
+	case !leftDeferExists && !rightDeferExists:
+		// do nothing
+	case leftDeferExists && !rightDeferExists:
+		f.operation.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+	case !leftDeferExists:
+		// do nothing, right will be discarded
+	default:
+		// both have the defer, wins defer will smaller id
+		leftDeferIdValue, _ := f.operation.DirectiveArgumentValueByName(leftDeferDirectiveRef, []byte("id"))
+		rightDeferIdValue, _ := f.operation.DirectiveArgumentValueByName(rightDeferDirectiveRef, []byte("id"))
+
+		leftId, _ := strconv.Atoi(f.operation.StringValueContentString(leftDeferIdValue.Ref))
+		rightId, _ := strconv.Atoi(f.operation.StringValueContentString(rightDeferIdValue.Ref))
+
+		switch {
+		case leftId == rightId:
+			// do nothing, they are equal
+		case leftId < rightId:
+			// left wins, remove right
+		case leftId > rightId:
+			f.operation.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+			// append a right defer to the left
+			// no need to import as a right will be discarded
+			f.operation.Fields[left].Directives.Refs = append(f.operation.Fields[left].Directives.Refs, rightDeferDirectiveRef)
+		}
+	}
 }
 
 func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
@@ -119,6 +156,7 @@ func (f *inlineFragmentSelectionMergeVisitor) EnterSelectionSet(ref int) {
 				if !f.fragmentsCanBeMerged(leftRef, rightRef) {
 					continue
 				}
+
 				if f.mergeInlineFragments(leftRef, rightRef) {
 					f.operation.RemoveFromSelectionSet(ref, j)
 					f.RevisitNode()
