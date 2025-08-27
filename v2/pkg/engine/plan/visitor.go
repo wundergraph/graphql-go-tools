@@ -1401,8 +1401,14 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 	if !ok {
 		return nil
 	}
-	result := make([]resolve.RequestedField, 0, len(fields))
 	dsConfig := v.planners[fetchID].DataSourceConfiguration()
+
+	type typedField struct {
+		typeName string
+		field    string
+	}
+	result := make([]resolve.RequestedField, 0, len(fields))
+	index := make(map[typedField]int, len(fields))
 
 	for _, fieldRef := range fields {
 		fieldName := v.Operation.FieldNameString(fieldRef)
@@ -1413,52 +1419,69 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 		if !dsConfig.HasProtectedRootNode(typeName, fieldName) && !dsConfig.HasProtectedChildNode(typeName, fieldName) {
 			continue
 		}
-		requested := resolve.RequestedField{
-			TypeName:  typeName,
-			FieldName: fieldName,
-		}
-		requested.ByUser = !v.skipField(fieldRef)
 
+		byUser := !v.skipField(fieldRef)
 		requestedByRefs, ok := v.fieldRefAllowsFieldRefs[fieldRef]
-		if !ok {
-			if requested.ByUser {
-				result = append(result, requested)
-			}
-			continue
-		}
 
-		requested.BySubgraphs = make([]string, 0, len(requestedByRefs))
-		for _, reqByRef := range requestedByRefs {
-			depFieldPlanners, ok := v.fieldPlanners[reqByRef]
-			if !ok {
-				continue
-			}
+		var bySubgraphs []string
+		var isKey, isRequires bool
 
-			// find the subgraph's name by iterating over planners that are responsible for reqByRef
-			for _, plannerID := range depFieldPlanners {
-				ofc := v.planners[plannerID].ObjectFetchConfiguration()
-				if ofc == nil {
-					continue
-				}
-				requested.BySubgraphs = append(requested.BySubgraphs, ofc.sourceName)
-
-				depKind, ok := v.fieldDependencyKind[fieldDependencyKey{field: reqByRef, dependsOn: fieldRef}]
+		if ok {
+			bySubgraphs = make([]string, 0, len(requestedByRefs))
+			for _, reqByRef := range requestedByRefs {
+				plannerIDs, ok := v.fieldPlanners[reqByRef]
 				if !ok {
 					continue
 				}
-				switch depKind {
-				case fieldDependencyKindKey:
-					requested.ReasonIsKey = true
-				case fieldDependencyKindRequires:
-					requested.ReasonIsRequires = true
-				}
 
+				// Find the subgraph's names that are responsible for reqByRef.
+				for _, plannerID := range plannerIDs {
+					ofc := v.planners[plannerID].ObjectFetchConfiguration()
+					if ofc == nil {
+						continue
+					}
+					bySubgraphs = append(bySubgraphs, ofc.sourceName)
+
+					depKind, ok := v.fieldDependencyKind[fieldDependencyKey{field: reqByRef, dependsOn: fieldRef}]
+					if !ok {
+						continue
+					}
+					switch depKind {
+					case fieldDependencyKindKey:
+						isKey = true
+					case fieldDependencyKindRequires:
+						isRequires = true
+					}
+				}
 			}
 		}
-		if requested.ByUser || len(requested.BySubgraphs) > 0 {
-			slices.Sort(requested.BySubgraphs)
-			requested.BySubgraphs = slices.Compact(requested.BySubgraphs)
-			result = append(result, requested)
+
+		// Deduplicate using the index and merge with existing entries.
+		if byUser || len(bySubgraphs) > 0 {
+			slices.Sort(bySubgraphs)
+			bySubgraphs = slices.Compact(bySubgraphs)
+
+			key := typedField{typeName: typeName, field: fieldName}
+			if i, ok := index[key]; ok {
+				// True should overwrite false.
+				result[i].ByUser = result[i].ByUser || byUser
+				if len(bySubgraphs) > 0 {
+					result[i].BySubgraphs = append(result[i].BySubgraphs, bySubgraphs...)
+					result[i].ReasonIsKey = result[i].ReasonIsKey || isKey
+					result[i].ReasonIsRequires = result[i].ReasonIsRequires || isRequires
+				}
+				continue
+			}
+
+			result = append(result, resolve.RequestedField{
+				TypeName:         typeName,
+				FieldName:        fieldName,
+				BySubgraphs:      bySubgraphs,
+				ByUser:           byUser,
+				ReasonIsKey:      isKey,
+				ReasonIsRequires: isRequires,
+			})
+			index[key] = len(result) - 1
 		}
 	}
 
