@@ -347,6 +347,8 @@ type FetchConfiguration struct {
 	// and how multiple dependencies lead to a chain of fetches
 	CoordinateDependencies []FetchDependency
 
+	// FieldsRequestedBy contains provenance for protected fields (schema @protected).
+	// Used for optional propagation to subgraphs via request extensions; does not affect execution.
 	FieldsRequestedBy []RequestedField
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
@@ -363,9 +365,11 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 
-	// Note: we do not compare datasources, as they will always be a different instance
+	// Note: we do not compare datasources, as they will always be a different instance.
 	// Note: we do not compare CoordinateDependencies, as they contain more detailed
-	// dependencies information that is already present in the FetchDependencies on the fetch itself
+	// dependencies information that is already present in the FetchDependencies on the fetch itself.
+	// Note: we do not compare FieldsRequestedBy, as it is derived data for an extension
+	// and does not affect fetch execution semantics.
 
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
 		return false
