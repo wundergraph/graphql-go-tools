@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.222](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.221...v2.0.0-rc.222) (2025-08-27)
+
+
+### Bug Fixes
+
+* improve handling for invalid responses ([#1283](https://github.com/wundergraph/graphql-go-tools/issues/1283)) ([d656e91](https://github.com/wundergraph/graphql-go-tools/commit/d656e9185a9d94874ae7b0c103176c10b6a4f352))
+
 ## [2.0.0-rc.221](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.220...v2.0.0-rc.221) (2025-08-21)
 
 
