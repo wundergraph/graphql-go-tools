@@ -50,6 +50,19 @@ func (l *DirectiveList) RemoveDirectiveByName(document *Document, name string) {
 	}
 }
 
+func (l *DirectiveList) RemoveDirectiveByRef(directiveRef int) {
+	for i := range l.Refs {
+		if l.Refs[i] == directiveRef {
+			if i < len(l.Refs)-1 {
+				l.Refs = append(l.Refs[:i], l.Refs[i+1:]...)
+			} else {
+				l.Refs = l.Refs[:i]
+			}
+			return
+		}
+	}
+}
+
 func (d *Document) CopyDirective(ref int) int {
 	var arguments ArgumentList
 	if d.Directives[ref].HasArguments {
@@ -127,15 +140,79 @@ func (d *Document) DirectivesAreEqual(left, right int) bool {
 }
 
 func (d *Document) DirectiveSetsAreEqual(left, right []int) bool {
-	if len(left) != len(right) {
-		return false
+	if len(left) == 0 && len(right) == 0 {
+		return true
 	}
+
+	// if left has no directives and right has only the defer directives, we consider them equal
+	if len(left) == 0 && len(right) > 0 {
+		for i := 0; i < len(right); i++ {
+			if !bytes.Equal(d.DirectiveNameBytes(right[i]), literal.DEFER_INTERNAL) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// if right has no directives and left has only the defer directives, we consider them equal
+	if len(left) > 0 && len(right) == 0 {
+		for i := 0; i < len(left); i++ {
+			if !bytes.Equal(d.DirectiveNameBytes(left[i]), literal.DEFER_INTERNAL) {
+				return false
+			}
+		}
+		return true
+	}
+
+	// check that every non-defer directive in the left has an equal in the right
 	for i := 0; i < len(left); i++ {
-		leftDirective, rightDirective := left[i], right[i]
-		if !d.DirectivesAreEqual(leftDirective, rightDirective) {
+		leftDirective := left[i]
+
+		if bytes.Equal(d.DirectiveNameBytes(leftDirective), literal.DEFER_INTERNAL) {
+			continue
+		}
+
+		hasRightEqual := false
+		for j := 0; j < len(right); j++ {
+			rightDirective := right[j]
+
+			if bytes.Equal(d.DirectiveNameBytes(rightDirective), literal.DEFER_INTERNAL) {
+				continue
+			}
+
+			if d.DirectivesAreEqual(leftDirective, rightDirective) {
+				hasRightEqual = true
+				break
+			}
+		}
+		if !hasRightEqual {
 			return false
 		}
 	}
+
+	// check that every non-defer directive in the right has an equal in the left
+	for i := 0; i < len(right); i++ {
+		rightDirective := right[i]
+		if bytes.Equal(d.DirectiveNameBytes(rightDirective), literal.DEFER_INTERNAL) {
+			continue
+		}
+
+		hasLeftEqual := false
+		for j := 0; j < len(left); j++ {
+			leftDirective := left[j]
+			if bytes.Equal(d.DirectiveNameBytes(leftDirective), literal.DEFER_INTERNAL) {
+				continue
+			}
+			if d.DirectivesAreEqual(leftDirective, rightDirective) {
+				hasLeftEqual = true
+				break
+			}
+		}
+		if !hasLeftEqual {
+			return false
+		}
+	}
+
 	return true
 }
 
