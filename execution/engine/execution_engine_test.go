@@ -843,15 +843,15 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
-								TypeName:   "Query",
-								FieldNames: []string{"hero"},
+								TypeName:            "Query",
+								FieldNames:          []string{"hero"},
 								ProtectedFieldNames: []string{"hero"},
 							},
 						},
 						ChildNodes: []plan.TypeField{
 							{
-								TypeName:   "Character",
-								FieldNames: []string{"name"},
+								TypeName:            "Character",
+								FieldNames:          []string{"name"},
 								ProtectedFieldNames: []string{"name"},
 							},
 						},
