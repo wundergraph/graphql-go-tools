@@ -2,8 +2,10 @@ package ast
 
 import (
 	"bytes"
+	"strconv"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
 )
 
@@ -177,4 +179,38 @@ func (d *Document) FieldTypeNode(fieldName []byte, enclosingNode Node) (node Nod
 	}
 
 	return node, true
+}
+
+func (d *Document) MergeFieldsDefer(left, right int) {
+	leftDeferDirectiveRef, leftDeferExists := d.Fields[left].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+	rightDeferDirectiveRef, rightDeferExists := d.Fields[right].Directives.HasDirectiveByNameBytes(d, literal.DEFER_INTERNAL)
+
+	switch {
+	case !leftDeferExists && !rightDeferExists:
+		// do nothing
+	case leftDeferExists && !rightDeferExists:
+		d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+		d.Fields[left].HasDirectives = len(d.Fields[left].Directives.Refs) > 0
+	case !leftDeferExists:
+		// do nothing, right will be discarded
+	default:
+		// both have the defer, wins defer will smaller id
+		leftDeferIdValue, _ := d.DirectiveArgumentValueByName(leftDeferDirectiveRef, []byte("id"))
+		rightDeferIdValue, _ := d.DirectiveArgumentValueByName(rightDeferDirectiveRef, []byte("id"))
+
+		leftId, _ := strconv.Atoi(d.StringValueContentString(leftDeferIdValue.Ref))
+		rightId, _ := strconv.Atoi(d.StringValueContentString(rightDeferIdValue.Ref))
+
+		switch {
+		case leftId == rightId:
+			// do nothing, they are equal
+		case leftId < rightId:
+			// left wins, remove right
+		case leftId > rightId:
+			d.Fields[left].Directives.RemoveDirectiveByRef(leftDeferDirectiveRef)
+			// append a right defer to the left
+			// no need to import as a right will be discarded
+			d.Fields[left].Directives.Refs = append(d.Fields[left].Directives.Refs, rightDeferDirectiveRef)
+		}
+	}
 }

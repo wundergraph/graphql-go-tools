@@ -52,8 +52,9 @@ func (d *deduplicateFieldsVisitor) EnterSelectionSet(ref int) {
 				continue
 			}
 			// here we will check full directive equality if they are not equal we won't deduplicate
-			// it means that even directives order matters
+			// order of directives doesn't matter if they are fully equal
 			if d.operation.FieldsAreEqualFlat(left, right, true) {
+				d.operation.MergeFieldsDefer(left, right)
 				d.operation.RemoveFromSelectionSet(ref, b)
 				d.RevisitNode()
 				return
