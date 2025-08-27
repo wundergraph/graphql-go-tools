@@ -4,7 +4,7 @@ import "testing"
 
 func TestInlineFragmentExpandDefer(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
-		run(t, InlineFragmentExpandDefer, testDefinition, `
+		run(t, inlineFragmentExpandDefer, testDefinition, `
 					query dog {
 						dog {
 							... @defer {
@@ -22,7 +22,7 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 					}`)
 	})
 	t.Run("with interface type", func(t *testing.T) {
-		runWithOptions(t, InlineFragmentExpandDefer, testDefinition, `
+		runWithOptions(t, inlineFragmentExpandDefer, testDefinition, `
 					query pet {
 						pet {
 							... on Dog @defer {

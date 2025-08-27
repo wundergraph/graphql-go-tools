@@ -8,9 +8,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 
-// InlineFragmentExpandDefer registers a visitor that
+// inlineFragmentExpandDefer registers a visitor that
 // applies the defer directive to every nested field
-func InlineFragmentExpandDefer(walker *astvisitor.Walker) {
+func inlineFragmentExpandDefer(walker *astvisitor.Walker) {
 	visitor := inlineFragmentExpandDeferVisitor{
 		Walker: walker,
 	}
