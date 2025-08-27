@@ -107,9 +107,22 @@ func TestResolveInlineFragments(t *testing.T) {
 									barkVolume @defer_internal(id: "2", parentDeferId: "1")
 								}
 							}
+							... on Dog {
+								... {
+									extra @defer_internal(id: "3") {	
+										noString @defer_internal(id: "3")
+									}
+								}
+								... {
+									extra @defer_internal(id: "4") {	
+										string @defer_internal(id: "4")
+										noString @defer_internal(id: "4")
+									}
+								}
+							}
 							... on Cat {
-								name @defer_internal(id: "3")
-								meowVolume @defer_internal(id: "3")
+								name @defer_internal(id: "5")
+								meowVolume @defer_internal(id: "5")
 							}
 						}
 					}`,
@@ -121,9 +134,18 @@ func TestResolveInlineFragments(t *testing.T) {
 								nickname @defer_internal(id: "1")
 								barkVolume @defer_internal(id: "2", parentDeferId: "1")
 							}
+							... on Dog {
+								extra @defer_internal(id: "3") {	
+									noString @defer_internal(id: "3")
+								}
+								extra @defer_internal(id: "4") {	
+									string @defer_internal(id: "4")
+									noString @defer_internal(id: "4")
+								}
+							}
 							... on Cat {
-								name @defer_internal(id: "3")
-								meowVolume @defer_internal(id: "3")
+								name @defer_internal(id: "5")
+								meowVolume @defer_internal(id: "5")
 							}
 						}
 					}`)
