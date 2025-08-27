@@ -116,6 +116,42 @@ func newJSONBuilder(mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
 	}
 }
 
+// validateFederatedResponse validates that the federated response is valid
+// by checking that the number of entities per type is correct.
+// For non-federated responses, this function is a no-op.
+func (j *jsonBuilder) validateFederatedResponse(response *astjson.Value) error {
+	if j.indexMap == nil {
+		return nil
+	}
+
+	// Get the entities array from the response
+	// If we have an index map, we expect it to be a federated response
+	entities, err := response.Get(entityPath).Array()
+	if err != nil {
+		return err
+	}
+
+	// Count the number of entities per type
+	entitiyCountPerType := make(map[string]int)
+	for _, entity := range entities {
+		entityType := entity.Get("__typename").GetStringBytes()
+		entitiyCountPerType[string(entityType)]++
+	}
+
+	// Check that the number of entities per type is correct and exists in the index map.
+	for typeName, count := range entitiyCountPerType {
+		em, found := j.indexMap[typeName]
+		if !found {
+			return fmt.Errorf("entity type %s received in the subgraph response, but was not expected", typeName)
+		}
+
+		if len(em) != count {
+			return fmt.Errorf("entity type %s received %d entities in the subgraph response, but %d are expected", typeName, count, len(em))
+		}
+	}
+	return nil
+}
+
 // mergeValues combines two JSON values while preserving proper federation entity ordering.
 // This is a critical function for GraphQL federation where multiple subgraphs may
 // return entities that need to be merged in the correct order.

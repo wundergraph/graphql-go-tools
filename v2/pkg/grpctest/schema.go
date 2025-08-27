@@ -371,6 +371,14 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
+				TypeName: "Warehouse",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+				},
+			},
+			{
 				TypeName: "Query",
 				FieldNames: []string{
 					"users",
@@ -561,6 +569,14 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 			},
 			{
 				TypeName: "Storage",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+				},
+			},
+			{
+				TypeName: "Warehouse",
 				FieldNames: []string{
 					"id",
 					"name",
