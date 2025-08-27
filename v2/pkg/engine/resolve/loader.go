@@ -1564,7 +1564,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 	}
 	if l.propagateFieldsRequestedBy && !IsIntrospectionDataSource(res.ds.ID) {
 		fieldsRequestedBy := fetchItem.Fetch.RequestedFields()
-		if fieldsRequestedBy != nil {
+		if len(fieldsRequestedBy) > 0 {
 			var encoded []byte
 			encoded, res.err = json.Marshal(fieldsRequestedBy)
 			if res.err != nil {

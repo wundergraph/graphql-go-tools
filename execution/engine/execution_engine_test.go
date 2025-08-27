@@ -835,7 +835,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"FieldsRequestedBy":[{"typeName":"Character","fieldName":"name","requestedByUser":true},{"typeName":"Query","fieldName":"hero","requestedByUser":true}]}}`,
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"FieldsRequestedBy":[{"__typename":"Character","field":"name","byUser":true},{"__typename":"Query","field":"hero","byUser":true}]}}`,
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -845,12 +845,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 							{
 								TypeName:   "Query",
 								FieldNames: []string{"hero"},
+								ProtectedFieldNames: []string{"hero"},
 							},
 						},
 						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "Character",
 								FieldNames: []string{"name"},
+								ProtectedFieldNames: []string{"name"},
 							},
 						},
 					},
@@ -4349,12 +4351,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			var expectedBody2 string
 			if !expectRequestedBy {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
-				expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
 			} else {
-				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"FieldsRequestedBy":[{"typeName":"User","fieldName":"id","requestedBySubgraphs":["id-2"],"reasonIsKey":true},{"typeName":"User","fieldName":"some","requestedByUser":true},{"typeName":"User","fieldName":"id","requestedByUser":true},{"typeName":"Admin","fieldName":"some","requestedByUser":true},{"typeName":"Query","fieldName":"accounts","requestedByUser":true}]}}`
-				expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]},"extensions":{"FieldsRequestedBy":[{"typeName":"User","fieldName":"title","requestedByUser":true},{"typeName":"User","fieldName":"some","requestedByUser":true}]}}`
-
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"FieldsRequestedBy":[{"__typename":"User","field":"id","bySubgraphs":["id-2"],"reasonIsKey":true},{"__typename":"User","field":"id","byUser":true},{"__typename":"Admin","field":"some","byUser":true}]}}`
 			}
+			expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
 
 			return []plan.DataSource{
 				mustGraphqlDataSourceConfiguration(t,
@@ -4375,12 +4375,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"accounts"},
 							},
 							{
-								TypeName:   "User",
-								FieldNames: []string{"id", "some"},
+								TypeName:            "User",
+								FieldNames:          []string{"id", "some"},
+								ProtectedFieldNames: []string{"id"},
 							},
 							{
-								TypeName:   "Admin",
-								FieldNames: []string{"id", "some"},
+								TypeName:            "Admin",
+								FieldNames:          []string{"id", "some"},
+								ProtectedFieldNames: []string{"some"},
 							},
 						},
 						ChildNodes: []plan.TypeField{

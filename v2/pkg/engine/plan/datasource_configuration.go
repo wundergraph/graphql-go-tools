@@ -51,8 +51,8 @@ type DataSourceMetadata struct {
 
 	Directives *DirectiveConfigurations
 
-	rootNodesIndex  map[string]fieldsIndex
-	childNodesIndex map[string]fieldsIndex
+	rootNodesIndex  map[string]fieldsIndex // maps TypeName to fieldsIndex
+	childNodesIndex map[string]fieldsIndex // maps TypeName to fieldsIndex
 }
 
 type DirectivesConfigurations interface {
@@ -67,15 +67,18 @@ type NodesAccess interface {
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
 	HasExternalRootNode(typeName, fieldName string) bool
+	HasProtectedRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
+	HasProtectedChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
 }
 
 type fieldsIndex struct {
-	fields         map[string]struct{}
-	externalFields map[string]struct{}
+	fields          map[string]struct{}
+	externalFields  map[string]struct{}
+	protectedFields map[string]struct{}
 }
 
 func (d *DataSourceMetadata) Init() error {
@@ -102,32 +105,42 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 	d.childNodesIndex = make(map[string]fieldsIndex, len(d.ChildNodes))
 
 	for i := range d.RootNodes {
-		if _, ok := d.rootNodesIndex[d.RootNodes[i].TypeName]; !ok {
-			d.rootNodesIndex[d.RootNodes[i].TypeName] = fieldsIndex{
-				make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
-				make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+		typeName := d.RootNodes[i].TypeName
+		if _, ok := d.rootNodesIndex[typeName]; !ok {
+			d.rootNodesIndex[typeName] = fieldsIndex{
+				fields:          make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
+				externalFields:  make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+				protectedFields: make(map[string]struct{}, len(d.RootNodes[i].ProtectedFieldNames)),
 			}
 		}
-		for j := range d.RootNodes[i].FieldNames {
-			d.rootNodesIndex[d.RootNodes[i].TypeName].fields[d.RootNodes[i].FieldNames[j]] = struct{}{}
+		for _, name := range d.RootNodes[i].FieldNames {
+			d.rootNodesIndex[typeName].fields[name] = struct{}{}
 		}
-		for j := range d.RootNodes[i].ExternalFieldNames {
-			d.rootNodesIndex[d.RootNodes[i].TypeName].externalFields[d.RootNodes[i].ExternalFieldNames[j]] = struct{}{}
+		for _, name := range d.RootNodes[i].ExternalFieldNames {
+			d.rootNodesIndex[typeName].externalFields[name] = struct{}{}
+		}
+		for _, name := range d.RootNodes[i].ProtectedFieldNames {
+			d.rootNodesIndex[typeName].protectedFields[name] = struct{}{}
 		}
 	}
 
 	for i := range d.ChildNodes {
-		if _, ok := d.childNodesIndex[d.ChildNodes[i].TypeName]; !ok {
-			d.childNodesIndex[d.ChildNodes[i].TypeName] = fieldsIndex{
-				make(map[string]struct{}),
-				make(map[string]struct{}),
+		typeName := d.ChildNodes[i].TypeName
+		if _, ok := d.childNodesIndex[typeName]; !ok {
+			d.childNodesIndex[typeName] = fieldsIndex{
+				fields:          make(map[string]struct{}),
+				externalFields:  make(map[string]struct{}),
+				protectedFields: make(map[string]struct{}),
 			}
 		}
-		for j := range d.ChildNodes[i].FieldNames {
-			d.childNodesIndex[d.ChildNodes[i].TypeName].fields[d.ChildNodes[i].FieldNames[j]] = struct{}{}
+		for _, name := range d.ChildNodes[i].FieldNames {
+			d.childNodesIndex[typeName].fields[name] = struct{}{}
 		}
-		for j := range d.ChildNodes[i].ExternalFieldNames {
-			d.childNodesIndex[d.ChildNodes[i].TypeName].externalFields[d.ChildNodes[i].ExternalFieldNames[j]] = struct{}{}
+		for _, name := range d.ChildNodes[i].ExternalFieldNames {
+			d.childNodesIndex[typeName].externalFields[name] = struct{}{}
+		}
+		for _, name := range d.ChildNodes[i].ProtectedFieldNames {
+			d.childNodesIndex[typeName].protectedFields[name] = struct{}{}
 		}
 	}
 }
@@ -162,6 +175,18 @@ func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) boo
 	return ok
 }
 
+func (d *DataSourceMetadata) HasProtectedRootNode(typeName, fieldName string) bool {
+	if d.rootNodesIndex == nil {
+		return false
+	}
+	index, ok := d.rootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.protectedFields[fieldName]
+	return ok
+}
+
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
@@ -192,6 +217,18 @@ func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bo
 		return false
 	}
 	_, ok = index.externalFields[fieldName]
+	return ok
+}
+
+func (d *DataSourceMetadata) HasProtectedChildNode(typeName, fieldName string) bool {
+	if d.childNodesIndex == nil {
+		return false
+	}
+	index, ok := d.childNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.protectedFields[fieldName]
 	return ok
 }
 

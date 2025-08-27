@@ -1402,14 +1402,19 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 		return nil
 	}
 	result := make([]resolve.RequestedField, 0, len(fields))
+	dsConfig := v.planners[fetchID].DataSourceConfiguration()
 
 	for _, fieldRef := range fields {
 		fieldName := v.Operation.FieldNameString(fieldRef)
 		if fieldName == "__typename" {
 			continue
 		}
+		typeName := v.fieldEnclosingTypeNames[fieldRef]
+		if !dsConfig.HasProtectedRootNode(typeName, fieldName) && !dsConfig.HasProtectedChildNode(typeName, fieldName) {
+			continue
+		}
 		requested := resolve.RequestedField{
-			TypeName:  v.fieldEnclosingTypeNames[fieldRef],
+			TypeName:  typeName,
 			FieldName: fieldName,
 		}
 		requested.ByUser = !v.skipField(fieldRef)
