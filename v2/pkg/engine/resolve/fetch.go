@@ -102,11 +102,11 @@ func (s *SingleFetch) Dependencies() *FetchDependencies {
 }
 
 func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
-	return s.FetchConfiguration.CoordinateDependencies
+	return s.CoordinateDependencies
 }
 
 func (s *SingleFetch) RequestedFields() []RequestedField {
-	return s.FetchConfiguration.FieldsRequestedBy
+	return s.FieldsRequestedBy
 }
 
 func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
@@ -277,11 +277,11 @@ func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
 }
 
 func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
-	return p.Fetch.FetchConfiguration.CoordinateDependencies
+	return p.Fetch.CoordinateDependencies
 }
 
 func (p *ParallelListItemFetch) RequestedFields() []RequestedField {
-	return p.Fetch.FetchConfiguration.FieldsRequestedBy
+	return p.Fetch.FieldsRequestedBy
 }
 
 func (*ParallelListItemFetch) FetchKind() FetchKind {
