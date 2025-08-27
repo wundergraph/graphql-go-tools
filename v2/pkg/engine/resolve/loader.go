@@ -988,7 +988,7 @@ const (
 	emptyGraphQLResponse        = "empty response"
 	invalidGraphQLResponse      = "invalid JSON"
 	invalidGraphQLResponseShape = "no data or errors in response"
-	invalidBatchItemCount       = "returned items from batch do not match the number of items in the request. Expected %d, got %d"
+	invalidBatchItemCount       = "returned entities count does not match the count of representation variables in the entities request. Expected %d, got %d"
 )
 
 func (l *Loader) renderAtPathErrorPart(path string) string {
