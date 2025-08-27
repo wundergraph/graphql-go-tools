@@ -22,7 +22,7 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 					}`)
 	})
 	t.Run("with interface type", func(t *testing.T) {
-		run(t, InlineFragmentExpandDefer, testDefinition, `
+		runWithOptions(t, InlineFragmentExpandDefer, testDefinition, `
 					query pet {
 						pet {
 							... on Dog @defer {
@@ -30,6 +30,19 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 								nickname
 								... @defer {
 									barkVolume
+								}
+							}
+							... on Dog {
+								... @defer {
+									extra {
+										noString
+									}
+								}
+								... @defer {
+									extra {
+										string
+										noString
+									}
 								}
 							}
 							... on Cat @defer {
@@ -48,11 +61,24 @@ func TestInlineFragmentExpandDefer(t *testing.T) {
 									barkVolume @defer_internal(id: "2", parentDeferId: "1")
 								}
 							}
+							... on Dog {
+								... {
+									extra @defer_internal(id: "3") {	
+										noString @defer_internal(id: "3")
+									}
+								}
+								... {
+									extra @defer_internal(id: "4") {	
+										string @defer_internal(id: "4")
+										noString @defer_internal(id: "4")
+									}
+								}
+							}
 							... on Cat {
-								name @defer_internal(id: "3")
-								meowVolume @defer_internal(id: "3")
+								name @defer_internal(id: "5")
+								meowVolume @defer_internal(id: "5")
 							}
 						}
-					}`)
+					}`, runOptions{indent: true})
 	})
 }
