@@ -116,6 +116,13 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 				return err
 			}
 
+			// In case of a federated response, we need to ensure that the response is valid.
+			// The number of entities per type must match the number of lookup keys in the variables.
+			err = builder.validateFederatedResponse(response)
+			if err != nil {
+				return err
+			}
+
 			responses[index] = response
 			return nil
 		})

@@ -3493,12 +3493,21 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 	conn, cleanup := setupTestGRPCServer(t)
 	t.Cleanup(cleanup)
 
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
 	testCases := []struct {
 		name              string
 		query             string
 		vars              string
 		federationConfigs plan.FederationFieldConfigurations
 		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
 	}{
 		{
 			name:  "Query nullable fields type with all fields",
@@ -3552,6 +3561,32 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 				require.Equal(t, "4", storage2["id"])
 				require.Equal(t, "Storage 4", storage2["name"])
 			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query warehouse and expect an error",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Warehouse { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Warehouse","id":"1"},
+				{"__typename":"Warehouse","id":"2"},
+				{"__typename":"Warehouse","id":"3"},
+				{"__typename":"Warehouse","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Warehouse",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.Empty(t, data)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.NotEmpty(t, errorData)
+				require.Equal(t, "entity type Warehouse received 3 entities in the subgraph response, but 4 are expected", errorData[0].Message)
+			},
 		},
 	}
 
@@ -3589,20 +3624,13 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the response
-			var resp struct {
-				Data   map[string]interface{} `json:"data"`
-				Errors []struct {
-					Message string `json:"message"`
-				} `json:"errors,omitempty"`
-			}
+			var resp graphqlResponse
 
 			err = json.Unmarshal(output.Bytes(), &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
-			require.Empty(t, resp.Errors, "Response should not contain errors")
-			require.NotEmpty(t, resp.Data, "Response should contain data")
 
-			// Run the validation function
 			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
 		})
 	}
 }
