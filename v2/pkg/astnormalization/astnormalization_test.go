@@ -41,6 +41,7 @@ func TestNormalizeOperation(t *testing.T) {
 			WithRemoveFragmentDefinitions(),
 			WithRemoveUnusedVariables(),
 			WithNormalizeDefinition(),
+			WithInlineDefer(),
 		)
 		normalizer.NormalizeOperation(&operationDocument, &definitionDocument, &report)
 
@@ -48,8 +49,8 @@ func TestNormalizeOperation(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		got := mustString(astprinter.PrintString(&operationDocument))
-		want := mustString(astprinter.PrintString(&expectedOutputDocument))
+		got := mustString(astprinter.PrintStringIndent(&operationDocument, "  "))
+		want := mustString(astprinter.PrintStringIndent(&expectedOutputDocument, "  "))
 
 		assert.Equal(t, want, got)
 		assert.Equal(t, expectedVariables, string(operationDocument.Input.Variables))
@@ -510,6 +511,72 @@ func TestNormalizeOperation(t *testing.T) {
 			}`, ``, ``)
 	})
 
+	t.Run("defer", func(t *testing.T) {
+		run(t, testDefinition, `
+			query pet {
+				pet {
+					... on Dog @defer {
+						name
+						nickname
+						... @defer {
+							barkVolume
+						}
+					}
+					... on Dog {
+						... @defer {
+							extra {
+								noString
+							}
+						}
+						... @defer {
+							extra {
+								string
+								noString
+							}
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer {
+						name
+						meowVolume
+						extra {
+							bool
+						}
+					}
+					... on Cat @defer {
+						name
+						nickname
+						meowVolume
+					}
+				}
+			}`, `
+			query pet {
+				pet {
+					... on Dog {
+						name @defer_internal(id: "1")
+						nickname @defer_internal(id: "1")
+						barkVolume @defer_internal(id: "2", parentDeferId: "1")
+						extra @defer_internal(id: "3") {
+							noString @defer_internal(id: "3")
+							string @defer_internal(id: "4")
+						}
+					}
+					... on Cat {
+						name
+						extra {
+							bool
+						}
+						meowVolume @defer_internal(id: "5")
+						nickname @defer_internal(id: "6")
+					}
+				}
+			}`, ``, ``)
+	})
 }
 
 func TestOperationNormalizer_NormalizeOperation(t *testing.T) {
