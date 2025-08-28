@@ -67,18 +67,18 @@ type NodesAccess interface {
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
 	HasExternalRootNode(typeName, fieldName string) bool
-	HasProtectedRootNode(typeName, fieldName string) bool
+	HasFetchReasonRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
-	HasProtectedChildNode(typeName, fieldName string) bool
+	HasFetchReasonChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
 }
 
 type fieldsIndex struct {
-	fields          map[string]struct{}
-	externalFields  map[string]struct{}
-	protectedFields map[string]struct{}
+	fields            map[string]struct{}
+	externalFields    map[string]struct{}
+	fetchReasonFields map[string]struct{}
 }
 
 func (d *DataSourceMetadata) Init() error {
@@ -108,9 +108,9 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		typeName := d.RootNodes[i].TypeName
 		if _, ok := d.rootNodesIndex[typeName]; !ok {
 			d.rootNodesIndex[typeName] = fieldsIndex{
-				fields:          make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
-				externalFields:  make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
-				protectedFields: make(map[string]struct{}, len(d.RootNodes[i].ProtectedFieldNames)),
+				fields:            make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
+				externalFields:    make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+				fetchReasonFields: make(map[string]struct{}, len(d.RootNodes[i].FetchReasonFields)),
 			}
 		}
 		for _, name := range d.RootNodes[i].FieldNames {
@@ -119,8 +119,8 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		for _, name := range d.RootNodes[i].ExternalFieldNames {
 			d.rootNodesIndex[typeName].externalFields[name] = struct{}{}
 		}
-		for _, name := range d.RootNodes[i].ProtectedFieldNames {
-			d.rootNodesIndex[typeName].protectedFields[name] = struct{}{}
+		for _, name := range d.RootNodes[i].FetchReasonFields {
+			d.rootNodesIndex[typeName].fetchReasonFields[name] = struct{}{}
 		}
 	}
 
@@ -128,9 +128,9 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		typeName := d.ChildNodes[i].TypeName
 		if _, ok := d.childNodesIndex[typeName]; !ok {
 			d.childNodesIndex[typeName] = fieldsIndex{
-				fields:          make(map[string]struct{}),
-				externalFields:  make(map[string]struct{}),
-				protectedFields: make(map[string]struct{}),
+				fields:            make(map[string]struct{}),
+				externalFields:    make(map[string]struct{}),
+				fetchReasonFields: make(map[string]struct{}),
 			}
 		}
 		for _, name := range d.ChildNodes[i].FieldNames {
@@ -139,8 +139,8 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		for _, name := range d.ChildNodes[i].ExternalFieldNames {
 			d.childNodesIndex[typeName].externalFields[name] = struct{}{}
 		}
-		for _, name := range d.ChildNodes[i].ProtectedFieldNames {
-			d.childNodesIndex[typeName].protectedFields[name] = struct{}{}
+		for _, name := range d.ChildNodes[i].FetchReasonFields {
+			d.childNodesIndex[typeName].fetchReasonFields[name] = struct{}{}
 		}
 	}
 }
@@ -175,7 +175,7 @@ func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) boo
 	return ok
 }
 
-func (d *DataSourceMetadata) HasProtectedRootNode(typeName, fieldName string) bool {
+func (d *DataSourceMetadata) HasFetchReasonRootNode(typeName, fieldName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
 	}
@@ -183,7 +183,7 @@ func (d *DataSourceMetadata) HasProtectedRootNode(typeName, fieldName string) bo
 	if !ok {
 		return false
 	}
-	_, ok = index.protectedFields[fieldName]
+	_, ok = index.fetchReasonFields[fieldName]
 	return ok
 }
 
@@ -220,7 +220,7 @@ func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bo
 	return ok
 }
 
-func (d *DataSourceMetadata) HasProtectedChildNode(typeName, fieldName string) bool {
+func (d *DataSourceMetadata) HasFetchReasonChildNode(typeName, fieldName string) bool {
 	if d.childNodesIndex == nil {
 		return false
 	}
@@ -228,7 +228,7 @@ func (d *DataSourceMetadata) HasProtectedChildNode(typeName, fieldName string) b
 	if !ok {
 		return false
 	}
-	_, ok = index.protectedFields[fieldName]
+	_, ok = index.fetchReasonFields[fieldName]
 	return ok
 }
 

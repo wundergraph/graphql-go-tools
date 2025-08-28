@@ -1083,9 +1083,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						ExternalFieldNames: []string{"name", "shippingInfo"},
 					},
 					{
-						TypeName:            "Address",
-						FieldNames:          []string{"id", "line1", "line2"},
-						ProtectedFieldNames: []string{"id", "line1", "line2"},
+						TypeName:          "Address",
+						FieldNames:        []string{"id", "line1", "line2"},
+						FetchReasonFields: []string{"id", "line1", "line2"},
 					},
 				},
 				ChildNodes: []plan.TypeField{
@@ -1265,9 +1265,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
-						TypeName:            "Address",
-						FieldNames:          []string{"id", "line3", "zip"},
-						ProtectedFieldNames: []string{"line3", "zip"},
+						TypeName:          "Address",
+						FieldNames:        []string{"id", "line3", "zip"},
+						FetchReasonFields: []string{"line3", "zip"},
 					},
 				},
 				FederationMetaData: plan.FederationMetaData{
@@ -3096,28 +3096,28 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
-										FieldsRequestedBy: []resolve.RequestedField{
+										FieldFetchReasons: []resolve.FetchReason{
 											{
-												TypeName:         "Address",
-												FieldName:        "line1",
-												BySubgraphs:      []string{"account.service"},
-												ReasonIsRequires: true,
+												TypeName:      "Address",
+												FieldName:     "line1",
+												FromSubgraphs: []string{"account.service"},
+												IsRequires:    true,
 											},
 											{
-												TypeName:         "Address",
-												FieldName:        "line2",
-												BySubgraphs:      []string{"account.service"},
-												ReasonIsRequires: true,
+												TypeName:      "Address",
+												FieldName:     "line2",
+												FromSubgraphs: []string{"account.service"},
+												IsRequires:    true,
 											},
 											{
 												TypeName:  "Address",
 												FieldName: "id",
-												BySubgraphs: []string{
+												FromSubgraphs: []string{
 													"account.service",
 													"address-enricher.service",
 													"address.service",
 												},
-												ReasonIsKey: true,
+												IsKey: true,
 											},
 										},
 									},
@@ -3260,18 +3260,18 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 										},
-										FieldsRequestedBy: []resolve.RequestedField{
+										FieldFetchReasons: []resolve.FetchReason{
 											{
-												TypeName:         "Address",
-												FieldName:        "line3",
-												BySubgraphs:      []string{"account.service"},
-												ReasonIsRequires: true,
+												TypeName:      "Address",
+												FieldName:     "line3",
+												FromSubgraphs: []string{"account.service"},
+												IsRequires:    true,
 											},
 											{
-												TypeName:         "Address",
-												FieldName:        "zip",
-												BySubgraphs:      []string{"account.service"},
-												ReasonIsRequires: true,
+												TypeName:      "Address",
+												FieldName:     "zip",
+												FromSubgraphs: []string{"account.service"},
+												IsRequires:    true,
 											},
 										},
 										Variables: []resolve.Variable{

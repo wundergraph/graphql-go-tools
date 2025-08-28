@@ -22,7 +22,7 @@ type Fetch interface {
 	Dependencies() *FetchDependencies
 	DataSourceInfo() DataSourceInfo
 	DependenciesCoordinates() []FetchDependency
-	RequestedFields() []RequestedField
+	FetchReasons() []FetchReason
 }
 
 type FetchItem struct {
@@ -105,8 +105,8 @@ func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
 	return s.CoordinateDependencies
 }
 
-func (s *SingleFetch) RequestedFields() []RequestedField {
-	return s.FieldsRequestedBy
+func (s *SingleFetch) FetchReasons() []FetchReason {
+	return s.FieldFetchReasons
 }
 
 func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
@@ -177,7 +177,7 @@ type BatchEntityFetch struct {
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
 	CoordinateDependencies []FetchDependency
-	FieldsRequestedBy      []RequestedField
+	FieldFetchReasons      []FetchReason
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -188,8 +188,8 @@ func (b *BatchEntityFetch) DependenciesCoordinates() []FetchDependency {
 	return b.CoordinateDependencies
 }
 
-func (b *BatchEntityFetch) RequestedFields() []RequestedField {
-	return b.FieldsRequestedBy
+func (b *BatchEntityFetch) FetchReasons() []FetchReason {
+	return b.FieldFetchReasons
 }
 
 func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
@@ -230,7 +230,7 @@ type EntityFetch struct {
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
 	CoordinateDependencies []FetchDependency
-	FieldsRequestedBy      []RequestedField
+	FieldFetchReasons      []FetchReason
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -241,8 +241,8 @@ func (e *EntityFetch) DependenciesCoordinates() []FetchDependency {
 	return e.CoordinateDependencies
 }
 
-func (e *EntityFetch) RequestedFields() []RequestedField {
-	return e.FieldsRequestedBy
+func (e *EntityFetch) FetchReasons() []FetchReason {
+	return e.FieldFetchReasons
 }
 
 func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
@@ -280,8 +280,8 @@ func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
 	return p.Fetch.CoordinateDependencies
 }
 
-func (p *ParallelListItemFetch) RequestedFields() []RequestedField {
-	return p.Fetch.FieldsRequestedBy
+func (p *ParallelListItemFetch) FetchReasons() []FetchReason {
+	return p.Fetch.FieldFetchReasons
 }
 
 func (*ParallelListItemFetch) FetchKind() FetchKind {
@@ -347,9 +347,10 @@ type FetchConfiguration struct {
 	// and how multiple dependencies lead to a chain of fetches
 	CoordinateDependencies []FetchDependency
 
-	// FieldsRequestedBy contains provenance for protected fields (schema @protected).
-	// Used for optional propagation to subgraphs via request extensions; does not affect execution.
-	FieldsRequestedBy []RequestedField
+	// FieldFetchReasons contains provenance for fields that require fetch reason to be propagated
+	// to their subgraph. It is optional propagation via request extensions;
+	// it does not affect execution.
+	FieldFetchReasons []FetchReason
 
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
@@ -368,7 +369,7 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	// Note: we do not compare datasources, as they will always be a different instance.
 	// Note: we do not compare CoordinateDependencies, as they contain more detailed
 	// dependencies information that is already present in the FetchDependencies on the fetch itself.
-	// Note: we do not compare FieldsRequestedBy, as it is derived data for an extension
+	// Note: we do not compare FieldFetchReasons, as it is derived data for an extension
 	// and does not affect fetch execution semantics.
 
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
@@ -417,15 +418,15 @@ type FetchDependencyOrigin struct {
 	IsRequires bool `json:"isRequires"`
 }
 
-// RequestedField explains who requested a specific (typeName, fieldName) combination.
+// FetchReason explains who requested a specific (typeName, fieldName) combination.
 // A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
-type RequestedField struct {
-	TypeName         string   `json:"__typename"`
-	FieldName        string   `json:"field"`
-	BySubgraphs      []string `json:"bySubgraphs,omitempty"`
-	ByUser           bool     `json:"byUser,omitempty"`
-	ReasonIsKey      bool     `json:"reasonIsKey,omitempty"`
-	ReasonIsRequires bool     `json:"reasonIsRequires,omitempty"`
+type FetchReason struct {
+	TypeName      string   `json:"typename"`
+	FieldName     string   `json:"field"`
+	FromSubgraphs []string `json:"from_subgraphs,omitempty"`
+	FromUser      bool     `json:"from_user,omitempty"`
+	IsKey         bool     `json:"is_key,omitempty"`
+	IsRequires    bool     `json:"is_requires,omitempty"`
 }
 
 type FetchInfo struct {

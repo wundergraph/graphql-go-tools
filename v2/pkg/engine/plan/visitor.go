@@ -1335,7 +1335,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 
 	if !v.Config.DisableIncludeFieldDependencies {
 		singleFetch.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
-		singleFetch.FieldsRequestedBy = v.buildRequestedFields(internal.fetchID)
+		singleFetch.FieldFetchReasons = v.buildFetchReasons(internal.fetchID)
 	}
 
 	return singleFetch
@@ -1396,7 +1396,7 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 	return dependencies
 }
 
-func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
+func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 	fields, ok := v.plannerFields[fetchID]
 	if !ok {
 		return nil
@@ -1407,7 +1407,7 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 		typeName string
 		field    string
 	}
-	result := make([]resolve.RequestedField, 0, len(fields))
+	reasons := make([]resolve.FetchReason, 0, len(fields))
 	index := make(map[typedField]int, len(fields))
 
 	for _, fieldRef := range fields {
@@ -1416,18 +1416,18 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 			continue
 		}
 		typeName := v.fieldEnclosingTypeNames[fieldRef]
-		if !dsConfig.HasProtectedRootNode(typeName, fieldName) && !dsConfig.HasProtectedChildNode(typeName, fieldName) {
+		if !dsConfig.HasFetchReasonRootNode(typeName, fieldName) && !dsConfig.HasFetchReasonChildNode(typeName, fieldName) {
 			continue
 		}
 
-		byUser := !v.skipField(fieldRef)
+		fromUser := !v.skipField(fieldRef)
 		requestedByRefs, ok := v.fieldRefAllowsFieldRefs[fieldRef]
 
-		var bySubgraphs []string
+		var fromSubgraphs []string
 		var isKey, isRequires bool
 
 		if ok {
-			bySubgraphs = make([]string, 0, len(requestedByRefs))
+			fromSubgraphs = make([]string, 0, len(requestedByRefs))
 			for _, reqByRef := range requestedByRefs {
 				plannerIDs, ok := v.fieldPlanners[reqByRef]
 				if !ok {
@@ -1440,7 +1440,7 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 					if ofc == nil {
 						continue
 					}
-					bySubgraphs = append(bySubgraphs, ofc.sourceName)
+					fromSubgraphs = append(fromSubgraphs, ofc.sourceName)
 
 					depKind, ok := v.fieldDependencyKind[fieldDependencyKey{field: reqByRef, dependsOn: fieldRef}]
 					if !ok {
@@ -1457,33 +1457,33 @@ func (v *Visitor) buildRequestedFields(fetchID int) []resolve.RequestedField {
 		}
 
 		// Deduplicate using the index and merge with existing entries.
-		if byUser || len(bySubgraphs) > 0 {
-			slices.Sort(bySubgraphs)
-			bySubgraphs = slices.Compact(bySubgraphs)
+		if fromUser || len(fromSubgraphs) > 0 {
+			slices.Sort(fromSubgraphs)
+			fromSubgraphs = slices.Compact(fromSubgraphs)
 
 			key := typedField{typeName: typeName, field: fieldName}
 			if i, ok := index[key]; ok {
 				// True should overwrite false.
-				result[i].ByUser = result[i].ByUser || byUser
-				if len(bySubgraphs) > 0 {
-					result[i].BySubgraphs = append(result[i].BySubgraphs, bySubgraphs...)
-					result[i].ReasonIsKey = result[i].ReasonIsKey || isKey
-					result[i].ReasonIsRequires = result[i].ReasonIsRequires || isRequires
+				reasons[i].FromUser = reasons[i].FromUser || fromUser
+				if len(fromSubgraphs) > 0 {
+					reasons[i].FromSubgraphs = append(reasons[i].FromSubgraphs, fromSubgraphs...)
+					reasons[i].IsKey = reasons[i].IsKey || isKey
+					reasons[i].IsRequires = reasons[i].IsRequires || isRequires
 				}
 				continue
 			}
 
-			result = append(result, resolve.RequestedField{
-				TypeName:         typeName,
-				FieldName:        fieldName,
-				BySubgraphs:      bySubgraphs,
-				ByUser:           byUser,
-				ReasonIsKey:      isKey,
-				ReasonIsRequires: isRequires,
+			reasons = append(reasons, resolve.FetchReason{
+				TypeName:      typeName,
+				FieldName:     fieldName,
+				FromSubgraphs: fromSubgraphs,
+				FromUser:      fromUser,
+				IsKey:         isKey,
+				IsRequires:    isRequires,
 			})
-			index[key] = len(result) - 1
+			index[key] = len(reasons) - 1
 		}
 	}
 
-	return result
+	return reasons
 }

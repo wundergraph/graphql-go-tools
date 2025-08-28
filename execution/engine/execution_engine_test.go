@@ -263,7 +263,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
-				PropagateFieldsRequestedBy:                   opts.propagateFieldsRequestedBy,
+				PropagateFetchReasons:                        opts.propagateFieldsRequestedBy,
 			})
 			require.NoError(t, err)
 
@@ -835,7 +835,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"FieldsRequestedBy":[{"__typename":"Character","field":"name","byUser":true},{"__typename":"Query","field":"hero","byUser":true}]}}`,
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","from_user":true},{"typename":"Query","field":"hero","from_user":true}]}}`,
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -843,16 +843,16 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
-								TypeName:            "Query",
-								FieldNames:          []string{"hero"},
-								ProtectedFieldNames: []string{"hero"},
+								TypeName:          "Query",
+								FieldNames:        []string{"hero"},
+								FetchReasonFields: []string{"hero"},
 							},
 						},
 						ChildNodes: []plan.TypeField{
 							{
-								TypeName:            "Character",
-								FieldNames:          []string{"name"},
-								ProtectedFieldNames: []string{"name"},
+								TypeName:          "Character",
+								FieldNames:        []string{"name"},
+								FetchReasonFields: []string{"name"},
 							},
 						},
 					},
@@ -4352,7 +4352,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			if !expectRequestedBy {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
 			} else {
-				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"FieldsRequestedBy":[{"__typename":"User","field":"id","bySubgraphs":["id-2"],"byUser":true,"reasonIsKey":true},{"__typename":"Admin","field":"some","byUser":true}]}}`
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"User","field":"id","from_subgraphs":["id-2"],"from_user":true,"is_key":true},{"typename":"Admin","field":"some","from_user":true}]}}`
 			}
 			expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
 
@@ -4375,14 +4375,14 @@ func TestExecutionEngine_Execute(t *testing.T) {
 								FieldNames: []string{"accounts"},
 							},
 							{
-								TypeName:            "User",
-								FieldNames:          []string{"id", "some"},
-								ProtectedFieldNames: []string{"id"},
+								TypeName:          "User",
+								FieldNames:        []string{"id", "some"},
+								FetchReasonFields: []string{"id"},
 							},
 							{
-								TypeName:            "Admin",
-								FieldNames:          []string{"id", "some"},
-								ProtectedFieldNames: []string{"some"},
+								TypeName:          "Admin",
+								FieldNames:        []string{"id", "some"},
+								FetchReasonFields: []string{"some"},
 							},
 						},
 						ChildNodes: []plan.TypeField{
