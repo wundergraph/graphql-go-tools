@@ -3100,7 +3100,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											{
 												TypeName:  "Address",
 												FieldName: "id",
-												FromSubgraphs: []string{
+												BySubgraphs: []string{
 													"account.service",
 													"address-enricher.service",
 													"address.service",
@@ -3108,16 +3108,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												IsKey: true,
 											},
 											{
-												TypeName:      "Address",
-												FieldName:     "line1",
-												FromSubgraphs: []string{"account.service"},
-												IsRequires:    true,
+												TypeName:    "Address",
+												FieldName:   "line1",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
 											},
 											{
-												TypeName:      "Address",
-												FieldName:     "line2",
-												FromSubgraphs: []string{"account.service"},
-												IsRequires:    true,
+												TypeName:    "Address",
+												FieldName:   "line2",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
 											},
 										},
 									},
@@ -3262,16 +3262,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 										FieldFetchReasons: []resolve.FetchReason{
 											{
-												TypeName:      "Address",
-												FieldName:     "line3",
-												FromSubgraphs: []string{"account.service"},
-												IsRequires:    true,
+												TypeName:    "Address",
+												FieldName:   "line3",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
 											},
 											{
-												TypeName:      "Address",
-												FieldName:     "zip",
-												FromSubgraphs: []string{"account.service"},
-												IsRequires:    true,
+												TypeName:    "Address",
+												FieldName:   "zip",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
 											},
 										},
 										Variables: []resolve.Variable{

@@ -634,10 +634,11 @@ func (v *Visitor) LeaveField(ref int) {
 	}
 }
 
-// skipField returns true if the field is a dependency and should not be included in the response.
-// Consequently, if we don't skip the field, the client requested it in the query.
+// skipField returns true if the field was added by the query planner as a dependency.
+// For another field and should not be included in the response.
+// If it returns false, the user requests the field.
 func (v *Visitor) skipField(ref int) bool {
-	// If this grows, switch to map[int]struct{} for O(1).
+	// TODO: If this grows, switch to map[int]struct{} for O(1).
 	for _, skipRef := range v.skipFieldsRefs {
 		if skipRef == ref {
 			return true
@@ -1463,27 +1464,27 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 			var i int
 			if i, ok = index[key]; ok {
 				// True should overwrite false.
-				reasons[i].FromUser = reasons[i].FromUser || fromUser
+				reasons[i].ByUser = reasons[i].ByUser || fromUser
 				if len(fromSubgraphs) > 0 {
-					reasons[i].FromSubgraphs = append(reasons[i].FromSubgraphs, fromSubgraphs...)
+					reasons[i].BySubgraphs = append(reasons[i].BySubgraphs, fromSubgraphs...)
 					reasons[i].IsKey = reasons[i].IsKey || isKey
 					reasons[i].IsRequires = reasons[i].IsRequires || isRequires
 				}
 			} else {
 				reasons = append(reasons, resolve.FetchReason{
-					TypeName:      typeName,
-					FieldName:     fieldName,
-					FromSubgraphs: fromSubgraphs,
-					FromUser:      fromUser,
-					IsKey:         isKey,
-					IsRequires:    isRequires,
+					TypeName:    typeName,
+					FieldName:   fieldName,
+					BySubgraphs: fromSubgraphs,
+					ByUser:      fromUser,
+					IsKey:       isKey,
+					IsRequires:  isRequires,
 				})
 				i = len(reasons) - 1
 				index[key] = i
 			}
-			if reasons[i].FromSubgraphs != nil {
-				slices.Sort(reasons[i].FromSubgraphs)
-				reasons[i].FromSubgraphs = slices.Compact(reasons[i].FromSubgraphs)
+			if reasons[i].BySubgraphs != nil {
+				slices.Sort(reasons[i].BySubgraphs)
+				reasons[i].BySubgraphs = slices.Compact(reasons[i].BySubgraphs)
 			}
 		}
 	}

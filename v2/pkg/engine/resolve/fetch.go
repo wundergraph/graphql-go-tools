@@ -421,12 +421,12 @@ type FetchDependencyOrigin struct {
 // FetchReason explains who requested a specific (typeName, fieldName) combination.
 // A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
 type FetchReason struct {
-	TypeName      string   `json:"typename"`
-	FieldName     string   `json:"field"`
-	FromSubgraphs []string `json:"from_subgraphs,omitempty"`
-	FromUser      bool     `json:"from_user,omitempty"`
-	IsKey         bool     `json:"is_key,omitempty"`
-	IsRequires    bool     `json:"is_requires,omitempty"`
+	TypeName    string   `json:"typename"`
+	FieldName   string   `json:"field"`
+	BySubgraphs []string `json:"by_subgraphs,omitempty"`
+	ByUser      bool     `json:"by_user,omitempty"`
+	IsKey       bool     `json:"is_key,omitempty"`
+	IsRequires  bool     `json:"is_requires,omitempty"`
 }
 
 type FetchInfo struct {
