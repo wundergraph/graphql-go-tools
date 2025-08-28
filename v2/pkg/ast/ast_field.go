@@ -201,6 +201,8 @@ func (d *Document) MergeFieldsDefer(left, right int) {
 		leftId, _ := strconv.Atoi(d.StringValueContentString(leftDeferIdValue.Ref))
 		rightId, _ := strconv.Atoi(d.StringValueContentString(rightDeferIdValue.Ref))
 
+		// TODO: need to handle parent id too
+
 		switch {
 		case leftId == rightId:
 			// do nothing, they are equal

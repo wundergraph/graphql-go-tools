@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"iter"
+	"slices"
 
 	"github.com/kingledion/go-tools/tree"
 	"github.com/phf/go-queue/queue"
@@ -37,7 +38,17 @@ type NodeSuggestion struct {
 	treeNodeId                uint
 	possibleTypeNames         []string
 
+	deferInfo       *DeferInfo
+	deferParentPath bool
+	deferIDs        []string
+
 	requiresKey *SourceConnection
+}
+
+type DeferInfo struct {
+	ID       string
+	Label    string
+	ParentID string
 }
 
 func (n *NodeSuggestion) treeNodeID() uint {
@@ -133,6 +144,70 @@ func NewNodeSuggestionsWithSize(size int) *NodeSuggestions {
 		seenFields:      make(map[int]struct{}, size),
 		pathSuggestions: make(map[string][]*NodeSuggestion),
 		responseTree:    *responseTree,
+	}
+}
+
+func (f *NodeSuggestions) ProcessDefer() {
+	for i := range f.items {
+		if !f.items[i].Selected {
+			continue
+		}
+
+		if f.items[i].deferInfo == nil {
+			continue
+		}
+
+		// TODO: node should not be deffered in case it is a dependency for not deffered node or another defer on the same level?
+
+		f.propagateDeferParentsUpToRootNode(i)
+	}
+}
+
+func (f *NodeSuggestions) propagateDeferParentsUpToRootNode(i int) {
+	if f.items[i].IsRootNode {
+		return
+	}
+
+	parentIndexesToAddDeferID := make([]int, 0, 2)
+	current := i
+	for {
+		treeNode := f.treeNode(current)
+		parentNodeIndexes := treeNode.GetParent().GetData()
+
+		parentIdToUpdate := -1
+		for _, parentIdx := range parentNodeIndexes {
+			if f.items[parentIdx].DataSourceHash != f.items[current].DataSourceHash {
+				continue
+			}
+
+			if slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+				// no need to update
+				return
+			} else {
+				parentIdToUpdate = parentIdx
+			}
+		}
+
+		if parentIdToUpdate == -1 {
+			// should not happen
+			return
+		}
+
+		parentIndexesToAddDeferID = append(parentIndexesToAddDeferID, parentIdToUpdate)
+
+		if f.items[parentIdToUpdate].IsRootNode {
+			break
+		}
+
+		current = parentIdToUpdate
+	}
+
+	for _, parentIdx := range parentIndexesToAddDeferID {
+		f.items[parentIdx].deferParentPath = true
+
+		if !slices.Contains(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID) {
+			f.items[parentIdx].deferIDs = append(f.items[parentIdx].deferIDs, f.items[i].deferInfo.ID)
+		}
 	}
 }
 
