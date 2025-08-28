@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.223](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.222...v2.0.0-rc.223) (2025-08-28)
+
+
+### Features
+
+* improved subscription heartbeats ([#1269](https://github.com/wundergraph/graphql-go-tools/issues/1269)) ([4423d60](https://github.com/wundergraph/graphql-go-tools/commit/4423d60afd7bb8a58b193e31b61d7226d10dfd17))
+
 ## [2.0.0-rc.222](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.221...v2.0.0-rc.222) (2025-08-27)
 
 
