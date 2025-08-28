@@ -4352,7 +4352,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			if !expectRequestedBy {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
 			} else {
-				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"User","field":"id","from_subgraphs":["id-2"],"from_user":true,"is_key":true},{"typename":"Admin","field":"some","from_user":true}]}}`
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"Admin","field":"some","from_user":true},{"typename":"User","field":"id","from_subgraphs":["id-2"],"from_user":true,"is_key":true}]}}`
 			}
 			expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
 

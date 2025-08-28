@@ -3098,6 +3098,16 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										PostProcessing: DefaultPostProcessingConfiguration,
 										FieldFetchReasons: []resolve.FetchReason{
 											{
+												TypeName:  "Address",
+												FieldName: "id",
+												FromSubgraphs: []string{
+													"account.service",
+													"address-enricher.service",
+													"address.service",
+												},
+												IsKey: true,
+											},
+											{
 												TypeName:      "Address",
 												FieldName:     "line1",
 												FromSubgraphs: []string{"account.service"},
@@ -3108,16 +3118,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												FieldName:     "line2",
 												FromSubgraphs: []string{"account.service"},
 												IsRequires:    true,
-											},
-											{
-												TypeName:  "Address",
-												FieldName: "id",
-												FromSubgraphs: []string{
-													"account.service",
-													"address-enricher.service",
-													"address.service",
-												},
-												IsKey: true,
 											},
 										},
 									},

@@ -2,6 +2,7 @@ package plan
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"reflect"
 	"regexp"
@@ -1416,7 +1417,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 			continue
 		}
 		typeName := v.fieldEnclosingTypeNames[fieldRef]
-		if !dsConfig.HasFetchReasonRootNode(typeName, fieldName) && !dsConfig.HasFetchReasonChildNode(typeName, fieldName) {
+		if !dsConfig.RequiresFetchReason(typeName, fieldName) {
 			continue
 		}
 
@@ -1458,11 +1459,9 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 
 		// Deduplicate using the index and merge with existing entries.
 		if fromUser || len(fromSubgraphs) > 0 {
-			slices.Sort(fromSubgraphs)
-			fromSubgraphs = slices.Compact(fromSubgraphs)
-
 			key := typedField{typeName: typeName, field: fieldName}
-			if i, ok := index[key]; ok {
+			var i int
+			if i, ok = index[key]; ok {
 				// True should overwrite false.
 				reasons[i].FromUser = reasons[i].FromUser || fromUser
 				if len(fromSubgraphs) > 0 {
@@ -1470,20 +1469,30 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 					reasons[i].IsKey = reasons[i].IsKey || isKey
 					reasons[i].IsRequires = reasons[i].IsRequires || isRequires
 				}
-				continue
+			} else {
+				reasons = append(reasons, resolve.FetchReason{
+					TypeName:      typeName,
+					FieldName:     fieldName,
+					FromSubgraphs: fromSubgraphs,
+					FromUser:      fromUser,
+					IsKey:         isKey,
+					IsRequires:    isRequires,
+				})
+				i = len(reasons) - 1
+				index[key] = i
 			}
-
-			reasons = append(reasons, resolve.FetchReason{
-				TypeName:      typeName,
-				FieldName:     fieldName,
-				FromSubgraphs: fromSubgraphs,
-				FromUser:      fromUser,
-				IsKey:         isKey,
-				IsRequires:    isRequires,
-			})
-			index[key] = len(reasons) - 1
+			if reasons[i].FromSubgraphs != nil {
+				slices.Sort(reasons[i].FromSubgraphs)
+				reasons[i].FromSubgraphs = slices.Compact(reasons[i].FromSubgraphs)
+			}
 		}
 	}
 
+	slices.SortFunc(reasons, func(a, b resolve.FetchReason) int {
+		return cmp.Or(
+			cmp.Compare(a.TypeName, b.TypeName),
+			cmp.Compare(a.FieldName, b.FieldName),
+		)
+	})
 	return reasons
 }

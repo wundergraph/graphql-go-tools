@@ -67,12 +67,11 @@ type NodesAccess interface {
 type NodesInfo interface {
 	HasRootNode(typeName, fieldName string) bool
 	HasExternalRootNode(typeName, fieldName string) bool
-	HasFetchReasonRootNode(typeName, fieldName string) bool
 	HasRootNodeWithTypename(typeName string) bool
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
-	HasFetchReasonChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
+	RequiresFetchReason(typeName, fieldName string) bool
 }
 
 type fieldsIndex struct {
@@ -175,18 +174,6 @@ func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) boo
 	return ok
 }
 
-func (d *DataSourceMetadata) HasFetchReasonRootNode(typeName, fieldName string) bool {
-	if d.rootNodesIndex == nil {
-		return false
-	}
-	index, ok := d.rootNodesIndex[typeName]
-	if !ok {
-		return false
-	}
-	_, ok = index.fetchReasonFields[fieldName]
-	return ok
-}
-
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
@@ -220,7 +207,23 @@ func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bo
 	return ok
 }
 
-func (d *DataSourceMetadata) HasFetchReasonChildNode(typeName, fieldName string) bool {
+func (d *DataSourceMetadata) RequiresFetchReason(typeName, fieldName string) bool {
+	return d.hasFetchReasonRootNode(typeName, fieldName) || d.hasFetchReasonChildNode(typeName, fieldName)
+}
+
+func (d *DataSourceMetadata) hasFetchReasonRootNode(typeName, fieldName string) bool {
+	if d.rootNodesIndex == nil {
+		return false
+	}
+	index, ok := d.rootNodesIndex[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = index.fetchReasonFields[fieldName]
+	return ok
+}
+
+func (d *DataSourceMetadata) hasFetchReasonChildNode(typeName, fieldName string) bool {
 	if d.childNodesIndex == nil {
 		return false
 	}
