@@ -86,7 +86,7 @@ func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 	}
 }
 
-var multipartSubHeartbeatInterval = 100 * time.Millisecond
+var subscriptionHeartbeatInterval = 100 * time.Millisecond
 
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
@@ -95,7 +95,7 @@ func newResolver(ctx context.Context) *Resolver {
 		PropagateSubgraphErrors:       true,
 		PropagateSubgraphStatusCodes:  true,
 		AsyncErrorWriter:              &TestErrorWriter{},
-		MultipartSubHeartbeatInterval: multipartSubHeartbeatInterval,
+		SubscriptionHeartbeatInterval: subscriptionHeartbeatInterval,
 	})
 }
 
@@ -4775,6 +4775,13 @@ func (s *SubscriptionRecorder) Flush() error {
 
 func (s *SubscriptionRecorder) Complete() {
 	s.complete.Store(true)
+}
+
+func (s *SubscriptionRecorder) Heartbeat() error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	s.messages = append(s.messages, "heartbeat")
+	return nil
 }
 
 func (s *SubscriptionRecorder) Close(_ SubscriptionCloseKind) {

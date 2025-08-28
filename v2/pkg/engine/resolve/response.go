@@ -67,6 +67,7 @@ type SubscriptionResponseWriter interface {
 	ResponseWriter
 	Flush() error
 	Complete()
+	Heartbeat() error
 	Close(kind SubscriptionCloseKind)
 }
 

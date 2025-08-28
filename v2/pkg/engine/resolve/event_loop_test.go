@@ -51,6 +51,14 @@ func (f *FakeSubscriptionWriter) Complete() {
 	f.messageCountOnComplete = len(f.writtenMessages)
 }
 
+// Heartbeat writes directly to the writtenMessages slice, as the real implementations implicitly flush
+func (f *FakeSubscriptionWriter) Heartbeat() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.writtenMessages = append(f.writtenMessages, string("heartbeat"))
+	return nil
+}
+
 func (f *FakeSubscriptionWriter) Close(SubscriptionCloseKind) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -123,7 +131,7 @@ func TestEventLoop(t *testing.T) {
 		SubgraphErrorPropagationMode:  SubgraphErrorPropagationModePassThrough,
 		DefaultErrorExtensionCode:     "TEST",
 		MaxRecyclableParserSize:       1024 * 1024,
-		MultipartSubHeartbeatInterval: DefaultHeartbeatInterval,
+		SubscriptionHeartbeatInterval: DefaultHeartbeatInterval,
 		Reporter:                      testReporter,
 	})
 
