@@ -15,6 +15,7 @@ import (
 	"net/http/httptrace"
 	"net/textproto"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -429,13 +430,18 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 			}
 		}
 	}
+
+	// Sort header names for deterministic hashing
+	headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
+
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
 		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
 			return err
 		}
 
-		// Sort header names for deterministic hashing
-		headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
+		if _, err = xxh.WriteString(strconv.FormatBool(headerRegexp.NegateMatch)); err != nil {
+			return err
+		}
 
 		for _, headerName := range headerKeys {
 			values := ctx.Request.Header[headerName]
