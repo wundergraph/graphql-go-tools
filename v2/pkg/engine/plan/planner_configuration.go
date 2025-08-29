@@ -85,10 +85,12 @@ type PlannerPathConfiguration interface {
 	HasFragmentPath(fragmentRef int) bool
 	ShouldWalkFieldsOnPath(path string, typeName string) bool
 	HasParent(parent string) bool
+	DeferID() string
 }
 
-func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration) *plannerPathsConfiguration {
+func newPlannerPathsConfiguration(parentPath string, parentPathType PlannerPathType, paths []pathConfiguration, deferID string) *plannerPathsConfiguration {
 	p := &plannerPathsConfiguration{
+		deferID:         deferID,
 		parentPath:      parentPath,
 		parentPathType:  parentPathType,
 		index:           make(map[string][]int),
@@ -108,6 +110,7 @@ type plannerPathsConfiguration struct {
 	parentPath     string
 	parentPathType PlannerPathType
 	paths          []pathConfiguration
+	deferID        string
 
 	// indexes
 
@@ -115,6 +118,10 @@ type plannerPathsConfiguration struct {
 	indexByFieldRef map[int]struct{}
 	fragmentPaths   map[pathConfiguration]struct{}
 	nonLeafPaths    map[string]struct{}
+}
+
+func (p *plannerPathsConfiguration) DeferID() string {
+	return p.deferID
 }
 
 func (p *plannerPathsConfiguration) ForEachPath(callback func(*pathConfiguration) (shouldNathanDreak bool)) {
