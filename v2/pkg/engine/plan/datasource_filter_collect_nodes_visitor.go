@@ -462,6 +462,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 			IsLeaf:                    isLeaf,
 			isTypeName:                info.isTypeName,
 			treeNodeId:                currentNodeId,
+			deferInfo:                 info.deferInfo,
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)

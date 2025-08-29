@@ -34,6 +34,13 @@ type testOptions struct {
 	withPrintPlan         bool
 	withFieldDependencies bool
 	withFetchReasons      bool
+	withDefer             bool
+}
+
+func WithDefer() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withDefer = true
+	}
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -170,11 +177,29 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 		if variables != "" {
 			op.Input.Variables = []byte(variables)
 		}
-		err := asttransform.MergeDefinitionWithBaseSchema(&def)
+
+		transformOptions := asttransform.Options{}
+		if opts.withDefer {
+			transformOptions.InternalDefer = true
+		}
+
+		err := asttransform.MergeDefinitionWithBaseSchemaWithOptions(&def, transformOptions)
 		if err != nil {
 			t.Fatal(err)
 		}
-		norm := astnormalization.NewWithOpts(astnormalization.WithExtractVariables(), astnormalization.WithInlineFragmentSpreads(), astnormalization.WithRemoveFragmentDefinitions(), astnormalization.WithRemoveUnusedVariables())
+
+		normalizationOptions := []astnormalization.Option{
+			astnormalization.WithExtractVariables(),
+			astnormalization.WithInlineFragmentSpreads(),
+			astnormalization.WithRemoveFragmentDefinitions(),
+			astnormalization.WithRemoveUnusedVariables(),
+		}
+
+		if opts.withDefer {
+			normalizationOptions = append(normalizationOptions, astnormalization.WithInlineDefer())
+		}
+
+		norm := astnormalization.NewWithOpts(normalizationOptions...)
 		var report operationreport.Report
 		norm.NormalizeOperation(&op, &def, &report)
 
