@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"net/textproto"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -431,7 +432,16 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
 			return err
 		}
-		for headerName, values := range ctx.Request.Header {
+
+		// Sort header names for deterministic hashing
+		headerKeys := make([]string, 0, len(ctx.Request.Header))
+		for key := range ctx.Request.Header {
+			headerKeys = append(headerKeys, key)
+		}
+		sort.Strings(headerKeys)
+
+		for _, headerName := range headerKeys {
+			values := ctx.Request.Header[headerName]
 			result := headerRegexp.Pattern.MatchString(headerName)
 			if headerRegexp.NegateMatch {
 				result = !result

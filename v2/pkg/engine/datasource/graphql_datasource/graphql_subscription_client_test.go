@@ -2672,6 +2672,37 @@ func TestRequestHash(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, uint64(0x2b166b89e3626dba), hash.Sum64())
 		})
+
+		t.Run("with multiple tries to ensure the hash is idempotent", func(t *testing.T) {
+			for range 100 {
+				header := http.Header{
+					"X-Custom-1":  []string{"a1"},
+					"X-There-2":   []string{"a2"},
+					"X-Custom-6":  []string{"a3"},
+					"X-Alright-3": []string{"a4"},
+					"X-Custom-5":  []string{"a5"},
+				}
+				ctx := &resolve.Context{
+					Request: resolve.Request{
+						Header: header,
+					},
+				}
+				options := GraphQLSubscriptionOptions{
+					URL: "http://example.com/graphql",
+					ForwardedClientHeaderRegularExpressions: []RegularExpression{
+						{
+							Pattern:     regexp.MustCompile("^X-Custom-.*$"),
+							NegateMatch: false,
+						},
+					},
+				}
+				hash := xxhash.New()
+
+				err := client.requestHash(ctx, options, hash)
+				assert.NoError(t, err)
+				assert.Equal(t, uint64(0xb5c376ac16c8a7b5), hash.Sum64())
+			}
+		})
 	})
 
 	t.Run("request with initial payload", func(t *testing.T) {
