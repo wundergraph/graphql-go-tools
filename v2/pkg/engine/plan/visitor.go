@@ -47,7 +47,7 @@ type Visitor struct {
 	skipFieldsRefs               []int
 	fieldRefDependsOnFieldRefs   map[int][]int
 	fieldDependencyKind          map[fieldDependencyKey]fieldDependencyKind
-	fieldRefAllowsFieldRefs      map[int][]int // inverse of fieldRefDependsOnFieldRefs
+	fieldRefDependants           map[int][]int // inverse of fieldRefDependsOnFieldRefs
 	fieldConfigs                 map[int]*FieldConfiguration
 	exportedVariables            map[string]struct{}
 	skipIncludeOnFragments       map[int]skipIncludeInfo
@@ -1422,15 +1422,15 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 			continue
 		}
 
-		fromUser := !v.skipField(fieldRef)
-		requestedByRefs, ok := v.fieldRefAllowsFieldRefs[fieldRef]
+		byUser := !v.skipField(fieldRef)
+		dependants, ok := v.fieldRefDependants[fieldRef]
 
-		var fromSubgraphs []string
+		var subgraphs []string
 		var isKey, isRequires bool
 
 		if ok {
-			fromSubgraphs = make([]string, 0, len(requestedByRefs))
-			for _, reqByRef := range requestedByRefs {
+			subgraphs = make([]string, 0, len(dependants))
+			for _, reqByRef := range dependants {
 				plannerIDs, ok := v.fieldPlanners[reqByRef]
 				if !ok {
 					continue
@@ -1442,7 +1442,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 					if ofc == nil {
 						continue
 					}
-					fromSubgraphs = append(fromSubgraphs, ofc.sourceName)
+					subgraphs = append(subgraphs, ofc.sourceName)
 
 					depKind, ok := v.fieldDependencyKind[fieldDependencyKey{field: reqByRef, dependsOn: fieldRef}]
 					if !ok {
@@ -1459,14 +1459,14 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 		}
 
 		// Deduplicate using the index and merge with existing entries.
-		if fromUser || len(fromSubgraphs) > 0 {
+		if byUser || len(subgraphs) > 0 {
 			key := typedField{typeName: typeName, field: fieldName}
 			var i int
 			if i, ok = index[key]; ok {
 				// True should overwrite false.
-				reasons[i].ByUser = reasons[i].ByUser || fromUser
-				if len(fromSubgraphs) > 0 {
-					reasons[i].BySubgraphs = append(reasons[i].BySubgraphs, fromSubgraphs...)
+				reasons[i].ByUser = reasons[i].ByUser || byUser
+				if len(subgraphs) > 0 {
+					reasons[i].BySubgraphs = append(reasons[i].BySubgraphs, subgraphs...)
 					reasons[i].IsKey = reasons[i].IsKey || isKey
 					reasons[i].IsRequires = reasons[i].IsRequires || isRequires
 				}
@@ -1474,8 +1474,8 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 				reasons = append(reasons, resolve.FetchReason{
 					TypeName:    typeName,
 					FieldName:   fieldName,
-					BySubgraphs: fromSubgraphs,
-					ByUser:      fromUser,
+					BySubgraphs: subgraphs,
+					ByUser:      byUser,
 					IsKey:       isKey,
 					IsRequires:  isRequires,
 				})

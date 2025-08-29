@@ -161,8 +161,9 @@ type ResolverOptions struct {
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
 	ApolloRouterCompatibilitySubrequestHTTPError bool
 
-	// PropagateFetchReasons enables sending to upstream subgraphs (only) the "fetch_reasons"
-	// extension that explains why each field was requested. This flag does not expose the data to clients.
+	// PropagateFetchReasons enables adding the "fetch_reason" extension to
+	// upstream subgraphs. This extension explains why each field was requested.
+	// This flag does not expose the data to clients.
 	PropagateFetchReasons bool
 }
 

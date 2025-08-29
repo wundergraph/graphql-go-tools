@@ -154,7 +154,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.skipFieldsRefs = selectionsConfig.skipFieldsRefs
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
-	p.planningVisitor.fieldRefAllowsFieldRefs = inverseMap(selectionsConfig.fieldRefDependsOn)
+	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
