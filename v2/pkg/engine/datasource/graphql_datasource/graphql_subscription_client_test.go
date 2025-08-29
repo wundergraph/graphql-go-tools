@@ -2643,7 +2643,7 @@ func TestRequestHash(t *testing.T) {
 
 			err := client.requestHash(ctx, options, hash)
 			assert.NoError(t, err)
-			assert.Equal(t, uint64(0xa06f8622f14e1bf7), hash.Sum64())
+			assert.Equal(t, uint64(0xb1557904bfa9d86a), hash.Sum64())
 		})
 
 		t.Run("with negative", func(t *testing.T) {
@@ -2670,7 +2670,7 @@ func TestRequestHash(t *testing.T) {
 
 			err := client.requestHash(ctx, options, hash)
 			assert.NoError(t, err)
-			assert.Equal(t, uint64(0x2b166b89e3626dba), hash.Sum64())
+			assert.Equal(t, uint64(0x5888642db454ccab), hash.Sum64())
 		})
 
 		t.Run("with multiple tries to ensure the hash is idempotent", func(t *testing.T) {
@@ -2700,7 +2700,7 @@ func TestRequestHash(t *testing.T) {
 
 				err := client.requestHash(ctx, options, hash)
 				assert.NoError(t, err)
-				assert.Equal(t, uint64(0xb5c376ac16c8a7b5), hash.Sum64())
+				assert.Equal(t, uint64(0x6c9c1099adab987d), hash.Sum64())
 			}
 		})
 	})
