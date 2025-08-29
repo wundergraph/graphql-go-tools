@@ -435,10 +435,12 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 	headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
 
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
+		// Write header pattern
 		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
 			return err
 		}
 
+		// Write negate match
 		if _, err = xxh.WriteString(strconv.FormatBool(headerRegexp.NegateMatch)); err != nil {
 			return err
 		}
