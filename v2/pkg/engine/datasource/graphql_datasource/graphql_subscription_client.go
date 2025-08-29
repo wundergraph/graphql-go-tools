@@ -9,11 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/textproto"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -434,11 +435,7 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 		}
 
 		// Sort header names for deterministic hashing
-		headerKeys := make([]string, 0, len(ctx.Request.Header))
-		for key := range ctx.Request.Header {
-			headerKeys = append(headerKeys, key)
-		}
-		sort.Strings(headerKeys)
+		headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
 
 		for _, headerName := range headerKeys {
 			values := ctx.Request.Header[headerName]
