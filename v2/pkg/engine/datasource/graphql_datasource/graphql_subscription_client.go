@@ -431,7 +431,8 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 		}
 	}
 
-	// Sort header names for deterministic hashing
+	// Sort header names for deterministic hashing since looping through maps
+	// results in a non-deterministic order of elements
 	headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
 
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
