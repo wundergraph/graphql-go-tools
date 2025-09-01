@@ -4724,7 +4724,9 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		for pb.Next() {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
-			_ = bc.engine.Execute(ctx, &req, bc.writer)
+			if err := bc.engine.Execute(ctx, &req, bc.writer); err != nil {
+				b.Fatal(err)
+			}
 			pool.Put(bc)
 		}
 	})
