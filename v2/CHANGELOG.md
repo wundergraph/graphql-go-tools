@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.224](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.223...v2.0.0-rc.224) (2025-09-01)
+
+
+### Bug Fixes
+
+* add sorting before creating the hash ([#1286](https://github.com/wundergraph/graphql-go-tools/issues/1286)) ([7fa9c50](https://github.com/wundergraph/graphql-go-tools/commit/7fa9c50ca1bf9e726ac2a04060d98c4b4a22d404))
+
 ## [2.0.0-rc.223](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.222...v2.0.0-rc.223) (2025-08-28)
 
 
