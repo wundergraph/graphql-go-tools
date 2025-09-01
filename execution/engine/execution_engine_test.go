@@ -263,7 +263,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
-				EnableRequireFetchReasons:                    opts.propagateFieldsRequestedBy,
+				PropagateFetchReasons:                        opts.propagateFieldsRequestedBy,
 			})
 			require.NoError(t, err)
 
