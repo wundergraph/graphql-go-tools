@@ -176,7 +176,7 @@ type Loader struct {
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
 
-	propagateFieldFetchReasons bool
+	enableRequireFetchReasons bool
 }
 
 func (l *Loader) Free() {
@@ -1598,7 +1598,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			return
 		}
 	}
-	if l.propagateFieldFetchReasons && !IsIntrospectionDataSource(res.ds.ID) {
+	if l.enableRequireFetchReasons && !IsIntrospectionDataSource(res.ds.ID) {
 		fetchReasons := fetchItem.Fetch.FetchReasons()
 		if len(fetchReasons) > 0 {
 			var encoded []byte
