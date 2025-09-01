@@ -215,7 +215,7 @@ type _executionTestOptions struct {
 	resolvableOptions resolve.ResolvableOptions
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
-	propagateFieldsRequestedBy                   bool
+	propagateFetchReasons                        bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -263,7 +263,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
-				PropagateFetchReasons:                        opts.propagateFieldsRequestedBy,
+				PropagateFetchReasons:                        opts.propagateFetchReasons,
 			})
 			require.NoError(t, err)
 
@@ -873,7 +873,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		},
 		func(eto *_executionTestOptions) {
-			eto.propagateFieldsRequestedBy = true
+			eto.propagateFetchReasons = true
 		},
 	))
 
@@ -4537,7 +4537,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 			},
 			func(eto *_executionTestOptions) {
-				eto.propagateFieldsRequestedBy = true
+				eto.propagateFetchReasons = true
 			},
 		))
 	})
