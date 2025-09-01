@@ -4346,10 +4346,10 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				}
 			`
 
-		makeDataSource := func(t *testing.T, expectRequestedBy bool) []plan.DataSource {
+		makeDataSource := func(t *testing.T, expectFetchReasons bool) []plan.DataSource {
 			var expectedBody1 string
 			var expectedBody2 string
-			if !expectRequestedBy {
+			if !expectFetchReasons {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
 			} else {
 				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"Admin","field":"some","by_user":true},{"typename":"User","field":"id","by_subgraphs":["id-2"],"by_user":true,"is_key":true}]}}`
