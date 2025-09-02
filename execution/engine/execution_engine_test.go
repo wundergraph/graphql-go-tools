@@ -255,8 +255,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 
 			engineConf.plannerConfig.Debug = plan.DebugConfiguration{
 				// PrintOperationTransformations: true,
-				// PrintPlanningPaths:            true,
-				// PrintQueryPlans:               true,
+				PrintPlanningPaths: true,
+				PrintQueryPlans:    true,
 				// ConfigurationVisitor:          true,
 				// PlanningVisitor:               true,
 				// DatasourceVisitor:             true,
@@ -4547,6 +4547,334 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			withFetchReasons(),
 		))
 	})
+
+	t.Run("execute operation with requires and external", func(t *testing.T) {
+		definition := `
+			type User {
+				id: ID!
+				title: String
+				full: String
+			}
+
+			type Query {
+				accounts: [User!]!
+			}`
+
+		firstSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String @external
+					full: String @requires(fields: "title")
+				}
+
+				type Query {
+					accounts: [User!]!
+				}
+			`
+		secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String
+				}
+			`
+
+		datasources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"{accounts {id __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename full}}}","variables":{"representations":[{"__typename":"User","title":"User1","id":"1"},{"__typename":"User","title":"User3","id":"3"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","full":"User1 full"},{"__typename":"User","full":"User3 full"}]}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"accounts"},
+						},
+						{
+							TypeName:           "User",
+							FieldNames:         []string{"id", "full"},
+							ExternalFieldNames: []string{"title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "full",
+								SelectionSet: "title",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: firstSubgraphSDL,
+						},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"id-2",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "second",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+						sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://second/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: secondSubgraphSDL,
+						},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+
+		t.Run("run", runWithoutError(ExecutionEngineTestCase{
+			schema: func(t *testing.T) *graphql.Schema {
+				t.Helper()
+				parseSchema, err := graphql.NewSchemaFromString(definition)
+				require.NoError(t, err)
+				return parseSchema
+			}(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "Accounts",
+					Query: `
+					query Accounts {
+						accounts {
+							... on User {
+								id
+								full
+							}
+						}
+					}`,
+				}
+			},
+			dataSources:      datasources,
+			expectedResponse: `{"data":{"accounts":[{"id":"1","full":"User1 full"},{"id":"3","full":"User3 full"}]}}`,
+		}))
+	})
+
+	t.Run("execute operation with requires when optional dependency fails", func(t *testing.T) {
+		definition := `
+			type User {
+				id: ID!
+				title: String
+				full: String
+			}
+
+			type Query {
+				accounts: [User!]!
+			}`
+
+		firstSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String @external
+					full: String @requires(fields: "title")
+				}
+
+				type Query {
+					accounts: [User!]!
+				}
+			`
+		secondSubgraphSDL := `
+				type User @key(fields: "id") {
+					id: ID!
+					title: String
+				}
+			`
+
+		// expected fetches:
+		// id-1, fetch returns all,
+		// id-2, fetch returns partial data and error,
+		// id-1, fetch made with partial data, returns all
+		datasources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"{accounts {id __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename full}}}","variables":{"representations":[{"__typename":"User","title":"User3","id":"3"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","full":"User3 full"}]}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"accounts"},
+						},
+						{
+							TypeName:           "User",
+							FieldNames:         []string{"id", "full"},
+							ExternalFieldNames: []string{"title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "full",
+								SelectionSet: "title",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: firstSubgraphSDL,
+						},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"id-2",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "second",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+						sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":null},{"__typename":"User","title":"User3"}]},"errors":[{"message":"Cannot provide value","locations":[{"line":2,"column":3}],"path":["_entities",0,"title"]}]}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://second/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: secondSubgraphSDL,
+						},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+
+		t.Run("run", runWithoutError(ExecutionEngineTestCase{
+			schema: func(t *testing.T) *graphql.Schema {
+				t.Helper()
+				parseSchema, err := graphql.NewSchemaFromString(definition)
+				require.NoError(t, err)
+				return parseSchema
+			}(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "Accounts",
+					Query: `
+					query Accounts {
+						accounts {
+							... on User {
+								id
+								full
+							}
+						}
+					}`,
+				}
+			},
+			dataSources:      datasources,
+			expectedResponse: `{"data":{"accounts":[{"id":"1","full":null},{"id":"3","full":"User3 full"}]},"errors":[{"message":"can't resolve some fields from subgraphs","locations":[{"line":1,"column":38}],"path":["query","accounts",0,"full"]}]}`,
+		}))
+	})
 }
 
 func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client {
@@ -4555,6 +4883,18 @@ func testNetHttpClient(t *testing.T, testCase roundTripperTestCase) *http.Client
 	defaultClient := httpclient.DefaultNetHttpClient
 	return &http.Client{
 		Transport:     createTestRoundTripper(t, testCase),
+		CheckRedirect: defaultClient.CheckRedirect,
+		Jar:           defaultClient.Jar,
+		Timeout:       defaultClient.Timeout,
+	}
+}
+
+func testConditionalNetHttpClient(t *testing.T, testCase conditionalTestCase) *http.Client {
+	t.Helper()
+
+	defaultClient := httpclient.DefaultNetHttpClient
+	return &http.Client{
+		Transport:     createConditionalTestRoundTripper(t, testCase),
 		CheckRedirect: defaultClient.CheckRedirect,
 		Jar:           defaultClient.Jar,
 		Timeout:       defaultClient.Timeout,

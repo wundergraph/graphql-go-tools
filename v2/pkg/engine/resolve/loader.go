@@ -357,10 +357,11 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 }
 
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
-	if len(path) == 0 {
-		return []*astjson.Value{l.resolvable.data}
-	}
+	fmt.Printf("selectItemsForPath %+v \n", path)
 	items := []*astjson.Value{l.resolvable.data}
+	if len(path) == 0 {
+		return items
+	}
 	for i := range path {
 		if len(items) == 0 {
 			break
@@ -546,29 +547,30 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.out.Len() == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-	value, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
+
+	parsedResponse, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
 			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
 		}
-
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
 	hasErrors := false
+	fmt.Printf("path %+v \nout %+v \ncoords %+v\ndata %+v\n\n", fetchItem.FetchPath, res.out.String(), fetchItem.Fetch.DependenciesCoordinates(), l.resolvable.data)
 
-	// We check if the subgraph response has errors
+	// Check if the subgraph response has errors.
 	if res.postProcessing.SelectResponseErrorsPath != nil {
-		errorsValue := value.Get(res.postProcessing.SelectResponseErrorsPath...)
+		errorsValue := parsedResponse.Get(res.postProcessing.SelectResponseErrorsPath...)
 		if astjson.ValueIsNonNull(errorsValue) {
-			errorObjects := errorsValue.GetArray()
-			hasErrors = len(errorObjects) > 0
-			// If errors field are present in response, but the errors array is empty, we don't consider it as an error
-			// Note: it is not compliant to graphql spec
+			asArray := errorsValue.GetArray()
+			hasErrors = len(asArray) > 0
+			// If the response has the "errors" key, and its value is empty,
+			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
-				// Look for errors in the response and merge them into the errors array
-				err = l.mergeErrors(res, fetchItem, errorsValue, errorObjects)
+				// Look for errors in the response and merge them into the "errors" array.
+				err = l.mergeErrors(res, fetchItem, errorsValue, asArray)
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -576,11 +578,11 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 	}
 
-	// We also check if any data is there to processed
+	// Check if data needs processing.
 	if res.postProcessing.SelectResponseDataPath != nil {
-		value = value.Get(res.postProcessing.SelectResponseDataPath...)
+		parsedResponse = parsedResponse.Get(res.postProcessing.SelectResponseDataPath...)
 		// Check if the not set or null
-		if astjson.ValueIsNull(value) {
+		if astjson.ValueIsNull(parsedResponse) {
 			// When:
 			// - No errors or data are present
 			// - Status code is not within the 2XX range
@@ -605,16 +607,17 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			return nil
 		}
 	}
+
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
-		if value.Type() != astjson.TypeObject {
+		if parsedResponse.Type() != astjson.TypeObject {
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
-		l.resolvable.data = value
+		l.resolvable.data = parsedResponse
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		items[0], _, err = astjson.MergeValuesWithPath(items[0], value, res.postProcessing.MergePath...)
+		items[0], _, err = astjson.MergeValuesWithPath(items[0], parsedResponse, res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
 				Subgraph: res.ds.Name,
@@ -624,7 +627,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return nil
 	}
-	batch := value.GetArray()
+	batch := parsedResponse.GetArray()
 	if batch == nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 	}
@@ -789,8 +792,9 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	return nil
 }
 
-// optionallyAllowCustomExtensionProperties removes all properties from the extensions object that are not in the allowedProperties map
-// If no properties are left, the extensions object is removed
+// optionallyAllowCustomExtensionProperties removes all properties from the "extensions" object
+// that are not in the allowedProperties map.
+// If no properties are left, the "extensions" object is removed.
 func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Exists("extensions") {
@@ -816,7 +820,7 @@ func (l *Loader) optionallyAllowCustomExtensionProperties(values []*astjson.Valu
 	}
 }
 
-// optionallyEnsureExtensionErrorCode ensures that all values have an error code in the extensions object
+// optionallyEnsureExtensionErrorCode ensures that all values have an error code in the "extensions" object.
 func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 	if l.defaultErrorExtensionCode == "" {
 		return
@@ -843,7 +847,8 @@ func (l *Loader) optionallyEnsureExtensionErrorCode(values []*astjson.Value) {
 	}
 }
 
-// optionallyAttachServiceNameToErrorExtension attaches the service name to the extensions object of all values
+// optionallyAttachServiceNameToErrorExtension for all values attaches the service name
+// to the "extensions" object.
 func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.Value, serviceName string) {
 	if !l.attachServiceNameToErrorExtension {
 		return
@@ -868,7 +873,7 @@ func (l *Loader) optionallyAttachServiceNameToErrorExtension(values []*astjson.V
 	}
 }
 
-// optionallyOmitErrorExtensions removes the extensions object from all values
+// optionallyOmitErrorExtensions removes the "extensions" object from all values
 func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	if !l.omitSubgraphErrorExtensions {
 		return
@@ -880,7 +885,8 @@ func (l *Loader) optionallyOmitErrorExtensions(values []*astjson.Value) {
 	}
 }
 
-// optionallyOmitErrorFields removes all fields from the subgraph error which are not whitelisted. We do not remove message.
+// optionallyOmitErrorFields removes all fields from the subgraph error that are not allowlisted.
+// It does not remove the message.
 func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 	for _, value := range values {
 		if value.Type() == astjson.TypeObject {
@@ -899,7 +905,7 @@ func (l *Loader) optionallyOmitErrorFields(values []*astjson.Value) {
 	}
 }
 
-// optionallyOmitErrorLocations removes the locations object from all values
+// optionallyOmitErrorLocations removes the "locations" object from all values.
 func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	if !l.omitSubgraphErrorLocations {
 		return
@@ -911,7 +917,7 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
-// optionallyRewriteErrorPaths rewrites the path field of all values
+// optionallyRewriteErrorPaths rewrites the path field for all the values.
 func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 	if !l.rewriteSubgraphErrorPaths {
 		return
