@@ -4019,7 +4019,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				Trigger: resolve.GraphQLSubscriptionTrigger{
 					Input: []byte(`{"url":"wss://swapi.com/graphql","body":{"query":"subscription{remainingJedis}"}}`),
 					Source: &SubscriptionSource{
-						NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
+						client: NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, ctx),
 					},
 					PostProcessing: DefaultPostProcessingConfiguration,
 				},
@@ -8900,6 +8900,60 @@ func TestSanitizeKey(t *testing.T) {
 			assert.Equal(t, test.expected, sanitizeKey(test.input))
 		})
 	}
+}
+
+func TestSubscriptionSource_SubscriptionOnStart(t *testing.T) {
+
+	t.Run("SubscriptionOnStart calls subscriptionOnStartFns", func(t *testing.T) {
+		ctx := resolve.StartupHookContext{
+			Context: context.Background(),
+			Updater: func(data []byte) {},
+		}
+
+		type fnData struct {
+			ctx   resolve.StartupHookContext
+			input []byte
+		}
+
+		startFnCalled := make(chan fnData, 1)
+		subscriptionSource := SubscriptionSource{
+			subscriptionOnStartFns: []SubscriptionOnStartFn{
+				func(ctx resolve.StartupHookContext, input []byte) error {
+					startFnCalled <- fnData{ctx, input}
+					return nil
+				},
+			},
+		}
+
+		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		require.NoError(t, err)
+		var called fnData
+		select {
+		case called = <-startFnCalled:
+		case <-time.After(1 * time.Second):
+			t.Fatal("SubscriptionOnStartFn was not called")
+		}
+		assert.Equal(t, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`), called.input)
+	})
+
+	t.Run("SubscriptionOnStart calls subscriptionOnStartFns and returns error if one of the functions returns an error", func(t *testing.T) {
+		ctx := resolve.StartupHookContext{
+			Context: context.Background(),
+			Updater: func(data []byte) {},
+		}
+
+		subscriptionSource := SubscriptionSource{
+			subscriptionOnStartFns: []SubscriptionOnStartFn{
+				func(ctx resolve.StartupHookContext, input []byte) error {
+					return errors.New("test error")
+				},
+			},
+		}
+
+		err := subscriptionSource.SubscriptionOnStart(ctx, []byte(`{"variables": {}, "extensions": {}, "operationName": "LiveMessages", "query": "subscription LiveMessages { messageAdded(roomName: \"#test\") { text createdBy } }"}`))
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "test error")
+	})
 }
 
 const interfaceSelectionSchema = `

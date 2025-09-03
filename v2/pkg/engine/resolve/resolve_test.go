@@ -4787,11 +4787,12 @@ func (s *SubscriptionRecorder) Messages() []string {
 	return s.messages
 }
 
-func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte)) *_fakeStream {
+func createFakeStream(messageFunc messageFunc, delay time.Duration, onStart func(input []byte), subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)) *_fakeStream {
 	return &_fakeStream{
-		messageFunc: messageFunc,
-		delay:       delay,
-		onStart:     onStart,
+		messageFunc:           messageFunc,
+		delay:                 delay,
+		onStart:               onStart,
+		subscriptionOnStartFn: subscriptionOnStartFn,
 	}
 }
 
@@ -4800,10 +4801,19 @@ type messageFunc func(counter int) (message string, done bool)
 var fakeStreamRequestId atomic.Int32
 
 type _fakeStream struct {
-	messageFunc messageFunc
-	onStart     func(input []byte)
-	delay       time.Duration
-	isDone      atomic.Bool
+	uniqueRequestFn       func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error)
+	messageFunc           messageFunc
+	onStart               func(input []byte)
+	delay                 time.Duration
+	isDone                atomic.Bool
+	subscriptionOnStartFn func(ctx StartupHookContext, input []byte) (err error)
+}
+
+func (f *_fakeStream) SubscriptionOnStart(ctx StartupHookContext, input []byte) (err error) {
+	if f.subscriptionOnStartFn == nil {
+		return nil
+	}
+	return f.subscriptionOnStartFn(ctx, input)
 }
 
 func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
@@ -4821,6 +4831,10 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 }
 
 func (f *_fakeStream) UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+	if f.uniqueRequestFn != nil {
+		return f.uniqueRequestFn(ctx, input, xxh)
+	}
+
 	_, err = xxh.WriteString(fmt.Sprintf("%d", fakeStreamRequestId.Add(1)))
 	if err != nil {
 		return
@@ -5064,7 +5078,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return `{"errors":[{"message":"Validation error occurred","locations":[{"line":1,"column":1}],"extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}`, true
 		}, 0, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5102,7 +5116,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5135,7 +5149,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 1
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5193,7 +5207,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }","extensions":{"foo":"bar"}}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5221,7 +5235,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 2
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"},"initial_payload":{"hello":"world"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5249,7 +5263,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, time.Millisecond*10, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5274,7 +5288,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, time.Millisecond*10, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5299,7 +5313,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
 
@@ -5328,7 +5342,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { countryUpdated { name time { local } } }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, recorder, id := setupWithAdditionalDataLoad(c, fakeStream)
 
@@ -5357,7 +5371,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), false
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, _, _ := setup(c, fakeStream)
 
@@ -5411,7 +5425,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		})
+		}, nil)
 
 		resolver, plan, _, id := setup(c, fakeStream)
 		recorder := &SubscriptionRecorder{
@@ -5433,6 +5447,384 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err)
 		recorder.AwaitClosed(t, defaultTimeout)
 		fakeStream.AwaitIsDone(t, defaultTimeout)
+	})
+
+	t.Run("should call SubscriptionOnStart hook", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		called := make(chan bool, 1)
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			called <- true
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		select {
+		case <-called:
+			t.Log("SubscriptionOnStart hook was called")
+		case <-time.After(defaultTimeout):
+			t.Fatal("SubscriptionOnStart hook was not called")
+		}
+
+		recorder.AwaitComplete(t, defaultTimeout)
+	})
+
+	t.Run("SubscriptionOnStart ctx has a working subscription updater", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, 2, len(recorder.Messages()))
+		assert.Equal(t, `{"data":{"counter":1000}}`, recorder.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[1])
+	})
+
+	t.Run("SubscriptionOnStart ctx updater only updates the right subscription", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		executed := atomic.Bool{}
+		subsStarted := sync.WaitGroup{}
+		subsStarted.Add(2)
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID: 1,
+			SubscriptionID: 2,
+		}
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			if executed.Load() {
+				return
+			}
+			executed.Store(true)
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+			return nil
+		}
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		ctx2 := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		subsStarted.Done()
+
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+		subsStarted.Done()
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		recorders := []*SubscriptionRecorder{recorder, recorder2}
+
+		recorderWith1Message := false
+		recorderWith2Messages := false
+
+		for _, r := range recorders {
+			if len(r.Messages()) == 2 {
+				recorderWith2Messages = true
+				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
+			}
+			if len(r.Messages()) == 1 {
+				recorderWith1Message = true
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[0])
+			}
+		}
+
+		assert.True(t, recorderWith1Message)
+		assert.True(t, recorderWith2Messages)
+	})
+
+	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		subsStarted := sync.WaitGroup{}
+		subsStarted.Add(2)
+
+		id2 := SubscriptionIdentifier{
+			ConnectionID: 1,
+			SubscriptionID: 2,
+		}
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
+			return nil
+		})
+		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+			_, err = xxh.WriteString("unique")
+			return
+		}
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		recorder2 := &SubscriptionRecorder{
+			buf:      &bytes.Buffer{},
+			messages: []string{},
+			complete: atomic.Bool{},
+		}
+		recorder2.complete.Store(false)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		ctx2 := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+		subsStarted.Done()
+
+		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
+		assert.NoError(t, err2)
+		subsStarted.Done()
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		recorder2.AwaitComplete(t, defaultTimeout)
+
+		recorders := []*SubscriptionRecorder{recorder, recorder2}
+
+		for _, r := range recorders {
+			if len(r.Messages()) == 2 {
+				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
+			} else {
+				assert.Fail(t, "should not be here")
+			}
+		}
+	})
+
+	t.Run("SubscriptionOnStart can send a lot of updates without blocking", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		workChanBufferSize := 10000
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			for i := 0; i < workChanBufferSize+1; i++ {
+				ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+100)))
+			}
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: true,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout)
+		assert.Equal(t, workChanBufferSize+2, len(recorder.Messages()))
+		for i := 0; i < workChanBufferSize; i++ {
+			assert.Equal(t, fmt.Sprintf(`{"data":{"counter":%d}}`, i+100), recorder.Messages()[i])
+		}
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder.Messages()[workChanBufferSize+1])
+	})
+
+	t.Run("SubscriptionOnStart can send a lot of updates in a go routine while updates are coming from other sources", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		messagesToSendFromHook := int32(100)
+		messagesDroppedFromHook := &atomic.Int32{}
+		messagesToSendFromOtherSources := int32(100)
+
+		firstMessageArrived := make(chan bool, 1)
+		hookCompleted := make(chan bool, 1)
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			if counter == 0 {
+				select {
+				case firstMessageArrived <- true:
+				default:
+				}
+			}
+			if counter == int(messagesToSendFromOtherSources)-1 {
+				select {
+				case hookCompleted <- true:
+				case <-time.After(defaultTimeout):
+				}
+			}
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == int(messagesToSendFromOtherSources)-1
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			// send the first update immediately
+			ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, 0+20000)))
+
+			// start a go routine to send the updates after the source started emitting messages
+			go func() {
+				// Wait for the first message to arrive before sending updates
+				select {
+				case <-firstMessageArrived:
+					for i := 1; i < int(messagesToSendFromHook); i++ {
+						ctx.Updater([]byte(fmt.Sprintf(`{"data":{"counter":%d}}`, i+20000)))
+					}
+					hookCompleted <- true
+				case <-time.After(defaultTimeout):
+					// if the first message did not arrive, do not send any updates
+					return
+				}
+			}()
+
+			return nil
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+			ExecutionOptions: ExecutionOptions{
+				SendHeartbeat: false,
+			},
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitComplete(t, defaultTimeout*2)
+
+		var messagesHeartbeat int32
+		for _, m := range recorder.Messages() {
+			if m == "{}" {
+				messagesHeartbeat++
+			}
+		}
+		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources-messagesDroppedFromHook.Load()+messagesHeartbeat), int32(len(recorder.Messages())))
+		assert.Equal(t, `{"data":{"counter":20000}}`, recorder.Messages()[0])
+	})
+
+	t.Run("it is possible to have two subscriptions to the same trigger", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 100
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			return nil
+		})
+		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
+			_, err = xxh.WriteString("unique")
+			if err != nil {
+				return
+			}
+			_, err = xxh.Write(input)
+			return err
+		}
+
+		resolver1, plan1, recorder1, id1 := setup(c, fakeStream)
+		_, _, recorder2, id2 := setup(c, fakeStream)
+		id2.ConnectionID = id1.ConnectionID + 1
+		id2.SubscriptionID = id1.SubscriptionID + 1
+
+		ctx1 := &Context{
+			ctx: context.Background(),
+		}
+		ctx2 := &Context{
+			ctx: context.Background(),
+		}
+
+		err1 := resolver1.AsyncResolveGraphQLSubscription(ctx1, plan1, recorder1, id1)
+		assert.NoError(t, err1)
+
+		err2 := resolver1.AsyncResolveGraphQLSubscription(ctx2, plan1, recorder2, id2)
+		assert.NoError(t, err2)
+
+		// complete is called only on the last recorder
+		recorder1.AwaitComplete(t, defaultTimeout)
+		require.Equal(t, 101, len(recorder1.Messages()))
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder1.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":100}}`, recorder1.Messages()[100])
+
+		recorder2.AwaitComplete(t, defaultTimeout)
+		require.Equal(t, 101, len(recorder2.Messages()))
+		assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[0])
+		assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
 	})
 }
 
@@ -5506,7 +5898,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":2}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5602,7 +5994,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":2}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5696,7 +6088,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":4}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5791,7 +6183,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":"x.4"}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
@@ -5890,7 +6282,7 @@ func Test_ResolveGraphQLSubscriptionWithFilter(t *testing.T) {
 			return `{"id":"x.2"}`, true
 		}, 100*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000"}`, string(input))
-		})
+		}, nil)
 
 		plan := &GraphQLSubscription{
 			Trigger: GraphQLSubscriptionTrigger{
