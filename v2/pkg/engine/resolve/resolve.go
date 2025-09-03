@@ -577,7 +577,7 @@ type StartupHookContext struct {
 	Updater func(data []byte)
 }
 
-func (r *Resolver) executeStartupHooks(add *addSubscription, updater *subscriptionUpdater) error {
+func (r *Resolver) executeStartupHooks(add *addSubscription, s *sub, updater *subscriptionUpdater) error {
 	hook, ok := add.resolve.Trigger.Source.(HookableSubscriptionDataSource)
 	if ok {
 		hookCtx := StartupHookContext{
@@ -636,7 +636,14 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:added:%d:%d\n", triggerID, add.id.SubscriptionID)
 		}
-		r.executeStartupHooks(add, trig.updater)
+		// Execute the startup hooks in a separate goroutine to avoid blocking the event loop
+		s.workChan <- workItem{
+			fn: func() {
+				_ = r.executeStartupHooks(add, s, trig.updater)
+				// if the startup hooks return an error, we don't have to do anything else
+			},
+			final: false,
+		}
 		return
 	}
 
@@ -680,7 +687,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		}
 
 		// This is blocking so the startup hook can decide if a subscription should be started or not by returning an error
-		err = r.executeStartupHooks(add, trig.updater)
+		err = r.executeStartupHooks(add, s, trig.updater)
 		if err != nil {
 			return
 		}
