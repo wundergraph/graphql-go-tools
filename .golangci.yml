@@ -28,7 +28,7 @@ linters:
 
 formatters:
   enable:
-    # - gci
+    - gci
     - gofmt
   settings:
     gci:
