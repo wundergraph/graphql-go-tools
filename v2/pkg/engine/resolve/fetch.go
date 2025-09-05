@@ -22,6 +22,7 @@ type Fetch interface {
 	Dependencies() *FetchDependencies
 	DataSourceInfo() DataSourceInfo
 	DependenciesCoordinates() []FetchDependency
+	FetchReasons() []FetchReason
 }
 
 type FetchItem struct {
@@ -89,6 +90,7 @@ const (
 type SingleFetch struct {
 	FetchConfiguration
 	FetchDependencies
+
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
@@ -100,7 +102,11 @@ func (s *SingleFetch) Dependencies() *FetchDependencies {
 }
 
 func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
-	return s.FetchConfiguration.CoordinateDependencies
+	return s.CoordinateDependencies
+}
+
+func (s *SingleFetch) FetchReasons() []FetchReason {
+	return s.FieldFetchReasons
 }
 
 func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
@@ -120,16 +126,18 @@ type FetchDependencies struct {
 type PostProcessingConfiguration struct {
 	// SelectResponseDataPath used to make a jsonparser.Get call on the response data
 	SelectResponseDataPath []string
+
 	// SelectResponseErrorsPath is similar to SelectResponseDataPath, but for errors
 	// If this is set, the response will be considered an error if the jsonparser.Get call returns a non-empty value
 	// The value will be expected to be a GraphQL error object
 	SelectResponseErrorsPath []string
+
 	// MergePath can be defined to merge the result of the post-processing into the parent object at the given path
 	// e.g. if the parent is {"a":1}, result is {"foo":"bar"} and the MergePath is ["b"],
 	// the result will be {"a":1,"b":{"foo":"bar"}}
 	// If the MergePath is empty, the result will be merged into the parent object
 	// In this case, the result would be {"a":1,"foo":"bar"}
-	// This is useful if you make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
+	// This is useful if we make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
 	MergePath []string
 }
 
@@ -161,6 +169,7 @@ func (*SingleFetch) FetchKind() FetchKind {
 // representations variable will contain multiple items according to amount of entities matching this query
 type BatchEntityFetch struct {
 	FetchDependencies
+
 	Input                  BatchInput
 	DataSource             DataSource
 	PostProcessing         PostProcessingConfiguration
@@ -168,6 +177,7 @@ type BatchEntityFetch struct {
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
 	CoordinateDependencies []FetchDependency
+	FieldFetchReasons      []FetchReason
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -176,6 +186,10 @@ func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 
 func (b *BatchEntityFetch) DependenciesCoordinates() []FetchDependency {
 	return b.CoordinateDependencies
+}
+
+func (b *BatchEntityFetch) FetchReasons() []FetchReason {
+	return b.FieldFetchReasons
 }
 
 func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
@@ -208,13 +222,15 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 // representations variable will contain single item
 type EntityFetch struct {
 	FetchDependencies
-	CoordinateDependencies []FetchDependency
+
 	Input                  EntityInput
 	DataSource             DataSource
 	PostProcessing         PostProcessingConfiguration
 	DataSourceIdentifier   []byte
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
+	CoordinateDependencies []FetchDependency
+	FieldFetchReasons      []FetchReason
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -223,6 +239,10 @@ func (e *EntityFetch) Dependencies() *FetchDependencies {
 
 func (e *EntityFetch) DependenciesCoordinates() []FetchDependency {
 	return e.CoordinateDependencies
+}
+
+func (e *EntityFetch) FetchReasons() []FetchReason {
+	return e.FieldFetchReasons
 }
 
 func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
@@ -257,7 +277,11 @@ func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
 }
 
 func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
-	return p.Fetch.FetchConfiguration.CoordinateDependencies
+	return p.Fetch.CoordinateDependencies
+}
+
+func (p *ParallelListItemFetch) FetchReasons() []FetchReason {
+	return p.Fetch.FieldFetchReasons
 }
 
 func (*ParallelListItemFetch) FetchKind() FetchKind {
@@ -323,7 +347,12 @@ type FetchConfiguration struct {
 	// and how multiple dependencies lead to a chain of fetches
 	CoordinateDependencies []FetchDependency
 
-	// OperationName is non-empty when the operation name is propagated the downstream subgraph fetch.
+	// FieldFetchReasons contains provenance for fields that require fetch reason to be propagated
+	// to their subgraph. It is optional propagation via request extensions;
+	// it does not affect execution.
+	FieldFetchReasons []FetchReason
+
+	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
 }
 
@@ -337,9 +366,11 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 
-	// Note: we do not compare datasources, as they will always be a different instance
+	// Note: we do not compare datasources, as they will always be a different instance.
 	// Note: we do not compare CoordinateDependencies, as they contain more detailed
-	// dependencies information that is already present in the FetchDependencies on the fetch itself
+	// dependencies information that is already present in the FetchDependencies on the fetch itself.
+	// Note: we do not compare FieldFetchReasons, as it is derived data for an extension
+	// and does not affect fetch execution semantics.
 
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
 		return false
@@ -385,6 +416,17 @@ type FetchDependencyOrigin struct {
 	IsKey bool `json:"isKey"`
 	// IsRequires is true if the Coordinate is a @requires dependency
 	IsRequires bool `json:"isRequires"`
+}
+
+// FetchReason explains who requested a specific (typeName, fieldName) combination.
+// A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
+type FetchReason struct {
+	TypeName    string   `json:"typename"`
+	FieldName   string   `json:"field"`
+	BySubgraphs []string `json:"by_subgraphs,omitempty"`
+	ByUser      bool     `json:"by_user,omitempty"`
+	IsKey       bool     `json:"is_key,omitempty"`
+	IsRequires  bool     `json:"is_requires,omitempty"`
 }
 
 type FetchInfo struct {

@@ -1083,8 +1083,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						ExternalFieldNames: []string{"name", "shippingInfo"},
 					},
 					{
-						TypeName:   "Address",
-						FieldNames: []string{"id", "line1", "line2"},
+						TypeName:          "Address",
+						FieldNames:        []string{"id", "line1", "line2"},
+						FetchReasonFields: []string{"id", "line1", "line2"},
 					},
 				},
 				ChildNodes: []plan.TypeField{
@@ -1264,8 +1265,9 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 			&plan.DataSourceMetadata{
 				RootNodes: []plan.TypeField{
 					{
-						TypeName:   "Address",
-						FieldNames: []string{"id", "line3", "zip"},
+						TypeName:          "Address",
+						FieldNames:        []string{"id", "line3", "zip"},
+						FetchReasonFields: []string{"line3", "zip"},
 					},
 				},
 				FederationMetaData: plan.FederationMetaData{
@@ -3094,6 +3096,30 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {address {line1 line2 __typename id}}}}"}}`,
 										DataSource:     &Source{},
 										PostProcessing: DefaultPostProcessingConfiguration,
+										FieldFetchReasons: []resolve.FetchReason{
+											{
+												TypeName:  "Address",
+												FieldName: "id",
+												BySubgraphs: []string{
+													"account.service",
+													"address-enricher.service",
+													"address.service",
+												},
+												IsKey: true,
+											},
+											{
+												TypeName:    "Address",
+												FieldName:   "line1",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+											{
+												TypeName:    "Address",
+												FieldName:   "line2",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+										},
 									},
 								}),
 								resolve.SingleWithPath(&resolve.SingleFetch{
@@ -3232,6 +3258,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 														IsKey: true,
 													},
 												},
+											},
+										},
+										FieldFetchReasons: []resolve.FetchReason{
+											{
+												TypeName:    "Address",
+												FieldName:   "line3",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+											{
+												TypeName:    "Address",
+												FieldName:   "zip",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
 											},
 										},
 										Variables: []resolve.Variable{
