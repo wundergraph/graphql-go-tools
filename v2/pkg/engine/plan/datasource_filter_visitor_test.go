@@ -8,6 +8,7 @@ import (
 
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"

@@ -13,13 +13,15 @@ import (
 	"sync"
 
 	"github.com/tidwall/gjson"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
+
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/grpc"
 )
 
 // Verify DataSource implements the resolve.DataSource interface

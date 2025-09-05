@@ -6,10 +6,11 @@ import (
 	"strconv"
 
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/astjson"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/wundergraph/astjson"
 )
 
 // Standard GraphQL response paths

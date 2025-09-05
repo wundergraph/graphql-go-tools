@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 )
 
 type planningInfo struct {

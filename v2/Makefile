@@ -2,32 +2,25 @@
 test:
 	go test -race ./...
 
-test-fresh: clean-testcache test
-
-test-stability:
-	@while $(MAKE) test-fresh; do :; done
-
 # First we test, then we benchmark. Otherwise we would get noisy output from testing logs.
 .PHONY: test-quick
 test-quick:
 	go test ./...
 	go test -run=xxxx -bench=. -benchtime=1x ./...
 
-clean-testcache:
-	go clean -testcache
-
-# updateTestFixtures will update all! golden fixtures
-.PHONY: updateTestFixtures
-updateTestFixtures:
+# update-fixtures will update all! golden fixtures
+.PHONY: update-fixtures
+update-fixtures:
 	GOLDIE_UPDATE=1 go test -count=1 ./pkg/...
 
 .PHONY: format
 format:
-	go fmt ./...
+	golangci-lint fmt --config ../.golangci.yml
 
+.PHONY: lint
 lint:
-	golangci-lint run
-	cd ../execution && golangci-lint run
+	golangci-lint run --config ../.golangci.yml .
+	cd ../execution && make lint
 
 .PHONY: prepare-merge
 prepare-merge: format test

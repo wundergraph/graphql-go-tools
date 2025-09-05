@@ -3,11 +3,10 @@ package astvalidation
 import (
 	"bytes"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astimport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
