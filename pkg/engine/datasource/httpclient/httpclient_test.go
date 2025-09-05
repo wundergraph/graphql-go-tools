@@ -183,7 +183,10 @@ func TestHttpClientDo(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, string(body), string(actualBody))
 			gzipWriter := gzip.NewWriter(w)
-			defer gzipWriter.Close()
+			defer func(gzipWriter *gzip.Writer) {
+				err := gzipWriter.Close()
+				assert.NoError(t, err)
+			}(gzipWriter)
 			w.Header().Set("Content-Encoding", "gzip")
 			_, err = gzipWriter.Write([]byte("ok"))
 			assert.NoError(t, err)

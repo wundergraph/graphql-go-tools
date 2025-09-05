@@ -11,11 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/buger/jsonparser"
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 	"nhooyr.io/websocket"

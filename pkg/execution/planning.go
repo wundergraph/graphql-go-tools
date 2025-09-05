@@ -405,7 +405,9 @@ func (p *planningVisitor) pipelineTransformation(directive int) *PipelineTransfo
 		if err != nil {
 			return nil
 		}
-		defer reader.Close()
+		defer func(reader *os.File) {
+			err = reader.Close()
+		}(reader)
 		configReader = reader
 	}
 	configStringValue, ok := p.definition.DirectiveArgumentValueByName(directive, literal.PIPELINE_CONFIG_STRING)

@@ -1,10 +1,11 @@
 package federation
 
 import (
-	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/wundergraph/graphql-go-tools/pkg/testing/goldie"
 )
 
 func TestSchemaBuilder_BuildFederationSchema(t *testing.T) {

@@ -185,7 +185,12 @@ func (d *DatasourcePollerPoller) fetchServiceSDL(ctx context.Context, serviceURL
 		return "", fmt.Errorf("do request: %v", err)
 	}
 
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		err = Body.Close()
+		if err != nil {
+			log.Printf("Failed to close response body: %s\n", err)
+		}
+	}(resp.Body)
 
 	var result struct {
 		Data struct {

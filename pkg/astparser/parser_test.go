@@ -5,12 +5,12 @@ import (
 	"os"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/keyword"
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 	"github.com/wundergraph/graphql-go-tools/pkg/operationreport"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestParser_Parse(t *testing.T) {

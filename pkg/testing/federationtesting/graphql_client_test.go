@@ -103,7 +103,12 @@ func (g *GraphqlClient) Subscription(ctx context.Context, addr, queryFilePath st
 	// 4. start receiving messages from subscription
 
 	go func() {
-		defer conn.Close()
+		defer func(conn net.Conn) {
+			err := conn.Close()
+			if err != nil {
+				assert.NoError(t, err)
+			}
+		}(conn)
 		defer close(messageCh)
 
 		for {
