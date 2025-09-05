@@ -4740,6 +4740,27 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				}
 			`
 
+		// firstSubgraphSDL := `
+		// 		type User @key(fields: "id") {
+		// 			id: ID!
+		// 			title: String @external
+		// 			full: String @requires(fields: "title")
+		//
+		// 			nested: Nested! @external
+		// 			whatever: String @requires(fields: "nested { property name }")
+		// 		}
+		//
+		// 		type Nested {
+		// 			property: String @external
+		// 			name: String @external
+		// 		}
+		//
+		// 		type Query {
+		// 			accounts: [User!]!
+		// 		}
+		// 	`
+		// // TODO: add meta and tests for nested and whatever
+
 		// expected fetches:
 		// id-1, fetch returns all,
 		// id-2, fetch returns partial data and error,
@@ -4872,7 +4893,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				}
 			},
 			dataSources:      datasources,
-			expectedResponse: `{"data":{"accounts":[{"id":"1","full":null},{"id":"3","full":"User3 full"}]},"errors":[{"message":"can't resolve some fields from subgraphs","locations":[{"line":1,"column":38}],"path":["query","accounts",0,"full"]}]}`,
+			expectedResponse: `{"data":{"accounts":[{"id":"1","full":null},{"id":"3","full":"User3 full"}]},"errors":[{"message":"failed to obtain field dependencies from subgraphs","locations":[{"line":1,"column":38}],"path":["query","accounts",0,"full"]}]}`,
 		}))
 	})
 }

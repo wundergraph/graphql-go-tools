@@ -177,18 +177,24 @@ type Loader struct {
 	apolloRouterCompatibilitySubrequestHTTPError bool
 
 	propagateFetchReasons bool
+
+	// taintedEntities tracks entities fetched with errors.
+	// Those entities should be ignored for later fetches.
+	taintedEntities map[*astjson.Value]struct{}
 }
 
 func (l *Loader) Free() {
 	l.info = nil
 	l.ctx = nil
 	l.resolvable = nil
+	l.taintedEntities = nil
 }
 
 func (l *Loader) LoadGraphQLResponseData(ctx *Context, response *GraphQLResponse, resolvable *Resolvable) (err error) {
 	l.resolvable = resolvable
 	l.ctx = ctx
 	l.info = response.Info
+	l.taintedEntities = make(map[*astjson.Value]struct{})
 	return l.resolveFetchNode(response.Fetches)
 }
 
@@ -357,18 +363,36 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 }
 
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
-	fmt.Printf("selectItemsForPath %+v \n", path)
 	items := []*astjson.Value{l.resolvable.data}
 	if len(path) == 0 {
 		return items
 	}
+	fmt.Printf("selectItemsForPath %+v %+v \n", path, items)
 	for i := range path {
 		if len(items) == 0 {
 			break
 		}
 		items = l.selectItems(items, path[i])
 	}
+	items = l.ignoreTainted(items)
+	fmt.Printf("selectItemsForPath result %+v \n", items)
 	return items
+}
+
+// ignoreTainted filters out taintedEntities from the given items list.
+func (l *Loader) ignoreTainted(items []*astjson.Value) []*astjson.Value {
+	if len(items) == 0 || len(l.taintedEntities) == 0 {
+		return items
+	}
+	filtered := make([]*astjson.Value, 0, len(items))
+	for _, item := range items {
+		if _, ok := l.taintedEntities[item]; ok {
+			fmt.Printf("ignored tainted entity %s\n", item.String())
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+	return filtered
 }
 
 func (l *Loader) isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
@@ -548,7 +572,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
 
-	parsedResponse, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
+	response, err := astjson.ParseBytesWithoutCache(res.out.Bytes())
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
@@ -557,20 +581,34 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponse)
 	}
 
-	hasErrors := false
-	fmt.Printf("path %+v \nout %+v \ncoords %+v\ndata %+v\n\n", fetchItem.FetchPath, res.out.String(), fetchItem.Fetch.DependenciesCoordinates(), l.resolvable.data)
+	var responseData *astjson.Value
+	if res.postProcessing.SelectResponseDataPath != nil {
+		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
+	} else {
+		responseData = response
+	}
 
+	hasErrors := false
+	// fmt.Printf("path %+v \nout %+v \ncoords %+v\ndata %+v\n\n", fetchItem.FetchPath, res.out.String(), fetchItem.Fetch.DependenciesCoordinates(), l.resolvable.data)
+
+	var taintedIndices []int
 	// Check if the subgraph response has errors.
 	if res.postProcessing.SelectResponseErrorsPath != nil {
-		errorsValue := parsedResponse.Get(res.postProcessing.SelectResponseErrorsPath...)
-		if astjson.ValueIsNonNull(errorsValue) {
-			asArray := errorsValue.GetArray()
-			hasErrors = len(asArray) > 0
+		responseErrors := response.Get(res.postProcessing.SelectResponseErrorsPath...)
+		if astjson.ValueIsNonNull(responseErrors) {
+			errs := responseErrors.GetArray()
+			hasErrors = len(errs) > 0
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
+				if res.postProcessing.SelectResponseDataPath != nil {
+					taintedIndices = l.getTaintedIndices(fetchItem.Fetch, responseData, errs)
+					l.rewriteSubgraphErrorPaths = true
+				}
+				// TODO: rewrite error message if we got tainted indices
+
 				// Look for errors in the response and merge them into the "errors" array.
-				err = l.mergeErrors(res, fetchItem, errorsValue, asArray)
+				err = l.mergeErrors(res, fetchItem, responseErrors, errs)
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -579,45 +617,44 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	// Check if data needs processing.
-	if res.postProcessing.SelectResponseDataPath != nil {
-		parsedResponse = parsedResponse.Get(res.postProcessing.SelectResponseDataPath...)
-		// Check if the not set or null
-		if astjson.ValueIsNull(parsedResponse) {
-			// When:
-			// - No errors or data are present
-			// - Status code is not within the 2XX range
-			// We can fall back to a status code based error
-			if !hasErrors && ((res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300) {
-				return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
-			}
-
-			// If we didn't get any data nor errors, we return an error because the response is invalid
-			// Returning an error here also avoids the need to walk over it later.
-			if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
-				return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
-			}
-
-			// we have no data but only errors
-			// skip value completion
-			if hasErrors && l.resolvable.options.ApolloCompatibilityValueCompletionInExtensions {
-				l.resolvable.skipValueCompletion = true
-			}
-
-			// no data
-			return nil
+	if res.postProcessing.SelectResponseDataPath != nil && astjson.ValueIsNull(responseData) {
+		// When:
+		// - No errors or data are present
+		// - Status code is not within the 2XX range
+		// We can fall back to a status code based error
+		if !hasErrors && ((res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300) {
+			return l.renderErrorsStatusFallback(fetchItem, res, res.statusCode)
 		}
+
+		// If we didn't get any data nor errors, we return an error because the response is invalid
+		// Returning an error here also avoids the need to walk over it later.
+		if !hasErrors && !l.resolvable.options.ApolloCompatibilitySuppressFetchErrors {
+			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
+		}
+
+		// we have no data but only errors
+		// skip value completion
+		if hasErrors && l.resolvable.options.ApolloCompatibilityValueCompletionInExtensions {
+			l.resolvable.skipValueCompletion = true
+		}
+
+		// no data
+		return nil
 	}
 
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
-		if parsedResponse.Type() != astjson.TypeObject {
+		if responseData.Type() != astjson.TypeObject {
 			return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 		}
-		l.resolvable.data = parsedResponse
+		l.resolvable.data = responseData
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		items[0], _, err = astjson.MergeValuesWithPath(items[0], parsedResponse, res.postProcessing.MergePath...)
+		if slices.Contains(taintedIndices, 0) {
+			l.taintedEntities[items[0]] = struct{}{}
+		}
+		items[0], _, err = astjson.MergeValuesWithPath(items[0], responseData, res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
 				Subgraph: res.ds.Name,
@@ -627,7 +664,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 		return nil
 	}
-	batch := parsedResponse.GetArray()
+	batch := responseData.GetArray()
 	if batch == nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 	}
@@ -639,11 +676,14 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 
 		for i, stats := range res.batchStats {
-			for _, item := range stats {
-				if item == -1 {
+			for _, idx := range stats {
+				if idx == -1 {
 					continue
 				}
-				items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[item], res.postProcessing.MergePath...)
+				if slices.Contains(taintedIndices, idx) {
+					l.taintedEntities[items[i]] = struct{}{}
+				}
+				items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[idx], res.postProcessing.MergePath...)
 				if err != nil {
 					return errors.WithStack(ErrMergeResult{
 						Subgraph: res.ds.Name,
@@ -659,6 +699,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		}
 
 		for i, item := range items {
+			if slices.Contains(taintedIndices, i) {
+				l.taintedEntities[item] = struct{}{}
+			}
 			_, _, err = astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
 			if err != nil {
 				return errors.WithStack(ErrMergeResult{
@@ -717,6 +760,90 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 	l.ctx.appendSubgraphErrors(res.err, subgraphError)
 
 	return nil
+}
+
+// getTaintedIndices identifies indices of tainted entities based on error paths in the response.
+// It processes errors, validates entities, and checks if they align with requested fetch reasons.
+func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []*astjson.Value) (idx []int) {
+	type typedField struct {
+		typeName string
+		field    string
+	}
+
+	// build a map to search with
+	requestedForRequires := map[typedField]struct{}{}
+	for _, fr := range fetch.FetchReasons() {
+		if fr.IsRequires {
+			requestedForRequires[typedField{fr.TypeName, fr.FieldName}] = struct{}{}
+		}
+	}
+	if len(requestedForRequires) == 0 {
+		return
+	}
+
+	for _, candidate := range errs {
+		errorPath := candidate.Get("path")
+		if astjson.ValueIsNull(errorPath) || errorPath.Type() != astjson.TypeArray {
+			continue
+		}
+		pathItems := errorPath.GetArray()
+		if len(pathItems) == 0 {
+			continue
+		}
+		for i, item := range pathItems {
+			if unsafebytes.BytesToString(item.GetStringBytes()) == "_entities" {
+				if len(pathItems)-i <= 2 {
+					break
+				}
+				// We have the full path to the failed item.
+				// Verify that it is null and extract the enclosing typename.
+				field := unsafebytes.BytesToString(pathItems[len(pathItems)-1].GetStringBytes())
+				entity, index := extractEntity(response, pathItems[i+1:len(pathItems)-1])
+				if astjson.ValueIsNull(entity) || entity.Type() != astjson.TypeObject {
+					break
+				}
+
+				possibleNull := entity.Get(field)
+				if possibleNull == nil || possibleNull.Type() != astjson.TypeNull {
+					break
+				}
+				typeName := unsafebytes.BytesToString(entity.GetStringBytes("__typename"))
+				if typeName == "" {
+					break
+				}
+				typeField := typedField{typeName, field}
+				if _, ok := requestedForRequires[typeField]; !ok {
+					break
+				}
+				// entity.Set(internalTaintedWithError, astjson.MustParse("true"))
+				fmt.Printf("marking failed entity %+v \n", entity)
+				idx = append(idx, index)
+				break
+			}
+		}
+	}
+	return
+}
+
+func extractEntity(response *astjson.Value, path []*astjson.Value) (*astjson.Value, int) {
+	var index int
+	for _, el := range path {
+		var key string
+		switch el.Type() {
+		case astjson.TypeNumber:
+			index = el.GetInt()
+			key = strconv.Itoa(index)
+		case astjson.TypeString:
+			key = unsafebytes.BytesToString(el.GetStringBytes())
+		default:
+			return nil, index
+		}
+		response = response.Get(key)
+		if response == nil {
+			return nil, index
+		}
+	}
+	return response, index
 }
 
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
@@ -947,6 +1074,7 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 				newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
 				newPath = append(newPath, pathPrefix...)
 				for j := i + 1; j < len(pathItems); j++ {
+					// BUG: for pathItems containing integers, it will append empty strings
 					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
 				}
 				newPathJSON, _ := json.Marshal(newPath)
@@ -997,6 +1125,7 @@ const (
 	invalidGraphQLResponse      = "invalid JSON"
 	invalidGraphQLResponseShape = "no data or errors in response"
 	invalidBatchItemCount       = "returned entities count does not match the count of representation variables in the entities request. Expected %d, got %d"
+	invalidSubgraphResponse     = "failed to obtain field dependencies from subgraphs"
 )
 
 func (l *Loader) renderAtPathErrorPart(path string) string {
