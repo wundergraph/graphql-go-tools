@@ -93,6 +93,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		headers := make(http.Header)
 		headers.Set("Content-Type", "application/json")
 		response := rw.AsHTTPResponse(http.StatusOK, headers)
+		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		require.NoError(t, err)
 
@@ -113,6 +114,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			defer response.Body.Close()
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.Equal(t, "gzip", response.Header.Get(httpclient.ContentEncodingHeader))
@@ -130,6 +132,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			defer response.Body.Close()
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))

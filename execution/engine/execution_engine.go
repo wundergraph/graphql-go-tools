@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
-
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/jensneuse/abstractlogger"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"

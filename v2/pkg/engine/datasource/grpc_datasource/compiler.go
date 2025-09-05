@@ -7,10 +7,11 @@ import (
 
 	"github.com/bufbuild/protocompile"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 // DataType represents the different types of data that can be stored in a protobuf field.

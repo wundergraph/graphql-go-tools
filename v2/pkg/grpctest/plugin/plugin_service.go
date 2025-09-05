@@ -4,9 +4,10 @@ import (
 	"context"
 
 	"github.com/hashicorp/go-plugin"
+	"google.golang.org/grpc"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
-	"google.golang.org/grpc"
 )
 
 var handshakeConfig = plugin.HandshakeConfig{
