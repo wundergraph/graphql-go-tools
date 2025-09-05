@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/buger/jsonparser"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
 )

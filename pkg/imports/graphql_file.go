@@ -52,9 +52,7 @@ func (g GraphQLFile) renderSelf(printFilePath bool, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer func(file *os.File) {
-		err = file.Close()
-	}(file)
+	defer file.Close()
 
 	if printFilePath {
 		err = g.renderFilePath(out)

@@ -2,7 +2,6 @@ package ast
 
 import (
 	"bytes"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/lexer/position"
 )
 

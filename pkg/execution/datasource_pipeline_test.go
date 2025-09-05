@@ -19,12 +19,7 @@ func TestPipelineDataSource_Resolve(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer func(configFile *os.File) {
-		err := configFile.Close()
-		if err != nil {
-			t.Fatalf("Failed to close configFile: %s", err)
-		}
-	}(configFile)
+	defer configFile.Close()
 
 	var pipeline pipe.Pipeline
 	err = pipeline.FromConfig(configFile)

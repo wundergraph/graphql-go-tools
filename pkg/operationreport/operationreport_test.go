@@ -3,9 +3,8 @@ package operationreport
 import (
 	"errors"
 	"fmt"
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestExternalErrorMessage(t *testing.T) {

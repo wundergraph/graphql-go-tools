@@ -1,9 +1,8 @@
 package astnormalization
 
 import (
-	"testing"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/astvisitor"
+	"testing"
 )
 
 const testInputDefaultSchema = `

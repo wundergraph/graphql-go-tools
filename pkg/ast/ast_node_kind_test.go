@@ -1,9 +1,8 @@
 package ast
 
 import (
-	"testing"
-
 	"github.com/stretchr/testify/assert"
+	"testing"
 )
 
 func TestNodeKindIsAbstractType(t *testing.T) {

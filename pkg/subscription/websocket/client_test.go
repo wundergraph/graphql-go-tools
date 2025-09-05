@@ -108,10 +108,7 @@ func TestClient_ReadFromClient(t *testing.T) {
 		t.Run("before read", func(t *testing.T) {
 			_, connToClient := net.Pipe()
 			websocketClient := NewClient(abstractlogger.NoopLogger, connToClient)
-			defer func(connToClient net.Conn) {
-				err := connToClient.Close()
-				assert.NoError(t, err)
-			}(connToClient)
+			defer connToClient.Close()
 			websocketClient.isClosedConnection = true
 
 			assert.Eventually(t, func() bool {

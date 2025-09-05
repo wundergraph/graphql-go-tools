@@ -97,9 +97,7 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte, out io.Wr
 	if err != nil {
 		return err
 	}
-	defer func(Body io.ReadCloser) {
-		err = response.Body.Close()
-	}(response.Body)
+	defer response.Body.Close()
 
 	respReader, err := respBodyReader(request, response)
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	log "github.com/jensneuse/abstractlogger"
-
 	"github.com/wundergraph/graphql-go-tools/pkg/pool"
 )
 

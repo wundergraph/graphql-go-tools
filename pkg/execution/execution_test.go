@@ -2004,12 +2004,7 @@ func TestExecutor_HTTPJSONDataSourceWithBody(t *testing.T) {
 				t.Fatal(err)
 				return
 			}
-			defer func(Body io.ReadCloser) {
-				err := Body.Close()
-				if err != nil {
-					t.Fatal(err)
-				}
-			}(r.Body)
+			defer r.Body.Close()
 
 			strData := string(data)
 			_ = strData
@@ -2501,12 +2496,7 @@ func TestExecutor_HTTPJSONDataSourceWithBodyComplexPlayload(t *testing.T) {
 			t.Fatal(err)
 			return
 		}
-		defer func(Body io.ReadCloser) {
-			err := Body.Close()
-			if err != nil {
-				t.Fatalf("Failed to close body: %s", err)
-			}
-		}(r.Body)
+		defer r.Body.Close()
 
 		gotString := prettyJSON(bytes.NewReader(data))
 
