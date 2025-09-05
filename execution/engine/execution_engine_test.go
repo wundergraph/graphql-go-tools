@@ -4668,7 +4668,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 				},
 			},
 			staticdatasource.Configuration{
-				Data: `"world"`,
+				Data: `{"hello": "world"}`,
 			},
 		)
 		require.NoError(b, err)
@@ -4679,9 +4679,8 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		})
 		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
-				TypeName:              "Query",
-				FieldName:             "hello",
-				DisableDefaultMapping: true,
+				TypeName:  "Query",
+				FieldName: "hello",
 			},
 		})
 
@@ -4725,7 +4724,9 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		for pb.Next() {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
-			_ = bc.engine.Execute(ctx, &req, bc.writer)
+			if err := bc.engine.Execute(ctx, &req, bc.writer); err != nil {
+				b.Fatal(err)
+			}
 			pool.Put(bc)
 		}
 	})
