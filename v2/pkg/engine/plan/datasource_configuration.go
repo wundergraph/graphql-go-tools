@@ -53,6 +53,9 @@ type DataSourceMetadata struct {
 
 	rootNodesIndex  map[string]fieldsIndex // maps TypeName to fieldsIndex
 	childNodesIndex map[string]fieldsIndex // maps TypeName to fieldsIndex
+
+	// requireFetchReasons provides a lookup map for fields marked with corresponding directive.
+	requireFetchReasons map[FieldCoordinate]struct{}
 }
 
 type DirectivesConfigurations interface {
@@ -71,13 +74,12 @@ type NodesInfo interface {
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
-	RequiresFetchReason(typeName, fieldName string) bool
+	RequireFetchReasons() map[FieldCoordinate]struct{}
 }
 
 type fieldsIndex struct {
-	fields            map[string]struct{}
-	externalFields    map[string]struct{}
-	fetchReasonFields map[string]struct{}
+	fields         map[string]struct{}
+	externalFields map[string]struct{}
 }
 
 func (d *DataSourceMetadata) Init() error {
@@ -102,14 +104,14 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 
 	d.rootNodesIndex = make(map[string]fieldsIndex, len(d.RootNodes))
 	d.childNodesIndex = make(map[string]fieldsIndex, len(d.ChildNodes))
+	d.requireFetchReasons = make(map[FieldCoordinate]struct{})
 
 	for i := range d.RootNodes {
 		typeName := d.RootNodes[i].TypeName
 		if _, ok := d.rootNodesIndex[typeName]; !ok {
 			d.rootNodesIndex[typeName] = fieldsIndex{
-				fields:            make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
-				externalFields:    make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
-				fetchReasonFields: make(map[string]struct{}, len(d.RootNodes[i].FetchReasonFields)),
+				fields:         make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
+				externalFields: make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
 			}
 		}
 		for _, name := range d.RootNodes[i].FieldNames {
@@ -119,7 +121,7 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 			d.rootNodesIndex[typeName].externalFields[name] = struct{}{}
 		}
 		for _, name := range d.RootNodes[i].FetchReasonFields {
-			d.rootNodesIndex[typeName].fetchReasonFields[name] = struct{}{}
+			d.requireFetchReasons[FieldCoordinate{typeName, name}] = struct{}{}
 		}
 	}
 
@@ -127,9 +129,8 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		typeName := d.ChildNodes[i].TypeName
 		if _, ok := d.childNodesIndex[typeName]; !ok {
 			d.childNodesIndex[typeName] = fieldsIndex{
-				fields:            make(map[string]struct{}),
-				externalFields:    make(map[string]struct{}),
-				fetchReasonFields: make(map[string]struct{}),
+				fields:         make(map[string]struct{}),
+				externalFields: make(map[string]struct{}),
 			}
 		}
 		for _, name := range d.ChildNodes[i].FieldNames {
@@ -139,7 +140,7 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 			d.childNodesIndex[typeName].externalFields[name] = struct{}{}
 		}
 		for _, name := range d.ChildNodes[i].FetchReasonFields {
-			d.childNodesIndex[typeName].fetchReasonFields[name] = struct{}{}
+			d.requireFetchReasons[FieldCoordinate{typeName, name}] = struct{}{}
 		}
 	}
 }
@@ -207,32 +208,8 @@ func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bo
 	return ok
 }
 
-func (d *DataSourceMetadata) RequiresFetchReason(typeName, fieldName string) bool {
-	return d.hasFetchReasonRootNode(typeName, fieldName) || d.hasFetchReasonChildNode(typeName, fieldName)
-}
-
-func (d *DataSourceMetadata) hasFetchReasonRootNode(typeName, fieldName string) bool {
-	if d.rootNodesIndex == nil {
-		return false
-	}
-	index, ok := d.rootNodesIndex[typeName]
-	if !ok {
-		return false
-	}
-	_, ok = index.fetchReasonFields[fieldName]
-	return ok
-}
-
-func (d *DataSourceMetadata) hasFetchReasonChildNode(typeName, fieldName string) bool {
-	if d.childNodesIndex == nil {
-		return false
-	}
-	index, ok := d.childNodesIndex[typeName]
-	if !ok {
-		return false
-	}
-	_, ok = index.fetchReasonFields[fieldName]
-	return ok
+func (d *DataSourceMetadata) RequireFetchReasons() map[FieldCoordinate]struct{} {
+	return d.requireFetchReasons
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {

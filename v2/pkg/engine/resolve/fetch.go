@@ -21,7 +21,7 @@ type Fetch interface {
 	FetchKind() FetchKind
 	Dependencies() *FetchDependencies
 	DataSourceInfo() DataSourceInfo
-	GetInfo() *FetchInfo
+	FetchInfo() *FetchInfo
 }
 
 type FetchItem struct {
@@ -100,7 +100,7 @@ func (s *SingleFetch) Dependencies() *FetchDependencies {
 	return &s.FetchDependencies
 }
 
-func (s *SingleFetch) GetInfo() *FetchInfo {
+func (s *SingleFetch) FetchInfo() *FetchInfo {
 	return s.Info
 }
 
@@ -177,7 +177,7 @@ func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 	return &b.FetchDependencies
 }
 
-func (b *BatchEntityFetch) GetInfo() *FetchInfo {
+func (b *BatchEntityFetch) FetchInfo() *FetchInfo {
 	return b.Info
 }
 
@@ -224,7 +224,7 @@ func (e *EntityFetch) Dependencies() *FetchDependencies {
 	return &e.FetchDependencies
 }
 
-func (e *EntityFetch) GetInfo() *FetchInfo {
+func (e *EntityFetch) FetchInfo() *FetchInfo {
 	return e.Info
 }
 
@@ -259,7 +259,7 @@ func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
 	return &p.Fetch.FetchDependencies
 }
 
-func (p *ParallelListItemFetch) GetInfo() *FetchInfo {
+func (p *ParallelListItemFetch) FetchInfo() *FetchInfo {
 	return p.Fetch.Info
 }
 
@@ -412,9 +412,9 @@ type FetchInfo struct {
 	// If this structure is built, then all the fields are processed.
 	FetchReasons []FetchReason
 
-	// RequireFetchReason holds indexes to those FetchReasons that will be propagated
+	// PropagatedFetchReasons holds those FetchReasons that will be propagated
 	// with the request to the subgraph as part of the "fetch_reason" extension.
-	RequireFetchReason []int
+	PropagatedFetchReasons []FetchReason
 }
 
 type GraphCoordinate struct {

@@ -3110,8 +3110,31 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												HasAuthorizationRule: false,
 											},
 										},
-										OperationType:      ast.OperationTypeQuery,
-										RequireFetchReason: []int{1, 2, 3},
+										OperationType: ast.OperationTypeQuery,
+										PropagatedFetchReasons: []resolve.FetchReason{
+											{
+												TypeName:  "Address",
+												FieldName: "id",
+												BySubgraphs: []string{
+													"account.service",
+													"address-enricher.service",
+													"address.service",
+												},
+												IsKey: true,
+											},
+											{
+												TypeName:    "Address",
+												FieldName:   "line1",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+											{
+												TypeName:    "Address",
+												FieldName:   "line2",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+										},
 										FetchReasons: []resolve.FetchReason{
 											{
 												TypeName:  "Account",
@@ -3382,7 +3405,20 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												},
 											},
 										},
-										RequireFetchReason: []int{1, 2},
+										PropagatedFetchReasons: []resolve.FetchReason{
+											{
+												TypeName:    "Address",
+												FieldName:   "line3",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+											{
+												TypeName:    "Address",
+												FieldName:   "zip",
+												BySubgraphs: []string{"account.service"},
+												IsRequires:  true,
+											},
+										},
 										FetchReasons: []resolve.FetchReason{
 											{
 												TypeName:  "Account",
@@ -16224,7 +16260,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								SelectionSet: "id",
 								Conditions: []plan.KeyCondition{
 									{
-										Coordinates: []plan.KeyConditionCoordinate{
+										Coordinates: []plan.FieldCoordinate{
 											{
 												TypeName:  "User",
 												FieldName: "hostedImageWithProvides",
@@ -17165,7 +17201,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 								SelectionSet: "id",
 								Conditions: []plan.KeyCondition{
 									{
-										Coordinates: []plan.KeyConditionCoordinate{
+										Coordinates: []plan.FieldCoordinate{
 											{
 												TypeName:  "Host",
 												FieldName: "image",
