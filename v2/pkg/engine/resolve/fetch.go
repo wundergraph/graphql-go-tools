@@ -21,8 +21,7 @@ type Fetch interface {
 	FetchKind() FetchKind
 	Dependencies() *FetchDependencies
 	DataSourceInfo() DataSourceInfo
-	DependenciesCoordinates() []FetchDependency
-	FetchReasons() []FetchReason
+	GetInfo() *FetchInfo
 }
 
 type FetchItem struct {
@@ -101,12 +100,8 @@ func (s *SingleFetch) Dependencies() *FetchDependencies {
 	return &s.FetchDependencies
 }
 
-func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
-	return s.CoordinateDependencies
-}
-
-func (s *SingleFetch) FetchReasons() []FetchReason {
-	return s.FieldFetchReasons
+func (s *SingleFetch) GetInfo() *FetchInfo {
+	return s.Info
 }
 
 func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
@@ -176,20 +171,14 @@ type BatchEntityFetch struct {
 	DataSourceIdentifier   []byte
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
-	CoordinateDependencies []FetchDependency
-	FieldFetchReasons      []FetchReason
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 	return &b.FetchDependencies
 }
 
-func (b *BatchEntityFetch) DependenciesCoordinates() []FetchDependency {
-	return b.CoordinateDependencies
-}
-
-func (b *BatchEntityFetch) FetchReasons() []FetchReason {
-	return b.FieldFetchReasons
+func (b *BatchEntityFetch) GetInfo() *FetchInfo {
+	return b.Info
 }
 
 func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
@@ -229,20 +218,14 @@ type EntityFetch struct {
 	DataSourceIdentifier   []byte
 	Trace                  *DataSourceLoadTrace
 	Info                   *FetchInfo
-	CoordinateDependencies []FetchDependency
-	FieldFetchReasons      []FetchReason
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
 	return &e.FetchDependencies
 }
 
-func (e *EntityFetch) DependenciesCoordinates() []FetchDependency {
-	return e.CoordinateDependencies
-}
-
-func (e *EntityFetch) FetchReasons() []FetchReason {
-	return e.FieldFetchReasons
+func (e *EntityFetch) GetInfo() *FetchInfo {
+	return e.Info
 }
 
 func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
@@ -276,12 +259,8 @@ func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
 	return &p.Fetch.FetchDependencies
 }
 
-func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
-	return p.Fetch.CoordinateDependencies
-}
-
-func (p *ParallelListItemFetch) FetchReasons() []FetchReason {
-	return p.Fetch.FieldFetchReasons
+func (p *ParallelListItemFetch) GetInfo() *FetchInfo {
+	return p.Fetch.Info
 }
 
 func (*ParallelListItemFetch) FetchKind() FetchKind {
@@ -341,17 +320,6 @@ type FetchConfiguration struct {
 
 	QueryPlan *QueryPlan
 
-	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
-	// and which fields from other fetches they depend on.
-	// This information is useful to understand why a fetch depends on other fetches,
-	// and how multiple dependencies lead to a chain of fetches
-	CoordinateDependencies []FetchDependency
-
-	// FieldFetchReasons contains provenance for fields that require fetch reason to be propagated
-	// to their subgraph. It is optional propagation via request extensions;
-	// it does not affect execution.
-	FieldFetchReasons []FetchReason
-
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
 }
@@ -367,10 +335,6 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	// Note: we do not compare datasources, as they will always be a different instance.
-	// Note: we do not compare CoordinateDependencies, as they contain more detailed
-	// dependencies information that is already present in the FetchDependencies on the fetch itself.
-	// Note: we do not compare FieldFetchReasons, as it is derived data for an extension
-	// and does not affect fetch execution semantics.
 
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
 		return false
@@ -429,12 +393,28 @@ type FetchReason struct {
 	IsRequires  bool     `json:"is_requires,omitempty"`
 }
 
+// FetchInfo contains additional (derived) information about the fetch. Some fields of this
+// structure may be not generated depending on the planner flags.
 type FetchInfo struct {
 	DataSourceID   string
 	DataSourceName string
 	RootFields     []GraphCoordinate
 	OperationType  ast.OperationType
 	QueryPlan      *QueryPlan
+
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
+	// and which fields from other fetches they depend on.
+	// This information is useful to understand why a fetch depends on other fetches,
+	// and how multiple dependencies lead to a chain of fetches
+	CoordinateDependencies []FetchDependency
+
+	// FetchReasons contains provenance for reasons why particular fields were fetched.
+	// If this structure is built, then all the fields are processed.
+	FetchReasons []FetchReason
+
+	// RequireFetchReason holds indexes to those FetchReasons that will be propagated
+	// with the request to the subgraph as part of the "fetch_reason" extension.
+	RequireFetchReason []int
 }
 
 type GraphCoordinate struct {

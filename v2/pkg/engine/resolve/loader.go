@@ -1599,19 +1599,27 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		}
 	}
 	if l.propagateFetchReasons && !IsIntrospectionDataSource(res.ds.ID) {
-		fetchReasons := fetchItem.Fetch.FetchReasons()
+		fetchReasons := fetchItem.Fetch.GetInfo().FetchReasons
 		if len(fetchReasons) > 0 {
-			var encoded []byte
-			encoded, res.err = json.Marshal(fetchReasons)
-			if res.err != nil {
-				res.err = errors.WithStack(res.err)
-				return
+			// Collect only those FetchReasons that were requested via directives.
+			indices := fetchItem.Fetch.GetInfo().RequireFetchReason
+			filteredReasons := make([]FetchReason, 0, len(indices))
+			for _, idx := range indices {
+				filteredReasons = append(filteredReasons, fetchReasons[idx])
 			}
-			// We expect that body.extensions is an object
-			input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "fetch_reasons")
-			if res.err != nil {
-				res.err = errors.WithStack(res.err)
-				return
+			if len(filteredReasons) > 0 {
+				var encoded []byte
+				encoded, res.err = json.Marshal(filteredReasons)
+				if res.err != nil {
+					res.err = errors.WithStack(res.err)
+					return
+				}
+				// We expect that body.extensions is an object
+				input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "fetch_reasons")
+				if res.err != nil {
+					res.err = errors.WithStack(res.err)
+					return
+				}
 			}
 		}
 	}

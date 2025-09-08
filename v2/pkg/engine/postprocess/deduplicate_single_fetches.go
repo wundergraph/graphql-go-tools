@@ -51,10 +51,10 @@ func (d *deduplicateSingleFetches) replaceDependsOnFetchId(root *resolve.FetchTr
 			continue
 		}
 
-		for j := range root.ChildNodes[i].Item.Fetch.DependenciesCoordinates() {
-			for k := range root.ChildNodes[i].Item.Fetch.DependenciesCoordinates()[j].DependsOn {
-				if root.ChildNodes[i].Item.Fetch.DependenciesCoordinates()[j].DependsOn[k].FetchID == oldId {
-					root.ChildNodes[i].Item.Fetch.DependenciesCoordinates()[j].DependsOn[k].FetchID = newId
+		for _, dependant := range root.ChildNodes[i].Item.Fetch.GetInfo().CoordinateDependencies {
+			for k := range dependant.DependsOn {
+				if dependant.DependsOn[k].FetchID == oldId {
+					dependant.DependsOn[k].FetchID = newId
 				}
 			}
 		}

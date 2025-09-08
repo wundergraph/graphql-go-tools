@@ -216,7 +216,7 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
-				Dependencies:      f.FetchConfiguration.CoordinateDependencies,
+				Dependencies:      f.Info.CoordinateDependencies,
 			}
 
 			if f.Info.QueryPlan != nil {
@@ -231,7 +231,7 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
-				Dependencies:      f.CoordinateDependencies,
+				Dependencies:      f.Info.CoordinateDependencies,
 			}
 
 			if f.Info.QueryPlan != nil {
@@ -246,7 +246,7 @@ func (n *FetchTreeNode) queryPlan() *FetchTreeQueryPlanNode {
 				SubgraphName:      f.Info.DataSourceName,
 				SubgraphID:        f.Info.DataSourceID,
 				Path:              n.Item.ResponsePath,
-				Dependencies:      f.CoordinateDependencies,
+				Dependencies:      f.Info.CoordinateDependencies,
 			}
 
 			if f.Info.QueryPlan != nil {

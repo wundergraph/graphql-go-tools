@@ -31,8 +31,14 @@ type Configuration struct {
 	DisableIncludeInfo bool
 
 	// DisableIncludeFieldDependencies controls whether the planner generates
-	// field dependency structures (useful in tests).
+	// field dependency structures.
+	// It requires DisableIncludeInfo set to false.
 	DisableIncludeFieldDependencies bool
+
+	// BuildFetchReasons allows generating the FetchReasons structure for all the fields.
+	// It may be enabled by some other components of the engine.
+	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
+	BuildFetchReasons bool
 }
 
 type DebugConfiguration struct {

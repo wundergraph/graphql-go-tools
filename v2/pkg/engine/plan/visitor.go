@@ -1333,11 +1333,23 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			OperationType:  internal.operationType,
 			QueryPlan:      external.QueryPlan,
 		}
-	}
+		if !v.Config.DisableIncludeInfo {
+			singleFetch.Info.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
 
-	if !v.Config.DisableIncludeFieldDependencies {
-		singleFetch.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
-		singleFetch.FieldFetchReasons = v.buildFetchReasons(internal.fetchID)
+			if v.Config.BuildFetchReasons {
+				singleFetch.Info.FetchReasons = v.buildFetchReasons(internal.fetchID)
+				if singleFetch.Info.FetchReasons != nil {
+					dsConfig := v.planners[internal.fetchID].DataSourceConfiguration()
+					indices := make([]int, 0, len(singleFetch.Info.FetchReasons))
+					for i, fr := range singleFetch.Info.FetchReasons {
+						if dsConfig.RequiresFetchReason(fr.TypeName, fr.FieldName) {
+							indices = append(indices, i)
+						}
+					}
+					singleFetch.Info.RequireFetchReason = indices
+				}
+			}
+		}
 	}
 
 	return singleFetch
@@ -1403,7 +1415,6 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 	if !ok {
 		return nil
 	}
-	dsConfig := v.planners[fetchID].DataSourceConfiguration()
 
 	type typedField struct {
 		typeName string
@@ -1418,9 +1429,6 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 			continue
 		}
 		typeName := v.fieldEnclosingTypeNames[fieldRef]
-		if !dsConfig.RequiresFetchReason(typeName, fieldName) {
-			continue
-		}
 
 		byUser := !v.skipField(fieldRef)
 		dependants, ok := v.fieldRefDependants[fieldRef]

@@ -231,6 +231,12 @@ func withValueCompletion() executionTestOptions {
 	}
 }
 
+func withFetchReasons() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.propagateFetchReasons = true
+	}
+}
+
 func TestExecutionEngine_Execute(t *testing.T) {
 	run := func(testCase ExecutionEngineTestCase, withError bool, expectedErrorMessage string, options ...executionTestOptions) func(t *testing.T) {
 		t.Helper()
@@ -262,6 +268,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			for _, option := range options {
 				option(&opts)
 			}
+			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
 			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
@@ -827,7 +834,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		},
 	))
 
-	t.Run("execute simple hero operation with propagating to subgraphs reason for fields being requested", runWithoutError(
+	t.Run("execute simple hero operation with propagating to subgraphs fetch reasons", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
@@ -875,9 +882,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		},
-		func(eto *_executionTestOptions) {
-			eto.propagateFetchReasons = true
-		},
+		withFetchReasons(),
 	))
 
 	t.Run("execute simple hero operation with graphql data source and empty errors list", runWithoutError(
@@ -4539,9 +4544,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				dataSources:      makeDataSource(t, true),
 				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 			},
-			func(eto *_executionTestOptions) {
-				eto.propagateFetchReasons = true
-			},
+			withFetchReasons(),
 		))
 	})
 }
