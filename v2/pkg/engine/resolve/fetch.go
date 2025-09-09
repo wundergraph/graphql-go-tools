@@ -20,6 +20,9 @@ const (
 type Fetch interface {
 	FetchKind() FetchKind
 	Dependencies() *FetchDependencies
+
+	// FetchInfo returns additional fetch-related information.
+	// It may return nil when the planner skips building this structure.
 	FetchInfo() *FetchInfo
 }
 
