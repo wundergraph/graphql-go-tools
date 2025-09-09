@@ -22,7 +22,7 @@ type Fetch interface {
 	Dependencies() *FetchDependencies
 
 	// FetchInfo returns additional fetch-related information.
-	// It may return nil when the planner skips building this structure.
+	// Callers must treat FetchInfo as read-only after planning; it may be nil when disabled by planner options.
 	FetchInfo() *FetchInfo
 }
 
@@ -370,8 +370,8 @@ type FetchReason struct {
 	IsRequires  bool     `json:"is_requires,omitempty"`
 }
 
-// FetchInfo contains additional (derived) information about the fetch. Some fields of this
-// structure may be not generated depending on the planner flags.
+// FetchInfo contains additional (derived) information about the fetch.
+// Some fields may not be generated depending on planner flags.
 type FetchInfo struct {
 	DataSourceID   string
 	DataSourceName string
@@ -497,3 +497,11 @@ type WroteRequestStats struct {
 	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 	Err                      string `json:"err,omitempty"`
 }
+
+// Compile-time interface assertions to catch regressions.
+var (
+	_ Fetch = (*SingleFetch)(nil)
+	_ Fetch = (*BatchEntityFetch)(nil)
+	_ Fetch = (*EntityFetch)(nil)
+	_ Fetch = (*ParallelListItemFetch)(nil)
+)
