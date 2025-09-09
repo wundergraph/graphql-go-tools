@@ -629,7 +629,6 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 
 	trig, ok := r.triggers[triggerID]
 	if ok {
-		trig.subscriptions[add.ctx] = s
 		if r.reporter != nil {
 			r.reporter.SubscriptionCountInc(1)
 		}
@@ -644,6 +643,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			},
 			final: false,
 		}
+		// After the startup hooks are executed, we can add the subscription to the subscriptions registry
+		// so that it can start receive events
+		trig.subscriptions[add.ctx] = s
 		return
 	}
 
