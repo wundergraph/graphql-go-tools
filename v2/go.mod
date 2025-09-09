@@ -1,6 +1,6 @@
 module github.com/wundergraph/graphql-go-tools/v2
 
-go 1.23.0
+go 1.25
 
 require (
 	github.com/99designs/gqlgen v0.17.45

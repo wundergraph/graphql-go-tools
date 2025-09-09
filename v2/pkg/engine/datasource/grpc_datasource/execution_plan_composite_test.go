@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	grpctest "github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 )

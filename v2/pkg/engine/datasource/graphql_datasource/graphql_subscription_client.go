@@ -829,11 +829,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 			// this allows us to keep handling events in parallel while being able to manage connections without locks
 			// as a result, we can handle a large number of connections with a single threaded event loop
 
-			for {
-				if waitForEvents == 0 {
-					// once we have results for all events, we can return to the top level loop and wait for the next tick
-					break
-				}
+			// once we have results for all events, we can return to the top level loop and wait for the next tick
+			for waitForEvents > 0 {
 				select {
 				case result := <-connResults:
 					// if the connection indicates that it should be closed, we close and remove it

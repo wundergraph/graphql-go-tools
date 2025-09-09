@@ -7,10 +7,11 @@ import (
 	"math/rand"
 	"strconv"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
 var _ productv1.ProductServiceServer = &MockService{}

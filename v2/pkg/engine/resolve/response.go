@@ -4,6 +4,7 @@ import (
 	"io"
 
 	"github.com/gobwas/ws"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )

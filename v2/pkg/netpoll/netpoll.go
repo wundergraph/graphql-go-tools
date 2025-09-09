@@ -3,10 +3,11 @@ package netpoll
 import (
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"net"
 	"syscall"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 var (

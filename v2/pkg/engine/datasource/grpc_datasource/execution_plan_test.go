@@ -4,13 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 )
 
 type testCase struct {

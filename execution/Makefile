@@ -6,15 +6,19 @@ test:
 .PHONY: test-quick
 test-quick:
 	go test -count=1 ./...
+	go test -run=^$$ -bench=. -benchtime=1x ./...
 
-# updateTestFixtures will update all! golden fixtures
-.PHONY: updateTestFixtures
-updateTestFixtures:
+# update-fixtures will update all! golden fixtures
+.PHONY: update-fixtures
+update-fixtures:
 	GOLDIE_UPDATE=1 go test -count=1 ./engine/...
 
 .PHONY: format
 format:
-	go fmt ./...
+	golangci-lint fmt --config ../.golangci.yml
+
+lint:
+	golangci-lint run --config ../.golangci.yml .
 
 .PHONY: prepare-merge
 prepare-merge: format test
