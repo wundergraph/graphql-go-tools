@@ -157,12 +157,12 @@ func (*SingleFetch) FetchKind() FetchKind {
 type BatchEntityFetch struct {
 	FetchDependencies
 
-	Input                  BatchInput
-	DataSource             DataSource
-	PostProcessing         PostProcessingConfiguration
-	DataSourceIdentifier   []byte
-	Trace                  *DataSourceLoadTrace
-	Info                   *FetchInfo
+	Input                BatchInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -172,7 +172,6 @@ func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 func (b *BatchEntityFetch) FetchInfo() *FetchInfo {
 	return b.Info
 }
-
 
 type BatchInput struct {
 	Header InputTemplate
@@ -198,12 +197,12 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 type EntityFetch struct {
 	FetchDependencies
 
-	Input                  EntityInput
-	DataSource             DataSource
-	PostProcessing         PostProcessingConfiguration
-	DataSourceIdentifier   []byte
-	Trace                  *DataSourceLoadTrace
-	Info                   *FetchInfo
+	Input                EntityInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {

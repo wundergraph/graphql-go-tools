@@ -15,10 +15,10 @@ update-fixtures:
 
 .PHONY: format
 format:
-	golangci-lint fmt --config ../.golangci.yml
+	golangci-lint fmt 
 
 lint:
-	golangci-lint run --config ../.golangci.yml .
+	golangci-lint run 
 
 .PHONY: prepare-merge
 prepare-merge: format test

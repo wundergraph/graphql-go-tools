@@ -45,7 +45,7 @@ type nodeSelectionVisitor struct {
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
-	rewrittenFieldRefs   []int
+	rewrittenFieldRefs []int
 }
 
 type fieldDependencyKey struct {
