@@ -4894,7 +4894,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			},
 			dataSources:      datasources,
 			expectedResponse: `{"data":{"accounts":[{"id":"1","full":null},{"id":"3","full":"User3 full"}]},"errors":[{"message":"failed to obtain field dependencies from subgraphs","locations":[{"line":1,"column":38}],"path":["query","accounts",0,"full"]}]}`,
-		}))
+		}, withFetchReasons()))
 	})
 }
 

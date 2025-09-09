@@ -765,16 +765,17 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 // getTaintedIndices identifies indices of tainted entities based on error paths in the response.
 // It processes errors, validates entities, and checks if they align with requested fetch reasons.
 func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []*astjson.Value) (idx []int) {
-	type typedField struct {
-		typeName string
-		field    string
+	info := fetch.FetchInfo()
+	if info == nil {
+		return nil
 	}
 
 	// build a map to search with
-	requestedForRequires := map[typedField]struct{}{}
-	for _, fr := range fetch.FetchReasons() {
+	requestedForRequires := map[GraphCoordinate]struct{}{}
+	for _, fr := range info.FetchReasons {
 		if fr.IsRequires {
-			requestedForRequires[typedField{fr.TypeName, fr.FieldName}] = struct{}{}
+			coord := GraphCoordinate{TypeName: fr.TypeName, FieldName: fr.FieldName}
+			requestedForRequires[coord] = struct{}{}
 		}
 	}
 	if len(requestedForRequires) == 0 {
@@ -811,8 +812,8 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []
 				if typeName == "" {
 					break
 				}
-				typeField := typedField{typeName, field}
-				if _, ok := requestedForRequires[typeField]; !ok {
+				coord := GraphCoordinate{TypeName: typeName, FieldName: field}
+				if _, ok := requestedForRequires[coord]; !ok {
 					break
 				}
 				// entity.Set(internalTaintedWithError, astjson.MustParse("true"))
