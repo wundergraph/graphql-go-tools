@@ -1345,19 +1345,20 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		return singleFetch
 	}
 	singleFetch.Info.FetchReasons = v.buildFetchReasons(internal.fetchID)
-	if singleFetch.Info.FetchReasons != nil {
-		dsConfig := v.planners[internal.fetchID].DataSourceConfiguration()
-		lookup := dsConfig.RequireFetchReasons()
-		propagated := make([]resolve.FetchReason, 0, len(lookup))
-		for _, fr := range singleFetch.Info.FetchReasons {
-			field := FieldCoordinate{fr.TypeName, fr.FieldName}
-			if _, ok := lookup[field]; ok {
-				propagated = append(propagated, fr)
-			}
-		}
-		singleFetch.Info.PropagatedFetchReasons = propagated
+	if singleFetch.Info.FetchReasons == nil {
+		return singleFetch
 	}
 
+	dsConfig := v.planners[internal.fetchID].DataSourceConfiguration()
+	lookup := dsConfig.RequireFetchReasons()
+	propagated := make([]resolve.FetchReason, 0, len(lookup))
+	for _, fr := range singleFetch.Info.FetchReasons {
+		field := FieldCoordinate{fr.TypeName, fr.FieldName}
+		if _, ok := lookup[field]; ok {
+			propagated = append(propagated, fr)
+		}
+	}
+	singleFetch.Info.PropagatedFetchReasons = propagated
 	return singleFetch
 }
 

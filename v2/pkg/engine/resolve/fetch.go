@@ -391,6 +391,7 @@ type FetchInfo struct {
 
 	// PropagatedFetchReasons holds those FetchReasons that will be propagated
 	// with the request to the subgraph as part of the "fetch_reason" extension.
+	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
 	PropagatedFetchReasons []FetchReason
 }
 
