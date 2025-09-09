@@ -2,6 +2,7 @@ package plan
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/jensneuse/abstractlogger"
@@ -153,6 +154,7 @@ func (p *Planner) Plan(operation, definition *ast.Document, operationName string
 	p.planningVisitor.skipFieldsRefs = selectionsConfig.skipFieldsRefs
 	p.planningVisitor.fieldRefDependsOnFieldRefs = selectionsConfig.fieldRefDependsOn
 	p.planningVisitor.fieldDependencyKind = selectionsConfig.fieldDependencyKind
+	p.planningVisitor.fieldRefDependants = inverseMap(selectionsConfig.fieldRefDependsOn)
 
 	p.planningWalker.ResetVisitors()
 	p.planningWalker.SetVisitorFilter(p.planningVisitor)
@@ -225,6 +227,20 @@ func (p *Planner) selectOperation(operation *ast.Document, operationName string,
 
 func (p *Planner) prepareOperation(operation, definition *ast.Document, report *operationreport.Report) {
 	p.prepareOperationWalker.Walk(operation, definition, report)
+}
+
+func inverseMap(m map[int][]int) map[int][]int {
+	inverse := make(map[int][]int)
+	for k, v := range m {
+		for _, v2 := range v {
+			inverse[v2] = append(inverse[v2], k)
+		}
+	}
+	// Normalize ordering for deterministic plans/tests
+	for key := range inverse {
+		sort.Ints(inverse[key])
+	}
+	return inverse
 }
 
 func debugMessage(msg string) {
