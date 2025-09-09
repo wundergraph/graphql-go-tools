@@ -1345,7 +1345,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		return singleFetch
 	}
 	singleFetch.Info.FetchReasons = v.buildFetchReasons(internal.fetchID)
-	if singleFetch.Info.FetchReasons == nil {
+	if len(singleFetch.Info.FetchReasons) == 0 {
 		return singleFetch
 	}
 
