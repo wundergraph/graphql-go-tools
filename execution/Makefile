@@ -13,12 +13,13 @@ test-quick:
 update-fixtures:
 	GOLDIE_UPDATE=1 go test -count=1 ./engine/...
 
+# golangci-lint will find the config file in the root dir of the repo.
 .PHONY: format
 format:
-	golangci-lint fmt --config ../.golangci.yml
+	golangci-lint fmt 
 
 lint:
-	golangci-lint run --config ../.golangci.yml .
+	golangci-lint run 
 
 .PHONY: prepare-merge
 prepare-merge: format test

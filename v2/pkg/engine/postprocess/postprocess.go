@@ -180,9 +180,15 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.collectDataSourceInfo {
 		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
 		for _, fetch := range fetches {
-			dsInfo := fetch.Fetch.DataSourceInfo()
-			if !slices.Contains(list, dsInfo) {
-				list = append(list, dsInfo)
+			info := fetch.Fetch.FetchInfo()
+			if info != nil {
+				dsInfo := resolve.DataSourceInfo{
+					ID:   info.DataSourceID,
+					Name: info.DataSourceName,
+				}
+				if !slices.Contains(list, dsInfo) {
+					list = append(list, dsInfo)
+				}
 			}
 		}
 		res.DataSources = list

@@ -1325,21 +1325,40 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		DataSourceIdentifier: []byte(dataSourceType),
 	}
 
-	if !v.Config.DisableIncludeInfo {
-		singleFetch.Info = &resolve.FetchInfo{
-			DataSourceID:   internal.sourceID,
-			DataSourceName: internal.sourceName,
-			RootFields:     internal.rootFields,
-			OperationType:  internal.operationType,
-			QueryPlan:      external.QueryPlan,
+	if v.Config.DisableIncludeInfo {
+		return singleFetch
+	}
+	singleFetch.Info = &resolve.FetchInfo{
+		DataSourceID:   internal.sourceID,
+		DataSourceName: internal.sourceName,
+		RootFields:     internal.rootFields,
+		OperationType:  internal.operationType,
+		QueryPlan:      external.QueryPlan,
+	}
+
+	if v.Config.DisableIncludeFieldDependencies {
+		return singleFetch
+	}
+	singleFetch.Info.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
+
+	if !v.Config.BuildFetchReasons {
+		return singleFetch
+	}
+	singleFetch.Info.FetchReasons = v.buildFetchReasons(internal.fetchID)
+	if len(singleFetch.Info.FetchReasons) == 0 {
+		return singleFetch
+	}
+
+	dsConfig := v.planners[internal.fetchID].DataSourceConfiguration()
+	lookup := dsConfig.RequireFetchReasons()
+	propagated := make([]resolve.FetchReason, 0, len(lookup))
+	for _, fr := range singleFetch.Info.FetchReasons {
+		field := FieldCoordinate{fr.TypeName, fr.FieldName}
+		if _, ok := lookup[field]; ok {
+			propagated = append(propagated, fr)
 		}
 	}
-
-	if !v.Config.DisableIncludeFieldDependencies {
-		singleFetch.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
-		singleFetch.FieldFetchReasons = v.buildFetchReasons(internal.fetchID)
-	}
-
+	singleFetch.Info.PropagatedFetchReasons = propagated
 	return singleFetch
 }
 
@@ -1403,14 +1422,9 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 	if !ok {
 		return nil
 	}
-	dsConfig := v.planners[fetchID].DataSourceConfiguration()
 
-	type typedField struct {
-		typeName string
-		field    string
-	}
 	reasons := make([]resolve.FetchReason, 0, len(fields))
-	index := make(map[typedField]int, len(fields))
+	index := make(map[FieldCoordinate]int, len(fields))
 
 	for _, fieldRef := range fields {
 		fieldName := v.Operation.FieldNameString(fieldRef)
@@ -1418,17 +1432,13 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 			continue
 		}
 		typeName := v.fieldEnclosingTypeNames[fieldRef]
-		if !dsConfig.RequiresFetchReason(typeName, fieldName) {
-			continue
-		}
 
 		byUser := !v.skipField(fieldRef)
-		dependants, ok := v.fieldRefDependants[fieldRef]
 
 		var subgraphs []string
 		var isKey, isRequires bool
 
-		if ok {
+		if dependants, ok := v.fieldRefDependants[fieldRef]; ok {
 			subgraphs = make([]string, 0, len(dependants))
 			for _, reqByRef := range dependants {
 				plannerIDs, ok := v.fieldPlanners[reqByRef]
@@ -1460,7 +1470,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 
 		// Deduplicate using the index and merge with existing entries.
 		if byUser || len(subgraphs) > 0 {
-			key := typedField{typeName: typeName, field: fieldName}
+			key := FieldCoordinate{TypeName: typeName, FieldName: fieldName}
 			var i int
 			if i, ok = index[key]; ok {
 				// True should overwrite false.

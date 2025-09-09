@@ -1599,10 +1599,10 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		}
 	}
 	if l.propagateFetchReasons && !IsIntrospectionDataSource(res.ds.ID) {
-		fetchReasons := fetchItem.Fetch.FetchReasons()
-		if len(fetchReasons) > 0 {
+		info := fetchItem.Fetch.FetchInfo()
+		if info != nil && len(info.PropagatedFetchReasons) > 0 {
 			var encoded []byte
-			encoded, res.err = json.Marshal(fetchReasons)
+			encoded, res.err = json.Marshal(info.PropagatedFetchReasons)
 			if res.err != nil {
 				res.err = errors.WithStack(res.err)
 				return
