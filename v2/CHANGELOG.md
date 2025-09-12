@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.226](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.225...v2.0.0-rc.226) (2025-09-12)
+
+
+### Bug Fixes
+
+* detecting requires on interface members ([#1295](https://github.com/wundergraph/graphql-go-tools/issues/1295)) ([70bd5d5](https://github.com/wundergraph/graphql-go-tools/commit/70bd5d5b4f5d8442e488c0e1b4ed5e31f5113295))
+
 ## [2.0.0-rc.225](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.224...v2.0.0-rc.225) (2025-09-09)
 
 
