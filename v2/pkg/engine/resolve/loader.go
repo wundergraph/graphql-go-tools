@@ -175,6 +175,8 @@ type Loader struct {
 	allowedSubgraphErrorFields map[string]struct{}
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
+
+	propagateFetchReasons bool
 }
 
 func (l *Loader) Free() {
@@ -1594,6 +1596,23 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		if res.err != nil {
 			res.err = errors.WithStack(res.err)
 			return
+		}
+	}
+	if l.propagateFetchReasons && !IsIntrospectionDataSource(res.ds.ID) {
+		info := fetchItem.Fetch.FetchInfo()
+		if info != nil && len(info.PropagatedFetchReasons) > 0 {
+			var encoded []byte
+			encoded, res.err = json.Marshal(info.PropagatedFetchReasons)
+			if res.err != nil {
+				res.err = errors.WithStack(res.err)
+				return
+			}
+			// We expect that body.extensions is an object
+			input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "fetch_reasons")
+			if res.err != nil {
+				res.err = errors.WithStack(res.err)
+				return
+			}
 		}
 	}
 	if l.ctx.TracingOptions.Enable {

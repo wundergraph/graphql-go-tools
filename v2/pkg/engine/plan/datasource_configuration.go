@@ -51,8 +51,11 @@ type DataSourceMetadata struct {
 
 	Directives *DirectiveConfigurations
 
-	rootNodesIndex  map[string]fieldsIndex
-	childNodesIndex map[string]fieldsIndex
+	rootNodesIndex  map[string]fieldsIndex // maps TypeName to fieldsIndex
+	childNodesIndex map[string]fieldsIndex // maps TypeName to fieldsIndex
+
+	// requireFetchReasons provides a lookup map for fields marked with corresponding directive.
+	requireFetchReasons map[FieldCoordinate]struct{}
 }
 
 type DirectivesConfigurations interface {
@@ -71,6 +74,7 @@ type NodesInfo interface {
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
+	RequireFetchReasons() map[FieldCoordinate]struct{}
 }
 
 type fieldsIndex struct {
@@ -100,34 +104,43 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 
 	d.rootNodesIndex = make(map[string]fieldsIndex, len(d.RootNodes))
 	d.childNodesIndex = make(map[string]fieldsIndex, len(d.ChildNodes))
+	d.requireFetchReasons = make(map[FieldCoordinate]struct{})
 
 	for i := range d.RootNodes {
-		if _, ok := d.rootNodesIndex[d.RootNodes[i].TypeName]; !ok {
-			d.rootNodesIndex[d.RootNodes[i].TypeName] = fieldsIndex{
-				make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
-				make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+		typeName := d.RootNodes[i].TypeName
+		if _, ok := d.rootNodesIndex[typeName]; !ok {
+			d.rootNodesIndex[typeName] = fieldsIndex{
+				fields:         make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
+				externalFields: make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
 			}
 		}
-		for j := range d.RootNodes[i].FieldNames {
-			d.rootNodesIndex[d.RootNodes[i].TypeName].fields[d.RootNodes[i].FieldNames[j]] = struct{}{}
+		for _, name := range d.RootNodes[i].FieldNames {
+			d.rootNodesIndex[typeName].fields[name] = struct{}{}
 		}
-		for j := range d.RootNodes[i].ExternalFieldNames {
-			d.rootNodesIndex[d.RootNodes[i].TypeName].externalFields[d.RootNodes[i].ExternalFieldNames[j]] = struct{}{}
+		for _, name := range d.RootNodes[i].ExternalFieldNames {
+			d.rootNodesIndex[typeName].externalFields[name] = struct{}{}
+		}
+		for _, name := range d.RootNodes[i].FetchReasonFields {
+			d.requireFetchReasons[FieldCoordinate{typeName, name}] = struct{}{}
 		}
 	}
 
 	for i := range d.ChildNodes {
-		if _, ok := d.childNodesIndex[d.ChildNodes[i].TypeName]; !ok {
-			d.childNodesIndex[d.ChildNodes[i].TypeName] = fieldsIndex{
-				make(map[string]struct{}),
-				make(map[string]struct{}),
+		typeName := d.ChildNodes[i].TypeName
+		if _, ok := d.childNodesIndex[typeName]; !ok {
+			d.childNodesIndex[typeName] = fieldsIndex{
+				fields:         make(map[string]struct{}),
+				externalFields: make(map[string]struct{}),
 			}
 		}
-		for j := range d.ChildNodes[i].FieldNames {
-			d.childNodesIndex[d.ChildNodes[i].TypeName].fields[d.ChildNodes[i].FieldNames[j]] = struct{}{}
+		for _, name := range d.ChildNodes[i].FieldNames {
+			d.childNodesIndex[typeName].fields[name] = struct{}{}
 		}
-		for j := range d.ChildNodes[i].ExternalFieldNames {
-			d.childNodesIndex[d.ChildNodes[i].TypeName].externalFields[d.ChildNodes[i].ExternalFieldNames[j]] = struct{}{}
+		for _, name := range d.ChildNodes[i].ExternalFieldNames {
+			d.childNodesIndex[typeName].externalFields[name] = struct{}{}
+		}
+		for _, name := range d.ChildNodes[i].FetchReasonFields {
+			d.requireFetchReasons[FieldCoordinate{typeName, name}] = struct{}{}
 		}
 	}
 }
@@ -193,6 +206,10 @@ func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bo
 	}
 	_, ok = index.externalFields[fieldName]
 	return ok
+}
+
+func (d *DataSourceMetadata) RequireFetchReasons() map[FieldCoordinate]struct{} {
+	return d.requireFetchReasons
 }
 
 func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {

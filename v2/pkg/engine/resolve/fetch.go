@@ -20,8 +20,10 @@ const (
 type Fetch interface {
 	FetchKind() FetchKind
 	Dependencies() *FetchDependencies
-	DataSourceInfo() DataSourceInfo
-	DependenciesCoordinates() []FetchDependency
+
+	// FetchInfo returns additional fetch-related information.
+	// Callers must treat FetchInfo as read-only after planning; it may be nil when disabled by planner options.
+	FetchInfo() *FetchInfo
 }
 
 type FetchItem struct {
@@ -89,6 +91,7 @@ const (
 type SingleFetch struct {
 	FetchConfiguration
 	FetchDependencies
+
 	InputTemplate        InputTemplate
 	DataSourceIdentifier []byte
 	Trace                *DataSourceLoadTrace
@@ -99,15 +102,8 @@ func (s *SingleFetch) Dependencies() *FetchDependencies {
 	return &s.FetchDependencies
 }
 
-func (s *SingleFetch) DependenciesCoordinates() []FetchDependency {
-	return s.FetchConfiguration.CoordinateDependencies
-}
-
-func (s *SingleFetch) DataSourceInfo() DataSourceInfo {
-	return DataSourceInfo{
-		ID:   s.Info.DataSourceID,
-		Name: s.Info.DataSourceName,
-	}
+func (s *SingleFetch) FetchInfo() *FetchInfo {
+	return s.Info
 }
 
 // FetchDependencies holding current fetch id and ids of fetches that current fetch depends on
@@ -120,16 +116,18 @@ type FetchDependencies struct {
 type PostProcessingConfiguration struct {
 	// SelectResponseDataPath used to make a jsonparser.Get call on the response data
 	SelectResponseDataPath []string
+
 	// SelectResponseErrorsPath is similar to SelectResponseDataPath, but for errors
 	// If this is set, the response will be considered an error if the jsonparser.Get call returns a non-empty value
 	// The value will be expected to be a GraphQL error object
 	SelectResponseErrorsPath []string
+
 	// MergePath can be defined to merge the result of the post-processing into the parent object at the given path
 	// e.g. if the parent is {"a":1}, result is {"foo":"bar"} and the MergePath is ["b"],
 	// the result will be {"a":1,"b":{"foo":"bar"}}
 	// If the MergePath is empty, the result will be merged into the parent object
 	// In this case, the result would be {"a":1,"foo":"bar"}
-	// This is useful if you make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
+	// This is useful if we make multiple fetches, e.g. parallel fetches, that would otherwise overwrite each other
 	MergePath []string
 }
 
@@ -161,28 +159,21 @@ func (*SingleFetch) FetchKind() FetchKind {
 // representations variable will contain multiple items according to amount of entities matching this query
 type BatchEntityFetch struct {
 	FetchDependencies
-	Input                  BatchInput
-	DataSource             DataSource
-	PostProcessing         PostProcessingConfiguration
-	DataSourceIdentifier   []byte
-	Trace                  *DataSourceLoadTrace
-	Info                   *FetchInfo
-	CoordinateDependencies []FetchDependency
+
+	Input                BatchInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
 	return &b.FetchDependencies
 }
 
-func (b *BatchEntityFetch) DependenciesCoordinates() []FetchDependency {
-	return b.CoordinateDependencies
-}
-
-func (b *BatchEntityFetch) DataSourceInfo() DataSourceInfo {
-	return DataSourceInfo{
-		ID:   b.Info.DataSourceID,
-		Name: b.Info.DataSourceName,
-	}
+func (b *BatchEntityFetch) FetchInfo() *FetchInfo {
+	return b.Info
 }
 
 type BatchInput struct {
@@ -208,28 +199,21 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 // representations variable will contain single item
 type EntityFetch struct {
 	FetchDependencies
-	CoordinateDependencies []FetchDependency
-	Input                  EntityInput
-	DataSource             DataSource
-	PostProcessing         PostProcessingConfiguration
-	DataSourceIdentifier   []byte
-	Trace                  *DataSourceLoadTrace
-	Info                   *FetchInfo
+
+	Input                EntityInput
+	DataSource           DataSource
+	PostProcessing       PostProcessingConfiguration
+	DataSourceIdentifier []byte
+	Trace                *DataSourceLoadTrace
+	Info                 *FetchInfo
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
 	return &e.FetchDependencies
 }
 
-func (e *EntityFetch) DependenciesCoordinates() []FetchDependency {
-	return e.CoordinateDependencies
-}
-
-func (e *EntityFetch) DataSourceInfo() DataSourceInfo {
-	return DataSourceInfo{
-		ID:   e.Info.DataSourceID,
-		Name: e.Info.DataSourceName,
-	}
+func (e *EntityFetch) FetchInfo() *FetchInfo {
+	return e.Info
 }
 
 type EntityInput struct {
@@ -256,16 +240,12 @@ func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
 	return &p.Fetch.FetchDependencies
 }
 
-func (p *ParallelListItemFetch) DependenciesCoordinates() []FetchDependency {
-	return p.Fetch.FetchConfiguration.CoordinateDependencies
+func (p *ParallelListItemFetch) FetchInfo() *FetchInfo {
+	return p.Fetch.Info
 }
 
 func (*ParallelListItemFetch) FetchKind() FetchKind {
 	return FetchKindParallelListItem
-}
-
-func (p *ParallelListItemFetch) DataSourceInfo() DataSourceInfo {
-	return p.Fetch.DataSourceInfo()
 }
 
 type QueryPlan struct {
@@ -317,13 +297,7 @@ type FetchConfiguration struct {
 
 	QueryPlan *QueryPlan
 
-	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
-	// and which fields from other fetches they depend on.
-	// This information is useful to understand why a fetch depends on other fetches,
-	// and how multiple dependencies lead to a chain of fetches
-	CoordinateDependencies []FetchDependency
-
-	// OperationName is non-empty when the operation name is propagated the downstream subgraph fetch.
+	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
 }
 
@@ -337,9 +311,7 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 		return false
 	}
 
-	// Note: we do not compare datasources, as they will always be a different instance
-	// Note: we do not compare CoordinateDependencies, as they contain more detailed
-	// dependencies information that is already present in the FetchDependencies on the fetch itself
+	// Note: we do not compare datasources, as they will always be a different instance.
 
 	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
 		return false
@@ -387,12 +359,40 @@ type FetchDependencyOrigin struct {
 	IsRequires bool `json:"isRequires"`
 }
 
+// FetchReason explains who requested a specific (typeName, fieldName) combination.
+// A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
+type FetchReason struct {
+	TypeName    string   `json:"typename"`
+	FieldName   string   `json:"field"`
+	BySubgraphs []string `json:"by_subgraphs,omitempty"`
+	ByUser      bool     `json:"by_user,omitempty"`
+	IsKey       bool     `json:"is_key,omitempty"`
+	IsRequires  bool     `json:"is_requires,omitempty"`
+}
+
+// FetchInfo contains additional (derived) information about the fetch.
+// Some fields may not be generated depending on planner flags.
 type FetchInfo struct {
 	DataSourceID   string
 	DataSourceName string
 	RootFields     []GraphCoordinate
 	OperationType  ast.OperationType
 	QueryPlan      *QueryPlan
+
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
+	// and which fields from other fetches they depend on.
+	// This information is useful to understand why a fetch depends on other fetches,
+	// and how multiple dependencies lead to a chain of fetches
+	CoordinateDependencies []FetchDependency
+
+	// FetchReasons contains provenance for reasons why particular fields were fetched.
+	// If this structure is built, then all the fields are processed.
+	FetchReasons []FetchReason
+
+	// PropagatedFetchReasons holds those FetchReasons that will be propagated
+	// with the request to the subgraph as part of the "fetch_reason" extension.
+	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
+	PropagatedFetchReasons []FetchReason
 }
 
 type GraphCoordinate struct {
@@ -498,3 +498,11 @@ type WroteRequestStats struct {
 	DurationSinceStartPretty string `json:"duration_since_start_pretty"`
 	Err                      string `json:"err,omitempty"`
 }
+
+// Compile-time interface assertions to catch regressions.
+var (
+	_ Fetch = (*SingleFetch)(nil)
+	_ Fetch = (*BatchEntityFetch)(nil)
+	_ Fetch = (*EntityFetch)(nil)
+	_ Fetch = (*ParallelListItemFetch)(nil)
+)

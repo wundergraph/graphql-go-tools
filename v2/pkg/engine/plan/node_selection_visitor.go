@@ -45,8 +45,7 @@ type nodeSelectionVisitor struct {
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
-	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates // TODO: remove me
-	rewrittenFieldRefs   []int
+	rewrittenFieldRefs []int
 }
 
 type fieldDependencyKey struct {
@@ -125,12 +124,6 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
 		c.selectionSetRefs = c.selectionSetRefs[:0]
-	}
-
-	if c.fieldPathCoordinates == nil {
-		c.fieldPathCoordinates = make([]KeyConditionCoordinate, 0, 8)
-	} else {
-		c.fieldPathCoordinates = c.fieldPathCoordinates[:0]
 	}
 
 	if c.secondaryRun {
@@ -218,17 +211,9 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 		// check if field selections are abstract and needs rewrites
 		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, ds)
 	}
-
-	c.fieldPathCoordinates = append(c.fieldPathCoordinates, KeyConditionCoordinate{
-		FieldName: fieldName,
-		TypeName:  typeName,
-	})
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
-	if len(c.fieldPathCoordinates) > 0 {
-		c.fieldPathCoordinates = c.fieldPathCoordinates[:len(c.fieldPathCoordinates)-1]
-	}
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {

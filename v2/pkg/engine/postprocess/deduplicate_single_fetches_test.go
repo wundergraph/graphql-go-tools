@@ -99,6 +99,8 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: "a",
+							},
+							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
 										DependsOn: []resolve.FetchDependencyOrigin{
@@ -123,6 +125,8 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: "a",
+							},
+							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
 										DependsOn: []resolve.FetchDependencyOrigin{
@@ -147,6 +151,8 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: "b",
+							},
+							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
 										DependsOn: []resolve.FetchDependencyOrigin{
@@ -174,6 +180,8 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: "b",
+							},
+							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
 										DependsOn: []resolve.FetchDependencyOrigin{
@@ -219,6 +227,8 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: "a",
+							},
+							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
 										DependsOn: []resolve.FetchDependencyOrigin{
@@ -243,6 +253,8 @@ func TestDeduplicateSingleFetches_ProcessFetchTree(t *testing.T) {
 							},
 							FetchConfiguration: resolve.FetchConfiguration{
 								Input: "b",
+							},
+							Info: &resolve.FetchInfo{
 								CoordinateDependencies: []resolve.FetchDependency{
 									{
 										DependsOn: []resolve.FetchDependencyOrigin{

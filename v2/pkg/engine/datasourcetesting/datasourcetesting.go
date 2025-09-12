@@ -33,6 +33,7 @@ type testOptions struct {
 	withFieldInfo         bool
 	withPrintPlan         bool
 	withFieldDependencies bool
+	withFetchReasons      bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -70,7 +71,16 @@ func WithPrintPlan() func(*testOptions) {
 
 func WithFieldDependencies() func(*testOptions) {
 	return func(o *testOptions) {
+		o.withFieldInfo = true
 		o.withFieldDependencies = true
+	}
+}
+
+func WithFetchReasons() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withFetchReasons = true
 	}
 }
 
@@ -145,6 +155,10 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		if opts.withFieldDependencies {
 			config.DisableIncludeFieldDependencies = false
+		}
+
+		if opts.withFetchReasons {
+			config.BuildFetchReasons = true
 		}
 
 		if opts.skipReason != "" {
