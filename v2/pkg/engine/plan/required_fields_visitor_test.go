@@ -41,15 +41,13 @@ func TestAddRequiredFields(t *testing.T) {
 					id: ID!
 					name: String!
 					email: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user(id: "1") {
 						name
 					}
-				}
-			`,
+				}`,
 			typeName:        "User",
 			fieldSet:        "id",
 			isKey:           true,
@@ -60,8 +58,7 @@ func TestAddRequiredFields(t *testing.T) {
 						name
 						id
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     1,
 			expectedRequiredFieldsCount: 1,
 		},
@@ -80,15 +77,13 @@ func TestAddRequiredFields(t *testing.T) {
 				type UserInfo {
 					age: Int!
 					country: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
 						name
 					}
-				}
-			`,
+				}`,
 			typeName: "User",
 			fieldSet: "id email info { age }",
 			isKey:    true,
@@ -102,8 +97,7 @@ func TestAddRequiredFields(t *testing.T) {
 							age
 						}
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     4, // id, email, info, age
 			expectedRequiredFieldsCount: 4,
 		},
@@ -118,15 +112,13 @@ func TestAddRequiredFields(t *testing.T) {
 					firstName: String!
 					lastName: String!
 					fullName: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
 						fullName
 					}
-				}
-			`,
+				}`,
 			typeName: "User",
 			fieldSet: "firstName lastName",
 			isKey:    false,
@@ -137,8 +129,7 @@ func TestAddRequiredFields(t *testing.T) {
 						firstName
 						lastName
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     2,
 			expectedRequiredFieldsCount: 2,
 		},
@@ -152,16 +143,14 @@ func TestAddRequiredFields(t *testing.T) {
 					id: ID!
 					name: String!
 					email: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
 						id
 						name
 					}
-				}
-			`,
+				}`,
 			typeName: "User",
 			fieldSet: "id",
 			isKey:    true,
@@ -171,8 +160,7 @@ func TestAddRequiredFields(t *testing.T) {
 						id
 						name
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     0, // no new fields added
 			expectedRequiredFieldsCount: 1, // existing field is marked as required
 		},
@@ -186,16 +174,14 @@ func TestAddRequiredFields(t *testing.T) {
 					id: ID!
 					name: String!
 					profile(lang: String!): String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
 						name
 						profile(lang: "en")
 					}
-				}
-			`,
+				}`,
 			typeName: "User",
 			fieldSet: "profile(lang: \"es\")",
 			isKey:    false,
@@ -206,8 +192,7 @@ func TestAddRequiredFields(t *testing.T) {
 						profile(lang: "en")
 						__internal_profile: profile(lang: "es")
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     1,
 			expectedRequiredFieldsCount: 1,
 			expectedRemappedPaths:       map[string]string{"User.profile": "__internal_profile"},
@@ -221,15 +206,13 @@ func TestAddRequiredFields(t *testing.T) {
 				type User {
 					id: ID!
 					name: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
 						name
 					}
-				}
-			`,
+				}`,
 			typeName:      "User",
 			fieldSet:      "id",
 			isKey:         true,
@@ -241,8 +224,7 @@ func TestAddRequiredFields(t *testing.T) {
 						__typename
 						id
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     2,
 			expectedRequiredFieldsCount: 1, // only id is required, __typename is skipped for keys
 		},
@@ -260,8 +242,7 @@ func TestAddRequiredFields(t *testing.T) {
 					street: String!
 					city: String!
 					zip: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
@@ -284,8 +265,7 @@ func TestAddRequiredFields(t *testing.T) {
 							zip
 						}
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     2, // street, zip
 			expectedRequiredFieldsCount: 3,
 			expectedModifiedFieldsCount: 1, // address
@@ -310,15 +290,13 @@ func TestAddRequiredFields(t *testing.T) {
 				type Admin implements Node {
 					id: ID!
 					role: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					account {
 						id
 					}
-				}
-			`,
+				}`,
 			typeName: "Account",
 			fieldSet: "node { ... on User { name } ... on Admin { role } }",
 			isKey:    false,
@@ -336,8 +314,7 @@ func TestAddRequiredFields(t *testing.T) {
 							}
 						}
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     4, // node, __typename, name, role
 			expectedRequiredFieldsCount: 3, // node, name, role
 		},
@@ -363,8 +340,7 @@ func TestAddRequiredFields(t *testing.T) {
 				}
 				type Profile {
 					bio: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
@@ -372,8 +348,7 @@ func TestAddRequiredFields(t *testing.T) {
 							bio
 						}
 					}
-				}
-			`,
+				}`,
 			typeName:        "User",
 			fieldSet:        "id account { id type settings { theme } }",
 			isKey:           true,
@@ -393,8 +368,7 @@ func TestAddRequiredFields(t *testing.T) {
 							}
 						}
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     6, // id, account, id, type, settings, theme
 			expectedRequiredFieldsCount: 6,
 		},
@@ -420,8 +394,7 @@ func TestAddRequiredFields(t *testing.T) {
 				}
 				type Profile {
 					bio: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
@@ -429,8 +402,7 @@ func TestAddRequiredFields(t *testing.T) {
 							bio
 						}
 					}
-				}
-			`,
+				}`,
 			typeName:                   "User",
 			fieldSet:                   "id account { id type settings { theme } }",
 			isKey:                      true,
@@ -451,8 +423,7 @@ func TestAddRequiredFields(t *testing.T) {
 							}
 						}
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     6, // id, account, id, type, settings, theme
 			expectedRequiredFieldsCount: 6,
 		},
@@ -478,8 +449,7 @@ func TestAddRequiredFields(t *testing.T) {
 				}
 				type Profile {
 					bio: String!
-				}
-			`,
+				}`,
 			operation: `
 				query {
 					user {
@@ -487,8 +457,7 @@ func TestAddRequiredFields(t *testing.T) {
 							bio
 						}
 					}
-				}
-			`,
+				}`,
 			typeName:                   "User",
 			fieldSet:                   "id account { id type settings { theme } }",
 			isKey:                      false,
@@ -511,8 +480,7 @@ func TestAddRequiredFields(t *testing.T) {
 							}
 						}
 					}
-				}
-			`,
+				}`,
 			expectedSkipFieldsCount:     8, // id, account, __typename, id, type, settings, __typename, theme
 			expectedRequiredFieldsCount: 6,
 		},
