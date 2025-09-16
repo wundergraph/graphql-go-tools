@@ -11,7 +11,7 @@ type Enum struct {
 	InaccessibleValues []string
 }
 
-func (_ *Enum) NodeKind() NodeKind {
+func (*Enum) NodeKind() NodeKind {
 	return NodeKindEnum
 }
 

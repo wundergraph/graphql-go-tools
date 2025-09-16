@@ -218,21 +218,35 @@ func testMapping() *GRPCMapping {
 			},
 		},
 		SubscriptionRPCs: RPCConfigMap{},
-		EntityRPCs: map[string]EntityRPCConfig{
+		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupProductById",
-					Request:  "LookupProductByIdRequest",
-					Response: "LookupProductByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupProductById",
+						Request:  "LookupProductByIdRequest",
+						Response: "LookupProductByIdResponse",
+					},
 				},
 			},
 			"Storage": {
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupStorageById",
-					Request:  "LookupStorageByIdRequest",
-					Response: "LookupStorageByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupStorageById",
+						Request:  "LookupStorageByIdRequest",
+						Response: "LookupStorageByIdResponse",
+					},
+				},
+			},
+			"Warehouse": {
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupWarehouseById",
+						Request:  "LookupWarehouseByIdRequest",
+						Response: "LookupWarehouseByIdResponse",
+					},
 				},
 			},
 		},
@@ -490,6 +504,17 @@ func testMapping() *GRPCMapping {
 					TargetName: "location",
 				},
 			},
+			"Warehouse": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
 			"User": {
 				"id": {
 					TargetName: "id",
@@ -622,6 +647,14 @@ func testMapping() *GRPCMapping {
 			"ComplexFilterTypeInput": {
 				"filter": {
 					TargetName: "filter",
+				},
+			},
+			"FilterTypeInput": {
+				"filterField1": {
+					TargetName: "filter_field_1",
+				},
+				"filterField2": {
+					TargetName: "filter_field_2",
 				},
 			},
 			"Category": {

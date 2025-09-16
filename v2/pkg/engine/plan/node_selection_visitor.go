@@ -9,12 +9,13 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
-// nodeSelectionVisitor - walks through the operation multiple times to rewrite operation
+// nodeSelectionVisitor walks through the operation multiple times to rewrite it
 // to be able to resolve fields from different datasources.
-// During walks, it is adding required fields and rewrites abstract selection if it is necessary.
-// We are revisiting query when we have:
-// - new required fields were added to operation
-// - when we have rewritten abstract field selection set
+// This visitor might add required fields and rewrite abstract selection if necessary.
+//
+// This visitor will walk the operation again if it has:
+//   - added new required fields to the operation,
+//   - rewritten an abstract field selection set.
 type nodeSelectionVisitor struct {
 	debug DebugConfiguration
 
@@ -22,10 +23,10 @@ type nodeSelectionVisitor struct {
 	operation, definition *ast.Document // graphql operation and schema documents
 	walker                *astvisitor.Walker
 
-	dataSources     []DataSource     // data sources configurations, which used by the current operation
+	dataSources     []DataSource     // data sources configurations, used by the current operation
 	nodeSuggestions *NodeSuggestions // nodeSuggestions holds information about suggested data sources for each field
 
-	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add a required fields
+	selectionSetRefs []int // selectionSetRefs is a stack of selection set refs - used to add required fields
 	skipFieldsRefs   []int // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 
 	pendingKeyRequirements   map[int]pendingKeyRequirements   // pendingKeyRequirements is a map[selectionSetRef][]keyRequirements
@@ -44,8 +45,7 @@ type nodeSelectionVisitor struct {
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
-	fieldPathCoordinates []KeyConditionCoordinate // currentFieldPathCoordinates is a stack of field path coordinates // TODO: remove me
-	rewrittenFieldRefs   []int
+	rewrittenFieldRefs []int
 }
 
 type fieldDependencyKey struct {
@@ -124,12 +124,6 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
 		c.selectionSetRefs = c.selectionSetRefs[:0]
-	}
-
-	if c.fieldPathCoordinates == nil {
-		c.fieldPathCoordinates = make([]KeyConditionCoordinate, 0, 8)
-	} else {
-		c.fieldPathCoordinates = c.fieldPathCoordinates[:0]
 	}
 
 	if c.secondaryRun {
@@ -217,17 +211,9 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 		// check if field selections are abstract and needs rewrites
 		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, ds)
 	}
-
-	c.fieldPathCoordinates = append(c.fieldPathCoordinates, KeyConditionCoordinate{
-		FieldName: fieldName,
-		TypeName:  typeName,
-	})
 }
 
 func (c *nodeSelectionVisitor) LeaveField(ref int) {
-	if len(c.fieldPathCoordinates) > 0 {
-		c.fieldPathCoordinates = c.fieldPathCoordinates[:len(c.fieldPathCoordinates)-1]
-	}
 }
 
 func (c *nodeSelectionVisitor) handleFieldRequiredByRequires(fieldRef int, parentPath, typeName, fieldName, currentPath string, dsConfig DataSource) {
@@ -644,14 +630,16 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	}
 	c.visitedFieldsAbstractChecks[fieldRef] = struct{}{}
 
-	upstreamSchema, ok := ds.UpstreamSchema()
+	_, ok := ds.UpstreamSchema()
 	if !ok {
 		return
 	}
 
-	rewriter := newFieldSelectionRewriter(c.operation, c.definition)
-	rewriter.SetUpstreamDefinition(upstreamSchema)
-	rewriter.SetDatasourceConfiguration(ds)
+	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds)
+	if err != nil {
+		c.walker.StopWithInternalErr(err)
+		return
+	}
 
 	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {

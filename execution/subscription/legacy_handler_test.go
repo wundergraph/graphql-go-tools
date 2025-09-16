@@ -690,5 +690,6 @@ func sendChatMutation(t *testing.T, url string) {
 	httpClient := http.Client{}
 	resp, err := httpClient.Do(req)
 	require.NoError(t, err)
+	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

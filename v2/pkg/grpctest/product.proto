@@ -11,6 +11,8 @@ service ProductService {
   rpc LookupProductById(LookupProductByIdRequest) returns (LookupProductByIdResponse) {}
   // Lookup Storage entity by id
   rpc LookupStorageById(LookupStorageByIdRequest) returns (LookupStorageByIdResponse) {}
+  // Lookup Warehouse entity by id
+  rpc LookupWarehouseById(LookupWarehouseByIdRequest) returns (LookupWarehouseByIdResponse) {}
   rpc MutationBulkCreateAuthors(MutationBulkCreateAuthorsRequest) returns (MutationBulkCreateAuthorsResponse) {}
   rpc MutationBulkCreateBlogPosts(MutationBulkCreateBlogPostsRequest) returns (MutationBulkCreateBlogPostsResponse) {}
   rpc MutationBulkUpdateAuthors(MutationBulkUpdateAuthorsRequest) returns (MutationBulkUpdateAuthorsResponse) {}
@@ -254,6 +256,40 @@ message LookupStorageByIdResponse {
    *       - null  # User with id 2 not found
    */
   repeated Storage result = 1;
+}
+
+// Key message for Warehouse entity lookup
+message LookupWarehouseByIdRequestKey {
+  // Key field for Warehouse entity lookup.
+  string id = 1;
+}
+
+// Request message for Warehouse entity lookup.
+message LookupWarehouseByIdRequest {
+  /*
+   * List of keys to look up Warehouse entities.
+   * Order matters - each key maps to one entity in LookupWarehouseByIdResponse.
+   */
+  repeated LookupWarehouseByIdRequestKey keys = 1;
+}
+
+// Response message for Warehouse entity lookup.
+message LookupWarehouseByIdResponse {
+  /*
+   * List of Warehouse entities in the same order as the keys in LookupWarehouseByIdRequest.
+   * Always return the same number of entities as keys. Use null for entities that cannot be found.
+   * 
+   * Example:
+   *   LookupUserByIdRequest:
+   *     keys:
+   *       - id: 1
+   *       - id: 2
+   *   LookupUserByIdResponse:
+   *     result:
+   *       - id: 1 # User with id 1 found
+   *       - null  # User with id 2 not found
+   */
+  repeated Warehouse result = 1;
 }
 
 // Request message for users operation.
@@ -591,6 +627,12 @@ message Product {
 }
 
 message Storage {
+  string id = 1;
+  string name = 2;
+  string location = 3;
+}
+
+message Warehouse {
   string id = 1;
   string name = 2;
   string location = 3;

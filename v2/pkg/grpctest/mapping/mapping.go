@@ -225,21 +225,35 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			},
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
-		EntityRPCs: map[string]grpcdatasource.EntityRPCConfig{
+		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
 			"Product": {
-				Key: "id",
-				RPCConfig: grpcdatasource.RPCConfig{
-					RPC:      "LookupProductById",
-					Request:  "LookupProductByIdRequest",
-					Response: "LookupProductByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupProductById",
+						Request:  "LookupProductByIdRequest",
+						Response: "LookupProductByIdResponse",
+					},
 				},
 			},
 			"Storage": {
-				Key: "id",
-				RPCConfig: grpcdatasource.RPCConfig{
-					RPC:      "LookupStorageById",
-					Request:  "LookupStorageByIdRequest",
-					Response: "LookupStorageByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupStorageById",
+						Request:  "LookupStorageByIdRequest",
+						Response: "LookupStorageByIdResponse",
+					},
+				},
+			},
+			"Warehouse": {
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupWarehouseById",
+						Request:  "LookupWarehouseByIdRequest",
+						Response: "LookupWarehouseByIdResponse",
+					},
 				},
 			},
 		},
@@ -487,6 +501,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 			},
 			"Storage": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
+			"Warehouse": {
 				"id": {
 					TargetName: "id",
 				},

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
@@ -371,6 +372,14 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 				},
 			},
 			{
+				TypeName: "Warehouse",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+				},
+			},
+			{
 				TypeName: "Query",
 				FieldNames: []string{
 					"users",
@@ -561,6 +570,14 @@ func GetDataSourceMetadata() *plan.DataSourceMetadata {
 			},
 			{
 				TypeName: "Storage",
+				FieldNames: []string{
+					"id",
+					"name",
+					"location",
+				},
+			},
+			{
+				TypeName: "Warehouse",
 				FieldNames: []string{
 					"id",
 					"name",

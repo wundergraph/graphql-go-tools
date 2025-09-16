@@ -15,18 +15,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
-	"github.com/wundergraph/astjson"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
@@ -92,10 +92,35 @@ func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	return responseInfo
 }
 
+// batchStats represents an index map for batched items.
+// It is used to ensure that the correct json values will be merged with the correct items from the batch.
+//
+// Example:
+// [[0],[1],[0],[1]] We originally have 4 items, but we have 2 unique indexes (0 and 1).
+// This means we are deduplicating 2 items by merging them from their response entity indexes.
+// 0 -> 0, 1 -> 1, 2 -> 0, 3 -> 1
+type batchStats [][]int
+
+// getUniqueIndexes returns the number of unique indexes in the batchStats.
+// This is used to ensure that we can provide a valid error message in case of differing array lengths.
+func (b *batchStats) getUniqueIndexes() int {
+	uniqueIndexes := make(map[int]struct{})
+	for _, bi := range *b {
+		for _, index := range bi {
+			if index < 0 {
+				continue
+			}
+			uniqueIndexes[index] = struct{}{}
+		}
+	}
+
+	return len(uniqueIndexes)
+}
+
 type result struct {
 	postProcessing   PostProcessingConfiguration
 	out              *bytes.Buffer
-	batchStats       [][]int
+	batchStats       batchStats
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
@@ -159,6 +184,8 @@ type Loader struct {
 	allowedSubgraphErrorFields map[string]struct{}
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
+
+	propagateFetchReasons bool
 }
 
 func (l *Loader) Free() {
@@ -725,7 +752,13 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if batch == nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, invalidGraphQLResponseShape)
 	}
+
 	if res.batchStats != nil {
+		uniqueIndexes := res.batchStats.getUniqueIndexes()
+		if uniqueIndexes != len(batch) {
+			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, uniqueIndexes, len(batch)))
+		}
+
 		for i, stats := range res.batchStats {
 			for _, item := range stats {
 				if item == -1 {
@@ -742,6 +775,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			}
 		}
 	} else {
+		if batchCount, itemCount := len(batch), len(items); batchCount != itemCount {
+			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, itemCount, batchCount))
+		}
+
 		for i, item := range items {
 			_, _, err = astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
 			if err != nil {
@@ -1098,6 +1135,7 @@ const (
 	emptyGraphQLResponse        = "empty response"
 	invalidGraphQLResponse      = "invalid JSON"
 	invalidGraphQLResponseShape = "no data or errors in response"
+	invalidBatchItemCount       = "returned entities count does not match the count of representation variables in the entities request. Expected %d, got %d"
 )
 
 func (l *Loader) renderAtPathErrorPart(path string) string {
@@ -1525,7 +1563,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	res.batchStats = make([][]int, len(items))
+	res.batchStats = make(batchStats, len(items))
 	itemHashes := make([]uint64, 0, len(items))
 	batchItemIndex := 0
 	addSeparator := false
@@ -1703,6 +1741,23 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		if res.err != nil {
 			res.err = errors.WithStack(res.err)
 			return
+		}
+	}
+	if l.propagateFetchReasons && !IsIntrospectionDataSource(res.ds.ID) {
+		info := fetchItem.Fetch.FetchInfo()
+		if info != nil && len(info.PropagatedFetchReasons) > 0 {
+			var encoded []byte
+			encoded, res.err = json.Marshal(info.PropagatedFetchReasons)
+			if res.err != nil {
+				res.err = errors.WithStack(res.err)
+				return
+			}
+			// We expect that body.extensions is an object
+			input, res.err = jsonparser.Set(input, encoded, "body", "extensions", "fetch_reasons")
+			if res.err != nil {
+				res.err = errors.WithStack(res.err)
+				return
+			}
 		}
 	}
 	if l.ctx.TracingOptions.Enable {

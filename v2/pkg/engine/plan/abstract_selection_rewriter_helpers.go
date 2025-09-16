@@ -544,14 +544,14 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 		return nil, false, errors.New("unexpected error: field type name is not found in the upstream schema")
 	}
 
-	// if typename of a field is not equal to the typename of the interface type
+	// when typename of a field is not equal to the typename of the interface type
 	// then it should implement the interface type in the federated graph schema
 	if interfaceTypeName != fieldTypeName {
 		if slices.Contains(interfaceTypeNamesFromDefinition, fieldTypeName) {
 			return []string{fieldTypeName}, false, nil
 		}
 
-		// if it is not a member of the union type the config is corrupted
+		// if it doesn't implement an interface type the config is corrupted
 		return nil, false, errors.New("unexpected error: field type do not implement the interface in the federated graph schema")
 	}
 
@@ -560,10 +560,36 @@ func (r *fieldSelectionRewriter) getAllowedInterfaceMemberTypeNames(fieldRef int
 		return nil, false, errors.New("unexpected error: interface type definition not found in the upstream schema")
 	}
 
-	// in case node kind is an interface type definition we just return the implementing types in this datasource
+	// when node kind is an interface type definition
 	if interfaceNode.Kind == ast.NodeKindInterfaceTypeDefinition {
-		interfaceTypeNames, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceNode.Ref)
+		// we collect the implementing types in this datasource
+		localInterfaceTypeNames, _ := r.upstreamDefinition.InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceNode.Ref)
+
+		interfaceTypeNames := make([]string, 0, len(localInterfaceTypeNames))
+
+		// additionally, we need to check if implementing types are interface objects
+		// and replace such typename with concrete types
+		for _, typeName := range localInterfaceTypeNames {
+			isInterfaceObject := false
+			// when typeName is an interface object, we need to add concrete types instead of the interface object type name
+			for _, k := range r.dsConfiguration.FederationConfiguration().InterfaceObjects {
+				if k.InterfaceTypeName == typeName {
+					interfaceTypeNames = append(interfaceTypeNames, k.ConcreteTypeNames...)
+					isInterfaceObject = true
+					break
+				}
+			}
+			// when typename is not an interface object, we can add it as is
+			if !isInterfaceObject {
+				interfaceTypeNames = append(interfaceTypeNames, typeName)
+			}
+		}
+
+		// sort implementing types to be able to compact them
 		sort.Strings(interfaceTypeNames)
+		// remove possible consecutive duplicates
+		interfaceTypeNames = slices.Compact(interfaceTypeNames)
+
 		return interfaceTypeNames, false, nil
 	}
 

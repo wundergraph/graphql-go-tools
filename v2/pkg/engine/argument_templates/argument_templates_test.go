@@ -1,8 +1,9 @@
 package argument_templates
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestArgumentTemplateRegex(t *testing.T) {

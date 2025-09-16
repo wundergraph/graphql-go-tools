@@ -82,11 +82,11 @@ type FederationFieldConfiguration struct {
 }
 
 type KeyCondition struct {
-	Coordinates []KeyConditionCoordinate `json:"coordinates"`
-	FieldPath   []string                 `json:"field_path"`
+	Coordinates []FieldCoordinate `json:"coordinates"`
+	FieldPath   []string          `json:"field_path"`
 }
 
-type KeyConditionCoordinate struct {
+type FieldCoordinate struct {
 	TypeName  string `json:"type_name"`
 	FieldName string `json:"field_name"`
 }
@@ -105,7 +105,7 @@ func (f *FederationFieldConfiguration) parseSelectionSet() error {
 	return nil
 }
 
-func (f FederationFieldConfiguration) String() string {
+func (f *FederationFieldConfiguration) String() string {
 	b, _ := json.Marshal(f)
 	return string(b)
 }

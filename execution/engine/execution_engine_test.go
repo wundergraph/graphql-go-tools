@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sync"
 	"testing"
 
@@ -92,6 +93,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 		headers := make(http.Header)
 		headers.Set("Content-Type", "application/json")
 		response := rw.AsHTTPResponse(http.StatusOK, headers)
+		defer response.Body.Close()
 		body, err := io.ReadAll(response.Body)
 		require.NoError(t, err)
 
@@ -112,6 +114,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			headers.Set(httpclient.ContentEncodingHeader, "gzip")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			defer response.Body.Close()
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.Equal(t, "gzip", response.Header.Get(httpclient.ContentEncodingHeader))
@@ -129,6 +132,7 @@ func TestEngineResponseWriter_AsHTTPResponse(t *testing.T) {
 			headers.Set(httpclient.ContentEncodingHeader, "deflate")
 
 			response := rw.AsHTTPResponse(http.StatusOK, headers)
+			defer response.Body.Close()
 			assert.Equal(t, http.StatusOK, response.StatusCode)
 			assert.Equal(t, "application/json", response.Header.Get("Content-Type"))
 			assert.Equal(t, "deflate", response.Header.Get(httpclient.ContentEncodingHeader))
@@ -214,6 +218,7 @@ type _executionTestOptions struct {
 	resolvableOptions resolve.ResolvableOptions
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
+	propagateFetchReasons                        bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -223,6 +228,12 @@ func withValueCompletion() executionTestOptions {
 		options.resolvableOptions = resolve.ResolvableOptions{
 			ApolloCompatibilityValueCompletionInExtensions: true,
 		}
+	}
+}
+
+func withFetchReasons() executionTestOptions {
+	return func(options *_executionTestOptions) {
+		options.propagateFetchReasons = true
 	}
 }
 
@@ -257,10 +268,12 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			for _, option := range options {
 				option(&opts)
 			}
+			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
 			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
+				PropagateFetchReasons:                        opts.propagateFetchReasons,
 			})
 			require.NoError(t, err)
 
@@ -819,6 +832,57 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			fields:           []plan.FieldConfiguration{},
 			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 		},
+	))
+
+	t.Run("execute simple hero operation with propagating to subgraphs fetch reasons", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Query","field":"hero","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:          "Query",
+								FieldNames:        []string{"hero"},
+								FetchReasonFields: []string{"hero"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:          "Character",
+								FieldNames:        []string{"name"},
+								FetchReasonFields: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+		withFetchReasons(),
 	))
 
 	t.Run("execute simple hero operation with graphql data source and empty errors list", runWithoutError(
@@ -4290,117 +4354,130 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				}
 			`
 
-		datasources := []plan.DataSource{
-			mustGraphqlDataSourceConfiguration(t,
-				"id-1",
-				mustFactory(t,
-					testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "first",
-						expectedPath:     "/",
-						expectedBody:     `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`,
-						sendResponseBody: `{"data":{"accounts":[{"__typename":"User","some":{"__typename":"User","id":"1"}},{"__typename":"Admin","some":{"__typename":"User","id":"2"}},{"__typename":"User","some":{"__typename":"User","id":"3"}}]}}`,
-						sendStatusCode:   200,
+		makeDataSource := func(t *testing.T, expectFetchReasons bool) []plan.DataSource {
+			var expectedBody1 string
+			var expectedBody2 string
+			if !expectFetchReasons {
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}"}`
+			} else {
+				expectedBody1 = `{"query":"{accounts {__typename ... on User {some {__typename id}} ... on Admin {some {__typename id}}}}","extensions":{"fetch_reasons":[{"typename":"Admin","field":"some","by_user":true},{"typename":"User","field":"id","by_subgraphs":["id-2"],"by_user":true,"is_key":true}]}}`
+			}
+			expectedBody2 = `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`
+
+			return []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id-1",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "first",
+							expectedPath:     "/",
+							expectedBody:     expectedBody1,
+							sendResponseBody: `{"data":{"accounts":[{"__typename":"User","some":{"__typename":"User","id":"1"}},{"__typename":"Admin","some":{"__typename":"User","id":"2"}},{"__typename":"User","some":{"__typename":"User","id":"3"}}]}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"accounts"},
+							},
+							{
+								TypeName:          "User",
+								FieldNames:        []string{"id", "some"},
+								FetchReasonFields: []string{"id"},
+							},
+							{
+								TypeName:          "Admin",
+								FieldNames:        []string{"id", "some"},
+								FetchReasonFields: []string{"some"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Node",
+								FieldNames: []string{"id", "title", "some"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Admin",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://first/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: firstSubgraphSDL,
+							},
+							firstSubgraphSDL,
+						),
 					}),
 				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "Query",
-							FieldNames: []string{"accounts"},
-						},
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "some"},
-						},
-						{
-							TypeName:   "Admin",
-							FieldNames: []string{"id", "some"},
-						},
-					},
-					ChildNodes: []plan.TypeField{
-						{
-							TypeName:   "Node",
-							FieldNames: []string{"id", "title", "some"},
-						},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					Fetch: &graphql_datasource.FetchConfiguration{
-						URL:    "https://first/",
-						Method: "POST",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						&graphql_datasource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: firstSubgraphSDL,
-						},
-						firstSubgraphSDL,
+				mustGraphqlDataSourceConfiguration(t,
+					"id-2",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "second",
+							expectedPath:     "/",
+							expectedBody:     expectedBody2,
+							sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}}`,
+							sendStatusCode:   200,
+						}),
 					),
-				}),
-			),
-			mustGraphqlDataSourceConfiguration(t,
-				"id-2",
-				mustFactory(t,
-					testNetHttpClient(t, roundTripperTestCase{
-						expectedHost:     "second",
-						expectedPath:     "/",
-						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
-						sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":"User1"},{"__typename":"User","title":"User3"}]}}`,
-						sendStatusCode:   200,
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "User",
+								FieldNames: []string{"id", "name", "title"},
+							},
+							{
+								TypeName:   "Admin",
+								FieldNames: []string{"id", "adminName", "title"},
+							},
+						},
+						FederationMetaData: plan.FederationMetaData{
+							Keys: plan.FederationFieldConfigurations{
+								{
+									TypeName:     "User",
+									SelectionSet: "id",
+								},
+								{
+									TypeName:     "Admin",
+									SelectionSet: "id",
+								},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://second/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							&graphql_datasource.FederationConfiguration{
+								Enabled:    true,
+								ServiceSDL: secondSubgraphSDL,
+							},
+							secondSubgraphSDL,
+						),
 					}),
 				),
-				&plan.DataSourceMetadata{
-					RootNodes: []plan.TypeField{
-						{
-							TypeName:   "User",
-							FieldNames: []string{"id", "name", "title"},
-						},
-						{
-							TypeName:   "Admin",
-							FieldNames: []string{"id", "adminName", "title"},
-						},
-					},
-					FederationMetaData: plan.FederationMetaData{
-						Keys: plan.FederationFieldConfigurations{
-							{
-								TypeName:     "User",
-								SelectionSet: "id",
-							},
-							{
-								TypeName:     "Admin",
-								SelectionSet: "id",
-							},
-						},
-					},
-				},
-				mustConfiguration(t, graphql_datasource.ConfigurationInput{
-					Fetch: &graphql_datasource.FetchConfiguration{
-						URL:    "https://second/",
-						Method: "POST",
-					},
-					SchemaConfiguration: mustSchemaConfig(
-						t,
-						&graphql_datasource.FederationConfiguration{
-							Enabled:    true,
-							ServiceSDL: secondSubgraphSDL,
-						},
-						secondSubgraphSDL,
-					),
-				}),
-			),
+			}
 		}
 
 		t.Run("run", runWithoutError(ExecutionEngineTestCase{
@@ -4431,9 +4508,44 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					}`,
 				}
 			},
-			dataSources:      datasources,
+			dataSources:      makeDataSource(t, false),
 			expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
 		}))
+
+		t.Run("run with extension", runWithoutError(
+			ExecutionEngineTestCase{
+				schema: func(t *testing.T) *graphql.Schema {
+					t.Helper()
+					parseSchema, err := graphql.NewSchemaFromString(definition)
+					require.NoError(t, err)
+					return parseSchema
+				}(t),
+				operation: func(t *testing.T) graphql.Request {
+					return graphql.Request{
+						OperationName: "Accounts",
+						Query: `
+					query Accounts {
+						accounts {
+							... on User {
+								some {
+									title
+								}
+							}
+							... on Admin {
+								some {
+									__typename
+									id
+								}
+							}
+						}
+					}`,
+					}
+				},
+				dataSources:      makeDataSource(t, true),
+				expectedResponse: `{"data":{"accounts":[{"some":{"title":"User1"}},{"some":{"__typename":"User","id":"2"}},{"some":{"title":"User3"}}]}}`,
+			},
+			withFetchReasons(),
+		))
 	})
 }
 
@@ -4579,16 +4691,22 @@ func BenchmarkIntrospection(b *testing.B) {
 	schema := graphql.StarwarsSchema(b)
 	engineConf := NewConfiguration(schema)
 
-	expectedResponse := []byte(`{"data":{"__schema":{"queryType":{"name":"Query"},"mutationType":{"name":"Mutation"},"subscriptionType":{"name":"Subscription"},"types":[{"kind":"UNION","name":"SearchResult","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null},{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Query","description":"","fields":[{"name":"hero","description":"","args":[],"type":{"kind":"INTERFACE","name":"Character","ofType":null},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"droid","description":"","args":[{"name":"id","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Droid","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"search","description":"","args":[{"name":"name","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"defaultValue":null}],"type":{"kind":"UNION","name":"SearchResult","ofType":null},"isDeprecated":false,"deprecationReason":null},{"name":"searchResults","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"UNION","name":"SearchResult","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Mutation","description":"","fields":[{"name":"createReview","description":"","args":[{"name":"episode","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"ENUM","name":"Episode","ofType":null}},"defaultValue":null},{"name":"review","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"INPUT_OBJECT","name":"ReviewInput","ofType":null}},"defaultValue":null}],"type":{"kind":"OBJECT","name":"Review","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Subscription","description":"","fields":[{"name":"remainingJedis","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"INPUT_OBJECT","name":"ReviewInput","description":"","fields":null,"inputFields":[{"name":"stars","description":"","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"defaultValue":null},{"name":"commentary","description":"","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":null}],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Review","description":"","fields":[{"name":"id","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"ID","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"stars","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Int","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"commentary","description":"","args":[],"type":{"kind":"SCALAR","name":"String","ofType":null},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"ENUM","name":"Episode","description":"","fields":null,"inputFields":[],"interfaces":[],"enumValues":[{"name":"NEWHOPE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"EMPIRE","description":"","isDeprecated":false,"deprecationReason":null},{"name":"JEDI","description":"","isDeprecated":true,"deprecationReason":"No longer supported"}],"possibleTypes":[]},{"kind":"INTERFACE","name":"Character","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Human","ofType":null},{"kind":"OBJECT","name":"Droid","ofType":null}]},{"kind":"OBJECT","name":"Human","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"height","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":true,"deprecationReason":"No longer supported"},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"OBJECT","name":"Droid","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"primaryFunction","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"friends","description":"","args":[],"type":{"kind":"LIST","name":null,"ofType":{"kind":"INTERFACE","name":"Character","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Character","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"INTERFACE","name":"Vehicle","description":"","fields":[{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[{"kind":"OBJECT","name":"Starship","ofType":null}]},{"kind":"OBJECT","name":"Starship","description":"","fields":[{"name":"name","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"String","ofType":null}},"isDeprecated":false,"deprecationReason":null},{"name":"length","description":"","args":[],"type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Float","ofType":null}},"isDeprecated":false,"deprecationReason":null}],"inputFields":[],"interfaces":[{"kind":"INTERFACE","name":"Vehicle","ofType":null}],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Int","description":"The 'Int' scalar type represents non-fractional signed whole numeric values. Int can represent values between -(2^31) and 2^31 - 1.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Float","description":"The 'Float' scalar type represents signed double-precision fractional values as specified by [IEEE 754](http://en.wikipedia.org/wiki/IEEE_floating_point).","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"String","description":"The 'String' scalar type represents textual data, represented as UTF-8 character sequences. The String type is most often used by GraphQL to represent free-form human-readable text.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"Boolean","description":"The 'Boolean' scalar type represents 'true' or 'false' .","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]},{"kind":"SCALAR","name":"ID","description":"The 'ID' scalar type represents a unique identifier, often used to refetch an object or as key for a cache. The ID type appears in a JSON response as a String; however, it is not intended to be human-readable. When expected as an input type, any string (such as '4') or integer (such as 4) input value will be accepted as an ID.","fields":null,"inputFields":[],"interfaces":[],"enumValues":null,"possibleTypes":[]}],"directives":[{"name":"include","description":"Directs the executor to include this field or fragment only when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Included when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"skip","description":"Directs the executor to skip this field or fragment when the argument is true.","locations":["FIELD","FRAGMENT_SPREAD","INLINE_FRAGMENT"],"args":[{"name":"if","description":"Skipped when true.","type":{"kind":"NON_NULL","name":null,"ofType":{"kind":"SCALAR","name":"Boolean","ofType":null}},"defaultValue":null}]},{"name":"deprecated","description":"Marks an element of a GraphQL schema as no longer supported.","locations":["FIELD_DEFINITION","ENUM_VALUE"],"args":[{"name":"reason","description":"Explains why this element was deprecated, usually also including a suggestion\n    for how to access supported similar data. Formatted in\n    [Markdown](https://daringfireball.net/projects/markdown/).","type":{"kind":"SCALAR","name":"String","ofType":null},"defaultValue":"\"No longer supported\""}]}]}}}`)
+	// Read expected response from goldie fixture
+	expectedResponseIndented, err := os.ReadFile("testdata/full_introspection.json")
+	require.NoError(b, err)
+
+	// Minify the JSON to match the engine output format (preserve key order)
+	var buf bytes.Buffer
+	err = json.Compact(&buf, expectedResponseIndented)
+	require.NoError(b, err)
+	expectedResponse := buf.Bytes()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
 	}
-
 	newEngine := func() *ExecutionEngine {
 		engine, err := NewExecutionEngine(ctx, abstractlogger.NoopLogger, engineConf, resolve.ResolverOptions{
 			MaxConcurrency: 1024,
@@ -4612,7 +4730,7 @@ func BenchmarkIntrospection(b *testing.B) {
 	writer := graphql.NewEngineResultWriter()
 	engine := newEngine()
 	require.NoError(b, engine.Execute(ctx, &req, &writer))
-	require.Equal(b, expectedResponse, writer.Bytes())
+	require.Equal(b, string(expectedResponse), writer.String())
 
 	pool := sync.Pool{
 		New: func() interface{} {
@@ -4629,10 +4747,8 @@ func BenchmarkIntrospection(b *testing.B) {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
 			require.NoError(b, bc.engine.Execute(ctx, &req, bc.writer))
-			if !bytes.Equal(expectedResponse, bc.writer.Bytes()) {
-				require.Equal(b, string(expectedResponse), bc.writer.String())
-			}
-
+			require.True(b, bytes.Equal(expectedResponse, bc.writer.Bytes()))
+			// no point to use JSONEq here because JSONEq would contaminate results
 			pool.Put(bc)
 		}
 	})
@@ -4642,12 +4758,10 @@ func BenchmarkIntrospection(b *testing.B) {
 func BenchmarkExecutionEngine(b *testing.B) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
 	type benchCase struct {
 		engine *ExecutionEngine
 		writer *graphql.EngineResultWriter
 	}
-
 	newEngine := func() *ExecutionEngine {
 		schema, err := graphql.NewSchemaFromString(`type Query { hello: String}`)
 		require.NoError(b, err)
@@ -4661,7 +4775,7 @@ func BenchmarkExecutionEngine(b *testing.B) {
 				},
 			},
 			staticdatasource.Configuration{
-				Data: `"world"`,
+				Data: `{"hello": "world"}`,
 			},
 		)
 		require.NoError(b, err)
@@ -4672,9 +4786,8 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		})
 		engineConf.SetFieldConfigurations([]plan.FieldConfiguration{
 			{
-				TypeName:              "Query",
-				FieldName:             "hello",
-				DisableDefaultMapping: true,
+				TypeName:  "Query",
+				FieldName: "hello",
 			},
 		})
 
@@ -4718,7 +4831,9 @@ func BenchmarkExecutionEngine(b *testing.B) {
 		for pb.Next() {
 			bc := pool.Get().(*benchCase)
 			bc.writer.Reset()
-			_ = bc.engine.Execute(ctx, &req, bc.writer)
+			if err := bc.engine.Execute(ctx, &req, bc.writer); err != nil {
+				b.Fatal(err)
+			}
 			pool.Put(bc)
 		}
 	})

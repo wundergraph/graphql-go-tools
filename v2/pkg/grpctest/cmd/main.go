@@ -14,9 +14,10 @@ import (
 	"net"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
-	"google.golang.org/grpc"
 )
 
 func loggingInterceptor(
