@@ -472,6 +472,13 @@ func (r *fieldSelectionRewriter) interfaceFieldSelectionNeedsRewrite(selectionSe
 		if !r.allEntitiesHaveFieldsAsRootNode(entitiesWithoutFragment, selectionSetInfo.fields) {
 			return true
 		}
+
+		// check if any implementing type has requiresConfiguration for one of the requested fields
+		if slices.ContainsFunc(entityNames, func(entityName string) bool {
+			return r.hasRequiresConfigurationForField(entityName, selectionSetInfo.fields)
+		}) {
+			return true
+		}
 	}
 
 	if selectionSetInfo.hasFields && selectionSetInfo.hasInlineFragmentsOnObjects {

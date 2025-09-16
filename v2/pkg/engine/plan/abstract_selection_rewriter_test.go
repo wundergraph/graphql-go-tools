@@ -219,6 +219,83 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 			})
 	}
 
+	definitionC := `
+		interface Named {
+			name: String!
+		}
+
+		type User implements Named {
+			id: ID!
+			name: String!
+			surname: String!
+		}
+
+		type Admin implements Named {
+			id: ID!
+			name: String!
+			title: String!
+		}
+
+		type Query {
+			user: Named!
+		}`
+
+	upstreamDefinitionC := `
+		interface Named {
+			name: String!
+		}
+
+		type User implements Named @key(fields: "id") {
+			id: ID!
+			name: String! @requires(fields: "fullName")
+			fullName: String! @external
+			surname: String!
+		}
+
+		type Admin implements Named @key(fields: "id") {
+			id: ID!
+			name: String! @requires(fields: "fullName")
+			fullName: String! @external
+		}
+
+		type Query {
+			user: Named!
+		}`
+
+	dsBuilderC := func() *dsBuilder {
+		return dsb().
+			RootNode("Query", "user").
+			RootNode("User", "id", "name", "surname").
+			AddRootNodeExternalFieldNames("User", "fullName").
+			RootNode("Admin", "id", "name").
+			AddRootNodeExternalFieldNames("Admin", "fullName").
+			ChildNode("Named", "name").
+			WithMetadata(func(m *FederationMetaData) {
+				m.Requires = []FederationFieldConfiguration{
+					{
+						TypeName:     "User",
+						FieldName:    "name",
+						SelectionSet: "fullName",
+					},
+					{
+						TypeName:     "Admin",
+						FieldName:    "name",
+						SelectionSet: "fullName",
+					},
+				}
+				m.Keys = []FederationFieldConfiguration{
+					{
+						TypeName:     "User",
+						SelectionSet: "id",
+					},
+					{
+						TypeName:     "Admin",
+						SelectionSet: "id",
+					},
+				}
+			})
+	}
+
 	testCases := []testCase{
 		{
 			name:               "should flatten interfaces for gRPC",
@@ -3938,6 +4015,60 @@ func TestInterfaceSelectionRewriter_RewriteOperation(t *testing.T) {
 						}
 						... on User {
 							id
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is an interface members of which has requires directive. query do not have fragments",
+			definition:         definitionC,
+			upstreamDefinition: upstreamDefinitionC,
+			dsBuilder:          dsBuilderC(),
+			fieldName:          "user",
+			operation: `
+				query {
+					user {
+						name
+					}
+				}`,
+			expectedOperation: `
+				query {
+					user {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+						}
+					}
+				}`,
+			shouldRewrite: true,
+		},
+		{
+			name:               "field is an interface members of which has requires directive. query has concrete type fragment",
+			definition:         definitionC,
+			upstreamDefinition: upstreamDefinitionC,
+			dsBuilder:          dsBuilderC(),
+			fieldName:          "user",
+			operation: `
+				query {
+					user {
+						name
+						... on User {
+							surname
+						}
+					}
+				}`,
+			expectedOperation: `
+				query {
+					user {
+						... on Admin {
+							name
+						}
+						... on User {
+							name
+							surname
 						}
 					}
 				}`,
