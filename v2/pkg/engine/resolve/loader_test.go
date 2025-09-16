@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/fastjsonext"
 )
@@ -1250,7 +1251,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "single entity with requires dependency failure",
 			fetchReasons: []FetchReason{
-				{TypeName: "User", FieldName: "email", IsRequires: true},
+				{TypeName: "User", FieldName: "email", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{"__typename": "User", "id": "1", "email": null},
@@ -1267,8 +1268,8 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "multiple entities with requires dependency failures",
 			fetchReasons: []FetchReason{
-				{TypeName: "Product", FieldName: "reviews", IsRequires: true},
-				{TypeName: "Product", FieldName: "rating", IsRequires: true},
+				{TypeName: "Product", FieldName: "reviews", IsRequires: true, Nullable: true},
+				{TypeName: "Product", FieldName: "rating", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{"__typename": "Product", "upc": "1", "reviews": null, "rating": 4.5},
@@ -1290,8 +1291,25 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "error in non-required field should not taint entity",
 			fetchReasons: []FetchReason{
-				{TypeName: "Product", FieldName: "reviews", IsRequires: true},
-				{TypeName: "Product", FieldName: "description", IsKey: true}, // Not required
+				{TypeName: "Product", FieldName: "reviews", IsRequires: true, Nullable: true},
+				{TypeName: "Product", FieldName: "description", IsKey: true, Nullable: true},
+			},
+			responseJSON: `[
+				{"__typename": "Product", "upc": "1", "reviews": [], "description": null}
+			]`,
+			errorsJSON: `[
+				{
+					"message": "Description not available",
+					"path": ["_entities", 0, "description"]
+				}
+			]`,
+			expectedIndices: nil,
+		},
+		{
+			name: "error in non-nullable field should not taint entity",
+			fetchReasons: []FetchReason{
+				{TypeName: "Product", FieldName: "reviews", IsRequires: true, Nullable: true},
+				{TypeName: "Product", FieldName: "description", IsRequires: true, Nullable: false},
 			},
 			responseJSON: `[
 				{"__typename": "Product", "upc": "1", "reviews": [], "description": null}
@@ -1307,7 +1325,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "error path without _entities should be ignored",
 			fetchReasons: []FetchReason{
-				{TypeName: "User", FieldName: "email", IsRequires: true},
+				{TypeName: "User", FieldName: "email", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `{
 				"users": [
@@ -1325,7 +1343,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "entity field is not null - should not be tainted",
 			fetchReasons: []FetchReason{
-				{TypeName: "Product", FieldName: "reviews", IsRequires: true},
+				{TypeName: "Product", FieldName: "reviews", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{"__typename": "Product", "upc": "1", "reviews": []}
@@ -1341,7 +1359,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "missing __typename should not taint entity",
 			fetchReasons: []FetchReason{
-				{TypeName: "Product", FieldName: "reviews", IsRequires: true},
+				{TypeName: "Product", FieldName: "reviews", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{"upc": "1", "reviews": null}
@@ -1357,7 +1375,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "deeply nested entity path",
 			fetchReasons: []FetchReason{
-				{TypeName: "Review", FieldName: "sentiment", IsRequires: true},
+				{TypeName: "Review", FieldName: "sentiment", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{
@@ -1384,7 +1402,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "error path too short",
 			fetchReasons: []FetchReason{
-				{TypeName: "Product", FieldName: "name", IsRequires: true},
+				{TypeName: "Product", FieldName: "name", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{"__typename": "Product", "upc": "1", "name": null}
@@ -1400,7 +1418,7 @@ func TestGetTaintedIndices(t *testing.T) {
 		{
 			name: "invalid error path format",
 			fetchReasons: []FetchReason{
-				{TypeName: "Product", FieldName: "reviews", IsRequires: true},
+				{TypeName: "Product", FieldName: "reviews", IsRequires: true, Nullable: true},
 			},
 			responseJSON: `[
 				{"__typename": "Product", "upc": "1", "reviews": null}

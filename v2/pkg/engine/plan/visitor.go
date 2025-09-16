@@ -1435,6 +1435,13 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 
 		byUser := !v.skipField(fieldRef)
 
+		var nullable bool
+		fieldDefRef := v.fieldDefinitionRef(typeName, fieldName)
+		if fieldDefRef != ast.InvalidRef {
+			typeRef := v.Definition.FieldDefinitionType(fieldDefRef)
+			nullable = !v.Definition.TypeIsNonNull(typeRef)
+		}
+
 		var subgraphs []string
 		var isKey, isRequires bool
 
@@ -1488,6 +1495,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 					ByUser:      byUser,
 					IsKey:       isKey,
 					IsRequires:  isRequires,
+					Nullable:    nullable,
 				})
 				i = len(reasons) - 1
 				index[key] = i
@@ -1506,4 +1514,13 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 		)
 	})
 	return reasons
+}
+
+func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
+	node, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
+	if !ok {
+		return ast.InvalidRef
+	}
+	defRef, _ := v.Definition.NodeFieldDefinitionByName(node, []byte(fieldName))
+	return defRef
 }

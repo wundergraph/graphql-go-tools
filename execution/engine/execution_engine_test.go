@@ -4564,28 +4564,23 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				title: String
 				full: String
 			}
-
 			type Query {
 				accounts: [User!]!
 			}`
-
 		firstSubgraphSDL := `
 				type User @key(fields: "id") {
 					id: ID!
 					title: String @external
 					full: String @requires(fields: "title")
 				}
-
 				type Query {
 					accounts: [User!]!
-				}
-			`
+				}`
 		secondSubgraphSDL := `
 				type User @key(fields: "id") {
 					id: ID!
 					title: String
-				}
-			`
+				}`
 
 		datasources := []plan.DataSource{
 			mustGraphqlDataSourceConfiguration(t,
@@ -4722,7 +4717,174 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		}))
 	})
 
-	t.Run("optional requires dependency fails", func(t *testing.T) {
+	t.Run("does not handle optional requires dependencies if they are non-nullables", func(t *testing.T) {
+		definition := `
+			type Query {
+				accounts: [User!]!
+			}
+			type User {
+				id: ID!
+				title: String!
+				full: String
+			}`
+		firstSubgraphSDL := `
+			type Query {
+				accounts: [User!]!
+			}
+			type User @key(fields: "id") {
+				id: ID!
+				title: String! @external
+				full: String @requires(fields: "title")
+			}`
+		secondSubgraphSDL := `
+			type User @key(fields: "id") {
+				id: ID!
+				title: String!
+			}`
+		// Expected:
+		// fetch (id-1) returns all,
+		// fetch (id-2) returns broken data and maybe an error,
+		// fetch (id-1) made with partial data, returns all
+		datasources := []plan.DataSource{
+			mustGraphqlDataSourceConfiguration(t,
+				"id-1",
+				mustFactory(t,
+					testConditionalNetHttpClient(t, conditionalTestCase{
+						expectedHost: "first",
+						expectedPath: "/",
+						responses: map[string]sendResponse{
+							`{"query":"{accounts {id __typename}}"}`: {
+								statusCode: 200,
+								body:       `{"data":{"accounts":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+							},
+							`{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename full}}}","variables":{"representations":[{"__typename":"User","title":"User3","id":"3"}]}}`: {
+								statusCode: 200,
+								body:       `{"data":{"_entities":[{"__typename":"User","full":"User3 full"}]}}`,
+							},
+						},
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "Query",
+							FieldNames: []string{"accounts"},
+						},
+						{
+							TypeName:           "User",
+							FieldNames:         []string{"id", "full"},
+							ExternalFieldNames: []string{"title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+						Requires: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								FieldName:    "full",
+								SelectionSet: "title",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://first/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: firstSubgraphSDL,
+						},
+						firstSubgraphSDL,
+					),
+				}),
+			),
+			mustGraphqlDataSourceConfiguration(t,
+				"id-2",
+				mustFactory(t,
+					testNetHttpClient(t, roundTripperTestCase{
+						expectedHost:     "second",
+						expectedPath:     "/",
+						expectedBody:     `{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {__typename title}}}","variables":{"representations":[{"__typename":"User","id":"1"},{"__typename":"User","id":"3"}]}}`,
+						sendResponseBody: `{"data":{"_entities":[{"__typename":"User","title":null},{"__typename":"User","title":"User3"}]},"errors":[{"message":"Some unrelated warning","locations":[{"line":1,"column":20}],"path":["_entities",1,"title"]},{"message":"Cannot provide value","locations":[{"line":1,"column":30}],"path":["_entities",0,"title"]}]}`,
+						sendStatusCode:   200,
+					}),
+				),
+				&plan.DataSourceMetadata{
+					RootNodes: []plan.TypeField{
+						{
+							TypeName:   "User",
+							FieldNames: []string{"id", "title"},
+						},
+					},
+					FederationMetaData: plan.FederationMetaData{
+						Keys: plan.FederationFieldConfigurations{
+							{
+								TypeName:     "User",
+								SelectionSet: "id",
+							},
+						},
+					},
+				},
+				mustConfiguration(t, graphql_datasource.ConfigurationInput{
+					Fetch: &graphql_datasource.FetchConfiguration{
+						URL:    "https://second/",
+						Method: "POST",
+					},
+					SchemaConfiguration: mustSchemaConfig(
+						t,
+						&graphql_datasource.FederationConfiguration{
+							Enabled:    true,
+							ServiceSDL: secondSubgraphSDL,
+						},
+						secondSubgraphSDL,
+					),
+				}),
+			),
+		}
+
+		t.Run("run", runWithoutError(ExecutionEngineTestCase{
+			schema: func(t *testing.T) *graphql.Schema {
+				t.Helper()
+				parseSchema, err := graphql.NewSchemaFromString(definition)
+				require.NoError(t, err)
+				return parseSchema
+			}(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					OperationName: "Accounts",
+					Query: `
+					query Accounts {
+						accounts {
+							... on User {
+								id
+								full
+							}
+						}
+					}`,
+				}
+			},
+			dataSources: datasources,
+			// The error message is not affected by the handling of optional "requires" fields.
+			expectedJSONResponse: `{"data":{
+			"accounts":[
+				{"id":"1","full":null},
+				{"id":"3","full":"User3 full"}
+			]},"errors":[
+				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
+			]}`,
+		}, withFetchReasons(), withHandleOptionalRequiresDeps()))
+	})
+
+	t.Run("handle optional requires dependencies if they are nullable fields", func(t *testing.T) {
 		definition := `
 			type Query {
 				accounts: [User!]!
@@ -4731,8 +4893,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				id: ID!
 				title: String
 				full: String
-			}
-			`
+			}`
 		firstSubgraphSDL := `
 			type Query {
 				accounts: [User!]!
@@ -4741,8 +4902,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				id: ID!
 				title: String @external
 				full: String @requires(fields: "title")
-			}
-			`
+			}`
 		secondSubgraphSDL := `
 			type User @key(fields: "id") {
 				id: ID!
@@ -4890,7 +5050,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		}, withFetchReasons(), withHandleOptionalRequiresDeps()))
 	})
 
-	t.Run("optional requires dependency fails on nested fields", func(t *testing.T) {
+	t.Run("handle optional requires dependencies if they are nested nullables", func(t *testing.T) {
 		definition := `
 			type Query {
 				accounts: [User!]!

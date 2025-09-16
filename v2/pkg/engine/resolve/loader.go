@@ -764,6 +764,14 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 
 // getTaintedIndices identifies indices of tainted entities based on error paths in the response.
 // It processes errors, validates entities, and checks if they align with requested fetch reasons.
+//
+// Process Flow of how it is used:
+//
+// 1. Subgraph returns errors for specific entities in the "_entities" array;
+// 2. getTaintedIndices examines error paths like ["_entities", 1, "requiredField"];
+// 3. It validates that the failed field was actually requested for @requires;
+// 4. Marks entity at index 1 as "tainted";
+// 5. Later fetches will ignore this tainted entity.
 func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *astjson.Value) (indices []int) {
 	info := fetch.FetchInfo()
 	if info == nil {
@@ -772,7 +780,7 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *a
 	// build a map to search with
 	requestedForRequires := map[GraphCoordinate]struct{}{}
 	for _, fr := range info.FetchReasons {
-		if fr.IsRequires {
+		if fr.IsRequires && fr.Nullable {
 			coord := GraphCoordinate{TypeName: fr.TypeName, FieldName: fr.FieldName}
 			requestedForRequires[coord] = struct{}{}
 		}

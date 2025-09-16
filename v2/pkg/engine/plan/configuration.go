@@ -41,6 +41,10 @@ type Configuration struct {
 	BuildFetchReasons bool
 
 	// HandleOptionalRequiresDeps determines if optional @requires dependencies are handled.
+	// When an entity fails to resolve the "@requires" field, any later fields that depend on it
+	// should also be considered invalid. If this option is enabled, it does not fail immediately
+	// but processes other entities that were resolved.
+	// This option requires BuildFetchReasons set to true.
 	HandleOptionalRequiresDeps bool
 }
 

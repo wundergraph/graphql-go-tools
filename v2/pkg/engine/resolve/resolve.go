@@ -164,7 +164,7 @@ type ResolverOptions struct {
 	// PropagateFetchReasons enables adding the "fetch_reasons" extension to
 	// upstream subgraph requests. This extension explains why each field was requested.
 	// This flag does not expose the data to clients.
-	PropagateFetchReasons      bool
+	PropagateFetchReasons bool
 
 	HandleOptionalRequiresDeps bool
 }

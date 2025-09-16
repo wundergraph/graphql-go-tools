@@ -52,7 +52,7 @@ type NodeSelectionResult struct {
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker := astvisitor.NewWalker(48)
 	nodeSelectionVisitor := &nodeSelectionVisitor{
-		walker: &nodeSelectionsWalker,
+		walker:                     &nodeSelectionsWalker,
 		enforceTypenameForRequired: config.HandleOptionalRequiresDeps,
 	}
 
