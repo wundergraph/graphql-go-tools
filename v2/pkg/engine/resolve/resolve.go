@@ -164,7 +164,9 @@ type ResolverOptions struct {
 	// PropagateFetchReasons enables adding the "fetch_reasons" extension to
 	// upstream subgraph requests. This extension explains why each field was requested.
 	// This flag does not expose the data to clients.
-	PropagateFetchReasons bool
+	PropagateFetchReasons      bool
+
+	HandleOptionalRequiresDeps bool
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
@@ -248,6 +250,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
+			handleOptionalRequiresDeps:                   options.HandleOptionalRequiresDeps,
 		},
 	}
 }

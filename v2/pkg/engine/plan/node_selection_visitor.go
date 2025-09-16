@@ -46,6 +46,8 @@ type nodeSelectionVisitor struct {
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
 	rewrittenFieldRefs []int
+
+	enforceTypenameForRequired bool
 }
 
 type fieldDependencyKey struct {
@@ -469,6 +471,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 		allowTypename:                false,
 		typeName:                     typeName,
 		fieldSet:                     requirements.selectionSet,
+		enforceTypenameForRequired:   c.enforceTypenameForRequired,
 	}
 
 	addFieldsResult, report := addRequiredFields(input)

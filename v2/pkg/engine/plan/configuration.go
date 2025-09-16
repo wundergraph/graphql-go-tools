@@ -39,6 +39,9 @@ type Configuration struct {
 	// It may be enabled by some other components of the engine.
 	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
 	BuildFetchReasons bool
+
+	// HandleOptionalRequiresDeps determines if optional @requires dependencies are handled.
+	HandleOptionalRequiresDeps bool
 }
 
 type DebugConfiguration struct {

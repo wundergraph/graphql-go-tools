@@ -178,8 +178,10 @@ type Loader struct {
 
 	propagateFetchReasons bool
 
+	handleOptionalRequiresDeps bool
+
 	// taintedEntities tracks entities fetched with errors.
-	// Those entities should be ignored for later fetches.
+	// Later fetches should ignore those entities.
 	taintedEntities map[*astjson.Value]struct{}
 }
 
@@ -367,7 +369,6 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 	if len(path) == 0 {
 		return items
 	}
-	fmt.Printf("selectItemsForPath %+v %+v \n", path, items)
 	for i := range path {
 		if len(items) == 0 {
 			break
@@ -375,7 +376,6 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 		items = l.selectItems(items, path[i])
 	}
 	items = l.ignoreTainted(items)
-	fmt.Printf("selectItemsForPath result %+v \n", items)
 	return items
 }
 
@@ -387,7 +387,6 @@ func (l *Loader) ignoreTainted(items []*astjson.Value) []*astjson.Value {
 	filtered := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
 		if _, ok := l.taintedEntities[item]; ok {
-			fmt.Printf("ignored tainted entity %s\n", item.String())
 			continue
 		}
 		filtered = append(filtered, item)
@@ -589,7 +588,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	hasErrors := false
-	// fmt.Printf("path %+v \nout %+v \ncoords %+v\ndata %+v\n\n", fetchItem.FetchPath, res.out.String(), fetchItem.Fetch.DependenciesCoordinates(), l.resolvable.data)
 
 	var taintedIndices []int
 	// Check if the subgraph response has errors.
@@ -601,14 +599,16 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
-				if res.postProcessing.SelectResponseDataPath != nil {
-					taintedIndices = l.getTaintedIndices(fetchItem.Fetch, responseData, errs)
-					l.rewriteSubgraphErrorPaths = true
+				if l.handleOptionalRequiresDeps && res.postProcessing.SelectResponseDataPath != nil {
+					taintedIndices = l.getTaintedIndices(fetchItem.Fetch, responseData, responseErrors)
 				}
-				// TODO: rewrite error message if we got tainted indices
-
-				// Look for errors in the response and merge them into the "errors" array.
-				err = l.mergeErrors(res, fetchItem, responseErrors, errs)
+				if len(taintedIndices) > 0 {
+					// Override errors with generic error about missing deps.
+					err = l.renderErrorsFailedToFetch(fetchItem, res, missingRequiresDependencies)
+				} else {
+					// Look for errors in the response and merge them into the "errors" array.
+					err = l.mergeErrors(res, fetchItem, responseErrors, errs)
+				}
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -764,12 +764,11 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 
 // getTaintedIndices identifies indices of tainted entities based on error paths in the response.
 // It processes errors, validates entities, and checks if they align with requested fetch reasons.
-func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []*astjson.Value) (idx []int) {
+func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *astjson.Value) (indices []int) {
 	info := fetch.FetchInfo()
 	if info == nil {
 		return nil
 	}
-
 	// build a map to search with
 	requestedForRequires := map[GraphCoordinate]struct{}{}
 	for _, fr := range info.FetchReasons {
@@ -782,7 +781,7 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []
 		return
 	}
 
-	for _, candidate := range errs {
+	for _, candidate := range errs.GetArray() {
 		errorPath := candidate.Get("path")
 		if astjson.ValueIsNull(errorPath) || errorPath.Type() != astjson.TypeArray {
 			continue
@@ -799,8 +798,8 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []
 				// We have the full path to the failed item.
 				// Verify that it is null and extract the enclosing typename.
 				field := unsafebytes.BytesToString(pathItems[len(pathItems)-1].GetStringBytes())
-				entity, index := extractEntity(response, pathItems[i+1:len(pathItems)-1])
-				if astjson.ValueIsNull(entity) || entity.Type() != astjson.TypeObject {
+				entity, index := extractEntityIndex(response, pathItems[i+1:len(pathItems)-1])
+				if index == -1 || astjson.ValueIsNull(entity) || entity.Type() != astjson.TypeObject {
 					break
 				}
 
@@ -816,9 +815,7 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []
 				if _, ok := requestedForRequires[coord]; !ok {
 					break
 				}
-				// entity.Set(internalTaintedWithError, astjson.MustParse("true"))
-				fmt.Printf("marking failed entity %+v \n", entity)
-				idx = append(idx, index)
+				indices = append(indices, index)
 				break
 			}
 		}
@@ -826,14 +823,27 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs []
 	return
 }
 
-func extractEntity(response *astjson.Value, path []*astjson.Value) (*astjson.Value, int) {
-	var index int
+// extractEntityIndex returns an entity and its index using the path as selectors on the response.
+// Path should contain atl east the index as the first element. Other elements would lead
+// to deeply nested entity.
+func extractEntityIndex(response *astjson.Value, path []*astjson.Value) (*astjson.Value, int) {
+	index := -1
+	if len(path) == 0 {
+		return nil, index
+	}
 	for _, el := range path {
 		var key string
 		switch el.Type() {
 		case astjson.TypeNumber:
-			index = el.GetInt()
-			key = strconv.Itoa(index)
+			parsed := el.GetInt()
+			if parsed < 0 {
+				return nil, index
+			}
+			if index == -1 {
+				// index is assigned only once
+				index = parsed
+			}
+			key = strconv.Itoa(parsed)
 		case astjson.TypeString:
 			key = unsafebytes.BytesToString(el.GetStringBytes())
 		default:
@@ -1126,7 +1136,7 @@ const (
 	invalidGraphQLResponse      = "invalid JSON"
 	invalidGraphQLResponseShape = "no data or errors in response"
 	invalidBatchItemCount       = "returned entities count does not match the count of representation variables in the entities request. Expected %d, got %d"
-	invalidSubgraphResponse     = "failed to obtain field dependencies from subgraphs"
+	missingRequiresDependencies = "failed to obtain field dependencies"
 )
 
 func (l *Loader) renderAtPathErrorPart(path string) string {

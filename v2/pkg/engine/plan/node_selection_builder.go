@@ -53,6 +53,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker := astvisitor.NewWalker(48)
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker: &nodeSelectionsWalker,
+		enforceTypenameForRequired: config.HandleOptionalRequiresDeps,
 	}
 
 	nodeSelectionsWalker.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
