@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
@@ -160,12 +161,14 @@ func (*SingleFetch) FetchKind() FetchKind {
 type BatchEntityFetch struct {
 	FetchDependencies
 
-	Input                BatchInput
-	DataSource           DataSource
-	PostProcessing       PostProcessingConfiguration
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	Input                  BatchInput
+	DataSource             DataSource
+	PostProcessing         PostProcessingConfiguration
+	DataSourceIdentifier   []byte
+	Trace                  *DataSourceLoadTrace
+	Info                   *FetchInfo
+	CoordinateDependencies []FetchDependency
+	Caching                FetchCacheConfiguration
 }
 
 func (b *BatchEntityFetch) Dependencies() *FetchDependencies {
@@ -199,13 +202,14 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 // representations variable will contain single item
 type EntityFetch struct {
 	FetchDependencies
-
-	Input                EntityInput
-	DataSource           DataSource
-	PostProcessing       PostProcessingConfiguration
-	DataSourceIdentifier []byte
-	Trace                *DataSourceLoadTrace
-	Info                 *FetchInfo
+	CoordinateDependencies []FetchDependency
+	Input                  EntityInput
+	DataSource             DataSource
+	PostProcessing         PostProcessingConfiguration
+	DataSourceIdentifier   []byte
+	Trace                  *DataSourceLoadTrace
+	Info                   *FetchInfo
+	Caching                FetchCacheConfiguration
 }
 
 func (e *EntityFetch) Dependencies() *FetchDependencies {
@@ -297,8 +301,16 @@ type FetchConfiguration struct {
 
 	QueryPlan *QueryPlan
 
+	// CoordinateDependencies contain a list of GraphCoordinates (typeName+fieldName)
+	// and which fields from other fetches they depend on.
+	// This information is useful to understand why a fetch depends on other fetches,
+	// and how multiple dependencies lead to a chain of fetches
+	CoordinateDependencies []FetchDependency
+
 	// OperationName is non-empty when the operation name is propagated to the upstream subgraph fetch.
 	OperationName string
+
+	Caching FetchCacheConfiguration
 }
 
 func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
@@ -330,6 +342,19 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 	}
 
 	return true
+}
+
+type FetchCacheConfiguration struct {
+	// Enabled indicates if caching is enabled for this fetch
+	Enabled bool
+	// CacheName is the name of the cache to use for this fetch
+	CacheName string
+	// TTL is the time to live which will be set for new cache entries
+	TTL time.Duration
+	// CacheKeyTemplate can be used to render a cache key for the fetch.
+	// In case of a root fetch, the variables will be one or more field arguments
+	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
+	CacheKeyTemplate *InputTemplate
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
@@ -393,6 +418,7 @@ type FetchInfo struct {
 	// with the request to the subgraph as part of the "fetch_reason" extension.
 	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
 	PropagatedFetchReasons []FetchReason
+	ProvidesData   *Object
 }
 
 type GraphCoordinate struct {
