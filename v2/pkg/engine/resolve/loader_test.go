@@ -1184,13 +1184,20 @@ func TestExtractEntityIndex(t *testing.T) {
 			responseJSON:   `[{"user": {"name": "John"}}]`,
 			pathElements:   []interface{}{0, "user", "nonexistent"},
 			expectedEntity: "nil",
-			expectedIndex:  0,
+			expectedIndex:  -1,
 		},
 		{
 			name:           "negative index is an error",
 			responseJSON:   `[{"name": "A"}, {"name": "negative"}]`,
 			pathElements:   []interface{}{-2},
-			expectedEntity: "nil", // -1 as array index doesn't exist
+			expectedEntity: "nil",
+			expectedIndex:  -1,
+		},
+		{
+			name:           "out of bound index is an error",
+			responseJSON:   `[{"name": "A"}, {"name": "negative"}]`,
+			pathElements:   []interface{}{9},
+			expectedEntity: "nil",
 			expectedIndex:  -1,
 		},
 		{

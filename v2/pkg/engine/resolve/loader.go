@@ -367,6 +367,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
 	items := []*astjson.Value{l.resolvable.data}
 	if len(path) == 0 {
+		items = l.ignoreTainted(items)
 		return items
 	}
 	for i := range path {
@@ -855,11 +856,11 @@ func extractEntityIndex(response *astjson.Value, path []*astjson.Value) (*astjso
 		case astjson.TypeString:
 			key = unsafebytes.BytesToString(el.GetStringBytes())
 		default:
-			return nil, index
+			return nil, -1
 		}
 		response = response.Get(key)
 		if response == nil {
-			return nil, index
+			return nil, -1
 		}
 	}
 	return response, index

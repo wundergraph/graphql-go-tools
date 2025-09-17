@@ -1527,6 +1527,9 @@ func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
 	if !ok {
 		return ast.InvalidRef
 	}
-	defRef, _ := v.Definition.NodeFieldDefinitionByName(node, []byte(fieldName))
+	defRef, ok := v.Definition.NodeFieldDefinitionByName(node, []byte(fieldName))
+	if !ok {
+		return ast.InvalidRef
+	}
 	return defRef
 }
