@@ -39,6 +39,11 @@ type Configuration struct {
 	// It may be enabled by some other components of the engine.
 	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
 	BuildFetchReasons bool
+
+	// DisableEntityCaching disables planning of entity caching behavior or generating relevant metadata
+	DisableEntityCaching bool
+	// DisableFetchProvidesData disables planning of meta information about which fields are provided by a fetch
+	DisableFetchProvidesData bool
 }
 
 type DebugConfiguration struct {

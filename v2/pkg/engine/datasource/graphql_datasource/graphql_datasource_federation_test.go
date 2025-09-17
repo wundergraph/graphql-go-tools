@@ -2,6 +2,7 @@ package graphql_datasource
 
 import (
 	"testing"
+	"time"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	. "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasourcetesting"
@@ -1557,6 +1558,14 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 									DataSource:     &Source{},
 									PostProcessing: DefaultPostProcessingConfiguration,
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:   true,
+										CacheName: "default",
+										TTL:       time.Second * 30,
+										CacheKeyTemplate: &resolve.InputTemplate{
+											Segments: []resolve.TemplateSegment{},
+										},
+									},
 								},
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "user.service",
@@ -1642,6 +1651,106 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 											TypeName:             "Account",
 											FieldName:            "shippingInfo",
 											HasAuthorizationRule: true,
+										},
+									},
+									CoordinateDependencies: []resolve.FetchDependency{
+										{
+											Coordinate: resolve.GraphCoordinate{
+												TypeName:  "Account",
+												FieldName: "name",
+											},
+											IsUserRequested: true,
+											DependsOn: []resolve.FetchDependencyOrigin{
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "id",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "info",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "a",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "b",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+											},
+										},
+										{
+											Coordinate: resolve.GraphCoordinate{
+												TypeName:  "Account",
+												FieldName: "shippingInfo",
+											},
+											IsUserRequested: true,
+											DependsOn: []resolve.FetchDependencyOrigin{
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "id",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Account",
+														FieldName: "info",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "a",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+												{
+													FetchID:  0,
+													Subgraph: "user.service",
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Info",
+														FieldName: "b",
+													},
+													IsKey:      true,
+													IsRequires: false,
+												},
+											},
 										},
 									},
 									OperationType: ast.OperationTypeQuery,
@@ -1731,6 +1840,60 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										},
 									},
 									PostProcessing: SingleEntityPostProcessingConfiguration,
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:   true,
+										CacheName: "default",
+										TTL:       time.Second * 30,
+										CacheKeyTemplate: &resolve.InputTemplate{
+											Segments: []resolve.TemplateSegment{
+												{
+													SegmentType:  resolve.VariableSegmentType,
+													VariableKind: resolve.ResolvableObjectVariableKind,
+													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
+														Nullable: true,
+														Fields: []*resolve.Field{
+															{
+																Name:        []byte("__typename"),
+																OnTypeNames: [][]byte{[]byte("Account")},
+																Value: &resolve.String{
+																	Path: []string{"__typename"},
+																},
+															},
+															{
+																Name:        []byte("id"),
+																OnTypeNames: [][]byte{[]byte("Account")},
+																Value: &resolve.Scalar{
+																	Path: []string{"id"},
+																},
+															},
+															{
+																Name:        []byte("info"),
+																OnTypeNames: [][]byte{[]byte("Account")},
+																Value: &resolve.Object{
+																	Path:     []string{"info"},
+																	Nullable: true,
+																	Fields: []*resolve.Field{
+																		{
+																			Name: []byte("a"),
+																			Value: &resolve.Scalar{
+																				Path: []string{"a"},
+																			},
+																		},
+																		{
+																			Name: []byte("b"),
+																			Value: &resolve.Scalar{
+																				Path: []string{"b"},
+																			},
+																		},
+																	},
+																},
+															},
+														},
+													}),
+												},
+											},
+										},
+									},
 								},
 							}, "user.account", resolve.ObjectPath("user"), resolve.ObjectPath("account")),
 						),
@@ -1865,7 +2028,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 						},
 					},
 				},
-				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor()))
+				planConfiguration, WithFieldInfo(), WithDefaultPostProcessor(), WithFieldDependencies(), WithEntityCaching(), WithFetchProvidesData()))
 		})
 
 		t.Run("composite keys variant", func(t *testing.T) {

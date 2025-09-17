@@ -1642,21 +1642,27 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType := reflect.TypeOf(external.DataSource).String()
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
-	cacheKeyTemplate := &resolve.InputTemplate{
-		SetTemplateOutputToNullOnVariableNull: false,
-		Segments:                              make([]resolve.TemplateSegment, len(external.Variables)),
-	}
+	if !v.Config.DisableEntityCaching {
+		cacheKeyTemplate := &resolve.InputTemplate{
+			SetTemplateOutputToNullOnVariableNull: false,
+			Segments:                              make([]resolve.TemplateSegment, len(external.Variables)),
+		}
 
-	for i, variable := range external.Variables {
-		segment := variable.TemplateSegment()
-		cacheKeyTemplate.Segments[i] = segment
-	}
+		for i, variable := range external.Variables {
+			segment := variable.TemplateSegment()
+			cacheKeyTemplate.Segments[i] = segment
+		}
 
-	external.Caching = resolve.FetchCacheConfiguration{
-		Enabled:          true,
-		CacheName:        "default",
-		TTL:              time.Second * time.Duration(30),
-		CacheKeyTemplate: cacheKeyTemplate,
+		external.Caching = resolve.FetchCacheConfiguration{
+			Enabled:          true,
+			CacheName:        "default",
+			TTL:              time.Second * time.Duration(30),
+			CacheKeyTemplate: cacheKeyTemplate,
+		}
+	} else {
+		external.Caching = resolve.FetchCacheConfiguration{
+			Enabled: false,
+		}
 	}
 
 	singleFetch := &resolve.SingleFetch{
@@ -1678,12 +1684,16 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		OperationType:  internal.operationType,
 		QueryPlan:      external.QueryPlan,
 	}
-
+	if !v.Config.DisableFetchProvidesData {
+		// Set ProvidesData from the planner's object structure
+		if providesData, ok := v.plannerObjects[internal.fetchID]; ok {
+			singleFetch.Info.ProvidesData = providesData
+		}
+	}
+	singleFetch.Info.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
 	if v.Config.DisableIncludeFieldDependencies {
 		return singleFetch
 	}
-	singleFetch.Info.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
-
 	if !v.Config.BuildFetchReasons {
 		return singleFetch
 	}
@@ -1699,11 +1709,6 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		field := FieldCoordinate{fr.TypeName, fr.FieldName}
 		if _, ok := lookup[field]; ok {
 			propagated = append(propagated, fr)
-		}
-
-		// Set ProvidesData from the planner's object structure
-		if providesData, ok := v.plannerObjects[internal.fetchID]; ok {
-			singleFetch.Info.ProvidesData = providesData
 		}
 	}
 	singleFetch.Info.PropagatedFetchReasons = propagated

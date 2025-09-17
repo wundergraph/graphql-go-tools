@@ -783,7 +783,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}, WithFieldInfo(), WithDefaultPostProcessor()))
+	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {
