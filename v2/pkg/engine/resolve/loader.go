@@ -595,23 +595,27 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.postProcessing.SelectResponseErrorsPath != nil {
 		responseErrors := response.Get(res.postProcessing.SelectResponseErrorsPath...)
 		if astjson.ValueIsNonNull(responseErrors) {
-			errs := responseErrors.GetArray()
-			hasErrors = len(errs) > 0
+			hasErrors = len(responseErrors.GetArray()) > 0
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
 				if l.handleOptionalRequiresDeps && res.postProcessing.SelectResponseDataPath != nil {
-					taintedIndices = l.getTaintedIndices(fetchItem.Fetch, responseData, responseErrors)
+					taintedIndices = l.getTaintedIndicesAndCleanErrors(fetchItem.Fetch, responseData, responseErrors)
 				}
 				if len(taintedIndices) > 0 {
 					// Override errors with generic error about missing deps.
 					err = l.renderErrorsFailedToFetch(fetchItem, res, missingRequiresDependencies)
-				} else {
-					// Look for errors in the response and merge them into the "errors" array.
-					err = l.mergeErrors(res, fetchItem, responseErrors, errs)
+					if err != nil {
+						return errors.WithStack(err)
+					}
 				}
-				if err != nil {
-					return errors.WithStack(err)
+				// The number of errors could have changed since the last check.
+				if len(responseErrors.GetArray()) > 0 {
+					// Look for errors in the response and merge them into the "errors" array.
+					err = l.mergeErrors(res, fetchItem, responseErrors)
+					if err != nil {
+						return errors.WithStack(err)
+					}
 				}
 			}
 		}
@@ -763,17 +767,19 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 	return nil
 }
 
-// getTaintedIndices identifies indices of tainted entities based on error paths in the response.
-// It processes errors, validates entities, and checks if they align with requested fetch reasons.
+// getTaintedIndicesAndCleanErrors identifies indices of malformed entities based on error paths
+// in the response. It uses errors to find entities that have null value for nullable fields that
+// are required for other fetches. If an error was used to find such an entity, then this error is
+// removed from the errors.
 //
-// Process Flow of how it is used:
+// The high-level flow of how it is used:
 //
 // 1. Subgraph returns errors for specific entities in the "_entities" array;
-// 2. getTaintedIndices examines error paths like ["_entities", 1, "requiredField"];
+// 2. getTaintedIndicesAndCleanErrors examines error paths like ["_entities", 1, "requiredField"];
 // 3. It validates that the failed field was actually requested for @requires;
 // 4. Marks entity at index 1 as "tainted";
 // 5. Later fetches will ignore this tainted entity.
-func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *astjson.Value) (indices []int) {
+func (l *Loader) getTaintedIndicesAndCleanErrors(fetch Fetch, data *astjson.Value, errors *astjson.Value) (indices []int) {
 	info := fetch.FetchInfo()
 	if info == nil {
 		return nil
@@ -790,7 +796,9 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *a
 		return
 	}
 
-	for _, candidate := range errs.GetArray() {
+	errorsArray := errors.GetArray()
+	for errorIdx := len(errorsArray) - 1; errorIdx >= 0; errorIdx-- {
+		candidate := errorsArray[errorIdx]
 		errorPath := candidate.Get("path")
 		if astjson.ValueIsNull(errorPath) || errorPath.Type() != astjson.TypeArray {
 			continue
@@ -807,7 +815,7 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *a
 				// We have the full path to the failed item.
 				// Verify that it is null and extract the enclosing typename.
 				field := unsafebytes.BytesToString(pathItems[len(pathItems)-1].GetStringBytes())
-				entity, index := extractEntityIndex(response, pathItems[i+1:len(pathItems)-1])
+				entity, index := extractEntityIndex(data, pathItems[i+1:len(pathItems)-1])
 				if index == -1 || astjson.ValueIsNull(entity) || entity.Type() != astjson.TypeObject {
 					break
 				}
@@ -825,6 +833,7 @@ func (l *Loader) getTaintedIndices(fetch Fetch, response *astjson.Value, errs *a
 					break
 				}
 				indices = append(indices, index)
+				errors.Del(strconv.Itoa(errorIdx))
 				break
 			}
 		}
@@ -866,7 +875,8 @@ func extractEntityIndex(response *astjson.Value, path []*astjson.Value) (*astjso
 	return response, index
 }
 
-func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
+func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
+	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
 	l.optionallyRewriteErrorPaths(fetchItem, values)
 	l.optionallyEnsureExtensionErrorCode(values)

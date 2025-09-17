@@ -1293,7 +1293,7 @@ func TestGetTaintedIndices(t *testing.T) {
 					"path": ["_entities", 1, "rating"]
 				}
 			]`,
-			expectedIndices: []int{0, 1},
+			expectedIndices: []int{1, 0},
 		},
 		{
 			name: "error in non-required field should not taint entity",
@@ -1455,7 +1455,7 @@ func TestGetTaintedIndices(t *testing.T) {
 			errors, err := astjson.ParseBytesWithoutCache([]byte(tt.errorsJSON))
 			assert.NoError(t, err, "Failed to parse errors JSON")
 
-			indices := loader.getTaintedIndices(mockFetch, response, errors)
+			indices := loader.getTaintedIndicesAndCleanErrors(mockFetch, response, errors)
 
 			assert.Equal(t, tt.expectedIndices, indices, "Tainted indices mismatch: %s")
 		})
