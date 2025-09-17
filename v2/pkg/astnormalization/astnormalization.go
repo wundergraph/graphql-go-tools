@@ -402,6 +402,7 @@ func (v *VariablesNormalizer) NormalizeOperation(operation, definition *ast.Docu
 
 type fragmentCycleVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	currentFragmentRef    int           // current fragment ref
 	spreadsInFragments    map[int][]int // fragment ref -> spread refs

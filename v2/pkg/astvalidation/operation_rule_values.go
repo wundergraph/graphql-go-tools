@@ -25,6 +25,7 @@ func Values() Rule {
 
 type valuesVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	importer              astimport.Importer
 }

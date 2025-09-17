@@ -7,7 +7,7 @@ linters:
     - ineffassign
     - staticcheck
     - bodyclose
-    # - embeddedstructfieldcheck
+    - embeddedstructfieldcheck
     # - unused
     # - gosec
 
@@ -25,6 +25,10 @@ linters:
       - path: pkg/astvalidation/reference
         linters:
           - staticcheck
+  settings:
+    embeddedstructfieldcheck:
+      # Checks that sync.Mutex and sync.RWMutex are not used as embedded fields.
+      forbid-mutex: true
 
 formatters:
   enable:

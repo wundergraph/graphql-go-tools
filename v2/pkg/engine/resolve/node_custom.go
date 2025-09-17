@@ -10,6 +10,7 @@ type CustomResolve interface {
 
 type CustomNode struct {
 	CustomResolve
+
 	Nullable bool
 	Path     []string
 }

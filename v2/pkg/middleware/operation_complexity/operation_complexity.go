@@ -111,6 +111,7 @@ func CalculateOperationComplexity(operation, definition *ast.Document, report *o
 
 type complexityVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	count                 int
 	complexity            int
