@@ -1156,6 +1156,9 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	case <-r.ctx.Done():
 		// Stop resolving if the resolver is shutting down
 		return r.ctx.Err()
+	case <-ctx.ctx.Done():
+		// Stop resolving if the client is gone
+		return ctx.ctx.Err()
 	case r.events <- subscriptionEvent{
 		triggerID: xxh.Sum64(),
 		kind:      subscriptionEventKindAddSubscription,
