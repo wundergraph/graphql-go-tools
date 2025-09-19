@@ -40,12 +40,12 @@ type Configuration struct {
 	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
 	BuildFetchReasons bool
 
-	// HandleOptionalRequiresDeps determines if optional @requires dependencies are handled.
-	// When an entity fails to resolve the "@requires" field, any later fields that depend on it
-	// should also be considered invalid. If this option is enabled, it does not fail immediately
-	// but processes other entities that were resolved.
+	// ValidateRequiredExternalFields validates optional external "@requires" dependencies.
+	// When a subgraph returns a null value with an error for optional field set specified in
+	// the "@requires" directive, any later resolver that depends on it should not receive such an
+	// entity.
 	// This option requires BuildFetchReasons set to true.
-	HandleOptionalRequiresDeps bool
+	ValidateRequiredExternalFields bool
 }
 
 type DebugConfiguration struct {

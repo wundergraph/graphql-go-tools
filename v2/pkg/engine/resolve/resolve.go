@@ -166,7 +166,7 @@ type ResolverOptions struct {
 	// This flag does not expose the data to clients.
 	PropagateFetchReasons bool
 
-	HandleOptionalRequiresDeps bool
+	ValidateRequiredExternalFields bool
 }
 
 // New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
@@ -250,7 +250,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
-			handleOptionalRequiresDeps:                   options.HandleOptionalRequiresDeps,
+			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
 		},
 	}
 }

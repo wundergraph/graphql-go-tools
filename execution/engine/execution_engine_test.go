@@ -219,7 +219,7 @@ type _executionTestOptions struct {
 
 	apolloRouterCompatibilitySubrequestHTTPError bool
 	propagateFetchReasons                        bool
-	handleOptionalRequiresDeps                   bool
+	validateRequiredExternalFields               bool
 }
 
 type executionTestOptions func(*_executionTestOptions)
@@ -238,9 +238,9 @@ func withFetchReasons() executionTestOptions {
 	}
 }
 
-func withHandleOptionalRequiresDeps() executionTestOptions {
+func validateRequiredExternalFields() executionTestOptions {
 	return func(options *_executionTestOptions) {
-		options.handleOptionalRequiresDeps = true
+		options.validateRequiredExternalFields = true
 	}
 }
 
@@ -276,13 +276,13 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				option(&opts)
 			}
 			engineConf.plannerConfig.BuildFetchReasons = opts.propagateFetchReasons
-			engineConf.plannerConfig.HandleOptionalRequiresDeps = opts.handleOptionalRequiresDeps
+			engineConf.plannerConfig.ValidateRequiredExternalFields = opts.validateRequiredExternalFields
 			engine, err := NewExecutionEngine(ctx, abstractlogger.Noop{}, engineConf, resolve.ResolverOptions{
 				MaxConcurrency:    1024,
 				ResolvableOptions: opts.resolvableOptions,
 				ApolloRouterCompatibilitySubrequestHTTPError: opts.apolloRouterCompatibilitySubrequestHTTPError,
 				PropagateFetchReasons:                        opts.propagateFetchReasons,
-				HandleOptionalRequiresDeps:                   opts.handleOptionalRequiresDeps,
+				ValidateRequiredExternalFields:               opts.validateRequiredExternalFields,
 			})
 			require.NoError(t, err)
 
@@ -4881,7 +4881,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			]},"errors":[
 				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
 			]}`,
-		}, withFetchReasons(), withHandleOptionalRequiresDeps()))
+		}, withFetchReasons(), validateRequiredExternalFields()))
 	})
 
 	t.Run("handle optional requires dependencies if they are nullable fields", func(t *testing.T) {
@@ -5047,7 +5047,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			]},"errors":[
 				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts', Reason: failed to obtain field dependencies."}
 			]}`,
-		}, withFetchReasons(), withHandleOptionalRequiresDeps()))
+		}, withFetchReasons(), validateRequiredExternalFields()))
 	})
 
 	t.Run("handle optional requires dependencies if they are nested nullables", func(t *testing.T) {
@@ -5248,7 +5248,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 			]},"errors":[
 				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts', Reason: failed to obtain field dependencies."}
 			]}`,
-		}, withFetchReasons(), withHandleOptionalRequiresDeps()))
+		}, withFetchReasons(), validateRequiredExternalFields()))
 	})
 }
 

@@ -178,7 +178,7 @@ type Loader struct {
 
 	propagateFetchReasons bool
 
-	handleOptionalRequiresDeps bool
+	validateRequiredExternalFields bool
 
 	// taintedEntities tracks entities fetched with errors.
 	// Later fetches should ignore those entities.
@@ -625,7 +625,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			// If the response has the "errors" key, and its value is empty,
 			// we don't consider it as an error. Note: it is not compliant with graphql spec.
 			if hasErrors {
-				if l.handleOptionalRequiresDeps && res.postProcessing.SelectResponseDataPath != nil {
+				if l.validateRequiredExternalFields && res.postProcessing.SelectResponseDataPath != nil {
 					taintedIndices = l.getTaintedIndicesAndCleanErrors(fetchItem.Fetch, responseData, responseErrors)
 				}
 				if len(taintedIndices) > 0 {
@@ -634,9 +634,10 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 					if err != nil {
 						return errors.WithStack(err)
 					}
+					// The number of errors could have changed since the last check.
+					hasErrors = len(responseErrors.GetArray()) > 0
 				}
-				// The number of errors could have changed since the last check.
-				if len(responseErrors.GetArray()) > 0 {
+				if hasErrors {
 					// Look for errors in the response and merge them into the "errors" array.
 					err = l.mergeErrors(res, fetchItem, responseErrors)
 					if err != nil {
@@ -682,9 +683,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if len(items) == 1 && res.batchStats == nil {
-		if slices.Contains(taintedIndices, 0) {
-			l.taintedEntities[items[0]] = struct{}{}
-		}
 		items[0], _, err = astjson.MergeValuesWithPath(items[0], responseData, res.postProcessing.MergePath...)
 		if err != nil {
 			return errors.WithStack(ErrMergeResult{
@@ -692,6 +690,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				Reason:   err,
 				Path:     fetchItem.ResponsePath,
 			})
+		}
+		if slices.Contains(taintedIndices, 0) {
+			l.taintedEntities[items[0]] = struct{}{}
 		}
 		return nil
 	}
@@ -711,9 +712,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 				if idx == -1 {
 					continue
 				}
-				if slices.Contains(taintedIndices, idx) {
-					l.taintedEntities[items[i]] = struct{}{}
-				}
 				items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[idx], res.postProcessing.MergePath...)
 				if err != nil {
 					return errors.WithStack(ErrMergeResult{
@@ -722,25 +720,29 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 						Path:     fetchItem.ResponsePath,
 					})
 				}
+				if slices.Contains(taintedIndices, idx) {
+					l.taintedEntities[items[i]] = struct{}{}
+				}
 			}
 		}
-	} else {
-		if batchCount, itemCount := len(batch), len(items); batchCount != itemCount {
-			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, itemCount, batchCount))
-		}
+		return nil
+	}
 
-		for i, item := range items {
-			if slices.Contains(taintedIndices, i) {
-				l.taintedEntities[item] = struct{}{}
-			}
-			_, _, err = astjson.MergeValuesWithPath(item, batch[i], res.postProcessing.MergePath...)
-			if err != nil {
-				return errors.WithStack(ErrMergeResult{
-					Subgraph: res.ds.Name,
-					Reason:   err,
-					Path:     fetchItem.ResponsePath,
-				})
-			}
+	if batchCount, itemCount := len(batch), len(items); batchCount != itemCount {
+		return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, itemCount, batchCount))
+	}
+
+	for i := range items {
+		items[i], _, err = astjson.MergeValuesWithPath(items[i], batch[i], res.postProcessing.MergePath...)
+		if err != nil {
+			return errors.WithStack(ErrMergeResult{
+				Subgraph: res.ds.Name,
+				Reason:   err,
+				Path:     fetchItem.ResponsePath,
+			})
+		}
+		if slices.Contains(taintedIndices, i) {
+			l.taintedEntities[items[i]] = struct{}{}
 		}
 	}
 	return nil
