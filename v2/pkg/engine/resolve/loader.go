@@ -367,8 +367,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
 	items := []*astjson.Value{l.resolvable.data}
 	if len(path) == 0 {
-		items = l.ignoreTainted(items)
-		return items
+		return l.filterNonTainted(items)
 	}
 	for i := range path {
 		if len(items) == 0 {
@@ -376,23 +375,50 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 		}
 		items = l.selectItems(items, path[i])
 	}
-	items = l.ignoreTainted(items)
-	return items
+	return l.filterNonTainted(items)
 }
 
-// ignoreTainted filters out taintedEntities from the given items list.
-func (l *Loader) ignoreTainted(items []*astjson.Value) []*astjson.Value {
+// filterNonTainted filters out taintedEntities from the given items list.
+func (l *Loader) filterNonTainted(items []*astjson.Value) []*astjson.Value {
 	if len(items) == 0 || len(l.taintedEntities) == 0 {
 		return items
 	}
 	filtered := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
-		if _, ok := l.taintedEntities[item]; ok {
+		if l.isTaintedEntity(item) {
 			continue
 		}
 		filtered = append(filtered, item)
 	}
 	return filtered
+}
+
+// isTaintedEntity checks if the given `item` is considered isTaintedEntity in the Loader context.
+// Not only the item is being considered, but also its elements if the item is an array,
+// or its values if the item is an object.
+func (l *Loader) isTaintedEntity(item *astjson.Value) bool {
+	_, ok := l.taintedEntities[item]
+	if ok {
+		return true
+	}
+	switch item.Type() {
+	case astjson.TypeArray:
+		for _, elem := range item.GetArray() {
+			if l.isTaintedEntity(elem) {
+				return true
+			}
+		}
+	case astjson.TypeObject:
+		obj := item.GetObject()
+		found := false
+		obj.Visit(func(key []byte, value *astjson.Value) {
+			if l.isTaintedEntity(value) {
+				found = true
+			}
+		})
+		return found
+	}
+	return false
 }
 
 func (l *Loader) isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
