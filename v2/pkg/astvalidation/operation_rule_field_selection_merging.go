@@ -22,6 +22,7 @@ func FieldSelectionMerging() Rule {
 
 type fieldSelectionMergingVisitor struct {
 	*astvisitor.Walker
+
 	definition, operation *ast.Document
 	scalarRequirements    scalarRequirements
 	nonScalarRequirements nonScalarRequirements

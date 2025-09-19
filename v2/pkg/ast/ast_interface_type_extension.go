@@ -6,8 +6,9 @@ import (
 )
 
 type InterfaceTypeExtension struct {
-	ExtendLiteral position.Position
 	InterfaceTypeDefinition
+
+	ExtendLiteral position.Position
 }
 
 func (d *Document) InterfaceTypeExtensionNameBytes(ref int) ByteSlice {

@@ -146,6 +146,7 @@ func mergeRepresentationVariableNodes(objects []*resolve.Object) *resolve.Object
 
 type representationVariableVisitor struct {
 	*astvisitor.Walker
+
 	key, definition *ast.Document
 
 	currentFields []objectFields

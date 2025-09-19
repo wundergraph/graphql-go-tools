@@ -231,11 +231,12 @@ func (d *DataSourceMetadata) ListChildNodes() TypeFields {
 
 // dataSourceConfiguration is the configuration for a DataSource
 type dataSourceConfiguration[T any] struct {
-	*DataSourceMetadata                   // DataSourceMetadata is the information about root and child nodes and federation metadata if applicable
-	id                  string            // id is a unique identifier for the DataSource
-	name                string            // name is a human-readable name for the DataSource
-	factory             PlannerFactory[T] // factory is the factory for the creation of the concrete DataSourcePlanner
-	custom              T                 // custom is the datasource specific configuration
+	*DataSourceMetadata // DataSourceMetadata is the information about root and child nodes and federation metadata if applicable
+
+	id      string            // id is a unique identifier for the DataSource
+	name    string            // name is a human-readable name for the DataSource
+	factory PlannerFactory[T] // factory is the factory for the creation of the concrete DataSourcePlanner
+	custom  T                 // custom is the datasource specific configuration
 
 	hash DSHash // hash is a unique hash for the dataSourceConfiguration used to match datasources
 }

@@ -25,6 +25,7 @@ func UniqueEnumValueNames() Rule {
 
 type uniqueEnumValueNamesVisitor struct {
 	*astvisitor.Walker
+
 	definition      *ast.Document
 	currentEnumName ast.ByteSlice
 	currentEnumHash uint64

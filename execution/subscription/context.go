@@ -14,6 +14,7 @@ var (
 
 type InitialHttpRequestContext struct {
 	context.Context
+
 	Request *http.Request
 }
 
