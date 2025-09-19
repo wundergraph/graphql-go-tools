@@ -583,10 +583,10 @@ func TestWebSocketClientLeaks(t *testing.T) {
 }
 
 func TestAsyncSubscribe(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
 	}
-	t.Parallel()
 	t.Run("subscribe async", func(t *testing.T) {
 		t.Parallel()
 		serverDone := make(chan struct{})
@@ -1892,10 +1892,10 @@ func TestAsyncSubscribe(t *testing.T) {
 }
 
 func TestClientToSubgraphPingPong(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows as it's not reliable")
 	}
-	t.Parallel()
 
 	t.Run("client sends ping message after configured interval", func(t *testing.T) {
 		t.Parallel()
@@ -2433,6 +2433,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				for key, value := range tc.headers {
 					w.Header().Set(key, value)
@@ -2514,6 +2515,7 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var receivedChallengeKey string
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

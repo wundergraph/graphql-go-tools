@@ -8867,6 +8867,7 @@ func TestLoadFiles(t *testing.T) {
 }
 
 func TestSanitizeKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

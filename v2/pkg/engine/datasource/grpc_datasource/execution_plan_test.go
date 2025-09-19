@@ -50,6 +50,7 @@ func runTest(t *testing.T, testCase testCase) {
 }
 
 func TestQueryExecutionPlans(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -1113,6 +1114,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 }
 
 func TestProductExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -1367,6 +1369,7 @@ func TestProductExecutionPlan(t *testing.T) {
 }
 
 func TestProductExecutionPlanWithAliases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string

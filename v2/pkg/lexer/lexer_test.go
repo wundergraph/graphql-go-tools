@@ -14,8 +14,6 @@ import (
 )
 
 func TestLexer_Peek_Read(t *testing.T) {
-	t.Parallel()
-
 	type checkFunc func(lex *Lexer, i int)
 
 	run := func(inStr string, checks ...checkFunc) {

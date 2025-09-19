@@ -5,6 +5,7 @@ import (
 )
 
 func TestNullableFieldsExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
