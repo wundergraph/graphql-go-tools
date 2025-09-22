@@ -19,6 +19,7 @@ func mergeInlineFragmentSelections(walker *astvisitor.Walker) {
 
 type inlineFragmentSelectionMergeVisitor struct {
 	*astvisitor.Walker
+
 	operation *ast.Document
 }
 

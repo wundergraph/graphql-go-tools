@@ -32,6 +32,7 @@ func UniqueFieldDefinitionNames() Rule {
 
 type uniqueFieldDefinitionNamesVisitor struct {
 	*astvisitor.Walker
+
 	definition          *ast.Document
 	currentTypeName     ast.ByteSlice
 	currentTypeNameHash uint64

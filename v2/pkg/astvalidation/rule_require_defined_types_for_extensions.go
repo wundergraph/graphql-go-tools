@@ -24,6 +24,7 @@ func RequireDefinedTypesForExtensions() Rule {
 
 type requireDefinedTypesForExtensionsVisitor struct {
 	*astvisitor.Walker
+
 	definition *ast.Document
 }
 

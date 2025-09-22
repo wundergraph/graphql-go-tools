@@ -92,6 +92,7 @@ func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredF
 
 type requiredFieldsVisitor struct {
 	*astvisitor.Walker
+
 	OperationNodes []ast.Node
 	config         *addRequiredFieldsConfiguration
 	importer       *astimport.Importer

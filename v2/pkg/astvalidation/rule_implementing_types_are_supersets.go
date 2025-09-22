@@ -22,6 +22,7 @@ func ImplementingTypesAreSupersets() Rule {
 
 type implementingTypesAreSupersetsVisitor struct {
 	*astvisitor.Walker
+
 	definition                           *ast.Document
 	implementingTypesWithFields          map[string][]string
 	implementingTypesWithInterfacesNames map[string][]string

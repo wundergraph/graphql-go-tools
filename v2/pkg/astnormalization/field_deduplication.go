@@ -16,6 +16,7 @@ func deduplicateFields(walker *astvisitor.Walker) {
 
 type deduplicateFieldsVisitor struct {
 	*astvisitor.Walker
+
 	operation *ast.Document
 }
 

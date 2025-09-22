@@ -12,6 +12,7 @@ type hashedMembers map[uint64]bool
 
 type uniqueUnionMemberTypesVisitor struct {
 	*astvisitor.Walker
+
 	definition       *ast.Document
 	currentUnionName ast.ByteSlice
 	currentUnionHash uint64

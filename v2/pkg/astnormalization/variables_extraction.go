@@ -26,6 +26,7 @@ func extractVariables(walker *astvisitor.Walker) *variablesExtractionVisitor {
 
 type variablesExtractionVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition     *ast.Document
 	importer                  astimport.Importer
 	skip                      bool
