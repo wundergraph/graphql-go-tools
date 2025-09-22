@@ -385,7 +385,7 @@ func (l *Loader) removeTainted(items []*astjson.Value) []*astjson.Value {
 	}
 	filtered := make([]*astjson.Value, 0, len(items))
 	for _, item := range items {
-		if l.isTaintedEntity(item) {
+		if l.isTaintedEntity(item, 0) {
 			continue
 		}
 		filtered = append(filtered, item)
@@ -393,18 +393,24 @@ func (l *Loader) removeTainted(items []*astjson.Value) []*astjson.Value {
 	return filtered
 }
 
+const maximumDepthOfTaintedTraversal = 100
+
 // isTaintedEntity checks if the given `item` is considered isTaintedEntity in the Loader context.
 // Not only the item is being considered, but also its elements if the item is an array,
 // or its values if the item is an object.
-func (l *Loader) isTaintedEntity(item *astjson.Value) bool {
+func (l *Loader) isTaintedEntity(item *astjson.Value, depth int) bool {
 	_, ok := l.taintedEntities[item]
 	if ok {
 		return true
 	}
+	if depth > maximumDepthOfTaintedTraversal {
+		// hard limit to prevent stack overflow
+		return false
+	}
 	switch item.Type() {
 	case astjson.TypeArray:
 		for _, elem := range item.GetArray() {
-			if l.isTaintedEntity(elem) {
+			if l.isTaintedEntity(elem, depth+1) {
 				return true
 			}
 		}
@@ -412,7 +418,7 @@ func (l *Loader) isTaintedEntity(item *astjson.Value) bool {
 		obj := item.GetObject()
 		found := false
 		obj.Visit(func(key []byte, value *astjson.Value) {
-			if l.isTaintedEntity(value) {
+			if !found && l.isTaintedEntity(value, depth+1) {
 				found = true
 			}
 		})
@@ -1134,8 +1140,14 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 				newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
 				newPath = append(newPath, pathPrefix...)
 				for j := i + 1; j < len(pathItems); j++ {
-					// BUG: for pathItems containing integers, it will append empty strings
-					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
+					switch pathItems[j].Type() {
+					case astjson.TypeString:
+						newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
+					case astjson.TypeNumber:
+						newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
+					default:
+						newPath = append(newPath, "")
+					}
 				}
 				newPathJSON, _ := json.Marshal(newPath)
 				pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)

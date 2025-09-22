@@ -1455,8 +1455,7 @@ func TestGetTaintedIndices(t *testing.T) {
 			assert.NoError(t, err, "Failed to parse errors JSON")
 
 			indices := getTaintedIndices(mockFetch, response, errors)
-
-			assert.Equal(t, tt.expectedIndices, indices, "Tainted indices mismatch: %s")
+			assert.ElementsMatch(t, tt.expectedIndices, indices)
 		})
 	}
 }

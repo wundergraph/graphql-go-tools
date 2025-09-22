@@ -46,8 +46,8 @@ type addRequiredFieldsConfiguration struct {
 	typeName                     string
 	fieldSet                     string
 
-	// addTypenameInNestedSelections enforces an addition of __typename to selection sets used
-	// in the "requires" key.
+	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
+	// used by "requires" keys, not only when fragments are present.
 	addTypenameInNestedSelections bool
 }
 
