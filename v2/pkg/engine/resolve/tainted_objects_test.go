@@ -297,6 +297,19 @@ func TestGetTaintedIndices(t *testing.T) {
 			]`,
 			expectedIndices: nil,
 		},
+		{
+			name: "terminal numeric segment should be ignored",
+			fetchReasons: []FetchReason{
+				{TypeName: "User", FieldName: "email", IsRequires: true, Nullable: true},
+			},
+			responseJSON: `[
+               {"__typename":"User","id":"1","emails":["a@example.com","b@example.com"]}
+           ]`,
+			errorsJSON: `[
+               {"message":"index error","path":["_entities",0,"emails",1]}
+           ]`,
+			expectedIndices: nil,
+		},
 	}
 
 	for _, tt := range tests {

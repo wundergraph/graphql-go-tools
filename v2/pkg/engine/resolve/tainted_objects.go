@@ -10,8 +10,7 @@ import (
 
 // getTaintedIndices identifies indices of malformed entities based on error paths
 // in the response. It uses errors to find entities that have null value for nullable fields that
-// are required for other fetches. If an error was used to find such an entity, then this error is
-// removed from the errors.
+// are required for other fetches.
 //
 // The high-level flow of how it is used:
 //
@@ -126,8 +125,8 @@ func selectObjectAndIndex(response *astjson.Value, path []*astjson.Value) (*astj
 // Later fetches should ignore such objects.
 type taintedObjects map[*astjson.Value]struct{}
 
-// clearTainted removes tainted objects from the given items list.
-func (t taintedObjects) clearTainted(items []*astjson.Value) []*astjson.Value {
+// filterOutTainted removes tainted objects from the given items list.
+func (t taintedObjects) filterOutTainted(items []*astjson.Value) []*astjson.Value {
 	if len(items) == 0 || len(t) == 0 {
 		return items
 	}

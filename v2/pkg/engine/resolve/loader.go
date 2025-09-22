@@ -365,7 +365,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
 	items := []*astjson.Value{l.resolvable.data}
 	if len(path) == 0 {
-		return l.taintedObjs.clearTainted(items)
+		return l.taintedObjs.filterOutTainted(items)
 	}
 	for i := range path {
 		if len(items) == 0 {
@@ -373,7 +373,7 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 		}
 		items = selectItems(items, path[i])
 	}
-	return l.taintedObjs.clearTainted(items)
+	return l.taintedObjs.filterOutTainted(items)
 }
 
 func isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
