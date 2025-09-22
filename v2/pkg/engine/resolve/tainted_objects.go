@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
