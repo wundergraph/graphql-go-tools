@@ -492,15 +492,15 @@ func TestAddRequiredFields(t *testing.T) {
 			operation := unsafeparser.ParseGraphqlDocumentString(tt.operation)
 
 			config := &addRequiredFieldsConfiguration{
-				operation:                    &operation,
-				definition:                   &definition,
-				operationSelectionSetRef:     tt.selectionSetRef,
-				isTypeNameForEntityInterface: tt.isTypeNameForEntityInterface,
-				isKey:                        tt.isKey,
-				allowTypename:                tt.allowTypename,
-				typeName:                     tt.typeName,
-				fieldSet:                     tt.fieldSet,
-				enforceTypenameForRequired:   tt.enforceTypenameForRequired,
+				operation:                     &operation,
+				definition:                    &definition,
+				operationSelectionSetRef:      tt.selectionSetRef,
+				isTypeNameForEntityInterface:  tt.isTypeNameForEntityInterface,
+				isKey:                         tt.isKey,
+				allowTypename:                 tt.allowTypename,
+				typeName:                      tt.typeName,
+				fieldSet:                      tt.fieldSet,
+				addTypenameInNestedSelections: tt.enforceTypenameForRequired,
 			}
 
 			result, report := addRequiredFields(config)

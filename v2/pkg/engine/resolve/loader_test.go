@@ -1227,7 +1227,7 @@ func TestExtractEntityIndex(t *testing.T) {
 				}
 			}
 
-			entity, index := extractEntityIndex(response, path)
+			entity, index := selectObjectAndIndex(response, path)
 
 			assert.Equal(t, tt.expectedIndex, index, "Index mismatch")
 
@@ -1293,7 +1293,7 @@ func TestGetTaintedIndices(t *testing.T) {
 					"path": ["_entities", 1, "rating"]
 				}
 			]`,
-			expectedIndices: []int{1, 0},
+			expectedIndices: []int{0, 1},
 		},
 		{
 			name: "error in non-required field should not taint entity",
@@ -1443,7 +1443,6 @@ func TestGetTaintedIndices(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock fetch with FetchInfo
-			loader := &Loader{}
 			fetchInfo := &FetchInfo{
 				FetchReasons: tt.fetchReasons,
 			}
@@ -1455,7 +1454,7 @@ func TestGetTaintedIndices(t *testing.T) {
 			errors, err := astjson.ParseBytesWithoutCache([]byte(tt.errorsJSON))
 			assert.NoError(t, err, "Failed to parse errors JSON")
 
-			indices := loader.getTaintedIndicesAndCleanErrors(mockFetch, response, errors)
+			indices := getTaintedIndices(mockFetch, response, errors)
 
 			assert.Equal(t, tt.expectedIndices, indices, "Tainted indices mismatch: %s")
 		})

@@ -46,9 +46,9 @@ type addRequiredFieldsConfiguration struct {
 	typeName                     string
 	fieldSet                     string
 
-	// enforceTypenameForRequired enforces an addition of __typename to selection sets used
+	// addTypenameInNestedSelections enforces an addition of __typename to selection sets used
 	// in the "requires" key.
-	enforceTypenameForRequired bool
+	addTypenameInNestedSelections bool
 }
 
 type AddRequiredFieldsResult struct {
@@ -145,10 +145,10 @@ func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 	keySelectionSetHasFragments := len(v.key.SelectionSetInlineFragmentSelections(ref)) > 0
 
 	if operationNode.Kind == ast.NodeKindField {
-		enforcedForRequires := v.config.enforceTypenameForRequired && !v.config.isKey
+		enforcedTypename := v.config.addTypenameInNestedSelections && !v.config.isKey
 		if fieldSelectionSetRef, ok := v.config.operation.FieldSelectionSet(operationNode.Ref); ok {
 			selectionSetNode := ast.Node{Kind: ast.NodeKindSelectionSet, Ref: fieldSelectionSetRef}
-			if (keySelectionSetHasFragments || enforcedForRequires) &&
+			if (keySelectionSetHasFragments || enforcedTypename) &&
 				!v.selectionSetHasTypeNameSelection(fieldSelectionSetRef) {
 				v.addTypenameSelection(fieldSelectionSetRef)
 			}
@@ -157,7 +157,7 @@ func (v *requiredFieldsVisitor) EnterSelectionSet(ref int) {
 		}
 
 		selectionSetNode := v.config.operation.AddSelectionSet()
-		if keySelectionSetHasFragments || enforcedForRequires {
+		if keySelectionSetHasFragments || enforcedTypename {
 			v.addTypenameSelection(selectionSetNode.Ref)
 		}
 

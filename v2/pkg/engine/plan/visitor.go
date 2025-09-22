@@ -1523,7 +1523,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 
 // fieldDefinitionRef returns the definition reference of a field in a given type or ast.InvalidRef if not found.
 func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
-	node, ok := v.Definition.Index.FirstNodeByNameStr(typeName)
+	node, ok := v.Definition.NodeByNameStr(typeName)
 	if !ok {
 		return ast.InvalidRef
 	}

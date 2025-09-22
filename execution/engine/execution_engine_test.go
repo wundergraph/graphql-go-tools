@@ -5045,7 +5045,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				{"id":"1","full":null},
 				{"id":"3","full":"User3 full"}
 			]},"errors":[
-				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts', Reason: failed to obtain field dependencies."}
+				{"message":"Failed to obtain field dependencies from Subgraph 'id-2' at Path 'accounts'."},
+				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
 			]}`,
 		}, withFetchReasons(), validateRequiredExternalFields()))
 	})
@@ -5246,7 +5247,8 @@ func TestExecutionEngine_Execute(t *testing.T) {
 				{"id":"3","complex":null},
 				{"id":"4","complex":"complex4"}
 			]},"errors":[
-				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts', Reason: failed to obtain field dependencies."}
+				{"message":"Failed to obtain field dependencies from Subgraph 'id-2' at Path 'accounts'."},
+				{"message":"Failed to fetch from Subgraph 'id-2' at Path 'accounts'."}
 			]}`,
 		}, withFetchReasons(), validateRequiredExternalFields()))
 	})

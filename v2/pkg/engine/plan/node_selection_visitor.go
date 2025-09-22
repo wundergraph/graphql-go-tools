@@ -47,7 +47,9 @@ type nodeSelectionVisitor struct {
 
 	rewrittenFieldRefs []int
 
-	enforceTypenameForRequired bool
+	// addTypenameInNestedSelections enforces an addition of __typename to selection sets used
+	// in the "requires" key.
+	addTypenameInNestedSelections bool
 }
 
 type fieldDependencyKey struct {
@@ -463,15 +465,15 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
 	input := &addRequiredFieldsConfiguration{
-		operation:                    c.operation,
-		definition:                   c.definition,
-		operationSelectionSetRef:     selectionSetRef,
-		isTypeNameForEntityInterface: requirements.isTypenameForEntityInterface,
-		isKey:                        false,
-		allowTypename:                false,
-		typeName:                     typeName,
-		fieldSet:                     requirements.selectionSet,
-		enforceTypenameForRequired:   c.enforceTypenameForRequired,
+		operation:                     c.operation,
+		definition:                    c.definition,
+		operationSelectionSetRef:      selectionSetRef,
+		isTypeNameForEntityInterface:  requirements.isTypenameForEntityInterface,
+		isKey:                         false,
+		allowTypename:                 false,
+		typeName:                      typeName,
+		fieldSet:                      requirements.selectionSet,
+		addTypenameInNestedSelections: c.addTypenameInNestedSelections,
 	}
 
 	addFieldsResult, report := addRequiredFields(input)
