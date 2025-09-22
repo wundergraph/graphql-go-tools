@@ -142,9 +142,9 @@ func (t taintedObjects) filterOutTainted(items []*astjson.Value) []*astjson.Valu
 
 const maximumDepthOfTaintedTraversal = 100
 
-// isTainted checks if the given `item` is considered isTainted in the Loader context.
+// isTainted checks if the given `item` is considered tainted in the Loader context.
 // Not only the item is being considered, but also its elements if the item is an array,
-// or its values if the item is an object.
+// or its all values if the item is an object.
 func (t taintedObjects) isTainted(item *astjson.Value, depth int) bool {
 	_, ok := t[item]
 	if ok {
