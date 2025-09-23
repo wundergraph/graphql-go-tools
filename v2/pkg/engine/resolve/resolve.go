@@ -300,7 +300,7 @@ type trigger struct {
 // executed in the worker goroutine. fn will be executed, and if
 // final is true the worker will be stopped after fn is executed.
 type workItem struct {
-	fn    func() error
+	fn    func()
 	final bool
 }
 
@@ -338,24 +338,18 @@ func (s *sub) startWorkerWithHeartbeat() {
 		select {
 		case <-s.ctx.ctx.Done():
 			// Complete when the client request context is done for synchronous subscriptions
-			_ = s.close(SubscriptionCloseKindGoingAway)
+			s.close(SubscriptionCloseKindGoingAway)
 
 			return
 		case <-s.resolver.ctx.Done():
 			// Abort immediately if the resolver is shutting down
-			_ = s.close(SubscriptionCloseKindGoingAway)
+			s.close(SubscriptionCloseKindGoingAway)
 
 			return
 		case <-heartbeatTicker.C:
-			if err := s.resolver.handleHeartbeat(s); err != nil {
-				// If heartbeat fails (e.g. client disconnected), remove the subscription.
-				_ = s.resolver.AsyncUnsubscribeSubscription(s.id)
-			}
+			s.resolver.handleHeartbeat(s)
 		case work := <-s.workChan:
-			if err := work.fn(); err != nil {
-				// If work fails (e.g. client disconnected), remove the subscription.
-				_ = s.resolver.AsyncUnsubscribeSubscription(s.id)
-			}
+			work.fn()
 
 			if work.final {
 				return
@@ -372,19 +366,16 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 		select {
 		case <-s.ctx.ctx.Done():
 			// Complete when the client request context is done for synchronous subscriptions
-			_ = s.close(SubscriptionCloseKindGoingAway)
+			s.close(SubscriptionCloseKindGoingAway)
 
 			return
 		case <-s.resolver.ctx.Done():
 			// Abort immediately if the resolver is shutting down
-			_ = s.close(SubscriptionCloseKindGoingAway)
+			s.close(SubscriptionCloseKindGoingAway)
 
 			return
 		case work := <-s.workChan:
-			if err := work.fn(); err != nil {
-				// If work fails (e.g. client disconnected), remove the subscription.
-				_ = s.resolver.AsyncUnsubscribeSubscription(s.id)
-			}
+			work.fn()
 
 			if work.final {
 				return
@@ -394,30 +385,26 @@ func (s *sub) startWorkerWithoutHeartbeat() {
 }
 
 // Called when subgraph indicates a "complete" subscription
-func (s *sub) complete() error {
+func (s *sub) complete() {
 	// The channel is used to communicate that the subscription is done
 	// It is used only in the synchronous subscription case and to avoid sending events
 	// to a subscription that is already done.
 	defer close(s.completed)
 
 	s.writer.Complete()
-
-	return nil
 }
 
 // Called when subgraph becomes unreachable or closes the connection without a "complete" event
-func (s *sub) close(kind SubscriptionCloseKind) error {
+func (s *sub) close(kind SubscriptionCloseKind) {
 	// The channel is used to communicate that the subscription is done
 	// It is used only in the synchronous subscription case and to avoid sending events
 	// to a subscription that is already done.
 	defer close(s.completed)
 
 	s.writer.Close(kind)
-
-	return nil
 }
 
-func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, sharedInput []byte) error {
+func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, sharedInput []byte) {
 	if r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:update:%d\n", sub.id.SubscriptionID)
 	}
@@ -434,38 +421,42 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
+		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionUpdateSent()
 		}
-		return err
+		return
 	}
 
 	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
+		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionUpdateSent()
 		}
-		return err
+		return
 	}
 
 	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
+		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
 		}
 		if r.reporter != nil {
 			r.reporter.SubscriptionUpdateSent()
 		}
-		return err
+		return
 	}
 
 	if err := sub.writer.Flush(); err != nil {
+		// If flush fails (e.g. client disconnected), remove the subscription.
 		_ = r.AsyncUnsubscribeSubscription(sub.id)
-		return err
+		return
 	}
 
 	if r.options.Debug {
@@ -478,8 +469,6 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	if t.resolvable.WroteErrorsWithoutData() && r.options.Debug {
 		fmt.Printf("resolver:trigger:subscription:completing:errors_without_data:%d\n", sub.id.SubscriptionID)
 	}
-
-	return nil
 }
 
 // processEvents maintains the single threaded event loop that processes all events
@@ -529,17 +518,17 @@ func (r *Resolver) handleEvent(event subscriptionEvent) {
 }
 
 // handleHeartbeat sends a heartbeat to the client. It needs to be executed on the same goroutine as the writer.
-func (r *Resolver) handleHeartbeat(sub *sub) error {
+func (r *Resolver) handleHeartbeat(sub *sub) {
 	if r.options.Debug {
 		fmt.Printf("resolver:heartbeat\n")
 	}
 
-	if err := r.ctx.Err(); err != nil {
-		return err
+	if r.ctx.Err() != nil {
+		return
 	}
 
-	if err := sub.ctx.Context().Err(); err != nil {
-		return err
+	if sub.ctx.Context().Err() != nil {
+		return
 	}
 
 	if r.options.Debug {
@@ -547,7 +536,9 @@ func (r *Resolver) handleHeartbeat(sub *sub) error {
 	}
 
 	if err := sub.writer.Heartbeat(); err != nil {
-		return err
+		// If heartbeat fails (e.g. client disconnected), remove the subscription.
+		_ = r.AsyncUnsubscribeSubscription(sub.id)
+		return
 	}
 
 	if r.options.Debug {
@@ -557,8 +548,6 @@ func (r *Resolver) handleHeartbeat(sub *sub) error {
 	if r.reporter != nil {
 		r.reporter.SubscriptionUpdateSent()
 	}
-
-	return nil
 }
 
 func (r *Resolver) handleTriggerClose(s subscriptionEvent) {
@@ -800,12 +789,8 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 			continue
 		}
 
-		fn := func() error {
-			if err := r.executeSubscriptionUpdate(c, s, data); err != nil {
-				r.asyncErrorWriter.WriteError(c, err, s.resolve.Response, s.writer)
-				return err // returning an error will trigger unsubscribe
-			}
-			return nil
+		fn := func() {
+			r.executeSubscriptionUpdate(c, s, data)
 		}
 
 		select {
@@ -912,7 +897,7 @@ func (r *Resolver) closeTriggerSubscriptions(id uint64, closeKind SubscriptionCl
 		}
 
 		// Send a work item to close the subscription
-		s.workChan <- workItem{func() error { return s.close(closeKind) }, true}
+		s.workChan <- workItem{func() { s.close(closeKind) }, true}
 
 		// Because the event loop is single threaded, we can safely close the channel from this sender
 		// The subscription worker will finish processing all events before the channel is closed.
