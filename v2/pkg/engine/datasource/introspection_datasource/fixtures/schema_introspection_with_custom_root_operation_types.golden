@@ -498,6 +498,16 @@
       ],
       "isRepeatable": false,
       "__typename": "__Directive"
+    },
+    {
+      "name": "oneOf",
+      "description": "The @oneOf built-in directive is used within the type system definition language\nto indicate an Input Object is a OneOf Input Object.",
+      "locations": [
+        "INPUT_OBJECT"
+      ],
+      "args": [],
+      "isRepeatable": false,
+      "__typename": "__Directive"
     }
   ],
   "__typename": "__Schema"

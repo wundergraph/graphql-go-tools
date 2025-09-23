@@ -169,6 +169,12 @@ directive @deprecated(
 directive @specifiedBy(url: String!) on SCALAR
 
 """
+The @oneOf built-in directive is used within the type system definition language
+to indicate an Input Object is a OneOf Input Object.
+"""
+directive @oneOf on INPUT_OBJECT
+
+"""
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
 In some cases, you need to provide options to alter GraphQL's execution behavior
 in ways field arguments will not suffice, such as conditionally including or

@@ -3104,6 +3104,71 @@ type Query {
 							}`,
 					Values(), Valid)
 			})
+
+			t.Run("oneOf", func(t *testing.T) {
+				t.Run("oneOf with default value", func(t *testing.T) {
+					run(t, `
+						mutation addPet($pet: PetInput! = { cat: { name: "black" } }) {
+							addPet(pet: $pet) {
+								name
+							}
+						}`, Values(), Valid)
+				})
+				t.Run("oneOf with no fields", func(t *testing.T) {
+					run(t, `
+						mutation oneOfWithNoFields {
+							addPet(pet: {}) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 0 fields were provided`))
+				})
+				t.Run("oneOf with null field", func(t *testing.T) {
+					run(t, `
+						mutation oneOfWithNoFields {
+							addPet(pet: { cat: null }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" field "cat" value must be non-null`))
+				})
+				t.Run("oneOf with null field", func(t *testing.T) {
+					run(t, `
+						mutation oneOfWithNoFields {
+							addPet(pet: { cat: null, dog: null }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`))
+				})
+				t.Run("oneOf with one null field", func(t *testing.T) {
+					run(t, `
+						mutation {
+							addPet(pet: { cat: { name: "black" }, dog: null }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`))
+				})
+				t.Run("oneOf with two fields", func(t *testing.T) {
+					run(t, `
+						mutation oneOfWithTwoFields($dog: DogInput) {
+							addPet(pet: { cat: { name: "black" }, dog: $dog }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`))
+				})
+				t.Run("list of oneOf with nullable variable", func(t *testing.T) {
+					run(t, `
+						mutation listOfOneOfWithNullableVariable($dog: DogInput) {
+							addPets(pets: [{ dog: $dog }]) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" field "dog" cannot use nullable variable "$dog". Variables used in oneOf fields must be non-nullable`))
+				})
+			})
 		})
 		t.Run("5.6.2 Input Object Field Names", func(t *testing.T) {
 			t.Run("147", func(t *testing.T) {
@@ -4009,6 +4074,36 @@ type Query {
 					withValidationErrors(
 						`Variable "$a" of type "Boolean" used in position expecting type "[String]"`,
 					))
+			})
+
+			t.Run("variables for OneOf fields must be non-nullable", func(t *testing.T) {
+				t.Run("non-nullable var", func(t *testing.T) {
+					run(t, `
+						mutation addCat($cat: CatInput!) {
+							addPet(pet: { cat: $cat }) {
+								name
+							}
+						}
+						`, Values(), Valid)
+				})
+				t.Run("non-nullable var with default", func(t *testing.T) {
+					run(t, `
+						mutation addCatWithDefault($cat: CatInput! = { name: "black" }) {
+							addPet(pet: { cat: $cat }) {
+								name
+							}
+						}
+						`, Values(), Valid)
+				})
+				t.Run("nullable cat", func(t *testing.T) {
+					run(t, `
+						mutation addNullableCat($cat: CatInput) {
+							addPet(pet: { cat: $cat }) {
+								name
+							}
+						}
+						`, Values(), Invalid, withValidationErrors(`OneOf input object "PetInput" field "cat" cannot use nullable variable "$cat". Variables used in oneOf fields must be non-nullable`))
+				})
 			})
 
 			t.Run("nested variable with a list type validation", func(t *testing.T) {
@@ -4946,6 +5041,25 @@ type Subscription {
 
 type Mutation {
 	mutateDog: Dog
+    addPet(pet: PetInput!): Pet
+    addPets(pets: [PetInput!]!): [Pet]
+}
+
+input CatInput {
+    name: String!
+    nickname: String
+    meowVolume: Int
+}
+
+input DogInput {
+    name: String!
+    nickname: String
+    barkVolume: Int
+}
+
+input PetInput @oneOf {
+    cat: CatInput
+    dog: DogInput
 }
 
 input ComplexInput { name: String, owner: String, optionalListOfOptionalStrings: [String]}
@@ -5137,6 +5251,12 @@ directive @deprecated(
     """
     reason: String = "No longer supported"
 ) on FIELD_DEFINITION | ENUM_VALUE
+
+"""
+The @oneOf built-in directive is used within the type system definition language
+to indicate an Input Object is a OneOf Input Object.
+"""
+directive @oneOf on INPUT_OBJECT
 
 """
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.

@@ -372,6 +372,53 @@ func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKi
 	v.traverseNamedTypeNode(jsonValue, v.definition.ResolveTypeNameBytes(typeRef))
 }
 
+func (v *variablesVisitor) violatesOneOfConstraint(inputObjectDefRef int, jsonValue *astjson.Value, typeName []byte) bool {
+	def := v.definition.InputObjectTypeDefinitions[inputObjectDefRef]
+
+	// Check if the input object type has @oneOf directive
+	if !def.HasDirectives {
+		return false
+	}
+	hasOneOfDirective := def.Directives.HasDirectiveByName(v.definition, "oneOf")
+	if !hasOneOfDirective {
+		return false
+	}
+
+	// Count all fields in the JSON object
+	obj := jsonValue.GetObject()
+	totalFieldCount := obj.Len()
+
+	// Prioritize the count error
+	if totalFieldCount != 1 {
+		variableContent := string(jsonValue.MarshalTo(nil))
+		v.err = v.newInvalidVariableError(
+			fmt.Sprintf(`%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
+				v.invalidValueMessage(string(v.currentVariableName), variableContent),
+				string(typeName), totalFieldCount))
+		return true
+	}
+
+	// Try to find at least one null field.
+	var firstNullField []byte
+	obj.Visit(func(key []byte, val *astjson.Value) {
+		if firstNullField == nil && val.Type() == astjson.TypeNull {
+			firstNullField = key
+		}
+	})
+
+	// Check if we have exactly one field, and it's non-null
+	if firstNullField == nil {
+		return false
+	}
+
+	variableContent := string(jsonValue.MarshalTo(nil))
+	v.err = v.newInvalidVariableError(
+		fmt.Sprintf(`%s; OneOf input object "%s" field "%s" value must be non-null.`,
+			v.invalidValueMessage(string(v.currentVariableName), variableContent),
+			string(typeName), string(firstNullField)))
+	return true
+}
+
 func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeName []byte) {
 	if v.err != nil {
 		return
@@ -399,6 +446,10 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 			v.traverseFieldDefinitionType(fieldTypeDefinitionNode.Kind, fieldName, objectFieldValue, fieldTypeRef, inputFieldRef)
 			v.popPath()
 		}
+		if v.violatesOneOfConstraint(fieldTypeDefinitionNode.Ref, jsonValue, typeName) {
+			return // Error already reported by violatesOneOfConstraint
+		}
+
 		// validate that all input fields present in object are defined in the input object definition
 		obj := jsonValue.GetObject()
 		keys := make([][]byte, obj.Len())
