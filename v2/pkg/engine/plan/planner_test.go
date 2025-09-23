@@ -172,6 +172,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DisableResolveFieldPositions: true,
 		DisableIncludeInfo:           true,
+		DisableEntityCaching:         true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -226,6 +227,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DisableResolveFieldPositions: true,
 		DisableIncludeInfo:           true,
+		DisableEntityCaching:         true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -292,6 +294,7 @@ func TestPlanner_Plan(t *testing.T) {
 	}, Configuration{
 		DisableResolveFieldPositions: true,
 		DisableIncludeInfo:           true,
+		DisableEntityCaching:         true,
 		DataSources:                  []DataSource{testDefinitionDSConfiguration},
 	}))
 
@@ -363,6 +366,7 @@ func TestPlanner_Plan(t *testing.T) {
 		}, Configuration{
 			DisableResolveFieldPositions: true,
 			DisableIncludeInfo:           true,
+			DisableEntityCaching:         true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 
@@ -425,14 +429,16 @@ func TestPlanner_Plan(t *testing.T) {
 		}, Configuration{
 			DisableResolveFieldPositions: true,
 			DisableIncludeInfo:           true,
+			DisableEntityCaching:         true,
 			DataSources:                  []DataSource{testDefinitionDSConfiguration},
 		}))
 	})
 
 	t.Run("operation selection", func(t *testing.T) {
 		cfg := Configuration{
-			DataSources:        []DataSource{testDefinitionDSConfiguration},
-			DisableIncludeInfo: true,
+			DataSources:          []DataSource{testDefinitionDSConfiguration},
+			DisableIncludeInfo:   true,
+			DisableEntityCaching: true,
 		}
 
 		t.Run("should successfully plan a single named query by providing an operation name", test(testDefinition, `
@@ -585,6 +591,7 @@ func TestPlanner_Plan(t *testing.T) {
 				Configuration{
 					DisableResolveFieldPositions: true,
 					DisableIncludeInfo:           true,
+					DisableEntityCaching:         true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -644,6 +651,7 @@ func TestPlanner_Plan(t *testing.T) {
 				Configuration{
 					DisableResolveFieldPositions: true,
 					DisableIncludeInfo:           true,
+					DisableEntityCaching:         true,
 					Fields: FieldConfigurations{
 						FieldConfiguration{
 							TypeName:             "Character",
@@ -703,6 +711,7 @@ func TestPlanner_Plan(t *testing.T) {
 				Configuration{
 					DisableResolveFieldPositions: true,
 					DisableIncludeInfo:           true,
+					DisableEntityCaching:         true,
 					DataSources:                  []DataSource{dsConfig},
 				},
 			))
