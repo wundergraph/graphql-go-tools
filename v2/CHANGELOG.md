@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.227](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.226...v2.0.0-rc.227) (2025-09-23)
+
+
+### Bug Fixes
+
+* if blocked, defer async event insertion to prevent deadlocks ([#1298](https://github.com/wundergraph/graphql-go-tools/issues/1298)) ([df38c31](https://github.com/wundergraph/graphql-go-tools/commit/df38c3121216ac5695f7f00ba1a810ebb879651e))
+
 ## [2.0.0-rc.226](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.225...v2.0.0-rc.226) (2025-09-12)
 
 
