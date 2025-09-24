@@ -280,6 +280,14 @@ type trigger struct {
 	updater     *subscriptionUpdater
 }
 
+func (t *trigger) subscriptionIds() map[context.Context]SubscriptionIdentifier {
+	subs := make(map[context.Context]SubscriptionIdentifier, len(t.subscriptions))
+	for ctx, sub := range t.subscriptions {
+		subs[ctx.Context()] = sub.id
+	}
+	return subs
+}
+
 // workItem is used to encapsulate a function that needs to be
 // executed in the worker goroutine. fn will be executed, and if
 // final is true the worker will be stopped after fn is executed.
@@ -668,6 +676,7 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 	}
 	r.triggers[triggerID] = trig
 	trig.subscriptions[add.ctx] = s
+	updater.subsFn = trig.subscriptionIds
 
 	if r.reporter != nil {
 		r.reporter.SubscriptionCountInc(1)
@@ -818,7 +827,7 @@ func (r *Resolver) handleTriggerUpdate(id uint64, data []byte) {
 	}
 
 	for c, s := range trig.subscriptions {
-		r.sendUpdateToSubscription(id, data, c, s)
+		r.sendUpdateToSubscription(data, c, s)
 	}
 }
 
@@ -836,12 +845,12 @@ func (r *Resolver) handleUpdateSubscription(id uint64, data []byte, subIdentifie
 		if s.id != subIdentifier {
 			continue
 		}
-		r.sendUpdateToSubscription(id, data, c, s)
+		r.sendUpdateToSubscription(data, c, s)
 		break
 	}
 }
 
-func (r *Resolver) sendUpdateToSubscription(id uint64, data []byte, c *Context, s *sub) {
+func (r *Resolver) sendUpdateToSubscription(data []byte, c *Context, s *sub) {
 	if err := c.ctx.Err(); err != nil {
 		return // no need to schedule an event update when the client already disconnected
 	}
@@ -1239,6 +1248,7 @@ type subscriptionUpdater struct {
 	triggerID uint64
 	ch        chan subscriptionEvent
 	ctx       context.Context
+	subsFn    func() map[context.Context]SubscriptionIdentifier
 }
 
 func (s *subscriptionUpdater) Update(data []byte) {
@@ -1274,6 +1284,10 @@ func (s *subscriptionUpdater) UpdateSubscription(id SubscriptionIdentifier, data
 		id:        id,
 	}:
 	}
+}
+
+func (s *subscriptionUpdater) Subscriptions() map[context.Context]SubscriptionIdentifier {
+	return s.subsFn()
 }
 
 func (s *subscriptionUpdater) Complete() {
@@ -1321,6 +1335,30 @@ func (s *subscriptionUpdater) Close(kind SubscriptionCloseKind) {
 	}
 }
 
+func (s *subscriptionUpdater) CloseSubscription(kind SubscriptionCloseKind, id SubscriptionIdentifier) {
+	if s.debug {
+		fmt.Printf("resolver:subscription_updater:close:%d\n", s.triggerID)
+	}
+
+	select {
+	case <-s.ctx.Done():
+		// Skip sending events if trigger is already done
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:close:skip:%d\n", s.triggerID)
+		}
+		return
+	case s.ch <- subscriptionEvent{
+		triggerID: s.triggerID,
+		kind:      subscriptionEventKindRemoveSubscription,
+		closeKind: kind,
+		id:        id,
+	}:
+		if s.debug {
+			fmt.Printf("resolver:subscription_updater:close:sent_event:%d\n", s.triggerID)
+		}
+	}
+}
+
 type subscriptionEvent struct {
 	triggerID       uint64
 	id              SubscriptionIdentifier
@@ -1357,8 +1395,14 @@ const (
 type SubscriptionUpdater interface {
 	// Update sends an update to the client. It is not guaranteed that the update is sent immediately.
 	Update(data []byte)
+	// UpdateSubscription sends an update to a single subscription. It is not guaranteed that the update is sent immediately.
+	UpdateSubscription(id SubscriptionIdentifier, data []byte)
 	// Complete also takes care of cleaning up the trigger and all subscriptions. No more updates should be sent after calling Complete.
 	Complete()
 	// Close closes the subscription and cleans up the trigger and all subscriptions. No more updates should be sent after calling Close.
 	Close(kind SubscriptionCloseKind)
+	// CloseSubscription closes a single subscription. No more updates should be sent to that subscription after calling CloseSubscription.
+	CloseSubscription(kind SubscriptionCloseKind, id SubscriptionIdentifier)
+	// Subscriptions return all the subscriptions associated to this Updater
+	Subscriptions() map[context.Context]SubscriptionIdentifier
 }
