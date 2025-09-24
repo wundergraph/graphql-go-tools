@@ -5,7 +5,7 @@
 
 ### Features
 
-* validate presence of optional [@requires](https://github.com/requires) dependencies ([#1297](https://github.com/wundergraph/graphql-go-tools/issues/1297)) ([ba75e25](https://github.com/wundergraph/graphql-go-tools/commit/ba75e25483165fa0172bad6c4504b0f48d94cd9b))
+* validate presence of optional `@requires` dependencies ([#1297](https://github.com/wundergraph/graphql-go-tools/issues/1297)) ([ba75e25](https://github.com/wundergraph/graphql-go-tools/commit/ba75e25483165fa0172bad6c4504b0f48d94cd9b))
 
 ## [2.0.0-rc.227](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.226...v2.0.0-rc.227) (2025-09-23)
 
