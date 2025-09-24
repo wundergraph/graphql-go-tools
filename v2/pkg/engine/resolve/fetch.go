@@ -368,6 +368,7 @@ type FetchReason struct {
 	ByUser      bool     `json:"by_user,omitempty"`
 	IsKey       bool     `json:"is_key,omitempty"`
 	IsRequires  bool     `json:"is_requires,omitempty"`
+	Nullable    bool     `json:"-"`
 }
 
 // FetchInfo contains additional (derived) information about the fetch.
