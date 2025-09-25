@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.229](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.228...v2.0.0-rc.229) (2025-09-25)
+
+
+### Bug Fixes
+
+* remove index after _entities in the path ([#1306](https://github.com/wundergraph/graphql-go-tools/issues/1306)) ([7d0586e](https://github.com/wundergraph/graphql-go-tools/commit/7d0586effc154fdfe6eddb949b46a2e58943b801))
+
 ## [2.0.0-rc.228](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.227...v2.0.0-rc.228) (2025-09-24)
 
 

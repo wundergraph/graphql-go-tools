@@ -749,7 +749,9 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
 	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
-	l.optionallyRewriteErrorPaths(fetchItem, values)
+	if l.rewriteSubgraphErrorPaths {
+		rewriteErrorPaths(fetchItem, values)
+	}
 	l.optionallyEnsureExtensionErrorCode(values)
 
 	if !l.allowAllErrorExtensionFields {
@@ -945,11 +947,12 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
-// optionallyRewriteErrorPaths rewrites the path field for all the values.
-func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
-	if !l.rewriteSubgraphErrorPaths {
-		return
-	}
+// rewriteErrorPaths rewrites GraphQL error "path" arrays for subgraph errors routed via _entities:
+//   - Prefixes with fetchItem.ResponsePathElements (trailing "@" removed).
+//   - Drops the numeric index immediately following "_entities".
+//   - Converts all subsequent numeric segments to strings (e.g., 1 -> "1").
+//   - Skips non-string/non-number segments.
+func rewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 	pathPrefix := make([]string, len(fetchItem.ResponsePathElements))
 	copy(pathPrefix, fetchItem.ResponsePathElements)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
@@ -970,28 +973,33 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 			continue
 		}
 		for i, item := range pathItems {
-			if unsafebytes.BytesToString(item.GetStringBytes()) == "_entities" {
-				// rewrite the path to pathPrefix + pathItems after _entities
-				newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
-				newPath = append(newPath, pathPrefix...)
-				for j := i + 1; j < len(pathItems); j++ {
-					switch pathItems[j].Type() {
-					case astjson.TypeString:
-						newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
-					case astjson.TypeNumber:
-						newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
-					default:
-						newPath = append(newPath, "")
-					}
-				}
-				newPathJSON, _ := json.Marshal(newPath)
-				pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)
-				if err != nil {
+			if item.Type() != astjson.TypeString ||
+				unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
+				continue
+			}
+			// rewrite the path to pathPrefix + pathItems after _entities
+			newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
+			newPath = append(newPath, pathPrefix...)
+			for j := i + 1; j < len(pathItems); j++ {
+				// If the item after _entities is an index (number), we should ignore it.
+				if j == i+1 && pathItems[j].Type() == astjson.TypeNumber {
 					continue
 				}
-				value.Set("path", pathBytes)
-				break
+				switch pathItems[j].Type() {
+				case astjson.TypeString:
+					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
+				case astjson.TypeNumber:
+					newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
+				default:
+				}
 			}
+			newPathJSON, _ := json.Marshal(newPath)
+			pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)
+			if err != nil {
+				continue
+			}
+			value.Set("path", pathBytes)
+			break
 		}
 	}
 }
