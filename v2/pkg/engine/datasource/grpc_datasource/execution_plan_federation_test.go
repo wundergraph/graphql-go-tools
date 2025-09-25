@@ -17,6 +17,7 @@ import (
 )
 
 func TestEntityLookup(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		query             string
@@ -482,6 +483,7 @@ func TestEntityLookup(t *testing.T) {
 }
 
 func TestEntityKeys(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		query             string

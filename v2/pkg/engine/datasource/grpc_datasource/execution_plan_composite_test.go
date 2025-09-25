@@ -11,6 +11,7 @@ import (
 )
 
 func TestCompositeTypeExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -627,6 +628,7 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 }
 
 func TestMutationUnionExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
