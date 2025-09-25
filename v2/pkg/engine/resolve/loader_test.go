@@ -1467,19 +1467,23 @@ func TestRewriteErrorPaths(t *testing.T) {
 			},
 		},
 		{
-			name:      "handle null, empty, no-entities paths",
+			name:      "handle null, empty, no-entities, etc",
 			fetchPath: []string{"products"},
 			inputErrors: []*astjson.Value{
 				mp(`{"message": "without path", "path": null}`),
 				mp(`{"message": "with empty path", "path": []}`),
 				mp(`{"message": "non-entities", "path": ["query", "products", "name"]}`),
 				mp(`{"message": "with boolean", "path": ["_entities", 0, "field", true, "subfield"]}`),
+				mp(`{"message": "_entities is last", "path": ["a", "_entities"]}`),
+				mp(`{"message": "index is last", "path": ["a", "_entities", 2]}`),
 			},
 			expectedErrors: []*astjson.Value{
 				mp(`{"message": "without path", "path": null}`),
 				mp(`{"message": "with empty path", "path": []}`),
 				mp(`{"message": "non-entities", "path": ["query", "products", "name"]}`),
 				mp(`{"message": "with boolean", "path": ["products", "field", "subfield"]}`),
+				mp(`{"message": "_entities is last", "path": ["products"]}`),
+				mp(`{"message": "index is last", "path": ["products"]}`),
 			},
 		},
 		{

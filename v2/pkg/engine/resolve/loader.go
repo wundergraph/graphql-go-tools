@@ -947,7 +947,11 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
-// rewriteErrorPaths rewrites the path field for all the values.
+// rewriteErrorPaths rewrites GraphQL error "path" arrays for subgraph errors routed via _entities:
+//   - Prefixes with fetchItem.ResponsePathElements (trailing "@" removed).
+//   - Drops the numeric index immediately following "_entities".
+//   - Converts all subsequent numeric segments to strings (e.g., 1 -> "1").
+//   - Skips non-string/non-number segments.
 func rewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 	pathPrefix := make([]string, len(fetchItem.ResponsePathElements))
 	copy(pathPrefix, fetchItem.ResponsePathElements)
