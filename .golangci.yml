@@ -10,7 +10,6 @@ linters:
     - embeddedstructfieldcheck
     - tparallel
     # - unused
-    # - gosec
 
   exclusions:
     generated: lax
