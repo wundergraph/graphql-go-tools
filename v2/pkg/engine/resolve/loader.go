@@ -973,31 +973,33 @@ func rewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 			continue
 		}
 		for i, item := range pathItems {
-			if unsafebytes.BytesToString(item.GetStringBytes()) == "_entities" {
-				// rewrite the path to pathPrefix + pathItems after _entities
-				newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
-				newPath = append(newPath, pathPrefix...)
-				for j := i + 1; j < len(pathItems); j++ {
-					// If the item after _entities is an index (number), we should ignore it.
-					if j == i+1 && pathItems[i+1].Type() == astjson.TypeNumber {
-						continue
-					}
-					switch pathItems[j].Type() {
-					case astjson.TypeString:
-						newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
-					case astjson.TypeNumber:
-						newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
-					default:
-					}
-				}
-				newPathJSON, _ := json.Marshal(newPath)
-				pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)
-				if err != nil {
+			if item.Type() != astjson.TypeString ||
+				unsafebytes.BytesToString(item.GetStringBytes()) != "_entities" {
+				continue
+			}
+			// rewrite the path to pathPrefix + pathItems after _entities
+			newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
+			newPath = append(newPath, pathPrefix...)
+			for j := i + 1; j < len(pathItems); j++ {
+				// If the item after _entities is an index (number), we should ignore it.
+				if j == i+1 && pathItems[j].Type() == astjson.TypeNumber {
 					continue
 				}
-				value.Set("path", pathBytes)
-				break
+				switch pathItems[j].Type() {
+				case astjson.TypeString:
+					newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
+				case astjson.TypeNumber:
+					newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
+				default:
+				}
 			}
+			newPathJSON, _ := json.Marshal(newPath)
+			pathBytes, err := astjson.ParseBytesWithoutCache(newPathJSON)
+			if err != nil {
+				continue
+			}
+			value.Set("path", pathBytes)
+			break
 		}
 	}
 }
