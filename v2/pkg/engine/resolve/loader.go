@@ -749,7 +749,9 @@ func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *a
 func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.Value) error {
 	values := value.GetArray()
 	l.optionallyOmitErrorLocations(values)
-	l.optionallyRewriteErrorPaths(fetchItem, values)
+	if l.rewriteSubgraphErrorPaths {
+		rewriteErrorPaths(fetchItem, values)
+	}
 	l.optionallyEnsureExtensionErrorCode(values)
 
 	if !l.allowAllErrorExtensionFields {
@@ -945,11 +947,8 @@ func (l *Loader) optionallyOmitErrorLocations(values []*astjson.Value) {
 	}
 }
 
-// optionallyRewriteErrorPaths rewrites the path field for all the values.
-func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
-	if !l.rewriteSubgraphErrorPaths {
-		return
-	}
+// rewriteErrorPaths rewrites the path field for all the values.
+func rewriteErrorPaths(fetchItem *FetchItem, values []*astjson.Value) {
 	pathPrefix := make([]string, len(fetchItem.ResponsePathElements))
 	copy(pathPrefix, fetchItem.ResponsePathElements)
 	// remove the trailing @ in case we're in an array as it looks weird in the path
@@ -975,13 +974,16 @@ func (l *Loader) optionallyRewriteErrorPaths(fetchItem *FetchItem, values []*ast
 				newPath := make([]string, 0, len(pathPrefix)+len(pathItems)-i)
 				newPath = append(newPath, pathPrefix...)
 				for j := i + 1; j < len(pathItems); j++ {
+					// If the item after _entities is an index (number), we should ignore it.
+					if j == i+1 && pathItems[i+1].Type() == astjson.TypeNumber {
+						continue
+					}
 					switch pathItems[j].Type() {
 					case astjson.TypeString:
 						newPath = append(newPath, unsafebytes.BytesToString(pathItems[j].GetStringBytes()))
 					case astjson.TypeNumber:
 						newPath = append(newPath, strconv.Itoa(pathItems[j].GetInt()))
 					default:
-						newPath = append(newPath, "")
 					}
 				}
 				newPathJSON, _ := json.Marshal(newPath)
