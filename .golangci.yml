@@ -8,8 +8,8 @@ linters:
     - staticcheck
     - bodyclose
     - embeddedstructfieldcheck
+    - tparallel
     # - unused
-    # - gosec
 
   exclusions:
     generated: lax

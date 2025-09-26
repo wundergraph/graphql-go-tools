@@ -1339,7 +1339,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	if v.Config.DisableIncludeFieldDependencies {
 		return singleFetch
 	}
-	singleFetch.Info.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
+	singleFetch.Info.CoordinateDependencies = v.buildFetchDependencies(internal.fetchID)
 
 	if !v.Config.BuildFetchReasons {
 		return singleFetch
@@ -1349,6 +1349,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 		return singleFetch
 	}
 
+	// Propagate fetch reasons required by the data source.
 	dsConfig := v.planners[internal.fetchID].DataSourceConfiguration()
 	lookup := dsConfig.RequireFetchReasons()
 	propagated := make([]resolve.FetchReason, 0, len(lookup))
@@ -1362,7 +1363,8 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	return singleFetch
 }
 
-func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependency {
+// buildFetchDependencies builds and returns fetch dependencies for the specified fetch ID.
+func (v *Visitor) buildFetchDependencies(fetchID int) []resolve.FetchDependency {
 	fields, ok := v.plannerFields[fetchID]
 	if !ok {
 		return nil
@@ -1417,6 +1419,9 @@ func (v *Visitor) resolveFetchDependencies(fetchID int) []resolve.FetchDependenc
 	return dependencies
 }
 
+// buildFetchReasons constructs a list of FetchReason for a given fetchID. This list contains
+// all the fields that depend on the fields in the fetchID.
+// It ensures deduplication, sorts the results, and aggregates information about field requests.
 func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 	fields, ok := v.plannerFields[fetchID]
 	if !ok {
@@ -1434,6 +1439,13 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 		typeName := v.fieldEnclosingTypeNames[fieldRef]
 
 		byUser := !v.skipField(fieldRef)
+
+		var nullable bool
+		fieldDefRef := v.fieldDefinitionRef(typeName, fieldName)
+		if fieldDefRef != ast.InvalidRef {
+			typeRef := v.Definition.FieldDefinitionType(fieldDefRef)
+			nullable = !v.Definition.TypeIsNonNull(typeRef)
+		}
 
 		var subgraphs []string
 		var isKey, isRequires bool
@@ -1488,6 +1500,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 					ByUser:      byUser,
 					IsKey:       isKey,
 					IsRequires:  isRequires,
+					Nullable:    nullable,
 				})
 				i = len(reasons) - 1
 				index[key] = i
@@ -1506,4 +1519,17 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 		)
 	})
 	return reasons
+}
+
+// fieldDefinitionRef returns the definition reference of a field in a given type or ast.InvalidRef if not found.
+func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
+	node, ok := v.Definition.NodeByNameStr(typeName)
+	if !ok {
+		return ast.InvalidRef
+	}
+	defRef, ok := v.Definition.NodeFieldDefinitionByName(node, []byte(fieldName))
+	if !ok {
+		return ast.InvalidRef
+	}
+	return defRef
 }

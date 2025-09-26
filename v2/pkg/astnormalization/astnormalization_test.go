@@ -997,6 +997,7 @@ func TestParseMissingBaseSchema(t *testing.T) {
 }
 
 func TestVariablesNormalizer(t *testing.T) {
+	t.Parallel()
 
 	t.Run("httpBinPost", func(t *testing.T) {
 		t.Parallel()
