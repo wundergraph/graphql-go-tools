@@ -391,31 +391,43 @@ func (v *variablesVisitor) violatesOneOfConstraint(inputObjectDefRef int, jsonVa
 	// Prioritize the count error
 	if totalFieldCount != 1 {
 		variableContent := string(jsonValue.MarshalTo(nil))
+		var path string
+		if len(v.path) > 1 {
+			path = fmt.Sprintf(` at "%s"`, v.renderPath())
+		}
 		v.err = v.newInvalidVariableError(
-			fmt.Sprintf(`%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
+			fmt.Sprintf(`%s%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
 				v.invalidValueMessage(string(v.currentVariableName), variableContent),
-				string(typeName), totalFieldCount))
+				path,
+				string(typeName),
+				totalFieldCount))
 		return true
 	}
 
-	// Try to find at least one null field.
-	var firstNullField []byte
+	// Check if the single field has a null value
+	var nullFieldName []byte
 	obj.Visit(func(key []byte, val *astjson.Value) {
-		if firstNullField == nil && val.Type() == astjson.TypeNull {
-			firstNullField = key
+		if val.Type() == astjson.TypeNull {
+			nullFieldName = key
 		}
 	})
 
-	// Check if we have exactly one field, and it's non-null
-	if firstNullField == nil {
+	if nullFieldName == nil {
+		// We have exactly one field, and it's non-null
 		return false
 	}
 
 	variableContent := string(jsonValue.MarshalTo(nil))
+	var path string
+	if len(v.path) > 1 {
+		path = fmt.Sprintf(` at "%s"`, v.renderPath())
+	}
 	v.err = v.newInvalidVariableError(
-		fmt.Sprintf(`%s; OneOf input object "%s" field "%s" value must be non-null.`,
+		fmt.Sprintf(`%s%s; OneOf input object "%s" field "%s" value must be non-null.`,
 			v.invalidValueMessage(string(v.currentVariableName), variableContent),
-			string(typeName), string(firstNullField)))
+			path,
+			string(typeName),
+			string(nullFieldName)))
 	return true
 }
 
@@ -446,10 +458,6 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 			v.traverseFieldDefinitionType(fieldTypeDefinitionNode.Kind, fieldName, objectFieldValue, fieldTypeRef, inputFieldRef)
 			v.popPath()
 		}
-		if v.violatesOneOfConstraint(fieldTypeDefinitionNode.Ref, jsonValue, typeName) {
-			return // Error already reported by violatesOneOfConstraint
-		}
-
 		// validate that all input fields present in object are defined in the input object definition
 		obj := jsonValue.GetObject()
 		keys := make([][]byte, obj.Len())
@@ -465,6 +473,9 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				v.renderVariableFieldNotDefinedError(inputFieldName, typeName)
 				return
 			}
+		}
+		if v.violatesOneOfConstraint(fieldTypeDefinitionNode.Ref, jsonValue, typeName) {
+			return // Error already reported
 		}
 	case ast.NodeKindScalarTypeDefinition:
 		switch unsafebytes.BytesToString(typeName) {

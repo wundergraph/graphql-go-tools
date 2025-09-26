@@ -3114,9 +3114,17 @@ type Query {
 							}
 						}`, Values(), Valid)
 				})
+				t.Run("list of oneOf with non-null variable", func(t *testing.T) {
+					run(t, `
+						mutation addPet($dog: DogInput!) {
+							addPets(pets: [{ dog: $dog }]) {
+								name
+							}
+						}`, Values(), Valid)
+				})
 				t.Run("oneOf with no fields", func(t *testing.T) {
 					run(t, `
-						mutation oneOfWithNoFields {
+						mutation {
 							addPet(pet: {}) {
 								name
 							}
@@ -3125,16 +3133,16 @@ type Query {
 				})
 				t.Run("oneOf with null field", func(t *testing.T) {
 					run(t, `
-						mutation oneOfWithNoFields {
+						mutation {
 							addPet(pet: { cat: null }) {
 								name
 							}
 						}`, Values(), Invalid,
 						withValidationErrors(`OneOf input object "PetInput" field "cat" value must be non-null`))
 				})
-				t.Run("oneOf with null field", func(t *testing.T) {
+				t.Run("oneOf with two null fields", func(t *testing.T) {
 					run(t, `
-						mutation oneOfWithNoFields {
+						mutation {
 							addPet(pet: { cat: null, dog: null }) {
 								name
 							}
@@ -5253,8 +5261,9 @@ directive @deprecated(
 ) on FIELD_DEFINITION | ENUM_VALUE
 
 """
-The @oneOf built-in directive is used within the type system definition language
-to indicate an Input Object is a OneOf Input Object.
+The @oneOf built-in directive marks an input object as a OneOf Input Object.
+Exactly one field must be provided and its value must be non-null at runtime.
+All fields defined within a @oneOf input must be nullable in the schema.
 """
 directive @oneOf on INPUT_OBJECT
 

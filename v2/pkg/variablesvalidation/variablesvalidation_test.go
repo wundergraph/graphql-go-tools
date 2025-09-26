@@ -1614,7 +1614,7 @@ func TestVariablesValidation(t *testing.T) {
 				}
 				err := runTest(t, tc)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value at "input.byPet"; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
 			})
 
 			t.Run("invalid nested oneOf - outer violation", func(t *testing.T) {
@@ -1705,8 +1705,7 @@ func TestVariablesValidation(t *testing.T) {
 				}
 				err := runTestWithVariablesContentEnabled(t, tc)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":null}`)
-				assert.Contains(t, err.Error(), `OneOf input object "PetInput" field "cat" value must be non-null`)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":null} at "input.pets.[1]"; OneOf input object "PetInput" field "cat" value must be non-null`)
 			})
 		})
 	})

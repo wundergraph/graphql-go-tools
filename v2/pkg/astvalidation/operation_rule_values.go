@@ -488,13 +488,6 @@ func (v *valuesVisitor) objectValueViolatesOneOf(objectValue ast.Value, defRef i
 		return true
 	}
 
-	type nullableVar struct {
-		fieldRef              int
-		fieldValue            ast.Value
-		variableDefinitionRef int
-	}
-	var nullableVars []nullableVar
-
 	for _, fieldRef := range fieldRefs {
 		fieldValue := v.operation.ObjectFieldValue(fieldRef)
 
@@ -514,24 +507,15 @@ func (v *valuesVisitor) objectValueViolatesOneOf(objectValue ast.Value, defRef i
 
 			// Collect nullable variables
 			if v.operation.Types[variableTypeRef].TypeKind != ast.TypeKindNonNull {
-				nullableVars = append(nullableVars, nullableVar{
-					fieldRef,
-					fieldValue,
-					variableDefinitionRef})
+				objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+				fieldName := v.operation.ObjectFieldNameBytes(fieldRef)
+				variableName := v.operation.VariableValueNameBytes(fieldValue.Ref)
+				v.Report.AddExternalError(operationreport.ErrOneOfInputObjectNullableVariable(
+					objName, fieldName, variableName, fieldValue.Position,
+					v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position))
+				return true
 			}
 		}
-	}
-
-	// If exactly one field, but it's a nullable variable, report that error
-	if len(nullableVars) > 0 {
-		violation := nullableVars[0]
-		objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
-		fieldName := v.operation.ObjectFieldNameBytes(violation.fieldRef)
-		variableName := v.operation.VariableValueNameBytes(violation.fieldValue.Ref)
-		v.Report.AddExternalError(operationreport.ErrOneOfInputObjectNullableVariable(
-			objName, fieldName, variableName, violation.fieldValue.Position,
-			v.operation.VariableDefinitions[violation.variableDefinitionRef].VariableValue.Position))
-		return true
 	}
 
 	return false
