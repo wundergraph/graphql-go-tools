@@ -36,6 +36,7 @@ type inlineFragmentSelection struct {
 
 type inlineFragmentSelectionOnInterface struct {
 	inlineFragmentSelection
+
 	typeNamesImplementingInterface            []string
 	typeNamesImplementingInterfaceInCurrentDS []string
 	entityNamesImplementingInterface          []string
@@ -43,6 +44,7 @@ type inlineFragmentSelectionOnInterface struct {
 
 type inlineFragmentSelectionOnUnion struct {
 	inlineFragmentSelection
+
 	unionMemberTypeNames            []string
 	unionMemberTypeNamesInCurrentDS []string
 	unionMemberEntityNames          []string

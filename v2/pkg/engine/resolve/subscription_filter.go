@@ -7,7 +7,9 @@ import (
 	"regexp"
 
 	"github.com/buger/jsonparser"
+
 	"github.com/wundergraph/astjson"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 )
 

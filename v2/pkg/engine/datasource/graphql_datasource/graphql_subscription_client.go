@@ -9,10 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/textproto"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -427,11 +430,24 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 			}
 		}
 	}
+
+	// Sort header names for deterministic hashing since looping through maps
+	// results in a non-deterministic order of elements
+	headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
+
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
+		// Write header pattern
 		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
 			return err
 		}
-		for headerName, values := range ctx.Request.Header {
+
+		// Write negate match
+		if _, err = xxh.WriteString(strconv.FormatBool(headerRegexp.NegateMatch)); err != nil {
+			return err
+		}
+
+		for _, headerName := range headerKeys {
+			values := ctx.Request.Header[headerName]
 			result := headerRegexp.Pattern.MatchString(headerName)
 			if headerRegexp.NegateMatch {
 				result = !result
@@ -813,11 +829,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 			// this allows us to keep handling events in parallel while being able to manage connections without locks
 			// as a result, we can handle a large number of connections with a single threaded event loop
 
-			for {
-				if waitForEvents == 0 {
-					// once we have results for all events, we can return to the top level loop and wait for the next tick
-					break
-				}
+			// once we have results for all events, we can return to the top level loop and wait for the next tick
+			for waitForEvents > 0 {
 				select {
 				case result := <-connResults:
 					// if the connection indicates that it should be closed, we close and remove it

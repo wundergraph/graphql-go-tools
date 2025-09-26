@@ -26,6 +26,7 @@ func UniqueTypeNames() Rule {
 
 type uniqueTypeNamesVisitor struct {
 	*astvisitor.Walker
+
 	definition          *ast.Document
 	usedTypeNamesAsHash map[uint64]bool
 }

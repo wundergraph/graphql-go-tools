@@ -12,17 +12,19 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/astjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
 // mockInterface provides a simple implementation of grpc.ClientConnInterface for testing

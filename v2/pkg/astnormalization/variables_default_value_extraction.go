@@ -26,6 +26,7 @@ func extractVariablesDefaultValue(walker *astvisitor.Walker) *variablesDefaultVa
 
 type variablesDefaultValueExtractionVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition                             *ast.Document
 	importer                                          astimport.Importer
 	operationRef                                      int

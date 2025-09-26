@@ -62,10 +62,11 @@ type RPCConfig struct {
 
 // EntityRPCConfig defines the configuration for entity lookups
 type EntityRPCConfig struct {
-	// Key is a list of field names that uniquely identify the entity
-	Key string
 	// RPCConfig is the embedded configuration for the RPC operation
 	RPCConfig
+
+	// Key is a list of field names that uniquely identify the entity
+	Key string
 }
 
 // FieldMapData defines the mapping between a GraphQL field and a gRPC field

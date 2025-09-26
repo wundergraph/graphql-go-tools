@@ -10,6 +10,7 @@ import (
 
 type populatedTypeBodiesVisitor struct {
 	*astvisitor.Walker
+
 	definition *ast.Document
 }
 

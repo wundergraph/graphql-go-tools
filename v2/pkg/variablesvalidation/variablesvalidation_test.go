@@ -3,17 +3,15 @@ package variablesvalidation
 import (
 	"testing"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/asttransform"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
 func TestVariablesValidationApolloCompatibility(t *testing.T) {

@@ -16,6 +16,8 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
@@ -23,7 +25,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/mapping"
-	"google.golang.org/grpc"
 )
 
 // mockPlugin is the plugin implementation for the test.

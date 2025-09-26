@@ -16,9 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/cespare/xxhash/v2"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -8868,6 +8867,7 @@ func TestLoadFiles(t *testing.T) {
 }
 
 func TestSanitizeKey(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		input    string

@@ -19,6 +19,7 @@ func DirectivesAreInValidLocations() Rule {
 
 type directivesAreInValidLocationsVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

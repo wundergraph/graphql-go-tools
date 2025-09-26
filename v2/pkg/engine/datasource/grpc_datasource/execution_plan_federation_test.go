@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
@@ -16,6 +17,7 @@ import (
 )
 
 func TestEntityLookup(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		query             string
@@ -481,6 +483,7 @@ func TestEntityLookup(t *testing.T) {
 }
 
 func TestEntityKeys(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name              string
 		query             string

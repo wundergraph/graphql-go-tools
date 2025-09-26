@@ -59,6 +59,7 @@ func (g *Generator) Generate(definition *ast.Document, report *operationreport.R
 
 type introspectionVisitor struct {
 	*astvisitor.Walker
+
 	definition       *ast.Document
 	data             *Data
 	currentType      *FullType

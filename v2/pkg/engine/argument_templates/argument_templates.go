@@ -3,9 +3,10 @@ package argument_templates
 import (
 	"bytes"
 	"fmt"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"regexp"
 	"strings"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 // ArgumentTemplateRegex dictates form {{args.nested.path}} with flexible whitespace surrounding args.path

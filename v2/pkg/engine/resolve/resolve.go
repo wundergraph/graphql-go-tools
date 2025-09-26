@@ -110,44 +110,66 @@ type ResolverOptions struct {
 
 	// PropagateSubgraphErrors adds Subgraph Errors to the response
 	PropagateSubgraphErrors bool
+
 	// PropagateSubgraphStatusCodes adds the status code of the Subgraph to the extensions field of a Subgraph Error
 	PropagateSubgraphStatusCodes bool
+
 	// SubgraphErrorPropagationMode defines how Subgraph Errors are propagated
 	// SubgraphErrorPropagationModeWrapped wraps Subgraph Errors in a Subgraph Error to prevent leaking internal information
 	// SubgraphErrorPropagationModePassThrough passes Subgraph Errors through without modification
 	SubgraphErrorPropagationMode SubgraphErrorPropagationMode
+
 	// RewriteSubgraphErrorPaths rewrites the paths of Subgraph Errors to match the path of the field from the perspective of the client
 	// This means that nested entity requests will have their paths rewritten from e.g. "_entities.foo.bar" to "person.foo.bar" if the root field above is "person"
 	RewriteSubgraphErrorPaths bool
+
 	// OmitSubgraphErrorLocations omits the locations field of Subgraph Errors
 	OmitSubgraphErrorLocations bool
+
 	// OmitSubgraphErrorExtensions omits the extensions field of Subgraph Errors
 	OmitSubgraphErrorExtensions bool
+
 	// AllowAllErrorExtensionFields allows all fields in the extensions field of a root subgraph error
 	AllowAllErrorExtensionFields bool
+
 	// AllowedErrorExtensionFields defines which fields are allowed in the extensions field of a root subgraph error
 	AllowedErrorExtensionFields []string
+
 	// AttachServiceNameToErrorExtensions attaches the service name to the extensions field of a root subgraph error
 	AttachServiceNameToErrorExtensions bool
+
 	// DefaultErrorExtensionCode is the default error code to use for subgraph errors if no code is provided
 	DefaultErrorExtensionCode string
+
 	// MaxRecyclableParserSize limits the size of the Parser that can be recycled back into the Pool.
 	// If set to 0, no limit is applied
 	// This helps keep the Heap size more maintainable if you regularly perform large queries.
 	MaxRecyclableParserSize int
+
 	// ResolvableOptions are configuration options for the Resolvable struct
 	ResolvableOptions ResolvableOptions
+
 	// AllowedCustomSubgraphErrorFields defines which fields are allowed in the subgraph error when in passthrough mode
 	AllowedSubgraphErrorFields []string
+
 	// SubscriptionHeartbeatInterval defines the interval in which a heartbeat is sent to all subscriptions (whether or not this does anything is determined by the subscription response writer)
 	SubscriptionHeartbeatInterval time.Duration
+
 	// MaxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	MaxSubscriptionFetchTimeout time.Duration
+
 	// ApolloRouterCompatibilitySubrequestHTTPError is a compatibility flag for Apollo Router, it is used to handle HTTP errors in subrequests differently
 	ApolloRouterCompatibilitySubrequestHTTPError bool
+
+	// PropagateFetchReasons enables adding the "fetch_reasons" extension to
+	// upstream subgraph requests. This extension explains why each field was requested.
+	// This flag does not expose the data to clients.
+	PropagateFetchReasons bool
+
+	ValidateRequiredExternalFields bool
 }
 
-// New returns a new Resolver, ctx.Done() is used to cancel all active subscriptions & streams
+// New returns a new Resolver. ctx.Done() is used to cancel all active subscriptions and streams.
 func New(ctx context.Context, options ResolverOptions) *Resolver {
 	// options.Debug = true
 	if options.MaxConcurrency <= 0 {
@@ -227,6 +249,8 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			allowedSubgraphErrorFields:                   allowedErrorFields,
 			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
+			propagateFetchReasons:                        options.PropagateFetchReasons,
+			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
 		},
 	}
 }
@@ -933,6 +957,18 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 		id:   id,
 		kind: subscriptionEventKindRemoveSubscription,
 	}:
+	default:
+		// In the event we cannot insert immediately, defer insertion a goroutine, this should prevent deadlocks, at the cost of goroutine creation.
+		go func() {
+			select {
+			case <-r.ctx.Done():
+				return
+			case r.events <- subscriptionEvent{
+				id:   id,
+				kind: subscriptionEventKindRemoveSubscription,
+			}:
+			}
+		}()
 	}
 	return nil
 }
@@ -947,6 +983,20 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 		},
 		kind: subscriptionEventKindRemoveClient,
 	}:
+	default:
+		// In the event we cannot insert immediately, defer insertion a goroutine, this should prevent deadlocks, at the cost of goroutine creation.
+		go func() {
+			select {
+			case <-r.ctx.Done():
+				return
+			case r.events <- subscriptionEvent{
+				id: SubscriptionIdentifier{
+					ConnectionID: connectionID,
+				},
+				kind: subscriptionEventKindRemoveClient,
+			}:
+			}
+		}()
 	}
 	return nil
 }
@@ -1105,7 +1155,14 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return writeFlushComplete(writer, msg)
 	}
 
-	event := subscriptionEvent{
+	select {
+	case <-r.ctx.Done():
+		// Stop resolving if the resolver is shutting down
+		return r.ctx.Err()
+	case <-ctx.ctx.Done():
+		// Stop resolving if the client is gone
+		return ctx.ctx.Err()
+	case r.events <- subscriptionEvent{
 		triggerID: xxh.Sum64(),
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
@@ -1116,13 +1173,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 			id:        id,
 			completed: make(chan struct{}),
 		},
-	}
-
-	select {
-	case <-r.ctx.Done():
-		// Stop resolving if the resolver is shutting down
-		return r.ctx.Err()
-	case r.events <- event:
+	}:
 	}
 	return nil
 }

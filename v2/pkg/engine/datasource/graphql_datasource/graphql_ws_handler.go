@@ -9,12 +9,12 @@ import (
 	"net"
 	"time"
 
+	"github.com/buger/jsonparser"
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-
-	"github.com/buger/jsonparser"
 	"github.com/jensneuse/abstractlogger"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 // gqlWSConnectionHandler is responsible for handling a connection to an origin

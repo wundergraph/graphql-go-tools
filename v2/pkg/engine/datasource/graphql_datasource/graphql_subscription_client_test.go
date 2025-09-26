@@ -20,10 +20,11 @@ import (
 	ll "github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"go.uber.org/atomic"
 	"go.uber.org/goleak"
 	"go.uber.org/zap"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
 func logger() ll.Logger {
@@ -582,10 +583,10 @@ func TestWebSocketClientLeaks(t *testing.T) {
 }
 
 func TestAsyncSubscribe(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.SkipNow()
 	}
-	t.Parallel()
 	t.Run("subscribe async", func(t *testing.T) {
 		t.Parallel()
 		serverDone := make(chan struct{})
@@ -1891,10 +1892,10 @@ func TestAsyncSubscribe(t *testing.T) {
 }
 
 func TestClientToSubgraphPingPong(t *testing.T) {
+	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("Skipping test on Windows as it's not reliable")
 	}
-	t.Parallel()
 
 	t.Run("client sends ping message after configured interval", func(t *testing.T) {
 		t.Parallel()
@@ -2432,6 +2433,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				for key, value := range tc.headers {
 					w.Header().Set(key, value)
@@ -2513,6 +2515,7 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			var receivedChallengeKey string
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2643,7 +2646,7 @@ func TestRequestHash(t *testing.T) {
 
 			err := client.requestHash(ctx, options, hash)
 			assert.NoError(t, err)
-			assert.Equal(t, uint64(0xa06f8622f14e1bf7), hash.Sum64())
+			assert.Equal(t, uint64(0xb1557904bfa9d86a), hash.Sum64())
 		})
 
 		t.Run("with negative", func(t *testing.T) {
@@ -2670,7 +2673,38 @@ func TestRequestHash(t *testing.T) {
 
 			err := client.requestHash(ctx, options, hash)
 			assert.NoError(t, err)
-			assert.Equal(t, uint64(0x2b166b89e3626dba), hash.Sum64())
+			assert.Equal(t, uint64(0x5888642db454ccab), hash.Sum64())
+		})
+
+		t.Run("with multiple tries to ensure the hash is idempotent", func(t *testing.T) {
+			for range 100 {
+				header := http.Header{
+					"X-Custom-1":  []string{"a1"},
+					"X-There-2":   []string{"a2"},
+					"X-Custom-6":  []string{"a3"},
+					"X-Alright-3": []string{"a4"},
+					"X-Custom-5":  []string{"a5"},
+				}
+				ctx := &resolve.Context{
+					Request: resolve.Request{
+						Header: header,
+					},
+				}
+				options := GraphQLSubscriptionOptions{
+					URL: "http://example.com/graphql",
+					ForwardedClientHeaderRegularExpressions: []RegularExpression{
+						{
+							Pattern:     regexp.MustCompile("^X-Custom-.*$"),
+							NegateMatch: false,
+						},
+					},
+				}
+				hash := xxhash.New()
+
+				err := client.requestHash(ctx, options, hash)
+				assert.NoError(t, err)
+				assert.Equal(t, uint64(0x6c9c1099adab987d), hash.Sum64())
+			}
 		})
 	})
 

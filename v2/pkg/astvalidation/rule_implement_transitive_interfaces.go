@@ -22,6 +22,7 @@ func ImplementTransitiveInterfaces() Rule {
 
 type implementTransitiveInterfacesVisitor struct {
 	*astvisitor.Walker
+
 	definition                  *ast.Document
 	typesImplementingInterfaces map[string][]string
 }

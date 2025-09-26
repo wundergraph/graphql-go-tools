@@ -4,14 +4,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 )
 
 type testCase struct {
@@ -63,6 +63,7 @@ func buildPath(path string) ast.Path {
 }
 
 func TestQueryExecutionPlans(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -1126,6 +1127,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 }
 
 func TestProductExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -1380,6 +1382,7 @@ func TestProductExecutionPlan(t *testing.T) {
 }
 
 func TestProductExecutionPlanWithAliases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
