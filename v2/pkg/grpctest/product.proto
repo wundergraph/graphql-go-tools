@@ -55,6 +55,7 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
 }
 
 // Wrapper message for a list of AuthorFilter.
@@ -619,6 +620,33 @@ message MutationBulkUpdateBlogPostsRequest {
 message MutationBulkUpdateBlogPostsResponse {
   repeated BlogPost bulk_update_blog_posts = 1;
 }
+message CategoryProductCountArgs {
+  ProductCountFilter filters = 1;
+}
+
+message CategoryProductCountContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryProductCountRequestKey {
+  // context provides the resolver context for the field productCount of type Category.
+  CategoryProductCountContext context = 1;
+  // field_args provides the arguments for the resolver field productCount of type Category.
+  CategoryProductCountArgs field_args = 2;
+}
+
+message ResolveCategoryProductCountRequest {
+  repeated ResolveCategoryProductCountRequestKey key = 1;
+}
+
+message ResolveCategoryProductCountResponseResult {
+  int32 product_count = 1;
+}
+
+message ResolveCategoryProductCountResponse {
+  repeated ResolveCategoryProductCountResponseResult result = 1;
+}
 
 message Product {
   string id = 1;
@@ -918,4 +946,11 @@ message ActionError {
 message CategoryInput {
   string name = 1;
   CategoryKind kind = 2;
+}
+
+message ProductCountFilter {
+  google.protobuf.DoubleValue min_price = 1;
+  google.protobuf.DoubleValue max_price = 2;
+  google.protobuf.BoolValue in_stock = 3;
+  google.protobuf.StringValue search_term = 4;
 }

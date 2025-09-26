@@ -667,6 +667,12 @@ func testMapping() *GRPCMapping {
 				"kind": {
 					TargetName: "kind",
 				},
+				"productCount": {
+					TargetName: "product_count",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
 			},
 			"CategoryFilter": {
 				"category": {
@@ -1039,6 +1045,20 @@ func testMapping() *GRPCMapping {
 				},
 				"skillCount": {
 					TargetName: "skill_count",
+				},
+			},
+			"ProductCountFilter": {
+				"minPrice": {
+					TargetName: "min_price",
+				},
+				"maxPrice": {
+					TargetName: "max_price",
+				},
+				"inStock": {
+					TargetName: "in_stock",
+				},
+				"searchTerm": {
+					TargetName: "search_term",
 				},
 			},
 		},

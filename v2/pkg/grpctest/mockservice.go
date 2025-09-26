@@ -19,6 +19,22 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveCategoryProductCount implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryProductCount(_ context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
+	results := make([]*productv1.ResolveCategoryProductCountResponseResult, len(req.GetKey()))
+	for range req.GetKey() {
+		results = append(results, &productv1.ResolveCategoryProductCountResponseResult{
+			ProductCount: int32(rand.Intn(100)),
+		})
+	}
+
+	resp := &productv1.ResolveCategoryProductCountResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
 // LookupWarehouseById implements productv1.ProductServiceServer.
 func (s *MockService) LookupWarehouseById(ctx context.Context, in *productv1.LookupWarehouseByIdRequest) (*productv1.LookupWarehouseByIdResponse, error) {
 	var results []*productv1.Warehouse

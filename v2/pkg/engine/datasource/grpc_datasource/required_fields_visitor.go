@@ -15,8 +15,9 @@ type requiredFieldsVisitor struct {
 	operation  *ast.Document
 	definition *ast.Document
 
-	walker  *astvisitor.Walker
-	message *RPCMessage
+	walker              *astvisitor.Walker
+	message             *RPCMessage
+	fieldDefinitionRefs []int
 
 	planCtx *rpcPlanningContext
 
@@ -27,10 +28,11 @@ type requiredFieldsVisitor struct {
 // It registers the visitor with the walker and returns it.
 func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, planCtx *rpcPlanningContext) *requiredFieldsVisitor {
 	visitor := &requiredFieldsVisitor{
-		walker:           walker,
-		message:          message,
-		planCtx:          planCtx,
-		messageAncestors: []*RPCMessage{},
+		walker:              walker,
+		message:             message,
+		planCtx:             planCtx,
+		messageAncestors:    []*RPCMessage{},
+		fieldDefinitionRefs: []int{},
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -130,6 +132,7 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 		return
 	}
 
+	r.fieldDefinitionRefs = append(r.fieldDefinitionRefs, fd)
 	r.message.Fields = append(r.message.Fields, field)
 }
 
