@@ -384,7 +384,6 @@ func (v *variablesVisitor) violatesOneOfConstraint(inputObjectDefRef int, jsonVa
 		return false
 	}
 
-	// Count all fields in the JSON object
 	obj := jsonValue.GetObject()
 	totalFieldCount := obj.Len()
 

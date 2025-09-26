@@ -1510,7 +1510,6 @@ func TestVariablesValidation(t *testing.T) {
 				err := runTest(t, tc)
 				require.NoError(t, err)
 			})
-
 			t.Run("exactly one field provided - different field", func(t *testing.T) {
 				tc := testCase{
 					schema:    catDogSchema,
@@ -1520,7 +1519,15 @@ func TestVariablesValidation(t *testing.T) {
 				err := runTest(t, tc)
 				require.NoError(t, err)
 			})
-
+			t.Run("exactly one field provided - via nested var", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($s: String) { pet(input: {cat: $s} ) }`,
+					variables: `{"s": "Rex"}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
 			t.Run("exactly one field with complex type", func(t *testing.T) {
 				tc := testCase{
 					schema:    `input CatInput { name: String! } input PetInput @oneOf { cat: CatInput, dog: String } type Query { pet(input: PetInput!): String }`,
@@ -1543,7 +1550,6 @@ func TestVariablesValidation(t *testing.T) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 0 fields were provided`)
 			})
-
 			t.Run("multiple fields provided", func(t *testing.T) {
 				tc := testCase{
 					schema:    catDogSchema,
