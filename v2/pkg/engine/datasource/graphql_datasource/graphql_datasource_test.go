@@ -398,6 +398,29 @@ func TestGraphQLDataSource(t *testing.T) {
 							},
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
+						Caching: resolve.FetchCacheConfiguration{
+							Enabled:   true,
+							CacheName: "default",
+							TTL:       30 * time.Second,
+							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+								Fields: []resolve.CacheKeyQueryRootField{
+									{
+										Name: "droid",
+										Args: []resolve.CacheKeyQueryRootFieldArgument{
+											{
+												Name: "id",
+												Variables: resolve.NewVariables(
+													&resolve.ContextVariable{
+														Path:     []string{"id"},
+														Renderer: resolve.NewJSONVariableRenderer(),
+													},
+												),
+											},
+										},
+									},
+								},
+							},
+						},
 					},
 					Info: &resolve.FetchInfo{
 						OperationType:  ast.OperationTypeQuery,
@@ -783,7 +806,7 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 		},
 		DisableResolveFieldPositions: true,
-	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData()))
+	}, WithFieldInfo(), WithDefaultPostProcessor(), WithFetchProvidesData(), WithEntityCaching()))
 
 	t.Run("selections on interface type", RunTest(interfaceSelectionSchema, `
 		query MyQuery {

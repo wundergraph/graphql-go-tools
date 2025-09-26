@@ -492,7 +492,7 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 	res.cacheKeys = make([]string, 0, len(inputItems))
 	buf := &bytes.Buffer{}
 	for _, item := range inputItems {
-		err = cfg.CacheKeyTemplate.Render(l.ctx, item, buf)
+		err = cfg.CacheKeyTemplate.RenderCacheKey(l.ctx, item, buf)
 		if err != nil {
 			return false, err
 		}

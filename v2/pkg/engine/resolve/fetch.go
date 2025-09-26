@@ -354,7 +354,7 @@ type FetchCacheConfiguration struct {
 	// CacheKeyTemplate can be used to render a cache key for the fetch.
 	// In case of a root fetch, the variables will be one or more field arguments
 	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
-	CacheKeyTemplate *InputTemplate
+	CacheKeyTemplate CacheKeyTemplate
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches
@@ -418,7 +418,7 @@ type FetchInfo struct {
 	// with the request to the subgraph as part of the "fetch_reason" extension.
 	// Specifically, it is created only for fields stored in the DataSource.RequireFetchReasons().
 	PropagatedFetchReasons []FetchReason
-	ProvidesData   *Object
+	ProvidesData           *Object
 }
 
 type GraphCoordinate struct {
