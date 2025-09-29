@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -213,21 +214,27 @@ func (p *NodeSelectionBuilder) printOperation(operation *ast.Document) {
 
 	if p.config.Debug.PrintOperationEnableASTRefs {
 		pp, _ = astprinter.PrintStringIndentDebug(operation, "  ", func(fieldRef int, out io.Writer) {
-			if p.nodeSelectionsVisitor.nodeSuggestions == nil {
-				return
-			}
-
-			treeNodeId := TreeNodeID(fieldRef)
-			node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
-			if !ok {
-				return
-			}
-
-			items := node.GetData()
-			for _, id := range items {
-				if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
-					fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())
+			if p.config.Debug.PrintNodeSuggestions {
+				if p.nodeSelectionsVisitor.nodeSuggestions == nil {
+					return
 				}
+
+				treeNodeId := TreeNodeID(fieldRef)
+				node, ok := p.nodeSelectionsVisitor.nodeSuggestions.responseTree.Find(treeNodeId)
+				if !ok {
+					return
+				}
+
+				items := node.GetData()
+				for _, id := range items {
+					if p.nodeSelectionsVisitor.nodeSuggestions.items[id].Selected {
+						_, _ = fmt.Fprintf(out, "  %s", p.nodeSelectionsVisitor.nodeSuggestions.items[id].StringShort())
+					}
+				}
+			}
+
+			if slices.Contains(p.nodeSelectionsVisitor.skipFieldsRefs, fieldRef) {
+				_, _ = fmt.Fprintf(out, "  (skip)")
 			}
 		})
 	} else {

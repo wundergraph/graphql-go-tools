@@ -1372,7 +1372,7 @@ func (p *Planner[T]) debugPrintQueryPlan(operation *ast.Document) {
 	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		args = append(args, "Representations:\n")
 		for _, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			key, report := plan.RequiredFieldsFragment(cfg.TypeName, cfg.SelectionSet, cfg.FieldName == "")
+			key, report := plan.QueryPlanRequiredFieldsFragment(cfg.TypeName, cfg.FieldName, cfg.SelectionSet)
 			if report.HasErrors() {
 				continue
 			}
@@ -1407,7 +1407,7 @@ func (p *Planner[T]) generateQueryPlansForFetchConfiguration(operation *ast.Docu
 	if p.hasFederationRoot && p.dataSourcePlannerConfig.HasRequiredFields() { // IsRepresentationsQuery
 		representations = make([]resolve.Representation, len(p.dataSourcePlannerConfig.RequiredFields))
 		for i, cfg := range p.dataSourcePlannerConfig.RequiredFields {
-			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.FieldName, cfg.TypeName, cfg.SelectionSet)
+			fragmentAst, report := plan.QueryPlanRequiredFieldsFragment(cfg.TypeName, cfg.FieldName, cfg.SelectionSet)
 			if report.HasErrors() {
 				p.stopWithError(errors.WithStack(fmt.Errorf("generateQueryPlansForFetchConfiguration: failed to build fragment for required fields: %w", report)))
 				return
