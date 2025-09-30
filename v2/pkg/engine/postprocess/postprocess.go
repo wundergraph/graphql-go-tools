@@ -3,8 +3,6 @@ package postprocess
 import (
 	"slices"
 
-	"github.com/buger/jsonparser"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
@@ -22,6 +20,7 @@ type Processor struct {
 	disableExtractFetches bool
 	collectDataSourceInfo bool
 	resolveInputTemplates *resolveInputTemplates
+	appendFetchID         *fetchIDAppender
 	dedupe                *deduplicateSingleFetches
 	processResponseTree   []ResponseTreeProcessor
 	processFetchTree      []FetchTreeProcessor
@@ -32,6 +31,7 @@ type processorOptions struct {
 	disableCreateConcreteSingleFetchTypes bool
 	disableOrderSequenceByDependencies    bool
 	disableMergeFields                    bool
+	disableRewriteOpNames                 bool
 	disableResolveInputTemplates          bool
 	disableExtractFetches                 bool
 	disableCreateParallelNodes            bool
@@ -101,6 +101,9 @@ func NewProcessor(options ...ProcessorOption) *Processor {
 		resolveInputTemplates: &resolveInputTemplates{
 			disable: opts.disableResolveInputTemplates,
 		},
+		appendFetchID: &fetchIDAppender{
+			disable: opts.disableRewriteOpNames,
+		},
 		dedupe: &deduplicateSingleFetches{
 			disable: opts.disableDeduplicateSingleFetches,
 		},
@@ -139,6 +142,8 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		// NOTE: deduplication relies on the fact that the fetch tree
 		// have flat structure of child fetches
 		p.dedupe.ProcessFetchTree(t.Response.Fetches)
+		// Appending fetchIDs makes query content unique, thus it should happen after "dedupe".
+		p.appendFetchID.ProcessFetchTree(t.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Fetches)
 		for i := range p.processFetchTree {
 			p.processFetchTree[i].ProcessFetchTree(t.Response.Fetches)
@@ -150,6 +155,7 @@ func (p *Processor) Process(pre plan.Plan) plan.Plan {
 		p.createFetchTree(t.Response.Response)
 		p.appendTriggerToFetchTree(t.Response)
 		p.dedupe.ProcessFetchTree(t.Response.Response.Fetches)
+		p.appendFetchID.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessFetchTree(t.Response.Response.Fetches)
 		p.resolveInputTemplates.ProcessTrigger(&t.Response.Trigger)
 		for i := range p.processFetchTree {
@@ -174,9 +180,15 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	if p.collectDataSourceInfo {
 		var list = make([]resolve.DataSourceInfo, 0, len(fetches))
 		for _, fetch := range fetches {
-			dsInfo := fetch.Fetch.DataSourceInfo()
-			if !slices.Contains(list, dsInfo) {
-				list = append(list, dsInfo)
+			info := fetch.Fetch.FetchInfo()
+			if info != nil {
+				dsInfo := resolve.DataSourceInfo{
+					ID:   info.DataSourceID,
+					Name: info.DataSourceName,
+				}
+				if !slices.Contains(list, dsInfo) {
+					list = append(list, dsInfo)
+				}
 			}
 		}
 		res.DataSources = list
@@ -194,11 +206,8 @@ func (p *Processor) createFetchTree(res *resolve.GraphQLResponse) {
 	}
 }
 
-func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
-	// Using json parser here because input is not yet valid JSON
-	v, _ := jsonparser.GetString(res.Trigger.Input, "body", "query")
-
-	rootData := res.Response.Data
+func (p *Processor) appendTriggerToFetchTree(sub *resolve.GraphQLSubscription) {
+	rootData := sub.Response.Data
 	if rootData == nil || len(rootData.Fields) == 0 {
 		return
 	}
@@ -208,7 +217,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 		return
 	}
 
-	res.Response.Fetches.Trigger = &resolve.FetchTreeNode{
+	sub.Response.Fetches.Trigger = &resolve.FetchTreeNode{
 		Kind: resolve.FetchTreeNodeKindTrigger,
 		Item: &resolve.FetchItem{
 			Fetch: &resolve.SingleFetch{
@@ -218,9 +227,7 @@ func (p *Processor) appendTriggerToFetchTree(res *resolve.GraphQLSubscription) {
 				Info: &resolve.FetchInfo{
 					DataSourceID:   info.Source.IDs[0],
 					DataSourceName: info.Source.Names[0],
-					QueryPlan: &resolve.QueryPlan{
-						Query: v,
-					},
+					QueryPlan:      sub.Trigger.QueryPlan,
 				},
 			},
 			ResponsePath: info.Name,

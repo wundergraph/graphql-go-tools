@@ -19,6 +19,7 @@ func fragmentSpreadInline(walker *astvisitor.Walker) {
 
 type fragmentSpreadInlineVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

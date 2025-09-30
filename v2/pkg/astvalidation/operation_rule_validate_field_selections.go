@@ -23,6 +23,7 @@ func FieldSelections() Rule {
 
 type fieldDefined struct {
 	*astvisitor.Walker
+
 	operation  *ast.Document
 	definition *ast.Document
 }

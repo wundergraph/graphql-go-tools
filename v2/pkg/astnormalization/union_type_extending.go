@@ -24,6 +24,7 @@ func extendUnionTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
 
 type extendUnionTypeDefinitionVisitor struct {
 	*astvisitor.Walker
+
 	operation            *ast.Document
 	keepExtensionOrphans bool
 }

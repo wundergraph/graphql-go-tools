@@ -22,6 +22,7 @@ func VariableUniqueness() Rule {
 
 type variableUniquenessVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

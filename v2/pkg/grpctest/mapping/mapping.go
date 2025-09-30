@@ -151,6 +151,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryAllAuthorsRequest",
 				Response: "QueryAllAuthorsResponse",
 			},
+			"bulkSearchAuthors": {
+				RPC:      "QueryBulkSearchAuthors",
+				Request:  "QueryBulkSearchAuthorsRequest",
+				Response: "QueryBulkSearchAuthorsResponse",
+			},
+			"bulkSearchBlogPosts": {
+				RPC:      "QueryBulkSearchBlogPosts",
+				Request:  "QueryBulkSearchBlogPostsRequest",
+				Response: "QueryBulkSearchBlogPostsResponse",
+			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap{
 			"createUser": {
@@ -193,23 +203,57 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "MutationUpdateAuthorRequest",
 				Response: "MutationUpdateAuthorResponse",
 			},
+			"bulkCreateAuthors": {
+				RPC:      "MutationBulkCreateAuthors",
+				Request:  "MutationBulkCreateAuthorsRequest",
+				Response: "MutationBulkCreateAuthorsResponse",
+			},
+			"bulkUpdateAuthors": {
+				RPC:      "MutationBulkUpdateAuthors",
+				Request:  "MutationBulkUpdateAuthorsRequest",
+				Response: "MutationBulkUpdateAuthorsResponse",
+			},
+			"bulkCreateBlogPosts": {
+				RPC:      "MutationBulkCreateBlogPosts",
+				Request:  "MutationBulkCreateBlogPostsRequest",
+				Response: "MutationBulkCreateBlogPostsResponse",
+			},
+			"bulkUpdateBlogPosts": {
+				RPC:      "MutationBulkUpdateBlogPosts",
+				Request:  "MutationBulkUpdateBlogPostsRequest",
+				Response: "MutationBulkUpdateBlogPostsResponse",
+			},
 		},
 		SubscriptionRPCs: grpcdatasource.RPCConfigMap{},
-		EntityRPCs: map[string]grpcdatasource.EntityRPCConfig{
+		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
 			"Product": {
-				Key: "id",
-				RPCConfig: grpcdatasource.RPCConfig{
-					RPC:      "LookupProductById",
-					Request:  "LookupProductByIdRequest",
-					Response: "LookupProductByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupProductById",
+						Request:  "LookupProductByIdRequest",
+						Response: "LookupProductByIdResponse",
+					},
 				},
 			},
 			"Storage": {
-				Key: "id",
-				RPCConfig: grpcdatasource.RPCConfig{
-					RPC:      "LookupStorageById",
-					Request:  "LookupStorageByIdRequest",
-					Response: "LookupStorageByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupStorageById",
+						Request:  "LookupStorageByIdRequest",
+						Response: "LookupStorageByIdResponse",
+					},
+				},
+			},
+			"Warehouse": {
+				{
+					Key: "id",
+					RPCConfig: grpcdatasource.RPCConfig{
+						RPC:      "LookupWarehouseById",
+						Request:  "LookupWarehouseByIdRequest",
+						Response: "LookupWarehouseByIdResponse",
+					},
 				},
 			},
 		},
@@ -350,6 +394,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"allAuthors": {
 					TargetName: "all_authors",
 				},
+				"bulkSearchAuthors": {
+					TargetName: "bulk_search_authors",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
+				"bulkSearchBlogPosts": {
+					TargetName: "bulk_search_blog_posts",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -403,6 +459,30 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 						"input": "input",
 					},
 				},
+				"bulkCreateAuthors": {
+					TargetName: "bulk_create_authors",
+					ArgumentMappings: map[string]string{
+						"authors": "authors",
+					},
+				},
+				"bulkUpdateAuthors": {
+					TargetName: "bulk_update_authors",
+					ArgumentMappings: map[string]string{
+						"authors": "authors",
+					},
+				},
+				"bulkCreateBlogPosts": {
+					TargetName: "bulk_create_blog_posts",
+					ArgumentMappings: map[string]string{
+						"blogPosts": "blog_posts",
+					},
+				},
+				"bulkUpdateBlogPosts": {
+					TargetName: "bulk_update_blog_posts",
+					ArgumentMappings: map[string]string{
+						"blogPosts": "blog_posts",
+					},
+				},
 			},
 			"UserInput": {
 				"name": {
@@ -421,6 +501,17 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 			},
 			"Storage": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
+			"Warehouse": {
 				"id": {
 					TargetName: "id",
 				},

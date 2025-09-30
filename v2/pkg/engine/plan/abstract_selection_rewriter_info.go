@@ -36,6 +36,7 @@ type inlineFragmentSelection struct {
 
 type inlineFragmentSelectionOnInterface struct {
 	inlineFragmentSelection
+
 	typeNamesImplementingInterface            []string
 	typeNamesImplementingInterfaceInCurrentDS []string
 	entityNamesImplementingInterface          []string
@@ -43,6 +44,7 @@ type inlineFragmentSelectionOnInterface struct {
 
 type inlineFragmentSelectionOnUnion struct {
 	inlineFragmentSelection
+
 	unionMemberTypeNames            []string
 	unionMemberTypeNamesInCurrentDS []string
 	unionMemberEntityNames          []string
@@ -83,7 +85,7 @@ func (r *fieldSelectionRewriter) selectionSetFieldSelections(selectionSetRef int
 func (r *fieldSelectionRewriter) collectFieldInformation(fieldRef int) (selectionSetInfo, error) {
 	fieldSelectionSetRef, ok := r.operation.FieldSelectionSet(fieldRef)
 	if !ok {
-		return selectionSetInfo{}, FieldDoesntHaveSelectionSetErr
+		return selectionSetInfo{}, ErrFieldHasNoSelectionSet
 	}
 
 	return r.collectSelectionSetInformation(fieldSelectionSetRef)
@@ -101,7 +103,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	typeCondition := r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef)
 	inlineFragmentSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
 	if !ok {
-		return InlineFragmentDoesntHaveSelectionSetErr
+		return ErrInlineFragmentHasNoSelectionSet
 	}
 
 	hasDirectives := r.operation.InlineFragmentHasDirectives(inlineFragmentRef)
@@ -110,7 +112,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 	// because it could be absent in the current SUBGRAPH document
 	definitionNode, hasNode := r.definition.NodeByNameStr(typeCondition)
 	if !hasNode {
-		return InlineFragmentTypeIsNotExistsErr
+		return ErrInlineFragmentHasNoCondition
 	}
 
 	selectionSetInfo, err := r.collectSelectionSetInformation(inlineFragmentSelectionSetRef)
@@ -140,7 +142,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 			typeNamesImplementingInterface: typeNamesImplementingInterface,
 		}
 
-		// NOTE: We are getting type names implementing interface from the current SUBGRAPH definion
+		// NOTE: We are getting type names implementing interface from the current SUBGRAPH definition
 		// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
 		upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
 		if hasUpstreamNode {
@@ -163,7 +165,7 @@ func (r *fieldSelectionRewriter) collectInlineFragmentInformation(
 			unionMemberTypeNames:    unionMemberTypeNames,
 		}
 
-		// NOTE: We are getting type names of union members from the current SUBGRAPH definion
+		// NOTE: We are getting type names of union members from the current SUBGRAPH definition
 		// NOTE: at this point we ignore case when upstreamNode is not exists in the upstream schema
 		upstreamNode, hasUpstreamNode := r.upstreamDefinition.NodeByNameStr(typeCondition)
 		if hasUpstreamNode {

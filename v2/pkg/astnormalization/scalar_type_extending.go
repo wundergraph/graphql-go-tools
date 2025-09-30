@@ -24,6 +24,7 @@ func extendScalarTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
 
 type extendScalarTypeDefinitionVisitor struct {
 	*astvisitor.Walker
+
 	operation            *ast.Document
 	keepExtensionOrphans bool
 }

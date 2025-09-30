@@ -58,6 +58,7 @@ func remapVariables(walker *astvisitor.Walker) *variablesMappingVisitor {
 // e.g. field(a: "a", b: "a") will be the same as field(a: $a, b: $a) but different from field(a: $a, b: $b) or field(a: $a, b: $a)
 type variablesMappingVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	mapping               map[string]string
 	variables             []*variableItem

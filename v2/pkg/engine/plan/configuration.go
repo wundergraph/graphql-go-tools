@@ -27,8 +27,25 @@ type Configuration struct {
 
 	MinifySubgraphOperations bool
 
-	DisableIncludeInfo              bool
+	// DisableIncludeInfo controls whether the planner generates resolve.FieldInfo (useful in tests).
+	DisableIncludeInfo bool
+
+	// DisableIncludeFieldDependencies controls whether the planner generates
+	// field dependency structures.
+	// It requires DisableIncludeInfo set to false.
 	DisableIncludeFieldDependencies bool
+
+	// BuildFetchReasons allows generating the FetchReasons structure for all the fields.
+	// It may be enabled by some other components of the engine.
+	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
+	BuildFetchReasons bool
+
+	// ValidateRequiredExternalFields validates nullable external "@requires" dependencies.
+	// When a subgraph entity fetch returns a null value with an error for a field set specified in
+	// the "@requires" directive, any following fetch that depends on it should not receive such an
+	// entity.
+	// This option requires BuildFetchReasons set to true.
+	ValidateRequiredExternalFields bool
 }
 
 type DebugConfiguration struct {

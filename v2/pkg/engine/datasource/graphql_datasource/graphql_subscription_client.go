@@ -9,10 +9,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/textproto"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -427,11 +430,24 @@ func (c *subscriptionClient) requestHash(ctx *resolve.Context, options GraphQLSu
 			}
 		}
 	}
+
+	// Sort header names for deterministic hashing since looping through maps
+	// results in a non-deterministic order of elements
+	headerKeys := slices.Sorted(maps.Keys(ctx.Request.Header))
+
 	for _, headerRegexp := range options.ForwardedClientHeaderRegularExpressions {
+		// Write header pattern
 		if _, err = xxh.WriteString(headerRegexp.Pattern.String()); err != nil {
 			return err
 		}
-		for headerName, values := range ctx.Request.Header {
+
+		// Write negate match
+		if _, err = xxh.WriteString(strconv.FormatBool(headerRegexp.NegateMatch)); err != nil {
+			return err
+		}
+
+		for _, headerName := range headerKeys {
+			values := ctx.Request.Header[headerName]
 			result := headerRegexp.Pattern.MatchString(headerName)
 			if headerRegexp.NegateMatch {
 				result = !result
@@ -486,6 +502,8 @@ func (u *UpgradeRequestError) Error() string {
 }
 
 func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContext context.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) (*connection, error) {
+	// Any failure will be stored here, needed for deferred body closer.
+	var err error
 
 	conn, subProtocol, err := c.dial(requestContext, options)
 	if err != nil {
@@ -496,35 +514,43 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 		return nil, fmt.Errorf("failed to dial connection")
 	}
 
-	connectionInitMessage, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
+	// conn is not nil. Any errored return below could lead to a leaking connection.
+	// To avoid this, close connection if failure happened.
+	defer func() {
+		if err != nil {
+			conn.Close()
+		}
+	}()
+
+	initMsg, err := c.getConnectionInitMessage(requestContext, options.URL, options.Header)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(options.InitialPayload) > 0 {
-		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.InitialPayload, "payload")
+		initMsg, err = jsonparser.Set(initMsg, options.InitialPayload, "payload")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if options.Body.Extensions != nil {
-		connectionInitMessage, err = jsonparser.Set(connectionInitMessage, options.Body.Extensions, "payload", "extensions")
+		initMsg, err = jsonparser.Set(initMsg, options.Body.Extensions, "payload", "extensions")
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// init + ack
-	if err := conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
+	if err = conn.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil {
 		return nil, err
 	}
-	err = wsutil.WriteClientText(conn, connectionInitMessage)
+	err = wsutil.WriteClientText(conn, initMsg)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
+	if err = waitForAck(conn, c.readTimeout, writeTimeout); err != nil {
 		return nil, err
 	}
 
@@ -582,7 +608,13 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 	if err != nil {
 		return nil, "", err
 	}
+
+	// On failed upgrades, we close the body without transferring ownership to the caller.
+
 	if upgradeResponse.StatusCode != http.StatusSwitchingProtocols {
+		// Drain to EOF to allow connection reuse by net/http.
+		_, _ = io.Copy(io.Discard, upgradeResponse.Body)
+		upgradeResponse.Body.Close()
 		return nil, "", &UpgradeRequestError{
 			URL:        u,
 			StatusCode: upgradeResponse.StatusCode,
@@ -591,6 +623,8 @@ func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscripti
 
 	accept := computeAcceptKey(challengeKey)
 	if upgradeResponse.Header.Get("Sec-WebSocket-Accept") != accept {
+		_, _ = io.Copy(io.Discard, upgradeResponse.Body)
+		upgradeResponse.Body.Close()
 		return nil, "", fmt.Errorf("invalid Sec-WebSocket-Accept")
 	}
 
@@ -795,11 +829,8 @@ func (c *subscriptionClient) runNetPoll(ctx context.Context) {
 			// this allows us to keep handling events in parallel while being able to manage connections without locks
 			// as a result, we can handle a large number of connections with a single threaded event loop
 
-			for {
-				if waitForEvents == 0 {
-					// once we have results for all events, we can return to the top level loop and wait for the next tick
-					break
-				}
+			// once we have results for all events, we can return to the top level loop and wait for the next tick
+			for waitForEvents > 0 {
 				select {
 				case result := <-connResults:
 					// if the connection indicates that it should be closed, we close and remove it

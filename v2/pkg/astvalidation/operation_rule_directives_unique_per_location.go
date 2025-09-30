@@ -21,6 +21,7 @@ func DirectivesAreUniquePerLocation() Rule {
 
 type directivesAreUniquePerLocationVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	seenDuplicates        map[int]struct{}
 }

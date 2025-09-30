@@ -24,6 +24,7 @@ func extendInterfaceTypeDefinitionKeepingOrphans(walker *astvisitor.Walker) {
 
 type extendInterfaceTypeDefinitionVisitor struct {
 	*astvisitor.Walker
+
 	operation            *ast.Document
 	keepExtensionOrphans bool
 }
