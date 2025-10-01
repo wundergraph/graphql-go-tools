@@ -4513,7 +4513,7 @@ type Query {
 					}
 					fragment dogFragment on Dog { name }
 					fragment otherFragment on Dog { nickname }
-				`, DeferStreamDirectiveLabelRule(), Valid)
+				`, DeferStreamHaveUniqueLabels(), Valid)
 			})
 
 			t.Run("stream directive with unique labels", func(t *testing.T) {
@@ -4524,7 +4524,7 @@ type Query {
 							mustExtras @stream(label: "mustExtrasStream") { string }
 						}
 					}
-				`, DeferStreamDirectiveLabelRule(), Valid)
+				`, DeferStreamHaveUniqueLabels(), Valid)
 			})
 
 			t.Run("defer and stream with same label", func(t *testing.T) {
@@ -4536,7 +4536,7 @@ type Query {
 						}
 					}
 					fragment dogFragment on Dog { name }
-				`, DeferStreamDirectiveLabelRule(), Invalid, withValidationErrors(
+				`, DeferStreamHaveUniqueLabels(), Invalid, withValidationErrors(
 					`directive "@stream" label "sameLabel" must be unique, but was already used on "@defer" directive`,
 				))
 			})
@@ -4550,7 +4550,7 @@ type Query {
 					}
 					fragment dogFragment on Dog { name }
 					fragment otherFragment on Dog { nickname }
-				`, DeferStreamDirectiveLabelRule(), Invalid, withDisableNormalization(),
+				`, DeferStreamHaveUniqueLabels(), Invalid, withDisableNormalization(),
 					withValidationErrors(`directive "@defer" label "duplicateLabel" must be unique`))
 			})
 			t.Run("multiple stream directives with same label", func(t *testing.T) {
@@ -4561,7 +4561,7 @@ type Query {
 							mustExtras @stream(label: "duplicateLabel") { string }
 						}
 					}
-				`, DeferStreamDirectiveLabelRule(), Invalid,
+				`, DeferStreamHaveUniqueLabels(), Invalid,
 					withValidationErrors(`directive "@stream" label "duplicateLabel" must be unique`))
 			})
 			t.Run("defer without label", func(t *testing.T) {
@@ -4574,7 +4574,7 @@ type Query {
 					}
 					fragment dogFragmentA on Dog { name }
 					fragment dogFragmentB on Dog { nickname }
-				`, DeferStreamDirectiveLabelRule(), Valid)
+				`, DeferStreamHaveUniqueLabels(), Valid)
 			})
 			t.Run("stream without label", func(t *testing.T) {
 				run(t, `
@@ -4583,7 +4583,7 @@ type Query {
 							extras @stream { string }
 						}
 					}
-				`, DeferStreamDirectiveLabelRule(), Valid)
+				`, DeferStreamHaveUniqueLabels(), Valid)
 			})
 			t.Run("defer directive with variable label", func(t *testing.T) {
 				run(t, `
@@ -4593,7 +4593,7 @@ type Query {
 						}
 					}
 					fragment dogFragment on Dog { name }
-				`, DeferStreamDirectiveLabelRule(), Invalid,
+				`, DeferStreamHaveUniqueLabels(), Invalid,
 					withValidationErrors(`directive "@defer" label argument must be a static string value, not a variable`))
 			})
 			t.Run("stream directive with variable label", func(t *testing.T) {
@@ -4603,7 +4603,7 @@ type Query {
 							extras @stream(label: $label) { string }
 						}
 					}
-				`, DeferStreamDirectiveLabelRule(), Invalid,
+				`, DeferStreamHaveUniqueLabels(), Invalid,
 					withValidationErrors(`directive "@stream" label argument must be a static string value, not a variable`))
 			})
 		})
@@ -4722,21 +4722,21 @@ type Query {
 						extras @stream { string }
 					}
 				}
-			`, StreamDirectiveOnListFieldRule(), Valid)
+			`, StreamAppliedToListFieldsOnly(), Valid)
 			})
 			t.Run("stream on root list field", func(t *testing.T) {
 				run(t, `
 				query {
 					extras @stream { name } 
 				}
-			`, StreamDirectiveOnListFieldRule(), Valid)
+			`, StreamAppliedToListFieldsOnly(), Valid)
 			})
 			t.Run("stream on non-list field", func(t *testing.T) {
 				run(t, `
 				query {
 					dog @stream { name }
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, StreamAppliedToListFieldsOnly(), Invalid)
 			})
 			t.Run("stream on scalar field", func(t *testing.T) {
 				run(t, `
@@ -4745,7 +4745,7 @@ type Query {
 						name @stream
 					}
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, StreamAppliedToListFieldsOnly(), Invalid)
 			})
 		})
 

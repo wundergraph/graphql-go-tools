@@ -9,10 +9,10 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// StreamDirectiveOnListFieldRule validates that the stream directive is used on list fields
-func StreamDirectiveOnListFieldRule() Rule {
+// StreamAppliedToListFieldsOnly validates that the stream directive is used on list fields
+func StreamAppliedToListFieldsOnly() Rule {
 	return func(walker *astvisitor.Walker) {
-		visitor := streamDirectiveOnListFieldVisitor{
+		visitor := streamAppliedToListFieldsVisitor{
 			Walker: walker,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
@@ -20,18 +20,18 @@ func StreamDirectiveOnListFieldRule() Rule {
 	}
 }
 
-type streamDirectiveOnListFieldVisitor struct {
+type streamAppliedToListFieldsVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition *ast.Document
 }
 
-func (s *streamDirectiveOnListFieldVisitor) EnterDocument(operation, definition *ast.Document) {
+func (s *streamAppliedToListFieldsVisitor) EnterDocument(operation, definition *ast.Document) {
 	s.operation = operation
 	s.definition = definition
 }
 
-func (s *streamDirectiveOnListFieldVisitor) EnterDirective(ref int) {
+func (s *streamAppliedToListFieldsVisitor) EnterDirective(ref int) {
 	directiveName := s.operation.DirectiveNameBytes(ref)
 
 	// Only validate @stream directives
