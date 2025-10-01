@@ -217,6 +217,10 @@ const (
 func (f *DataSourceFilter) selectUniqueNodes() {
 
 	for i := range f.nodes.items {
+		if f.nodes.items[i].IsOrphan {
+			continue
+		}
+
 		if f.nodes.items[i].Selected {
 			continue
 		}
