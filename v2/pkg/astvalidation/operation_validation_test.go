@@ -4183,100 +4183,106 @@ type Query {
 		t.Run("labels", func(t *testing.T) {
 			t.Run("defer directive with unique labels", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						...dogFragment @defer(label: "dogLabel")
-						...otherFragment @defer(label: "otherLabel")
+					query {
+						dog {
+							...dogFragment @defer(label: "dogLabel")
+							...otherFragment @defer(label: "otherLabel")
+						}
 					}
-				}
-				fragment dogFragment on Dog { name }
-				fragment otherFragment on Dog { nickname }
-			`, DeferStreamDirectiveLabelRule(), Valid)
+					fragment dogFragment on Dog { name }
+					fragment otherFragment on Dog { nickname }
+				`, DeferStreamDirectiveLabelRule(), Valid)
 			})
 
 			t.Run("stream directive with unique labels", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						extras @stream(label: "extrasStream") { string }
-						mustExtras @stream(label: "mustExtrasStream") { string }
+					query {
+						dog {
+							extras @stream(label: "extrasStream") { string }
+							mustExtras @stream(label: "mustExtrasStream") { string }
+						}
 					}
-				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+				`, DeferStreamDirectiveLabelRule(), Valid)
 			})
 
 			t.Run("defer and stream with same label", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						...dogFragment @defer(label: "sameLabel")
-						extras @stream(label: "sameLabel") { string }
+					query {
+						dog {
+							...dogFragment @defer(label: "sameLabel")
+							extras @stream(label: "sameLabel") { string }
+						}
 					}
-				}
-				fragment dogFragment on Dog { name }
-			`, DeferStreamDirectiveLabelRule(), Invalid)
+					fragment dogFragment on Dog { name }
+				`, DeferStreamDirectiveLabelRule(), Invalid, withValidationErrors(
+					`directive "@stream" label "sameLabel" must be unique, but was already used on "@defer" directive`,
+				))
 			})
 			t.Run("defer directives with same label", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						...dogFragment @defer(label: "duplicateLabel")
-						...otherFragment @defer(label: "duplicateLabel")
+					query {
+						dog {
+							...dogFragment @defer(label: "duplicateLabel")
+							...otherFragment @defer(label: "duplicateLabel")
+						}
 					}
-				}
-				fragment dogFragment on Dog { name }
-				fragment otherFragment on Dog { nickname }
-			`, DeferStreamDirectiveLabelRule(), Invalid)
+					fragment dogFragment on Dog { name }
+					fragment otherFragment on Dog { nickname }
+				`, DeferStreamDirectiveLabelRule(), Invalid, withDisableNormalization(),
+					withValidationErrors(`directive "@defer" label "duplicateLabel" must be unique`))
 			})
 			t.Run("multiple stream directives with same label", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						extras @stream(label: "duplicateLabel") { string }
-						mustExtras @stream(label: "duplicateLabel") { string }
+					query {
+						dog {
+							extras @stream(label: "duplicateLabel") { string }
+							mustExtras @stream(label: "duplicateLabel") { string }
+						}
 					}
-				}
-			`, DeferStreamDirectiveLabelRule(), Invalid)
+				`, DeferStreamDirectiveLabelRule(), Invalid,
+					withValidationErrors(`directive "@stream" label "duplicateLabel" must be unique`))
 			})
 			t.Run("defer without label", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						...dogFragmentA @defer(label: "fragA")
-						...dogFragmentB @defer
+					query {
+						dog {
+							...dogFragmentA @defer(label: "fragA")
+							...dogFragmentB @defer
+						}
 					}
-				}
-				fragment dogFragmentA on Dog { name }
-				fragment dogFragmentB on Dog { nickname }
-			`, DeferStreamDirectiveLabelRule(), Valid)
+					fragment dogFragmentA on Dog { name }
+					fragment dogFragmentB on Dog { nickname }
+				`, DeferStreamDirectiveLabelRule(), Valid)
 			})
 			t.Run("stream without label", func(t *testing.T) {
 				run(t, `
-				query {
-					dog {
-						extras @stream { string }
+					query {
+						dog {
+							extras @stream { string }
+						}
 					}
-				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+				`, DeferStreamDirectiveLabelRule(), Valid)
 			})
 			t.Run("defer directive with variable label", func(t *testing.T) {
 				run(t, `
-				query($label: String) {
-					dog {
-						...dogFragment @defer(label: $label)
+					query($label: String) {
+						dog {
+							...dogFragment @defer(label: $label)
+						}
 					}
-				}
-				fragment dogFragment on Dog { name }
-			`, DeferStreamDirectiveLabelRule(), Invalid)
+					fragment dogFragment on Dog { name }
+				`, DeferStreamDirectiveLabelRule(), Invalid,
+					withValidationErrors(`directive "@defer" label argument must be a static string value, not a variable`))
 			})
 			t.Run("stream directive with variable label", func(t *testing.T) {
 				run(t, `
-				query($label: String) {
-					dog {
-						extras @stream(label: $label) { string }
+					query($label: String) {
+						dog {
+							extras @stream(label: $label) { string }
+						}
 					}
-				}
-			`, DeferStreamDirectiveLabelRule(), Invalid)
+				`, DeferStreamDirectiveLabelRule(), Invalid,
+					withValidationErrors(`directive "@stream" label argument must be a static string value, not a variable`))
 			})
 		})
 
@@ -4480,7 +4486,7 @@ type Query {
 						}
 					}
 				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+			`, DeferStreamComplexRule(), Valid)
 			})
 			t.Run("defer and stream in same query", func(t *testing.T) {
 				run(t, `
@@ -4490,7 +4496,7 @@ type Query {
 						extras @stream { string }
 					}
 				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+			`, DeferStreamComplexRule(), Valid)
 			})
 			t.Run("stream on multiple fields with unique labels", func(t *testing.T) {
 				run(t, `
@@ -4512,7 +4518,7 @@ type Query {
 						strings @stream(label: "extrasStrings")
 					}
 				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+			`, DeferStreamComplexRule(), Valid)
 			})
 			t.Run("duplicate labels with one disabled defer", func(t *testing.T) {
 				run(t, `
@@ -4528,7 +4534,7 @@ type Query {
 				fragment fragment2 on Dog {
 					nickname
 				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+			`, DeferStreamComplexRule(), Valid)
 			})
 			t.Run("deeply nested defer with unique labels", func(t *testing.T) {
 				run(t, `
@@ -4548,7 +4554,7 @@ type Query {
 				fragment fragment1 on Dog {
 					mustStrings
 				}
-			`, DeferStreamDirectiveLabelRule(), Valid)
+			`, DeferStreamComplexRule(), Valid)
 			})
 			t.Run("deeply nested defer with duplicate labels", func(t *testing.T) {
 				run(t, `
@@ -4568,7 +4574,7 @@ type Query {
 				fragment fragment1 on Dog {
 					mustStrings
 				}
-			`, DeferStreamDirectiveLabelRule(), Invalid)
+			`, DeferStreamComplexRule(), Invalid)
 			})
 			t.Run("defer on typed inline fragment", func(t *testing.T) {
 				run(t, `
@@ -5417,8 +5423,8 @@ func TestValidateFieldSelection(t *testing.T) {
 }
 
 // Placeholder rule functions for defer/stream validation - these need to be implemented
-func DeferStreamDirectiveLabelRule() Rule {
-	// TODO: Implement label uniqueness and variable validation
+func DeferStreamComplexRule() Rule {
+	// TODO: Implement complex validation
 	return func(walker *astvisitor.Walker) {
 		// Implementation needed
 	}

@@ -402,17 +402,36 @@ func ErrDirectiveNotAllowedOnNode(directiveName, nodeKindName ast.ByteSlice) (er
 
 func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice, position, duplicatePosition position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`The directive "@%s" can only be used once at this location.`, directiveName)
-	if duplicatePosition.LineStart < position.LineStart || duplicatePosition.CharStart < position.CharStart {
-		err.Locations = LocationsFromPosition(duplicatePosition, position)
-	} else {
-		err.Locations = LocationsFromPosition(position, duplicatePosition)
-	}
+	err.Locations = orderedLocationsFromPositions(position, duplicatePosition)
 
 	return err
 }
 
+func orderedLocationsFromPositions(posA, posB position.Position) (locations []Location) {
+	if posA.LineStart < posB.LineStart || posA.CharStart < posB.CharStart {
+		return LocationsFromPosition(posA, posB)
+	} else {
+		return LocationsFromPosition(posB, posA)
+	}
+}
+
 func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf(`directive "@%s" can only be used on list fields, but field "%s" is not a list`, directiveName, fieldName)
+	err.Message = fmt.Sprintf(`directive "@%s" can only be used on list fields, but field "%s" is not a list`,
+		directiveName, fieldName)
+	return err
+}
+
+func ErrDeferStreamDirectiveLabelMustBeStatic(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" label argument must be a static string value, not a variable`,
+		directiveName)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
+func ErrDeferStreamDirectiveLabelMustBeUnique(directiveNameA, directiveNameB ast.ByteSlice, label string, posA, posB position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" label "%s" must be unique, but was already used on "@%s" directive`,
+		directiveNameA, label, directiveNameB)
+	err.Locations = orderedLocationsFromPositions(posA, posB)
 	return err
 }
 

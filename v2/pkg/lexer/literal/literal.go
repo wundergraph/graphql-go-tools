@@ -67,6 +67,7 @@ var (
 	SKIP                          = []byte("skip")
 	DEFER                         = []byte("defer")
 	STREAM                        = []byte("stream")
+	LABEL                         = []byte("label")
 	SCHEMA                        = []byte("schema")
 	EXTEND                        = []byte("extend")
 	SCALAR                        = []byte("scalar")
