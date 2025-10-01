@@ -70,6 +70,7 @@ var (
 	DEFER_INTERNAL                = []byte("__defer_internal")
 	LABEL                         = []byte("label")
 	STREAM                        = []byte("stream")
+	LABEL                         = []byte("label")
 	SCHEMA                        = []byte("schema")
 	EXTEND                        = []byte("extend")
 	SCALAR                        = []byte("scalar")
