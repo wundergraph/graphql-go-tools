@@ -10,12 +10,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
-// DeferStreamDirectiveLabelRule validates that defer and stream directive labels are:
+// DeferStreamHaveUniqueLabels validates that defer and stream directive labels are:
 // 1. Unique across all defer and stream directives within an operation
 // 2. Not using variables (must be static string values)
-func DeferStreamDirectiveLabelRule() Rule {
+func DeferStreamHaveUniqueLabels() Rule {
 	return func(walker *astvisitor.Walker) {
-		visitor := deferStreamDirectiveLabelVisitor{
+		visitor := deferStreamLabelsVisitor{
 			Walker: walker,
 		}
 		walker.RegisterEnterDocumentVisitor(&visitor)
@@ -29,7 +29,7 @@ type labelPosition struct {
 	position     position.Position
 }
 
-type deferStreamDirectiveLabelVisitor struct {
+type deferStreamLabelsVisitor struct {
 	*astvisitor.Walker
 
 	operation, definition *ast.Document
@@ -38,16 +38,16 @@ type deferStreamDirectiveLabelVisitor struct {
 	seenLabels map[string]labelPosition
 }
 
-func (d *deferStreamDirectiveLabelVisitor) EnterDocument(operation, definition *ast.Document) {
+func (d *deferStreamLabelsVisitor) EnterDocument(operation, definition *ast.Document) {
 	d.operation = operation
 	d.definition = definition
 }
 
-func (d *deferStreamDirectiveLabelVisitor) EnterOperationDefinition(ref int) {
+func (d *deferStreamLabelsVisitor) EnterOperationDefinition(ref int) {
 	d.seenLabels = make(map[string]labelPosition)
 }
 
-func (d *deferStreamDirectiveLabelVisitor) EnterDirective(ref int) {
+func (d *deferStreamLabelsVisitor) EnterDirective(ref int) {
 	directiveName := d.operation.DirectiveNameBytes(ref)
 
 	if !bytes.Equal(directiveName, literal.DEFER) && !bytes.Equal(directiveName, literal.STREAM) {
