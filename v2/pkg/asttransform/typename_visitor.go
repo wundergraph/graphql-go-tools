@@ -13,6 +13,7 @@ const typenameFieldName = "__typename"
 
 type TypeNameVisitor struct {
 	*astvisitor.Walker
+
 	definition *ast.Document
 }
 

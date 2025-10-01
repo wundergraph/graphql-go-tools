@@ -51,6 +51,7 @@ var (
 	}
 )
 
+// Planner creates the subgraph operation.
 type Planner[T Configuration] struct {
 	id                                   int
 	debug                                bool
@@ -78,6 +79,10 @@ type Planner[T Configuration] struct {
 	insideCustomScalarField            bool
 	customScalarFieldRef               int
 	parentTypeNodes                    []ast.Node
+
+	// propagatedOperationName is non-empty when the operation name is propagated
+	// to the downstream subgraph fetch.
+	propagatedOperationName string
 
 	// federation
 
@@ -264,14 +269,6 @@ func (p *Planner[T]) DownstreamResponseFieldAlias(downstreamFieldRef int) (alias
 	return "", false
 }
 
-func (p *Planner[T]) DataSourcePlanningBehavior() plan.DataSourcePlanningBehavior {
-	return plan.DataSourcePlanningBehavior{
-		MergeAliasedRootNodes:      true,
-		OverrideFieldPathFromAlias: true,
-		IncludeTypeNameFields:      true,
-	}
-}
-
 func (p *Planner[T]) Register(visitor *plan.Visitor, configuration plan.DataSourceConfiguration[T], dataSourcePlannerConfiguration plan.DataSourcePlannerConfiguration) error {
 
 	p.visitor = visitor
@@ -363,11 +360,12 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		}
 
 		dataSource, err = grpcdatasource.NewDataSource(p.grpcClient, grpcdatasource.DataSourceConfig{
-			Operation:  &opDocument,
-			Definition: p.config.schemaConfiguration.upstreamSchemaAst,
-			Mapping:    p.config.grpc.Mapping,
-			Compiler:   p.config.grpc.Compiler,
-			Disabled:   p.config.grpc.Disabled,
+			Operation:         &opDocument,
+			Definition:        p.config.schemaConfiguration.upstreamSchemaAst,
+			Mapping:           p.config.grpc.Mapping,
+			Compiler:          p.config.grpc.Compiler,
+			Disabled:          p.config.grpc.Disabled,
+			FederationConfigs: p.dataSourcePlannerConfig.RequiredFields,
 			// TODO: remove fallback logic in visitor for subgraph name and
 			// add proper error handling if the subgraph name is not set in the mapping
 			SubgraphName: p.dataSourceConfig.Name(),
@@ -387,6 +385,7 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		PostProcessing:                        postProcessing,
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
+		OperationName:                         p.propagatedOperationName,
 	}
 }
 
@@ -525,6 +524,7 @@ func (p *Planner[T]) EnterOperationDefinition(ref int) {
 
 	if p.dataSourcePlannerConfig.Options.EnableOperationNamePropagation {
 		operation := p.buildUpstreamOperationName(ref)
+		p.propagatedOperationName = operation
 		if operation != "" {
 			p.upstreamOperation.OperationDefinitions[definition.Ref].Name = p.upstreamOperation.Input.AppendInputString(operation)
 		}
@@ -810,6 +810,7 @@ func (p *Planner[T]) EnterDocument(_, _ *ast.Document) {
 	p.variables = p.variables[:0]
 	p.hasFederationRoot = false
 	p.queryPlan = nil
+	p.propagatedOperationName = ""
 
 	// reset information about root type
 	p.rootTypeName = ""
@@ -912,7 +913,7 @@ func (p *Planner[T]) fieldDefinition(fieldName, typeName string) *ast.FieldDefin
 func (p *Planner[T]) isOnTypeInlineFragmentAllowed() bool {
 	p.DebugPrint("isOnTypeInlineFragmentAllowed")
 
-	if !(len(p.nodes) > 1 && p.nodes[len(p.nodes)-1].Kind == ast.NodeKindSelectionSet) {
+	if len(p.nodes) <= 1 || p.nodes[len(p.nodes)-1].Kind != ast.NodeKindSelectionSet {
 		return true
 	}
 
@@ -926,7 +927,7 @@ func (p *Planner[T]) isOnTypeInlineFragmentAllowed() bool {
 }
 
 func (p *Planner[T]) isInEntitiesSelectionSet() bool {
-	if !(len(p.nodes) > 2) {
+	if len(p.nodes) <= 2 {
 		return false
 	}
 
@@ -1815,6 +1816,16 @@ func (f *Factory[T]) UpstreamSchema(dataSourceConfig plan.DataSourceConfiguratio
 	}
 
 	return schema, true
+}
+
+func (f *Factory[T]) PlanningBehavior() plan.DataSourcePlanningBehavior {
+	b := plan.DataSourcePlanningBehavior{
+		MergeAliasedRootNodes:      true,
+		OverrideFieldPathFromAlias: true,
+		AllowPlanningTypeName:      true,
+		AlwaysFlattenFragments:     f.grpcClient != nil || f.grpcClientProvider != nil,
+	}
+	return b
 }
 
 type Source struct {

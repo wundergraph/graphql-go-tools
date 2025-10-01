@@ -20,9 +20,8 @@ import (
 // - missing path, which was not planned on the previous walks
 // - we have fields which are waiting for dependencies
 type pathBuilderVisitor struct {
-	logger                             abstractlogger.Logger
-	plannerConfiguration               *Configuration
-	suggestionsSelectionReasonsEnabled bool
+	logger               abstractlogger.Logger
+	plannerConfiguration *Configuration
 
 	operationName         string        // graphql query name
 	operation, definition *ast.Document // graphql operation and schema documents
@@ -39,7 +38,6 @@ type pathBuilderVisitor struct {
 	parentTypeNodes               []ast.Node             // parentTypeNodes is a stack of parent type nodes - used to determine if the parent is abstract
 	arrayFields                   []arrayField           // arrayFields is a stack of array fields - used to plan nested queries
 	selectionSetRefs              []selectionSetTypeInfo // selectionSetRefs is a stack of selection set refs - used to add a required fields
-	skipFieldsRefs                []int                  // skipFieldsRefs holds required field refs added by planner and should not be added to user response
 	missingPathTracker            map[string]struct{}    // missingPathTracker is a map of paths which will be added on secondary runs
 	potentiallyMissingPathTracker map[string]struct{}    // potentiallyMissingPathTracker is a map of paths which will be added on secondary runs
 	addedPathTracker              []pathConfiguration    // addedPathTracker is a list of paths which were added
@@ -317,12 +315,6 @@ func (c *pathBuilderVisitor) EnterDocument(operation, definition *ast.Document) 
 		c.mutationRootFieldPlanners = c.mutationRootFieldPlanners[:0]
 	}
 
-	if c.skipFieldsRefs == nil {
-		c.skipFieldsRefs = make([]int, 0, 8)
-	} else {
-		c.skipFieldsRefs = c.skipFieldsRefs[:0]
-	}
-
 	c.missingPathTracker = make(map[string]struct{})
 	c.potentiallyMissingPathTracker = make(map[string]struct{})
 	c.addedPathTracker = make([]pathConfiguration, 0, 8)
@@ -397,7 +389,7 @@ func (c *pathBuilderVisitor) EnterSelectionSet(ref int) {
 
 		hasRootNode := planner.DataSourceConfiguration().HasRootNodeWithTypename(typeName)
 		hasChildNode := planner.DataSourceConfiguration().HasChildNodeWithTypename(typeName)
-		if !(hasRootNode || hasChildNode) {
+		if !hasRootNode && !hasChildNode {
 			// we need to check also if an enclosing type is a union
 			// because we don't have root/child node for a union type
 			if c.walker.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
@@ -719,8 +711,8 @@ func (c *pathBuilderVisitor) isAllFieldDependenciesOnSameDataSource(fieldRef int
 
 func (c *pathBuilderVisitor) planWithExistingPlanners(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion) (plannerIdx int, planned bool) {
 	for plannerIdx, plannerConfig := range c.planners {
-		planningBehaviour := plannerConfig.DataSourcePlanningBehavior()
 		dsConfiguration := plannerConfig.DataSourceConfiguration()
+		planningBehaviour := dsConfiguration.PlanningBehavior()
 		currentPlannerDSHash := dsConfiguration.Hash()
 
 		hasSuggestion := suggestion != nil
@@ -1237,17 +1229,17 @@ func (c *pathBuilderVisitor) LeaveField(ref int) {
 	c.removeArrayField(ref)
 }
 
-// addPlannerPathForTypename adds a path for the __typename field
-// adding __typename should be done only in case particular planner has parent path
-// otherwise it will be added to all planners and will cause visiting of incorrect selection sets
+// addPlannerPathForTypename adds a path for the __typename field.
 func (c *pathBuilderVisitor) addPlannerPathForTypename(
 	plannerIndex int, currentPath string, parentPath string, fieldRef int, fieldName string, typeName string,
 	planningBehaviour DataSourcePlanningBehavior,
 ) (pathAdded bool) {
+	// Adding __typename should happen only if particular planner has parent path,
+	// otherwise it will be added to all planners and will cause visiting of incorrect selection sets.
 	if fieldName != typeNameField {
 		return false
 	}
-	if !planningBehaviour.IncludeTypeNameFields {
+	if !planningBehaviour.AllowPlanningTypeName {
 		return false
 	}
 

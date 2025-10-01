@@ -5,8 +5,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 )
 
 // Complete valid protobuf definition with service and message definitions

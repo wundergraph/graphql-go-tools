@@ -18,6 +18,7 @@ func removeOperationDefinitions(walker *astvisitor.Walker) *removeOperationDefin
 
 type removeOperationDefinitionsVisitor struct {
 	*astvisitor.Walker
+
 	operation          *ast.Document
 	operationName      []byte
 	operationsToRemove map[int]struct{}

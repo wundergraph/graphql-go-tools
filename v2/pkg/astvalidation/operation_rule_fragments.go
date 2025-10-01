@@ -25,6 +25,7 @@ func Fragments() Rule {
 
 type fragmentsVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition      *ast.Document
 	fragmentDefinitionsVisited []ast.ByteSlice
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/astjson"
 )
 

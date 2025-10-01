@@ -11,16 +11,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/astjson"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
+	"github.com/tidwall/gjson"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
+
+	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
 // mockInterface provides a simple implementation of grpc.ClientConnInterface for testing
@@ -125,6 +129,14 @@ func Test_DataSource_Load(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
@@ -176,10 +188,21 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
 						TargetName: "complex_filter_type",
+						ArgumentMappings: map[string]string{
+							"filter": "filter",
+						},
 					},
 				},
 				"FilterType": {
@@ -255,10 +278,21 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		SubgraphName: "Products",
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"complexFilterType": {
+					RPC:      "QueryComplexFilterType",
+					Request:  "QueryComplexFilterTypeRequest",
+					Response: "QueryComplexFilterTypeResponse",
+				},
+			},
 			Fields: map[string]FieldMap{
 				"Query": {
 					"complexFilterType": {
 						TargetName: "complex_filter_type",
+						ArgumentMappings: map[string]string{
+							"filter": "filter",
+						},
 					},
 				},
 				"FilterType": {
@@ -346,6 +380,31 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		Definition:   &schemaDoc,
 		SubgraphName: "Products",
 		Compiler:     compiler,
+		Mapping: &GRPCMapping{
+			Service: "Products",
+			QueryRPCs: RPCConfigMap{
+				"user": {
+					RPC:      "QueryUser",
+					Request:  "QueryUserRequest",
+					Response: "QueryUserResponse",
+				},
+			},
+			Fields: map[string]FieldMap{
+				"Query": {
+					"user": {
+						TargetName: "user",
+					},
+				},
+				"User": {
+					"id": {
+						TargetName: "id",
+					},
+					"name": {
+						TargetName: "name",
+					},
+				},
+			},
+		},
 	})
 	require.NoError(t, err)
 
@@ -440,10 +499,9 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
-	ds := &DataSource{}
-
 	arena := astjson.Arena{}
-	responseJSON, err := ds.marshalResponseJSON(&arena, &response, responseMessage)
+	jsonBuilder := newJSONBuilder(nil, gjson.Result{})
+	responseJSON, err := jsonBuilder.marshalResponseJSON(&arena, &response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
 }
@@ -1804,6 +1862,47 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			},
 		},
 		{
+			name:  "Query nullable fields type with all aliased fields",
+			query: `query { nullableFieldsType { id name optionalString1: optionalString optionalInt1: optionalInt optionalFloat1: optionalFloat optionalBoolean1: optionalBoolean requiredString1: requiredString requiredInt1: requiredInt } }`,
+			vars:  "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				nullableFieldsType, ok := data["nullableFieldsType"].(map[string]interface{})
+				require.True(t, ok, "nullableFieldsType should be an object")
+				require.NotEmpty(t, nullableFieldsType, "nullableFieldsType should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, nullableFieldsType, "id")
+				require.Contains(t, nullableFieldsType, "name")
+				require.Contains(t, nullableFieldsType, "requiredString1")
+				require.Contains(t, nullableFieldsType, "requiredInt1")
+
+				require.NotEmpty(t, nullableFieldsType["id"], "id should not be empty")
+				require.NotEmpty(t, nullableFieldsType["name"], "name should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredString1"], "requiredString1 should not be empty")
+				require.NotEmpty(t, nullableFieldsType["requiredInt1"], "requiredInt1 should not be empty")
+
+				// Check optional fields are present (but may be null)
+				require.Contains(t, nullableFieldsType, "optionalString1")
+				require.Contains(t, nullableFieldsType, "optionalInt1")
+				require.Contains(t, nullableFieldsType, "optionalFloat1")
+				require.Contains(t, nullableFieldsType, "optionalBoolean1")
+
+				// Verify types of non-null optional fields
+				if nullableFieldsType["optionalString1"] != nil {
+					require.IsType(t, "", nullableFieldsType["optionalString1"])
+				}
+				if nullableFieldsType["optionalInt1"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalInt1"]) // JSON numbers are float64
+				}
+				if nullableFieldsType["optionalFloat1"] != nil {
+					require.IsType(t, float64(0), nullableFieldsType["optionalFloat1"])
+				}
+				if nullableFieldsType["optionalBoolean1"] != nil {
+					require.IsType(t, false, nullableFieldsType["optionalBoolean1"])
+				}
+			},
+		},
+		{
 			name:  "Query nullable fields type by ID",
 			query: `query($id: ID!) { nullableFieldsTypeById(id: $id) { id name optionalString requiredString } }`,
 			vars:  `{"variables":{"id":"full-data"}}`,
@@ -2888,6 +2987,457 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Should handle bulk search authors with nullable list parameter",
+			query: `query($filters: [AuthorFilter!]) {
+				bulkSearchAuthors(filters: $filters) {
+					id
+					name
+					skills
+					languages
+					teamsByProject
+					favoriteCategories {
+						id
+						name
+						kind
+					}
+					categoryPreferences {
+						id
+						name
+						kind
+					}
+				}
+			}`,
+			vars: `{"variables":{"filters":[{"name":"TestAuthor","hasTeams":true,"skillCount":4},{"hasTeams":false,"skillCount":2}]}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]interface{})
+				require.True(t, ok, "bulkSearchAuthors should be an array")
+				require.Len(t, bulkSearchAuthors, 4, "Should return 2 authors per filter = 4 total")
+
+				for i, auth := range bulkSearchAuthors {
+					author, ok := auth.(map[string]interface{})
+					require.True(t, ok, "each author should be an object")
+					require.NotEmpty(t, author["id"])
+					require.NotEmpty(t, author["name"])
+
+					// Check skills array
+					skills, ok := author["skills"].([]interface{})
+					require.True(t, ok, "skills should be an array")
+					if i < 2 { // First filter has skillCount: 4
+						require.Len(t, skills, 4, "First filter should generate 4 skills")
+					} else { // Second filter has skillCount: 2
+						require.Len(t, skills, 2, "Second filter should generate 2 skills")
+					}
+
+					// Check nested list teamsByProject
+					teamsByProject, ok := author["teamsByProject"].([]interface{})
+					require.True(t, ok, "teamsByProject should be an array")
+					if i < 2 { // First filter has hasTeams: true
+						require.NotEmpty(t, teamsByProject, "First filter should have teams")
+					} else { // Second filter has hasTeams: false
+						require.Empty(t, teamsByProject, "Second filter should have no teams")
+					}
+
+					// Check complex list favoriteCategories
+					favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+					require.True(t, ok, "favoriteCategories should be an array")
+					require.Len(t, favoriteCategories, 1, "Each author should have 1 favorite category")
+
+					// Check nested complex list categoryPreferences
+					categoryPreferences, ok := author["categoryPreferences"].([]interface{})
+					require.True(t, ok, "categoryPreferences should be an array")
+					require.Len(t, categoryPreferences, 1, "Each author should have 1 category preference group")
+				}
+			},
+		},
+		{
+			name: "Should handle bulk search authors with null parameter",
+			query: `query($filters: [AuthorFilter!]) {
+				bulkSearchAuthors(filters: $filters) {
+					id
+					name
+				}
+			}`,
+			vars: `{"variables":{"filters":null}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]interface{})
+				require.True(t, ok, "bulkSearchAuthors should be an array")
+				require.Empty(t, bulkSearchAuthors, "Should return empty array when filters is null")
+			},
+		},
+		{
+			name: "Should handle bulk search blog posts with nullable list parameter",
+			query: `query($filters: [BlogPostFilter!]) {
+				bulkSearchBlogPosts(filters: $filters) {
+					id
+					title
+					content
+					tags
+					categories
+					viewCounts
+					tagGroups
+					relatedTopics
+					commentThreads
+					relatedCategories {
+						id
+						name
+						kind
+					}
+					contributors {
+						id
+						name
+					}
+					categoryGroups {
+						id
+						name
+						kind
+					}
+				}
+			}`,
+			vars: `{"variables":{"filters":[{"title":"TestPost","hasCategories":true,"minTags":3},{"hasCategories":false,"minTags":1}]}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkSearchBlogPosts, ok := data["bulkSearchBlogPosts"].([]interface{})
+				require.True(t, ok, "bulkSearchBlogPosts should be an array")
+				require.Len(t, bulkSearchBlogPosts, 4, "Should return 2 posts per filter = 4 total")
+
+				for i, post := range bulkSearchBlogPosts {
+					blogPost, ok := post.(map[string]interface{})
+					require.True(t, ok, "each blog post should be an object")
+					require.NotEmpty(t, blogPost["id"])
+					require.NotEmpty(t, blogPost["title"])
+					require.NotEmpty(t, blogPost["content"])
+
+					// Check tags array based on minTags filter
+					tags, ok := blogPost["tags"].([]interface{})
+					require.True(t, ok, "tags should be an array")
+					if i < 2 { // First filter has minTags: 3
+						require.Len(t, tags, 3, "First filter should generate 3 tags")
+					} else { // Second filter has minTags: 1
+						require.Len(t, tags, 1, "Second filter should generate 1 tag")
+					}
+
+					// Check categories based on hasCategories filter
+					categories, ok := blogPost["categories"].([]interface{})
+					require.True(t, ok, "categories should be an array")
+					if i < 2 { // First filter has hasCategories: true
+						require.NotEmpty(t, categories, "First filter should have categories")
+					} else { // Second filter has hasCategories: false
+						require.Empty(t, categories, "Second filter should have no categories")
+					}
+
+					// Check nested lists
+					tagGroups, ok := blogPost["tagGroups"].([]interface{})
+					require.True(t, ok, "tagGroups should be an array")
+					require.NotEmpty(t, tagGroups, "tagGroups should not be empty")
+
+					// Check complex lists
+					relatedCategories, ok := blogPost["relatedCategories"].([]interface{})
+					require.True(t, ok, "relatedCategories should be an array")
+					require.Len(t, relatedCategories, 1, "Each post should have 1 related category")
+
+					contributors, ok := blogPost["contributors"].([]interface{})
+					require.True(t, ok, "contributors should be an array")
+					require.Len(t, contributors, 1, "Each post should have 1 contributor")
+
+					// Check nested complex lists
+					categoryGroups, ok := blogPost["categoryGroups"].([]interface{})
+					require.True(t, ok, "categoryGroups should be an array")
+					require.Len(t, categoryGroups, 1, "Each post should have 1 category group")
+				}
+			},
+		},
+		{
+			name: "Should handle bulk create authors with nullable list parameter",
+			query: `mutation($authors: [AuthorInput!]) {
+				bulkCreateAuthors(authors: $authors) {
+					id
+					name
+					email
+					skills
+					languages
+					socialLinks
+					teamsByProject
+					collaborations
+					favoriteCategories {
+						id
+						name
+						kind
+					}
+					authorGroups {
+						id
+						name
+					}
+					projectTeams {
+						id
+						name
+					}
+				}
+			}`,
+			vars: `{
+				"variables":
+					{"authors":[
+						{"name":"Bulk Author 1","email":"bulk1@example.com","skills":["Go","GraphQL"],"languages":["English","French"],"socialLinks":["github.com/bulk1"],"teamsByProject":[["Team1Member1","Team1Member2"]],"collaborations":[["Project1","Project2"]],"favoriteCategories":[{"name":"Programming","kind":"ELECTRONICS"}],"authorGroups":[[{"name":"GroupMember1"}]],"projectTeams":[[{"name":"TeamMember1"}]]},
+						{"name":"Bulk Author 2","email":"bulk2@example.com","skills":["Python","REST"],"languages":["English","Spanish"],"teamsByProject":[["Team2Member1"]],"favoriteCategories":[{"name":"API Design","kind":"OTHER"}]}
+					]}
+				}
+				`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkCreateAuthors, ok := data["bulkCreateAuthors"].([]interface{})
+				require.True(t, ok, "bulkCreateAuthors should be an array")
+				require.Len(t, bulkCreateAuthors, 2, "Should create 2 authors")
+
+				for i, auth := range bulkCreateAuthors {
+					author, ok := auth.(map[string]interface{})
+					require.True(t, ok, "each author should be an object")
+					require.NotEmpty(t, author["id"])
+					require.Contains(t, author["id"].(string), "bulk-created-author")
+
+					switch i {
+					case 0:
+						require.Equal(t, "Bulk Author 1", author["name"])
+						require.Equal(t, "bulk1@example.com", author["email"])
+						skills, ok := author["skills"].([]interface{})
+						require.True(t, ok, "skills should be an array")
+						require.Contains(t, skills, "Go")
+						require.Contains(t, skills, "GraphQL")
+					case 1:
+						require.Equal(t, "Bulk Author 2", author["name"])
+						require.Equal(t, "bulk2@example.com", author["email"])
+						skills, ok := author["skills"].([]interface{})
+						require.True(t, ok, "skills should be an array")
+						require.Contains(t, skills, "Python")
+						require.Contains(t, skills, "REST")
+					}
+
+					// Check nested lists
+					teamsByProject, ok := author["teamsByProject"].([]interface{})
+					require.True(t, ok, "teamsByProject should be an array")
+					require.NotEmpty(t, teamsByProject, "teamsByProject should not be empty")
+
+					// Check complex lists
+					favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+					require.True(t, ok, "favoriteCategories should be an array")
+					require.Len(t, favoriteCategories, 1, "Each author should have 1 favorite category")
+				}
+			},
+		},
+		{
+			name: "Should handle bulk update authors with nullable list parameter",
+			query: `mutation($authors: [AuthorInput!]) {
+				bulkUpdateAuthors(authors: $authors) {
+					id
+					name
+					email
+					skills
+					favoriteCategories {
+						id
+						name
+						kind
+					}
+				}
+			}`,
+			vars: `{"variables":
+				{"authors":[
+					{"name":"Updated Author 1","email":"updated1@example.com","skills":["Rust","gRPC"],"languages":["English"], "teamsByProject":[["Team1Member1","Team1Member2"]],"favoriteCategories":[{"name":"Systems Programming","kind":"ELECTRONICS"}]},
+					{"name":"Updated Author 2","email":"updated2@example.com","skills":["Python","REST"],"languages":["English","Spanish"], "teamsByProject":[["Team2Member1"]],"favoriteCategories":[{"name":"API Design","kind":"OTHER"}]}
+				]}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkUpdateAuthors, ok := data["bulkUpdateAuthors"].([]interface{})
+				require.True(t, ok, "bulkUpdateAuthors should be an array")
+				require.Len(t, bulkUpdateAuthors, 2, "Should update 2 authors")
+
+				author, ok := bulkUpdateAuthors[0].(map[string]interface{})
+				require.True(t, ok, "author should be an object")
+				require.NotEmpty(t, author["id"])
+				require.Contains(t, author["id"].(string), "bulk-updated-author")
+				require.Equal(t, "Updated Author 1", author["name"])
+				require.Equal(t, "updated1@example.com", author["email"])
+
+				skills, ok := author["skills"].([]interface{})
+				require.True(t, ok, "skills should be an array")
+				require.Contains(t, skills, "Rust")
+				require.Contains(t, skills, "gRPC")
+
+				favoriteCategories, ok := author["favoriteCategories"].([]interface{})
+				require.True(t, ok, "favoriteCategories should be an array")
+				require.Len(t, favoriteCategories, 1, "Should have 1 favorite category")
+
+				author, ok = bulkUpdateAuthors[1].(map[string]interface{})
+				require.True(t, ok, "author should be an object")
+				require.NotEmpty(t, author["id"])
+				require.Contains(t, author["id"].(string), "bulk-updated-author")
+				require.Equal(t, "Updated Author 2", author["name"])
+				require.Equal(t, "updated2@example.com", author["email"])
+
+				skills, ok = author["skills"].([]interface{})
+				require.True(t, ok, "skills should be an array")
+				require.Contains(t, skills, "Python")
+				require.Contains(t, skills, "REST")
+
+				favoriteCategories, ok = author["favoriteCategories"].([]interface{})
+				require.True(t, ok, "favoriteCategories should be an array")
+				require.Len(t, favoriteCategories, 1, "Should have 1 favorite category")
+			},
+		},
+		{
+			name: "Should handle bulk create blog posts with nullable list parameter",
+			query: `mutation($blogPosts: [BlogPostInput!]) {
+				bulkCreateBlogPosts(blogPosts: $blogPosts) {
+					id
+					title
+					content
+					tags
+					optionalTags
+					categories
+					keywords
+					viewCounts
+					ratings
+					isPublished
+					tagGroups
+					relatedTopics
+					commentThreads
+					suggestions
+					relatedCategories {
+						id
+						name
+						kind
+					}
+					contributors {
+						id
+						name
+					}
+					categoryGroups {
+						id
+						name
+						kind
+					}
+				}
+			}`,
+			vars: `{"variables":{"blogPosts":[{"title":"Bulk Post 1","content":"Content for bulk post 1","tags":["bulk","test"],"optionalTags":["optional1"],"categories":["Technology","Testing"],"keywords":["bulk","creation"],"viewCounts":[100,200],"ratings":[4.5,5.0],"isPublished":[true,false],"tagGroups":[["bulk","tags"],["test","creation"]],"relatedTopics":[["bulk","operations"],["testing","mutations"]],"commentThreads":[["Great bulk feature!","Very useful"],["Testing works well"]],"suggestions":[["Add more examples"],["Improve documentation"]],"relatedCategories":[{"name":"Bulk Operations","kind":"ELECTRONICS"}],"contributors":[{"name":"Bulk Creator"}],"categoryGroups":[[{"name":"Bulk Category","kind":"OTHER"}]]},{"title":"Bulk Post 2","content":"Content for bulk post 2","tags":["second","bulk"],"categories":["Development"],"viewCounts":[150],"tagGroups":[["second","post"]],"relatedTopics":[["development"]],"commentThreads":[["Second post!"]]}]}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkCreateBlogPosts, ok := data["bulkCreateBlogPosts"].([]interface{})
+				require.True(t, ok, "bulkCreateBlogPosts should be an array")
+				require.Len(t, bulkCreateBlogPosts, 2, "Should create 2 blog posts")
+
+				for i, post := range bulkCreateBlogPosts {
+					blogPost, ok := post.(map[string]interface{})
+					require.True(t, ok, "each blog post should be an object")
+					require.NotEmpty(t, blogPost["id"])
+					require.Contains(t, blogPost["id"].(string), "bulk-created-post")
+
+					switch i {
+					case 0:
+						require.Equal(t, "Bulk Post 1", blogPost["title"])
+						require.Equal(t, "Content for bulk post 1", blogPost["content"])
+						tags, ok := blogPost["tags"].([]interface{})
+						require.True(t, ok, "tags should be an array")
+						require.Contains(t, tags, "bulk")
+						require.Contains(t, tags, "test")
+
+						optionalTags, ok := blogPost["optionalTags"].([]interface{})
+						require.True(t, ok, "optionalTags should be an array")
+						require.Contains(t, optionalTags, "optional1")
+					case 1:
+						require.Equal(t, "Bulk Post 2", blogPost["title"])
+						require.Equal(t, "Content for bulk post 2", blogPost["content"])
+						tags, ok := blogPost["tags"].([]interface{})
+						require.True(t, ok, "tags should be an array")
+						require.Contains(t, tags, "second")
+						require.Contains(t, tags, "bulk")
+					}
+
+					// Check nested lists
+					tagGroups, ok := blogPost["tagGroups"].([]interface{})
+					require.True(t, ok, "tagGroups should be an array")
+					require.NotEmpty(t, tagGroups, "tagGroups should not be empty")
+
+					relatedTopics, ok := blogPost["relatedTopics"].([]interface{})
+					require.True(t, ok, "relatedTopics should be an array")
+					require.NotEmpty(t, relatedTopics, "relatedTopics should not be empty")
+
+					commentThreads, ok := blogPost["commentThreads"].([]interface{})
+					require.True(t, ok, "commentThreads should be an array")
+					require.NotEmpty(t, commentThreads, "commentThreads should not be empty")
+				}
+			},
+		},
+		{
+			name: "Should handle bulk update blog posts with nullable list parameter",
+			query: `mutation($blogPosts: [BlogPostInput!]) {
+				bulkUpdateBlogPosts(blogPosts: $blogPosts) {
+					id
+					title
+					content
+					tags
+					categories
+					viewCounts
+					tagGroups
+				}
+			}`,
+			vars: `{"variables":{"blogPosts":[
+				{
+					"title":"Updated Bulk Post",
+					"content":"Updated content",
+					"tags":["updated","bulk","post"],
+					"categories":["Updated Technology"],
+					"viewCounts":[300,400,500],
+					"tagGroups":[["updated","tags"],["bulk","update"]],
+					"commentThreads":[["Updated comment"]],
+					"relatedTopics":[["updated","topics"]],
+				}
+			]}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkUpdateBlogPosts, ok := data["bulkUpdateBlogPosts"].([]interface{})
+				require.True(t, ok, "bulkUpdateBlogPosts should be an array")
+				require.Len(t, bulkUpdateBlogPosts, 1, "Should update 1 blog post")
+
+				blogPost, ok := bulkUpdateBlogPosts[0].(map[string]interface{})
+				require.True(t, ok, "blog post should be an object")
+				require.NotEmpty(t, blogPost["id"])
+				require.Contains(t, blogPost["id"].(string), "bulk-updated-post")
+				require.Equal(t, "Updated Bulk Post", blogPost["title"])
+				require.Equal(t, "Updated content", blogPost["content"])
+
+				tags, ok := blogPost["tags"].([]interface{})
+				require.True(t, ok, "tags should be an array")
+				require.Contains(t, tags, "updated")
+				require.Contains(t, tags, "bulk")
+				require.Contains(t, tags, "post")
+
+				categories, ok := blogPost["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.Contains(t, categories, "Updated Technology")
+
+				viewCounts, ok := blogPost["viewCounts"].([]interface{})
+				require.True(t, ok, "viewCounts should be an array")
+				require.Contains(t, viewCounts, float64(300))
+				require.Contains(t, viewCounts, float64(400))
+				require.Contains(t, viewCounts, float64(500))
+			},
+		},
+		{
+			name: "Should handle bulk operations with empty nullable lists",
+			query: `query {
+				bulkSearchAuthors(filters: []) {
+					id
+					name
+				}
+				bulkSearchBlogPosts(filters: []) {
+					id
+					title
+				}
+			}`,
+			vars: "{}",
+			validate: func(t *testing.T, data map[string]interface{}) {
+				bulkSearchAuthors, ok := data["bulkSearchAuthors"].([]interface{})
+				require.True(t, ok, "bulkSearchAuthors should be an array")
+				require.Empty(t, bulkSearchAuthors, "Should return empty array when filters is empty")
+
+				bulkSearchBlogPosts, ok := data["bulkSearchBlogPosts"].([]interface{})
+				require.True(t, ok, "bulkSearchBlogPosts should be an array")
+				require.Empty(t, bulkSearchBlogPosts, "Should return empty array when filters is empty")
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -2937,6 +3487,152 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 			// Run the validation function
 			tc.validate(t, resp.Data)
+		})
+	}
+}
+
+func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query nullable fields type with all fields",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Product { id name } ...on Storage { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Product","id":"1"},
+				{"__typename":"Storage","id":"3"},
+				{"__typename":"Product","id":"2"},
+				{"__typename":"Storage","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+				{
+					TypeName:     "Storage",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+
+				// Check required fields are present
+				require.Contains(t, entities[0], "id")
+				require.Contains(t, entities[0], "name")
+				require.Contains(t, entities[1], "id")
+				require.Contains(t, entities[1], "name")
+
+				require.Len(t, entities, 4, "Should return 4 entities")
+
+				product, ok := entities[0].(map[string]interface{})
+				require.True(t, ok, "product should be an object")
+				require.Equal(t, "1", product["id"])
+				require.Equal(t, "Product 1", product["name"])
+
+				storage, ok := entities[1].(map[string]interface{})
+				require.True(t, ok, "storage should be an object")
+				require.Equal(t, "3", storage["id"])
+				require.Equal(t, "Storage 3", storage["name"])
+
+				product2, ok := entities[2].(map[string]interface{})
+				require.True(t, ok, "product2 should be an object")
+				require.Equal(t, "2", product2["id"])
+				require.Equal(t, "Product 2", product2["name"])
+
+				storage2, ok := entities[3].(map[string]interface{})
+				require.True(t, ok, "storage2 should be an object")
+				require.Equal(t, "4", storage2["id"])
+				require.Equal(t, "Storage 4", storage2["name"])
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+		{
+			name:  "Query warehouse and expect an error",
+			query: `query($representations: [_Any!]!) { _entities(representations: $representations) { ...on Warehouse { id name } } }`,
+			vars: `{"variables":{"representations":[
+				{"__typename":"Warehouse","id":"1"},
+				{"__typename":"Warehouse","id":"2"},
+				{"__typename":"Warehouse","id":"3"},
+				{"__typename":"Warehouse","id":"4"}
+			]}}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Warehouse",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.Empty(t, data)
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.NotEmpty(t, errorData)
+				require.Equal(t, "entity type Warehouse received 3 entities in the subgraph response, but 4 are expected", errorData[0].Message)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
 		})
 	}
 }

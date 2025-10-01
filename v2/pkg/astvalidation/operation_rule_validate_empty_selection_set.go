@@ -21,6 +21,7 @@ func ValidateEmptySelectionSets() Rule {
 
 type emptySelectionSetVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

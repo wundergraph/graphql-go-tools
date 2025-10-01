@@ -100,6 +100,7 @@ func (p *Printer) Print(document *ast.Document, out io.Writer) error {
 
 type printVisitor struct {
 	*astvisitor.SimpleWalker
+
 	document *ast.Document
 	out      io.Writer
 	err      error

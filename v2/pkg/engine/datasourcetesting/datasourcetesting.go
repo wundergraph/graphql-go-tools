@@ -11,11 +11,8 @@ import (
 	"github.com/kylelemons/godebug/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wundergraph/astjson"
 
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/permutations"
+	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astnormalization"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astprinter"
@@ -23,8 +20,11 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/postprocess"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeparser"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafeprinter"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/permutations"
 )
 
 type testOptions struct {
@@ -33,6 +33,7 @@ type testOptions struct {
 	withFieldInfo         bool
 	withPrintPlan         bool
 	withFieldDependencies bool
+	withFetchReasons      bool
 }
 
 func WithPostProcessors(postProcessors ...*postprocess.Processor) func(*testOptions) {
@@ -70,7 +71,16 @@ func WithPrintPlan() func(*testOptions) {
 
 func WithFieldDependencies() func(*testOptions) {
 	return func(o *testOptions) {
+		o.withFieldInfo = true
 		o.withFieldDependencies = true
+	}
+}
+
+func WithFetchReasons() func(*testOptions) {
+	return func(o *testOptions) {
+		o.withFieldInfo = true
+		o.withFieldDependencies = true
+		o.withFetchReasons = true
 	}
 }
 
@@ -145,6 +155,10 @@ func RunTestWithVariables(definition, operation, operationName, variables string
 
 		if opts.withFieldDependencies {
 			config.DisableIncludeFieldDependencies = false
+		}
+
+		if opts.withFetchReasons {
+			config.BuildFetchReasons = true
 		}
 
 		if opts.skipReason != "" {

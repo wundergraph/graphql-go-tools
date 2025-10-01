@@ -1,6 +1,6 @@
-go 1.23.0
+go 1.25
 
-toolchain go1.23.3
+toolchain go1.25.1
 
 use (
 	// v1
@@ -10,11 +10,6 @@ use (
 
 	// execution
 	execution
-
-	// testapps
-	testapps/chat
-	testapps/kafka_pubsub
-	testapps/kafka_pubsub/transactional_producer
 
 	// v2
 	v2

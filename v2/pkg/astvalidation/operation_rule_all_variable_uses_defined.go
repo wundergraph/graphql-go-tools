@@ -21,6 +21,7 @@ func AllVariableUsesDefined() Rule {
 
 type allVariableUsesDefinedVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 

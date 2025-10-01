@@ -17,10 +17,10 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/testing/flags"
 )
@@ -76,7 +76,7 @@ type TestErrorWriter struct {
 }
 
 func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLResponse, w io.Writer) {
-	_, err = w.Write([]byte(fmt.Sprintf(`{"errors":[{"message":"%s"}],"data":null}`, err.Error())))
+	_, err = fmt.Fprintf(w, `{"errors":[{"message":"%s"}],"data":null}`, err.Error())
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +86,7 @@ func (t *TestErrorWriter) WriteError(ctx *Context, err error, res *GraphQLRespon
 	}
 }
 
-var multipartSubHeartbeatInterval = 100 * time.Millisecond
+var subscriptionHeartbeatInterval = 100 * time.Millisecond
 
 func newResolver(ctx context.Context) *Resolver {
 	return New(ctx, ResolverOptions{
@@ -95,7 +95,7 @@ func newResolver(ctx context.Context) *Resolver {
 		PropagateSubgraphErrors:       true,
 		PropagateSubgraphStatusCodes:  true,
 		AsyncErrorWriter:              &TestErrorWriter{},
-		MultipartSubHeartbeatInterval: multipartSubHeartbeatInterval,
+		SubscriptionHeartbeatInterval: subscriptionHeartbeatInterval,
 	})
 }
 
@@ -4777,6 +4777,13 @@ func (s *SubscriptionRecorder) Complete() {
 	s.complete.Store(true)
 }
 
+func (s *SubscriptionRecorder) Heartbeat() error {
+	s.mux.Lock()
+	defer s.mux.Unlock()
+	s.messages = append(s.messages, "heartbeat")
+	return nil
+}
+
 func (s *SubscriptionRecorder) Close(_ SubscriptionCloseKind) {
 	s.closed.Store(true)
 }
@@ -4835,7 +4842,7 @@ func (f *_fakeStream) UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Di
 		return f.uniqueRequestFn(ctx, input, xxh)
 	}
 
-	_, err = xxh.WriteString(fmt.Sprintf("%d", fakeStreamRequestId.Add(1)))
+	_, err = fmt.Fprint(xxh, fakeStreamRequestId.Add(1))
 	if err != nil {
 		return
 	}
@@ -4892,7 +4899,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 						DataSourceID:   "0",
 						DataSourceName: "counter",
 						QueryPlan: &QueryPlan{
-							Query: "subscription { counter }",
+							Query: "subscription {\n    counter\n}",
 						},
 					},
 				},
@@ -4968,7 +4975,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 						DataSourceID:   "0",
 						DataSourceName: "country",
 						QueryPlan: &QueryPlan{
-							Query: "subscription { countryUpdated { name time { local } } }",
+							Query: "subscription {\n    countryUpdated {\n        name\n        time {\n            local\n        }\n        }\n}",
 						},
 					},
 				},
@@ -5330,7 +5337,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorder.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 1, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription { counter }"}}}}`,
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"counter","subgraphName":"counter","subgraphId":"0","fetchId":0,"query":"subscription {\n    counter\n}"}}}}`,
 		}, recorder.Messages())
 	})
 
@@ -5359,7 +5366,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorder.AwaitComplete(t, defaultTimeout)
 		assert.Equal(t, 1, len(recorder.Messages()))
 		assert.ElementsMatch(t, []string{
-			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"countryUpdated","subgraphName":"country","subgraphId":"0","fetchId":0,"query":"subscription { countryUpdated { name time { local } } }"},"children":[{"kind":"Single","fetch":{"kind":"Single","path":"countryUpdated.time","subgraphName":"time","subgraphId":"1","fetchId":1,"dependsOnFetchIds":[0],"query":"query($representations: [_Any!]!){\n    _entities(representations: $representations){\n        ... on Time {\n            __typename\n            local\n        }\n    }\n}"}}]}}}`,
+			`{"data":null,"extensions":{"queryPlan":{"version":"1","kind":"Sequence","trigger":{"kind":"Trigger","path":"countryUpdated","subgraphName":"country","subgraphId":"0","fetchId":0,"query":"subscription {\n    countryUpdated {\n        name\n        time {\n            local\n        }\n        }\n}"},"children":[{"kind":"Single","fetch":{"kind":"Single","path":"countryUpdated.time","subgraphName":"time","subgraphId":"1","fetchId":1,"dependsOnFetchIds":[0],"query":"query($representations: [_Any!]!){\n    _entities(representations: $representations){\n        ... on Time {\n            __typename\n            local\n        }\n    }\n}"}}]}}}`,
 		}, recorder.Messages())
 	})
 
@@ -5523,7 +5530,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		subsStarted.Add(2)
 
 		id2 := SubscriptionIdentifier{
-			ConnectionID: 1,
+			ConnectionID:   1,
 			SubscriptionID: 2,
 		}
 
@@ -5606,7 +5613,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		subsStarted.Add(2)
 
 		id2 := SubscriptionIdentifier{
-			ConnectionID: 1,
+			ConnectionID:   1,
 			SubscriptionID: 2,
 		}
 

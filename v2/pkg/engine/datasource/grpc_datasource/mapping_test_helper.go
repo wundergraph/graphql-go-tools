@@ -144,6 +144,16 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryAllAuthorsRequest",
 				Response: "QueryAllAuthorsResponse",
 			},
+			"bulkSearchAuthors": {
+				RPC:      "QueryBulkSearchAuthors",
+				Request:  "QueryBulkSearchAuthorsRequest",
+				Response: "QueryBulkSearchAuthorsResponse",
+			},
+			"bulkSearchBlogPosts": {
+				RPC:      "QueryBulkSearchBlogPosts",
+				Request:  "QueryBulkSearchBlogPostsRequest",
+				Response: "QueryBulkSearchBlogPostsResponse",
+			},
 		},
 		MutationRPCs: RPCConfigMap{
 			"createUser": {
@@ -186,23 +196,57 @@ func testMapping() *GRPCMapping {
 				Request:  "MutationUpdateAuthorRequest",
 				Response: "MutationUpdateAuthorResponse",
 			},
+			"bulkCreateAuthors": {
+				RPC:      "MutationBulkCreateAuthors",
+				Request:  "MutationBulkCreateAuthorsRequest",
+				Response: "MutationBulkCreateAuthorsResponse",
+			},
+			"bulkUpdateAuthors": {
+				RPC:      "MutationBulkUpdateAuthors",
+				Request:  "MutationBulkUpdateAuthorsRequest",
+				Response: "MutationBulkUpdateAuthorsResponse",
+			},
+			"bulkCreateBlogPosts": {
+				RPC:      "MutationBulkCreateBlogPosts",
+				Request:  "MutationBulkCreateBlogPostsRequest",
+				Response: "MutationBulkCreateBlogPostsResponse",
+			},
+			"bulkUpdateBlogPosts": {
+				RPC:      "MutationBulkUpdateBlogPosts",
+				Request:  "MutationBulkUpdateBlogPostsRequest",
+				Response: "MutationBulkUpdateBlogPostsResponse",
+			},
 		},
 		SubscriptionRPCs: RPCConfigMap{},
-		EntityRPCs: map[string]EntityRPCConfig{
+		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupProductById",
-					Request:  "LookupProductByIdRequest",
-					Response: "LookupProductByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupProductById",
+						Request:  "LookupProductByIdRequest",
+						Response: "LookupProductByIdResponse",
+					},
 				},
 			},
 			"Storage": {
-				Key: "id",
-				RPCConfig: RPCConfig{
-					RPC:      "LookupStorageById",
-					Request:  "LookupStorageByIdRequest",
-					Response: "LookupStorageByIdResponse",
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupStorageById",
+						Request:  "LookupStorageByIdRequest",
+						Response: "LookupStorageByIdResponse",
+					},
+				},
+			},
+			"Warehouse": {
+				{
+					Key: "id",
+					RPCConfig: RPCConfig{
+						RPC:      "LookupWarehouseById",
+						Request:  "LookupWarehouseByIdRequest",
+						Response: "LookupWarehouseByIdResponse",
+					},
 				},
 			},
 		},
@@ -343,6 +387,18 @@ func testMapping() *GRPCMapping {
 				"allAuthors": {
 					TargetName: "all_authors",
 				},
+				"bulkSearchAuthors": {
+					TargetName: "bulk_search_authors",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
+				"bulkSearchBlogPosts": {
+					TargetName: "bulk_search_blog_posts",
+					ArgumentMappings: map[string]string{
+						"filters": "filters",
+					},
+				},
 			},
 			"Mutation": {
 				"createUser": {
@@ -396,6 +452,30 @@ func testMapping() *GRPCMapping {
 						"input": "input",
 					},
 				},
+				"bulkCreateAuthors": {
+					TargetName: "bulk_create_authors",
+					ArgumentMappings: map[string]string{
+						"authors": "authors",
+					},
+				},
+				"bulkUpdateAuthors": {
+					TargetName: "bulk_update_authors",
+					ArgumentMappings: map[string]string{
+						"authors": "authors",
+					},
+				},
+				"bulkCreateBlogPosts": {
+					TargetName: "bulk_create_blog_posts",
+					ArgumentMappings: map[string]string{
+						"blogPosts": "blog_posts",
+					},
+				},
+				"bulkUpdateBlogPosts": {
+					TargetName: "bulk_update_blog_posts",
+					ArgumentMappings: map[string]string{
+						"blogPosts": "blog_posts",
+					},
+				},
 			},
 			"UserInput": {
 				"name": {
@@ -414,6 +494,17 @@ func testMapping() *GRPCMapping {
 				},
 			},
 			"Storage": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"location": {
+					TargetName: "location",
+				},
+			},
+			"Warehouse": {
 				"id": {
 					TargetName: "id",
 				},
@@ -556,6 +647,14 @@ func testMapping() *GRPCMapping {
 			"ComplexFilterTypeInput": {
 				"filter": {
 					TargetName: "filter",
+				},
+			},
+			"FilterTypeInput": {
+				"filterField1": {
+					TargetName: "filter_field_1",
+				},
+				"filterField2": {
+					TargetName: "filter_field_2",
 				},
 			},
 			"Category": {

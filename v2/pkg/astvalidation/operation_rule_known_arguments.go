@@ -20,6 +20,7 @@ func KnownArguments() Rule {
 
 type knownArgumentsVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	enclosingNode         ast.Node
 }

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -205,6 +206,7 @@ func runTest(t *testing.T, tc testCase) (paths []uploads.UploadPathMapping, err 
 
 type testVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	variables             *astjson.Value
 	findUploads           *uploads.UploadFinder

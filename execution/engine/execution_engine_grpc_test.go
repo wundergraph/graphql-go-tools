@@ -16,6 +16,8 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
 	"github.com/wundergraph/graphql-go-tools/execution/graphql"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/graphql_datasource"
 	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
@@ -23,10 +25,9 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/mapping"
-	"google.golang.org/grpc"
 )
 
-// mockPlugin is the plugin implementation for the test
+// mockPlugin is the plugin implementation for the test.
 type mockPlugin struct {
 	plugin.Plugin
 }
@@ -234,7 +235,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			Query:         "query UserQuery { users { id name } }",
 		}
 
-		response, err := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.MustDefaultGRPCMapping(t)))
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"users":[{"id":"user-1","name":"User 1"},{"id":"user-2","name":"User 2"},{"id":"user-3","name":"User 3"}]}}`, response)
 	})
@@ -255,7 +256,7 @@ func TestGRPCSubgraphExecution(t *testing.T) {
 			`,
 		}
 
-		response, err := executeOperation(t, conn, operation)
+		response, err := executeOperation(t, conn, operation, withGRPCMapping(mapping.MustDefaultGRPCMapping(t)))
 		require.NoError(t, err)
 		require.Equal(t, `{"data":{"user":{"id":"1","name":"User 1"}}}`, response)
 	})

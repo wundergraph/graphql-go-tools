@@ -7,11 +7,10 @@ import (
 	"github.com/wundergraph/astjson"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/apollocompatibility"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/errorcodes"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/federation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -133,7 +132,7 @@ func (v *variablesVisitor) renderPath() string {
 		out.Write(item.name)
 		if item.kind == pathItemKindArray {
 			out.WriteString("[")
-			out.WriteString(fmt.Sprintf("%d", item.arrayIndex))
+			fmt.Fprint(out, item.arrayIndex)
 			out.WriteString("]")
 		}
 	}

@@ -4,14 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
-
-	"github.com/google/go-cmp/cmp"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 )
 
 type testCase struct {
@@ -30,29 +29,28 @@ func runTest(t *testing.T, testCase testCase) {
 		t.Fatalf("failed to parse query: %s", report.Error())
 	}
 
-	walker := astvisitor.NewWalker(48)
-
-	rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+	rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 		subgraphName: "Products",
 		mapping:      testMapping(),
 	})
 
-	walker.Walk(&queryDoc, &schemaDoc, &report)
+	plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-	if report.HasErrors() {
-		require.NotEmpty(t, testCase.expectedError)
-		require.Contains(t, report.Error(), testCase.expectedError)
+	if err != nil {
+		require.NotEmpty(t, testCase.expectedError, "expected error to be empty, got: %s", err.Error())
+		require.Contains(t, err.Error(), testCase.expectedError, "expected error to contain: %s, got: %s", testCase.expectedError, err.Error())
 		return
 	}
 
 	require.Empty(t, testCase.expectedError)
-	diff := cmp.Diff(testCase.expectedPlan, rpcPlanVisitor.plan)
+	diff := cmp.Diff(testCase.expectedPlan, plan)
 	if diff != "" {
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
 }
 
 func TestQueryExecutionPlans(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -153,7 +151,6 @@ func TestQueryExecutionPlans(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
-						CallID:      1,
 						Request: RPCMessage{
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
@@ -359,8 +356,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a complex input type and variables",
-			query: `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`,
+			name:    "Should create an execution plan for a query with a complex input type and variables",
+			query:   `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -389,12 +387,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 															JSONPath: "name",
 														},
 														{
-															Name:     "filterField1",
+															Name:     "filter_field_1",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField1",
 														},
 														{
-															Name:     "filterField2",
+															Name:     "filter_field_2",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField2",
 														},
@@ -412,7 +410,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 																		JSONPath: "page",
 																	},
 																	{
-																		Name:     "perPage",
+																		Name:     "per_page",
 																		TypeName: string(DataTypeInt32),
 																		JSONPath: "perPage",
 																	},
@@ -432,7 +430,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Fields: []RPCField{
 								{
 									Repeated: true,
-									Name:     "complexFilterType",
+									Name:     "complex_filter_type",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "complexFilterType",
 									Message: &RPCMessage{
@@ -459,8 +457,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 		},
 
 		{
-			name:  "Should create an execution plan for a query with a complex input type and variables with different name",
-			query: `query ComplexFilterTypeQuery($foobar: ComplexFilterTypeInput!) { complexFilterType(filter: $foobar) { id name } }`,
+			name:    "Should create an execution plan for a query with a complex input type and variables with different name",
+			query:   `query ComplexFilterTypeQuery($foobar: ComplexFilterTypeInput!) { complexFilterType(filter: $foobar) { id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -489,12 +488,12 @@ func TestQueryExecutionPlans(t *testing.T) {
 															JSONPath: "name",
 														},
 														{
-															Name:     "filterField1",
+															Name:     "filter_field_1",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField1",
 														},
 														{
-															Name:     "filterField2",
+															Name:     "filter_field_2",
 															TypeName: string(DataTypeString),
 															JSONPath: "filterField2",
 														},
@@ -512,7 +511,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 																		JSONPath: "page",
 																	},
 																	{
-																		Name:     "perPage",
+																		Name:     "per_page",
 																		TypeName: string(DataTypeInt32),
 																		JSONPath: "perPage",
 																	},
@@ -532,7 +531,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Fields: []RPCField{
 								{
 									Repeated: true,
-									Name:     "complexFilterType",
+									Name:     "complex_filter_type",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "complexFilterType",
 									Message: &RPCMessage{
@@ -558,8 +557,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a type filter with arguments and variables",
-			query: "query TypeWithMultipleFilterFieldsQuery($filter: FilterTypeInput!) { typeWithMultipleFilterFields(filter: $filter) { id name } }",
+			name:    "Should create an execution plan for a query with a type filter with arguments and variables",
+			query:   "query TypeWithMultipleFilterFieldsQuery($filter: FilterTypeInput!) { typeWithMultipleFilterFields(filter: $filter) { id name } }",
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -577,13 +577,13 @@ func TestQueryExecutionPlans(t *testing.T) {
 										Fields: []RPCField{
 											{
 												Repeated: false,
-												Name:     "filterField1",
+												Name:     "filter_field_1",
 												TypeName: string(DataTypeString),
 												JSONPath: "filterField1",
 											},
 											{
 												Repeated: false,
-												Name:     "filterField2",
+												Name:     "filter_field_2",
 												TypeName: string(DataTypeString),
 												JSONPath: "filterField2",
 											},
@@ -596,7 +596,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryTypeWithMultipleFilterFieldsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "typeWithMultipleFilterFields",
+									Name:     "type_with_multiple_filter_fields",
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
 									JSONPath: "typeWithMultipleFilterFields",
@@ -623,8 +623,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query",
-			query: "query UserQuery { users { id name } }",
+			name:    "Should create an execution plan for a query",
+			query:   "query UserQuery { users { id name } }",
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -678,8 +679,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			expectedError: "no request message name mapping found for operation user",
 		},
 		{
-			name:  "Should create an execution plan for a query with a user",
-			query: `query UserQuery { user(id: "abc123") { id name } }`,
+			name:    "Should create an execution plan for a query with a user",
+			query:   `query UserQuery { user(id: "abc123") { id name } }`,
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -726,8 +728,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a nested type",
-			query: "query NestedTypeQuery { nestedType { id name b { id name c { id name } } } }",
+			name:    "Should create an execution plan for a query with a nested type",
+			query:   "query NestedTypeQuery { nestedType { id name b { id name c { id name } } } }",
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -740,7 +743,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryNestedTypeResponse",
 							Fields: []RPCField{
 								{
-									Name:     "nestedType",
+									Name:     "nested_type",
 									TypeName: string(DataTypeMessage),
 									Repeated: true,
 									JSONPath: "nestedType",
@@ -807,8 +810,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with a recursive type",
-			query: "query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name recursiveType { id name } } name } } }",
+			name:    "Should create an execution plan for a query with a recursive type",
+			query:   "query RecursiveTypeQuery { recursiveType { id name recursiveType { id recursiveType { id name recursiveType { id name } } name } } }",
+			mapping: testMapping(),
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
 					{
@@ -821,7 +825,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryRecursiveTypeResponse",
 							Fields: []RPCField{
 								{
-									Name:     "recursiveType",
+									Name:     "recursive_type",
 									TypeName: string(DataTypeMessage),
 									JSONPath: "recursiveType",
 									Message: &RPCMessage{
@@ -838,7 +842,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 												JSONPath: "name",
 											},
 											{
-												Name:     "recursiveType",
+												Name:     "recursive_type",
 												TypeName: string(DataTypeMessage),
 												JSONPath: "recursiveType",
 												Message: &RPCMessage{
@@ -850,7 +854,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 															JSONPath: "id",
 														},
 														{
-															Name:     "recursiveType",
+															Name:     "recursive_type",
 															TypeName: string(DataTypeMessage),
 															JSONPath: "recursiveType",
 															Message: &RPCMessage{
@@ -867,7 +871,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 																		JSONPath: "name",
 																	},
 																	{
-																		Name:     "recursiveType",
+																		Name:     "recursive_type",
 																		TypeName: string(DataTypeMessage),
 																		JSONPath: "recursiveType",
 																		Message: &RPCMessage{
@@ -1087,23 +1091,21 @@ func TestQueryExecutionPlans(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			walker := astvisitor.NewWalker(48)
-
-			rpcPlanVisitor := newRPCPlanVisitor(&walker, rpcPlanVisitorConfig{
+			rpcPlanVisitor := newRPCPlanVisitor(rpcPlanVisitorConfig{
 				subgraphName: "Products",
 				mapping:      tt.mapping,
 			})
 
-			walker.Walk(&queryDoc, &schemaDoc, &report)
+			plan, err := rpcPlanVisitor.PlanOperation(&queryDoc, &schemaDoc)
 
-			if report.HasErrors() {
-				require.Contains(t, report.Error(), tt.expectedError)
+			if err != nil {
+				require.Contains(t, err.Error(), tt.expectedError)
 				require.NotEmpty(t, tt.expectedError)
 				return
 			}
 
 			require.Empty(t, tt.expectedError)
-			diff := cmp.Diff(tt.expectedPlan, rpcPlanVisitor.plan)
+			diff := cmp.Diff(tt.expectedPlan, plan)
 			if diff != "" {
 				t.Fatalf("execution plan mismatch: %s", diff)
 			}
@@ -1112,6 +1114,7 @@ func TestQueryExecutionPlans(t *testing.T) {
 }
 
 func TestProductExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -1340,7 +1343,7 @@ func TestProductExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", testMapping())
+			planner := NewPlanner("Products", testMapping(), nil)
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 
 			if tt.expectedError != "" {
@@ -1366,6 +1369,7 @@ func TestProductExecutionPlan(t *testing.T) {
 }
 
 func TestProductExecutionPlanWithAliases(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -1507,7 +1511,6 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "QueryCategories",
-						CallID:      1,
 						Request: RPCMessage{
 							Name: "QueryCategoriesRequest",
 						},
@@ -2026,7 +2029,6 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
-						CallID:      1,
 						Request: RPCMessage{
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
@@ -2068,7 +2070,6 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 					{
 						ServiceName: "Products",
 						MethodName:  "QueryUser",
-						CallID:      2,
 						Request: RPCMessage{
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
@@ -2446,7 +2447,7 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", testMapping())
+			planner := NewPlanner("Products", testMapping(), nil)
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 
 			if tt.expectedError != "" {

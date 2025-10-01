@@ -19,6 +19,7 @@ func RequiredArguments() Rule {
 
 type requiredArgumentsVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 }
 
