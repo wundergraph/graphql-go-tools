@@ -4396,6 +4396,13 @@ type Query {
 				}
 			`, StreamDirectiveOnListFieldRule(), Valid)
 			})
+			t.Run("stream on root list field", func(t *testing.T) {
+				run(t, `
+				query {
+					extras @stream { name } 
+				}
+			`, StreamDirectiveOnListFieldRule(), Valid)
+			})
 			t.Run("stream on non-list field", func(t *testing.T) {
 				run(t, `
 				query {
@@ -4588,7 +4595,7 @@ type Query {
 						extras @stream(initialCount: 5) { string }
 					}
 				}
-			`, StreamDirectiveOnListFieldRule(), Valid)
+			`, FieldSelectionMerging(), Valid)
 			})
 			t.Run("stream with negative initialCount argument", func(t *testing.T) {
 				run(t, `
@@ -4597,7 +4604,7 @@ type Query {
 						extras @stream(initialCount: -1) { string }
 					}
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, FieldSelectionMerging(), Invalid)
 			})
 			t.Run("same stream directives supported", func(t *testing.T) {
 				run(t, `
@@ -4606,7 +4613,7 @@ type Query {
 					extras @stream(label: "same", initialCount: 1)
 					extras @stream(label: "same", initialCount: 1)
 				}
-			`, StreamDirectiveOnListFieldRule(), Valid)
+			`, FieldSelectionMerging(), Valid)
 			})
 			t.Run("different stream directive label", func(t *testing.T) {
 				run(t, `
@@ -4615,7 +4622,7 @@ type Query {
 					extras @stream(label: "one", initialCount: 1)
 					extras @stream(label: "two", initialCount: 1)
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, FieldSelectionMerging(), Invalid)
 			})
 			t.Run("different stream directive initialCount", func(t *testing.T) {
 				run(t, `
@@ -4624,7 +4631,7 @@ type Query {
 					extras @stream(label: "same", initialCount: 1)
 					extras @stream(label: "same", initialCount: 5)
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, FieldSelectionMerging(), Invalid)
 			})
 			t.Run("different stream directive: first missing args", func(t *testing.T) {
 				run(t, `
@@ -4633,7 +4640,7 @@ type Query {
 					extras @stream
 					extras @stream(label: "two", initialCount: 5)
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, FieldSelectionMerging(), Invalid)
 			})
 			t.Run("different stream directive: second missing args", func(t *testing.T) {
 				run(t, `
@@ -4642,7 +4649,7 @@ type Query {
 					extras @stream(label: "one", initialCount: 1)
 					extras @stream
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, FieldSelectionMerging(), Invalid)
 			})
 			t.Run("mix of stream and no stream", func(t *testing.T) {
 				run(t, `
@@ -4651,7 +4658,7 @@ type Query {
 					extras 
 					extras @stream
 				}
-			`, StreamDirectiveOnListFieldRule(), Invalid)
+			`, FieldSelectionMerging(), Invalid)
 			})
 			t.Run("different stream directive both missing args", func(t *testing.T) {
 				run(t, `
@@ -4660,7 +4667,7 @@ type Query {
 					extras @stream
 					extras @stream
 				}
-			`, StreamDirectiveOnListFieldRule(), Valid)
+			`, FieldSelectionMerging(), Valid)
 			})
 		})
 	})
@@ -5419,13 +5426,6 @@ func DeferStreamDirectiveLabelRule() Rule {
 
 func DeferStreamDirectiveOnRootFieldRule() Rule {
 	// TODO: Implement root field validation
-	return func(walker *astvisitor.Walker) {
-		// Implementation needed
-	}
-}
-
-func StreamDirectiveOnListFieldRule() Rule {
-	// TODO: Implement list field validation
 	return func(walker *astvisitor.Walker) {
 		// Implementation needed
 	}

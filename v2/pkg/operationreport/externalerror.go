@@ -411,6 +411,11 @@ func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice, position, 
 	return err
 }
 
+func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" can only be used on list fields, but field "%s" is not a list`, directiveName, fieldName)
+	return err
+}
+
 func ErrOnlyOneQueryTypeAllowed() (err ExternalError) {
 	err.Message = "there can be only one query type in schema"
 	return err
