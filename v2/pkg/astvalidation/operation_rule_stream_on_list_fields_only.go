@@ -39,6 +39,19 @@ func (s *streamAppliedToListFieldsVisitor) EnterDirective(ref int) {
 		return
 	}
 
+	// Validate initialCount argument if present
+	initialCountValue, hasCount := s.operation.DirectiveArgumentValueByName(ref, literal.INITIAL_COUNT)
+	if hasCount {
+		if initialCountValue.Kind == ast.ValueKindInteger {
+			initialCount := s.operation.IntValueAsInt32(initialCountValue.Ref)
+			if initialCount < 0 {
+				directivePosition := s.operation.Directives[ref].At
+				s.StopWithExternalErr(operationreport.ErrStreamInitialCountMustBeNonNegative(directiveName, directivePosition))
+				return
+			}
+		}
+	}
+
 	if len(s.Ancestors) == 0 {
 		return
 	}
@@ -47,9 +60,8 @@ func (s *streamAppliedToListFieldsVisitor) EnterDirective(ref int) {
 	// Get the field definition from the schema
 	// We need to walk up the type definitions to find the field
 	fieldName := s.operation.FieldNameBytes(ancestor.Ref)
-
 	// Find the enclosing type by looking at TypeDefinitions in the walker.
-	// Start from the parent of the current typeDefinitions (the last item in the slice).
+	// Start from the item before the last one of typeDefinitions.
 	var fieldDefinition int
 	var exists bool
 	for i := len(s.TypeDefinitions) - 2; i >= 0; i-- {
@@ -68,6 +80,7 @@ func (s *streamAppliedToListFieldsVisitor) EnterDirective(ref int) {
 	fieldTypeRef := s.definition.FieldDefinitionType(fieldDefinition)
 
 	if !s.definition.TypeIsList(fieldTypeRef) {
-		s.StopWithExternalErr(operationreport.ErrStreamDirectiveOnNonListField(directiveName, fieldName))
+		directivePosition := s.operation.Directives[ref].At
+		s.StopWithExternalErr(operationreport.ErrStreamDirectiveOnNonListField(directiveName, fieldName, directivePosition))
 	}
 }

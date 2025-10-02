@@ -415,9 +415,10 @@ func orderedLocationsFromPositions(posA, posB position.Position) (locations []Lo
 	}
 }
 
-func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice) (err ExternalError) {
+func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`directive "@%s" can only be used on list fields, but field "%s" is not a list`,
 		directiveName, fieldName)
+	err.Locations = LocationsFromPosition(directivePosition)
 	return err
 }
 
@@ -432,6 +433,13 @@ func ErrDeferStreamDirectiveLabelMustBeUnique(directiveNameA, directiveNameB ast
 	err.Message = fmt.Sprintf(`directive "@%s" label "%s" must be unique, but was already used on "@%s" directive`,
 		directiveNameA, label, directiveNameB)
 	err.Locations = orderedLocationsFromPositions(posA, posB)
+	return err
+}
+
+func ErrStreamInitialCountMustBeNonNegative(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" has invalid initialCount argument: must be non-negative`,
+		directiveName)
+	err.Locations = LocationsFromPosition(directivePosition)
 	return err
 }
 
