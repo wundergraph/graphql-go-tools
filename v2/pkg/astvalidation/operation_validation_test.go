@@ -4714,7 +4714,25 @@ type Query {
 			})
 		})
 
-		t.Run("stream on lists", func(t *testing.T) {
+		t.Run("stream location", func(t *testing.T) {
+			t.Run("stream with positive initialCount argument", func(t *testing.T) {
+				run(t, `
+				query {
+					dog {
+						extras @stream(initialCount: 5) { string }
+					}
+				}
+			`, StreamAppliedToListFieldsOnly(), Valid)
+			})
+			t.Run("stream with negative initialCount argument", func(t *testing.T) {
+				run(t, `
+				query {
+					dog {
+						extras @stream(initialCount: -1) { string }
+					}
+				}
+			`, StreamAppliedToListFieldsOnly(), Invalid)
+			})
 			t.Run("stream on list field", func(t *testing.T) {
 				run(t, `
 				query {
@@ -4916,24 +4934,6 @@ type Query {
 		})
 
 		t.Run("stream merging", func(t *testing.T) {
-			t.Run("stream with positive initialCount argument", func(t *testing.T) {
-				run(t, `
-				query {
-					dog {
-						extras @stream(initialCount: 5) { string }
-					}
-				}
-			`, FieldSelectionMerging(), Valid)
-			})
-			t.Run("stream with negative initialCount argument", func(t *testing.T) {
-				run(t, `
-				query {
-					dog {
-						extras @stream(initialCount: -1) { string }
-					}
-				}
-			`, FieldSelectionMerging(), Invalid)
-			})
 			t.Run("same stream directives supported", func(t *testing.T) {
 				run(t, `
 				query { dog { ...dogFragment } }
@@ -4950,7 +4950,7 @@ type Query {
 					extras @stream(label: "one", initialCount: 1)
 					extras @stream(label: "two", initialCount: 1)
 				}
-			`, FieldSelectionMerging(), Invalid)
+			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("different stream directive initialCount", func(t *testing.T) {
 				run(t, `
