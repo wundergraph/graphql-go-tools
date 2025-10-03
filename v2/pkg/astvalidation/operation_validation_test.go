@@ -4286,91 +4286,18 @@ type Query {
 			})
 		})
 
-		t.Run("on root field", func(t *testing.T) {
-			t.Run("defer on root query field", func(t *testing.T) {
+		t.Run("on valid operations", func(t *testing.T) {
+			// query
+			t.Run("defer inline fragment spread on root query field", func(t *testing.T) {
 				run(t, `
 				query {
 					... @defer {
 						dog { name }
 					}
 				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Invalid)
+			`, DeferStreamOnValidOperations(), Valid)
 			})
-			t.Run("stream on root query field", func(t *testing.T) {
-				run(t, `
-				query {
-					extras @stream { string }
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
-			})
-
-			t.Run("defer on root mutation field", func(t *testing.T) {
-				run(t, `
-				mutation {
-					... @defer {
-						mutateDog { name }
-					}
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Invalid)
-			})
-			t.Run("disabled defer on root mutation field", func(t *testing.T) {
-				run(t, `
-				mutation {
-					... @defer (if: false) {
-						mutateDog { name }
-					}
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
-			})
-			t.Run("stream field on root mutation field", func(t *testing.T) {
-				run(t, `
-				mutation {
-					mutateDogs @stream { name }
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Invalid)
-			})
-			t.Run("disabled stream on root mutation field", func(t *testing.T) {
-				run(t, `
-				mutation {
-					mutateDogs @stream (if: false) { name }
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
-			})
-
-			t.Run("defer on root subscription field", func(t *testing.T) {
-				run(t, `
-				subscription {
-					... @defer {
-						subscribeDog { name }
-					}
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Invalid)
-			})
-			t.Run("disabled defer on root subscription field", func(t *testing.T) {
-				run(t, `
-				subscription {
-					... @defer (if: false) {
-						subscribeDog { name }
-					}
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
-			})
-			t.Run("stream field on root subscription field", func(t *testing.T) {
-				run(t, `
-				subscription {
-					subscribeDog @stream { name }
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Invalid)
-			})
-			t.Run("disabled stream on root subscription field", func(t *testing.T) {
-				run(t, `
-				subscription {
-					subscribeDog @stream (if: false) { name }
-				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
-			})
-
-			t.Run("defer on nested field", func(t *testing.T) {
+			t.Run("defer inline fragment spread on nested query field", func(t *testing.T) {
 				run(t, `
 				query {
 					dog {
@@ -4379,20 +4306,149 @@ type Query {
 						}
 					}
 				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
+			`, DeferStreamOnValidOperations(), Valid)
 			})
-			t.Run("defer with if argument as variable", func(t *testing.T) {
+			t.Run("defer fragment spread on root query field", func(t *testing.T) {
+				run(t, `
+				query {
+					...rootFragment @defer
+				}
+				fragment rootFragment on Query {
+					extras { string }
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+
+			// stream
+			t.Run("stream on root query field", func(t *testing.T) {
+				run(t, `
+				query {
+					extras @stream { string }
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+			t.Run("stream field on fragment on root query field", func(t *testing.T) {
+				run(t, `
+				query {
+					...rootFragment
+				}
+				fragment rootFragment on Query {
+					extras @stream { string }
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+
+			// mutation
+			t.Run("defer inline fragment spread on root mutation field", func(t *testing.T) {
+				run(t, `
+				mutation {
+					... @defer {
+						mutateDog { name }
+					}
+				}
+			`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("defer fragment spread on nested mutation field", func(t *testing.T) {
+				run(t, `
+				mutation {
+					mutateDog {
+						... @defer {
+							extra { string }
+						}
+					}
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+			t.Run("non-defer inline fragment spread on root mutation field", func(t *testing.T) {
+				run(t, `
+				mutation {
+					... @defer (if: false) {
+						mutateDog { name }
+					}
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+			t.Run("stream field on root mutation field", func(t *testing.T) {
+				run(t, `
+				mutation {
+					mutateDogs @stream { name }
+				}
+			`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("disabled stream on root mutation field", func(t *testing.T) {
+				run(t, `
+				mutation {
+					mutateDogs @stream (if: false) { name }
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+
+			// subscriptions
+			t.Run("defer inline fragment spread on root subscription field", func(t *testing.T) {
+				run(t, `
+				subscription {
+					... @defer {
+						subscribeDog { name }
+					}
+				}
+			`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("defer inline fragment spread on nested subscription field", func(t *testing.T) {
+				run(t, `
+				subscription {
+				  newMessage {
+					... @defer {
+					  body
+					}
+				  }
+				}
+			`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("non-defer inline fragment spread on root subscription field", func(t *testing.T) {
+				run(t, `
+				subscription {
+					... @defer (if: false) {
+						subscribeDog { name }
+					}
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+			t.Run("stream field on root subscription field", func(t *testing.T) {
+				run(t, `
+				subscription {
+					subscribeDog @stream { name }
+				}
+			`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("stream on nested subscription field", func(t *testing.T) {
+				run(t, `
+				subscription {
+					subscribeDogs {
+						extras @stream { string }
+					}
+				}
+			`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("disabled stream on root subscription field", func(t *testing.T) {
+				run(t, `
+				subscription {
+					subscribeDog @stream (if: false) { name }
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+
+			t.Run("defer with variable if argument", func(t *testing.T) {
 				run(t, `
 				query($shouldDefer: Boolean!) {
 					... @defer(if: $shouldDefer) {
 						dog { name }
 					}
 				}
-			`, DeferStreamDirectiveOnRootFieldRule(), Valid)
+			`, DeferStreamOnValidOperations(), Valid)
 			})
 		})
 
-		t.Run("stream location", func(t *testing.T) {
+		t.Run("stream with lists only", func(t *testing.T) {
 			t.Run("stream with positive initialCount argument", func(t *testing.T) {
 				run(t, `
 				query {
@@ -5425,13 +5481,6 @@ func TestValidateFieldSelection(t *testing.T) {
 // Placeholder rule functions for defer/stream validation - these need to be implemented
 func DeferStreamComplexRule() Rule {
 	// TODO: Implement complex validation
-	return func(walker *astvisitor.Walker) {
-		// Implementation needed
-	}
-}
-
-func DeferStreamDirectiveOnRootFieldRule() Rule {
-	// TODO: Implement root field validation
 	return func(walker *astvisitor.Walker) {
 		// Implementation needed
 	}

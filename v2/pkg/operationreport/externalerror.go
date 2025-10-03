@@ -443,6 +443,13 @@ func ErrStreamInitialCountMustBeNonNegative(directiveName ast.ByteSlice, directi
 	return err
 }
 
+func ErrDeferStreamDirectiveNotAllowedOnRootField(directiveName ast.ByteSlice, operationType string, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" is not allowed on root fields of %s operations`,
+		directiveName, operationType)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
 func ErrOnlyOneQueryTypeAllowed() (err ExternalError) {
 	err.Message = "there can be only one query type in schema"
 	return err
