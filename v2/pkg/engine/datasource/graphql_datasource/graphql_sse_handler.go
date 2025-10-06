@@ -44,32 +44,6 @@ func newSSEConnectionHandler(requestContext, engineContext context.Context, conn
 }
 
 func (h *gqlSSEConnectionHandler) StartBlocking() {
-	dataCh := make(chan []byte)
-	errCh := make(chan []byte)
-	defer func() {
-		close(dataCh)
-		close(errCh)
-		h.updater.Complete()
-	}()
-
-	go h.subscribe(dataCh, errCh)
-
-	for {
-		select {
-		case data := <-dataCh:
-			h.updater.Update(data)
-		case data := <-errCh:
-			h.updater.Update(data)
-			return
-		case <-h.requestContext.Done():
-			return
-		case <-h.engineContext.Done():
-			return
-		}
-	}
-}
-
-func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 	resp, err := h.performSubscriptionRequest()
 	if err != nil {
 		h.log.Error("failed to perform subscription request", log.Error(err))
@@ -80,9 +54,9 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 		}
 
 		h.updater.Update([]byte(internalError))
-
 		return
 	}
+
 	defer func() {
 		_ = resp.Body.Close()
 	}()
@@ -105,8 +79,7 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 			}
 
 			h.log.Error("failed to read event", log.Error(err))
-
-			errCh <- []byte(internalError)
+			h.updater.Update([]byte(internalError))
 			return
 		}
 
@@ -131,12 +104,13 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 					return
 				}
 
-				dataCh <- data
+				h.updater.Update(data)
 			case bytes.HasPrefix(line, headerEvent):
 				event := trim(line[len(headerEvent):])
 
 				switch {
 				case bytes.Equal(event, eventTypeComplete):
+					h.updater.Complete()
 					return
 				case bytes.Equal(event, eventTypeNext):
 					continue
@@ -165,33 +139,31 @@ func (h *gqlSSEConnectionHandler) subscribe(dataCh, errCh chan []byte) {
 						response, err = jsonparser.Set(response, val, "errors")
 						if err != nil {
 							h.log.Error("failed to set errors", log.Error(err))
-
-							errCh <- []byte(internalError)
+							h.updater.Update([]byte(internalError))
 							return
 						}
-						errCh <- response
+						h.updater.Update(response)
 						return
 					case jsonparser.Object:
 						response := []byte(`{"errors":[]}`)
 						response, err = jsonparser.Set(response, val, "errors", "[0]")
 						if err != nil {
 							h.log.Error("failed to set errors", log.Error(err))
-
-							errCh <- []byte(internalError)
+							h.updater.Update([]byte(internalError))
 							return
 						}
-						errCh <- response
+						h.updater.Update(response)
 						return
 					default:
 						// don't crash on unexpected payloads from upstream
 						h.log.Error(fmt.Sprintf("unexpected value type: %d", valueType))
-						errCh <- []byte(internalError)
+						h.updater.Update([]byte(internalError))
 						return
 					}
 
 				default:
 					h.log.Error("failed to parse errors", log.Error(err))
-					errCh <- []byte(internalError)
+					h.updater.Update([]byte(internalError))
 					return
 				}
 			}
@@ -210,7 +182,6 @@ func trim(data []byte) []byte {
 }
 
 func (h *gqlSSEConnectionHandler) performSubscriptionRequest() (*http.Response, error) {
-
 	var req *http.Request
 	var err error
 
