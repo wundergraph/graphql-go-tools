@@ -8251,7 +8251,6 @@ func (f *FailingSubscriptionClient) SubscribeAsync(ctx *resolve.Context, id uint
 }
 
 func (f *FailingSubscriptionClient) Unsubscribe(id uint64) {
-
 }
 
 func (f *FailingSubscriptionClient) Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error {
@@ -8329,6 +8328,19 @@ func (t *testSubscriptionUpdater) Close(kind resolve.SubscriptionCloseKind) {
 	t.mux.Lock()
 	defer t.mux.Unlock()
 	t.closed = true
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
+	return make(map[context.Context]resolve.SubscriptionIdentifier)
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
 }
 
 func TestSubscriptionSource_Start(t *testing.T) {
