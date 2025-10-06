@@ -8313,12 +8313,12 @@ func (t *testSubscriptionUpdaterChan) AwaitClose(tt *testing.T, timeout time.Dur
 	}
 }
 
-func (t *testSubscriptionUpdaterChan) AwaitCloseKind(tt *testing.T, timeout time.Duration, kind resolve.SubscriptionCloseKind, msgAndArgs ...any) {
+func (t *testSubscriptionUpdaterChan) AwaitCloseKind(tt *testing.T, timeout time.Duration, expectedCloseKind resolve.SubscriptionCloseKind, msgAndArgs ...any) {
 	tt.Helper()
 
 	select {
-	case kind := <-t.closed:
-		require.Equal(tt, kind, kind, msgAndArgs...)
+	case closeKind := <-t.closed:
+		require.Equal(tt, expectedCloseKind, closeKind, msgAndArgs...)
 	case <-time.After(timeout):
 		require.Fail(tt, "updater not closed before timeout", msgAndArgs...)
 	}
