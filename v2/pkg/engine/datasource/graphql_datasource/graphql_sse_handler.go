@@ -44,6 +44,8 @@ func newSSEConnectionHandler(requestContext, engineContext context.Context, conn
 }
 
 func (h *gqlSSEConnectionHandler) StartBlocking() {
+	defer h.updater.Close(resolve.SubscriptionCloseKindNormal)
+
 	resp, err := h.performSubscriptionRequest()
 	if err != nil {
 		h.log.Error("failed to perform subscription request", log.Error(err))
@@ -54,6 +56,7 @@ func (h *gqlSSEConnectionHandler) StartBlocking() {
 		}
 
 		h.updater.Update([]byte(internalError))
+
 		return
 	}
 
