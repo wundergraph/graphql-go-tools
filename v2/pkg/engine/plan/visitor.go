@@ -1348,18 +1348,7 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	if len(singleFetch.Info.FetchReasons) == 0 {
 		return singleFetch
 	}
-
-	// Propagate fetch reasons required by the data source.
-	dsConfig := v.planners[internal.fetchID].DataSourceConfiguration()
-	lookup := dsConfig.RequireFetchReasons()
-	propagated := make([]resolve.FetchReason, 0, len(lookup))
-	for _, fr := range singleFetch.Info.FetchReasons {
-		field := FieldCoordinate{fr.TypeName, fr.FieldName}
-		if _, ok := lookup[field]; ok {
-			propagated = append(propagated, fr)
-		}
-	}
-	singleFetch.Info.PropagatedFetchReasons = propagated
+	singleFetch.Info.PropagatedFetchReasons = v.getPropagatedReasons(internal.fetchID, singleFetch.Info.FetchReasons)
 	return singleFetch
 }
 
@@ -1512,13 +1501,19 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 		}
 	}
 
-	slices.SortFunc(reasons, func(a, b resolve.FetchReason) int {
-		return cmp.Or(
-			cmp.Compare(a.TypeName, b.TypeName),
-			cmp.Compare(a.FieldName, b.FieldName),
-		)
-	})
+	slices.SortFunc(reasons, cmpFetchReasons)
 	return reasons
+}
+
+func cmpFetchReasons(a, b resolve.FetchReason) int {
+	return cmp.Or(
+		cmp.Compare(a.TypeName, b.TypeName),
+		cmp.Compare(a.FieldName, b.FieldName),
+	)
+}
+
+func equalFetchReasons(a, b resolve.FetchReason) bool {
+	return cmpFetchReasons(a, b) == 0
 }
 
 // fieldDefinitionRef returns the definition reference of a field in a given type or ast.InvalidRef if not found.
@@ -1532,4 +1527,67 @@ func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
 		return ast.InvalidRef
 	}
 	return defRef
+}
+
+// getPropagatedReasons collects fetch reasons required by the data source and should be
+// propagated to its upstream subgraph.
+func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.FetchReason) []resolve.FetchReason {
+	dsConfig := v.planners[fetchID].DataSourceConfiguration()
+	// We should send fetch reasons for the coordinates in the lookup map.
+	lookup := dsConfig.RequireFetchReasons()
+	propagated := make([]resolve.FetchReason, 0, len(lookup))
+	for _, reason := range fetchReasons {
+		field := FieldCoordinate{reason.TypeName, reason.FieldName}
+		_, fieldInLookup := lookup[field]
+		if fieldInLookup {
+			propagated = append(propagated, reason)
+		}
+
+		typeNode, exists := v.Definition.NodeByNameStr(reason.TypeName)
+		if !exists {
+			continue
+		}
+
+		// Special case when the field belongs to an object, and this field is not in the lookup.
+		// If this object implements an interface that has a corresponding field in the lookup,
+		// then propagate it.
+		if typeNode.Kind == ast.NodeKindObjectTypeDefinition && !fieldInLookup {
+			objectDef := v.Definition.ObjectTypeDefinitions[typeNode.Ref]
+			for _, interfaceRef := range objectDef.ImplementsInterfaces.Refs {
+				interfaceTypeName := v.Definition.ResolveTypeNameString(interfaceRef)
+				interfaceField := FieldCoordinate{interfaceTypeName, reason.FieldName}
+				if _, ok := lookup[interfaceField]; ok {
+					propagated = append(propagated, reason)
+					break
+				}
+			}
+			continue
+		}
+
+		// Special case when the field belongs to an interface type.
+		if typeNode.Kind != ast.NodeKindInterfaceTypeDefinition {
+			continue
+		}
+		implementingTypeNames, ok := v.Definition.InterfaceTypeDefinitionImplementedByObjectWithNames(typeNode.Ref)
+		if !ok {
+			continue
+		}
+		for _, implementingTypeName := range implementingTypeNames {
+			implementingField := FieldCoordinate{implementingTypeName, reason.FieldName}
+			_, implementingInLookup := lookup[implementingField]
+			// 1st case: interface field in the lookup;
+			// all the implementing fields should be propagated.
+			//
+			// 2nd case: interface field is not in the lookup, but the implementing field is;
+			// only the implementing fields found in the lookup should be propagated.
+			if fieldInLookup || implementingInLookup {
+				reasonClone := reason
+				reasonClone.TypeName = implementingTypeName
+				propagated = append(propagated, reasonClone)
+			}
+		}
+	}
+	// slices.SortFunc(propagated, cmpFetchReasons)
+	// slices.CompactFunc(propagated, equalFetchReasons)
+	return propagated
 }
