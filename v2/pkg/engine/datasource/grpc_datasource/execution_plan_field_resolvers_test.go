@@ -5,6 +5,7 @@ import (
 )
 
 func TestExecutionPlanFieldResolvers(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -59,80 +60,72 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 						DependentCalls: []int{0},
 						ServiceName:    "Products",
 						MethodName:     "ResolveCategoryProductCount",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.productCount"),
 						Request: RPCMessage{
 							Name: "ResolveCategoryProductCountRequest",
 							Fields: []RPCField{
 								{
-									Name:     "key",
+									Name:     "context",
 									TypeName: string(DataTypeMessage),
-									JSONPath: "key",
+									JSONPath: "",
 									Repeated: true,
 									Message: &RPCMessage{
-										Name: "ResolveCategoryProductCountRequestKey",
+										Name: "CategoryProductCountContext",
 										Fields: []RPCField{
 											{
-												Name:     "context",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "",
-												Message: &RPCMessage{
-													Name: "CategoryProductCountContext",
-													Fields: []RPCField{
-														{
-															Name:        "id",
-															TypeName:    string(DataTypeString),
-															JSONPath:    "id",
-															ResolvePath: buildPath("categories.id"),
-														},
-														{
-															Name:        "name",
-															TypeName:    string(DataTypeString),
-															JSONPath:    "name",
-															ResolvePath: buildPath("categories.name"),
-														},
-													},
-												},
+												Name:        "id",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "id",
+												ResolvePath: buildPath("categories.id"),
 											},
 											{
-												Name:     "field_args",
+												Name:        "name",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "name",
+												ResolvePath: buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:     "field_args",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Message: &RPCMessage{
+										Name: "CategoryProductCountArgs",
+										Fields: []RPCField{
+											{
+												Name:     "filters",
 												TypeName: string(DataTypeMessage),
-												JSONPath: "",
+												JSONPath: "whoop",
+												Optional: true,
 												Message: &RPCMessage{
-													Name: "CategoryProductCountArgs",
+													Name: "ProductCountFilter",
 													Fields: []RPCField{
 														{
-															Name:     "filters",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "whoop",
+															Name:     "min_price",
+															TypeName: string(DataTypeDouble),
+															JSONPath: "minPrice",
 															Optional: true,
-															Message: &RPCMessage{
-																Name: "ProductCountFilter",
-																Fields: []RPCField{
-																	{
-																		Name:     "min_price",
-																		TypeName: string(DataTypeDouble),
-																		JSONPath: "minPrice",
-																		Optional: true,
-																	},
-																	{
-																		Name:     "max_price",
-																		TypeName: string(DataTypeDouble),
-																		JSONPath: "maxPrice",
-																		Optional: true,
-																	},
-																	{
-																		Name:     "in_stock",
-																		TypeName: string(DataTypeBool),
-																		JSONPath: "inStock",
-																		Optional: true,
-																	},
-																	{
-																		Name:     "search_term",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "searchTerm",
-																		Optional: true,
-																	},
-																},
-															},
+														},
+														{
+															Name:     "max_price",
+															TypeName: string(DataTypeDouble),
+															JSONPath: "maxPrice",
+															Optional: true,
+														},
+														{
+															Name:     "in_stock",
+															TypeName: string(DataTypeBool),
+															JSONPath: "inStock",
+															Optional: true,
+														},
+														{
+															Name:     "search_term",
+															TypeName: string(DataTypeString),
+															JSONPath: "searchTerm",
+															Optional: true,
 														},
 													},
 												},

@@ -41,7 +41,7 @@ type fieldArgument struct {
 type resolvedField struct {
 	callerRef     int
 	parentTypeRef int
-	fieldRef      int
+	responsePath  ast.Path
 
 	contextFields  []contextField
 	fieldArguments []fieldArgument
@@ -135,31 +135,25 @@ func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
 		// Base resolve call can be templated in plan context.
 		call := RPCCall{
 			DependentCalls: []int{resolvedField.callerRef},
+			ResponsePath:   resolvedField.responsePath,
 			ServiceName:    r.planCtx.resolveServiceName(r.subgraphName),
 			MethodName:     "ResolveCategoryProductCount",
+			Kind:           CallKindResolve,
 			Request: RPCMessage{
 				Name: "ResolveCategoryProductCountRequest",
 				Fields: RPCFields{
 					{
-						Name:     "key",
+						Name:     "context",
 						TypeName: string(DataTypeMessage),
-						JSONPath: "key",
+						JSONPath: "",
 						Repeated: true,
-						Message: &RPCMessage{
-							Name: "ResolveCategoryProductCountRequestKey",
-							Fields: RPCFields{
-								{
-									Name:     "context",
-									TypeName: string(DataTypeMessage),
-									Message:  contextMessage,
-								},
-								{
-									Name:     "field_args",
-									TypeName: string(DataTypeMessage),
-									Message:  fieldArgsMessage,
-								},
-							},
-						},
+						Message:  contextMessage,
+					},
+					{
+						Name:     "field_args",
+						TypeName: string(DataTypeMessage),
+						JSONPath: "",
+						Message:  fieldArgsMessage,
 					},
 				},
 			},
@@ -446,7 +440,10 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		resolvedField := resolvedField{
 			callerRef:     r.relatedCallID,
 			parentTypeRef: r.walker.EnclosingTypeDefinition.Ref,
-			fieldRef:      fd,
+			responsePath: r.walker.Path[1:].WithoutInlineFragmentNames().WithPathElement(ast.PathItem{
+				Kind:      ast.FieldName,
+				FieldName: r.operation.FieldAliasOrNameBytes(ref),
+			}),
 		}
 
 		contextFields, err := r.planCtx.resolveContextFields(r.walker, fd)

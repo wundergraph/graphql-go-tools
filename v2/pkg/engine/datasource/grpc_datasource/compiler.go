@@ -6,12 +6,18 @@ import (
 	"slices"
 
 	"github.com/bufbuild/protocompile"
+	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+)
+
+const (
+	// InvalidRef is a constant used to indicate that a reference is invalid.
+	InvalidRef = -1
 )
 
 // DataType represents the different types of data that can be stored in a protobuf field.
@@ -89,14 +95,64 @@ func parseDataType(name string) DataType {
 	return dataTypeMap[name]
 }
 
+type NodeKind int
+
+const (
+	NodeKindMessage NodeKind = iota + 1
+	NodeKindEnum
+	NodeKindService
+	NodeKindUnknown
+)
+
+type node struct {
+	ref  int
+	kind NodeKind
+}
+
 // Document represents a compiled protobuf document with all its services, messages, and methods.
 type Document struct {
+	nodes    map[uint64]node
 	Package  string    // The package name of the protobuf document
 	Imports  []string  // The imports of the protobuf document
 	Services []Service // All services defined in the document
 	Enums    []Enum    // All enums defined in the document
 	Messages []Message // All messages defined in the document
 	Methods  []Method  // All methods from all services in the document
+}
+
+// newNode creates a new node in the document.
+func (d *Document) newNode(ref int, name string, kind NodeKind) {
+	h := xxhash.Sum64String(name)
+	d.nodes[h] = node{
+		ref:  ref,
+		kind: kind,
+	}
+}
+
+// nodeByName returns a node by its name.
+// Returns false if the node does not exist.
+func (d *Document) nodeByName(name string) (node, bool) {
+	h := xxhash.Sum64String(name)
+	node, exists := d.nodes[h]
+	return node, exists
+}
+
+// appendMessage appends a message to the document and returns the reference index.
+func (d *Document) appendMessage(message Message) int {
+	d.Messages = append(d.Messages, message)
+	return len(d.Messages) - 1
+}
+
+// appendEnum appends an enum to the document and returns the reference index.
+func (d *Document) appendEnum(enum Enum) int {
+	d.Enums = append(d.Enums, enum)
+	return len(d.Enums) - 1
+}
+
+// appendService appends a service to the document and returns the reference index.
+func (d *Document) appendService(service Service) int {
+	d.Services = append(d.Services, service)
+	return len(d.Services) - 1
 }
 
 // Service represents a gRPC service with methods.
@@ -120,6 +176,18 @@ type Message struct {
 	Name   string                     // The name of the message
 	Fields []Field                    // The fields in the message
 	Desc   protoref.MessageDescriptor // The protobuf descriptor for the message
+}
+
+// FieldByName returns a field by its name.
+// Returns nil if no field with the given name exists.
+func (m *Message) FieldByName(name string) *Field {
+	for _, field := range m.Fields {
+		if field.Name == name {
+			return &field
+		}
+	}
+
+	return nil
 }
 
 // Field represents a field in a protobuf message.
@@ -229,13 +297,12 @@ func (d *Document) MessageByName(name string) (Message, bool) {
 // MessageRefByName returns the index of a Message in the Messages slice by its name.
 // Returns -1 if no message with the given name exists.
 func (d *Document) MessageRefByName(name string) int {
-	for i, m := range d.Messages {
-		if m.Name == name {
-			return i
-		}
+	node, found := d.nodeByName(name)
+	if !found || node.kind != NodeKindMessage {
+		return InvalidRef
 	}
+	return node.ref
 
-	return -1
 }
 
 // MessageByRef returns a Message by its reference index.
@@ -243,6 +310,8 @@ func (d *Document) MessageByRef(ref int) Message {
 	return d.Messages[ref]
 }
 
+// EnumByName returns an Enum by its name.
+// Returns false if the enum does not exist.
 func (d *Document) EnumByName(name string) (Enum, bool) {
 	for _, e := range d.Enums {
 		if e.Name == name {
@@ -279,6 +348,7 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 	schemaFile := fd[0]
 	pc := &RPCCompiler{
 		doc: &Document{
+			nodes:   make(map[uint64]node),
 			Package: string(schemaFile.Package()),
 		},
 		report: operationreport.Report{},
@@ -304,18 +374,28 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 func (p *RPCCompiler) processFile(f protoref.FileDescriptor, mapping *GRPCMapping) {
 	// Process all enums in the schema
 	for i := 0; i < f.Enums().Len(); i++ {
-		p.doc.Enums = append(p.doc.Enums, p.parseEnum(f.Enums().Get(i), mapping))
+		enum := p.parseEnum(f.Enums().Get(i), mapping)
+		ref := p.doc.appendEnum(enum)
+		p.doc.newNode(ref, enum.Name, NodeKindEnum)
 	}
 
 	// Process all messages in the schema
-	p.doc.Messages = append(p.doc.Messages, p.parseMessageDefinitions(f.Messages())...)
+	messages := p.parseMessageDefinitions(f.Messages())
+	for _, message := range messages {
+		ref := p.doc.appendMessage(message)
+		p.doc.newNode(ref, message.Name, NodeKindMessage)
+	}
+
+	// We need to reiterate over the messages to handle recursive types.
 	for ref, message := range p.doc.Messages {
 		p.enrichMessageData(ref, message.Desc)
 	}
 
 	// Process all services in the schema
 	for i := 0; i < f.Services().Len(); i++ {
-		p.doc.Services = append(p.doc.Services, p.parseService(f.Services().Get(i)))
+		service := p.parseService(f.Services().Get(i))
+		ref := p.doc.appendService(service)
+		p.doc.newNode(ref, service.Name, NodeKindService)
 	}
 }
 
@@ -325,19 +405,125 @@ func (p *RPCCompiler) ConstructExecutionPlan(operation, schema *ast.Document) (*
 	return nil, nil
 }
 
-// Invocation represents a single gRPC invocation with its input and output messages.
-type Invocation struct {
+// ServiceCall represents a single gRPC service call with its input and output messages.
+type ServiceCall struct {
+	// ServiceName is the name of the gRPC service to call
 	ServiceName string
-	MethodName  string
-	Input       *dynamicpb.Message
-	Output      *dynamicpb.Message
-	Call        *RPCCall
+	// MethodName is the name of the method on the service to call
+	MethodName string
+	// Input is the input message for the gRPC call
+	Input *dynamicpb.Message
+	// Output is the output message for the gRPC call
+	Output *dynamicpb.Message
+	// Call is the call that was made to the gRPC service
+	Call *RPCCall // TODO: Might be not needed anymore when we are using the DependencyGraph
+}
+
+// func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem, inputData gjson.Result) ([]Invocation, error) {
+// 	invocations := make([]Invocation, 0, len(fetches))
+
+// 	resultChan := make(chan Invocation, len(fetches))
+// 	errChan := make(chan error, len(fetches))
+
+// 	wg := sync.WaitGroup{}
+// 	wg.Add(len(fetches))
+
+// 	for _, node := range fetches {
+// 		go func() {
+// 			defer wg.Done()
+// 			invocation, err := p.CompileNode(graph, node, inputData)
+// 			if err != nil {
+// 				errChan <- err
+// 				return
+// 			}
+
+// 			resultChan <- invocation
+// 			node.Invocation = &invocation
+// 		}()
+// 	}
+
+// 	close(resultChan)
+// 	close(errChan)
+
+// 	var joinErr error
+// 	for err := range errChan {
+// 		joinErr = errors.Join(joinErr, err)
+// 	}
+
+// 	if joinErr != nil {
+// 		return nil, joinErr
+// 	}
+
+// 	for invocation := range resultChan {
+// 		invocations = append(invocations, invocation)
+// 	}
+
+// 	return invocations, nil
+// }
+
+func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem, inputData gjson.Result) ([]ServiceCall, error) {
+	serviceCalls := make([]ServiceCall, 0, len(fetches))
+
+	for _, node := range fetches {
+		serviceCall, err := p.CompileNode(graph, node, inputData)
+		if err != nil {
+			return nil, err
+		}
+
+		graph.SetFetchData(node.ID, &serviceCall)
+		serviceCalls = append(serviceCalls, serviceCall)
+	}
+
+	return serviceCalls, nil
+}
+
+func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, inputData gjson.Result) (ServiceCall, error) {
+	call := fetch.Plan
+
+	inputMessage, ok := p.doc.MessageByName(call.Request.Name)
+	if !ok {
+		return ServiceCall{}, fmt.Errorf("input message %s not found in document", call.Request.Name)
+	}
+
+	outputMessage, ok := p.doc.MessageByName(call.Response.Name)
+	if !ok {
+		return ServiceCall{}, fmt.Errorf("output message %s not found in document", call.Response.Name)
+	}
+
+	request, response := p.newEmptyMessage(inputMessage), p.newEmptyMessage(outputMessage)
+
+	switch call.Kind {
+	case CallKindStandard, CallKindEntity:
+		request = p.buildProtoMessage(inputMessage, &call.Request, inputData)
+	case CallKindResolve:
+		context, err := graph.FetchDependencies(&fetch)
+		if err != nil {
+			return ServiceCall{}, err
+		}
+
+		request = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
+	}
+
+	serviceName, ok := p.resolveServiceName(call.MethodName)
+	if !ok {
+		return ServiceCall{}, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
+	}
+
+	return ServiceCall{
+		ServiceName: serviceName,
+		MethodName:  call.MethodName,
+		Input:       request,
+		Output:      response,
+		Call:        call,
+	}, nil
+
 }
 
 // Compile processes an RPCExecutionPlan and builds protobuf messages from JSON data
 // based on the compiled schema.
-func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]Invocation, error) {
-	invocations := make([]Invocation, 0, len(executionPlan.Calls))
+// Deprecated: Use CompileFetches instead.
+func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]ServiceCall, error) {
+	serviceCalls := make([]ServiceCall, 0, len(executionPlan.Calls))
 
 	for _, call := range executionPlan.Calls {
 		inputMessage, ok := p.doc.MessageByName(call.Request.Name)
@@ -362,7 +548,7 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 			return nil, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
 		}
 
-		invocations = append(invocations, Invocation{
+		serviceCalls = append(serviceCalls, ServiceCall{
 			ServiceName: serviceName,
 			MethodName:  call.MethodName,
 			Input:       request,
@@ -371,7 +557,7 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 		})
 	}
 
-	return invocations, nil
+	return serviceCalls, nil
 }
 
 func (p *RPCCompiler) resolveServiceName(methodName string) (string, bool) {
@@ -388,7 +574,7 @@ func (p *RPCCompiler) resolveServiceName(methodName string) (string, bool) {
 
 // newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.
 func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
-	if p.doc.MessageRefByName(message.Name) == -1 {
+	if p.doc.MessageRefByName(message.Name) == InvalidRef {
 		p.report.AddInternalError(fmt.Errorf("message %s not found in document", message.Name))
 		return nil
 	}
@@ -396,15 +582,233 @@ func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
 	return dynamicpb.NewMessage(message.Desc)
 }
 
+// buildProtoMessageWithContext builds a protobuf message from an RPCMessage definition
+// and JSON data. It handles nested messages and repeated fields.
+//
+// Example:
+//
+//	message ResolveCategoryProductCountRequest {
+//	  repeated CategoryProductCountContext context = 1;
+//	  CategoryProductCountArgs field_args = 2;
+//	}
+//
+//	message ResolveCategoryProductCountRequestKey {
+
+// }
+func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result, context []FetchItem) *dynamicpb.Message {
+	if rpcMessage == nil {
+		return nil
+	}
+
+	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {
+		p.report.AddInternalError(fmt.Errorf("message %s not found in document", rpcMessage.Name))
+		return nil
+	}
+
+	rootMessage := dynamicpb.NewMessage(inputMessage.Desc)
+
+	if len(inputMessage.Fields) != 2 {
+		p.report.AddInternalError(fmt.Errorf("message %s must have exactly one key field", inputMessage.Name))
+		return nil
+	}
+
+	// schemaField := inputMessage.FieldByName("key")
+	// if schemaField == nil {
+	// 	p.report.AddInternalError(fmt.Errorf("key field not found in message %s", inputMessage.Name))
+	// 	return nil
+	// }
+
+	// // the key field must be a repeated field
+	// // Get the RPC field
+	// planKeyField := rpcMessage.Fields.ByName(schemaField.Name)
+	// if planKeyField == nil {
+	// 	p.report.AddInternalError(fmt.Errorf("key field not found in message %s", rpcMessage.Name))
+	// 	return nil
+	// }
+
+	contextSchemaField := inputMessage.FieldByName("context")
+	if contextSchemaField == nil {
+		p.report.AddInternalError(fmt.Errorf("context field not found in message %s", inputMessage.Name))
+		return nil
+	}
+
+	contextRPCField := rpcMessage.Fields.ByName(contextSchemaField.Name)
+	if contextRPCField == nil {
+		p.report.AddInternalError(fmt.Errorf("context field not found in message %s", rpcMessage.Name))
+		return nil
+	}
+
+	contextField := rootMessage.Descriptor().Fields().ByNumber(protoref.FieldNumber(contextSchemaField.Number))
+	if contextField == nil {
+		p.report.AddInternalError(fmt.Errorf("context field not found in message %s", inputMessage.Name))
+		return nil
+	}
+
+	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
+	contextData := p.resolveContextData(context[0], contextRPCField)
+
+	for _, data := range contextData {
+		val := contextList.NewElement()
+		valMsg := val.Message()
+		for fieldName, value := range data {
+			p.setMessageValue(valMsg, fieldName, value)
+		}
+
+		contextList.Append(val)
+	}
+
+	argsMessage := p.doc.Messages[inputMessage.FieldByName("field_args").MessageRef]
+	argsRPCField := rpcMessage.Fields.ByName("field_args")
+	if argsRPCField == nil {
+		p.report.AddInternalError(fmt.Errorf("field_args field not found in message %s", rpcMessage.Name))
+		return nil
+	}
+
+	args := p.buildProtoMessage(argsMessage, rpcMessage.Fields[1].Message, data)
+
+	// // Set the key list
+	p.setMessageValue(rootMessage, contextSchemaField.Name, protoref.ValueOfList(contextList))
+	p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args))
+
+	return rootMessage
+}
+
+func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCField) []map[string]protoref.Value {
+	if context.ServiceCall == nil || context.ServiceCall.Output == nil {
+		return []map[string]protoref.Value{}
+	}
+
+	contextValues := make([]map[string]protoref.Value, 0)
+	outputMessage := context.ServiceCall.Output
+	for _, field := range contextField.Message.Fields {
+		resolvePath := field.ResolvePath
+		values := p.resolveContextDataForPath(outputMessage, resolvePath)
+
+		for index, value := range values {
+			if index >= len(contextValues) {
+				contextValues = append(contextValues, make(map[string]protoref.Value))
+			}
+
+			contextValues[index][field.Name] = value
+		}
+
+	}
+
+	return contextValues
+}
+
+func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
+	if path.Len() == 0 {
+		return nil
+	}
+
+	segment := path[0]
+	path = path[1:]
+
+	msg, fd := p.getMessageField(message, segment.FieldName.String())
+	if !msg.IsValid() {
+		return nil
+	}
+
+	if fd.IsList() {
+		return p.resolveListDataForPath(msg.List(), fd, path)
+	}
+
+	return []protoref.Value{p.resolveDataForPath(msg.Message(), path)}
+
+}
+
+func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.FieldDescriptor, path ast.Path) []protoref.Value {
+	if path.Len() == 0 {
+		return nil
+	}
+
+	result := make([]protoref.Value, 0, message.Len())
+
+	for i := range message.Len() {
+		item := message.Get(i)
+
+		switch fd.Kind() {
+		case protoref.MessageKind:
+			val := p.resolveDataForPath(item.Message(), path)
+
+			if list, isList := val.Interface().(protoref.List); isList {
+				values := p.resolveListDataForPath(list, fd, path)
+				result = append(result, values...)
+				continue
+			}
+
+			result = append(result, val)
+		default:
+			result = append(result, item)
+		}
+
+		// val := p.resolveDataForPath(item.Message(), path)
+		// if list, isList := val.Interface().(protoref.List); isList {
+		// 	value := p.resolveListDataForPath(list, fd, path)
+		// 	result = append(result, value...)
+		// 	continue
+		// }
+
+		// result = append(result, val)
+	}
+
+	return result
+}
+
+func (p *RPCCompiler) resolveDataForPath(outputMessage protoref.Message, path ast.Path) protoref.Value {
+	if path.Len() == 0 {
+		return protoref.Value{}
+	}
+
+	segment := path[0]
+	field, fd := p.getMessageField(outputMessage, segment.FieldName.String())
+	if !field.IsValid() {
+		return protoref.Value{}
+	}
+
+	switch fd.Kind() {
+	case protoref.MessageKind:
+		if fd.IsList() {
+			return field
+		}
+
+		return p.resolveDataForPath(field.Message(), path[1:])
+	}
+
+	return field
+}
+
+func (p *RPCCompiler) getMessageField(message protoref.Message, fieldName string) (protoref.Value, protoref.FieldDescriptor) {
+	fd := message.Descriptor().Fields().ByName(protoref.Name(fieldName))
+	if fd == nil {
+		return protoref.Value{}, nil
+	}
+
+	return message.Get(fd), fd
+}
+
+func (p *RPCCompiler) newEmptyListMessageByNumber(msg *dynamicpb.Message, number int32) protoref.List {
+	return msg.Mutable(msg.Descriptor().Fields().ByNumber(protoref.FieldNumber(number))).List()
+}
+
+func (p *RPCCompiler) newEmptyListMessageByName(msg *dynamicpb.Message, name string) protoref.List {
+	return msg.Mutable(msg.Descriptor().Fields().ByName(protoref.Name(name))).List()
+}
+
+func (p *RPCCompiler) setMessageValue(message protoref.Message, fieldName string, value protoref.Value) {
+	message.Set(message.Descriptor().Fields().ByName(protoref.Name(fieldName)), value)
+}
+
 // buildProtoMessage recursively builds a protobuf message from an RPCMessage definition
 // and JSON data. It handles nested messages and repeated fields.
-// TODO provide a way to have data
 func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) *dynamicpb.Message {
 	if rpcMessage == nil {
 		return nil
 	}
 
-	if p.doc.MessageRefByName(inputMessage.Name) == -1 {
+	inputMessageRef := p.doc.MessageRefByName(inputMessage.Name)
+	if inputMessageRef == InvalidRef {
 		p.report.AddInternalError(fmt.Errorf("message %s not found in document", inputMessage.Name))
 		return nil
 	}
@@ -424,7 +828,6 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		if field.Repeated {
 			// Get a mutable reference to the list field
 			list := message.Mutable(fd.ByName(protoref.Name(field.Name))).List()
-
 			// Extract the array elements from the JSON data
 			elements := data.Get(rpcField.JSONPath).Array()
 			if len(elements) == 0 {
@@ -765,7 +1168,6 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 
 		field := p.parseField(f)
 
-		// If the field is a message type, recursively parse the nested message
 		if f.Kind() == protoref.MessageKind {
 			// Handle nested messages when they are recursive types
 			field.MessageRef = p.doc.MessageRefByName(string(f.Message().Name()))
@@ -775,7 +1177,6 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 	}
 
 	msg.Fields = fields
-
 	p.doc.Messages[ref] = msg
 }
 
@@ -790,7 +1191,7 @@ func (p *RPCCompiler) parseField(f protoref.FieldDescriptor) Field {
 		Number:     int32(f.Number()),
 		Repeated:   f.IsList(),
 		Optional:   f.Cardinality() == protoref.Optional,
-		MessageRef: -1,
+		MessageRef: InvalidRef,
 	}
 }
 

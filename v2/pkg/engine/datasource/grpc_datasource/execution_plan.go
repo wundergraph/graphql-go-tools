@@ -53,9 +53,24 @@ type RPCExecutionPlan struct {
 	// instead of the planner and the compiler?
 }
 
+// CallKind is the type of call operation to perform.
+type CallKind int
+
+const (
+	// CallKindStandard is a basic fetch operation.
+	CallKindStandard CallKind = iota
+	// CallKindEntity is a fetch operation for entities.
+	CallKindEntity
+	// CallKindResolve is a fetch operation for resolving field values.
+	CallKindResolve
+)
+
 // RPCCall represents a single call to a gRPC service method.
 // It contains all the information needed to make the call and process the response.
 type RPCCall struct {
+	// Kind of call, used to decide how to execute the call
+	// This is used to identify the call type and execution behaviour.
+	Kind CallKind
 	// DependentCalls is a list of calls that must be executed before this call
 	DependentCalls []int
 	// ServiceName is the name of the gRPC service to call
@@ -66,6 +81,8 @@ type RPCCall struct {
 	Request RPCMessage
 	// Response contains the message structure for the gRPC response
 	Response RPCMessage
+	// ResponsePath is the path to the response in the JSON response
+	ResponsePath ast.Path
 }
 
 // RPCMessage represents a gRPC message structure for requests and responses.
@@ -312,22 +329,19 @@ func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs pla
 		mapping = new(GRPCMapping)
 	}
 
-	var visitor PlanVisitor
 	if len(federationConfigs) > 0 {
-		visitor = newRPCPlanVisitorFederation(rpcPlanVisitorConfig{
-			subgraphName:      subgraphName,
-			mapping:           mapping,
-			federationConfigs: federationConfigs,
-		})
-	} else {
-		visitor = newRPCPlanVisitor(rpcPlanVisitorConfig{
+		return newRPCPlanVisitorFederation(rpcPlanVisitorConfig{
 			subgraphName:      subgraphName,
 			mapping:           mapping,
 			federationConfigs: federationConfigs,
 		})
 	}
 
-	return visitor
+	return newRPCPlanVisitor(rpcPlanVisitorConfig{
+		subgraphName:      subgraphName,
+		mapping:           mapping,
+		federationConfigs: federationConfigs,
+	})
 }
 
 // formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation

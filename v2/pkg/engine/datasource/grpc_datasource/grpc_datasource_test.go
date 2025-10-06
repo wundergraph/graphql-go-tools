@@ -3636,3 +3636,96 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 		})
 	}
 }
+
+func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query with field resolvers",
+			query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for productCount, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["kind"])
+					require.Equal(t, float64(productCount), category["productCount"])
+				}
+
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			output := new(bytes.Buffer)
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			err = ds.Load(context.Background(), []byte(input), output)
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(output.Bytes(), &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}

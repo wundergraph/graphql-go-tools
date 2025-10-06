@@ -22,10 +22,10 @@ type MockService struct {
 
 // ResolveCategoryProductCount implements productv1.ProductServiceServer.
 func (s *MockService) ResolveCategoryProductCount(_ context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
-	results := make([]*productv1.ResolveCategoryProductCountResponseResult, len(req.GetKey()))
-	for range req.GetKey() {
+	results := make([]*productv1.ResolveCategoryProductCountResponseResult, 0, len(req.GetContext()))
+	for i := range req.GetContext() {
 		results = append(results, &productv1.ResolveCategoryProductCountResponseResult{
-			ProductCount: int32(rand.Intn(100)),
+			ProductCount: int32(i),
 		})
 	}
 

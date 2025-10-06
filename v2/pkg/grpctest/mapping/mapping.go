@@ -51,16 +51,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryCalculateTotalsRequest",
 				Response: "QueryCalculateTotalsResponse",
 			},
-			"randomPet": {
-				RPC:      "QueryRandomPet",
-				Request:  "QueryRandomPetRequest",
-				Response: "QueryRandomPetResponse",
-			},
-			"allPets": {
-				RPC:      "QueryAllPets",
-				Request:  "QueryAllPetsRequest",
-				Response: "QueryAllPetsResponse",
-			},
 			"categories": {
 				RPC:      "QueryCategories",
 				Request:  "QueryCategoriesRequest",
@@ -81,15 +71,25 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryFilterCategoriesRequest",
 				Response: "QueryFilterCategoriesResponse",
 			},
-			"randomSearchResult": {
-				RPC:      "QueryRandomSearchResult",
-				Request:  "QueryRandomSearchResultRequest",
-				Response: "QueryRandomSearchResultResponse",
+			"randomPet": {
+				RPC:      "QueryRandomPet",
+				Request:  "QueryRandomPetRequest",
+				Response: "QueryRandomPetResponse",
+			},
+			"allPets": {
+				RPC:      "QueryAllPets",
+				Request:  "QueryAllPetsRequest",
+				Response: "QueryAllPetsResponse",
 			},
 			"search": {
 				RPC:      "QuerySearch",
 				Request:  "QuerySearchRequest",
 				Response: "QuerySearchResponse",
+			},
+			"randomSearchResult": {
+				RPC:      "QueryRandomSearchResult",
+				Request:  "QueryRandomSearchResultRequest",
+				Response: "QueryRandomSearchResultResponse",
 			},
 			"nullableFieldsType": {
 				RPC:      "QueryNullableFieldsType",
@@ -267,9 +267,12 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		},
 		Fields: map[string]grpcdatasource.FieldMap{
 			"Query": {
+				"users": {
+					TargetName: "users",
+				},
 				"user": {
 					TargetName: "user",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id": "id",
 					},
 				},
@@ -279,61 +282,61 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"recursiveType": {
 					TargetName: "recursive_type",
 				},
-				"randomPet": {
-					TargetName: "random_pet",
-				},
-				"allPets": {
-					TargetName: "all_pets",
-				},
-				"categories": {
-					TargetName: "categories",
-				},
-				"categoriesByKind": {
-					TargetName: "categories_by_kind",
-					ArgumentMappings: map[string]string{
-						"kind": "kind",
-					},
-				},
-				"categoriesByKinds": {
-					TargetName: "categories_by_kinds",
-					ArgumentMappings: map[string]string{
-						"kinds": "kinds",
-					},
-				},
-				"filterCategories": {
-					TargetName: "filter_categories",
-					ArgumentMappings: map[string]string{
-						"filter": "filter",
-					},
-				},
 				"typeFilterWithArguments": {
 					TargetName: "type_filter_with_arguments",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filterField1": "filter_field_1",
 						"filterField2": "filter_field_2",
 					},
 				},
 				"typeWithMultipleFilterFields": {
 					TargetName: "type_with_multiple_filter_fields",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filter": "filter",
 					},
 				},
 				"complexFilterType": {
 					TargetName: "complex_filter_type",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filter": "filter",
 					},
 				},
 				"calculateTotals": {
 					TargetName: "calculate_totals",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"orders": "orders",
 					},
 				},
+				"categories": {
+					TargetName: "categories",
+				},
+				"categoriesByKind": {
+					TargetName: "categories_by_kind",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"kind": "kind",
+					},
+				},
+				"categoriesByKinds": {
+					TargetName: "categories_by_kinds",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"kinds": "kinds",
+					},
+				},
+				"filterCategories": {
+					TargetName: "filter_categories",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"filter": "filter",
+					},
+				},
+				"randomPet": {
+					TargetName: "random_pet",
+				},
+				"allPets": {
+					TargetName: "all_pets",
+				},
 				"search": {
 					TargetName: "search",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"input": "input",
 					},
 				},
@@ -345,13 +348,13 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"nullableFieldsTypeById": {
 					TargetName: "nullable_fields_type_by_id",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id": "id",
 					},
 				},
 				"nullableFieldsTypeWithFilter": {
 					TargetName: "nullable_fields_type_with_filter",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filter": "filter",
 					},
 				},
@@ -363,13 +366,13 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"blogPostById": {
 					TargetName: "blog_post_by_id",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id": "id",
 					},
 				},
 				"blogPostsWithFilter": {
 					TargetName: "blog_posts_with_filter",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filter": "filter",
 					},
 				},
@@ -381,13 +384,13 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"authorById": {
 					TargetName: "author_by_id",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id": "id",
 					},
 				},
 				"authorsWithFilter": {
 					TargetName: "authors_with_filter",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filter": "filter",
 					},
 				},
@@ -396,13 +399,13 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"bulkSearchAuthors": {
 					TargetName: "bulk_search_authors",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filters": "filters",
 					},
 				},
 				"bulkSearchBlogPosts": {
 					TargetName: "bulk_search_blog_posts",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filters": "filters",
 					},
 				},
@@ -410,83 +413,78 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 			"Mutation": {
 				"createUser": {
 					TargetName: "create_user",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"input": "input",
 					},
 				},
 				"performAction": {
 					TargetName: "perform_action",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"input": "input",
 					},
 				},
 				"createNullableFieldsType": {
 					TargetName: "create_nullable_fields_type",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"input": "input",
 					},
 				},
 				"updateNullableFieldsType": {
 					TargetName: "update_nullable_fields_type",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id":    "id",
 						"input": "input",
 					},
 				},
 				"createBlogPost": {
 					TargetName: "create_blog_post",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"input": "input",
 					},
 				},
 				"updateBlogPost": {
 					TargetName: "update_blog_post",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id":    "id",
 						"input": "input",
 					},
 				},
 				"createAuthor": {
 					TargetName: "create_author",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"input": "input",
 					},
 				},
 				"updateAuthor": {
 					TargetName: "update_author",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"id":    "id",
 						"input": "input",
 					},
 				},
 				"bulkCreateAuthors": {
 					TargetName: "bulk_create_authors",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"authors": "authors",
 					},
 				},
 				"bulkUpdateAuthors": {
 					TargetName: "bulk_update_authors",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"authors": "authors",
 					},
 				},
 				"bulkCreateBlogPosts": {
 					TargetName: "bulk_create_blog_posts",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"blogPosts": "blog_posts",
 					},
 				},
 				"bulkUpdateBlogPosts": {
 					TargetName: "bulk_update_blog_posts",
-					ArgumentMappings: map[string]string{
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"blogPosts": "blog_posts",
 					},
-				},
-			},
-			"UserInput": {
-				"name": {
-					TargetName: "name",
 				},
 			},
 			"Product": {
@@ -585,48 +583,20 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "filter_field_2",
 				},
 			},
+			"FilterTypeInput": {
+				"filterField1": {
+					TargetName: "filter_field_1",
+				},
+				"filterField2": {
+					TargetName: "filter_field_2",
+				},
+			},
 			"TypeWithComplexFilterInput": {
 				"id": {
 					TargetName: "id",
 				},
 				"name": {
 					TargetName: "name",
-				},
-			},
-			"Cat": {
-				"id": {
-					TargetName: "id",
-				},
-				"name": {
-					TargetName: "name",
-				},
-				"kind": {
-					TargetName: "kind",
-				},
-				"meowVolume": {
-					TargetName: "meow_volume",
-				},
-			},
-			"Dog": {
-				"id": {
-					TargetName: "id",
-				},
-				"name": {
-					TargetName: "name",
-				},
-				"kind": {
-					TargetName: "kind",
-				},
-				"barkVolume": {
-					TargetName: "bark_volume",
-				},
-			},
-			"Animal": {
-				"cat": {
-					TargetName: "cat",
-				},
-				"dog": {
-					TargetName: "dog",
 				},
 			},
 			"FilterType": {
@@ -656,29 +626,26 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "filter",
 				},
 			},
-			"Category": {
-				"id": {
-					TargetName: "id",
+			"OrderLineInput": {
+				"productId": {
+					TargetName: "product_id",
 				},
-				"name": {
-					TargetName: "name",
+				"quantity": {
+					TargetName: "quantity",
 				},
-				"kind": {
-					TargetName: "kind",
-				},
-				"productCount": {
-					TargetName: "product_count",
-					ArgumentMappings: map[string]string{
-						"filters": "filters",
-					},
+				"modifiers": {
+					TargetName: "modifiers",
 				},
 			},
-			"CategoryFilter": {
-				"category": {
-					TargetName: "category",
+			"OrderInput": {
+				"orderId": {
+					TargetName: "order_id",
 				},
-				"pagination": {
-					TargetName: "pagination",
+				"customerName": {
+					TargetName: "customer_name",
+				},
+				"lines": {
+					TargetName: "lines",
 				},
 			},
 			"Order": {
@@ -706,26 +673,57 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "modifiers",
 				},
 			},
-			"OrderInput": {
-				"orderId": {
-					TargetName: "order_id",
+			"CategoryFilter": {
+				"category": {
+					TargetName: "category",
 				},
-				"customerName": {
-					TargetName: "customer_name",
-				},
-				"lines": {
-					TargetName: "lines",
+				"pagination": {
+					TargetName: "pagination",
 				},
 			},
-			"OrderLineInput": {
-				"productId": {
-					TargetName: "product_id",
+			"Category": {
+				"id": {
+					TargetName: "id",
 				},
-				"quantity": {
-					TargetName: "quantity",
+				"name": {
+					TargetName: "name",
 				},
-				"modifiers": {
-					TargetName: "modifiers",
+				"kind": {
+					TargetName: "kind",
+				},
+				"productCount": {
+					TargetName: "product_count",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"filters": "filters",
+					},
+				},
+			},
+			"Cat": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"meowVolume": {
+					TargetName: "meow_volume",
+				},
+			},
+			"Dog": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+				"barkVolume": {
+					TargetName: "bark_volume",
 				},
 			},
 			"ActionSuccess": {
@@ -760,19 +758,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "payload",
 				},
 			},
-			"SearchResult": {
-				"product": {
-					TargetName: "product",
-				},
-			},
-			"ActionResult": {
-				"actionSuccess": {
-					TargetName: "action_success",
-				},
-				"actionError": {
-					TargetName: "action_error",
-				},
-			},
 			"NullableFieldsType": {
 				"id": {
 					TargetName: "id",
@@ -797,40 +782,6 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"requiredInt": {
 					TargetName: "required_int",
-				},
-			},
-			"NullableFieldsInput": {
-				"name": {
-					TargetName: "name",
-				},
-				"optionalString": {
-					TargetName: "optional_string",
-				},
-				"optionalInt": {
-					TargetName: "optional_int",
-				},
-				"optionalFloat": {
-					TargetName: "optional_float",
-				},
-				"optionalBoolean": {
-					TargetName: "optional_boolean",
-				},
-				"requiredString": {
-					TargetName: "required_string",
-				},
-				"requiredInt": {
-					TargetName: "required_int",
-				},
-			},
-			"NullableFieldsFilter": {
-				"name": {
-					TargetName: "name",
-				},
-				"optionalString": {
-					TargetName: "optional_string",
-				},
-				"includeNulls": {
-					TargetName: "include_nulls",
 				},
 			},
 			"BlogPost": {
@@ -1046,6 +997,48 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "skill_count",
 				},
 			},
+			"NullableFieldsInput": {
+				"name": {
+					TargetName: "name",
+				},
+				"optionalString": {
+					TargetName: "optional_string",
+				},
+				"optionalInt": {
+					TargetName: "optional_int",
+				},
+				"optionalFloat": {
+					TargetName: "optional_float",
+				},
+				"optionalBoolean": {
+					TargetName: "optional_boolean",
+				},
+				"requiredString": {
+					TargetName: "required_string",
+				},
+				"requiredInt": {
+					TargetName: "required_int",
+				},
+			},
+			"NullableFieldsFilter": {
+				"name": {
+					TargetName: "name",
+				},
+				"optionalString": {
+					TargetName: "optional_string",
+				},
+				"includeNulls": {
+					TargetName: "include_nulls",
+				},
+			},
+			"CategoryInput": {
+				"name": {
+					TargetName: "name",
+				},
+				"kind": {
+					TargetName: "kind",
+				},
+			},
 			"ProductCountFilter": {
 				"minPrice": {
 					TargetName: "min_price",
@@ -1060,10 +1053,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "search_term",
 				},
 			},
+			"UserInput": {
+				"name": {
+					TargetName: "name",
+				},
+			},
 		},
 	}
 }
 
+// MustDefaultGRPCMapping returns the default GRPC mapping
 func MustDefaultGRPCMapping(t *testing.T) *grpcdatasource.GRPCMapping {
 	mapping := DefaultGRPCMapping()
 	return mapping

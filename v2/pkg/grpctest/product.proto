@@ -629,15 +629,11 @@ message CategoryProductCountContext {
   string name = 2;
 }
 
-message ResolveCategoryProductCountRequestKey {
+message ResolveCategoryProductCountRequest {
   // context provides the resolver context for the field productCount of type Category.
-  CategoryProductCountContext context = 1;
+  repeated CategoryProductCountContext context = 1;
   // field_args provides the arguments for the resolver field productCount of type Category.
   CategoryProductCountArgs field_args = 2;
-}
-
-message ResolveCategoryProductCountRequest {
-  repeated ResolveCategoryProductCountRequestKey key = 1;
 }
 
 message ResolveCategoryProductCountResponseResult {

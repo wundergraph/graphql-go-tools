@@ -31,8 +31,8 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // It handles the conversion of GraphQL queries to gRPC requests and
 // transforms the responses back to GraphQL format.
 type DataSource struct {
-	// Invocations is a list of gRPC invocations to be executed
 	plan              *RPCExecutionPlan
+	graph             *DependencyGraph
 	cc                grpc.ClientConnInterface
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
@@ -64,6 +64,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 
 	return &DataSource{
 		plan:              plan,
+		graph:             NewDependencyGraph(plan),
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
@@ -88,66 +89,78 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return nil
 	}
 
-	// get invocations from plan
-	invocations, err := d.rc.Compile(d.plan, variables)
-	if err != nil {
-		return err
-	}
+	arena := astjson.Arena{}
+	root := arena.NewObject()
 
-	responses := make([]*astjson.Value, len(invocations))
-	errGrp, errGrpCtx := errgroup.WithContext(ctx)
+	failed := false
 
-	mu := sync.Mutex{}
-	// make gRPC calls
-	for index, invocation := range invocations {
-		errGrp.Go(func() error {
-			a := astjson.Arena{}
-			// Invoke the gRPC method - this will populate invocation.Output
-			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
-
-			err := d.cc.Invoke(errGrpCtx, methodName, invocation.Input, invocation.Output)
-			if err != nil {
-				return err
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			response, err := builder.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
-			if err != nil {
-				return err
-			}
-
-			// In case of a federated response, we need to ensure that the response is valid.
-			// The number of entities per type must match the number of lookup keys in the variables.
-			err = builder.validateFederatedResponse(response)
-			if err != nil {
-				return err
-			}
-
-			responses[index] = response
-			return nil
-		})
-	}
-
-	if err := errGrp.Wait(); err != nil {
-		out.Write(builder.writeErrorBytes(err))
-		return nil
-	}
-
-	a := astjson.Arena{}
-	root := a.NewObject()
-	for _, response := range responses {
-		root, err = builder.mergeValues(root, response)
+	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
 		if err != nil {
-			out.Write(builder.writeErrorBytes(err))
 			return err
 		}
+
+		responses := make([]*astjson.Value, len(serviceCalls))
+		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+		mu := sync.Mutex{}
+
+		// make gRPC calls
+		for index, serviceCall := range serviceCalls {
+			errGrp.Go(func() error {
+				a := astjson.Arena{}
+				// Invoke the gRPC method - this will populate serviceCall.Output
+				methodName := fmt.Sprintf("/%s/%s", serviceCall.ServiceName, serviceCall.MethodName)
+
+				err := d.cc.Invoke(errGrpCtx, methodName, serviceCall.Input, serviceCall.Output)
+				if err != nil {
+					return err
+				}
+
+				response, err := builder.marshalResponseJSON(&a, &serviceCall.Call.Response, serviceCall.Output)
+				if err != nil {
+					return nil
+				}
+
+				if serviceCall.Call.Kind == CallKindResolve {
+					return builder.mergeWithPath(root, response, serviceCall.Call.ResponsePath)
+				}
+
+				// In case of a federated response, we need to ensure that the response is valid.
+				// The number of entities per type must match the number of lookup keys in the variablese
+				err = builder.validateFederatedResponse(response)
+				if err != nil {
+					return err
+				}
+
+				mu.Lock()
+				responses[index] = response
+				mu.Unlock()
+
+				return nil
+			})
+		}
+
+		if err := errGrp.Wait(); err != nil {
+			out.Write(builder.writeErrorBytes(err))
+			failed = true
+			return nil
+		}
+
+		for _, response := range responses {
+			root, err = builder.mergeValues(root, response)
+			if err != nil {
+				out.Write(builder.writeErrorBytes(err))
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil || failed {
+		return err
 	}
 
 	data := builder.toDataObject(root)
 	out.Write(data.MarshalTo(nil))
-
 	return nil
 }
 

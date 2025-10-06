@@ -11,13 +11,16 @@ import (
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wundergraph/astjson"
+
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 // Standard GraphQL response paths
-var (
-	entityPath = "_entities" // Path for federated entities in response
-	dataPath   = "data"      // Standard GraphQL data wrapper
-	errorsPath = "errors"    // Standard GraphQL errors array
+const (
+	entityPath         = "_entities" // Path for federated entities in response
+	dataPath           = "data"      // Standard GraphQL data wrapper
+	errorsPath         = "errors"    // Standard GraphQL errors array
+	resolvResponsePath = "result"    // Path for resolve response
 )
 
 // entityIndex represents the mapping between representation order and result order
@@ -215,6 +218,87 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 	}
 
 	return entities, nil
+}
+
+func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
+	resolvedValues := resolved.GetArray(resolvResponsePath)
+
+	searchPath := path[:len(path)-1]
+	elementName := path[len(path)-1].FieldName.String()
+
+	responseValues := make([]*astjson.Value, 0, len(resolvedValues))
+
+	current := base
+	current = current.Get(searchPath[0].FieldName.String())
+	switch current.Type() {
+	case astjson.TypeArray:
+		arr := current.GetArray()
+		values, err := j.flattenList(arr, searchPath[1:])
+		if err != nil {
+			return err
+		}
+		responseValues = append(responseValues, values...)
+	default:
+		values, err := j.flattenObject(current, searchPath[1:])
+		if err != nil {
+			return err
+		}
+		responseValues = append(responseValues, values...)
+	}
+
+	if len(resolvedValues) < len(responseValues) {
+		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(responseValues), len(resolvedValues))
+	}
+
+	for i := range responseValues {
+		responseValues[i].Set(elementName, resolvedValues[i].Get(elementName))
+	}
+
+	return nil
+}
+
+func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if path.Len() == 0 {
+		return []*astjson.Value{value}, nil
+	}
+
+	current := value
+	result := make([]*astjson.Value, 0)
+	switch current.Type() {
+	case astjson.TypeObject:
+		values, err := j.flattenObject(current, path[1:])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, values...)
+	case astjson.TypeArray:
+		values, err := j.flattenList(current.GetArray(), path[1:])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, values...)
+	default:
+		return nil, fmt.Errorf("expected array or object, got %s", current.Type())
+	}
+
+	return result, nil
+}
+
+func (j *jsonBuilder) flattenList(items []*astjson.Value, path ast.Path) ([]*astjson.Value, error) {
+	if path.Len() == 0 {
+		return items, nil
+	}
+
+	result := make([]*astjson.Value, 0)
+	for _, item := range items {
+		values, err := j.flattenObject(item, path)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, values...)
+	}
+
+	return result, nil
 }
 
 // marshalResponseJSON converts a protobuf message into a GraphQL-compatible JSON response.
