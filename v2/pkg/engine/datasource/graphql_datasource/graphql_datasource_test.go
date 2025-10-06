@@ -8331,6 +8331,16 @@ func (t *testSubscriptionUpdater) Close(kind resolve.SubscriptionCloseKind) {
 	t.closed = true
 }
 
+func (t *testSubscriptionUpdater) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+}
+
+func (t *testSubscriptionUpdater) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
+	return make(map[context.Context]resolve.SubscriptionIdentifier)
+}
+
+func (t *testSubscriptionUpdater) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
+}
+
 func TestSubscriptionSource_Start(t *testing.T) {
 	chatServer := httptest.NewServer(subscriptiontesting.ChatGraphQLEndpointHandler())
 	defer chatServer.Close()
