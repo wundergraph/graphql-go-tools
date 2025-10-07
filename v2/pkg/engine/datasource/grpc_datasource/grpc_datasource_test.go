@@ -130,7 +130,7 @@ func Test_DataSource_Load(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"complexFilterType": {
 					RPC:      "QueryComplexFilterType",
 					Request:  "QueryComplexFilterTypeRequest",
@@ -189,7 +189,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"complexFilterType": {
 					RPC:      "QueryComplexFilterType",
 					Request:  "QueryComplexFilterTypeRequest",
@@ -279,7 +279,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"complexFilterType": {
 					RPC:      "QueryComplexFilterType",
 					Request:  "QueryComplexFilterTypeRequest",
@@ -382,7 +382,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"user": {
 					RPC:      "QueryUser",
 					Request:  "QueryUserRequest",

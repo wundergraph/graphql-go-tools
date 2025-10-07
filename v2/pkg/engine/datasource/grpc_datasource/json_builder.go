@@ -614,7 +614,7 @@ func (j *jsonBuilder) setJSONValue(arena *astjson.Arena, root *astjson.Value, na
 		}
 
 		// Look up the GraphQL enum value mapping
-		graphqlValue, ok := j.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
+		graphqlValue, ok := j.mapping.FindEnumValueMapping(string(enumDesc.Name()), string(enumValueDesc.Name()))
 		if !ok {
 			// No mapping found - set to null
 			root.Set(name, arena.NewNull())
@@ -663,7 +663,7 @@ func (j *jsonBuilder) setArrayItem(index int, arena *astjson.Arena, array *astjs
 		}
 
 		// Look up GraphQL enum mapping
-		graphqlValue, ok := j.mapping.ResolveEnumValue(string(enumDesc.Name()), string(enumValueDesc.Name()))
+		graphqlValue, ok := j.mapping.FindEnumValueMapping(string(enumDesc.Name()), string(enumValueDesc.Name()))
 		if !ok {
 			// No mapping found - use null
 			array.SetArrayItem(index, arena.NewNull())

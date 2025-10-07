@@ -469,7 +469,7 @@ func (r *rpcPlanningContext) newMessageFromSelectionSet(enclosingTypeNode ast.No
 // resolveFieldMapping resolves the field mapping for a field.
 // This applies both for complex types in the input and for all fields in the response.
 func (r *rpcPlanningContext) resolveFieldMapping(typeName, fieldName string) string {
-	if grpcFieldName, ok := r.mapping.ResolveFieldMapping(typeName, fieldName); ok {
+	if grpcFieldName, ok := r.mapping.FindFieldMapping(typeName, fieldName); ok {
 		return grpcFieldName
 	}
 
@@ -477,7 +477,7 @@ func (r *rpcPlanningContext) resolveFieldMapping(typeName, fieldName string) str
 }
 
 func (r *rpcPlanningContext) resolveFieldArgumentMapping(typeName, fieldName, argumentName string) string {
-	if grpcFieldName, ok := r.mapping.ResolveFieldArgumentMapping(typeName, fieldName, argumentName); ok {
+	if grpcFieldName, ok := r.mapping.FindFieldArgumentMapping(typeName, fieldName, argumentName); ok {
 		return grpcFieldName
 	}
 
@@ -820,4 +820,65 @@ func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fd i
 func (r *rpcPlanningContext) nodeByTypeRef(typeRef int) (ast.Node, bool) {
 	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
 	return r.definition.NodeByNameStr(underlyingTypeName)
+}
+
+type resolveRPCCallConfig struct {
+	serviceName      string
+	typeName         string
+	fieldName        string
+	resolveConfig    ResolveRPCTypeField
+	resolvedField    resolvedField
+	contextMessage   *RPCMessage
+	fieldArgsMessage *RPCMessage
+}
+
+func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) RPCCall {
+	resolveConfig := config.resolveConfig
+	resolvedField := config.resolvedField
+
+	return RPCCall{
+		DependentCalls: []int{resolvedField.callerRef},
+		ResponsePath:   resolvedField.responsePath,
+		ServiceName:    r.resolveServiceName(config.serviceName),
+		MethodName:     resolveConfig.RPC,
+		Kind:           CallKindResolve,
+		Request: RPCMessage{
+			Name: resolveConfig.Request,
+			Fields: RPCFields{
+				{
+					Name:     "context",
+					TypeName: string(DataTypeMessage),
+					Repeated: true,
+					Message:  config.contextMessage,
+				},
+				{
+					Name:     "field_args",
+					TypeName: string(DataTypeMessage),
+					JSONPath: "",
+					Message:  config.fieldArgsMessage,
+				},
+			},
+		},
+		Response: RPCMessage{
+			Name: resolveConfig.Response,
+			Fields: RPCFields{
+				{
+					Name:     "result",
+					TypeName: string(DataTypeMessage),
+					JSONPath: "result",
+					Repeated: true,
+					Message: &RPCMessage{
+						Name: resolveConfig.RPC + "Result",
+						Fields: RPCFields{
+							{
+								Name:     resolveConfig.FieldMappingData.TargetName,
+								TypeName: string(DataTypeInt32),
+								JSONPath: config.fieldName,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }

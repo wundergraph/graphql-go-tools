@@ -3,7 +3,7 @@ package grpcdatasource
 func testMapping() *GRPCMapping {
 	return &GRPCMapping{
 		Service: "Products",
-		QueryRPCs: map[string]RPCConfig{
+		QueryRPCs: RPCConfigMap[RPCConfig]{
 			"users": {
 				RPC:      "QueryUsers",
 				Request:  "QueryUsersRequest",
@@ -155,7 +155,7 @@ func testMapping() *GRPCMapping {
 				Response: "QueryBulkSearchBlogPostsResponse",
 			},
 		},
-		MutationRPCs: RPCConfigMap{
+		MutationRPCs: RPCConfigMap[RPCConfig]{
 			"createUser": {
 				RPC:      "MutationCreateUser",
 				Request:  "MutationCreateUserRequest",
@@ -217,7 +217,22 @@ func testMapping() *GRPCMapping {
 				Response: "MutationBulkUpdateBlogPostsResponse",
 			},
 		},
-		SubscriptionRPCs: RPCConfigMap{},
+		SubscriptionRPCs: RPCConfigMap[RPCConfig]{},
+		ResolveRPCs: RPCConfigMap[ResolveRPCMapping]{
+			"Category": {
+				"productCount": {
+					FieldMappingData: FieldMapData{
+						TargetName: "product_count",
+						ArgumentMappings: FieldArgumentMap{
+							"filters": "filters",
+						},
+					},
+					RPC:      "ResolveCategoryProductCount",
+					Request:  "ResolveCategoryProductCountRequest",
+					Response: "ResolveCategoryProductCountResponse",
+				},
+			},
+		},
 		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
 				{
@@ -1053,4 +1068,5 @@ func testMapping() *GRPCMapping {
 			},
 		},
 	}
+
 }

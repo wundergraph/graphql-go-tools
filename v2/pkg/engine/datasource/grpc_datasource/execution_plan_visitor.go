@@ -41,6 +41,7 @@ type fieldArgument struct {
 type resolvedField struct {
 	callerRef     int
 	parentTypeRef int
+	fieldRef      int
 	responsePath  ast.Path
 
 	contextFields  []contextField
@@ -123,62 +124,33 @@ func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
 	calls := make([]RPCCall, 0, len(r.resolvedFields))
 
 	for _, resolvedField := range r.resolvedFields {
+		resolveConfig, exists := r.mapping.FindResolveTypeFieldMapping(
+			r.definition.ObjectTypeDefinitionNameString(resolvedField.parentTypeRef),
+			r.operation.FieldNameString(resolvedField.fieldRef),
+		)
+
+		if !exists {
+			r.walker.StopWithInternalErr(fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef), r.operation.FieldAliasString(resolvedField.fieldRef)))
+			return
+		}
 
 		contextMessage := &RPCMessage{
-			Name: "CategoryProductCountContext",
+			Name: resolveConfig.RPC + "Context",
 		}
 
 		fieldArgsMessage := &RPCMessage{
-			Name: "CategoryProductCountArgs",
+			Name: resolveConfig.RPC + "Args",
 		}
 
-		// Base resolve call can be templated in plan context.
-		call := RPCCall{
-			DependentCalls: []int{resolvedField.callerRef},
-			ResponsePath:   resolvedField.responsePath,
-			ServiceName:    r.planCtx.resolveServiceName(r.subgraphName),
-			MethodName:     "ResolveCategoryProductCount",
-			Kind:           CallKindResolve,
-			Request: RPCMessage{
-				Name: "ResolveCategoryProductCountRequest",
-				Fields: RPCFields{
-					{
-						Name:     "context",
-						TypeName: string(DataTypeMessage),
-						JSONPath: "",
-						Repeated: true,
-						Message:  contextMessage,
-					},
-					{
-						Name:     "field_args",
-						TypeName: string(DataTypeMessage),
-						JSONPath: "",
-						Message:  fieldArgsMessage,
-					},
-				},
-			},
-			Response: RPCMessage{
-				Name: "ResolveCategoryProductCountResponse",
-				Fields: RPCFields{
-					{
-						Name:     "result",
-						TypeName: string(DataTypeMessage),
-						JSONPath: "result",
-						Repeated: true,
-						Message: &RPCMessage{
-							Name: "ResolveCategoryProductCountResponseResult",
-							Fields: RPCFields{
-								{
-									Name:     "product_count",
-									TypeName: string(DataTypeInt32),
-									JSONPath: "productCount",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
+		call := r.planCtx.newResolveRPCCall(resolveRPCCallConfig{
+			serviceName:      r.subgraphName,
+			typeName:         r.definition.ResolveTypeNameString(resolvedField.parentTypeRef),
+			fieldName:        r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
+			resolveConfig:    resolveConfig,
+			resolvedField:    resolvedField,
+			contextMessage:   contextMessage,
+			fieldArgsMessage: fieldArgsMessage,
+		})
 
 		contextMessage.Fields = make(RPCFields, 0, len(resolvedField.contextFields))
 		for _, contextField := range resolvedField.contextFields {
@@ -440,6 +412,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		resolvedField := resolvedField{
 			callerRef:     r.relatedCallID,
 			parentTypeRef: r.walker.EnclosingTypeDefinition.Ref,
+			fieldRef:      ref,
 			responsePath: r.walker.Path[1:].WithoutInlineFragmentNames().WithPathElement(ast.PathItem{
 				Kind:      ast.FieldName,
 				FieldName: r.operation.FieldAliasOrNameBytes(ref),

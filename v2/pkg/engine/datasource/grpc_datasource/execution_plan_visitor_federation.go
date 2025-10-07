@@ -323,7 +323,7 @@ func (r *rpcPlanVisitorFederation) resolveEntityInformation(inlineFragmentRef in
 		return nil
 	}
 
-	rpcConfig, exists := r.mapping.ResolveEntityRPCConfig(fc.entityTypeName, fc.keyFields)
+	rpcConfig, exists := r.mapping.FindEntityRPCConfig(fc.entityTypeName, fc.keyFields)
 	if !exists {
 		return fmt.Errorf("entity type %s not found in mapping", fc.entityTypeName)
 	}

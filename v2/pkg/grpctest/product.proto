@@ -620,28 +620,28 @@ message MutationBulkUpdateBlogPostsRequest {
 message MutationBulkUpdateBlogPostsResponse {
   repeated BlogPost bulk_update_blog_posts = 1;
 }
-message CategoryProductCountArgs {
+message ResolveCategoryProductCountArgs {
   ProductCountFilter filters = 1;
 }
 
-message CategoryProductCountContext {
+message ResolveCategoryProductCountContext {
   string id = 1;
   string name = 2;
 }
 
 message ResolveCategoryProductCountRequest {
   // context provides the resolver context for the field productCount of type Category.
-  repeated CategoryProductCountContext context = 1;
+  repeated ResolveCategoryProductCountContext context = 1;
   // field_args provides the arguments for the resolver field productCount of type Category.
-  CategoryProductCountArgs field_args = 2;
+  ResolveCategoryProductCountArgs field_args = 2;
 }
 
-message ResolveCategoryProductCountResponseResult {
+message ResolveCategoryProductCountResult {
   int32 product_count = 1;
 }
 
 message ResolveCategoryProductCountResponse {
-  repeated ResolveCategoryProductCountResponseResult result = 1;
+  repeated ResolveCategoryProductCountResult result = 1;
 }
 
 message Product {

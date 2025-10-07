@@ -15,6 +15,7 @@ type JSONMapping struct {
 	EntityMappings    []EntityMapping    `json:"entityMappings"`
 	TypeFieldMappings []TypeFieldMapping `json:"typeFieldMappings"`
 	EnumMappings      []EnumMapping      `json:"enumMappings"`
+	ResolveMappings   []ResolveMapping   `json:"resolveMappings"`
 }
 
 type OperationMapping struct {
@@ -32,6 +33,19 @@ type EntityMapping struct {
 	RPC      string `json:"rpc"`
 	Request  string `json:"request"`
 	Response string `json:"response"`
+}
+
+type ResolveMapping struct {
+	Type          string        `json:"type"`
+	LookupMapping LookupMapping `json:"lookupMapping"`
+	RPC           string        `json:"rpc"`
+	Request       string        `json:"request"`
+	Response      string        `json:"response"`
+}
+
+type LookupMapping struct {
+	Type         string       `json:"type"`
+	FieldMapping FieldMapping `json:"fieldMapping"`
 }
 
 type TypeFieldMapping struct {
@@ -72,7 +86,7 @@ import (
 func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 	return &grpcdatasource.GRPCMapping{
 		Service: "{{.Service}}",
-		QueryRPCs: map[string]grpcdatasource.RPCConfig{
+		QueryRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
 		{{- range $index, $operation := .OperationMappings}}
 		{{- if eq $operation.Type "OPERATION_TYPE_QUERY"}}
 			"{{$operation.Original}}": {
@@ -83,7 +97,7 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		{{- end }}
 		{{- end }}
 		},
-		MutationRPCs: grpcdatasource.RPCConfigMap{
+		MutationRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
 		{{- range $index, $operation := .OperationMappings}}
 		{{- if eq $operation.Type "OPERATION_TYPE_MUTATION"}}
 			"{{$operation.Original}}": {
@@ -94,13 +108,34 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		{{- end }}
 		{{- end }}
 		},
-		SubscriptionRPCs: grpcdatasource.RPCConfigMap{
+		SubscriptionRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
 		{{- range $index, $operation := .OperationMappings}}
 		{{- if eq $operation.Type "OPERATION_TYPE_SUBSCRIPTION"}}
 			"{{$operation.Original}}": {
 				RPC:      "{{$operation.Mapped}}",
 				Request:  "{{$operation.Request}}",
 				Response: "{{$operation.Response}}",
+			},
+		{{- end }}
+		{{- end }}
+		},
+		ResolveRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.ResolveRPCMapping]{
+		{{- range $index, $resolve := .ResolveMappings}}
+		{{- if eq $resolve.Type "LOOKUP_TYPE_RESOLVE"}}
+			"{{$resolve.LookupMapping.Type}}": {
+				"{{$resolve.LookupMapping.FieldMapping.Original}}": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "{{$resolve.LookupMapping.FieldMapping.Mapped}}",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							{{- range $index, $argument := $resolve.LookupMapping.FieldMapping.ArgumentMappings}}
+								"{{$argument.Original}}": "{{$argument.Mapped}}",
+							{{- end }}
+						},
+					},
+					RPC:      "{{$resolve.RPC}}",
+					Request:  "{{$resolve.Request}}",
+					Response: "{{$resolve.Response}}",
+				},
 			},
 		{{- end }}
 		{{- end }}

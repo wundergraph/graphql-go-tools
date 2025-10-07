@@ -71,7 +71,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 									JSONPath: "",
 									Repeated: true,
 									Message: &RPCMessage{
-										Name: "CategoryProductCountContext",
+										Name: "ResolveCategoryProductCountContext",
 										Fields: []RPCField{
 											{
 												Name:        "id",
@@ -93,7 +93,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 									TypeName: string(DataTypeMessage),
 									JSONPath: "",
 									Message: &RPCMessage{
-										Name: "CategoryProductCountArgs",
+										Name: "ResolveCategoryProductCountArgs",
 										Fields: []RPCField{
 											{
 												Name:     "filters",
@@ -144,7 +144,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 									JSONPath: "result",
 									Repeated: true,
 									Message: &RPCMessage{
-										Name: "ResolveCategoryProductCountResponseResult",
+										Name: "ResolveCategoryProductCountResult",
 										Fields: []RPCField{
 											{
 												Name:     "product_count",

@@ -59,23 +59,23 @@ func (g *DependencyGraph) TopologicalSortResolve(resolver func(nodes []FetchItem
 		}
 
 		currentLevel := 0
-		for _, dep := range g.nodes[index] {
-			if dep < 0 || dep >= len(g.nodes) {
-				return fmt.Errorf("unable to find dependent call %d in execution plan", dep)
+		for _, depCallIndex := range g.nodes[index] {
+			if depCallIndex < 0 || depCallIndex >= len(g.nodes) {
+				return fmt.Errorf("unable to find dependent call %d in execution plan", depCallIndex)
 			}
 
-			if depLevel := callHierarchyRefs[dep]; depLevel >= 0 {
+			if depLevel := callHierarchyRefs[depCallIndex]; depLevel >= 0 {
 				if depLevel > currentLevel {
 					currentLevel = depLevel
 				}
 				continue
 			}
 
-			if err := visit(dep); err != nil {
+			if err := visit(depCallIndex); err != nil {
 				return err
 			}
 
-			if l := callHierarchyRefs[dep]; l > currentLevel {
+			if l := callHierarchyRefs[depCallIndex]; l > currentLevel {
 				currentLevel = l
 			}
 		}
