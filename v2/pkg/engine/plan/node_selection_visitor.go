@@ -675,6 +675,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 
 	c.updateFieldDependsOn(result.changedFieldRefs)
+	c.updateSkipFieldRefs(result.changedFieldRefs)
 
 	// skip walking into a rewritten field instead of stoping the whole visitor
 	// should allow to do fewer walks over the operation
@@ -716,5 +717,13 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 
 	for _, newRefs := range changedFieldRefs {
 		c.addNewFieldRefs(newRefs...)
+	}
+}
+
+func (c *nodeSelectionVisitor) updateSkipFieldRefs(changedFieldRefs map[int][]int) {
+	for _, fieldRef := range c.skipFieldsRefs {
+		if newRefs := changedFieldRefs[fieldRef]; newRefs != nil {
+			c.skipFieldsRefs = append(c.skipFieldsRefs, newRefs...)
+		}
 	}
 }
