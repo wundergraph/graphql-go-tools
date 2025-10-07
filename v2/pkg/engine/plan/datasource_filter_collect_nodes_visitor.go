@@ -73,14 +73,15 @@ func (c *nodesCollector) collectNodes() {
 	for i, dataSource := range c.dataSources {
 		walker := astvisitor.WalkerFromPool2("B")
 		visitor := &collectNodesVisitor{
-			operation:      c.operation,
-			definition:     c.definition,
-			walker:         walker,
-			nodes:          c.nodes,
-			info:           info,
-			keys:           make([]DSKeyInfo, 0, 2),
-			localSeenKeys:  make(map[SeenKeyPath]struct{}),
-			globalSeenKeys: c.seenKeys,
+			operation:             c.operation,
+			definition:            c.definition,
+			walker:                walker,
+			nodes:                 c.nodes,
+			info:                  info,
+			keys:                  make([]DSKeyInfo, 0, 2),
+			localSeenKeys:         make(map[SeenKeyPath]struct{}),
+			localSuggestionLookup: make(map[int]struct{}),
+			globalSeenKeys:        c.seenKeys,
 		}
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
@@ -201,8 +202,10 @@ type collectNodesVisitor struct {
 	definition *ast.Document
 	dataSource DataSource
 
-	localSuggestions []*NodeSuggestion
-	providesEntries  []*NodeSuggestion
+	localSuggestions      []*NodeSuggestion
+	localSuggestionLookup map[int]struct{}
+
+	providesEntries []*NodeSuggestion
 
 	nodes *NodeSuggestions
 
@@ -228,16 +231,9 @@ func (f *collectNodesVisitor) hasSuggestionForFieldOnCurrentDataSource(itemIds [
 	return -1, false
 }
 
-func (f *collectNodesVisitor) hasLocalSuggestion(ref int) (localItemID int, ok bool) {
-	idx := slices.IndexFunc(f.localSuggestions, func(suggestion *NodeSuggestion) bool {
-		return suggestion.FieldRef == ref
-	})
-
-	if idx != -1 {
-		return idx, true
-	}
-
-	return -1, false
+func (f *collectNodesVisitor) hasLocalSuggestion(ref int) (ok bool) {
+	_, ok = f.localSuggestionLookup[ref]
+	return ok
 }
 
 func (f *collectNodesVisitor) hasProvidesConfiguration(typeName, fieldName string) (selectionSet string, ok bool) {
@@ -398,7 +394,8 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	}
 
 	// this is the check for the current collect nodes iterations suggestions
-	if _, ok := f.hasLocalSuggestion(fieldRef); ok {
+	// whether we already added a suggestion for the field with a typename
+	if ok := f.hasLocalSuggestion(fieldRef); ok {
 		return
 	}
 
@@ -467,6 +464,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 		}
 
 		f.localSuggestions = append(f.localSuggestions, &node)
+		f.localSuggestionLookup[fieldRef] = struct{}{}
 	}
 }
 
