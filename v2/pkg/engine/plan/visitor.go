@@ -1418,6 +1418,7 @@ func (v *Visitor) buildFetchReasons(fetchID int) []resolve.FetchReason {
 	}
 
 	reasons := make([]resolve.FetchReason, 0, len(fields))
+	// index maps field coordinates to the position in the reason slice
 	index := make(map[FieldCoordinate]int, len(fields))
 
 	for _, fieldRef := range fields {
@@ -1512,10 +1513,6 @@ func cmpFetchReasons(a, b resolve.FetchReason) int {
 	)
 }
 
-func equalFetchReasons(a, b resolve.FetchReason) bool {
-	return cmpFetchReasons(a, b) == 0
-}
-
 // fieldDefinitionRef returns the definition reference of a field in a given type or ast.InvalidRef if not found.
 func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
 	node, ok := v.Definition.NodeByNameStr(typeName)
@@ -1529,18 +1526,49 @@ func (v *Visitor) fieldDefinitionRef(typeName string, fieldName string) int {
 	return defRef
 }
 
-// getPropagatedReasons collects fetch reasons required by the data source and should be
-// propagated to its upstream subgraph.
+// getPropagatedReasons collects fetch reasons required by the data source. Only fields
+// marked by a special directive are used for propagation (returned by RequireFetchReasons).
+//
+// Additionally, interfaces were taken care of. When an interface field is marked,
+// and a user requests that field in an operation, then fetch reasons for this field will be
+// extended with fetch reasons for all the implementing types.
+// In general, a marked interface field leads to all implementation's fields being used for propagation.
+//
+// This method returns deduplicated and sorted results.
 func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.FetchReason) []resolve.FetchReason {
 	dsConfig := v.planners[fetchID].DataSourceConfiguration()
-	// We should send fetch reasons for the coordinates in the lookup map.
+	// We should propagate fetch reasons for the coordinates in the lookup map.
 	lookup := dsConfig.RequireFetchReasons()
 	propagated := make([]resolve.FetchReason, 0, len(lookup))
+	// index maps field coordinates to the position in the propagated slice
+	index := make(map[FieldCoordinate]int, len(lookup))
+
+	// appendOrMerge deduplicates and merges fetch reasons with the same
+	// (TypeName, FieldName) coordinate.
+	// This is necessary because:
+	//  1. When both interface and implementing type fields are in fetchReasons, we can add the same
+	//  implementing type field twice (once from the interface, once from the implementing type itself).
+	//  2. Different entries might have different ByUser, BySubgraphs values that
+	//  need to be merged (similar to buildFetchReasons).
+	appendOrMerge := func(key FieldCoordinate, reason resolve.FetchReason) {
+		if i, ok := index[key]; ok {
+			propagated[i].ByUser = propagated[i].ByUser || reason.ByUser
+			if len(reason.BySubgraphs) > 0 {
+				propagated[i].BySubgraphs = append(propagated[i].BySubgraphs, reason.BySubgraphs...)
+				propagated[i].IsKey = propagated[i].IsKey || reason.IsKey
+				propagated[i].IsRequires = propagated[i].IsRequires || reason.IsRequires
+			}
+		} else {
+			propagated = append(propagated, reason)
+			index[key] = len(propagated) - 1
+		}
+	}
+
 	for _, reason := range fetchReasons {
 		field := FieldCoordinate{reason.TypeName, reason.FieldName}
 		_, fieldInLookup := lookup[field]
 		if fieldInLookup {
-			propagated = append(propagated, reason)
+			appendOrMerge(field, reason)
 		}
 
 		typeNode, exists := v.Definition.NodeByNameStr(reason.TypeName)
@@ -1557,7 +1585,7 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 				interfaceTypeName := v.Definition.ResolveTypeNameString(interfaceRef)
 				interfaceField := FieldCoordinate{interfaceTypeName, reason.FieldName}
 				if _, ok := lookup[interfaceField]; ok {
-					propagated = append(propagated, reason)
+					appendOrMerge(field, reason)
 					break
 				}
 			}
@@ -1583,11 +1611,11 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 			if fieldInLookup || implementingInLookup {
 				reasonClone := reason
 				reasonClone.TypeName = implementingTypeName
-				propagated = append(propagated, reasonClone)
+				appendOrMerge(implementingField, reasonClone)
 			}
 		}
 	}
-	// slices.SortFunc(propagated, cmpFetchReasons)
-	// slices.CompactFunc(propagated, equalFetchReasons)
+
+	slices.SortFunc(propagated, cmpFetchReasons)
 	return propagated
 }
