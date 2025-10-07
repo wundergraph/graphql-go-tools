@@ -17,7 +17,7 @@ type PathBuilder struct {
 }
 
 func NewPathBuilder(config *Configuration) *PathBuilder {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "PathBuilderWalker")
 	visitor := &pathBuilderVisitor{
 		walker:              &walker,
 		fieldConfigurations: config.Fields,

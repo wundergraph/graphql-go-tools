@@ -171,7 +171,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 }
 
 func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExternalFields bool) {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "KeyInfoVisitor")
 	visitor := &keyInfoVisitor{
 		walker: &walker,
 		input:  input,

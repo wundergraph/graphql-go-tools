@@ -24,7 +24,7 @@ func buildRepresentationVariableNode(definition *ast.Document, cfg plan.Federati
 		return nil, report
 	}
 
-	walker := astvisitor.WalkerFromPool()
+	walker := astvisitor.WalkerFromPool2("A")
 	defer walker.Release()
 
 	var interfaceObjectTypeName *string

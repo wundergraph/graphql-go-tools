@@ -12,7 +12,7 @@ type VariablesMapper struct {
 }
 
 func NewVariablesMapper() *VariablesMapper {
-	walker := astvisitor.NewDefaultWalker()
+	walker := astvisitor.NewDefaultWalkerWithID("VariablesMapper")
 	mapper := remapVariables(&walker)
 
 	return &VariablesMapper{
