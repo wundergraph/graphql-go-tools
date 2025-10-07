@@ -50,7 +50,7 @@ type NodeSelectionResult struct {
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
-	nodeSelectionsWalker := astvisitor.NewWalker(48)
+	nodeSelectionsWalker := astvisitor.NewWalkerWithID(48, "NodeSelectionsWalker")
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
@@ -61,7 +61,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker.RegisterEnterOperationVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterSelectionSetVisitor(nodeSelectionVisitor)
 
-	nodeResolvableWalker := astvisitor.NewWalker(32)
+	nodeResolvableWalker := astvisitor.NewWalkerWithID(32, "NodeResolvableWalker")
 	nodeResolvableVisitor := &nodesResolvableVisitor{
 		walker: &nodeResolvableWalker,
 	}

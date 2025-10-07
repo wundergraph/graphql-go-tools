@@ -71,7 +71,7 @@ func (c *nodesCollector) collectNodes() {
 	}
 
 	for i, dataSource := range c.dataSources {
-		walker := astvisitor.WalkerFromPool()
+		walker := astvisitor.WalkerFromPool2("B")
 		visitor := &collectNodesVisitor{
 			operation:      c.operation,
 			definition:     c.definition,
@@ -141,7 +141,7 @@ func (c *nodesCollector) collectNodes() {
 }
 
 func (c *nodesCollector) buildTree() {
-	walker := astvisitor.NewWalker(32)
+	walker := astvisitor.NewWalkerWithID(32, "TreeBuilderVisitor")
 	visitor := &treeBuilderVisitor{
 		operation:  c.operation,
 		definition: c.definition,
@@ -500,7 +500,7 @@ func IsMutationOrQueryRootType(typeName string) bool {
 }
 
 func getFieldInfo(operation, definition *ast.Document) map[int]fieldInfo {
-	walker := astvisitor.NewWalker(8)
+	walker := astvisitor.NewWalkerWithID(8, "FieldInfoVisitor")
 	visitor := &fieldInfoVisitor{
 		walker:     &walker,
 		operation:  operation,
