@@ -86,7 +86,7 @@ func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 }
 
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report)
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources)
 
 	if p.config.Debug.PrintNodeSuggestions {
 		dsFilter.EnableSelectionReasons()
@@ -101,7 +101,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	// set initial suggestions and used data sources
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(p.config.DataSources, nil, nil, nil)
+		dsFilter.FilterDataSources(nil, nil)
 	if report.HasErrors() {
 		return
 	}
@@ -136,7 +136,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		if p.nodeSelectionsVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
+				dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}

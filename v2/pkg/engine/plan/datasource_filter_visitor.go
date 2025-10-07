@@ -28,16 +28,18 @@ type DataSourceFilter struct {
 
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
 	dsHashesHavingKeys      map[DSHash]struct{}
-	seenKeys                map[SeenKeyPath]struct{}
 
 	maxDataSourceCollectorsConcurrency uint
+	nodesCollector                     *nodesCollector
 }
 
-func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report) *DataSourceFilter {
+func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource) *DataSourceFilter {
 	return &DataSourceFilter{
-		operation:  operation,
-		definition: definition,
-		report:     report,
+		operation:   operation,
+		definition:  definition,
+		report:      report,
+		dataSources: dataSources,
+		nodes:       NewNodeSuggestions(),
 	}
 }
 
@@ -51,22 +53,21 @@ func (f *DataSourceFilter) WithMaxDataSourceCollectorsConcurrency(maxConcurrency
 	return f
 }
 
-func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingNodes *NodeSuggestions, landedTo map[int]DSHash, fieldDependsOn map[int][]int) (used []DataSource, suggestions *NodeSuggestions) {
+func (f *DataSourceFilter) FilterDataSources(landedTo map[int]DSHash, fieldDependsOn map[int][]int) (used []DataSource, suggestions *NodeSuggestions) {
 	var dsInUse map[DSHash]struct{}
 
 	f.fieldDependsOn = fieldDependsOn
-	f.dataSources = dataSources
 
-	suggestions, dsInUse = f.findBestDataSourceSet(existingNodes, landedTo)
+	suggestions, dsInUse = f.findBestDataSourceSet(landedTo)
 	if f.report.HasErrors() {
 		return
 	}
 
 	used = make([]DataSource, 0, len(dsInUse))
-	for i := range dataSources {
-		_, inUse := dsInUse[dataSources[i].Hash()]
+	for i := range f.dataSources {
+		_, inUse := dsInUse[f.dataSources[i].Hash()]
 		if inUse {
-			used = append(used, dataSources[i])
+			used = append(used, f.dataSources[i])
 		}
 	}
 
@@ -74,8 +75,8 @@ func (f *DataSourceFilter) FilterDataSources(dataSources []DataSource, existingN
 	return used, suggestions
 }
 
-func (f *DataSourceFilter) findBestDataSourceSet(existingNodes *NodeSuggestions, landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
-	f.collectNodes(f.dataSources, existingNodes)
+func (f *DataSourceFilter) findBestDataSourceSet(landedTo map[int]DSHash) (*NodeSuggestions, map[DSHash]struct{}) {
+	f.collectNodes()
 	if f.report.HasErrors() {
 		return nil, nil
 	}
@@ -139,27 +140,21 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 }
 
-func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes *NodeSuggestions) {
-	if existingNodes == nil {
-		existingNodes = NewNodeSuggestions()
+func (f *DataSourceFilter) collectNodes() {
+	if f.nodesCollector == nil {
+		f.nodesCollector = &nodesCollector{
+			operation:      f.operation,
+			definition:     f.definition,
+			dataSources:    f.dataSources,
+			nodes:          f.nodes,
+			report:         f.report,
+			maxConcurrency: f.maxDataSourceCollectorsConcurrency,
+			seenKeys:       make(map[SeenKeyPath]struct{}),
+			fieldInfo:      make(map[int]fieldInfo),
+		}
 	}
 
-	if f.seenKeys == nil {
-		f.seenKeys = make(map[SeenKeyPath]struct{})
-	}
-
-	nodesCollector := &nodesCollector{
-		operation:      f.operation,
-		definition:     f.definition,
-		dataSources:    dataSources,
-		nodes:          existingNodes,
-		report:         f.report,
-		maxConcurrency: f.maxDataSourceCollectorsConcurrency,
-		seenKeys:       f.seenKeys,
-	}
-
-	var keysInfo []DSKeyInfo
-	f.nodes, keysInfo = nodesCollector.CollectNodes()
+	keysInfo := f.nodesCollector.CollectNodes()
 
 	if f.dsHashesHavingKeys == nil {
 		f.dsHashesHavingKeys = make(map[DSHash]struct{})
@@ -184,8 +179,8 @@ func (f *DataSourceFilter) collectNodes(dataSources []DataSource, existingNodes 
 	}
 
 	usedDsHashes := make([]DSHash, 0, len(f.dsHashesHavingKeys))
-	// iterate over datasources to have deterministic order
-	for _, ds := range dataSources {
+	// iterate over datasources to have a deterministic order
+	for _, ds := range f.dataSources {
 		if _, ok := f.dsHashesHavingKeys[ds.Hash()]; ok {
 			usedDsHashes = append(usedDsHashes, ds.Hash())
 		}

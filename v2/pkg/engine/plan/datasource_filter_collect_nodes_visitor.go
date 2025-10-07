@@ -21,6 +21,7 @@ type nodesCollector struct {
 
 	maxConcurrency uint
 	seenKeys       map[SeenKeyPath]struct{}
+	fieldInfo      map[int]fieldInfo
 }
 
 type DSKeyInfo struct {
@@ -41,24 +42,21 @@ type SeenKeyPath struct {
 	DSHash   DSHash
 }
 
-func (c *nodesCollector) CollectNodes() (nodes *NodeSuggestions, keys []DSKeyInfo) {
+func (c *nodesCollector) CollectNodes() (keys []DSKeyInfo) {
 	c.buildTree()
 	if c.report.HasErrors() {
-		return nil, nil
+		return nil
 	}
 
 	c.collectNodes()
 	if c.report.HasErrors() {
-		return nil, nil
+		return nil
 	}
 
-	return c.nodes, c.keys
+	return c.keys
 }
 
 func (c *nodesCollector) collectNodes() {
-
-	info := getFieldInfo(c.operation, c.definition)
-
 	wg := &sync.WaitGroup{}
 	wg.Add(len(c.dataSources))
 	visitors := make([]*collectNodesVisitor, len(c.dataSources))
@@ -77,7 +75,7 @@ func (c *nodesCollector) collectNodes() {
 			definition:            c.definition,
 			walker:                walker,
 			nodes:                 c.nodes,
-			info:                  info,
+			info:                  c.fieldInfo,
 			keys:                  make([]DSKeyInfo, 0, 2),
 			localSeenKeys:         make(map[SeenKeyPath]struct{}),
 			localSuggestionLookup: make(map[int]struct{}),
@@ -148,6 +146,7 @@ func (c *nodesCollector) buildTree() {
 		definition: c.definition,
 		walker:     &walker,
 		nodes:      c.nodes,
+		fieldInfo:  c.fieldInfo,
 	}
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
@@ -160,27 +159,30 @@ type treeBuilderVisitor struct {
 	definition    *ast.Document
 	nodes         *NodeSuggestions
 	parentNodeIds []uint
+	fieldInfo     map[int]fieldInfo
 }
 
 func (f *treeBuilderVisitor) EnterDocument(_, _ *ast.Document) {
 	f.parentNodeIds = []uint{treeRootID}
 }
 
-func (f *treeBuilderVisitor) EnterField(ref int) {
-	if f.nodes.IsFieldSeen(ref) {
-		currentNodeId := TreeNodeID(ref)
+func (f *treeBuilderVisitor) EnterField(fieldRef int) {
+	if f.nodes.IsFieldSeen(fieldRef) {
+		currentNodeId := TreeNodeID(fieldRef)
 		f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
 		return
 	}
-	f.nodes.AddSeenField(ref)
+	f.nodes.AddSeenField(fieldRef)
 
 	parentNodeId := f.currentParentID()
-	currentNodeId := TreeNodeID(ref)
+	currentNodeId := TreeNodeID(fieldRef)
 
 	// we intentionally ignore the return values added, exists
 	// because we do not recheck the same field refs, so all added nodes should be new and unique
 	_, _ = f.nodes.responseTree.Add(currentNodeId, parentNodeId, nil)
 	f.parentNodeIds = append(f.parentNodeIds, currentNodeId)
+
+	f.collectFieldInfo(fieldRef)
 }
 
 func (f *treeBuilderVisitor) currentParentID() uint {
@@ -500,26 +502,6 @@ func IsMutationOrQueryRootType(typeName string) bool {
 	return queryTypeName == typeName || mutationTypeName == typeName
 }
 
-func getFieldInfo(operation, definition *ast.Document) map[int]fieldInfo {
-	walker := astvisitor.NewWalkerWithID(8, "FieldInfoVisitor")
-	visitor := &fieldInfoVisitor{
-		walker:     &walker,
-		operation:  operation,
-		definition: definition,
-		infoCache:  make(map[int]fieldInfo, len(operation.Fields)),
-	}
-	walker.RegisterEnterFieldVisitor(visitor)
-	report := &operationreport.Report{}
-	walker.Walk(operation, definition, report)
-	return visitor.infoCache
-}
-
-type fieldInfoVisitor struct {
-	walker                *astvisitor.Walker
-	operation, definition *ast.Document
-	infoCache             map[int]fieldInfo
-}
-
 type fieldInfo struct {
 	typeName, fieldName, fieldAliasOrName, parentPath, currentPath string
 	onFragment, isTypeName                                         bool
@@ -528,7 +510,7 @@ type fieldInfo struct {
 	currentPathWithoutFragments                                    string
 }
 
-func (f *fieldInfoVisitor) EnterField(ref int) {
+func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 	typeName := f.walker.EnclosingTypeDefinition.NameString(f.definition)
 
 	var possibleTypes []string
@@ -540,8 +522,8 @@ func (f *fieldInfoVisitor) EnterField(ref int) {
 	default:
 	}
 
-	fieldName := f.operation.FieldNameUnsafeString(ref)
-	fieldAliasOrName := f.operation.FieldAliasOrNameString(ref)
+	fieldName := f.operation.FieldNameUnsafeString(fieldRef)
+	fieldAliasOrName := f.operation.FieldAliasOrNameString(fieldRef)
 	isTypeName := fieldName == typeNameField
 	parentPath := f.walker.Path.DotDelimitedString()
 	onFragment := f.walker.Path.EndsWithFragment()
@@ -550,7 +532,7 @@ func (f *fieldInfoVisitor) EnterField(ref int) {
 	currentPath := fmt.Sprintf("%s.%s", parentPath, fieldAliasOrName)
 	currentPathWithoutFragments := fmt.Sprintf("%s.%s", parentPathWithoutFragment, fieldAliasOrName)
 
-	f.infoCache[ref] = fieldInfo{
+	f.fieldInfo[fieldRef] = fieldInfo{
 		typeName:                    typeName,
 		possibleTypeNames:           possibleTypes,
 		fieldName:                   fieldName,
