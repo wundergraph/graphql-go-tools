@@ -371,15 +371,18 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	// because we add provides suggestion only for a fields present in the query - TODO: we do not evaluate only fields present in a query anymore, so probably we could make it once, but currently provides is not cached anywhere
 	f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath)
 
-	// should be done after handling provides
-	f.collectKeysForPath(info.typeName, info.parentPath)
-	if info.possibleTypeNames != nil {
-		// We need to collect keys for all possible types of abstract type too
-		// because during initial planning we do not know yet if the abstract selection will be rewritten,
-		// This means that in the unmodified query we could try to match abstract to concrete type, which won't match
-		// So we have to add possible choices for each of concrete types, to make this match possible
-		for _, possibleTypeName := range info.possibleTypeNames {
-			f.collectKeysForPath(possibleTypeName, info.parentPath)
+	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypename(info.typeName)
+	if hasRootNodeWithTypename {
+		// should be done after handling provides
+		f.collectKeysForPath(info.typeName, info.parentPath)
+		if info.possibleTypeNames != nil {
+			// We need to collect keys for all possible types of abstract type too
+			// because during initial planning we do not know yet if the abstract selection will be rewritten,
+			// This means that in the unmodified query we could try to match abstract to concrete type, which won't match
+			// So we have to add possible choices for each of concrete types, to make this match possible
+			for _, possibleTypeName := range info.possibleTypeNames {
+				f.collectKeysForPath(possibleTypeName, info.parentPath)
+			}
 		}
 	}
 
@@ -416,7 +419,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int) {
 	// - ds config has a root node for the field
 	// - we have a root node with typename and the field is a __typename field
 	// we no longer add a typename field for the root query nodes, as it is now handled by the planning visitor
-	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && f.dataSource.HasRootNodeWithTypename(info.typeName) && !IsMutationOrQueryRootType(info.typeName))
+	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && hasRootNodeWithTypename && !IsMutationOrQueryRootType(info.typeName))
 
 	// hasChildNode is true when:
 	// - ds config has a child node for the field
