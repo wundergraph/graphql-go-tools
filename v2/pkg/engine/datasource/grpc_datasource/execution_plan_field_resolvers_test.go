@@ -393,7 +393,7 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 			},
 		},
 		{
-			name:  "Should create an execution plan for a query with nullable fields type",
+			name:  "Should create an execution plan for a query with nullable lists type",
 			query: "query SubcategoriesWithFieldResolvers($filter: SubcategoryItemFilter) { categories { id subcategories { id name description isActive itemCount(filters: $filter) } } }",
 			expectedPlan: &RPCExecutionPlan{
 				Calls: []RPCCall{
@@ -557,6 +557,318 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 												Name:     "item_count",
 												TypeName: string(DataTypeInt32),
 												JSONPath: "itemCount",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query a field resolver with a message type",
+			query: "query CategoriesWithNullableTypes($metricType: String) { categories { categoryMetrics(metricType: $metricType) { id metricType value } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:     "categories",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "categories",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						Kind:           CallKindResolve,
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryMetrics",
+						ResponsePath:   buildPath("categories.categoryMetrics"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsRequest",
+							Fields: []RPCField{
+								{
+									Name:     "context",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsContext",
+										Fields: []RPCField{
+											{
+												Name:        "id",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "id",
+												ResolvePath: buildPath("categories.id"),
+											},
+											{
+												Name:        "name",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "name",
+												ResolvePath: buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:     "field_args",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsArgs",
+										Fields: []RPCField{
+											{
+												Name:     "metric_type",
+												TypeName: string(DataTypeString),
+												JSONPath: "metricType",
+												Optional: false,
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "result",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "result",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsResult",
+										Fields: []RPCField{
+											{
+												Name:     "category_metrics",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "categoryMetrics",
+												Optional: true,
+												Message: &RPCMessage{
+													Name: "CategoryMetrics",
+													Fields: []RPCField{
+														{
+															Name:     "id",
+															TypeName: string(DataTypeString),
+															JSONPath: "id",
+														},
+														{
+															Name:     "metric_type",
+															TypeName: string(DataTypeString),
+															JSONPath: "metricType",
+														},
+														{
+															Name:     "value",
+															TypeName: string(DataTypeDouble),
+															JSONPath: "value",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name:  "Should create an execution plan for a query with nullable types",
+			query: "query CategoriesWithNullableTypes($threshold: Int, $metricType: String) { categories { popularityScore(threshold: $threshold) categoryMetrics(metricType: $metricType) { id metricType value } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:     "categories",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "categories",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryPopularityScore",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.popularityScore"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryPopularityScoreRequest",
+							Fields: []RPCField{
+								{
+									Name:     "context",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryPopularityScoreContext",
+										Fields: []RPCField{
+											{
+												Name:        "id",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "id",
+												ResolvePath: buildPath("categories.id"),
+											},
+										},
+									},
+								},
+								{
+									Name:     "field_args",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Message: &RPCMessage{
+										Name: "ResolveCategoryPopularityScoreArgs",
+										Fields: []RPCField{
+											{
+												Name:     "threshold",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "threshold",
+												Optional: true,
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryPopularityScoreResponse",
+							Fields: []RPCField{
+								{
+									Name:     "result",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "result",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryPopularityScoreResult",
+										Fields: []RPCField{
+											{
+												Name:     "popularity_score",
+												TypeName: string(DataTypeInt32),
+												JSONPath: "popularityScore",
+												Optional: true,
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryMetrics",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsRequest",
+							Fields: []RPCField{
+								{
+									Name:     "context",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsContext",
+										Fields: []RPCField{
+											{
+												Name:        "id",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "id",
+												ResolvePath: buildPath("categories.id"),
+											},
+											{
+												Name:        "name",
+												TypeName:    string(DataTypeString),
+												JSONPath:    "name",
+												ResolvePath: buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:     "field_args",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "",
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsArgs",
+										Fields: []RPCField{
+											{
+												Name:     "metric_type",
+												TypeName: string(DataTypeString),
+												JSONPath: "metricType",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsResponse",
+							Fields: []RPCField{
+								{
+									Name:     "result",
+									TypeName: string(DataTypeMessage),
+									JSONPath: "result",
+									Repeated: true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsResult",
+										Fields: []RPCField{
+											{
+												Name:     "category_metrics",
+												TypeName: string(DataTypeMessage),
+												JSONPath: "categoryMetrics",
+												Optional: true,
+												Message: &RPCMessage{
+													Name: "CategoryMetrics",
+													Fields: []RPCField{
+														{
+															Name:     "id",
+															TypeName: string(DataTypeString),
+															JSONPath: "id",
+														},
+														{
+															Name:     "metric_type",
+															TypeName: string(DataTypeString),
+															JSONPath: "metricType",
+														},
+														{
+															Name:     "value",
+															TypeName: string(DataTypeDouble),
+															JSONPath: "value",
+														},
+													},
+												},
 											},
 										},
 									},

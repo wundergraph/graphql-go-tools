@@ -11,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -40,10 +41,12 @@ type fieldArgument struct {
 }
 
 type resolvedField struct {
-	callerRef     int
-	parentTypeRef int
-	fieldRef      int
-	responsePath  ast.Path
+	callerRef              int
+	parentTypeRef          int
+	fieldRef               int
+	fieldDefinitionTypeRef int
+	requiredFields         string
+	responsePath           ast.Path
 
 	contextFields  []contextField
 	fieldArguments []fieldArgument
@@ -64,8 +67,9 @@ type rpcPlanVisitor struct {
 	currentCall        *RPCCall
 	currentCallID      int
 
-	relatedCallID  int
-	resolvedFields []resolvedField
+	relatedCallID      int
+	resolvedFieldIndex int
+	resolvedFields     []resolvedField
 
 	fieldPath ast.Path
 }
@@ -81,14 +85,15 @@ type rpcPlanVisitorConfig struct {
 func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	walker := astvisitor.NewWalker(48)
 	visitor := &rpcPlanVisitor{
-		walker:            &walker,
-		plan:              &RPCExecutionPlan{},
-		subgraphName:      cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
-		mapping:           config.mapping,
-		operationFieldRef: -1,
-		resolvedFields:    make([]resolvedField, 0),
-		relatedCallID:     -1,
-		fieldPath:         make(ast.Path, 0),
+		walker:             &walker,
+		plan:               &RPCExecutionPlan{},
+		subgraphName:       cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
+		mapping:            config.mapping,
+		operationFieldRef:  ast.InvalidRef,
+		resolvedFields:     make([]resolvedField, 0),
+		relatedCallID:      ast.InvalidRef,
+		resolvedFieldIndex: ast.InvalidRef,
+		fieldPath:          make(ast.Path, 0),
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -146,7 +151,7 @@ func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
 			Name: resolveConfig.RPC + "Args",
 		}
 
-		call := r.planCtx.newResolveRPCCall(resolveRPCCallConfig{
+		call, err := r.planCtx.newResolveRPCCall(resolveRPCCallConfig{
 			serviceName:      r.subgraphName,
 			typeName:         r.definition.ResolveTypeNameString(resolvedField.parentTypeRef),
 			fieldName:        r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
@@ -155,6 +160,10 @@ func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
 			contextMessage:   contextMessage,
 			fieldArgsMessage: fieldArgsMessage,
 		})
+
+		if err != nil {
+			r.walker.StopWithInternalErr(err)
+		}
 
 		contextMessage.Fields = make(RPCFields, 0, len(resolvedField.contextFields))
 		for _, contextField := range resolvedField.contextFields {
@@ -264,6 +273,15 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 // Checks if this is in the root level below the operation definition.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		return
+	}
+
+	if r.resolvedFieldIndex != ast.InvalidRef {
+		lbrace := r.operation.SelectionSets[ref].LBrace.CharEnd
+		rbrace := r.operation.SelectionSets[ref].RBrace.CharStart - 1
+
+		r.resolvedFields[r.resolvedFieldIndex].requiredFields = unsafebytes.BytesToString(r.operation.Input.RawBytes[lbrace:rbrace])
+		r.walker.SkipNode()
 		return
 	}
 
@@ -412,12 +430,14 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
 	// TODO: this needs to be available for both visitors and added to the plancontext
 	if fieldArgs := r.operation.FieldArguments(ref); !inRootField && len(fieldArgs) > 0 {
-		r.relatedCallID++
+		// We don't want to add fields from the selection set to the actual call
+		r.relatedCallID++ // TODO: handle this for multiple queries
 		resolvedField := resolvedField{
-			callerRef:     r.relatedCallID,
-			parentTypeRef: r.walker.EnclosingTypeDefinition.Ref,
-			fieldRef:      ref,
-			responsePath:  r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
+			callerRef:              r.relatedCallID,
+			parentTypeRef:          r.walker.EnclosingTypeDefinition.Ref,
+			fieldRef:               ref,
+			responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
+			fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fd),
 		}
 
 		contextFields, err := r.planCtx.resolveContextFields(r.walker, fd)
@@ -444,6 +464,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 		resolvedField.fieldArguments = fieldArguments
 		r.resolvedFields = append(r.resolvedFields, resolvedField)
+		r.resolvedFieldIndex = len(r.resolvedFields) - 1
 		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
 		return
 	}
@@ -479,6 +500,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitor) LeaveField(ref int) {
 	r.fieldPath = r.fieldPath.RemoveLastItem()
+	r.resolvedFieldIndex = ast.InvalidRef
 
 	// If we are not in the operation field, we can increment the response field index.
 	if !r.walker.InRootField() {

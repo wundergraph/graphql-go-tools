@@ -231,6 +231,28 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveCategoryProductCountRequest",
 					Response: "ResolveCategoryProductCountResponse",
 				},
+				"popularityScore": {
+					FieldMappingData: FieldMapData{
+						TargetName: "popularity_score",
+						ArgumentMappings: FieldArgumentMap{
+							"threshold": "threshold",
+						},
+					},
+					RPC:      "ResolveCategoryPopularityScore",
+					Request:  "ResolveCategoryPopularityScoreRequest",
+					Response: "ResolveCategoryPopularityScoreResponse",
+				},
+				"categoryMetrics": {
+					FieldMappingData: FieldMapData{
+						TargetName: "category_metrics",
+						ArgumentMappings: FieldArgumentMap{
+							"metricType": "metric_type",
+						},
+					},
+					RPC:      "ResolveCategoryCategoryMetrics",
+					Request:  "ResolveCategoryCategoryMetricsRequest",
+					Response: "ResolveCategoryCategoryMetricsResponse",
+				},
 			},
 			"Subcategory": {
 				"itemCount": {
@@ -721,6 +743,18 @@ func testMapping() *GRPCMapping {
 				"subcategories": {
 					TargetName: "subcategories",
 				},
+				"popularityScore": {
+					TargetName: "popularity_score",
+					ArgumentMappings: FieldArgumentMap{
+						"threshold": "threshold",
+					},
+				},
+				"categoryMetrics": {
+					TargetName: "category_metrics",
+					ArgumentMappings: FieldArgumentMap{
+						"metricType": "metric_type",
+					},
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -740,6 +774,23 @@ func testMapping() *GRPCMapping {
 					ArgumentMappings: FieldArgumentMap{
 						"filters": "filters",
 					},
+				},
+			},
+			"CategoryMetrics": {
+				"id": {
+					TargetName: "id",
+				},
+				"metricType": {
+					TargetName: "metric_type",
+				},
+				"value": {
+					TargetName: "value",
+				},
+				"timestamp": {
+					TargetName: "timestamp",
+				},
+				"categoryId": {
+					TargetName: "category_id",
 				},
 			},
 			"Cat": {

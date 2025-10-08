@@ -832,9 +832,60 @@ type resolveRPCCallConfig struct {
 	fieldArgsMessage *RPCMessage
 }
 
-func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) RPCCall {
+func (r *rpcPlanningContext) resolveRequiredFields(typeName, requiredFields string) (*RPCMessage, error) {
+	walker := astvisitor.WalkerFromPool()
+	defer walker.Release()
+	message := &RPCMessage{
+		Name: typeName,
+	}
+
+	rfv := newRequiredFieldsVisitor(walker, message, r)
+	if err := rfv.visitWithMemberTypes(r.definition, typeName, requiredFields, nil); err != nil {
+		return nil, err
+	}
+	return message, nil
+}
+
+func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPCCall, error) {
 	resolveConfig := config.resolveConfig
 	resolvedField := config.resolvedField
+
+	underlyingTypeRef := r.definition.ResolveUnderlyingType(resolvedField.fieldDefinitionTypeRef)
+	fieldTypeName := r.definition.ResolveTypeNameString(underlyingTypeRef)
+	dataType := r.toDataType(&r.definition.Types[underlyingTypeRef])
+
+	var responseFieldsMessage *RPCMessage
+	if dataType == DataTypeMessage {
+		var err error
+		responseFieldsMessage, err = r.resolveRequiredFields(fieldTypeName, resolvedField.requiredFields)
+		if err != nil {
+			return RPCCall{}, err
+		}
+	}
+
+	response := RPCMessage{
+		Name: resolveConfig.Response,
+		Fields: RPCFields{
+			{
+				Name:     "result",
+				TypeName: string(DataTypeMessage),
+				JSONPath: "result",
+				Repeated: true,
+				Message: &RPCMessage{
+					Name: resolveConfig.RPC + "Result",
+					Fields: RPCFields{
+						{
+							Name:     resolveConfig.FieldMappingData.TargetName,
+							TypeName: string(dataType),
+							JSONPath: config.fieldName,
+							Message:  responseFieldsMessage,
+							Optional: !r.definition.TypeIsNonNull(resolvedField.fieldDefinitionTypeRef),
+						},
+					},
+				},
+			},
+		},
+	}
 
 	return RPCCall{
 		DependentCalls: []int{resolvedField.callerRef},
@@ -859,26 +910,6 @@ func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) RPCC
 				},
 			},
 		},
-		Response: RPCMessage{
-			Name: resolveConfig.Response,
-			Fields: RPCFields{
-				{
-					Name:     "result",
-					TypeName: string(DataTypeMessage),
-					JSONPath: "result",
-					Repeated: true,
-					Message: &RPCMessage{
-						Name: resolveConfig.RPC + "Result",
-						Fields: RPCFields{
-							{
-								Name:     resolveConfig.FieldMappingData.TargetName,
-								TypeName: string(DataTypeInt32),
-								JSONPath: config.fieldName,
-							},
-						},
-					},
-				},
-			},
-		},
-	}
+		Response: response,
+	}, nil
 }

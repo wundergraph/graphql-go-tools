@@ -20,6 +20,67 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveCategoryCategoryMetrics implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryCategoryMetrics(_ context.Context, req *productv1.ResolveCategoryCategoryMetricsRequest) (*productv1.ResolveCategoryCategoryMetricsResponse, error) {
+	results := make([]*productv1.ResolveCategoryCategoryMetricsResult, 0, len(req.GetContext()))
+
+	metricType := ""
+	if req.GetFieldArgs() != nil {
+		metricType = req.GetFieldArgs().GetMetricType()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for certain metric types to test optional return
+		if metricType == "unavailable" {
+			results = append(results, &productv1.ResolveCategoryCategoryMetricsResult{
+				CategoryMetrics: nil,
+			})
+		} else {
+			results = append(results, &productv1.ResolveCategoryCategoryMetricsResult{
+				CategoryMetrics: &productv1.CategoryMetrics{
+					Id:         fmt.Sprintf("metrics-%s-%d", ctx.GetId(), i),
+					MetricType: metricType,
+					Value:      float64(i*25 + 100), // Different values based on index
+					Timestamp:  "2024-01-01T00:00:00Z",
+					CategoryId: ctx.GetId(),
+				},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryCategoryMetricsResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryPopularityScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryPopularityScore(_ context.Context, req *productv1.ResolveCategoryPopularityScoreRequest) (*productv1.ResolveCategoryPopularityScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryPopularityScoreResult, 0, len(req.GetContext()))
+
+	threshold := req.GetFieldArgs().GetThreshold()
+
+	baseScore := 50
+	for range req.GetContext() {
+		if baseScore < int(threshold.GetValue()) {
+			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
+				PopularityScore: nil,
+			})
+		} else {
+			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
+				PopularityScore: &wrapperspb.Int32Value{Value: int32(baseScore)},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryPopularityScoreResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
 // ResolveSubcategoryItemCount implements productv1.ProductServiceServer.
 func (s *MockService) ResolveSubcategoryItemCount(_ context.Context, req *productv1.ResolveSubcategoryItemCountRequest) (*productv1.ResolveSubcategoryItemCountResponse, error) {
 	results := make([]*productv1.ResolveSubcategoryItemCountResult, 0, len(req.GetContext()))

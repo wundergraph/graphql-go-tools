@@ -118,6 +118,8 @@ type Category {
   kind: CategoryKind!
   productCount(filters: ProductCountFilter): Int! @resolved(context: "id name")
   subcategories: [Subcategory!]
+  popularityScore(threshold: Int): Int @resolved(context: "id")
+  categoryMetrics(metricType: String!): CategoryMetrics @resolved(context: "id name")
 }
 
 type Subcategory {
@@ -126,6 +128,14 @@ type Subcategory {
   description: String
   isActive: Boolean!
   itemCount(filters: SubcategoryItemFilter): Int! @resolved(context: "id")
+}
+
+type CategoryMetrics {
+  id: ID!
+  metricType: String!
+  value: Float!
+  timestamp: String!
+  categoryId: ID!
 }
 
 enum CategoryKind {

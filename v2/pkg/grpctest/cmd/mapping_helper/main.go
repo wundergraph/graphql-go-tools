@@ -8,6 +8,11 @@ import (
 	"text/template"
 )
 
+type TemplateData struct {
+	JSONMapping
+	ResolveRPCs map[string][]ResolveRPC
+}
+
 type JSONMapping struct {
 	Version           int                `json:"version"`
 	Service           string             `json:"service"`
@@ -35,6 +40,12 @@ type EntityMapping struct {
 	Response string `json:"response"`
 }
 
+type ResolveRPC struct {
+	LookupMapping LookupMapping
+	RPC           string
+	Request       string
+	Response      string
+}
 type ResolveMapping struct {
 	Type          string        `json:"type"`
 	LookupMapping LookupMapping `json:"lookupMapping"`
@@ -120,9 +131,9 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 		{{- end }}
 		},
 		ResolveRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.ResolveRPCMapping]{
-		{{- range $index, $resolve := .ResolveMappings}}
-		{{- if eq $resolve.Type "LOOKUP_TYPE_RESOLVE"}}
-			"{{$resolve.LookupMapping.Type}}": {
+		{{- range $type, $item := .ResolveRPCs}}
+			"{{$type}}": {
+			{{- range $index, $resolve := $item}}
 				"{{$resolve.LookupMapping.FieldMapping.Original}}": {
 					FieldMappingData: grpcdatasource.FieldMapData{
 						TargetName: "{{$resolve.LookupMapping.FieldMapping.Mapped}}",
@@ -136,8 +147,8 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "{{$resolve.Request}}",
 					Response: "{{$resolve.Response}}",
 				},
+			{{- end }}
 			},
-		{{- end }}
 		{{- end }}
 		},
 		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
@@ -213,10 +224,35 @@ func main() {
 		log.Fatal(err)
 	}
 
+	data := TemplateData{
+		JSONMapping: mapping,
+		ResolveRPCs: make(map[string][]ResolveRPC),
+	}
+
+	for _, mapping := range mapping.ResolveMappings {
+		if mapping.Type != "LOOKUP_TYPE_RESOLVE" {
+			continue
+		}
+		t := mapping.LookupMapping.Type
+		item, ok := data.ResolveRPCs[t]
+		if !ok {
+			item = []ResolveRPC{}
+		}
+
+		item = append(item, ResolveRPC{
+			LookupMapping: mapping.LookupMapping,
+			RPC:           mapping.RPC,
+			Request:       mapping.Request,
+			Response:      mapping.Response,
+		})
+
+		data.ResolveRPCs[t] = item
+	}
+
 	t := template.Must(template.New("mapping").Parse(tpl))
 
 	buf := &bytes.Buffer{}
-	if err := t.Execute(buf, mapping); err != nil {
+	if err := t.Execute(buf, data); err != nil {
 		log.Fatal(err)
 	}
 

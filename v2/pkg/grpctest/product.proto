@@ -55,6 +55,8 @@ service ProductService {
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
+  rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
+  rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
 }
@@ -652,6 +654,53 @@ message ResolveCategoryProductCountResponse {
   repeated ResolveCategoryProductCountResult result = 1;
 }
 
+message ResolveCategoryPopularityScoreArgs {
+  google.protobuf.Int32Value threshold = 1;
+}
+
+message ResolveCategoryPopularityScoreContext {
+  string id = 1;
+}
+
+message ResolveCategoryPopularityScoreRequest {
+  // context provides the resolver context for the field popularityScore of type Category.
+  repeated ResolveCategoryPopularityScoreContext context = 1;
+  // field_args provides the arguments for the resolver field popularityScore of type Category.
+  ResolveCategoryPopularityScoreArgs field_args = 2;
+}
+
+message ResolveCategoryPopularityScoreResult {
+  google.protobuf.Int32Value popularity_score = 1;
+}
+
+message ResolveCategoryPopularityScoreResponse {
+  repeated ResolveCategoryPopularityScoreResult result = 1;
+}
+
+message ResolveCategoryCategoryMetricsArgs {
+  string metric_type = 1;
+}
+
+message ResolveCategoryCategoryMetricsContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryCategoryMetricsRequest {
+  // context provides the resolver context for the field categoryMetrics of type Category.
+  repeated ResolveCategoryCategoryMetricsContext context = 1;
+  // field_args provides the arguments for the resolver field categoryMetrics of type Category.
+  ResolveCategoryCategoryMetricsArgs field_args = 2;
+}
+
+message ResolveCategoryCategoryMetricsResult {
+  CategoryMetrics category_metrics = 1;
+}
+
+message ResolveCategoryCategoryMetricsResponse {
+  repeated ResolveCategoryCategoryMetricsResult result = 1;
+}
+
 message ResolveSubcategoryItemCountArgs {
   SubcategoryItemFilter filters = 1;
 }
@@ -944,6 +993,14 @@ message Subcategory {
   string name = 2;
   google.protobuf.StringValue description = 3;
   bool is_active = 4;
+}
+
+message CategoryMetrics {
+  string id = 1;
+  string metric_type = 2;
+  double value = 3;
+  string timestamp = 4;
+  string category_id = 5;
 }
 
 enum CategoryKind {

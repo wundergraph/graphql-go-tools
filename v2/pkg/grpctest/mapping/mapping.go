@@ -238,6 +238,28 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveCategoryProductCountRequest",
 					Response: "ResolveCategoryProductCountResponse",
 				},
+				"popularityScore": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "popularity_score",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"threshold": "threshold",
+						},
+					},
+					RPC:      "ResolveCategoryPopularityScore",
+					Request:  "ResolveCategoryPopularityScoreRequest",
+					Response: "ResolveCategoryPopularityScoreResponse",
+				},
+				"categoryMetrics": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "category_metrics",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"metricType": "metric_type",
+						},
+					},
+					RPC:      "ResolveCategoryCategoryMetrics",
+					Request:  "ResolveCategoryCategoryMetricsRequest",
+					Response: "ResolveCategoryCategoryMetricsResponse",
+				},
 			},
 			"Subcategory": {
 				"itemCount": {
@@ -728,6 +750,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				"subcategories": {
 					TargetName: "subcategories",
 				},
+				"popularityScore": {
+					TargetName: "popularity_score",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"threshold": "threshold",
+					},
+				},
+				"categoryMetrics": {
+					TargetName: "category_metrics",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"metricType": "metric_type",
+					},
+				},
 			},
 			"Subcategory": {
 				"id": {
@@ -747,6 +781,23 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filters": "filters",
 					},
+				},
+			},
+			"CategoryMetrics": {
+				"id": {
+					TargetName: "id",
+				},
+				"metricType": {
+					TargetName: "metric_type",
+				},
+				"value": {
+					TargetName: "value",
+				},
+				"timestamp": {
+					TargetName: "timestamp",
+				},
+				"categoryId": {
+					TargetName: "category_id",
 				},
 			},
 			"Cat": {

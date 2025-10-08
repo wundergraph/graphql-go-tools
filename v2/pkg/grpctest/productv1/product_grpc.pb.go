@@ -64,6 +64,8 @@ const (
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryUser_FullMethodName                         = "/productv1.ProductService/QueryUser"
 	ProductService_QueryUsers_FullMethodName                        = "/productv1.ProductService/QueryUsers"
+	ProductService_ResolveCategoryCategoryMetrics_FullMethodName    = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
+	ProductService_ResolveCategoryPopularityScore_FullMethodName    = "/productv1.ProductService/ResolveCategoryPopularityScore"
 	ProductService_ResolveCategoryProductCount_FullMethodName       = "/productv1.ProductService/ResolveCategoryProductCount"
 	ProductService_ResolveSubcategoryItemCount_FullMethodName       = "/productv1.ProductService/ResolveSubcategoryItemCount"
 )
@@ -122,6 +124,8 @@ type ProductServiceClient interface {
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
+	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
 }
@@ -584,6 +588,26 @@ func (c *productServiceClient) QueryUsers(ctx context.Context, in *QueryUsersReq
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryCategoryMetricsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryCategoryMetrics_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryPopularityScoreResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryPopularityScore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryProductCountResponse)
@@ -658,6 +682,8 @@ type ProductServiceServer interface {
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
+	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
@@ -804,6 +830,12 @@ func (UnimplementedProductServiceServer) QueryUser(context.Context, *QueryUserRe
 }
 func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryUsers not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryCategoryMetrics not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryPopularityScore not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryProductCount not implemented")
@@ -1642,6 +1674,42 @@ func _ProductService_QueryUsers_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveCategoryCategoryMetrics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryCategoryMetricsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryCategoryMetrics(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryCategoryMetrics_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryCategoryMetrics(ctx, req.(*ResolveCategoryCategoryMetricsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryPopularityScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryPopularityScoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryPopularityScore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryPopularityScore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryPopularityScore(ctx, req.(*ResolveCategoryPopularityScoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryProductCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryProductCountRequest)
 	if err := dec(in); err != nil {
@@ -1864,6 +1932,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "QueryUsers",
 			Handler:    _ProductService_QueryUsers_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryCategoryMetrics",
+			Handler:    _ProductService_ResolveCategoryCategoryMetrics_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryPopularityScore",
+			Handler:    _ProductService_ResolveCategoryPopularityScore_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryProductCount",
