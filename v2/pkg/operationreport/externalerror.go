@@ -443,6 +443,13 @@ func ErrStreamInitialCountMustBeNonNegative(directiveName ast.ByteSlice, directi
 	return err
 }
 
+func ErrDeferStreamDirectiveNotAllowedOnSubs(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" is not allowed on subscription operations`,
+		directiveName)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
 func ErrDeferStreamDirectiveNotAllowedOnRootField(directiveName ast.ByteSlice, operationType string, directivePosition position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`directive "@%s" is not allowed on root fields of %s operations`,
 		directiveName, operationType)

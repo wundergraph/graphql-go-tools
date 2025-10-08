@@ -4179,6 +4179,12 @@ type Query {
 	})
 
 	t.Run("defer/stream directive", func(t *testing.T) {
+		allRules := []Rule{
+			DeferStreamOnValidOperations(),
+			DeferStreamHaveUniqueLabels(),
+			DirectivesAreInValidLocations(),
+			StreamAppliedToListFieldsOnly(),
+		}
 
 		t.Run("labels", func(t *testing.T) {
 			t.Run("defer directive with unique labels", func(t *testing.T) {
@@ -4284,6 +4290,38 @@ type Query {
 				`, DeferStreamHaveUniqueLabels(), Invalid,
 					withValidationErrors(`directive "@stream" label argument must be a static string value, not a variable`))
 			})
+			t.Run("duplicate labels with one disabled defer", func(t *testing.T) {
+				runManyRules(t, `
+				query {
+					dog {
+						...fragment1 @defer(label: "a", if: false)
+						...fragment2 @defer(label: "a")
+					}
+				}
+				fragment fragment1 on Dog {
+					name
+				}
+				fragment fragment2 on Dog {
+					nickname
+				}
+			`, Valid, allRules...)
+			})
+			t.Run("duplicate labels with one optional defer", func(t *testing.T) {
+				runManyRules(t, `
+				query q($b: Boolean) {
+					dog {
+						...fragment1 @defer(label: "a", if: $b)
+						...fragment2 @defer(label: "a")
+					}
+				}
+				fragment fragment1 on Dog {
+					name
+				}
+				fragment fragment2 on Dog {
+					nickname
+				}
+			`, Valid, allRules...)
+			})
 		})
 
 		t.Run("on valid operations", func(t *testing.T) {
@@ -4318,8 +4356,6 @@ type Query {
 				}
 			`, DeferStreamOnValidOperations(), Valid)
 			})
-
-			// stream
 			t.Run("stream on root query field", func(t *testing.T) {
 				run(t, `
 				query {
@@ -4395,14 +4431,36 @@ type Query {
 			})
 			t.Run("defer inline fragment spread on nested subscription field", func(t *testing.T) {
 				run(t, `
-				subscription {
-				  newMessage {
-					... @defer {
-					  body
+					subscription {
+					  newMessage {
+						... @defer {
+						  body
+						}
+					  }
 					}
-				  }
-				}
-			`, DeferStreamOnValidOperations(), Invalid)
+				`, DeferStreamOnValidOperations(), Invalid)
+			})
+			t.Run("defer inline nested fragment spreads on subscription field", func(t *testing.T) {
+				run(t, `
+					subscription {
+						newMessage {
+							... frag1
+						}
+					}
+					fragment frag1 on Message {
+						...frag2
+					}
+					fragment frag2 on Message {
+						...frag3
+					}
+					fragment frag3 on Message {
+						... @defer {
+							body
+						}
+					}`,
+					DeferStreamOnValidOperations(),
+					Invalid,
+					withValidationErrors(`directive "@defer" is not allowed on subscription operations`))
 			})
 			t.Run("non-defer inline fragment spread on root subscription field", func(t *testing.T) {
 				run(t, `
@@ -4437,9 +4495,18 @@ type Query {
 			`, DeferStreamOnValidOperations(), Valid)
 			})
 
-			t.Run("defer with variable if argument", func(t *testing.T) {
+			t.Run("defer with variable if argument on query", func(t *testing.T) {
 				run(t, `
 				query($shouldDefer: Boolean!) {
+					... @defer(if: $shouldDefer) {
+						dog { name }
+					}
+				}
+			`, DeferStreamOnValidOperations(), Valid)
+			})
+			t.Run("defer with variable if argument on subscription", func(t *testing.T) {
+				run(t, `
+				subscription($shouldDefer: Boolean!) {
 					... @defer(if: $shouldDefer) {
 						dog { name }
 					}
@@ -4549,7 +4616,7 @@ type Query {
 
 		t.Run("complex scenarios", func(t *testing.T) {
 			t.Run("nested defer directives", func(t *testing.T) {
-				run(t, `
+				runManyRules(t, `
 				query {
 					dog {
 						... @defer {
@@ -4560,20 +4627,20 @@ type Query {
 						}
 					}
 				}
-			`, DeferStreamComplexRule(), Valid)
+			`, Valid, allRules...)
 			})
 			t.Run("defer and stream in same query", func(t *testing.T) {
-				run(t, `
+				runManyRules(t, `
 				query {
 					dog {
 						... @defer { name }
 						extras @stream { string }
 					}
 				}
-			`, DeferStreamComplexRule(), Valid)
+			`, Valid, allRules...)
 			})
 			t.Run("stream on multiple fields with unique labels", func(t *testing.T) {
-				run(t, `
+				runManyRules(t, `
 				query {
 					dog {
 						extra {
@@ -4592,26 +4659,11 @@ type Query {
 						strings @stream(label: "extrasStrings")
 					}
 				}
-			`, DeferStreamComplexRule(), Valid)
+			`, Valid, allRules...)
 			})
-			t.Run("duplicate labels with one disabled defer", func(t *testing.T) {
-				run(t, `
-				query {
-					dog {
-						...fragment1 @defer(label: "a", if: false)
-						...fragment2 @defer(label: "a")
-					}
-				}
-				fragment fragment1 on Dog {
-					name
-				}
-				fragment fragment2 on Dog {
-					nickname
-				}
-			`, DeferStreamComplexRule(), Valid)
-			})
+
 			t.Run("deeply nested defer with unique labels", func(t *testing.T) {
-				run(t, `
+				runManyRules(t, `
 				query {
 					dog {
 						... @defer(label: "level1") {
@@ -4626,9 +4678,12 @@ type Query {
 					}
 				}
 				fragment fragment1 on Dog {
-					mustStrings
+					mustExtra
+					... @defer(label: "level4") {
+						mustExtras
+					}
 				}
-			`, DeferStreamComplexRule(), Valid)
+			`, Valid, allRules...)
 			})
 			t.Run("deeply nested defer with duplicate labels", func(t *testing.T) {
 				run(t, `
@@ -4639,19 +4694,22 @@ type Query {
 							extras {
 								... @defer(label: "level2") {
 									string
-									... fragment1 @defer(label: "level1") 
+									... fragment1
 								}
 							}
 						}
 					}
 				}
 				fragment fragment1 on Dog {
-					mustStrings
+					mustExtra
+					... @defer(label: "level1") {
+						mustExtras
+					}
 				}
-			`, DeferStreamComplexRule(), Invalid)
+			`, DeferStreamHaveUniqueLabels(), Invalid)
 			})
 			t.Run("defer on typed inline fragment", func(t *testing.T) {
-				run(t, `
+				runManyRules(t, `
 				query {
 					extras {
 						... on CatExtra @defer {
@@ -4662,7 +4720,7 @@ type Query {
 						}
 					}
 				}
-			`, DirectivesAreInValidLocations(), Valid)
+			`, Valid, allRules...)
 			})
 
 		})

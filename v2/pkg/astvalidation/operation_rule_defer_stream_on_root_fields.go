@@ -68,10 +68,8 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 
 	// For subscriptions, @defer and @stream are not allowed anywhere (root or nested)
 	if d.currentOperationType == ast.OperationTypeSubscription {
-		operationTypeName := d.currentOperationType.Name()
-		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnRootField(
+		d.StopWithExternalErr(operationreport.ErrDeferStreamDirectiveNotAllowedOnSubs(
 			directiveName,
-			operationTypeName,
 			directivePosition,
 		))
 		return
@@ -82,11 +80,9 @@ func (d *deferStreamOnValidOpsVisitor) EnterDirective(ref int) {
 		return
 	}
 
-	// For mutations, check if we're at the root level
 	if len(d.Ancestors) == 0 {
 		return
 	}
-
 	// The directive's immediate parent (the node it's attached to)
 	ancestor := d.Ancestors[len(d.Ancestors)-1]
 

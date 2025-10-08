@@ -73,6 +73,20 @@ func (d *deferStreamLabelsVisitor) EnterDirective(ref int) {
 		return
 	}
 
+	if ifValue, hasIf := d.operation.DirectiveArgumentValueByName(ref, literal.IF); hasIf {
+		switch ifValue.Kind {
+		case ast.ValueKindBoolean:
+			// If "if: false", ignore the directive
+			if !d.operation.BooleanValue(ifValue.Ref) {
+				return
+			}
+		case ast.ValueKindVariable:
+			// If if: $variable, we can't statically determine if it's enabled,
+			// so we ignore this until variable's value is provided.
+			return
+		}
+	}
+
 	labelString := d.operation.StringValueContentString(labelValue.Ref)
 
 	if previous, exists := d.seenLabels[labelString]; exists {
