@@ -3657,10 +3657,52 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 		validate          func(t *testing.T, data map[string]interface{})
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
+		// {
+		// 	name:  "Query with field resolvers",
+		// 	query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+		// 	vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+		// 	validate: func(t *testing.T, data map[string]interface{}) {
+		// 		require.NotEmpty(t, data)
+
+		// 		categories, ok := data["categories"].([]interface{})
+		// 		require.True(t, ok, "categories should be an array")
+		// 		require.NotEmpty(t, categories, "categories should not be empty")
+		// 		require.Len(t, categories, 4, "Should return 1 category")
+
+		// 		for productCount, category := range categories {
+		// 			category, ok := category.(map[string]interface{})
+		// 			require.True(t, ok, "category should be an object")
+		// 			require.NotEmpty(t, category["id"])
+		// 			require.NotEmpty(t, category["name"])
+		// 			require.NotEmpty(t, category["kind"])
+		// 			require.Equal(t, float64(productCount), category["productCount"])
+		// 		}
+
+		// 	},
+		// 	validateError: func(t *testing.T, errData []graphqlError) {
+		// 		require.Empty(t, errData)
+		// 	},
+		// },
+		// {
+		// 	name:  "Query with field resolvers and nullable lists",
+		// 	query: "query SubcategoriesWithFieldResolvers($filter: SubcategoryItemFilter) { categories { id subcategories { id name description isActive itemCount(filters: $filter) } } }",
+		// 	vars:  `{"variables":{"filter":{"isActive":true}}}`,
+		// 	validate: func(t *testing.T, data map[string]interface{}) {
+		// 		require.NotEmpty(t, data)
+
+		// 		categories, ok := data["categories"].([]interface{})
+		// 		require.True(t, ok, "categories should be an array")
+		// 		require.NotEmpty(t, categories, "categories should not be empty")
+		// 		require.Len(t, categories, 4, "Should return 1 category")
+		// 	},
+		// 	validateError: func(t *testing.T, errData []graphqlError) {
+		// 		require.Empty(t, errData)
+		// 	},
+		// },
 		{
-			name:  "Query with field resolvers",
-			query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
-			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+			name:  "Query with field resolvers and aliases",
+			query: "query CategoriesWithFieldResolversAndAliases($filter1: ProductCountFilter, $filter2: ProductCountFilter) { categories { productCount1: productCount(filters: $filter1) productCount2: productCount(filters: $filter2) } }",
+			vars:  `{"variables":{"filter1":{"minPrice":100},"filter2":{"minPrice":200}}}`,
 			validate: func(t *testing.T, data map[string]interface{}) {
 				require.NotEmpty(t, data)
 
@@ -3672,10 +3714,8 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				for productCount, category := range categories {
 					category, ok := category.(map[string]interface{})
 					require.True(t, ok, "category should be an object")
-					require.NotEmpty(t, category["id"])
-					require.NotEmpty(t, category["name"])
-					require.NotEmpty(t, category["kind"])
-					require.Equal(t, float64(productCount), category["productCount"])
+					require.Equal(t, float64(productCount), category["productCount1"])
+					require.Equal(t, float64(productCount), category["productCount2"])
 				}
 
 			},

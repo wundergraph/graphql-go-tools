@@ -117,6 +117,15 @@ type Category {
   name: String!
   kind: CategoryKind!
   productCount(filters: ProductCountFilter): Int! @resolved(context: "id name")
+  subcategories: [Subcategory!]
+}
+
+type Subcategory {
+  id: ID!
+  name: String!
+  description: String
+  isActive: Boolean!
+  itemCount(filters: SubcategoryItemFilter): Int! @resolved(context: "id")
 }
 
 enum CategoryKind {
@@ -322,6 +331,14 @@ input ProductCountFilter {
   minPrice: Float
   maxPrice: Float
   inStock: Boolean
+  searchTerm: String
+}
+
+input SubcategoryItemFilter {
+  minPrice: Float
+  maxPrice: Float
+  inStock: Boolean
+  isActive: Boolean
   searchTerm: String
 }
 

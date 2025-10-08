@@ -88,6 +88,21 @@ func (p Path) WithPathElement(element PathItem) Path {
 	return res
 }
 
+func (p Path) WithFieldNameItem(fieldName []byte) Path {
+	return p.WithPathElement(PathItem{
+		Kind:      FieldName,
+		FieldName: fieldName,
+	})
+}
+
+func (p Path) RemoveLastItem() Path {
+	if len(p) == 0 {
+		return p
+	}
+
+	return p[:len(p)-1]
+}
+
 func (p Path) String() string {
 	out := "["
 	for i := range p {

@@ -232,6 +232,19 @@ func testMapping() *GRPCMapping {
 					Response: "ResolveCategoryProductCountResponse",
 				},
 			},
+			"Subcategory": {
+				"itemCount": {
+					FieldMappingData: FieldMapData{
+						TargetName: "item_count",
+						ArgumentMappings: FieldArgumentMap{
+							"filters": "filters",
+						},
+					},
+					RPC:      "ResolveSubcategoryItemCount",
+					Request:  "ResolveSubcategoryItemCountRequest",
+					Response: "ResolveSubcategoryItemCountResponse",
+				},
+			},
 		},
 		EntityRPCs: map[string][]EntityRPCConfig{
 			"Product": {
@@ -705,6 +718,29 @@ func testMapping() *GRPCMapping {
 						"filters": "filters",
 					},
 				},
+				"subcategories": {
+					TargetName: "subcategories",
+				},
+			},
+			"Subcategory": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"isActive": {
+					TargetName: "is_active",
+				},
+				"itemCount": {
+					TargetName: "item_count",
+					ArgumentMappings: FieldArgumentMap{
+						"filters": "filters",
+					},
+				},
 			},
 			"Cat": {
 				"id": {
@@ -1056,6 +1092,23 @@ func testMapping() *GRPCMapping {
 				},
 				"inStock": {
 					TargetName: "in_stock",
+				},
+				"searchTerm": {
+					TargetName: "search_term",
+				},
+			},
+			"SubcategoryItemFilter": {
+				"minPrice": {
+					TargetName: "min_price",
+				},
+				"maxPrice": {
+					TargetName: "max_price",
+				},
+				"inStock": {
+					TargetName: "in_stock",
+				},
+				"isActive": {
+					TargetName: "is_active",
 				},
 				"searchTerm": {
 					TargetName: "search_term",

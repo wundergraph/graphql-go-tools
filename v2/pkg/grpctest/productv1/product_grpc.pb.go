@@ -65,6 +65,7 @@ const (
 	ProductService_QueryUser_FullMethodName                         = "/productv1.ProductService/QueryUser"
 	ProductService_QueryUsers_FullMethodName                        = "/productv1.ProductService/QueryUsers"
 	ProductService_ResolveCategoryProductCount_FullMethodName       = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveSubcategoryItemCount_FullMethodName       = "/productv1.ProductService/ResolveSubcategoryItemCount"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -122,6 +123,7 @@ type ProductServiceClient interface {
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
+	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
 }
 
 type productServiceClient struct {
@@ -592,6 +594,16 @@ func (c *productServiceClient) ResolveCategoryProductCount(ctx context.Context, 
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveSubcategoryItemCountResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveSubcategoryItemCount_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -647,6 +659,7 @@ type ProductServiceServer interface {
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
+	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -794,6 +807,9 @@ func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsers
 }
 func (UnimplementedProductServiceServer) ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryProductCount not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -1644,6 +1660,24 @@ func _ProductService_ResolveCategoryProductCount_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveSubcategoryItemCount_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveSubcategoryItemCountRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveSubcategoryItemCount(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveSubcategoryItemCount_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveSubcategoryItemCount(ctx, req.(*ResolveSubcategoryItemCountRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1834,6 +1868,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveCategoryProductCount",
 			Handler:    _ProductService_ResolveCategoryProductCount_Handler,
+		},
+		{
+			MethodName: "ResolveSubcategoryItemCount",
+			Handler:    _ProductService_ResolveSubcategoryItemCount_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

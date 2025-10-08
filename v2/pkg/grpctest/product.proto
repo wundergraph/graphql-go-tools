@@ -56,6 +56,7 @@ service ProductService {
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
+  rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
 }
 
 // Wrapper message for a list of AuthorFilter.
@@ -174,6 +175,13 @@ message ListOfProduct {
 message ListOfString {
   message List {
     repeated string items = 1;
+  }
+  List list = 1;
+}
+// Wrapper message for a list of Subcategory.
+message ListOfSubcategory {
+  message List {
+    repeated Subcategory items = 1;
   }
   List list = 1;
 }
@@ -644,6 +652,29 @@ message ResolveCategoryProductCountResponse {
   repeated ResolveCategoryProductCountResult result = 1;
 }
 
+message ResolveSubcategoryItemCountArgs {
+  SubcategoryItemFilter filters = 1;
+}
+
+message ResolveSubcategoryItemCountContext {
+  string id = 1;
+}
+
+message ResolveSubcategoryItemCountRequest {
+  // context provides the resolver context for the field itemCount of type Subcategory.
+  repeated ResolveSubcategoryItemCountContext context = 1;
+  // field_args provides the arguments for the resolver field itemCount of type Subcategory.
+  ResolveSubcategoryItemCountArgs field_args = 2;
+}
+
+message ResolveSubcategoryItemCountResult {
+  int32 item_count = 1;
+}
+
+message ResolveSubcategoryItemCountResponse {
+  repeated ResolveSubcategoryItemCountResult result = 1;
+}
+
 message Product {
   string id = 1;
   string name = 2;
@@ -717,6 +748,7 @@ message Category {
   string id = 1;
   string name = 2;
   CategoryKind kind = 3;
+  ListOfSubcategory subcategories = 5;
 }
 
 message CategoryFilter {
@@ -907,6 +939,13 @@ message OrderLine {
   ListOfString modifiers = 3;
 }
 
+message Subcategory {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue description = 3;
+  bool is_active = 4;
+}
+
 enum CategoryKind {
   CATEGORY_KIND_UNSPECIFIED = 0;
   CATEGORY_KIND_BOOK = 1;
@@ -949,4 +988,12 @@ message ProductCountFilter {
   google.protobuf.DoubleValue max_price = 2;
   google.protobuf.BoolValue in_stock = 3;
   google.protobuf.StringValue search_term = 4;
+}
+
+message SubcategoryItemFilter {
+  google.protobuf.DoubleValue min_price = 1;
+  google.protobuf.DoubleValue max_price = 2;
+  google.protobuf.BoolValue in_stock = 3;
+  google.protobuf.BoolValue is_active = 4;
+  google.protobuf.StringValue search_term = 5;
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/bufbuild/protocompile"
 	"github.com/cespare/xxhash/v2"
@@ -415,8 +416,8 @@ type ServiceCall struct {
 	Input *dynamicpb.Message
 	// Output is the output message for the gRPC call
 	Output *dynamicpb.Message
-	// Call is the call that was made to the gRPC service
-	Call *RPCCall // TODO: Might be not needed anymore when we are using the DependencyGraph
+	// RPC is the call that was made to the gRPC service
+	RPC *RPCCall
 }
 
 // func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem, inputData gjson.Result) ([]Invocation, error) {
@@ -514,7 +515,7 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		MethodName:  call.MethodName,
 		Input:       request,
 		Output:      response,
-		Call:        call,
+		RPC:         call,
 	}, nil
 
 }
@@ -553,7 +554,7 @@ func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.R
 			MethodName:  call.MethodName,
 			Input:       request,
 			Output:      response,
-			Call:        &call,
+			RPC:         &call,
 		})
 	}
 
@@ -611,20 +612,6 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		p.report.AddInternalError(fmt.Errorf("message %s must have exactly one key field", inputMessage.Name))
 		return nil
 	}
-
-	// schemaField := inputMessage.FieldByName("key")
-	// if schemaField == nil {
-	// 	p.report.AddInternalError(fmt.Errorf("key field not found in message %s", inputMessage.Name))
-	// 	return nil
-	// }
-
-	// // the key field must be a repeated field
-	// // Get the RPC field
-	// planKeyField := rpcMessage.Fields.ByName(schemaField.Name)
-	// if planKeyField == nil {
-	// 	p.report.AddInternalError(fmt.Errorf("key field not found in message %s", rpcMessage.Name))
-	// 	return nil
-	// }
 
 	contextSchemaField := inputMessage.FieldByName("context")
 	if contextSchemaField == nil {
@@ -714,7 +701,7 @@ func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path a
 		return p.resolveListDataForPath(msg.List(), fd, path)
 	}
 
-	return []protoref.Value{p.resolveDataForPath(msg.Message(), path)}
+	return p.resolveDataForPath(msg.Message(), path)
 
 }
 
@@ -730,56 +717,64 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 
 		switch fd.Kind() {
 		case protoref.MessageKind:
-			val := p.resolveDataForPath(item.Message(), path)
+			values := p.resolveDataForPath(item.Message(), path)
 
-			if list, isList := val.Interface().(protoref.List); isList {
-				values := p.resolveListDataForPath(list, fd, path)
-				result = append(result, values...)
-				continue
+			for _, val := range values {
+				if list, isList := val.Interface().(protoref.List); isList {
+					values := p.resolveListDataForPath(list, fd, path)
+					result = append(result, values...)
+					continue
+				}
 			}
 
-			result = append(result, val)
+			result = append(result, values...)
 		default:
 			result = append(result, item)
 		}
-
-		// val := p.resolveDataForPath(item.Message(), path)
-		// if list, isList := val.Interface().(protoref.List); isList {
-		// 	value := p.resolveListDataForPath(list, fd, path)
-		// 	result = append(result, value...)
-		// 	continue
-		// }
-
-		// result = append(result, val)
 	}
 
 	return result
 }
 
-func (p *RPCCompiler) resolveDataForPath(outputMessage protoref.Message, path ast.Path) protoref.Value {
+func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Path) []protoref.Value {
 	if path.Len() == 0 {
-		return protoref.Value{}
+		return nil
 	}
 
 	segment := path[0]
-	field, fd := p.getMessageField(outputMessage, segment.FieldName.String())
+
+	if fn := segment.FieldName.String(); strings.HasPrefix(fn, "@") {
+		list := p.resolveUnderlyingList(messsage, fn)
+
+		result := make([]protoref.Value, 0, len(list))
+		for _, item := range list {
+			result = append(result, p.resolveDataForPath(item.Message(), path[1:])...)
+		}
+
+		return result
+	}
+
+	field, fd := p.getMessageField(messsage, segment.FieldName.String())
 	if !field.IsValid() {
-		return protoref.Value{}
+		return nil
 	}
 
 	switch fd.Kind() {
 	case protoref.MessageKind:
 		if fd.IsList() {
-			return field
+			return []protoref.Value{field}
 		}
 
 		return p.resolveDataForPath(field.Message(), path[1:])
+	default:
+		return []protoref.Value{field}
 	}
-
-	return field
 }
 
+// getMessageField gets the field from the message by its name.
+// It also handles nested lists and nullable lists.
 func (p *RPCCompiler) getMessageField(message protoref.Message, fieldName string) (protoref.Value, protoref.FieldDescriptor) {
+
 	fd := message.Descriptor().Fields().ByName(protoref.Name(fieldName))
 	if fd == nil {
 		return protoref.Value{}, nil
@@ -788,8 +783,68 @@ func (p *RPCCompiler) getMessageField(message protoref.Message, fieldName string
 	return message.Get(fd), fd
 }
 
-func (p *RPCCompiler) newEmptyListMessageByNumber(msg *dynamicpb.Message, number int32) protoref.List {
-	return msg.Mutable(msg.Descriptor().Fields().ByNumber(protoref.FieldNumber(number))).List()
+// resolveUnderlyingList resolves the underlying list message from a nested list message.
+//
+//	message ListOfFloat {
+//	  message List {
+//	    repeated double items = 1;
+//	  }
+//	  List list = 1;
+//	}
+func (p *RPCCompiler) resolveUnderlyingList(msg protoref.Message, fieldName string) []protoref.Value {
+	nestingLevel := 0
+	for _, char := range fieldName {
+		if char != '@' {
+			break
+		}
+		nestingLevel++
+	}
+
+	listFieldValue := msg.Get(msg.Descriptor().Fields().ByName(protoref.Name(fieldName[nestingLevel:])))
+	if !listFieldValue.IsValid() {
+		return nil
+	}
+
+	return p.resolveUnderlyingListItems(listFieldValue, nestingLevel)
+
+}
+
+func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLevel int) []protoref.Value {
+	msg := value.Message()
+	fd := msg.Descriptor().Fields().ByNumber(1)
+	if fd == nil {
+		return nil
+	}
+
+	listMsg := msg.Get(fd)
+	if !listMsg.IsValid() {
+		return nil
+	}
+
+	itemsValue := listMsg.Message().Get(listMsg.Message().Descriptor().Fields().ByNumber(1))
+	if !itemsValue.IsValid() {
+		return nil
+	}
+
+	if itemsValue.List().Len() == 0 {
+		return nil
+	}
+
+	if nestingLevel > 1 {
+		items := make([]protoref.Value, 0, listMsg.List().Len())
+		for i := 0; i < listMsg.List().Len(); i++ {
+			items = append(items, p.resolveUnderlyingListItems(listMsg.List().Get(i), nestingLevel-1)...)
+		}
+
+		return items
+	}
+
+	result := make([]protoref.Value, itemsValue.List().Len())
+	for i := 0; i < itemsValue.List().Len(); i++ {
+		result[i] = itemsValue.List().Get(i)
+	}
+
+	return result
 }
 
 func (p *RPCCompiler) newEmptyListMessageByName(msg *dynamicpb.Message, name string) protoref.List {

@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -65,6 +66,8 @@ type rpcPlanVisitor struct {
 
 	relatedCallID  int
 	resolvedFields []resolvedField
+
+	fieldPath ast.Path
 }
 
 type rpcPlanVisitorConfig struct {
@@ -85,6 +88,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		operationFieldRef: -1,
 		resolvedFields:    make([]resolvedField, 0),
 		relatedCallID:     -1,
+		fieldPath:         make(ast.Path, 0),
 	}
 
 	walker.RegisterDocumentVisitor(visitor)
@@ -413,10 +417,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 			callerRef:     r.relatedCallID,
 			parentTypeRef: r.walker.EnclosingTypeDefinition.Ref,
 			fieldRef:      ref,
-			responsePath: r.walker.Path[1:].WithoutInlineFragmentNames().WithPathElement(ast.PathItem{
-				Kind:      ast.FieldName,
-				FieldName: r.operation.FieldAliasOrNameBytes(ref),
-			}),
+			responsePath:  r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
 		}
 
 		contextFields, err := r.planCtx.resolveContextFields(r.walker, fd)
@@ -427,10 +428,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 		for _, contextFieldRef := range contextFields {
 			contextFieldName := r.definition.FieldDefinitionNameBytes(contextFieldRef) // TODO handle aliases
-			resolvedPath := append(r.walker.Path[1:].WithoutInlineFragmentNames(), ast.PathItem{
-				Kind:      ast.FieldName,
-				FieldName: contextFieldName,
-			})
+			resolvedPath := r.fieldPath.WithFieldNameItem(contextFieldName)
 
 			resolvedField.contextFields = append(resolvedField.contextFields, contextField{
 				fieldRef:    contextFieldRef,
@@ -446,6 +444,7 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 		resolvedField.fieldArguments = fieldArguments
 		r.resolvedFields = append(r.resolvedFields, resolvedField)
+		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
 		return
 	}
 
@@ -454,6 +453,14 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
+
+	// If we have a nested or nullable list, we add a @ prefix to indicate the nesting level.
+	prefix := ""
+	if field.ListMetadata != nil {
+		prefix = strings.Repeat("@", field.ListMetadata.NestingLevel)
+	}
+
+	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(prefix + field.Name))
 
 	// check if we are inside of an inline fragment
 	if ref, ok := r.walker.ResolveInlineFragment(); ok {
@@ -471,6 +478,8 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitor) LeaveField(ref int) {
+	r.fieldPath = r.fieldPath.RemoveLastItem()
+
 	// If we are not in the operation field, we can increment the response field index.
 	if !r.walker.InRootField() {
 		// If the field has arguments, we need to decrement the related call ID.

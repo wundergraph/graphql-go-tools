@@ -24,6 +24,12 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
 )
 
+type resultData struct {
+	kind         CallKind
+	response     *astjson.Value
+	responsePath ast.Path
+}
+
 // Verify DataSource implements the resolve.DataSource interface
 var _ resolve.DataSource = (*DataSource)(nil)
 
@@ -100,7 +106,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			return err
 		}
 
-		responses := make([]*astjson.Value, len(serviceCalls))
+		results := make([]resultData, len(serviceCalls))
 		errGrp, errGrpCtx := errgroup.WithContext(ctx)
 		mu := sync.Mutex{}
 
@@ -116,24 +122,30 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 					return err
 				}
 
-				response, err := builder.marshalResponseJSON(&a, &serviceCall.Call.Response, serviceCall.Output)
+				response, err := builder.marshalResponseJSON(&a, &serviceCall.RPC.Response, serviceCall.Output)
 				if err != nil {
 					return nil
 				}
 
-				if serviceCall.Call.Kind == CallKindResolve {
-					return builder.mergeWithPath(root, response, serviceCall.Call.ResponsePath)
-				}
+				// if serviceCall.RPC.Kind == CallKindResolve {
+				// 	return builder.mergeWithPath(root, response, serviceCall.RPC.ResponsePath)
+				// }
 
 				// In case of a federated response, we need to ensure that the response is valid.
 				// The number of entities per type must match the number of lookup keys in the variablese
+				// if serviceCall.RPC.Kind == CallKindEntity {
 				err = builder.validateFederatedResponse(response)
 				if err != nil {
 					return err
 				}
+				// }
 
 				mu.Lock()
-				responses[index] = response
+				results[index] = resultData{
+					kind:         serviceCall.RPC.Kind,
+					response:     response,
+					responsePath: serviceCall.RPC.ResponsePath,
+				}
 				mu.Unlock()
 
 				return nil
@@ -146,8 +158,13 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			return nil
 		}
 
-		for _, response := range responses {
-			root, err = builder.mergeValues(root, response)
+		for _, result := range results {
+			switch result.kind {
+			case CallKindResolve:
+				err = builder.mergeWithPath(root, result.response, result.responsePath)
+			default:
+				root, err = builder.mergeValues(root, result.response)
+			}
 			if err != nil {
 				out.Write(builder.writeErrorBytes(err))
 				return err

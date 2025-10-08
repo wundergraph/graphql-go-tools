@@ -17,10 +17,10 @@ import (
 
 // Standard GraphQL response paths
 const (
-	entityPath         = "_entities" // Path for federated entities in response
-	dataPath           = "data"      // Standard GraphQL data wrapper
-	errorsPath         = "errors"    // Standard GraphQL errors array
-	resolvResponsePath = "result"    // Path for resolve response
+	entityPath          = "_entities" // Path for federated entities in response
+	dataPath            = "data"      // Standard GraphQL data wrapper
+	errorsPath          = "errors"    // Standard GraphQL errors array
+	resolveResponsePath = "result"    // Path for resolve response
 )
 
 // entityIndex represents the mapping between representation order and result order
@@ -189,11 +189,11 @@ func (j *jsonBuilder) mergeValues(left *astjson.Value, right *astjson.Value) (*a
 // This function ensures that entities are placed in the correct positions in the final response
 // array based on their original representation order, which is critical for GraphQL federation.
 func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (*astjson.Value, error) {
-	root := astjson.Arena{}
+	arena := astjson.Arena{}
 
 	// Create the response structure with _entities array
-	entities := root.NewObject()
-	entities.Set(entityPath, root.NewArray())
+	entities := arena.NewObject()
+	entities.Set(entityPath, arena.NewArray())
 	arr := entities.Get(entityPath)
 
 	// Extract entity arrays from both responses
@@ -221,7 +221,7 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 }
 
 func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
-	resolvedValues := resolved.GetArray(resolvResponsePath)
+	resolvedValues := resolved.GetArray(resolveResponsePath)
 
 	searchPath := path[:len(path)-1]
 	elementName := path[len(path)-1].FieldName.String()
@@ -262,7 +262,8 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 		return []*astjson.Value{value}, nil
 	}
 
-	current := value
+	segment := path[0]
+	current := value.Get(segment.FieldName.String())
 	result := make([]*astjson.Value, 0)
 	switch current.Type() {
 	case astjson.TypeObject:
