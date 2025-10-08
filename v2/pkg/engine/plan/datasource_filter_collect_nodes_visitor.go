@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"sync"
+	"unique"
 
 	"github.com/kingledion/go-tools/tree"
 
@@ -401,7 +402,7 @@ func (f *collectNodesVisitor) EnterField(fieldRef int, treeNode tree.Node[[]int]
 		return err
 	}
 
-	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypename(info.typeName)
+	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypenameHandle(info.typeNameHandle)
 	if hasRootNodeWithTypename {
 		// should be done after handling provides
 		f.collectKeysForPath(info.typeName, info.parentPath)
@@ -450,18 +451,18 @@ func (f *collectNodesVisitor) EnterField(fieldRef int, treeNode tree.Node[[]int]
 	// - ds config has a root node for the field
 	// - we have a root node with typename and the field is a __typename field
 	// we no longer add a typename field for the root query nodes, as it is now handled by the planning visitor
-	hasRootNode := f.dataSource.HasRootNode(info.typeName, info.fieldName) || (info.isTypeName && hasRootNodeWithTypename && !IsMutationOrQueryRootType(info.typeName))
+	hasRootNode := f.dataSource.HasRootNodeHandle(info.typeNameHandle, info.fieldNameHandle) || (info.isTypeName && hasRootNodeWithTypename && !IsMutationOrQueryRootType(info.typeName))
 
 	// hasChildNode is true when:
 	// - ds config has a child node for the field
 	// - we have a child node with typename and the field is a __typename field
 	// - the field is __typename field on a union, and we have a suggestion for the parent field
-	hasChildNode := f.dataSource.HasChildNode(info.typeName, info.fieldName) || (info.isTypeName && f.dataSource.HasChildNodeWithTypename(info.typeName))
+	hasChildNode := f.dataSource.HasChildNodeHandle(info.typeNameHandle, info.fieldNameHandle) || (info.isTypeName && f.dataSource.HasChildNodeWithTypenameHandle(info.typeNameHandle))
 
 	// external root node is a node having external directive, to be resolvable it needs to be provided or be part of a key
 	// So the node will not be external if it is mentioned in both fields and external fields
-	isExternalRootNode := f.dataSource.HasExternalRootNode(info.typeName, info.fieldName)
-	isExternalChildNode := f.dataSource.HasExternalChildNode(info.typeName, info.fieldName)
+	isExternalRootNode := f.dataSource.HasExternalRootNodeHandle(info.typeNameHandle, info.fieldNameHandle)
+	isExternalChildNode := f.dataSource.HasExternalChildNodeHandle(info.typeNameHandle, info.fieldNameHandle)
 	isExternal := isExternalRootNode || isExternalChildNode
 
 	hasChildNode = hasChildNode || f.shouldAddUnionTypenameFieldSuggestion(info)
@@ -547,6 +548,8 @@ type fieldInfo struct {
 	possibleTypeNames                                              []string
 	currentPathWithoutFragments                                    string
 	EnclosingTypeDefinition                                        ast.Node
+	typeNameHandle                                                 unique.Handle[string]
+	fieldNameHandle                                                unique.Handle[string]
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
@@ -573,8 +576,10 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 
 	f.fieldInfo[fieldRef] = fieldInfo{
 		typeName:                    typeName,
+		typeNameHandle:              unique.Make(typeName),
 		possibleTypeNames:           possibleTypes,
 		fieldName:                   fieldName,
+		fieldNameHandle:             unique.Make(fieldName),
 		fieldAliasOrName:            fieldAliasOrName,
 		parentPath:                  parentPath,
 		currentPath:                 currentPath,
