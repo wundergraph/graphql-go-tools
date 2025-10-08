@@ -102,7 +102,7 @@ type Walker struct {
 func NewWalkerWithID(ancestorSize int, id string) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]ast.PathItem, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, 64),
 		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
 		deferred:        make([]func(), 0, 8),
 		walkerID:        id,
@@ -113,7 +113,7 @@ func NewWalkerWithID(ancestorSize int, id string) Walker {
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]ast.PathItem, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, 64),
 		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
 		deferred:        make([]func(), 0, 8),
 	}
