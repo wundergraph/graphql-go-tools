@@ -3,6 +3,7 @@ package plan
 import (
 	"context"
 	"errors"
+	"unique"
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
@@ -54,6 +55,9 @@ type DataSourceMetadata struct {
 	rootNodesIndex  map[string]fieldsIndex // maps TypeName to fieldsIndex
 	childNodesIndex map[string]fieldsIndex // maps TypeName to fieldsIndex
 
+	rootNodesHandlesIndex  map[unique.Handle[string]]fieldsIndex // maps TypeName to fieldsIndex
+	childNodesHandlesIndex map[unique.Handle[string]]fieldsIndex // maps TypeName to fieldsIndex
+
 	// requireFetchReasons provides a lookup map for fields marked with corresponding directive.
 	requireFetchReasons map[FieldCoordinate]struct{}
 }
@@ -74,12 +78,23 @@ type NodesInfo interface {
 	HasChildNode(typeName, fieldName string) bool
 	HasExternalChildNode(typeName, fieldName string) bool
 	HasChildNodeWithTypename(typeName string) bool
+
+	HasRootNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool
+	HasExternalRootNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool
+	HasRootNodeWithTypenameHandle(typeNameHandle unique.Handle[string]) bool
+	HasChildNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool
+	HasExternalChildNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool
+	HasChildNodeWithTypenameHandle(typeNameHandle unique.Handle[string]) bool
+
 	RequireFetchReasons() map[FieldCoordinate]struct{}
 }
 
 type fieldsIndex struct {
 	fields         map[string]struct{}
 	externalFields map[string]struct{}
+
+	fieldsHandle         map[unique.Handle[string]]struct{}
+	externalFieldsHandle map[unique.Handle[string]]struct{}
 }
 
 func (d *DataSourceMetadata) Init() error {
@@ -104,21 +119,38 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 
 	d.rootNodesIndex = make(map[string]fieldsIndex, len(d.RootNodes))
 	d.childNodesIndex = make(map[string]fieldsIndex, len(d.ChildNodes))
+
+	d.rootNodesHandlesIndex = make(map[unique.Handle[string]]fieldsIndex, len(d.RootNodes))
+	d.childNodesHandlesIndex = make(map[unique.Handle[string]]fieldsIndex, len(d.ChildNodes))
+
 	d.requireFetchReasons = make(map[FieldCoordinate]struct{})
 
 	for i := range d.RootNodes {
 		typeName := d.RootNodes[i].TypeName
+		typeNameHandle := unique.Make(typeName)
 		if _, ok := d.rootNodesIndex[typeName]; !ok {
 			d.rootNodesIndex[typeName] = fieldsIndex{
 				fields:         make(map[string]struct{}, len(d.RootNodes[i].FieldNames)),
 				externalFields: make(map[string]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
 			}
 		}
+		if _, ok := d.rootNodesHandlesIndex[typeNameHandle]; !ok {
+			d.rootNodesHandlesIndex[typeNameHandle] = fieldsIndex{
+				fieldsHandle:         make(map[unique.Handle[string]]struct{}, len(d.RootNodes[i].FieldNames)),
+				externalFieldsHandle: make(map[unique.Handle[string]]struct{}, len(d.RootNodes[i].ExternalFieldNames)),
+			}
+		}
 		for _, name := range d.RootNodes[i].FieldNames {
 			d.rootNodesIndex[typeName].fields[name] = struct{}{}
+
+			fieldNameHandle := unique.Make(name)
+			d.rootNodesHandlesIndex[typeNameHandle].fieldsHandle[fieldNameHandle] = struct{}{}
 		}
 		for _, name := range d.RootNodes[i].ExternalFieldNames {
 			d.rootNodesIndex[typeName].externalFields[name] = struct{}{}
+
+			fieldNameHandle := unique.Make(name)
+			d.rootNodesHandlesIndex[typeNameHandle].externalFieldsHandle[fieldNameHandle] = struct{}{}
 		}
 		for _, name := range d.RootNodes[i].FetchReasonFields {
 			d.requireFetchReasons[FieldCoordinate{typeName, name}] = struct{}{}
@@ -127,6 +159,14 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 
 	for i := range d.ChildNodes {
 		typeName := d.ChildNodes[i].TypeName
+		typeNameHandle := unique.Make(typeName)
+		if _, ok := d.childNodesHandlesIndex[typeNameHandle]; !ok {
+			d.childNodesHandlesIndex[typeNameHandle] = fieldsIndex{
+				fieldsHandle:         make(map[unique.Handle[string]]struct{}),
+				externalFieldsHandle: make(map[unique.Handle[string]]struct{}),
+			}
+		}
+
 		if _, ok := d.childNodesIndex[typeName]; !ok {
 			d.childNodesIndex[typeName] = fieldsIndex{
 				fields:         make(map[string]struct{}),
@@ -135,9 +175,15 @@ func (d *DataSourceMetadata) InitNodesIndex() {
 		}
 		for _, name := range d.ChildNodes[i].FieldNames {
 			d.childNodesIndex[typeName].fields[name] = struct{}{}
+
+			fieldNameHandle := unique.Make(name)
+			d.childNodesHandlesIndex[typeNameHandle].fieldsHandle[fieldNameHandle] = struct{}{}
 		}
 		for _, name := range d.ChildNodes[i].ExternalFieldNames {
 			d.childNodesIndex[typeName].externalFields[name] = struct{}{}
+
+			fieldNameHandle := unique.Make(name)
+			d.childNodesHandlesIndex[typeNameHandle].externalFieldsHandle[fieldNameHandle] = struct{}{}
 		}
 		for _, name := range d.ChildNodes[i].FetchReasonFields {
 			d.requireFetchReasons[FieldCoordinate{typeName, name}] = struct{}{}
@@ -163,6 +209,20 @@ func (d *DataSourceMetadata) HasRootNode(typeName, fieldName string) bool {
 	return ok
 }
 
+func (d *DataSourceMetadata) HasRootNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool {
+	if d.rootNodesHandlesIndex == nil {
+		return false
+	}
+
+	index, ok := d.rootNodesHandlesIndex[typeNameHandle]
+	if !ok {
+		return false
+	}
+
+	_, ok = index.fieldsHandle[fieldNameHandle]
+	return ok
+}
+
 func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
@@ -175,11 +235,31 @@ func (d *DataSourceMetadata) HasExternalRootNode(typeName, fieldName string) boo
 	return ok
 }
 
+func (d *DataSourceMetadata) HasExternalRootNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool {
+	if d.rootNodesHandlesIndex == nil {
+		return false
+	}
+	index, ok := d.rootNodesHandlesIndex[typeNameHandle]
+	if !ok {
+		return false
+	}
+	_, ok = index.externalFieldsHandle[fieldNameHandle]
+	return ok
+}
+
 func (d *DataSourceMetadata) HasRootNodeWithTypename(typeName string) bool {
 	if d.rootNodesIndex == nil {
 		return false
 	}
 	_, ok := d.rootNodesIndex[typeName]
+	return ok
+}
+
+func (d *DataSourceMetadata) HasRootNodeWithTypenameHandle(typeNameHandle unique.Handle[string]) bool {
+	if d.rootNodesHandlesIndex == nil {
+		return false
+	}
+	_, ok := d.rootNodesHandlesIndex[typeNameHandle]
 	return ok
 }
 
@@ -196,6 +276,19 @@ func (d *DataSourceMetadata) HasChildNode(typeName, fieldName string) bool {
 	return ok
 }
 
+func (d *DataSourceMetadata) HasChildNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool {
+	if d.childNodesHandlesIndex == nil {
+		return false
+	}
+	index, ok := d.childNodesHandlesIndex[typeNameHandle]
+	if !ok {
+		return false
+	}
+
+	_, ok = index.fieldsHandle[fieldNameHandle]
+	return ok
+}
+
 func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bool {
 	if d.childNodesIndex == nil {
 		return false
@@ -208,6 +301,18 @@ func (d *DataSourceMetadata) HasExternalChildNode(typeName, fieldName string) bo
 	return ok
 }
 
+func (d *DataSourceMetadata) HasExternalChildNodeHandle(typeNameHandle, fieldNameHandle unique.Handle[string]) bool {
+	if d.childNodesHandlesIndex == nil {
+		return false
+	}
+	index, ok := d.childNodesHandlesIndex[typeNameHandle]
+	if !ok {
+		return false
+	}
+	_, ok = index.externalFieldsHandle[fieldNameHandle]
+	return ok
+}
+
 func (d *DataSourceMetadata) RequireFetchReasons() map[FieldCoordinate]struct{} {
 	return d.requireFetchReasons
 }
@@ -217,6 +322,14 @@ func (d *DataSourceMetadata) HasChildNodeWithTypename(typeName string) bool {
 		return false
 	}
 	_, ok := d.childNodesIndex[typeName]
+	return ok
+}
+
+func (d *DataSourceMetadata) HasChildNodeWithTypenameHandle(typeNameHandle unique.Handle[string]) bool {
+	if d.childNodesHandlesIndex == nil {
+		return false
+	}
+	_, ok := d.childNodesHandlesIndex[typeNameHandle]
 	return ok
 }
 
