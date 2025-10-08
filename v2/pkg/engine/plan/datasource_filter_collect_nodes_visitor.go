@@ -22,6 +22,7 @@ type nodesCollector struct {
 	maxConcurrency uint
 	seenKeys       map[SeenKeyPath]struct{}
 	fieldInfo      map[int]fieldInfo
+	newFieldRefs   map[int]struct{}
 }
 
 type DSKeyInfo struct {
@@ -81,6 +82,16 @@ func (c *nodesCollector) collectNodes() {
 			localSuggestionLookup: make(map[int]struct{}),
 			globalSeenKeys:        c.seenKeys,
 		}
+
+		if len(c.newFieldRefs) > 0 {
+			limitedFieldsVisitor := &FieldsLimitedVisitor{
+				targetFieldRefs: c.newFieldRefs,
+			}
+
+			walker.RegisterFieldVisitor(limitedFieldsVisitor)
+			walker.SetVisitorFilter(limitedFieldsVisitor)
+		}
+
 		walker.RegisterFieldVisitor(visitor)
 		visitor.dataSource = dataSource
 		visitor.notExternalKeyPaths = make(map[string]struct{})
@@ -148,6 +159,7 @@ func (c *nodesCollector) buildTree() {
 		nodes:      c.nodes,
 		fieldInfo:  c.fieldInfo,
 	}
+
 	walker.RegisterEnterDocumentVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.Walk(c.operation, c.definition, c.report)

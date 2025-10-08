@@ -54,6 +54,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
+		newFieldRefs:                  make(map[int]struct{}),
 	}
 
 	nodeSelectionsWalker.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
@@ -83,10 +84,11 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
+	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 }
 
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources)
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
 		dsFilter.EnableSelectionReasons()
