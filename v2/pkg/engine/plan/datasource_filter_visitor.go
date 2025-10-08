@@ -24,6 +24,7 @@ type DataSourceFilter struct {
 	secondaryRun           bool
 
 	fieldDependsOn map[int][]int
+	newFieldRefs   map[int]struct{}
 	dataSources    []DataSource
 
 	jumpsForPathForTypename map[KeyIndex]*DataSourceJumpsGraph
@@ -33,13 +34,14 @@ type DataSourceFilter struct {
 	nodesCollector                     *nodesCollector
 }
 
-func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource) *DataSourceFilter {
+func NewDataSourceFilter(operation, definition *ast.Document, report *operationreport.Report, dataSources []DataSource, newFieldRefs map[int]struct{}) *DataSourceFilter {
 	return &DataSourceFilter{
-		operation:   operation,
-		definition:  definition,
-		report:      report,
-		dataSources: dataSources,
-		nodes:       NewNodeSuggestions(),
+		operation:    operation,
+		definition:   definition,
+		report:       report,
+		dataSources:  dataSources,
+		nodes:        NewNodeSuggestions(),
+		newFieldRefs: newFieldRefs,
 	}
 }
 
@@ -151,6 +153,7 @@ func (f *DataSourceFilter) collectNodes() {
 			maxConcurrency: f.maxDataSourceCollectorsConcurrency,
 			seenKeys:       make(map[SeenKeyPath]struct{}),
 			fieldInfo:      make(map[int]fieldInfo),
+			newFieldRefs:   f.newFieldRefs,
 		}
 	}
 

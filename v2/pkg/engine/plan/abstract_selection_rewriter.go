@@ -750,3 +750,31 @@ func (v *FieldLimitedVisitor) LeaveField(ref int) {
 		v.Stop()
 	}
 }
+
+type FieldsLimitedVisitor struct {
+	*astvisitor.Walker
+
+	targetFieldRefs map[int]struct{}
+	allow           bool
+}
+
+func (v *FieldsLimitedVisitor) AllowVisitor(kind astvisitor.VisitorKind, ref int, visitor interface{}, skipFor astvisitor.SkipVisitors) bool {
+	if visitor == v {
+		return true
+	}
+
+	return v.allow
+}
+
+func (v *FieldsLimitedVisitor) EnterField(ref int) {
+	if _, ok := v.targetFieldRefs[ref]; ok {
+		v.allow = true
+		return
+	}
+}
+
+func (v *FieldsLimitedVisitor) LeaveField(ref int) {
+	if _, ok := v.targetFieldRefs[ref]; ok {
+		v.allow = false
+	}
+}
