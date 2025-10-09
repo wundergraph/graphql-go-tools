@@ -1555,6 +1555,8 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 			propagated[i].ByUser = propagated[i].ByUser || reason.ByUser
 			if len(reason.BySubgraphs) > 0 {
 				propagated[i].BySubgraphs = append(propagated[i].BySubgraphs, reason.BySubgraphs...)
+				slices.Sort(propagated[i].BySubgraphs)
+				propagated[i].BySubgraphs = slices.Compact(propagated[i].BySubgraphs)
 				propagated[i].IsKey = propagated[i].IsKey || reason.IsKey
 				propagated[i].IsRequires = propagated[i].IsRequires || reason.IsRequires
 			}
@@ -1611,6 +1613,9 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 			if fieldInLookup || implementingInLookup {
 				reasonClone := reason
 				reasonClone.TypeName = implementingTypeName
+				if len(reasonClone.BySubgraphs) > 0 {
+					reasonClone.BySubgraphs = slices.Clone(reasonClone.BySubgraphs)
+				}
 				appendOrMerge(implementingField, reasonClone)
 			}
 		}
