@@ -3657,48 +3657,48 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 		validate          func(t *testing.T, data map[string]interface{})
 		validateError     func(t *testing.T, errData []graphqlError)
 	}{
-		// {
-		// 	name:  "Query with field resolvers",
-		// 	query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
-		// 	vars:  `{"variables":{"filters":{"minPrice":100}}}`,
-		// 	validate: func(t *testing.T, data map[string]interface{}) {
-		// 		require.NotEmpty(t, data)
+		{
+			name:  "Query with field resolvers",
+			query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
 
-		// 		categories, ok := data["categories"].([]interface{})
-		// 		require.True(t, ok, "categories should be an array")
-		// 		require.NotEmpty(t, categories, "categories should not be empty")
-		// 		require.Len(t, categories, 4, "Should return 1 category")
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
 
-		// 		for productCount, category := range categories {
-		// 			category, ok := category.(map[string]interface{})
-		// 			require.True(t, ok, "category should be an object")
-		// 			require.NotEmpty(t, category["id"])
-		// 			require.NotEmpty(t, category["name"])
-		// 			require.NotEmpty(t, category["kind"])
-		// 			require.Equal(t, float64(productCount), category["productCount"])
-		// 		}
+				for productCount, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["kind"])
+					require.Equal(t, float64(productCount), category["productCount"])
+				}
 
-		// 	},
-		// 	validateError: func(t *testing.T, errData []graphqlError) {
-		// 		require.Empty(t, errData)
-		// 	},
-		// },
-		// {
-		// 	name:  "Query with field resolvers and nullable lists",
-		// 	query: "query SubcategoriesWithFieldResolvers($filter: SubcategoryItemFilter) { categories { id subcategories { id name description isActive itemCount(filters: $filter) } } }",
-		// 	vars:  `{"variables":{"filter":{"isActive":true}}}`,
-		// 	validate: func(t *testing.T, data map[string]interface{}) {
-		// 		require.NotEmpty(t, data)
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and nullable lists",
+			query: "query SubcategoriesWithFieldResolvers($filter: SubcategoryItemFilter) { categories { id subcategories { id name description isActive itemCount(filters: $filter) } } }",
+			vars:  `{"variables":{"filter":{"isActive":true}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
 
-		// 		categories, ok := data["categories"].([]interface{})
-		// 		require.True(t, ok, "categories should be an array")
-		// 		require.NotEmpty(t, categories, "categories should not be empty")
-		// 		require.Len(t, categories, 4, "Should return 1 category")
-		// 	},
-		// 	validateError: func(t *testing.T, errData []graphqlError) {
-		// 		require.Empty(t, errData)
-		// 	},
-		// },
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 		{
 			name:  "Query with field resolvers and aliases",
 			query: "query CategoriesWithFieldResolversAndAliases($filter1: ProductCountFilter, $filter2: ProductCountFilter) { categories { productCount1: productCount(filters: $filter1) productCount2: productCount(filters: $filter2) } }",
@@ -3718,6 +3718,60 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 					require.Equal(t, float64(productCount), category["productCount2"])
 				}
 
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and message type",
+			query: "query CategoriesWithNullableTypes($nullType: String, $valueType: String) { categories { nullMetrics: categoryMetrics(metricType: $nullType) { id metricType value } valueMetrics: categoryMetrics(metricType: $valueType) { id metricType value } } }",
+			vars:  `{"variables":{"nullType":"unavailable","valueType":"popularity_score"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["valueMetrics"])
+					valueMetrics, ok := category["valueMetrics"].(map[string]interface{})
+					require.True(t, ok, "categoryMetrics should be an object")
+					require.NotEmpty(t, valueMetrics, "valueMetrics should not be empty")
+					require.Len(t, valueMetrics, 3, "Should return 1 valueMetrics")
+					require.NotEmpty(t, valueMetrics["id"])
+					require.NotEmpty(t, valueMetrics["metricType"])
+					require.NotEmpty(t, valueMetrics["value"])
+
+					require.Empty(t, category["nullMetrics"], "nullMetrics should be empty")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and null fields",
+			query: "query CategoriesWithNullableTypes($threshold1: Int, $threshold2: Int) { categories { nullScore: popularityScore(threshold: $threshold1) valueScore: popularityScore(threshold: $threshold2)  } }",
+			vars:  `{"variables":{"threshold1":100, "threshold2":50}}`, // Threshold above 50 should return null
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["valueScore"])
+					require.Empty(t, category["nullScore"])
+				}
 			},
 			validateError: func(t *testing.T, errData []graphqlError) {
 				require.Empty(t, errData)

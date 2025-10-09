@@ -63,7 +63,7 @@ func (s *MockService) ResolveCategoryPopularityScore(_ context.Context, req *pro
 
 	baseScore := 50
 	for range req.GetContext() {
-		if baseScore < int(threshold.GetValue()) {
+		if int(threshold.GetValue()) > baseScore {
 			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
 				PopularityScore: nil,
 			})
