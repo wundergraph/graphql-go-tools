@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	goerrors "errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -67,7 +66,7 @@ func (ri *ResponseInfo) GetResponseBody() string {
 func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	responseInfo := &ResponseInfo{
 		StatusCode:   res.statusCode,
-		Err:          goerrors.Join(res.err, subgraphError),
+		Err:          subgraphError,
 		responseBody: res.out,
 	}
 	if res.httpResponseContext != nil {
