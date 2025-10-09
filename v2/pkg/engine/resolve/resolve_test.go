@@ -5562,14 +5562,14 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		ctx := &Context{
 			ctx: context.Background(),
 			ExecutionOptions: ExecutionOptions{
-				SendHeartbeat: true,
+				SendHeartbeat: false,
 			},
 		}
 
 		ctx2 := &Context{
 			ctx: context.Background(),
 			ExecutionOptions: ExecutionOptions{
-				SendHeartbeat: true,
+				SendHeartbeat: false,
 			},
 		}
 
@@ -5642,14 +5642,14 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		ctx := &Context{
 			ctx: context.Background(),
 			ExecutionOptions: ExecutionOptions{
-				SendHeartbeat: true,
+				SendHeartbeat: false,
 			},
 		}
 
 		ctx2 := &Context{
 			ctx: context.Background(),
 			ExecutionOptions: ExecutionOptions{
-				SendHeartbeat: true,
+				SendHeartbeat: false,
 			},
 		}
 
