@@ -81,7 +81,7 @@ func (p Path) WithoutInlineFragmentNames() Path {
 	return out
 }
 
-func (p Path) WithPathElement(element PathItem) Path {
+func (p Path) WithPathItem(element PathItem) Path {
 	res := make(Path, len(p)+1)
 	copy(res, p)
 	res[len(res)-1] = element
@@ -89,7 +89,7 @@ func (p Path) WithPathElement(element PathItem) Path {
 }
 
 func (p Path) WithFieldNameItem(fieldName []byte) Path {
-	return p.WithPathElement(PathItem{
+	return p.WithPathItem(PathItem{
 		Kind:      FieldName,
 		FieldName: fieldName,
 	})
