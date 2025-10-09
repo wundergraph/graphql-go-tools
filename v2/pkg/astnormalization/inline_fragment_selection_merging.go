@@ -70,6 +70,8 @@ func (f *inlineFragmentSelectionMergeVisitor) fieldsCanMerge(left, right int) bo
 	leftDirectives := f.operation.FieldDirectives(left)
 	rightDirectives := f.operation.FieldDirectives(right)
 
+	// For fields with selections, check that all directives are equal
+	// This ensures @skip, @include, @defer and @stream all match
 	return f.operation.DirectiveSetsAreEqual(leftDirectives, rightDirectives)
 }
 
