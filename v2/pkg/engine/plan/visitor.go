@@ -1581,8 +1581,8 @@ func (v *Visitor) getPropagatedReasons(fetchID int, fetchReasons []resolve.Fetch
 		// then propagate it.
 		if typeNode.Kind == ast.NodeKindObjectTypeDefinition && !fieldInLookup {
 			objectDef := v.Definition.ObjectTypeDefinitions[typeNode.Ref]
-			for _, interfaceRef := range objectDef.ImplementsInterfaces.Refs {
-				interfaceTypeName := v.Definition.ResolveTypeNameString(interfaceRef)
+			for _, interfaceTypeRef := range objectDef.ImplementsInterfaces.Refs {
+				interfaceTypeName := v.Definition.ResolveTypeNameString(interfaceTypeRef)
 				interfaceField := FieldCoordinate{interfaceTypeName, reason.FieldName}
 				if _, ok := lookup[interfaceField]; ok {
 					appendOrMerge(field, reason)
