@@ -158,6 +158,11 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
+func ErrConflictingStreamDirectivesOnField(fieldName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("found conflicting stream directives on the same field '%s'", fieldName)
+	return err
+}
+
 func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, enumTypeName, typeName)
 	err.Locations = LocationsFromPosition(position)

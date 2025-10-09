@@ -1552,7 +1552,9 @@ func TestExecutionValidation(t *testing.T) {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(),
+					Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand'`))
 			})
 			t.Run("111", func(t *testing.T) {
 				run(t, `	
@@ -4687,81 +4689,176 @@ type Query {
 		t.Run("stream merging", func(t *testing.T) {
 			t.Run("same stream directives supported", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras @stream(label: "same", initialCount: 1)
-					extras @stream(label: "same", initialCount: 1)
-				}
-			`, FieldSelectionMerging(), Valid)
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream(label: "same", initialCount: 1)
+						extras @stream(label: "same", initialCount: 1)
+					}`, FieldSelectionMerging(), Valid)
 			})
 			t.Run("different stream directive label", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras @stream(label: "one", initialCount: 1)
-					extras @stream(label: "two", initialCount: 1)
-				}
-			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream(label: "one", initialCount: 1)
+						extras @stream(label: "two", initialCount: 1)
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("different stream directive label separate fragments", func(t *testing.T) {
 				run(t, `
-				query { dog { 
-					...dogFragment1
-					...dogFragment2
-				} }
-				fragment dogFragment1 on Dog {
-					extras @stream(label: "one", initialCount: 1)
-				}
-				fragment dogFragment2 on Dog {
-					extras @stream(label: "two", initialCount: 1)
-				}
-			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
+					query { dog { 
+						...dogFragment1
+						...dogFragment2
+					} }
+					fragment dogFragment1 on Dog {
+						extras @stream(label: "one", initialCount: 1)
+					}
+					fragment dogFragment2 on Dog {
+						extras @stream(label: "two", initialCount: 1)
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("different stream directive initialCount", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras @stream(label: "same", initialCount: 1)
-					extras @stream(label: "same", initialCount: 5)
-				}
-			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream(label: "same", initialCount: 1)
+						extras @stream(label: "same", initialCount: 5)
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("different stream directive: first missing args", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras @stream
-					extras @stream(label: "two", initialCount: 5)
-				}
-			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream
+						extras @stream(label: "two", initialCount: 5)
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("different stream directive: second missing args", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras @stream(label: "one", initialCount: 1)
-					extras @stream
-				}
-			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream(label: "one", initialCount: 1)
+						extras @stream
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("mix of stream and no stream", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras 
-					extras @stream
-				}
-			`, FieldSelectionMerging(), Invalid, withValidationErrors(`found conflicting stream directives on the same field`))
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras 
+						extras @stream
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
 			})
 			t.Run("different stream directive both missing args", func(t *testing.T) {
 				run(t, `
-				query { dog { ...dogFragment } }
-				fragment dogFragment on Dog {
-					extras @stream
-					extras @stream
-				}
-			`, FieldSelectionMerging(), Valid)
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream
+						extras @stream
+					}`, FieldSelectionMerging(), Valid)
 			})
+			t.Run("on union type, different members, same field name", func(t *testing.T) {
+				run(t, `
+					query { 
+						extras {
+							... on DogExtra {
+								strings @stream(label: "dog")
+							}
+							... on CatExtra {
+								strings @stream(label: "cat")
+							}
+						}
+					}`, FieldSelectionMerging(), Valid)
+			})
+			t.Run("on same field with different aliases", func(t *testing.T) {
+				run(t, `
+					query { dog { 
+						list1: extras @stream(label: "one")
+						list2: extras @stream(label: "two")
+					} }`, FieldSelectionMerging(), Valid)
+			})
+			t.Run("on same field with same alias different streams", func(t *testing.T) {
+				run(t, `
+					query { dog { 
+						list: extras @stream(label: "one")
+						list: extras @stream(label: "two")
+					} }`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
+			})
+			t.Run("on inline fragments of same type", func(t *testing.T) {
+				run(t, `
+					query { dog {
+						... on Dog {
+							extras @stream(label: "one")
+						}
+						... on Dog {
+							extras @stream(label: "two")
+						}
+					} }`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
+			})
+			t.Run("nested stream directive conflicts", func(t *testing.T) {
+				run(t, `
+					query { dog {
+						extra {
+							strings @stream(label: "one")
+						}
+						extra {
+							strings @stream(label: "two")
+						}
+					} }`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'strings'`))
+			})
+			t.Run("multiple no-stream selections with one stream", func(t *testing.T) {
+				run(t, `
+					query { dog {
+						extras
+						extras
+						extras @stream(label: "one")
+					} }`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
+			})
+
+			// conditionals in streams are not implemented yet, some tests are disabled for now.
+			t.Run("with different if conditions", func(t *testing.T) {
+				run(t, `
+					query { dog { ...dogFragment } }
+					fragment dogFragment on Dog {
+						extras @stream(label: "same", initialCount: 1, if: true)
+						extras @stream(label: "same", initialCount: 1, if: false)
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
+			})
+			t.Run("with variable if conditions", func(t *testing.T) {
+				run(t, `
+					query($cond1: Boolean!, $cond2: Boolean!) { 
+						dog { 
+							extras @stream(label: "same", initialCount: 1, if: $cond1)
+							extras @stream(label: "same", initialCount: 1, if: $cond2)
+						} 
+					}`, FieldSelectionMerging(), Invalid,
+					withValidationErrors(`found conflicting stream directives on the same field`))
+			})
+			// t.Run("with if true vs no if argument", func(t *testing.T) {
+			// 	run(t, `
+			// 		query { dog {
+			// 			extras @stream(label: "same", initialCount: 1, if: true)
+			// 			extras @stream(label: "same", initialCount: 1)
+			// 		} }`, FieldSelectionMerging(), Valid)
+			// })
+			// t.Run("with if false vs no stream", func(t *testing.T) {
+			// 	run(t, `
+			// 		query { dog {
+			// 			extras
+			// 			extras @stream(label: "one", if: false)
+			// 		} }`, FieldSelectionMerging(), Invalid,
+			// 		withValidationErrors(`found conflicting stream directives on the same field`))
+			// })
 		})
 	})
 }
