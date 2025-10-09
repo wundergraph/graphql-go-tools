@@ -1,8 +1,6 @@
 name: execution
 on:
   pull_request:
-    branches:
-      - master
     paths:
       - 'v2/**'
       - 'execution/**'
