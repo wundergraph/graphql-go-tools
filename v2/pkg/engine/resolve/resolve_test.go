@@ -5589,7 +5589,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorderWith1Message := false
 		recorderWith2Messages := false
 
-		for _, r := range recorders {
+		for i, r := range recorders {
+			// temporary debug logs
+			fmt.Printf("DEBUG recorder %d: %v\n", i, r.messages)
+
 			if len(r.Messages()) == 2 {
 				recorderWith2Messages = true
 				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
@@ -5666,7 +5669,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		recorders := []*SubscriptionRecorder{recorder, recorder2}
 
-		for _, r := range recorders {
+		for i, r := range recorders {
+			// temporary debug logs
+			fmt.Printf("DEBUG recorder %d: %v\n", i, r.messages)
+
 			if len(r.Messages()) == 2 {
 				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
 				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
