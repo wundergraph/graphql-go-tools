@@ -843,7 +843,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 		},
 	))
 
-	t.Run("execute simple hero operation with propagating to subgraphs fetch reasons", runWithoutError(
+	t.Run("operation on interface, subgraph expects fetch reasons for all implementing types", runWithoutError(
 		ExecutionEngineTestCase{
 			schema:    graphql.StarwarsSchema(t),
 			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
@@ -854,7 +854,7 @@ func TestExecutionEngine_Execute(t *testing.T) {
 						testNetHttpClient(t, roundTripperTestCase{
 							expectedHost:     "example.com",
 							expectedPath:     "/",
-							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Query","field":"hero","by_user":true}]}}`,
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
 							sendResponseBody: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
 							sendStatusCode:   200,
 						}),
@@ -862,16 +862,287 @@ func TestExecutionEngine_Execute(t *testing.T) {
 					&plan.DataSourceMetadata{
 						RootNodes: []plan.TypeField{
 							{
-								TypeName:          "Query",
-								FieldNames:        []string{"hero"},
-								FetchReasonFields: []string{"hero"},
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunctions", "friends"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name", "friends"},
+								// An interface field implicitly marks all the implementing types.
+								FetchReasonFields: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker"}}}`,
+		},
+		withFetchReasons(),
+	))
+
+	t.Run("operation on interface, subgraph expects fetch reasons for one implementing type", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Droid","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunctions", "friends"},
+								// Only for this field propagate the fetch reasons,
+								// even if a user has asked for the interface in the query.
+								FetchReasonFields: []string{"name"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name", "friends"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+		},
+		withFetchReasons(),
+	))
+
+	t.Run("operation on interface, interface and object marked, subgraph expects fetch reasons for one implementing type", runWithoutError(
+		ExecutionEngineTestCase{
+			schema:    graphql.StarwarsSchema(t),
+			operation: graphql.LoadStarWarsQuery(starwars.FileSimpleHeroQuery, nil),
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:          "Droid",
+								FieldNames:        []string{"name", "primaryFunctions", "friends"},
+								FetchReasonFields: []string{"name"}, // implementing is marked
 							},
 						},
 						ChildNodes: []plan.TypeField{
 							{
 								TypeName:          "Character",
-								FieldNames:        []string{"name"},
+								FieldNames:        []string{"name", "friends"},
+								FetchReasonFields: []string{"name"}, // interface is marked
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Droid Number 6"}}}`,
+		},
+		withFetchReasons(),
+	))
+
+	t.Run("operation on fragment, subgraph expects fetch reasons for one implementing type", runWithoutError(
+		ExecutionEngineTestCase{
+			schema: graphql.StarwarsSchema(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					Query: `query {
+						hero {
+							...humanFields
+						}
+					}
+					fragment humanFields on Human {
+						name
+						height
+					}`,
+				}
+			},
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {__typename ... on Human {name height}}}","extensions":{"fetch_reasons":[{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename": "Human", "name":"Luke Skywalker", "height": "1.99"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:   "Human",
+								FieldNames: []string{"name", "height", "friends"},
+							},
+							{
+								TypeName:   "Droid",
+								FieldNames: []string{"name", "primaryFunctions", "friends"},
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:   "Character",
+								FieldNames: []string{"name", "friends"},
+								// Interface is marked, and we should propagate reasons if
+								// a user has asked for the fragment on concrete type
+								// that is not marked for fetch reasons.
 								FetchReasonFields: []string{"name"},
+							},
+						},
+					},
+					mustConfiguration(t, graphql_datasource.ConfigurationInput{
+						Fetch: &graphql_datasource.FetchConfiguration{
+							URL:    "https://example.com/",
+							Method: "POST",
+						},
+						SchemaConfiguration: mustSchemaConfig(
+							t,
+							nil,
+							string(graphql.StarwarsSchema(t).RawSchema()),
+						),
+					}),
+				),
+			},
+			fields:           []plan.FieldConfiguration{},
+			expectedResponse: `{"data":{"hero":{"name":"Luke Skywalker","height":"1.99"}}}`,
+		},
+		withFetchReasons(),
+	))
+	t.Run("operation on fragment, subgraph expects fetch reasons for interface and implementing types without dupes", runWithoutError(
+		ExecutionEngineTestCase{
+			schema: graphql.StarwarsSchema(t),
+			operation: func(t *testing.T) graphql.Request {
+				return graphql.Request{
+					Query: `query {
+						hero {
+							...humanFields
+							name
+						}
+					}
+					fragment humanFields on Human {
+						name
+					}`,
+				}
+			},
+			dataSources: []plan.DataSource{
+				mustGraphqlDataSourceConfiguration(t,
+					"id",
+					mustFactory(t,
+						testNetHttpClient(t, roundTripperTestCase{
+							expectedHost:     "example.com",
+							expectedPath:     "/",
+							expectedBody:     `{"query":"{hero {__typename ... on Human {name} name}}","extensions":{"fetch_reasons":[{"typename":"Character","field":"name","by_user":true},{"typename":"Droid","field":"name","by_user":true},{"typename":"Human","field":"name","by_user":true}]}}`,
+							sendResponseBody: `{"data":{"hero":{"__typename": "Human", "name":"Luke Skywalker"}}}`,
+							sendStatusCode:   200,
+						}),
+					),
+					&plan.DataSourceMetadata{
+						RootNodes: []plan.TypeField{
+							{
+								TypeName:   "Query",
+								FieldNames: []string{"hero"},
+							},
+							{
+								TypeName:          "Human",
+								FieldNames:        []string{"name", "height", "friends"},
+								FetchReasonFields: []string{"name"}, // implementing is marked
+							},
+							{
+								TypeName:          "Droid",
+								FieldNames:        []string{"name", "primaryFunctions", "friends"},
+								FetchReasonFields: []string{"name"}, // implementing is marked
+							},
+						},
+						ChildNodes: []plan.TypeField{
+							{
+								TypeName:          "Character",
+								FieldNames:        []string{"name", "friends"},
+								FetchReasonFields: []string{"name"}, // interface is marked
 							},
 						},
 					},
