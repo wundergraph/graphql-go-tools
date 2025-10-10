@@ -1,5 +1,5 @@
 # Directive for gRPC field resolvers
-directive @resolved(context: openfed__FieldSet!) on FIELD_DEFINITION
+directive @configureResolver(context: openfed__FieldSet!) on FIELD_DEFINITION
 
 type Product @key(fields: "id") {
   id: ID!
@@ -116,10 +116,10 @@ type Category {
   id: ID!
   name: String!
   kind: CategoryKind!
-  productCount(filters: ProductCountFilter): Int! @resolved(context: "id name")
+  productCount(filters: ProductCountFilter): Int! @configureResolver(context: "id name")
   subcategories: [Subcategory!]
-  popularityScore(threshold: Int): Int @resolved(context: "id")
-  categoryMetrics(metricType: String!): CategoryMetrics @resolved(context: "id name")
+  popularityScore(threshold: Int): Int @configureResolver(context: "id")
+  categoryMetrics(metricType: String!): CategoryMetrics @configureResolver(context: "id name")
 }
 
 type Subcategory {
@@ -127,7 +127,7 @@ type Subcategory {
   name: String!
   description: String
   isActive: Boolean!
-  itemCount(filters: SubcategoryItemFilter): Int! @resolved(context: "id")
+  itemCount(filters: SubcategoryItemFilter): Int! @configureResolver(context: "id")
 }
 
 type CategoryMetrics {

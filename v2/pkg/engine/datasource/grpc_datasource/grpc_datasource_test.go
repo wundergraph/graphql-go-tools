@@ -27,6 +27,79 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
+func Benchmark_DataSource_Load(b *testing.B) {
+	conn, cleanup := setupTestGRPCServer(b)
+	b.Cleanup(cleanup)
+
+	schemaDoc := grpctest.MustGraphQLSchema(b)
+
+	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
+	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		b.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
+	require.NoError(b, err)
+
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Compiler:     compiler,
+		Mapping:      testMapping(),
+	})
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		output := new(bytes.Buffer)
+		err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
+		require.NoError(b, err)
+	}
+}
+
+func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
+	conn, cleanup := setupTestGRPCServer(b)
+	b.Cleanup(cleanup)
+
+	schemaDoc := grpctest.MustGraphQLSchema(b)
+
+	query := `query CategoriesWithNullableTypes($nullType: String, $valueType: String) { categories { nullMetrics: categoryMetrics(metricType: $nullType) { id metricType value } valueMetrics: categoryMetrics(metricType: $valueType) { id metricType value } } }`
+	variables := `{"variables":{"nullType":"unavailable","valueType":"popularity_score"}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		b.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for b.Loop() {
+		ds, err := NewDataSource(conn, DataSourceConfig{
+			Operation:    &queryDoc,
+			Definition:   &schemaDoc,
+			SubgraphName: "Products",
+			Compiler:     compiler,
+			Mapping:      testMapping(),
+		})
+		require.NoError(b, err)
+
+		output := new(bytes.Buffer)
+		err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
+		require.NoError(b, err)
+	}
+}
+
 // mockInterface provides a simple implementation of grpc.ClientConnInterface for testing
 type mockInterface struct {
 }
@@ -58,7 +131,7 @@ func (m mockInterface) NewStream(ctx context.Context, desc *grpc.StreamDesc, met
 
 var _ grpc.ClientConnInterface = (*mockInterface)(nil)
 
-func setupTestGRPCServer(t *testing.T) (conn *grpc.ClientConn, cleanup func()) {
+func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 	t.Helper()
 
 	// Set up the bufconn listener
@@ -3811,6 +3884,11 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
 			err = ds.Load(context.Background(), []byte(input), output)
 			require.NoError(t, err)
+
+			pretty := new(bytes.Buffer)
+			err = json.Indent(pretty, output.Bytes(), "", " ")
+			require.NoError(t, err)
+			fmt.Println(pretty.String())
 
 			// Parse the response
 			var resp graphqlResponse

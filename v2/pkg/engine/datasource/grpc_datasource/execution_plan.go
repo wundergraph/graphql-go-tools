@@ -14,6 +14,9 @@ const (
 	// knownTypeOptionalFieldValueName is the name of the field that is used to wrap optional scalar values
 	// in a message as protobuf scalar types are not nullable.
 	knownTypeOptionalFieldValueName = "value"
+
+	// resolverContextDirectiveName is the name of the directive that is used to configure the resolver context.
+	resolverContextDirectiveName = "configureResolver"
 )
 
 // OneOfType represents the type of a oneof field in a protobuf message.
@@ -709,7 +712,7 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 }
 
 func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fd int) ([]int, error) {
-	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fd, ast.ByteSlice("resolved"))
+	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fd, ast.ByteSlice(resolverContextDirectiveName))
 	if exists {
 		fields, err := r.getFieldsFromContext(walker.EnclosingTypeDefinition, contextDirectiveRef)
 		if err != nil {

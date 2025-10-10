@@ -592,10 +592,6 @@ func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
 //	  repeated CategoryProductCountContext context = 1;
 //	  CategoryProductCountArgs field_args = 2;
 //	}
-//
-//	message ResolveCategoryProductCountRequestKey {
-
-// }
 func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result, context []FetchItem) *dynamicpb.Message {
 	if rpcMessage == nil {
 		return nil
