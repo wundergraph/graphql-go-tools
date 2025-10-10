@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.0.0-rc.230](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.229...v2.0.0-rc.230) (2025-10-09)
+
+
+### Bug Fixes
+
+* avoid duplicate joins on errors ([#1314](https://github.com/wundergraph/graphql-go-tools/issues/1314)) ([a1f1f8c](https://github.com/wundergraph/graphql-go-tools/commit/a1f1f8c1e68e4fce79135423adb7f7ad27feb570))
+* propagate fetch reasons for interface-related fields ([#1312](https://github.com/wundergraph/graphql-go-tools/issues/1312)) ([5ee3014](https://github.com/wundergraph/graphql-go-tools/commit/5ee3014edef13461fb1ef9e6297629f31ef6db7c))
+
 ## [2.0.0-rc.229](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.228...v2.0.0-rc.229) (2025-09-25)
 
 
