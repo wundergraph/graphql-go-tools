@@ -5551,6 +5551,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
+		resolver.options.Debug = true
 
 		recorder2 := &SubscriptionRecorder{
 			buf:      &bytes.Buffer{},
@@ -5589,10 +5590,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorderWith1Message := false
 		recorderWith2Messages := false
 
-		for i, r := range recorders {
-			// temporary debug logs
-			fmt.Printf("DEBUG recorder %d: %v\n", i, r.messages)
-
+		for _, r := range recorders {
 			if len(r.Messages()) == 2 {
 				recorderWith2Messages = true
 				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
@@ -5634,6 +5632,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
+		resolver.options.Debug = true
 
 		recorder2 := &SubscriptionRecorder{
 			buf:      &bytes.Buffer{},
@@ -5671,7 +5670,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		for i, r := range recorders {
 			// temporary debug logs
-			fmt.Printf("DEBUG recorder %d: %v\n", i, r.messages)
+			fmt.Printf("DEBUG 1 recorder %d: %v\n", i, r.messages)
 
 			if len(r.Messages()) == 2 {
 				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
