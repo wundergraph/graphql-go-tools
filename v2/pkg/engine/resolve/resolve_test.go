@@ -5621,7 +5621,12 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			SubscriptionID: 2,
 		}
 
+		streamCanStart := make(chan struct{})
+
 		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			if counter == 0 {
+				<-streamCanStart
+			}
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
 		}, 1*time.Millisecond, func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
@@ -5668,6 +5673,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 		recorder2.AwaitAnyMessageCount(t, defaultTimeout)
+
+		// At this point, both subscriptions have received their startup hook messages,
+		// which means they're fully registered in trigger.subscriptions and ready to receive broadcasts
+		close(streamCanStart)
 
 		recorder.AwaitComplete(t, defaultTimeout)
 		recorder2.AwaitComplete(t, defaultTimeout)
