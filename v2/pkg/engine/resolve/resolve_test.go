@@ -5591,6 +5591,17 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
 		assert.NoError(t, err2)
 
+		done := make(chan struct{})
+		go func() {
+			startupHookWaitGroup.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(defaultTimeout):
+			t.Fatal("timed out waiting for subscription startup hooks")
+		}
+
 		// Wait for both subscriptions startup hooks to be executed
 		startupHookWaitGroup.Wait()
 
