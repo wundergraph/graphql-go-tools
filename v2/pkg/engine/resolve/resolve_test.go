@@ -5608,7 +5608,10 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
-		defer cancel()
+		defer func() {
+			fmt.Println("DEBUG 1: calling defer cancel()")
+			cancel()
+		}()
 
 		subsStarted := sync.WaitGroup{}
 		subsStarted.Add(2)
@@ -5632,7 +5635,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		}
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
-		resolver.options.Debug = true
+		resolver.options.Debug = true // TODO delete this
 
 		recorder2 := &SubscriptionRecorder{
 			buf:      &bytes.Buffer{},
