@@ -5666,6 +5666,9 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		assert.NoError(t, err2)
 		subsStarted.Done()
 
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
+		recorder2.AwaitAnyMessageCount(t, defaultTimeout)
+
 		recorder.AwaitComplete(t, defaultTimeout)
 		recorder2.AwaitComplete(t, defaultTimeout)
 
