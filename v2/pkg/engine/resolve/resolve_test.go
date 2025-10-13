@@ -5534,18 +5534,24 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			SubscriptionID: 2,
 		}
 
-		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+		messageFn := func(counter int) (message string, done bool) {
 			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
-		}, 1*time.Millisecond, func(input []byte) {
+		}
+
+		onStartFn := func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx StartupHookContext, input []byte) (err error) {
+		}
+
+		subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
 			if executed.Load() {
 				return
 			}
 			executed.Store(true)
 			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
 			return nil
-		})
+		}
+
+		fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, subscriptionOnStartFn)
 		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
 			return nil
 		}
@@ -5590,7 +5596,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		recorderWith1Message := false
 		recorderWith2Messages := false
 
-		for _, r := range recorders {
+		for i, r := range recorders {
+			fmt.Printf("DEBUG 0:%d %v\n", i, r.messages)
 			if len(r.Messages()) == 2 {
 				recorderWith2Messages = true
 				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
@@ -5604,6 +5611,8 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		assert.True(t, recorderWith1Message)
 		assert.True(t, recorderWith2Messages)
+
+		assert.True(t, false)
 	})
 
 	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
