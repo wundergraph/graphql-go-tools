@@ -5526,23 +5526,29 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		defer cancel()
 
 		executed := atomic.Bool{}
-		subsStarted := sync.WaitGroup{}
-		subsStarted.Add(2)
 
 		id2 := SubscriptionIdentifier{
 			ConnectionID:   1,
 			SubscriptionID: 2,
 		}
 
+		streamCanStart := make(chan struct{})
+		startupHookWaitGroup := sync.WaitGroup{}
+		startupHookWaitGroup.Add(2)
+
+		// this message must come as last, on both recorders.
 		messageFn := func(counter int) (message string, done bool) {
-			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+			<-streamCanStart
+			return `{"data":{"counter":0}}`, true
 		}
 
 		onStartFn := func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
 		}
 
+		// this message must come first on the first recorder to be added to the trigger.
 		subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
+			defer startupHookWaitGroup.Done()
 			if executed.Load() {
 				return
 			}
@@ -5551,7 +5557,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 			return nil
 		}
 
-		fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, subscriptionOnStartFn)
+		fakeStream := createFakeStream(messageFn, time.Millisecond, onStartFn, subscriptionOnStartFn)
 		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
 			return nil
 		}
@@ -5582,11 +5588,15 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		subsStarted.Done()
 
 		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
 		assert.NoError(t, err2)
-		subsStarted.Done()
+
+		// Wait for both subscriptions startup hooks to be executed
+		startupHookWaitGroup.Wait()
+
+		// Signal the stream to send its message now that both subscriptions are ready
+		close(streamCanStart)
 
 		recorder.AwaitComplete(t, defaultTimeout)
 		recorder2.AwaitComplete(t, defaultTimeout)
@@ -5611,8 +5621,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		assert.True(t, recorderWith1Message)
 		assert.True(t, recorderWith2Messages)
-
-		assert.True(t, false)
 	})
 
 	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
