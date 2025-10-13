@@ -5608,13 +5608,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 	t.Run("SubscriptionOnStart ctx updater on multiple subscriptions with same trigger works", func(t *testing.T) {
 		c, cancel := context.WithCancel(context.Background())
-		defer func() {
-			fmt.Println("DEBUG 1: calling defer cancel()")
-			cancel()
-		}()
-
-		subsStarted := sync.WaitGroup{}
-		subsStarted.Add(2)
+		defer cancel()
 
 		id2 := SubscriptionIdentifier{
 			ConnectionID:   1,
@@ -5623,24 +5617,29 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		streamCanStart := make(chan struct{})
 
-		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
-			if counter == 0 {
-				<-streamCanStart
-			}
-			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
-		}, 1*time.Millisecond, func(input []byte) {
+		// Message function that waits for signal before sending the final message
+		messageFn := func(counter int) (message string, done bool) {
+			<-streamCanStart
+			return `{"data":{"counter":0}}`, true
+		}
+
+		onStartFn := func(input []byte) {
 			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
-		}, func(ctx StartupHookContext, input []byte) (err error) {
+		}
+
+		// this handler pushes the first message to both subscribers via subscription-on-start hook.
+		subscriptionOnStartFn := func(ctx StartupHookContext, input []byte) (err error) {
 			ctx.Updater([]byte(`{"data":{"counter":1000}}`))
 			return nil
-		})
+		}
+
+		fakeStream := createFakeStream(messageFn, 1*time.Millisecond, onStartFn, subscriptionOnStartFn)
 		fakeStream.uniqueRequestFn = func(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
 			_, err = xxh.WriteString("unique")
 			return
 		}
 
 		resolver, plan, recorder, id := setup(c, fakeStream)
-		resolver.options.Debug = true // TODO delete this
 
 		recorder2 := &SubscriptionRecorder{
 			buf:      &bytes.Buffer{},
@@ -5665,34 +5664,25 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 
 		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
 		assert.NoError(t, err)
-		subsStarted.Done()
 
 		err2 := resolver.AsyncResolveGraphQLSubscription(ctx2, plan, recorder2, id2)
 		assert.NoError(t, err2)
-		subsStarted.Done()
 
+		// Wait for subscriptions to receive their initial message from the subscription-on-start hook.
+		// Then we know the subscriptions are fully registered on the trigger and then we can send
+		// the next message (by closing the streamCanStart channel).
 		recorder.AwaitAnyMessageCount(t, defaultTimeout)
 		recorder2.AwaitAnyMessageCount(t, defaultTimeout)
-
-		// At this point, both subscriptions have received their startup hook messages,
-		// which means they're fully registered in trigger.subscriptions and ready to receive broadcasts
 		close(streamCanStart)
 
 		recorder.AwaitComplete(t, defaultTimeout)
 		recorder2.AwaitComplete(t, defaultTimeout)
 
-		recorders := []*SubscriptionRecorder{recorder, recorder2}
-
-		for i, r := range recorders {
-			// temporary debug logs
-			fmt.Printf("DEBUG 1 recorder %d: %v\n", i, r.messages)
-
-			if len(r.Messages()) == 2 {
-				assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
-				assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
-			} else {
-				assert.Fail(t, "should not be here")
-			}
+		// Both recorders should have received both messages in the correct order.
+		for _, r := range []*SubscriptionRecorder{recorder, recorder2} {
+			assert.Len(t, r.Messages(), 2)
+			assert.Equal(t, `{"data":{"counter":1000}}`, r.Messages()[0])
+			assert.Equal(t, `{"data":{"counter":0}}`, r.Messages()[1])
 		}
 	})
 
