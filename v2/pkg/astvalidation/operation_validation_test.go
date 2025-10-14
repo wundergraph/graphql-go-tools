@@ -4825,25 +4825,29 @@ type Query {
 			})
 
 			// conditionals in streams are not implemented yet, some tests are disabled for now.
-			t.Run("with different if conditions", func(t *testing.T) {
-				run(t, `
-					query { dog { ...dogFragment } }
-					fragment dogFragment on Dog {
-						extras @stream(label: "same", initialCount: 1, if: true)
-						extras @stream(label: "same", initialCount: 1, if: false)
-					}`, FieldSelectionMerging(), Invalid,
-					withValidationErrors(`found conflicting stream directives on the same field`))
-			})
-			t.Run("with variable if conditions", func(t *testing.T) {
-				run(t, `
-					query($cond1: Boolean!, $cond2: Boolean!) { 
-						dog { 
-							extras @stream(label: "same", initialCount: 1, if: $cond1)
-							extras @stream(label: "same", initialCount: 1, if: $cond2)
-						} 
-					}`, FieldSelectionMerging(), Invalid,
-					withValidationErrors(`found conflicting stream directives on the same field`))
-			})
+			//
+			// Streams with "if:false" should be just ignored.
+			// t.Run("with different if conditions", func(t *testing.T) {
+			// 	run(t, `
+			// 		query { dog { ...dogFragment } }
+			// 		fragment dogFragment on Dog {
+			// 			extras @stream(label: "same", initialCount: 1, if: true)
+			// 			extras @stream(label: "same", initialCount: 1, if: false)
+			// 		}`, FieldSelectionMerging(), Valid)
+			// })
+			//
+			// Streams with "if" set to variables, should have matching other fields.
+			// t.Run("with variable if conditions", func(t *testing.T) {
+			// 	run(t, `
+			// 		query($cond1: Boolean!, $cond2: Boolean!) {
+			// 			dog {
+			// 				extras @stream(label: "same", initialCount: 1, if: $cond1)
+			// 				extras @stream(label: "same", initialCount: 1, if: $cond2)
+			// 			}
+			// 		}`, FieldSelectionMerging(), Valid)
+			// })
+			//
+			// "if: true" in streams can be omitted and merged without it
 			// t.Run("with if true vs no if argument", func(t *testing.T) {
 			// 	run(t, `
 			// 		query { dog {
@@ -4851,13 +4855,14 @@ type Query {
 			// 			extras @stream(label: "same", initialCount: 1)
 			// 		} }`, FieldSelectionMerging(), Valid)
 			// })
+			//
+			// streams with "if: false" should be ignored
 			// t.Run("with if false vs no stream", func(t *testing.T) {
 			// 	run(t, `
 			// 		query { dog {
 			// 			extras
 			// 			extras @stream(label: "one", if: false)
-			// 		} }`, FieldSelectionMerging(), Invalid,
-			// 		withValidationErrors(`found conflicting stream directives on the same field`))
+			// 		} }`, FieldSelectionMerging(), Valid)
 			// })
 		})
 	})
