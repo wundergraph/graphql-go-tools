@@ -18,7 +18,7 @@ var TestOptions = EndpointOptions{
 }
 
 func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
-	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}}))
+	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &Resolver{}})) //nolint:staticcheck
 	if opts.EnableDebug {
 		srv.Use(&debug.Tracer{})
 	}
