@@ -76,10 +76,4 @@ require (
 	rogchap.com/v8go v0.9.0 // indirect
 )
 
-// cosmo/router dependency uses indirect dependency of gqlgen of version v0.17.39
-// code in this workspace uses v0.17.22
-// this is a workaround to make sure that the correct version is used
-// as we cannot pin the specific version in go mod
-//replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.22
-
 tool github.com/99designs/gqlgen
