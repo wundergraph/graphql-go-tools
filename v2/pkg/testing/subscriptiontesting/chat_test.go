@@ -6,12 +6,19 @@ import (
 
 	"github.com/99designs/gqlgen/client"
 	"github.com/99designs/gqlgen/graphql/handler"
+	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestChatSubscriptions(t *testing.T) {
-	c := client.New(handler.NewDefaultServer(NewExecutableSchema(New()))) //nolint:staticcheck
+	srv := handler.New(NewExecutableSchema(New()))
+	srv.AddTransport(transport.Websocket{
+		KeepAlivePingInterval: 10 * time.Second,
+	})
+	srv.AddTransport(transport.POST{})
+
+	c := client.New(srv)
 
 	sub := c.Websocket(`subscription @user(username:"vektah") { messageAdded(roomName:"#gophers") { text createdBy } }`)
 	defer func() {
