@@ -158,6 +158,11 @@ func ErrDifferingFieldsOnPotentiallySameType(objectName ast.ByteSlice) (err Exte
 	return err
 }
 
+func ErrConflictingStreamDirectivesOnField(fieldName ast.ByteSlice) (err ExternalError) {
+	err.Message = fmt.Sprintf("found conflicting stream directives on the same field '%s'", fieldName)
+	return err
+}
+
 func ErrFieldSelectionOnLeaf(enumTypeName ast.ByteSlice, typeName string, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`Field "%s" must not have a selection since type "%s" has no subfields.`, enumTypeName, typeName)
 	err.Locations = LocationsFromPosition(position)
@@ -402,12 +407,59 @@ func ErrDirectiveNotAllowedOnNode(directiveName, nodeKindName ast.ByteSlice) (er
 
 func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice, position, duplicatePosition position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(`The directive "@%s" can only be used once at this location.`, directiveName)
-	if duplicatePosition.LineStart < position.LineStart || duplicatePosition.CharStart < position.CharStart {
-		err.Locations = LocationsFromPosition(duplicatePosition, position)
-	} else {
-		err.Locations = LocationsFromPosition(position, duplicatePosition)
-	}
+	err.Locations = orderedLocationsFromPositions(position, duplicatePosition)
 
+	return err
+}
+
+func orderedLocationsFromPositions(posA, posB position.Position) (locations []Location) {
+	// Order by (line, column) non-descending.
+	if posA.LineStart < posB.LineStart || (posA.LineStart == posB.LineStart && posA.CharStart < posB.CharStart) {
+		return LocationsFromPosition(posA, posB)
+	} else {
+		return LocationsFromPosition(posB, posA)
+	}
+}
+
+func ErrStreamDirectiveOnNonListField(directiveName, fieldName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" can only be used on list fields, but field "%s" is not a list`,
+		directiveName, fieldName)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
+func ErrDeferStreamDirectiveLabelMustBeStatic(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" label argument must be a static string value, not a variable`,
+		directiveName)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
+func ErrDeferStreamDirectiveLabelMustBeUnique(directiveNameA, directiveNameB ast.ByteSlice, label string, posA, posB position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" label "%s" must be unique, but was already used on "@%s" directive`,
+		directiveNameA, label, directiveNameB)
+	err.Locations = orderedLocationsFromPositions(posA, posB)
+	return err
+}
+
+func ErrStreamInitialCountMustBeNonNegative(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" has invalid initialCount argument: must be non-negative`,
+		directiveName)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
+func ErrDeferStreamDirectiveNotAllowedOnSubs(directiveName ast.ByteSlice, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" is not allowed on subscription operations`,
+		directiveName)
+	err.Locations = LocationsFromPosition(directivePosition)
+	return err
+}
+
+func ErrDeferStreamDirectiveNotAllowedOnRootField(directiveName ast.ByteSlice, operationType string, directivePosition position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf(`directive "@%s" is not allowed on root fields of %s operations`,
+		directiveName, operationType)
+	err.Locations = LocationsFromPosition(directivePosition)
 	return err
 }
 

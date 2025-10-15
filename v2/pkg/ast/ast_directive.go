@@ -135,10 +135,17 @@ func (d *Document) DirectiveSetsHasCompatibleStreamDirective(left, right []int) 
 	leftRef, leftExists := d.DirectiveWithNameBytes(left, literal.STREAM)
 	rightRef, rightExists := d.DirectiveWithNameBytes(right, literal.STREAM)
 
+	// Both have @stream: they must be equal
 	if leftExists && rightExists {
 		return d.DirectivesAreEqual(leftRef, rightRef)
 	}
 
+	// One has @stream, the other doesn't: incompatible
+	if leftExists != rightExists {
+		return false
+	}
+
+	// Neither has @stream: compatible
 	return true
 }
 
