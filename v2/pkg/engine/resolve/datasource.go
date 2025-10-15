@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"bytes"
 	"context"
 
 	"github.com/cespare/xxhash/v2"
@@ -10,8 +9,8 @@ import (
 )
 
 type DataSource interface {
-	Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error)
-	LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error)
+	Load(ctx context.Context, input []byte) (data []byte, err error)
+	LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error)
 }
 
 type SubscriptionDataSource interface {

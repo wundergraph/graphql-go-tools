@@ -3,7 +3,6 @@ package resolve
 import (
 	"bytes"
 	"context"
-	"io"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -50,11 +49,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("simple fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		resolveCtx := Context{
 			ctx:         context.Background(),
@@ -124,11 +121,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		resolveCtx := &Context{
 			ctx:         context.Background(),
@@ -192,11 +187,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("parallel fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		resolveCtx := &Context{
 			ctx:         context.Background(),
@@ -257,11 +250,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("parallel list item fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		resolveCtx := Context{
 			ctx:         context.Background(),
@@ -322,12 +313,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("fetch with subgraph error and custom extension code. No extension fields are propagated by default", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\"}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}`), nil
 			})
 		resolveCtx := Context{
 			ctx:         context.Background(),
@@ -388,12 +376,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Propagate only extension code field from subgraph errors", testFnSubgraphErrorsWithExtensionFieldCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\",\"foo\":\"bar\"}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","foo":"bar"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -426,12 +411,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Propagate all extension fields from subgraph errors when allow all option is enabled", testFnSubgraphErrorsWithAllowAllExtensionFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\",\"foo\":\"bar\"}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED","foo":"bar"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -464,12 +446,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Include datasource name as serviceName extension field", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\"}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("{\"code\":\"BAD_USER_INPUT\"}"))
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2","extensions":{"code":"BAD_USER_INPUT"}}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -502,12 +481,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Include datasource name as serviceName when extensions is null", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("null"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("null"))
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":null},{"message":"errorMessage2","extensions":null}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -540,12 +516,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Include datasource name as serviceName when extensions is an empty object", testFnSubgraphErrorsWithExtensionFieldServiceName(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, []byte("null"))
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{}},{"message":"errorMessage2","extensions":null}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -578,12 +551,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Fallback to default extension code value when no code field was set", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{\"code\":\"GRAPHQL_VALIDATION_FAILED\"}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}},{"message":"errorMessage2"}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -616,12 +586,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Fallback to default extension code value when extensions is null", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("null"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":null},{"message":"errorMessage2"}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{
@@ -654,12 +621,9 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 	t.Run("Fallback to default extension code value when extensions is an empty object", testFnSubgraphErrorsWithExtensionDefaultCode(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.AssignableToTypeOf(&bytes.Buffer{})).
-			DoAndReturn(func(ctx context.Context, input []byte, w io.Writer) (err error) {
-				pair := NewBufPair()
-				pair.WriteErr([]byte("errorMessage"), nil, nil, []byte("{}"))
-				pair.WriteErr([]byte("errorMessage2"), nil, nil, nil)
-				return writeGraphqlResponse(pair, w, false)
+			Load(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				return []byte(`{"errors":[{"message":"errorMessage","extensions":{}},{"message":"errorMessage2"}]}`), nil
 			})
 		return &GraphQLResponse{
 			Fetches: Single(&SingleFetch{

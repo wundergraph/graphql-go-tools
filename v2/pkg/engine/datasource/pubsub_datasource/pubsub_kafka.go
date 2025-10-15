@@ -1,10 +1,8 @@
 package pubsub_datasource
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 
 	"github.com/buger/jsonparser"
 	"github.com/cespare/xxhash/v2"
@@ -68,21 +66,19 @@ type KafkaPublishDataSource struct {
 	pubSub KafkaPubSub
 }
 
-func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {
+func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
 	var publishConfiguration KafkaPublishEventConfiguration
-	err := json.Unmarshal(input, &publishConfiguration)
+	err = json.Unmarshal(input, &publishConfiguration)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := s.pubSub.Publish(ctx, publishConfiguration); err != nil {
-		_, err = io.WriteString(out, `{"success": false}`)
-		return err
+		return []byte(`{"success": false}`), err
 	}
-	_, err = io.WriteString(out, `{"success": true}`)
-	return err
+	return []byte(`{"success": true}`), nil
 }
 
-func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
+func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("not implemented")
 }

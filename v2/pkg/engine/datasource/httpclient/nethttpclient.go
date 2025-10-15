@@ -254,21 +254,27 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	return err
 }
 
-func Do(client *http.Client, ctx context.Context, requestInput []byte, out *bytes.Buffer) (err error) {
+func Do(client *http.Client, ctx context.Context, requestInput []byte) (data []byte, err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
 	h := pool.Hash64.Get()
 	_, _ = h.Write(body)
 	bodyHash := h.Sum64()
 	pool.Hash64.Put(h)
 	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
+
+	var buf bytes.Buffer
+	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, &buf, ContentTypeJSON)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func DoMultipartForm(
-	client *http.Client, ctx context.Context, requestInput []byte, files []*FileUpload, out *bytes.Buffer,
-) (err error) {
+	client *http.Client, ctx context.Context, requestInput []byte, files []*FileUpload,
+) (data []byte, err error) {
 	if len(files) == 0 {
-		return errors.New("no files provided")
+		return nil, errors.New("no files provided")
 	}
 
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
@@ -300,7 +306,7 @@ func DoMultipartForm(
 		temporaryFile, err := os.Open(file.Path())
 		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		formValues[key] = bufio.NewReader(temporaryFile)
 	}
@@ -309,7 +315,7 @@ func DoMultipartForm(
 
 	multipartBody, contentType, err := multipartBytes(formValues, files)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer func() {
@@ -327,7 +333,12 @@ func DoMultipartForm(
 	bodyHash := h.Sum64()
 	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
 
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
+	var buf bytes.Buffer
+	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, &buf, contentType)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeReader, string, error) {

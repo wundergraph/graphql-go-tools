@@ -57,11 +57,7 @@ type ResponseInfo struct {
 	// ResponseHeaders contains a clone of the headers of the response from the subgraph.
 	ResponseHeaders http.Header
 	// This should be private as we do not want user's to access the raw responseBody directly
-	responseBody *bytes.Buffer
-}
-
-func (ri *ResponseInfo) GetResponseBody() string {
-	return ri.responseBody.String()
+	responseBody []byte
 }
 
 func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
@@ -119,7 +115,6 @@ func (b *batchStats) getUniqueIndexes() int {
 
 type result struct {
 	postProcessing   PostProcessingConfiguration
-	out              *bytes.Buffer
 	batchStats       batchStats
 	fetchSkipped     bool
 	nestedMergeItems []*result
@@ -139,6 +134,7 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
+	out                 []byte
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -283,9 +279,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
-		res := &result{
-			out: &bytes.Buffer{},
-		}
+		res := &result{}
 		err := l.loadSingleFetch(l.ctx.ctx, f, item, items, res)
 		if err != nil {
 			return err
@@ -297,9 +291,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 		return err
 	case *BatchEntityFetch:
-		res := &result{
-			out: &bytes.Buffer{},
-		}
+		res := &result{}
 		err := l.loadBatchEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -310,9 +302,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		return err
 	case *EntityFetch:
-		res := &result{
-			out: &bytes.Buffer{},
-		}
+		res := &result{}
 		err := l.loadEntityFetch(l.ctx.ctx, item, f, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -330,9 +320,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range items {
 			i := i
-			results[i] = &result{
-				out: &bytes.Buffer{},
-			}
+			results[i] = &result{}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
 				*f.Traces[i] = *f.Fetch
@@ -453,7 +441,6 @@ func itemsData(a arena.Arena, items []*astjson.Value) *astjson.Value {
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
-		res.out = &bytes.Buffer{}
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *ParallelListItemFetch:
 		results := make([]*result, len(items))
@@ -463,9 +450,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		g, ctx := errgroup.WithContext(l.ctx.ctx)
 		for i := range items {
 			i := i
-			results[i] = &result{
-				out: &bytes.Buffer{},
-			}
+			results[i] = &result{}
 			if l.ctx.TracingOptions.Enable {
 				f.Traces[i] = new(SingleFetch)
 				*f.Traces[i] = *f.Fetch
@@ -485,10 +470,8 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		res.nestedMergeItems = results
 		return nil
 	case *EntityFetch:
-		res.out = &bytes.Buffer{}
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
-		res.out = &bytes.Buffer{}
 		return l.loadBatchEntityFetch(ctx, fetchItem, f, items, res)
 	}
 	return nil
@@ -551,11 +534,12 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.fetchSkipped {
 		return nil
 	}
-	if res.out.Len() == 0 {
+	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
-
-	response, err := astjson.ParseBytesWithArena(l.jsonArena, res.out.Bytes())
+	slice := arena.AllocateSlice[byte](l.jsonArena, len(res.out), len(res.out))
+	copy(slice, res.out)
+	response, err := astjson.ParseBytesWithArena(l.jsonArena, slice)
 	if err != nil {
 		// Fall back to status code if parsing fails and non-2XX
 		if (res.statusCode > 0 && res.statusCode < 200) || res.statusCode >= 300 {
@@ -706,7 +690,8 @@ var (
 	errorsInvalidInputFooter = []byte(`]}]}`)
 )
 
-func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffer) error {
+func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem) []byte {
+	out := &bytes.Buffer{}
 	elements := fetchItem.ResponsePathElements
 	if len(elements) > 0 && elements[len(elements)-1] == "@" {
 		elements = elements[:len(elements)-1]
@@ -724,7 +709,7 @@ func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem, out *bytes.Buffe
 		_, _ = out.Write(quote)
 	}
 	_, _ = out.Write(errorsInvalidInputFooter)
-	return nil
+	return out.Bytes()
 }
 
 func (l *Loader) appendSubgraphError(res *result, fetchItem *FetchItem, value *astjson.Value, values []*astjson.Value) error {
@@ -1312,7 +1297,8 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 
 	err := fetch.InputTemplate.Render(l.ctx, inputData, buf)
 	if err != nil {
-		return l.renderErrorsInvalidInput(fetchItem, res.out)
+		res.out = l.renderErrorsInvalidInput(fetchItem)
+		return nil
 	}
 	fetchInput := buf.Bytes()
 	allowed, err := l.validatePreFetch(fetchInput, fetch.Info, res)
@@ -1648,9 +1634,14 @@ func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *Data
 
 func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []byte, res *result) error {
 	if l.ctx.Files != nil {
-		return source.LoadWithFiles(ctx, input, l.ctx.Files, res.out)
+		res.out, res.err = source.LoadWithFiles(ctx, input, l.ctx.Files)
+	} else {
+		res.out, res.err = source.Load(ctx, input)
 	}
-	return source.Load(ctx, input, res.out)
+	if res.err != nil {
+		return errors.WithStack(res.err)
+	}
+	return nil
 }
 
 func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, source DataSource, input []byte, res *result, trace *DataSourceLoadTrace) {
@@ -1813,8 +1804,8 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			trace.SingleFlightUsed = stats.SingleFlightUsed
 			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
 		}
-		if !l.ctx.TracingOptions.ExcludeOutput && res.out.Len() > 0 {
-			trace.Output, _ = l.compactJSON(res.out.Bytes())
+		if !l.ctx.TracingOptions.ExcludeOutput && len(res.out) > 0 {
+			trace.Output, _ = l.compactJSON(res.out)
 			if l.ctx.TracingOptions.EnablePredictableDebugTimings {
 				trace.Output, _ = sjson.DeleteBytes(trace.Output, "extensions.trace.response.headers.Date")
 			}

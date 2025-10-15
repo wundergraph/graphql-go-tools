@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"bytes"
 	"compress/gzip"
 	"context"
 	"io"
@@ -80,10 +79,9 @@ func TestHttpClientDo(t *testing.T) {
 
 	runTest := func(ctx context.Context, input []byte, expectedOutput string) func(t *testing.T) {
 		return func(t *testing.T) {
-			out := &bytes.Buffer{}
-			err := Do(http.DefaultClient, ctx, input, out)
+			output, err := Do(http.DefaultClient, ctx, input)
 			assert.NoError(t, err)
-			assert.Equal(t, expectedOutput, out.String())
+			assert.Equal(t, expectedOutput, string(output))
 		}
 	}
 
@@ -211,9 +209,8 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputURL(input, []byte(server.URL))
 		input, err := sjson.SetBytes(input, TRACE, true)
 		assert.NoError(t, err)
-		out := &bytes.Buffer{}
-		err = Do(http.DefaultClient, context.Background(), input, out)
+		output, err := Do(http.DefaultClient, context.Background(), input)
 		assert.NoError(t, err)
-		assert.Contains(t, out.String(), `"Authorization":["****"]`)
+		assert.Contains(t, string(output), `"Authorization":["****"]`)
 	})
 }

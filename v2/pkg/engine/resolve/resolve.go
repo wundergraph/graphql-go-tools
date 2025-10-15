@@ -13,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
+	"github.com/wundergraph/go-arena"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -302,6 +303,11 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	}()
 
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+
+	jsonArena := arena.NewMonotonicArena()
+	defer jsonArena.Release()
+	t.loader.jsonArena = jsonArena
+	t.resolvable.astjsonArena = jsonArena
 
 	err := t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {

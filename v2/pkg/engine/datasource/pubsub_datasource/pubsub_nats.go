@@ -77,23 +77,21 @@ type NatsPublishDataSource struct {
 	pubSub NatsPubSub
 }
 
-func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {
+func (s *NatsPublishDataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
 	var publishConfiguration NatsPublishAndRequestEventConfiguration
-	err := json.Unmarshal(input, &publishConfiguration)
+	err = json.Unmarshal(input, &publishConfiguration)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := s.pubSub.Publish(ctx, publishConfiguration); err != nil {
-		_, err = io.WriteString(out, `{"success": false}`)
-		return err
+		return []byte(`{"success": false}`), err
 	}
 
-	_, err = io.WriteString(out, `{"success": true}`)
-	return err
+	return []byte(`{"success": true}`), nil
 }
 
-func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) error {
+func (s *NatsPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("not implemented")
 }
 
@@ -101,16 +99,22 @@ type NatsRequestDataSource struct {
 	pubSub NatsPubSub
 }
 
-func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) error {
+func (s *NatsRequestDataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
 	var subscriptionConfiguration NatsPublishAndRequestEventConfiguration
-	err := json.Unmarshal(input, &subscriptionConfiguration)
+	err = json.Unmarshal(input, &subscriptionConfiguration)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return s.pubSub.Request(ctx, subscriptionConfiguration, out)
+	var buf bytes.Buffer
+	err = s.pubSub.Request(ctx, subscriptionConfiguration, &buf)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
-func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) error {
+func (s *NatsRequestDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("not implemented")
 }

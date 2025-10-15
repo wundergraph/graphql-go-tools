@@ -27,13 +27,18 @@ func TestSource_Load(t *testing.T) {
 			gen.Generate(&def, &report, &data)
 			require.False(t, report.HasErrors())
 
-			buf := &bytes.Buffer{}
 			source := &Source{introspectionData: &data}
-			require.NoError(t, source.Load(context.Background(), []byte(input), buf))
+			responseData, err := source.Load(context.Background(), []byte(input))
+			require.NoError(t, err)
 
 			actualResponse := &bytes.Buffer{}
-			require.NoError(t, json.Indent(actualResponse, buf.Bytes(), "", "  "))
-			goldie.Assert(t, fixtureName, actualResponse.Bytes())
+			require.NoError(t, json.Indent(actualResponse, responseData, "", "  "))
+			// Trim the trailing newline that json.Indent adds
+			responseBytes := actualResponse.Bytes()
+			if len(responseBytes) > 0 && responseBytes[len(responseBytes)-1] == '\n' {
+				responseBytes = responseBytes[:len(responseBytes)-1]
+			}
+			goldie.Assert(t, fixtureName, responseBytes)
 		}
 	}
 

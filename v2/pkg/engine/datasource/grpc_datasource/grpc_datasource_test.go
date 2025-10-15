@@ -1,7 +1,6 @@
 package grpcdatasource
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -147,12 +146,10 @@ func Test_DataSource_Load(t *testing.T) {
 
 	require.NoError(t, err)
 
-	output := new(bytes.Buffer)
-
-	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`), output)
+	output, err := ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`))
 	require.NoError(t, err)
 
-	fmt.Println(output.String())
+	fmt.Println(string(output))
 }
 
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server
@@ -220,12 +217,11 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	require.NoError(t, err)
 
 	// 3. Execute the query through our datasource
-	output := new(bytes.Buffer)
-	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
+	output, err := ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err)
 
 	// Print the response for debugging
-	// fmt.Println(output.String())
+	// fmt.Println(string(output))
 
 	type response struct {
 		Data struct {
@@ -238,7 +234,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 
 	var resp response
 
-	bytes := output.Bytes()
+	bytes := output
 	fmt.Println(string(bytes))
 
 	err = json.Unmarshal(bytes, &resp)
@@ -310,12 +306,10 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	require.NoError(t, err)
 
 	// 3. Execute the query through our datasource
-	output := new(bytes.Buffer)
-
 	// Format the input with query and variables
 	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
 
-	err = ds.Load(context.Background(), []byte(inputJSON), output)
+	output, err := ds.Load(context.Background(), []byte(inputJSON))
 	require.NoError(t, err)
 
 	// Set up the correct response structure based on your GraphQL schema
@@ -332,7 +326,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	}
 
 	var resp response
-	err = json.Unmarshal(output.Bytes(), &resp)
+	err = json.Unmarshal(output, &resp)
 	require.NoError(t, err, "Failed to unmarshal response")
 
 	// Check if there are any errors in the response
@@ -407,11 +401,10 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	require.NoError(t, err)
 
 	// 4. Execute the query
-	output := new(bytes.Buffer)
-	err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
+	output, err := ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
-	responseJson := output.String()
+	responseJson := string(output)
 
 	// 5. Verify the response format according to GraphQL specification
 	// The response should have an "errors" array with the error message
@@ -425,7 +418,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		} `json:"errors"`
 	}
 
-	err = json.Unmarshal(output.Bytes(), &response)
+	err = json.Unmarshal(output, &response)
 	require.NoError(t, err, "Failed to parse response JSON")
 
 	// Verify there's at least one error
@@ -733,9 +726,8 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -746,7 +738,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 				} `json:"errors,omitempty"`
 			}
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 			require.Empty(t, resp.Errors, "Response should not contain errors")
 			require.NotEmpty(t, resp.Data, "Response should contain data")
@@ -1004,9 +996,8 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1017,7 +1008,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 				} `json:"errors,omitempty"`
 			}
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 			require.Empty(t, resp.Errors, "Response should not contain errors")
 			require.NotEmpty(t, resp.Data, "Response should contain data")
@@ -1141,9 +1132,8 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1154,7 +1144,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 				} `json:"errors,omitempty"`
 			}
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 			require.Empty(t, resp.Errors, "Response should not contain errors")
 			require.NotEmpty(t, resp.Data, "Response should contain data")
@@ -1222,9 +1212,8 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute the query through our datasource
-	output := new(bytes.Buffer)
 	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-	err = ds.Load(context.Background(), []byte(input), output)
+	output, err := ds.Load(context.Background(), []byte(input))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1246,7 +1235,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 		} `json:"errors,omitempty"`
 	}
 
-	err = json.Unmarshal(output.Bytes(), &resp)
+	err = json.Unmarshal(output, &resp)
 	require.NoError(t, err, "Failed to unmarshal response")
 	require.Empty(t, resp.Errors, "Response should not contain errors")
 
@@ -1313,9 +1302,8 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 	require.NoError(t, err)
 
 	// Execute the query through our datasource
-	output := new(bytes.Buffer)
 	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
-	err = ds.Load(context.Background(), []byte(input), output)
+	output, err := ds.Load(context.Background(), []byte(input))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1332,7 +1320,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 		} `json:"errors,omitempty"`
 	}
 
-	err = json.Unmarshal(output.Bytes(), &resp)
+	err = json.Unmarshal(output, &resp)
 	require.NoError(t, err, "Failed to unmarshal response")
 	require.Empty(t, resp.Errors, "Response should not contain errors")
 
@@ -1783,9 +1771,8 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1796,7 +1783,7 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 				} `json:"errors,omitempty"`
 			}
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 			require.Empty(t, resp.Errors, "Response should not contain errors")
 			require.NotEmpty(t, resp.Data, "Response should contain data")
@@ -2162,9 +2149,8 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -2175,7 +2161,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 				} `json:"errors,omitempty"`
 			}
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 			require.Empty(t, resp.Errors, "Response should not contain errors")
 			require.NotEmpty(t, resp.Data, "Response should contain data")
@@ -3464,9 +3450,8 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -3477,7 +3462,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 				} `json:"errors,omitempty"`
 			}
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 			require.Empty(t, resp.Errors, "Response should not contain errors")
 			require.NotEmpty(t, resp.Data, "Response should contain data")
@@ -3617,15 +3602,14 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)

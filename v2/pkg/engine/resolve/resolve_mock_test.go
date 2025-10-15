@@ -5,7 +5,6 @@
 package resolve
 
 import (
-	bytes "bytes"
 	context "context"
 	reflect "reflect"
 
@@ -37,29 +36,31 @@ func (m *MockDataSource) EXPECT() *MockDataSourceMockRecorder {
 }
 
 // Load mocks base method.
-func (m *MockDataSource) Load(arg0 context.Context, arg1 []byte, arg2 *bytes.Buffer) error {
+func (m *MockDataSource) Load(arg0 context.Context, arg1 []byte) ([]byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Load", arg0, arg1, arg2)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "Load", arg0, arg1)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // Load indicates an expected call of Load.
-func (mr *MockDataSourceMockRecorder) Load(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockDataSourceMockRecorder) Load(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDataSource)(nil).Load), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Load", reflect.TypeOf((*MockDataSource)(nil).Load), arg0, arg1)
 }
 
 // LoadWithFiles mocks base method.
-func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 []byte, arg2 []*httpclient.FileUpload, arg3 *bytes.Buffer) error {
+func (m *MockDataSource) LoadWithFiles(arg0 context.Context, arg1 []byte, arg2 []*httpclient.FileUpload) ([]byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "LoadWithFiles", arg0, arg1, arg2, arg3)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "LoadWithFiles", arg0, arg1, arg2)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // LoadWithFiles indicates an expected call of LoadWithFiles.
-func (mr *MockDataSourceMockRecorder) LoadWithFiles(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+func (mr *MockDataSourceMockRecorder) LoadWithFiles(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadWithFiles", reflect.TypeOf((*MockDataSource)(nil).LoadWithFiles), arg0, arg1, arg2, arg3)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LoadWithFiles", reflect.TypeOf((*MockDataSource)(nil).LoadWithFiles), arg0, arg1, arg2)
 }

@@ -8693,10 +8693,9 @@ func TestSource_Load(t *testing.T) {
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
 
-			buf := bytes.NewBuffer(nil)
-
-			require.NoError(t, src.Load(context.Background(), input, buf))
-			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, buf.String())
+			data, err := src.Load(context.Background(), input)
+			require.NoError(t, err)
+			assert.Equal(t, `{"variables":{"a":null,"b":"b","c":{}}}`, string(data))
 		})
 	})
 	t.Run("remove undefined variables", func(t *testing.T) {
@@ -8709,7 +8708,6 @@ func TestSource_Load(t *testing.T) {
 			var input []byte
 			input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 			input = httpclient.SetInputURL(input, []byte(serverUrl))
-			buf := bytes.NewBuffer(nil)
 
 			undefinedVariables := []string{"a", "c"}
 			ctx := context.Background()
@@ -8717,8 +8715,9 @@ func TestSource_Load(t *testing.T) {
 			input, err = httpclient.SetUndefinedVariables(input, undefinedVariables)
 			assert.NoError(t, err)
 
-			require.NoError(t, src.Load(ctx, input, buf))
-			assert.Equal(t, `{"variables":{"b":null}}`, buf.String())
+			data, err := src.Load(ctx, input)
+			require.NoError(t, err)
+			assert.Equal(t, `{"variables":{"b":null}}`, string(data))
 		})
 	})
 }
@@ -8800,10 +8799,10 @@ func TestLoadFiles(t *testing.T) {
 		input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 		input = httpclient.SetInputBodyWithPath(input, query, "query")
 		input = httpclient.SetInputURL(input, []byte(serverUrl))
-		buf := bytes.NewBuffer(nil)
 
 		ctx := context.Background()
-		require.NoError(t, src.LoadWithFiles(ctx, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")}, buf))
+		_, err = src.LoadWithFiles(ctx, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")})
+		require.NoError(t, err)
 	})
 
 	t.Run("multiple files", func(t *testing.T) {
@@ -8844,7 +8843,6 @@ func TestLoadFiles(t *testing.T) {
 		input = httpclient.SetInputBodyWithPath(input, variables, "variables")
 		input = httpclient.SetInputBodyWithPath(input, query, "query")
 		input = httpclient.SetInputURL(input, []byte(serverUrl))
-		buf := bytes.NewBuffer(nil)
 
 		dir := t.TempDir()
 		f1, err := os.CreateTemp(dir, file1Name)
@@ -8858,11 +8856,11 @@ func TestLoadFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		ctx := context.Background()
-		require.NoError(t, src.LoadWithFiles(ctx, input,
+		_, err = src.LoadWithFiles(ctx, input,
 			[]*httpclient.FileUpload{
 				httpclient.NewFileUpload(f1.Name(), file1Name, "variables.files.0"),
-				httpclient.NewFileUpload(f2.Name(), file2Name, "variables.files.1")},
-			buf))
+				httpclient.NewFileUpload(f2.Name(), file2Name, "variables.files.1")})
+		require.NoError(t, err)
 	})
 }
 
