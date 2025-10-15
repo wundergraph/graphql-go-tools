@@ -1,8 +1,6 @@
 name: v2-ci
 on:
   pull_request:
-    branches:
-      - master
     paths:
       - 'v2/**'
       - '.github/workflows/v2.yml'

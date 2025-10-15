@@ -359,7 +359,7 @@ type FetchDependencyOrigin struct {
 	IsRequires bool `json:"isRequires"`
 }
 
-// FetchReason explains who requested a specific (typeName, fieldName) combination.
+// FetchReason explains who requested a specific (TypeName, FieldName) coordinate.
 // A field can be requested by the user and/or by one or more subgraphs, with optional reasons.
 type FetchReason struct {
 	TypeName    string   `json:"typename"`
