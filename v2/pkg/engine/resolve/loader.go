@@ -60,6 +60,10 @@ type ResponseInfo struct {
 	responseBody []byte
 }
 
+func (r *ResponseInfo) GetResponseBody() string {
+	return string(r.responseBody)
+}
+
 func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	responseInfo := &ResponseInfo{
 		StatusCode:   res.statusCode,
