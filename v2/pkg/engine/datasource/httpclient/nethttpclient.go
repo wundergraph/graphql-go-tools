@@ -262,8 +262,9 @@ func Do(client *http.Client, ctx context.Context, requestInput []byte) (data []b
 	pool.Hash64.Put(h)
 	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
 
-	var buf bytes.Buffer
-	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, &buf, ContentTypeJSON)
+	buf := bytes.NewBuffer(make([]byte, 0, 1024*4))
+
+	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, buf, ContentTypeJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -333,8 +334,9 @@ func DoMultipartForm(
 	bodyHash := h.Sum64()
 	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
 
-	var buf bytes.Buffer
-	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, &buf, contentType)
+	buf := bytes.NewBuffer(make([]byte, 0, 1024*4))
+
+	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, buf, contentType)
 	if err != nil {
 		return nil, err
 	}
