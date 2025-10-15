@@ -413,7 +413,8 @@ func ErrDirectiveMustBeUniquePerLocation(directiveName ast.ByteSlice, position, 
 }
 
 func orderedLocationsFromPositions(posA, posB position.Position) (locations []Location) {
-	if posA.LineStart < posB.LineStart || posA.CharStart < posB.CharStart {
+	// Order by (line, column) non-descending.
+	if posA.LineStart < posB.LineStart || (posA.LineStart == posB.LineStart && posA.CharStart < posB.CharStart) {
 		return LocationsFromPosition(posA, posB)
 	} else {
 		return LocationsFromPosition(posB, posA)

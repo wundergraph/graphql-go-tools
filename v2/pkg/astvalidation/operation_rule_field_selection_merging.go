@@ -121,7 +121,7 @@ func (f *fieldSelectionMergingVisitor) EnterField(ref int) {
 			if !f.potentiallySameObject(fieldDefinitionTypeNode, f.nonScalarRequirements[i].fieldTypeDefinitionNode) {
 				// This condition below can never be true because if objects aren't potentially the same,
 				// and we know objectNames are equal (from the filter), they cannot be not equal at the same time.
-				// Perhaps this should be an else case or restructured?
+				// Perhaps this should be remove altogether?
 				if !objectName.Equals(f.nonScalarRequirements[i].objectName) {
 					f.StopWithExternalErr(operationreport.ErrResponseOfDifferingTypesMustBeOfSameShape(objectName, f.nonScalarRequirements[i].objectName))
 					return
