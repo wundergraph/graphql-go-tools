@@ -440,7 +440,7 @@ func TestResolvable_CustomFieldRenderer(t *testing.T) {
 			t.Parallel()
 
 			// Setup
-			res := NewResolvable(ResolvableOptions{})
+			res := NewResolvable(nil, ResolvableOptions{})
 			ctx := &Context{}
 
 			var input []byte
@@ -543,7 +543,7 @@ func TestResolvable_CustomFieldRenderer(t *testing.T) {
 				t.Parallel()
 
 				input := []byte(tc.input)
-				res := NewResolvable(ResolvableOptions{})
+				res := NewResolvable(nil, ResolvableOptions{})
 				ctx := &Context{}
 				err := res.Init(ctx, input, ast.OperationTypeQuery)
 				assert.NoError(t, err)

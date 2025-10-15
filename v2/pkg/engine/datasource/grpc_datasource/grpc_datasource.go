@@ -101,7 +101,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	// make gRPC calls
 	for index, invocation := range invocations {
 		errGrp.Go(func() error {
-			a := astjson.Arena{}
 			// Invoke the gRPC method - this will populate invocation.Output
 			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
 
@@ -113,7 +112,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			mu.Lock()
 			defer mu.Unlock()
 
-			response, err := builder.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+			response, err := builder.marshalResponseJSON(&invocation.Call.Response, invocation.Output)
 			if err != nil {
 				return err
 			}
@@ -135,8 +134,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 		return nil
 	}
 
-	a := astjson.Arena{}
-	root := a.NewObject()
+	root := astjson.ObjectValue(builder.jsonArena)
 	for _, response := range responses {
 		root, err = builder.mergeValues(root, response)
 		if err != nil {

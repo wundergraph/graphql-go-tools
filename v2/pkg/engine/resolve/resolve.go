@@ -235,7 +235,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 
 func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}) *tools {
 	return &tools{
-		resolvable: NewResolvable(options.ResolvableOptions),
+		resolvable: NewResolvable(nil, options.ResolvableOptions),
 		loader: &Loader{
 			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
 			propagateSubgraphStatusCodes:                 options.PropagateSubgraphStatusCodes,
@@ -272,6 +272,38 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ctx.ExecutionOptions.SkipLoader {
+		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp, err
+}
+
+func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+	resp := &GraphQLResolveInfo{}
+
+	start := time.Now()
+	<-r.maxConcurrency
+	resp.ResolveAcquireWaitTime = time.Since(start)
+	defer func() {
+		r.maxConcurrency <- struct{}{}
+	}()
+
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+
+	err := t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
 		return nil, err
 	}

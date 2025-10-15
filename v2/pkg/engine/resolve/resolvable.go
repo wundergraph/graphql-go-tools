@@ -11,6 +11,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/astjson"
 
@@ -31,7 +32,7 @@ type Resolvable struct {
 	valueCompletion      *astjson.Value
 	skipAddingNullErrors bool
 
-	astjsonArena *astjson.Arena
+	astjsonArena arena.Arena
 	parsers      []*astjson.Parser
 
 	print              bool
@@ -67,13 +68,13 @@ type ResolvableOptions struct {
 	ApolloCompatibilityReplaceInvalidVarError      bool
 }
 
-func NewResolvable(options ResolvableOptions) *Resolvable {
+func NewResolvable(a arena.Arena, options ResolvableOptions) *Resolvable {
 	return &Resolvable{
 		options:            options,
 		xxh:                xxhash.New(),
 		authorizationAllow: make(map[uint64]struct{}),
 		authorizationDeny:  make(map[uint64]string),
-		astjsonArena:       &astjson.Arena{},
+		astjsonArena:       a,
 	}
 }
 
@@ -95,7 +96,7 @@ func (r *Resolvable) Reset() {
 	r.operationType = ast.OperationTypeUnknown
 	r.renameTypeNames = r.renameTypeNames[:0]
 	r.authorizationError = nil
-	r.astjsonArena.Reset()
+	r.astjsonArena = nil
 	r.xxh.Reset()
 	for k := range r.authorizationAllow {
 		delete(r.authorizationAllow, k)
@@ -109,14 +110,14 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.ctx = ctx
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
-	r.data = r.astjsonArena.NewObject()
-	r.errors = r.astjsonArena.NewArray()
+	r.data = astjson.ObjectValue(r.astjsonArena)
+	r.errors = astjson.ArrayValue(r.astjsonArena)
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
+		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
 			return err
 		}
-		r.data, _, err = astjson.MergeValues(r.data, initialValue)
+		r.data, _, err = astjson.MergeValues(r.astjsonArena, r.data, initialValue)
 		if err != nil {
 			return err
 		}
@@ -129,19 +130,19 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
 	if initialData != nil {
-		initialValue, err := astjson.ParseBytesWithoutCache(initialData)
+		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
 			return err
 		}
 		if postProcessing.SelectResponseDataPath == nil {
-			r.data, _, err = astjson.MergeValuesWithPath(r.data, initialValue, postProcessing.MergePath...)
+			r.data, _, err = astjson.MergeValuesWithPath(r.astjsonArena, r.data, initialValue, postProcessing.MergePath...)
 			if err != nil {
 				return err
 			}
 		} else {
 			selectedInitialValue := initialValue.Get(postProcessing.SelectResponseDataPath...)
 			if selectedInitialValue != nil {
-				r.data, _, err = astjson.MergeValuesWithPath(r.data, selectedInitialValue, postProcessing.MergePath...)
+				r.data, _, err = astjson.MergeValuesWithPath(r.astjsonArena, r.data, selectedInitialValue, postProcessing.MergePath...)
 				if err != nil {
 					return err
 				}
@@ -155,10 +156,10 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 		}
 	}
 	if r.data == nil {
-		r.data = r.astjsonArena.NewObject()
+		r.data = astjson.ObjectValue(r.astjsonArena)
 	}
 	if r.errors == nil {
-		r.errors = r.astjsonArena.NewArray()
+		r.errors = astjson.ArrayValue(r.astjsonArena)
 	}
 	return
 }
@@ -168,7 +169,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
-	r.errors = r.astjsonArena.NewArray()
+	r.errors = astjson.ArrayValue(r.astjsonArena)
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
@@ -464,7 +465,7 @@ func (r *Resolvable) renderScalarFieldValue(value *astjson.Value, nullable bool)
 
 // renderScalarFieldString - is used when value require some pre-processing, e.g. unescaping or custom rendering
 func (r *Resolvable) renderScalarFieldBytes(data []byte, nullable bool) {
-	value, err := astjson.ParseBytesWithoutCache(data)
+	value, err := astjson.ParseBytesWithArena(r.astjsonArena, data)
 	if err != nil {
 		r.printErr = err
 		return
@@ -853,7 +854,7 @@ func (r *Resolvable) walkArray(arr *Array, value *astjson.Value) bool {
 		r.popArrayPathElement()
 		if err {
 			if arr.Item.NodeKind() == NodeKindObject && arr.Item.NodeNullable() {
-				value.SetArrayItem(i, astjson.NullValue)
+				value.SetArrayItem(r.astjsonArena, i, astjson.NullValue)
 				continue
 			}
 			if arr.Nullable {
@@ -1287,14 +1288,14 @@ func (r *Resolvable) addErrorWithCodeAndPath(message, code string, fieldPath []s
 
 func (r *Resolvable) addValueCompletion(message, code string) {
 	if r.valueCompletion == nil {
-		r.valueCompletion = r.astjsonArena.NewArray()
+		r.valueCompletion = astjson.ArrayValue(r.astjsonArena)
 	}
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)
 }
 
 func (r *Resolvable) addValueCompletionWithPath(message, code string, fieldPath []string) {
 	if r.valueCompletion == nil {
-		r.valueCompletion = r.astjsonArena.NewArray()
+		r.valueCompletion = astjson.ArrayValue(r.astjsonArena)
 	}
 	r.pushNodePathElement(fieldPath)
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.valueCompletion, message, code, r.path)

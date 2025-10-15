@@ -98,7 +98,7 @@ func (v *VariablesValidator) ValidateWithRemap(operation, definition *ast.Docume
 func (v *VariablesValidator) Validate(operation, definition *ast.Document, variables []byte) error {
 	v.visitor.definition = definition
 	v.visitor.operation = operation
-	v.visitor.variables, v.visitor.err = astjson.ParseBytesWithoutCache(variables)
+	v.visitor.variables, v.visitor.err = astjson.ParseBytes(variables)
 	if v.visitor.err != nil {
 		return v.visitor.err
 	}

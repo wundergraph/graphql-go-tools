@@ -146,7 +146,7 @@ func (c *Context) appendSubgraphErrors(errs ...error) {
 }
 
 type Request struct {
-	ID     string
+	ID     uint64
 	Header http.Header
 }
 

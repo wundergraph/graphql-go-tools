@@ -287,7 +287,7 @@ func TestLoader_LoadGraphQLResponseData(t *testing.T) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
@@ -376,7 +376,7 @@ func TestLoader_MergeErrorDifferingTypes(t *testing.T) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
@@ -467,7 +467,7 @@ func TestLoader_MergeErrorDifferingArrayLength(t *testing.T) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
@@ -749,7 +749,7 @@ func TestLoader_LoadGraphQLResponseDataWithExtensions(t *testing.T) {
 		ctx:        context.Background(),
 		Extensions: []byte(`{"foo":"bar"}`),
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
@@ -1024,7 +1024,7 @@ func BenchmarkLoader_LoadGraphQLResponseData(b *testing.B) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	expected := `{"errors":[],"data":{"topProducts":[{"name":"Table","__typename":"Product","upc":"1","reviews":[{"body":"Love Table!","author":{"__typename":"User","id":"1","name":"user-1"}},{"body":"Prefer other Table.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":8},{"name":"Couch","__typename":"Product","upc":"2","reviews":[{"body":"Couch Too expensive.","author":{"__typename":"User","id":"1","name":"user-1"}}],"stock":2},{"name":"Chair","__typename":"Product","upc":"3","reviews":[{"body":"Chair Could be better.","author":{"__typename":"User","id":"2","name":"user-2"}}],"stock":5}]}}`
 	b.SetBytes(int64(len(expected)))
@@ -1125,7 +1125,7 @@ func TestLoader_RedactHeaders(t *testing.T) {
 			Enable: true,
 		},
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
@@ -1421,7 +1421,7 @@ func TestLoader_InvalidBatchItemCount(t *testing.T) {
 	ctx := &Context{
 		ctx: context.Background(),
 	}
-	resolvable := NewResolvable(ResolvableOptions{})
+	resolvable := NewResolvable(nil, ResolvableOptions{})
 	loader := &Loader{}
 	err := resolvable.Init(ctx, nil, ast.OperationTypeQuery)
 	assert.NoError(t, err)
@@ -1521,13 +1521,13 @@ func TestRewriteErrorPaths(t *testing.T) {
 			for i, inputError := range tc.inputErrors {
 				// Create a copy by marshaling and parsing again
 				data := inputError.MarshalTo(nil)
-				value, err := astjson.ParseBytesWithoutCache(data)
+				value, err := astjson.ParseBytesWithArena(nil, data)
 				assert.NoError(t, err, "Failed to copy input error")
 				values[i] = value
 			}
 
 			// Call the function under test
-			rewriteErrorPaths(fetchItem, values)
+			rewriteErrorPaths(nil, fetchItem, values)
 
 			// Compare the results
 			assert.Equal(t, len(tc.expectedErrors), len(values),
