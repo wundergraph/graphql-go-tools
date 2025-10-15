@@ -5,7 +5,8 @@ type Product @key(fields: "id") {
   id: ID!
   name: String!
   price: Float!
-  # shippingEstimate(input: ShippingEstimateInput!): Float!
+  shippingEstimate(input: ShippingEstimateInput!): Float! @configureResolver(context: "id price")
+  recommendedCategory(maxPrice: Int!): Category @configureResolver(context: "id name price")
 }
 
 type Storage @key(fields: "id") {
@@ -350,6 +351,18 @@ input SubcategoryItemFilter {
   inStock: Boolean
   isActive: Boolean
   searchTerm: String
+}
+
+enum ShippingDestination {
+  DOMESTIC
+  EXPRESS
+  INTERNATIONAL
+}
+
+input ShippingEstimateInput {
+  destination: ShippingDestination!
+  weight: Float!
+  expedited: Boolean
 }
 
 type Query {

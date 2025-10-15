@@ -22,6 +22,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 
 type resultData struct {
@@ -87,7 +88,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
 	// get variables from input
-	variables := gjson.Parse(string(input)).Get("body.variables")
+	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
 	builder := newJSONBuilder(d.mapping, variables)
 
 	if d.disabled {
@@ -127,18 +128,14 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 					return nil
 				}
 
-				// if serviceCall.RPC.Kind == CallKindResolve {
-				// 	return builder.mergeWithPath(root, response, serviceCall.RPC.ResponsePath)
-				// }
-
 				// In case of a federated response, we need to ensure that the response is valid.
 				// The number of entities per type must match the number of lookup keys in the variablese
-				// if serviceCall.RPC.Kind == CallKindEntity {
-				err = builder.validateFederatedResponse(response)
-				if err != nil {
-					return err
+				if serviceCall.RPC.Kind == CallKindEntity {
+					err = builder.validateFederatedResponse(response)
+					if err != nil {
+						return err
+					}
 				}
-				// }
 
 				mu.Lock()
 				results[index] = resultData{

@@ -20,6 +20,95 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveProductRecommendedCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *productv1.ResolveProductRecommendedCategoryRequest) (*productv1.ResolveProductRecommendedCategoryResponse, error) {
+	results := make([]*productv1.ResolveProductRecommendedCategoryResult, 0, len(req.GetContext()))
+
+	maxPrice := int32(0)
+	if req.GetFieldArgs() != nil {
+		maxPrice = req.GetFieldArgs().GetMaxPrice()
+	}
+
+	for _, ctx := range req.GetContext() {
+		// Return nil for products with high price to test optional return
+		if maxPrice > 0 && ctx.GetPrice() > float64(maxPrice) {
+			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
+				RecommendedCategory: nil,
+			})
+		} else {
+			// Create a recommended category based on product context
+			categoryKind := productv1.CategoryKind_CATEGORY_KIND_OTHER
+			if ctx.GetPrice() < 50 {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_BOOK
+			} else if ctx.GetPrice() < 200 {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS
+			} else {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_FURNITURE
+			}
+
+			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
+				RecommendedCategory: &productv1.Category{
+					Id:            fmt.Sprintf("recommended-cat-%s", ctx.GetId()),
+					Name:          fmt.Sprintf("Recommended for %s", ctx.GetName()),
+					Kind:          categoryKind,
+					Subcategories: createSubcategories(fmt.Sprintf("recommended-cat-%s", ctx.GetId()), categoryKind, 2),
+				},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveProductRecommendedCategoryResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveProductShippingEstimate implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductShippingEstimate(_ context.Context, req *productv1.ResolveProductShippingEstimateRequest) (*productv1.ResolveProductShippingEstimateResponse, error) {
+	results := make([]*productv1.ResolveProductShippingEstimateResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		// Base shipping cost calculation
+		baseCost := ctx.GetPrice() * 0.1 // 10% of product price
+
+		// Add weight-based cost if input provided
+		if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInput() != nil {
+			input := req.GetFieldArgs().GetInput()
+
+			// Add weight cost
+			weightCost := float64(input.GetWeight()) * 2.5
+			baseCost += weightCost
+
+			// Add expedited shipping cost
+			if input.GetExpedited() != nil && input.GetExpedited().GetValue() {
+				baseCost *= 1.5 // 50% surcharge for expedited
+			}
+
+			// Add destination-based cost
+			destination := input.GetDestination()
+			switch destination {
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_INTERNATIONAL:
+				baseCost += 25.0
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_EXPRESS:
+				baseCost += 10.0
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_DOMESTIC:
+				// No additional cost for domestic shipping
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductShippingEstimateResult{
+			ShippingEstimate: baseCost,
+		})
+	}
+
+	resp := &productv1.ResolveProductShippingEstimateResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
 // ResolveCategoryCategoryMetrics implements productv1.ProductServiceServer.
 func (s *MockService) ResolveCategoryCategoryMetrics(_ context.Context, req *productv1.ResolveCategoryCategoryMetricsRequest) (*productv1.ResolveCategoryCategoryMetricsResponse, error) {
 	results := make([]*productv1.ResolveCategoryCategoryMetricsResult, 0, len(req.GetContext()))

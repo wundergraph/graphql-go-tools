@@ -3663,6 +3663,53 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 				require.Equal(t, "entity type Warehouse received 3 entities in the subgraph response, but 4 are expected", errorData[0].Message)
 			},
 		},
+		{
+			name:  "Query Product with field resolvers",
+			query: `query($representations: [_Any!]!, $input: ShippingEstimateInput!) { _entities(representations: $representations) { ...on Product { id name price shippingEstimate(input: $input) } } }`,
+			vars: `
+			{
+			  "variables":
+			  {
+			    "representations":[
+				  {"__typename":"Product","id":"1"},
+				  {"__typename":"Product","id":"2"},
+				  {"__typename":"Product","id":"3"}
+				],
+				"input":{
+				  "destination":"INTERNATIONAL",
+				  "weight":10.0,
+				  "expedited":true
+				}
+			}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+				require.Len(t, entities, 3, "Should return 3 entities")
+				for index, entity := range entities {
+					entity, ok := entity.(map[string]interface{})
+					require.True(t, ok, "entity should be an object")
+					productID := index + 1
+
+					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
+					require.InDelta(t, float64(99.99), entity["price"], 0.01)
+					require.InDelta(t, float64(77.49), entity["shippingEstimate"], 0.01)
+				}
+
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

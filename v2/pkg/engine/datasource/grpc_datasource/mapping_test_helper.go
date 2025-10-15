@@ -254,6 +254,30 @@ func testMapping() *GRPCMapping {
 					Response: "ResolveCategoryCategoryMetricsResponse",
 				},
 			},
+			"Product": {
+				"shippingEstimate": {
+					FieldMappingData: FieldMapData{
+						TargetName: "shipping_estimate",
+						ArgumentMappings: FieldArgumentMap{
+							"input": "input",
+						},
+					},
+					RPC:      "ResolveProductShippingEstimate",
+					Request:  "ResolveProductShippingEstimateRequest",
+					Response: "ResolveProductShippingEstimateResponse",
+				},
+				"recommendedCategory": {
+					FieldMappingData: FieldMapData{
+						TargetName: "recommended_category",
+						ArgumentMappings: FieldArgumentMap{
+							"maxPrice": "max_price",
+						},
+					},
+					RPC:      "ResolveProductRecommendedCategory",
+					Request:  "ResolveProductRecommendedCategoryRequest",
+					Response: "ResolveProductRecommendedCategoryResponse",
+				},
+			},
 			"Subcategory": {
 				"itemCount": {
 					FieldMappingData: FieldMapData{
@@ -306,6 +330,11 @@ func testMapping() *GRPCMapping {
 				{Value: "ELECTRONICS", TargetValue: "CATEGORY_KIND_ELECTRONICS"},
 				{Value: "FURNITURE", TargetValue: "CATEGORY_KIND_FURNITURE"},
 				{Value: "OTHER", TargetValue: "CATEGORY_KIND_OTHER"},
+			},
+			"ShippingDestination": {
+				{Value: "DOMESTIC", TargetValue: "SHIPPING_DESTINATION_DOMESTIC"},
+				{Value: "EXPRESS", TargetValue: "SHIPPING_DESTINATION_EXPRESS"},
+				{Value: "INTERNATIONAL", TargetValue: "SHIPPING_DESTINATION_INTERNATIONAL"},
 			},
 		},
 		Fields: map[string]FieldMap{
@@ -539,6 +568,18 @@ func testMapping() *GRPCMapping {
 				},
 				"price": {
 					TargetName: "price",
+				},
+				"shippingEstimate": {
+					TargetName: "shipping_estimate",
+					ArgumentMappings: FieldArgumentMap{
+						"input": "input",
+					},
+				},
+				"recommendedCategory": {
+					TargetName: "recommended_category",
+					ArgumentMappings: FieldArgumentMap{
+						"maxPrice": "max_price",
+					},
 				},
 			},
 			"Storage": {
@@ -1165,6 +1206,17 @@ func testMapping() *GRPCMapping {
 					TargetName: "search_term",
 				},
 			},
+			"ShippingEstimateInput": {
+				"destination": {
+					TargetName: "destination",
+				},
+				"weight": {
+					TargetName: "weight",
+				},
+				"expedited": {
+					TargetName: "expedited",
+				},
+			},
 			"UserInput": {
 				"name": {
 					TargetName: "name",
@@ -1172,5 +1224,4 @@ func testMapping() *GRPCMapping {
 			},
 		},
 	}
-
 }

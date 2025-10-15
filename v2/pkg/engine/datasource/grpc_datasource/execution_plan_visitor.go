@@ -40,18 +40,6 @@ type fieldArgument struct {
 	argumentDefinitionRef int
 }
 
-type resolvedField struct {
-	callerRef              int
-	parentTypeRef          int
-	fieldRef               int
-	fieldDefinitionTypeRef int
-	requiredFields         string
-	responsePath           ast.Path
-
-	contextFields  []contextField
-	fieldArguments []fieldArgument
-}
-
 type rpcPlanVisitor struct {
 	walker     *astvisitor.Walker
 	operation  *ast.Document
@@ -129,80 +117,10 @@ func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
 		return
 	}
 
-	// We need to create a new call for each resolved field.
-	calls := make([]RPCCall, 0, len(r.resolvedFields))
-
-	for _, resolvedField := range r.resolvedFields {
-		resolveConfig, exists := r.mapping.FindResolveTypeFieldMapping(
-			r.definition.ObjectTypeDefinitionNameString(resolvedField.parentTypeRef),
-			r.operation.FieldNameString(resolvedField.fieldRef),
-		)
-
-		if !exists {
-			r.walker.StopWithInternalErr(fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef), r.operation.FieldAliasString(resolvedField.fieldRef)))
-			return
-		}
-
-		contextMessage := &RPCMessage{
-			Name: resolveConfig.RPC + "Context",
-		}
-
-		fieldArgsMessage := &RPCMessage{
-			Name: resolveConfig.RPC + "Args",
-		}
-
-		call, err := r.planCtx.newResolveRPCCall(resolveRPCCallConfig{
-			serviceName:      r.subgraphName,
-			typeName:         r.definition.ResolveTypeNameString(resolvedField.parentTypeRef),
-			fieldName:        r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
-			resolveConfig:    resolveConfig,
-			resolvedField:    resolvedField,
-			contextMessage:   contextMessage,
-			fieldArgsMessage: fieldArgsMessage,
-		})
-
-		if err != nil {
-			r.walker.StopWithInternalErr(err)
-		}
-
-		contextMessage.Fields = make(RPCFields, 0, len(resolvedField.contextFields))
-		for _, contextField := range resolvedField.contextFields {
-			typeDefNode, found := r.definition.NodeByNameStr(r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
-			if !found {
-				r.walker.StopWithInternalErr(fmt.Errorf("type definition node not found for type: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef)))
-				return
-			}
-
-			field, err := r.planCtx.buildField(
-				typeDefNode,
-				contextField.fieldRef,
-				r.definition.FieldDefinitionNameString(contextField.fieldRef),
-				"",
-			)
-
-			field.ResolvePath = contextField.resolvePath
-
-			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return
-			}
-
-			contextMessage.Fields = append(contextMessage.Fields, field)
-		}
-
-		fieldArgsMessage.Fields = make(RPCFields, 0, len(resolvedField.fieldArguments))
-		for _, fieldArgument := range resolvedField.fieldArguments {
-			field, err := r.planCtx.createRPCFieldFromFieldArgument(fieldArgument)
-
-			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return
-			}
-
-			fieldArgsMessage.Fields = append(fieldArgsMessage.Fields, field)
-		}
-
-		calls = append(calls, call)
+	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolvedFields)
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
 	}
 
 	r.plan.Calls = append(r.plan.Calls, calls...)
@@ -276,6 +194,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 		return
 	}
 
+	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
 	if r.resolvedFieldIndex != ast.InvalidRef {
 		lbrace := r.operation.SelectionSets[ref].LBrace.CharEnd
 		rbrace := r.operation.SelectionSets[ref].RBrace.CharStart - 1
@@ -440,29 +359,11 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 			fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fd),
 		}
 
-		contextFields, err := r.planCtx.resolveContextFields(r.walker, fd)
-		if err != nil {
+		if err := r.planCtx.setResolvedField(r.walker, fd, fieldArgs, r.fieldPath, &resolvedField); err != nil {
 			r.walker.StopWithInternalErr(err)
 			return
 		}
 
-		for _, contextFieldRef := range contextFields {
-			contextFieldName := r.definition.FieldDefinitionNameBytes(contextFieldRef) // TODO handle aliases
-			resolvedPath := r.fieldPath.WithFieldNameItem(contextFieldName)
-
-			resolvedField.contextFields = append(resolvedField.contextFields, contextField{
-				fieldRef:    contextFieldRef,
-				resolvePath: resolvedPath,
-			})
-		}
-
-		fieldArguments, err := r.planCtx.parseFieldArguments(r.walker, fd, fieldArgs)
-		if err != nil {
-			r.walker.StopWithInternalErr(err)
-			return
-		}
-
-		resolvedField.fieldArguments = fieldArguments
 		r.resolvedFields = append(r.resolvedFields, resolvedField)
 		r.resolvedFieldIndex = len(r.resolvedFields) - 1
 		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))

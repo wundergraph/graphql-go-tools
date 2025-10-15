@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -10,6 +11,7 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -49,6 +51,12 @@ type rpcPlanVisitorFederation struct {
 	subgraphName     string
 	currentCall      *RPCCall
 	currentCallIndex int
+
+	relatedCallID      int
+	resolvedFieldIndex int
+	resolvedFields     []resolvedField
+
+	fieldPath ast.Path
 }
 
 func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFederation {
@@ -63,9 +71,13 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 			entityInlineFragmentRef: ast.InvalidRef,
 		},
 		federationConfigData: parseFederationConfigData(config.federationConfigs),
+		resolvedFields:       make([]resolvedField, 0),
+		resolvedFieldIndex:   ast.InvalidRef,
+		relatedCallID:        ast.InvalidRef,
+		fieldPath:            ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
 
-	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterDocumentVisitor(visitor)
 	walker.RegisterEnterOperationVisitor(visitor)
 	walker.RegisterInlineFragmentVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
@@ -92,6 +104,23 @@ func (r *rpcPlanVisitorFederation) EnterDocument(operation *ast.Document, defini
 	r.planCtx = newRPCPlanningContext(operation, definition, r.mapping)
 }
 
+// LeaveDocument implements astvisitor.DocumentVisitor.
+func (r *rpcPlanVisitorFederation) LeaveDocument(_, _ *ast.Document) {
+	if len(r.resolvedFields) == 0 {
+		return
+	}
+
+	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolvedFields)
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	r.plan.Calls = append(r.plan.Calls, calls...)
+	r.resolvedFields = nil
+
+}
+
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
 func (r *rpcPlanVisitorFederation) EnterOperationDefinition(ref int) {
 	if r.operation.OperationDefinitions[ref].OperationType != ast.OperationTypeQuery {
@@ -112,7 +141,10 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 
 	r.currentCall = &RPCCall{
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
+		Kind:        CallKindEntity,
 	}
+
+	r.relatedCallID = len(r.plan.Calls)
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -136,7 +168,6 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 
 	r.plan.Calls = append(r.plan.Calls, *r.currentCall)
 	r.currentCall = &RPCCall{}
-	r.currentCallIndex++
 
 	r.planInfo = planningInfo{
 		operationType:               r.planInfo.operationType,
@@ -154,6 +185,16 @@ func (r *rpcPlanVisitorFederation) LeaveInlineFragment(ref int) {
 // EnterSelectionSet implements astvisitor.SelectionSetVisitor.
 func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		return
+	}
+
+	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
+	if r.resolvedFieldIndex != ast.InvalidRef {
+		lbrace := r.operation.SelectionSets[ref].LBrace.CharEnd
+		rbrace := r.operation.SelectionSets[ref].RBrace.CharStart - 1
+
+		r.resolvedFields[r.resolvedFieldIndex].requiredFields = unsafebytes.BytesToString(r.operation.Input.RawBytes[lbrace:rbrace])
+		r.walker.SkipNode()
 		return
 	}
 
@@ -247,7 +288,8 @@ func (r *rpcPlanVisitorFederation) LeaveSelectionSet(ref int) {
 // EnterField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	fieldName := r.operation.FieldNameString(ref)
-	if r.walker.InRootField() {
+	inRootField := r.walker.InRootField()
+	if inRootField {
 		r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
 	}
 
@@ -268,6 +310,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	// prevent duplicate fields
 	fieldAlias := r.operation.FieldAliasString(ref)
 	if r.planInfo.currentResponseMessage.Fields.Exists(fieldName, fieldAlias) {
+		r.fieldPath = r.fieldPath.WithFieldNameItem([]byte{})
 		return
 	}
 
@@ -279,11 +322,43 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		return
 	}
 
+	if fieldArgs := r.operation.FieldArguments(ref); !inRootField && len(fieldArgs) > 0 {
+		// We don't want to add fields from the selection set to the actual call
+		resolvedField := resolvedField{
+			callerRef:              r.relatedCallID,
+			parentTypeRef:          r.walker.EnclosingTypeDefinition.Ref,
+			fieldRef:               ref,
+			responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
+			fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fd),
+		}
+
+		if err := r.planCtx.setResolvedField(r.walker, fd, fieldArgs, r.fieldPath, &resolvedField); err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+
+		r.resolvedFields = append(r.resolvedFields, resolvedField)
+		r.resolvedFieldIndex = len(r.resolvedFields) - 1
+		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
+
+		// In case of nested fields with arguments, we need to increment the related call ID.
+		r.relatedCallID++
+		return
+	}
+
 	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fd, fieldName, fieldAlias)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
+
+	// If we have a nested or nullable list, we add a @ prefix to indicate the nesting level.
+	prefix := ""
+	if field.ListMetadata != nil {
+		prefix = strings.Repeat("@", field.ListMetadata.NestingLevel)
+	}
+
+	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(prefix + field.Name))
 
 	// check if we are inside of an inline fragment and not the entity inline fragment
 	if ref, ok := r.walker.ResolveInlineFragment(); ok && r.entityInfo.entityInlineFragmentRef != ref {
@@ -301,8 +376,17 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
+	r.fieldPath = r.fieldPath.RemoveLastItem()
+	r.resolvedFieldIndex = ast.InvalidRef
 	// If we are not in the operation field, we can increment the response field index.
 	if !r.walker.InRootField() {
+		// If the field has arguments, we need to decrement the related call ID.
+		// This is because we can also have nested arguments, which require the underlying field to be resolved
+		// by values provided by the parent call.
+		if r.operation.FieldHasArguments(ref) {
+			r.relatedCallID--
+		}
+
 		r.planInfo.currentResponseFieldIndex++
 		return
 	}

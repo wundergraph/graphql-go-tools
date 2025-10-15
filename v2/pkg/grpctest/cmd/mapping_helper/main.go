@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"log"
 	"os"
@@ -85,125 +86,10 @@ type EnumValue struct {
 	Mapped   string `json:"mapped"`
 }
 
-const tpl = `package mapping
-
-import (
-	"testing"
-
-	grpcdatasource "github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/grpc_datasource"
+var (
+	//go:embed templates/grpctest_mapping.tmpl
+	tpl string
 )
-
-// DefaultGRPCMapping returns a hardcoded default mapping between GraphQL and Protobuf
-func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
-	return &grpcdatasource.GRPCMapping{
-		Service: "{{.Service}}",
-		QueryRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
-		{{- range $index, $operation := .OperationMappings}}
-		{{- if eq $operation.Type "OPERATION_TYPE_QUERY"}}
-			"{{$operation.Original}}": {
-				RPC:      "{{$operation.Mapped}}",
-				Request:  "{{$operation.Request}}",
-				Response: "{{$operation.Response}}",
-			},
-		{{- end }}
-		{{- end }}
-		},
-		MutationRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
-		{{- range $index, $operation := .OperationMappings}}
-		{{- if eq $operation.Type "OPERATION_TYPE_MUTATION"}}
-			"{{$operation.Original}}": {
-				RPC:      "{{$operation.Mapped}}",
-				Request:  "{{$operation.Request}}",
-				Response: "{{$operation.Response}}",
-			},
-		{{- end }}
-		{{- end }}
-		},
-		SubscriptionRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
-		{{- range $index, $operation := .OperationMappings}}
-		{{- if eq $operation.Type "OPERATION_TYPE_SUBSCRIPTION"}}
-			"{{$operation.Original}}": {
-				RPC:      "{{$operation.Mapped}}",
-				Request:  "{{$operation.Request}}",
-				Response: "{{$operation.Response}}",
-			},
-		{{- end }}
-		{{- end }}
-		},
-		ResolveRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.ResolveRPCMapping]{
-		{{- range $type, $item := .ResolveRPCs}}
-			"{{$type}}": {
-			{{- range $index, $resolve := $item}}
-				"{{$resolve.LookupMapping.FieldMapping.Original}}": {
-					FieldMappingData: grpcdatasource.FieldMapData{
-						TargetName: "{{$resolve.LookupMapping.FieldMapping.Mapped}}",
-						ArgumentMappings: grpcdatasource.FieldArgumentMap{
-							{{- range $index, $argument := $resolve.LookupMapping.FieldMapping.ArgumentMappings}}
-								"{{$argument.Original}}": "{{$argument.Mapped}}",
-							{{- end }}
-						},
-					},
-					RPC:      "{{$resolve.RPC}}",
-					Request:  "{{$resolve.Request}}",
-					Response: "{{$resolve.Response}}",
-				},
-			{{- end }}
-			},
-		{{- end }}
-		},
-		EntityRPCs: map[string][]grpcdatasource.EntityRPCConfig{
-		{{- range $index, $entity := .EntityMappings}}
-			"{{$entity.TypeName}}": {
-				{
-					Key: "{{$entity.Key}}",
-					RPCConfig: grpcdatasource.RPCConfig{
-						RPC:      "{{$entity.RPC}}",
-						Request:  "{{$entity.Request}}",
-						Response: "{{$entity.Response}}",
-					},
-				},
-			},
-		{{- end }}
-		},
-		EnumValues: map[string][]grpcdatasource.EnumValueMapping{
-		{{- range $index, $enum := .EnumMappings}}
-			"{{$enum.Type}}": {
-				{{- range $index, $value := .Values}}
-					{Value: "{{$value.Original}}", TargetValue: "{{$value.Mapped}}"},
-				{{- end }}
-			},
-		{{- end }}
-		},
-		Fields: map[string]grpcdatasource.FieldMap{
-		{{- range $index, $typeField := .TypeFieldMappings}}
-		"{{$typeField.Type}}": {
-			{{- range $index, $field := $typeField.FieldMappings}}
-			"{{$field.Original}}": {
-				TargetName: "{{$field.Mapped}}", 
-				{{- if (gt (len $field.ArgumentMappings) 0)}}
-				ArgumentMappings: grpcdatasource.FieldArgumentMap{
-				{{- range $index, $argument := $field.ArgumentMappings}}
-					"{{$argument.Original}}": "{{$argument.Mapped}}",
-				{{- end }}
-				},
-				{{- end }}
-			},
-			{{- end}}
-			},
-		{{- end}}
-		},
-	}
-}
-
-
-// MustDefaultGRPCMapping returns the default GRPC mapping
-func MustDefaultGRPCMapping(t *testing.T) *grpcdatasource.GRPCMapping {
-	mapping := DefaultGRPCMapping()
-	return mapping
-}
-
-
-`
 
 func main() {
 	args := os.Args[1:]

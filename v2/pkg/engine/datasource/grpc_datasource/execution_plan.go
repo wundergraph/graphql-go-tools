@@ -711,6 +711,43 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 	return r.mapping.Service
 }
 
+type resolvedField struct {
+	callerRef              int
+	parentTypeRef          int
+	fieldRef               int
+	fieldDefinitionTypeRef int
+	requiredFields         string
+	responsePath           ast.Path
+
+	contextFields  []contextField
+	fieldArguments []fieldArgument
+}
+
+func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fd int, fieldArgs []int, fieldPath ast.Path, resolvedField *resolvedField) error {
+	contextFields, err := r.resolveContextFields(walker, fd)
+	if err != nil {
+		return err
+	}
+
+	for _, contextFieldRef := range contextFields {
+		contextFieldName := r.definition.FieldDefinitionNameBytes(contextFieldRef)
+		resolvedPath := fieldPath.WithFieldNameItem(contextFieldName)
+
+		resolvedField.contextFields = append(resolvedField.contextFields, contextField{
+			fieldRef:    contextFieldRef,
+			resolvePath: resolvedPath,
+		})
+	}
+
+	fieldArguments, err := r.parseFieldArguments(walker, fd, fieldArgs)
+	if err != nil {
+		return err
+	}
+
+	resolvedField.fieldArguments = fieldArguments
+	return nil
+}
+
 func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fd int) ([]int, error) {
 	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fd, ast.ByteSlice(resolverContextDirectiveName))
 	if exists {
@@ -724,6 +761,41 @@ func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fd 
 
 	idFieldRef, err := r.findIDField(walker.EnclosingTypeDefinition, fd)
 	return []int{idFieldRef}, err
+}
+
+func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fd int, fieldArgs []int) ([]fieldArgument, error) {
+	result := make([]fieldArgument, 0, len(fieldArgs))
+	for _, fieldArgRef := range fieldArgs {
+		arg := r.operation.Arguments[fieldArgRef]
+		fieldArg := r.operation.ArgumentNameString(fieldArgRef)
+		fieldType := arg.Value.Kind
+
+		argDefRef := r.definition.NodeFieldDefinitionArgumentDefinitionByName(
+			walker.EnclosingTypeDefinition,
+			r.definition.FieldDefinitionNameBytes(fd),
+			r.operation.ArgumentNameBytes(fieldArgRef),
+		)
+
+		if argDefRef == ast.InvalidRef {
+			return nil, fmt.Errorf("unable to resolve argument input value definition for argument %s", fieldArg)
+		}
+
+		jsonValue := fieldArg
+		if fieldType == ast.ValueKindVariable {
+			jsonValue = r.operation.Input.ByteSliceString(r.operation.VariableValues[arg.Value.Ref].Name)
+		}
+
+		result = append(result, fieldArgument{
+			fieldDefinitionRef:    fd,
+			argumentDefinitionRef: argDefRef,
+			parentTypeNode:        walker.EnclosingTypeDefinition,
+			jsonPath:              jsonValue,
+		})
+
+	}
+
+	return result, nil
+
 }
 
 func (r *rpcPlanningContext) getFieldsFromContext(parentNode ast.Node, contextRef int) ([]int, error) {
@@ -784,41 +856,6 @@ func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fd i
 	}
 }
 
-func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fd int, fieldArgs []int) ([]fieldArgument, error) {
-	result := make([]fieldArgument, 0, len(fieldArgs))
-	for _, fieldArgRef := range fieldArgs {
-		arg := r.operation.Arguments[fieldArgRef]
-		fieldArg := r.operation.ArgumentNameString(fieldArgRef)
-		fieldType := arg.Value.Kind
-
-		argDefRef := r.definition.NodeFieldDefinitionArgumentDefinitionByName(
-			walker.EnclosingTypeDefinition,
-			r.definition.FieldDefinitionNameBytes(fd),
-			r.operation.ArgumentNameBytes(fieldArgRef),
-		)
-
-		if argDefRef == ast.InvalidRef {
-			return nil, fmt.Errorf("unable to resolve argument input value definition for argument %s", fieldArg)
-		}
-
-		jsonValue := fieldArg
-		if fieldType == ast.ValueKindVariable {
-			jsonValue = r.operation.Input.ByteSliceString(r.operation.VariableValues[arg.Value.Ref].Name)
-		}
-
-		result = append(result, fieldArgument{
-			fieldDefinitionRef:    fd,
-			argumentDefinitionRef: argDefRef,
-			parentTypeNode:        walker.EnclosingTypeDefinition,
-			jsonPath:              jsonValue,
-		})
-
-	}
-
-	return result, nil
-
-}
-
 // nodeByTypeRef is a helper function to resolve the underlying type node for a given type reference.
 func (r *rpcPlanningContext) nodeByTypeRef(typeRef int) (ast.Node, bool) {
 	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
@@ -847,6 +884,83 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName, requiredFields stri
 		return nil, err
 	}
 	return message, nil
+}
+
+// createResolverRPCCalls creates a new call for each resolved field.
+func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolvedFields []resolvedField) ([]RPCCall, error) {
+	// We need to create a new call for each resolved field.
+	calls := make([]RPCCall, 0, len(resolvedFields))
+
+	for _, resolvedField := range resolvedFields {
+		resolveConfig, exists := r.mapping.FindResolveTypeFieldMapping(
+			r.definition.ObjectTypeDefinitionNameString(resolvedField.parentTypeRef),
+			r.operation.FieldNameString(resolvedField.fieldRef),
+		)
+
+		if !exists {
+			return nil, fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef), r.operation.FieldAliasString(resolvedField.fieldRef))
+		}
+
+		contextMessage := &RPCMessage{
+			Name: resolveConfig.RPC + "Context",
+		}
+
+		fieldArgsMessage := &RPCMessage{
+			Name: resolveConfig.RPC + "Args",
+		}
+
+		call, err := r.newResolveRPCCall(resolveRPCCallConfig{
+			serviceName:      subgraphName,
+			typeName:         r.definition.ResolveTypeNameString(resolvedField.parentTypeRef),
+			fieldName:        r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
+			resolveConfig:    resolveConfig,
+			resolvedField:    resolvedField,
+			contextMessage:   contextMessage,
+			fieldArgsMessage: fieldArgsMessage,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		contextMessage.Fields = make(RPCFields, 0, len(resolvedField.contextFields))
+		for _, contextField := range resolvedField.contextFields {
+			typeDefNode, found := r.definition.NodeByNameStr(r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
+			if !found {
+				return nil, fmt.Errorf("type definition node not found for type: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
+			}
+
+			field, err := r.buildField(
+				typeDefNode,
+				contextField.fieldRef,
+				r.definition.FieldDefinitionNameString(contextField.fieldRef),
+				"",
+			)
+
+			field.ResolvePath = contextField.resolvePath
+
+			if err != nil {
+				return nil, err
+			}
+
+			contextMessage.Fields = append(contextMessage.Fields, field)
+		}
+
+		fieldArgsMessage.Fields = make(RPCFields, 0, len(resolvedField.fieldArguments))
+		for _, fieldArgument := range resolvedField.fieldArguments {
+			field, err := r.createRPCFieldFromFieldArgument(fieldArgument)
+
+			if err != nil {
+				return nil, err
+			}
+
+			fieldArgsMessage.Fields = append(fieldArgsMessage.Fields, field)
+		}
+
+		calls = append(calls, call)
+	}
+
+	return calls, nil
 }
 
 func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPCCall, error) {
