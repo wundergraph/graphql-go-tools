@@ -1,6 +1,14 @@
+// Deprecated: use github.com/wundergraph/graphql-go-tools/v2 instead.
 module github.com/wundergraph/graphql-go-tools
 
 go 1.25
+
+retract (
+	v0.0.1
+	v0.13.2
+	v1.0.0
+	[v1.0.0, v1.67.4]
+)
 
 require (
 	github.com/99designs/gqlgen v0.17.45
