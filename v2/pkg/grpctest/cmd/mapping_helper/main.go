@@ -11,6 +11,7 @@ import (
 
 type TemplateData struct {
 	JSONMapping
+
 	ResolveRPCs map[string][]ResolveRPC
 }
 
