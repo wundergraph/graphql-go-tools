@@ -157,6 +157,11 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 		return
 	}
 
+	if len(r.walker.TypeDefinitions) < 2 {
+		r.walker.StopWithInternalErr(fmt.Errorf("internal: unexpected type stack depth for argument on %s", r.operation.FieldNameString(ancestor.Ref)))
+		return
+	}
+
 	// As we check that we are inside of a field we can safely access the second to last type definition.
 	parentTypeNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
 	fieldDefinitionRef, exists := r.definition.NodeFieldDefinitionByName(parentTypeNode, r.operation.FieldNameBytes(ancestor.Ref))
