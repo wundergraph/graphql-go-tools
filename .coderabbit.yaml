@@ -11,4 +11,5 @@ reviews:
     # Use '.*' to match all branches.
     base_branches: [ "feat/.*", "topic/.*" ]
   path_filters:
+    # Exclude these paths (prefix with !)
     - "!pkg/**"
