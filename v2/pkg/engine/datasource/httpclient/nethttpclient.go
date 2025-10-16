@@ -129,6 +129,23 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
+type httpClientContext string
+
+const (
+	sizeHintKey httpClientContext = "size-hint"
+)
+
+func WithHTTPClientSizeHint(ctx context.Context, size int) context.Context {
+	return context.WithValue(ctx, sizeHintKey, size)
+}
+
+func buffer(ctx context.Context) *bytes.Buffer {
+	if sizeHint, ok := ctx.Value(sizeHintKey).(int); ok && sizeHint > 0 {
+		return bytes.NewBuffer(make([]byte, 0, sizeHint))
+	}
+	return bytes.NewBuffer(make([]byte, 0, 1024*4)) // default to 4KB
+}
+
 func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, contentType string) ([]byte, error) {
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
@@ -204,7 +221,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 		return nil, err
 	}
 
-	out := bytes.NewBuffer(make([]byte, 0, 1024*4))
+	out := buffer(ctx)
 	_, err = out.ReadFrom(respReader)
 	if err != nil {
 		return nil, err
