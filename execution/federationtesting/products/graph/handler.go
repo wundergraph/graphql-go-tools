@@ -42,13 +42,13 @@ func GraphQLEndpointHandler(opts EndpointOptions) http.Handler {
 				return true
 			},
 		},
-		InitFunc: func(ctx context.Context, _ transport.InitPayload) (context.Context, error) {
+		InitFunc: func(ctx context.Context, ip transport.InitPayload) (context.Context, *transport.InitPayload, error) {
 			websocketConnections.Inc()
 			go func(ctx context.Context) {
 				<-ctx.Done()
 				websocketConnections.Dec()
 			}(ctx)
-			return ctx, nil
+			return ctx, nil, nil
 		},
 	})
 	srv.Use(extension.Introspection{})
