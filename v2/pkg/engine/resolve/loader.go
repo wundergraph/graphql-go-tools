@@ -367,7 +367,7 @@ func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Valu
 		if len(items) == 0 {
 			break
 		}
-		items = selectItems(items, path[i])
+		items = selectItems(l.jsonArena, items, path[i])
 	}
 	return l.taintedObjs.filterOutTainted(items)
 }
@@ -388,7 +388,7 @@ func isItemAllowedByTypename(obj *astjson.Value, typeNames []string) bool {
 	return slices.Contains(typeNames, __typeNameStr)
 }
 
-func selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjson.Value {
+func selectItems(a arena.Arena, items []*astjson.Value, element FetchItemPathElement) []*astjson.Value {
 	if len(items) == 0 {
 		return nil
 	}
@@ -410,7 +410,7 @@ func selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjso
 		}
 		return []*astjson.Value{field}
 	}
-	selected := make([]*astjson.Value, 0, len(items))
+	selected := arena.AllocateSlice[*astjson.Value](a, 0, len(items))
 	for _, item := range items {
 		if !isItemAllowedByTypename(item, element.TypeNames) {
 			continue
@@ -420,10 +420,10 @@ func selectItems(items []*astjson.Value, element FetchItemPathElement) []*astjso
 			continue
 		}
 		if field.Type() == astjson.TypeArray {
-			selected = append(selected, field.GetArray()...)
+			selected = arena.SliceAppend(a, selected, field.GetArray()...)
 			continue
 		}
-		selected = append(selected, field)
+		selected = arena.SliceAppend(a, selected, field)
 	}
 	return selected
 }
