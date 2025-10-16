@@ -454,6 +454,7 @@ func TestHandler_Handle(t *testing.T) {
 					Payload: nil,
 				}
 
+				time.Sleep(10 * time.Millisecond)
 				messagesFromServer := client.readFromServer()
 				assert.Contains(t, messagesFromServer, expectedMessage)
 

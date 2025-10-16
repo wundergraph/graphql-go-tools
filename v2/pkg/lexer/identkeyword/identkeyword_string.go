@@ -35,8 +35,9 @@ const _IdentKeyword_name = "UNDEFINEDONTRUEFALSENULLQUERYMUTATIONSUBSCRIPTIONFRA
 var _IdentKeyword_index = [...]uint8{0, 9, 11, 15, 20, 24, 29, 37, 49, 57, 67, 73, 79, 83, 92, 97, 101, 106, 115, 121, 131}
 
 func (i IdentKeyword) String() string {
-	if i < 0 || i >= IdentKeyword(len(_IdentKeyword_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_IdentKeyword_index)-1 {
 		return "IdentKeyword(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _IdentKeyword_name[_IdentKeyword_index[i]:_IdentKeyword_index[i+1]]
+	return _IdentKeyword_name[_IdentKeyword_index[idx]:_IdentKeyword_index[idx+1]]
 }
