@@ -15,7 +15,7 @@ use (
 	v2
 )
 
-replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.22
+replace github.com/99designs/gqlgen => github.com/99designs/gqlgen v0.17.76
 
 replace github.com/tidwall/sjson => github.com/tidwall/sjson v1.0.4
 
