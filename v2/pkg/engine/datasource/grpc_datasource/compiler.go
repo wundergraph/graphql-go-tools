@@ -832,22 +832,23 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 		return nil
 	}
 
-	if itemsValue.List().Len() == 0 {
+	itemsList := itemsValue.List()
+	if itemsList.Len() == 0 {
 		return nil
 	}
 
 	if nestingLevel > 1 {
-		items := make([]protoref.Value, 0, listMsg.List().Len())
-		for i := 0; i < listMsg.List().Len(); i++ {
-			items = append(items, p.resolveUnderlyingListItems(listMsg.List().Get(i), nestingLevel-1)...)
+		items := make([]protoref.Value, 0, itemsList.Len())
+		for i := 0; i < itemsList.Len(); i++ {
+			items = append(items, p.resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
 		}
 
 		return items
 	}
 
-	result := make([]protoref.Value, itemsValue.List().Len())
-	for i := 0; i < itemsValue.List().Len(); i++ {
-		result[i] = itemsValue.List().Get(i)
+	result := make([]protoref.Value, itemsList.Len())
+	for i := 0; i < itemsList.Len(); i++ {
+		result[i] = itemsList.Get(i)
 	}
 
 	return result
