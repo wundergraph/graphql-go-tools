@@ -10,8 +10,6 @@ generate-proto: install-protoc
 	protoc --go_out=productv1 --go_opt=paths=source_relative \
     	--go-grpc_out=productv1 --go-grpc_opt=paths=source_relative \
     	product.proto
-	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
-	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: build-plugin
 build-plugin:
@@ -20,6 +18,8 @@ build-plugin:
 .PHONY: regenerate-proto
 regenerate-proto:
 	pnpx wgc@latest grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" Product
+	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
+	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: generate-mapping-code
 generate-mapping-code: regenerate-proto
@@ -31,6 +31,8 @@ generate-mapping-code: regenerate-proto
 .PHONY: regenerate-proto-local
 regenerate-proto-local:
 	pnpx tsx --env-file ../../../../cosmo/cli/.env ../../../../cosmo/cli/src/index.ts grpc-service generate -i testdata/products.graphqls -o testdata/ -p productv1 -g "cosmo/pkg/proto/productv1;productv1" Product
+	mv $(mkfile_dir)/testdata/service.proto $(mkfile_dir)/product.proto
+	rm -f $(mkfile_dir)/testdata/service.proto.lock.json
 
 .PHONY: generate-mapping-code-local
 generate-mapping-code-local: regenerate-proto-local
