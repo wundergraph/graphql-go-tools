@@ -139,6 +139,7 @@ type result struct {
 
 	httpResponseContext *httpclient.ResponseContext
 	out                 []byte
+	singleFlightStats   *singleFlightStats
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -183,6 +184,7 @@ type Loader struct {
 	taintedObjs taintedObjects
 
 	jsonArena arena.Arena
+	sf        *SingleFlight
 }
 
 func (l *Loader) Free() {
@@ -772,6 +774,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		}
 
 		// If the error propagation mode is pass-through, we append the errors to the root array
+		l.resolvable.ensureErrorsInitialized()
 		l.resolvable.errors.AppendArrayItems(value)
 		return nil
 	}
@@ -808,6 +811,7 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 		return err
 	}
 
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 
 	return nil
@@ -1062,6 +1066,7 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 		return err
 	}
 
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
 
 	return nil
@@ -1075,6 +1080,7 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1086,6 +1092,7 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1104,7 +1111,7 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	}
 
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
-
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1129,6 +1136,7 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
+	l.resolvable.ensureErrorsInitialized()
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
 			if reason == "" {
@@ -1207,6 +1215,7 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 			return err
 		}
 	}
+	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
 }
@@ -1598,29 +1607,8 @@ func redactHeaders(rawJSON json.RawMessage) (json.RawMessage, error) {
 	return redactedJSON, nil
 }
 
-type disallowSingleFlightContextKey struct{}
-
-func SingleFlightDisallowed(ctx context.Context) bool {
-	return ctx.Value(disallowSingleFlightContextKey{}) != nil
-}
-
-type singleFlightStatsKey struct{}
-
-type SingleFlightStats struct {
-	SingleFlightUsed           bool
-	SingleFlightSharedResponse bool
-}
-
-func GetSingleFlightStats(ctx context.Context) *SingleFlightStats {
-	maybeStats := ctx.Value(singleFlightStatsKey{})
-	if maybeStats == nil {
-		return nil
-	}
-	return maybeStats.(*SingleFlightStats)
-}
-
-func setSingleFlightStats(ctx context.Context, stats *SingleFlightStats) context.Context {
-	return context.WithValue(ctx, singleFlightStatsKey{}, stats)
+type singleFlightStats struct {
+	used, shared bool
 }
 
 func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *DataSourceLoadTrace) {
@@ -1636,7 +1624,70 @@ func (l *Loader) setTracingInput(fetchItem *FetchItem, input []byte, trace *Data
 	}
 }
 
-func (l *Loader) loadByContext(ctx context.Context, source DataSource, input []byte, res *result) error {
+type loaderContextKey string
+
+const (
+	operationTypeContextKey loaderContextKey = "operationType"
+)
+
+func GetOperationTypeFromContext(ctx context.Context) ast.OperationType {
+	if ctx == nil {
+		return ast.OperationTypeQuery
+	}
+	if v := ctx.Value(operationTypeContextKey); v != nil {
+		if opType, ok := v.(ast.OperationType); ok {
+			return opType
+		}
+	}
+	return ast.OperationTypeQuery
+}
+
+func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem *FetchItem, input []byte, res *result) error {
+
+	if l.info != nil {
+		ctx = context.WithValue(ctx, operationTypeContextKey, l.info.OperationType)
+	}
+
+	if l.info == nil || l.info.OperationType == ast.OperationTypeMutation {
+		// Disable single flight for mutations
+		return l.loadByContextDirect(ctx, source, input, res)
+	}
+
+	key, item, shared := l.sf.GetOrCreateItem(ctx, fetchItem, input)
+	if res.singleFlightStats != nil {
+		res.singleFlightStats.used = shared
+		res.singleFlightStats.shared = shared
+	}
+
+	if shared {
+		select {
+		case <-item.loaded:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+
+		if item.err != nil {
+			return item.err
+		}
+
+		res.out = item.response
+		return nil
+	}
+
+	defer l.sf.Finish(key, item)
+
+	// Perform the actual load
+	err := l.loadByContextDirect(ctx, source, input, res)
+	if err != nil {
+		item.err = err
+		return err
+	}
+
+	item.response = res.out
+	return nil
+}
+
+func (l *Loader) loadByContextDirect(ctx context.Context, source DataSource, input []byte, res *result) error {
 	if l.ctx.Files != nil {
 		res.out, res.err = source.LoadWithFiles(ctx, input, l.ctx.Files)
 	} else {
@@ -1674,7 +1725,7 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 		}
 	}
 	if l.ctx.TracingOptions.Enable {
-		ctx = setSingleFlightStats(ctx, &SingleFlightStats{})
+		res.singleFlightStats = &singleFlightStats{}
 		trace.Path = fetchItem.ResponsePath
 		if !l.ctx.TracingOptions.ExcludeInput {
 			trace.Input = make([]byte, len(input))
@@ -1778,9 +1829,6 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 			ctx = httptrace.WithClientTrace(ctx, clientTrace)
 		}
 	}
-	if l.info != nil && l.info.OperationType == ast.OperationTypeMutation {
-		ctx = context.WithValue(ctx, disallowSingleFlightContextKey{}, true)
-	}
 	var responseContext *httpclient.ResponseContext
 	ctx, responseContext = httpclient.InjectResponseContext(ctx)
 
@@ -1789,24 +1837,23 @@ func (l *Loader) executeSourceLoad(ctx context.Context, fetchItem *FetchItem, so
 
 		// Prevent that the context is destroyed when the loader hook return an empty context
 		if res.loaderHookContext != nil {
-			res.err = l.loadByContext(res.loaderHookContext, source, input, res)
+			res.err = l.loadByContext(res.loaderHookContext, source, fetchItem, input, res)
 		} else {
-			res.err = l.loadByContext(ctx, source, input, res)
+			res.err = l.loadByContext(ctx, source, fetchItem, input, res)
 			res.loaderHookContext = ctx // Set the context to the original context to ensure that OnFinished hook gets valid context
 		}
 
 	} else {
-		res.err = l.loadByContext(ctx, source, input, res)
+		res.err = l.loadByContext(ctx, source, fetchItem, input, res)
 	}
 
 	res.statusCode = responseContext.StatusCode
 	res.httpResponseContext = responseContext
 
 	if l.ctx.TracingOptions.Enable {
-		stats := GetSingleFlightStats(ctx)
-		if stats != nil {
-			trace.SingleFlightUsed = stats.SingleFlightUsed
-			trace.SingleFlightSharedResponse = stats.SingleFlightSharedResponse
+		if res.singleFlightStats != nil {
+			trace.SingleFlightUsed = res.singleFlightStats.used
+			trace.SingleFlightSharedResponse = res.singleFlightStats.shared
 		}
 		if !l.ctx.TracingOptions.ExcludeOutput && len(res.out) > 0 {
 			trace.Output, _ = l.compactJSON(res.out)

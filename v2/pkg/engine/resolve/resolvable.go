@@ -111,7 +111,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = astjson.ObjectValue(r.astjsonArena)
-	r.errors = astjson.ArrayValue(r.astjsonArena)
+	r.errors = nil
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
@@ -129,6 +129,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
+	r.errors = nil
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
 		if err != nil {
@@ -158,9 +159,6 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	if r.data == nil {
 		r.data = astjson.ObjectValue(r.astjsonArena)
 	}
-	if r.errors == nil {
-		r.errors = astjson.ArrayValue(r.astjsonArena)
-	}
 	return
 }
 
@@ -169,7 +167,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
-	r.errors = astjson.ArrayValue(r.astjsonArena)
+	r.errors = nil
 
 	hasErrors := r.walkNode(node, data)
 	if hasErrors {
@@ -233,6 +231,12 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	}
 	r.printBytes(rBrace)
 	return r.printErr
+}
+
+func (r *Resolvable) ensureErrorsInitialized() {
+	if r.errors == nil {
+		r.errors = astjson.ArrayValue(r.astjsonArena)
+	}
 }
 
 func (r *Resolvable) enclosingTypeName() string {
@@ -761,6 +765,7 @@ func (r *Resolvable) addRejectFieldError(reason string, ds DataSourceInfo, field
 	}
 	r.ctx.appendSubgraphErrors(errors.New(errorMessage),
 		NewSubgraphError(ds, fieldPath, reason, 0))
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, errorMessage, errorcodes.UnauthorizedFieldOrType, r.path)
 	r.popNodePathElement(nodePath)
 }
@@ -1202,6 +1207,7 @@ func (r *Resolvable) addNonNullableFieldError(fieldPath []string, parent *astjso
 		r.addValueCompletion(r.renderApolloCompatibleNonNullableErrorMessage(), errorcodes.InvalidGraphql)
 	} else {
 		errorMessage := fmt.Sprintf("Cannot return null for non-nullable field '%s'.", r.renderFieldPath())
+		r.ensureErrorsInitialized()
 		fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, errorMessage, r.path)
 	}
 	r.popNodePathElement(fieldPath)
@@ -1272,16 +1278,19 @@ func (r *Resolvable) renderFieldCoordinates() string {
 
 func (r *Resolvable) addError(message string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorToArray(r.astjsonArena, r.errors, message, r.path)
 	r.popNodePathElement(fieldPath)
 }
 
 func (r *Resolvable) addErrorWithCode(message, code string) {
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
 }
 
 func (r *Resolvable) addErrorWithCodeAndPath(message, code string, fieldPath []string) {
 	r.pushNodePathElement(fieldPath)
+	r.ensureErrorsInitialized()
 	fastjsonext.AppendErrorWithExtensionsCodeToArray(r.astjsonArena, r.errors, message, code, r.path)
 	r.popNodePathElement(fieldPath)
 }

@@ -76,6 +76,9 @@ type Resolver struct {
 	arenaPool   []weak.Pointer[arenaPoolItem]
 	arenaSize   map[uint64]int
 	arenaPoolMu sync.Mutex
+
+	// Single flight cache for deduplicating requests across all loaders
+	sf *SingleFlight
 }
 
 type arenaPoolItem struct {
@@ -233,6 +236,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedErrorFields:           allowedErrorFields,
 		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
+		sf:                           NewSingleFlight(),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
@@ -246,7 +250,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}) *tools {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SingleFlight) *tools {
 	return &tools{
 		resolvable: NewResolvable(nil, options.ResolvableOptions),
 		loader: &Loader{
@@ -264,6 +268,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
+			sf:                                           sf,
 		},
 	}
 }
@@ -282,7 +287,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -354,7 +359,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
 	poolItem := r.acquireArena(ctx.Request.ID)
 	defer r.releaseArena(ctx.Request.ID, poolItem)
@@ -511,7 +516,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
@@ -1104,7 +1109,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
@@ -1213,7 +1218,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {

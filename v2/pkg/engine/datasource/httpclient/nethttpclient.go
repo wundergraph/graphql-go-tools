@@ -20,7 +20,6 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -130,21 +129,11 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
-type bodyHashContextKey struct{}
-
-func BodyHashFromContext(ctx context.Context) (uint64, bool) {
-	value := ctx.Value(bodyHashContextKey{})
-	if value == nil {
-		return 0, false
-	}
-	return value.(uint64), true
-}
-
-func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
+func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, contentType string) ([]byte, error) {
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if headers != nil {
@@ -161,7 +150,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 			return err
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -190,7 +179,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 			}
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		request.URL.RawQuery = query.Encode()
 	}
@@ -204,7 +193,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 	response, err := client.Do(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer response.Body.Close()
 
@@ -212,23 +201,20 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	out := bytes.NewBuffer(make([]byte, 0, 1024*4))
+	_, err = out.ReadFrom(respReader)
+	if err != nil {
+		return nil, err
 	}
 
 	if !enableTrace {
-		if response.ContentLength > 0 {
-			out.Grow(int(response.ContentLength))
-		} else {
-			out.Grow(1024 * 4)
-		}
-		_, err = out.ReadFrom(respReader)
-		return
+		return out.Bytes(), nil
 	}
 
-	data, err := io.ReadAll(respReader)
-	if err != nil {
-		return err
-	}
+	data := out.Bytes()
 	responseTrace := TraceHTTP{
 		Request: TraceHTTPRequest{
 			Method:  request.Method,
@@ -244,31 +230,18 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	}
 	trace, err := json.Marshal(responseTrace)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	responseWithTraceExtension, err := jsonparser.Set(data, trace, "extensions", "trace")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = out.Write(responseWithTraceExtension)
-	return err
+	return responseWithTraceExtension, nil
 }
 
 func Do(client *http.Client, ctx context.Context, requestInput []byte) (data []byte, err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-	h := pool.Hash64.Get()
-	_, _ = h.Write(body)
-	bodyHash := h.Sum64()
-	pool.Hash64.Put(h)
-	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
-
-	buf := bytes.NewBuffer(make([]byte, 0, 1024*4))
-
-	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, buf, ContentTypeJSON)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, ContentTypeJSON)
 }
 
 func DoMultipartForm(
@@ -279,10 +252,6 @@ func DoMultipartForm(
 	}
 
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-
-	h := pool.Hash64.Get()
-	defer pool.Hash64.Put(h)
-	_, _ = h.Write(body)
 
 	formValues := map[string]io.Reader{
 		"operations": bytes.NewReader(body),
@@ -300,10 +269,9 @@ func DoMultipartForm(
 		}
 		hasWrittenFileName = true
 
-		fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
+		_, _ = fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
 
 		key := fmt.Sprintf("%d", i)
-		_, _ = h.WriteString(file.Path())
 		temporaryFile, err := os.Open(file.Path())
 		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
@@ -331,16 +299,7 @@ func DoMultipartForm(
 		}
 	}()
 
-	bodyHash := h.Sum64()
-	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
-
-	buf := bytes.NewBuffer(make([]byte, 0, 1024*4))
-
-	err = makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, buf, contentType)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, contentType)
 }
 
 func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeReader, string, error) {
