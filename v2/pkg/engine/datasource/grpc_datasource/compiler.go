@@ -182,9 +182,9 @@ type Message struct {
 // FieldByName returns a field by its name.
 // Returns nil if no field with the given name exists.
 func (m *Message) FieldByName(name string) *Field {
-	for _, field := range m.Fields {
+	for index, field := range m.Fields {
 		if field.Name == name {
-			return &field
+			return &m.Fields[index]
 		}
 	}
 
@@ -502,6 +502,10 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 			return ServiceCall{}, err
 		}
 
+		if len(context) == 0 {
+			return ServiceCall{}, fmt.Errorf("context is required for resolve calls")
+		}
+
 		request = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
 	}
 
@@ -605,7 +609,7 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 	rootMessage := dynamicpb.NewMessage(inputMessage.Desc)
 
 	if len(inputMessage.Fields) != 2 {
-		p.report.AddInternalError(fmt.Errorf("message %s must have exactly one key field", inputMessage.Name))
+		p.report.AddInternalError(fmt.Errorf("message %s must have exactly two fields: context and field_args", inputMessage.Name))
 		return nil
 	}
 
@@ -640,14 +644,20 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		contextList.Append(val)
 	}
 
-	argsMessage := p.doc.Messages[inputMessage.FieldByName("field_args").MessageRef]
+	argsSchemaField := inputMessage.FieldByName("field_args")
+	if argsSchemaField == nil {
+		p.report.AddInternalError(fmt.Errorf("field_args field not found in message %s", inputMessage.Name))
+		return nil
+	}
+
+	argsMessage := p.doc.Messages[argsSchemaField.MessageRef]
 	argsRPCField := rpcMessage.Fields.ByName("field_args")
 	if argsRPCField == nil {
 		p.report.AddInternalError(fmt.Errorf("field_args field not found in message %s", rpcMessage.Name))
 		return nil
 	}
 
-	args := p.buildProtoMessage(argsMessage, rpcMessage.Fields[1].Message, data)
+	args := p.buildProtoMessage(argsMessage, argsRPCField.Message, data)
 
 	// // Set the key list
 	p.setMessageValue(rootMessage, contextSchemaField.Name, protoref.ValueOfList(contextList))
