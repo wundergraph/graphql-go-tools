@@ -47,10 +47,9 @@ type rpcPlanVisitorFederation struct {
 	entityInfo           entityInfo
 	federationConfigData []federationConfigData
 
-	plan             *RPCExecutionPlan
-	subgraphName     string
-	currentCall      *RPCCall
-	currentCallIndex int
+	plan         *RPCExecutionPlan
+	subgraphName string
+	currentCall  *RPCCall
 
 	relatedCallID      int
 	resolvedFieldIndex int

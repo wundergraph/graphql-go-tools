@@ -301,6 +301,8 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
+	r.relatedCallID = r.currentCallID
+
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
 
@@ -350,7 +352,6 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 	// TODO: this needs to be available for both visitors and added to the plancontext
 	if fieldArgs := r.operation.FieldArguments(ref); !inRootField && len(fieldArgs) > 0 {
 		// We don't want to add fields from the selection set to the actual call
-		r.relatedCallID++ // TODO: handle this for multiple queries
 		resolvedField := resolvedField{
 			callerRef:              r.relatedCallID,
 			parentTypeRef:          r.walker.EnclosingTypeDefinition.Ref,
@@ -367,6 +368,9 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		r.resolvedFields = append(r.resolvedFields, resolvedField)
 		r.resolvedFieldIndex = len(r.resolvedFields) - 1
 		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
+
+		// In case of nested fields with arguments, we need to increment the related call ID.
+		r.relatedCallID++
 		return
 	}
 
