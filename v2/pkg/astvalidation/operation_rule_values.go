@@ -430,6 +430,11 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 		return false
 	}
 
+	// Validate @oneOf constraint if present
+	if v.objectValueViolatesOneOf(value, inputObjectTypeDefinition) {
+		return false
+	}
+
 	return true
 }
 
@@ -462,6 +467,58 @@ func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
 	}
 
 	return hasDuplicates
+}
+
+// objectValueViolatesOneOf checks if an input object value violates the @oneOf directive constraint.
+func (v *valuesVisitor) objectValueViolatesOneOf(objectValue ast.Value, defRef int) bool {
+	inputObjectTypeDef := v.definition.InputObjectTypeDefinitions[defRef]
+	// Check if the input object type has @oneOf directive
+	if !inputObjectTypeDef.HasDirectives {
+		return false
+	}
+	hasOneOfDirective := inputObjectTypeDef.Directives.HasDirectiveByName(v.definition, "oneOf")
+	if !hasOneOfDirective {
+		return false
+	}
+
+	fieldRefs := v.operation.ObjectValues[objectValue.Ref].Refs
+	if len(fieldRefs) != 1 {
+		objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+		v.Report.AddExternalError(operationreport.ErrOneOfInputObjectFieldCount(objName, len(fieldRefs), objectValue.Position))
+		return true
+	}
+
+	for _, fieldRef := range fieldRefs {
+		fieldValue := v.operation.ObjectFieldValue(fieldRef)
+
+		if fieldValue.Kind == ast.ValueKindNull {
+			objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+			fieldName := v.operation.ObjectFieldNameBytes(fieldRef)
+			v.Report.AddExternalError(operationreport.ErrOneOfInputObjectNullValue(objName, fieldName, fieldValue.Position))
+			return true
+		}
+
+		if fieldValue.Kind == ast.ValueKindVariable {
+			// For variables, check if the variable type is nullable
+			variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(fieldValue.Ref)
+			if !ok {
+				continue
+			}
+
+			// Collect nullable variables
+			if v.operation.Types[variableTypeRef].TypeKind != ast.TypeKindNonNull {
+				objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+				fieldName := v.operation.ObjectFieldNameBytes(fieldRef)
+				variableName := v.operation.VariableValueNameBytes(fieldValue.Ref)
+				v.Report.AddExternalError(operationreport.ErrOneOfInputObjectNullableVariable(
+					objName, fieldName, variableName, fieldValue.Position,
+					v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position))
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinition int) bool {
