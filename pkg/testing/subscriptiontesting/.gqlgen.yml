@@ -1,3 +1,0 @@
-models:
-  Chatroom:
-    model: github.com/wundergraph/graphql-go-tools/pkg/testing/subscriptiontesting.Chatroom
