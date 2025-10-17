@@ -2,9 +2,11 @@ package grpcdatasource
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 )
 
@@ -12,6 +14,9 @@ const (
 	// knownTypeOptionalFieldValueName is the name of the field that is used to wrap optional scalar values
 	// in a message as protobuf scalar types are not nullable.
 	knownTypeOptionalFieldValueName = "value"
+
+	// resolverContextDirectiveName is the name of the directive that is used to configure the resolver context.
+	resolverContextDirectiveName = "configureResolver"
 )
 
 // OneOfType represents the type of a oneof field in a protobuf message.
@@ -51,9 +56,24 @@ type RPCExecutionPlan struct {
 	// instead of the planner and the compiler?
 }
 
+// CallKind is the type of call operation to perform.
+type CallKind int
+
+const (
+	// CallKindStandard is a basic fetch operation.
+	CallKindStandard CallKind = iota
+	// CallKindEntity is a fetch operation for entities.
+	CallKindEntity
+	// CallKindResolve is a fetch operation for resolving field values.
+	CallKindResolve
+)
+
 // RPCCall represents a single call to a gRPC service method.
 // It contains all the information needed to make the call and process the response.
 type RPCCall struct {
+	// Kind of call, used to decide how to execute the call
+	// This is used to identify the call type and execution behaviour.
+	Kind CallKind
 	// DependentCalls is a list of calls that must be executed before this call
 	DependentCalls []int
 	// ServiceName is the name of the gRPC service to call
@@ -64,6 +84,8 @@ type RPCCall struct {
 	Request RPCMessage
 	// Response contains the message structure for the gRPC response
 	Response RPCMessage
+	// ResponsePath is the path to the response in the JSON response
+	ResponsePath ast.Path
 }
 
 // RPCMessage represents a gRPC message structure for requests and responses.
@@ -160,7 +182,6 @@ type RPCField struct {
 	// Alias can be used to rename the field in the request message
 	// This is needed to make sure that during the json composition,
 	// the field names match the GraphQL request naming.
-	// TODO implement alias handling
 	Alias string
 	// Repeated indicates if the field is a repeated field (array/list)
 	Repeated bool
@@ -168,9 +189,11 @@ type RPCField struct {
 	Name string
 	// TypeName is the name of the type of the field in the protobuf definition
 	TypeName string
-	// JSONPath defines the path within the variables to provide the value for the field
-	// This is used to extract data from the GraphQL variables
+	// JSONPath either holds the path to the variable definition for the request message,
+	// or defines the name of the response field in the message.
 	JSONPath string
+	// ResolvePath is used to resolve values from another message.
+	ResolvePath ast.Path
 	// EnumName is the name of the enum if the field is an enum type
 	EnumName string
 	// StaticValue is the static value of the field
@@ -309,22 +332,19 @@ func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs pla
 		mapping = new(GRPCMapping)
 	}
 
-	var visitor PlanVisitor
 	if len(federationConfigs) > 0 {
-		visitor = newRPCPlanVisitorFederation(rpcPlanVisitorConfig{
-			subgraphName:      subgraphName,
-			mapping:           mapping,
-			federationConfigs: federationConfigs,
-		})
-	} else {
-		visitor = newRPCPlanVisitor(rpcPlanVisitorConfig{
+		return newRPCPlanVisitorFederation(rpcPlanVisitorConfig{
 			subgraphName:      subgraphName,
 			mapping:           mapping,
 			federationConfigs: federationConfigs,
 		})
 	}
 
-	return visitor
+	return newRPCPlanVisitor(rpcPlanVisitorConfig{
+		subgraphName:      subgraphName,
+		mapping:           mapping,
+		federationConfigs: federationConfigs,
+	})
 }
 
 // formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation
@@ -452,12 +472,19 @@ func (r *rpcPlanningContext) newMessageFromSelectionSet(enclosingTypeNode ast.No
 // resolveFieldMapping resolves the field mapping for a field.
 // This applies both for complex types in the input and for all fields in the response.
 func (r *rpcPlanningContext) resolveFieldMapping(typeName, fieldName string) string {
-	grpcFieldName, ok := r.mapping.ResolveFieldMapping(typeName, fieldName)
-	if !ok {
-		return fieldName
+	if grpcFieldName, ok := r.mapping.FindFieldMapping(typeName, fieldName); ok {
+		return grpcFieldName
 	}
 
-	return grpcFieldName
+	return fieldName
+}
+
+func (r *rpcPlanningContext) resolveFieldArgumentMapping(typeName, fieldName, argumentName string) string {
+	if grpcFieldName, ok := r.mapping.FindFieldArgumentMapping(typeName, fieldName, argumentName); ok {
+		return grpcFieldName
+	}
+
+	return argumentName
 }
 
 func (r *rpcPlanningContext) typeIsNullableOrNestedList(typeRef int) bool {
@@ -537,10 +564,469 @@ func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fiel
 	return field, nil
 }
 
+// createRPCFieldFromFieldArgument builds an RPCField from an input value definition.
+// It handles scalar, enum, and input object types.
+// If the type is an input object type, a message is created and added to the field.
+func (r *rpcPlanningContext) createRPCFieldFromFieldArgument(fieldArg fieldArgument) (RPCField, error) {
+	argDef := r.definition.InputValueDefinitions[fieldArg.argumentDefinitionRef]
+	argName := r.definition.Input.ByteSliceString(argDef.Name)
+	underlyingTypeNode, found := r.nodeByTypeRef(argDef.Type)
+	if !found {
+		return RPCField{}, fmt.Errorf("unable to resolve underlying type node for argument %s", argName)
+	}
+
+	var (
+		fieldMessage *RPCMessage
+		err          error
+		dt           = DataTypeMessage
+	)
+
+	// only scalar, enum and input object types are supported
+	switch underlyingTypeNode.Kind {
+	case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
+		dt = r.toDataType(&r.definition.Types[argDef.Type])
+	case ast.NodeKindInputObjectTypeDefinition:
+		// If the type is an input object type, a message is created and added to the field.
+		if fieldMessage, err = r.buildMessageFromInputObjectType(&underlyingTypeNode); err != nil {
+			return RPCField{}, err
+		}
+	default:
+		return RPCField{}, fmt.Errorf("unsupported type: %s", underlyingTypeNode.Kind)
+	}
+
+	parentTypeName := fieldArg.parentTypeNode.NameString(r.definition)
+	fieldName := r.definition.FieldDefinitionNameString(fieldArg.fieldDefinitionRef)
+	mappedName := r.resolveFieldArgumentMapping(parentTypeName, fieldName, argName)
+	field, err := r.buildInputMessageField(
+		argDef.Type,
+		mappedName,
+		fieldArg.jsonPath,
+		dt,
+	)
+	if err != nil {
+		return RPCField{}, err
+	}
+
+	field.Message = fieldMessage
+	return field, nil
+}
+
+// buildMessageFromInputObjectType builds a message from an input object type definition.
+func (r *rpcPlanningContext) buildMessageFromInputObjectType(node *ast.Node) (*RPCMessage, error) {
+	if node.Kind != ast.NodeKindInputObjectTypeDefinition {
+		return nil, fmt.Errorf("unsupported type: %s", node.Kind)
+	}
+
+	inputObjectDefinition := r.definition.InputObjectTypeDefinitions[node.Ref]
+	message := &RPCMessage{
+		Name:   node.NameString(r.definition),
+		Fields: make(RPCFields, 0, len(inputObjectDefinition.InputFieldsDefinition.Refs)),
+	}
+	for _, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
+		field, err := r.buildMessageFieldFromInputValueDefinition(inputFieldRef, node)
+		if err != nil {
+			return nil, err
+		}
+
+		message.Fields = append(message.Fields, field)
+	}
+
+	return message, nil
+}
+
+func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef int, node *ast.Node) (RPCField, error) {
+	ivd := r.definition.InputValueDefinitions[ivdRef]
+	ivdType := r.definition.Types[ivd.Type]
+
+	underlyingTypeNode, found := r.nodeByTypeRef(ivd.Type)
+	if !found {
+		return RPCField{}, fmt.Errorf("unable to resolve underlying type node for input value definition %s", r.definition.Input.ByteSliceString(ivd.Name))
+	}
+
+	var (
+		fieldMessage *RPCMessage
+		err          error
+	)
+
+	dt := DataTypeMessage
+	switch underlyingTypeNode.Kind {
+	case ast.NodeKindInputObjectTypeDefinition:
+		fieldMessage, err = r.buildMessageFromInputObjectType(&underlyingTypeNode)
+		if err != nil {
+			return RPCField{}, err
+		}
+	default:
+		dt = r.toDataType(&ivdType)
+	}
+
+	fieldName := r.definition.Input.ByteSliceString(ivd.Name)
+	mappedName := r.resolveFieldMapping(node.NameString(r.definition), fieldName)
+
+	field, err := r.buildInputMessageField(ivd.Type, mappedName, fieldName, dt)
+	if err != nil {
+		return RPCField{}, err
+	}
+
+	field.Message = fieldMessage
+	return field, nil
+}
+
+func (r *rpcPlanningContext) buildInputMessageField(typeRef int, fieldName, jsonPath string, dt DataType) (RPCField, error) {
+	field := RPCField{
+		Name:     fieldName,
+		Optional: !r.definition.TypeIsNonNull(typeRef),
+		TypeName: dt.String(),
+		JSONPath: jsonPath,
+	}
+
+	if r.definition.TypeIsList(typeRef) {
+		switch {
+		// for nullable or nested lists we need to build a wrapper message
+		// Nullability is handled by the datasource during the execution.
+		case r.typeIsNullableOrNestedList(typeRef):
+			md, err := r.createListMetadata(typeRef)
+			if err != nil {
+				return field, err
+			}
+			field.ListMetadata = md
+			field.IsListType = true
+		default:
+			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
+			field.Repeated = true
+		}
+	}
+
+	if dt == DataTypeEnum {
+		field.EnumName = r.definition.ResolveTypeNameString(typeRef)
+	}
+
+	return field, nil
+}
+
 func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 	if r.mapping == nil || r.mapping.Service == "" {
 		return subgraphName
 	}
 
 	return r.mapping.Service
+}
+
+type resolvedField struct {
+	callerRef              int
+	parentTypeRef          int
+	fieldRef               int
+	fieldDefinitionTypeRef int
+	requiredFields         string
+	responsePath           ast.Path
+
+	contextFields  []contextField
+	fieldArguments []fieldArgument
+}
+
+func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fd int, fieldArgs []int, fieldPath ast.Path, resolvedField *resolvedField) error {
+	contextFields, err := r.resolveContextFields(walker, fd)
+	if err != nil {
+		return err
+	}
+
+	for _, contextFieldRef := range contextFields {
+		contextFieldName := r.definition.FieldDefinitionNameBytes(contextFieldRef)
+		resolvedPath := fieldPath.WithFieldNameItem(contextFieldName)
+
+		resolvedField.contextFields = append(resolvedField.contextFields, contextField{
+			fieldRef:    contextFieldRef,
+			resolvePath: resolvedPath,
+		})
+	}
+
+	fieldArguments, err := r.parseFieldArguments(walker, fd, fieldArgs)
+	if err != nil {
+		return err
+	}
+
+	resolvedField.fieldArguments = fieldArguments
+	return nil
+}
+
+func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fd int) ([]int, error) {
+	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fd, ast.ByteSlice(resolverContextDirectiveName))
+	if exists {
+		fields, err := r.getFieldsFromContext(walker.EnclosingTypeDefinition, contextDirectiveRef)
+		if err != nil {
+			return nil, err
+		}
+
+		return fields, nil
+	}
+
+	idFieldRef, err := r.findIDField(walker.EnclosingTypeDefinition, fd)
+	return []int{idFieldRef}, err
+}
+
+func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fd int, fieldArgs []int) ([]fieldArgument, error) {
+	result := make([]fieldArgument, 0, len(fieldArgs))
+	for _, fieldArgRef := range fieldArgs {
+		arg := r.operation.Arguments[fieldArgRef]
+		fieldArg := r.operation.ArgumentNameString(fieldArgRef)
+		fieldType := arg.Value.Kind
+
+		argDefRef := r.definition.NodeFieldDefinitionArgumentDefinitionByName(
+			walker.EnclosingTypeDefinition,
+			r.definition.FieldDefinitionNameBytes(fd),
+			r.operation.ArgumentNameBytes(fieldArgRef),
+		)
+
+		if argDefRef == ast.InvalidRef {
+			return nil, fmt.Errorf("unable to resolve argument input value definition for argument %s", fieldArg)
+		}
+
+		jsonValue := fieldArg
+		if fieldType == ast.ValueKindVariable {
+			jsonValue = r.operation.Input.ByteSliceString(r.operation.VariableValues[arg.Value.Ref].Name)
+		}
+
+		result = append(result, fieldArgument{
+			fieldDefinitionRef:    fd,
+			argumentDefinitionRef: argDefRef,
+			parentTypeNode:        walker.EnclosingTypeDefinition,
+			jsonPath:              jsonValue,
+		})
+
+	}
+
+	return result, nil
+
+}
+
+func (r *rpcPlanningContext) getFieldsFromContext(parentNode ast.Node, contextRef int) ([]int, error) {
+	val, exists := r.definition.DirectiveArgumentValueByName(contextRef, []byte("context"))
+	if !exists {
+		return nil, fmt.Errorf("context directive argument not found")
+	}
+
+	fieldsString := r.definition.ValueContentString(val)
+
+	walker := astvisitor.NewDefaultWalker()
+
+	v := newRequiredFieldsVisitor(&walker, &RPCMessage{}, r)
+	if err := v.visitRequiredFields(r.definition, parentNode.NameString(r.definition), fieldsString); err != nil {
+		return nil, err
+	}
+
+	return v.fieldDefinitionRefs, nil
+}
+
+func (r *rpcPlanningContext) findIDField(parentNode ast.Node, fd int) (int, error) {
+	switch parentNode.Kind {
+	case ast.NodeKindObjectTypeDefinition:
+		o := r.definition.ObjectTypeDefinitions[parentNode.Ref]
+		result := slices.Collect(r.filterIDFieldsFunc(o, fd))
+
+		if len(result) == 0 {
+			return ast.InvalidRef, fmt.Errorf("unable to determine ID field in object type %s", parentNode.NameString(r.definition))
+		}
+
+		if len(result) > 1 {
+			return ast.InvalidRef, fmt.Errorf("multiple ID fields found in object type %s", parentNode.NameString(r.definition))
+		}
+
+		return result[0], nil
+	default:
+		return ast.InvalidRef, fmt.Errorf("invalid parent node kind: %s, expected ObjectTypeDefinition", parentNode.Kind)
+	}
+}
+
+func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fd int) func(yield func(int) bool) {
+	fieldRefs := o.FieldsDefinition.Refs
+	return func(yield func(int) bool) {
+		for _, ref := range fieldRefs {
+			if ref == fd {
+				continue
+			}
+
+			typeName := r.definition.FieldDefinitionTypeNameString(ref)
+			if typeName != "ID" {
+				continue
+			}
+
+			if !yield(ref) {
+				return
+			}
+		}
+	}
+}
+
+// nodeByTypeRef is a helper function to resolve the underlying type node for a given type reference.
+func (r *rpcPlanningContext) nodeByTypeRef(typeRef int) (ast.Node, bool) {
+	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
+	return r.definition.NodeByNameStr(underlyingTypeName)
+}
+
+type resolveRPCCallConfig struct {
+	serviceName      string
+	typeName         string
+	fieldName        string
+	resolveConfig    ResolveRPCTypeField
+	resolvedField    resolvedField
+	contextMessage   *RPCMessage
+	fieldArgsMessage *RPCMessage
+}
+
+func (r *rpcPlanningContext) resolveRequiredFields(typeName, requiredFields string) (*RPCMessage, error) {
+	walker := astvisitor.WalkerFromPool()
+	defer walker.Release()
+	message := &RPCMessage{
+		Name: typeName,
+	}
+
+	rfv := newRequiredFieldsVisitor(walker, message, r)
+	if err := rfv.visitWithMemberTypes(r.definition, typeName, requiredFields, nil); err != nil {
+		return nil, err
+	}
+	return message, nil
+}
+
+// createResolverRPCCalls creates a new call for each resolved field.
+func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolvedFields []resolvedField) ([]RPCCall, error) {
+	// We need to create a new call for each resolved field.
+	calls := make([]RPCCall, 0, len(resolvedFields))
+
+	for _, resolvedField := range resolvedFields {
+		resolveConfig, exists := r.mapping.FindResolveTypeFieldMapping(
+			r.definition.ObjectTypeDefinitionNameString(resolvedField.parentTypeRef),
+			r.operation.FieldNameString(resolvedField.fieldRef),
+		)
+
+		if !exists {
+			return nil, fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef), r.operation.FieldAliasString(resolvedField.fieldRef))
+		}
+
+		contextMessage := &RPCMessage{
+			Name: resolveConfig.RPC + "Context",
+		}
+
+		fieldArgsMessage := &RPCMessage{
+			Name: resolveConfig.RPC + "Args",
+		}
+
+		call, err := r.newResolveRPCCall(resolveRPCCallConfig{
+			serviceName:      subgraphName,
+			typeName:         r.definition.ResolveTypeNameString(resolvedField.parentTypeRef),
+			fieldName:        r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
+			resolveConfig:    resolveConfig,
+			resolvedField:    resolvedField,
+			contextMessage:   contextMessage,
+			fieldArgsMessage: fieldArgsMessage,
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		contextMessage.Fields = make(RPCFields, 0, len(resolvedField.contextFields))
+		for _, contextField := range resolvedField.contextFields {
+			typeDefNode, found := r.definition.NodeByNameStr(r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
+			if !found {
+				return nil, fmt.Errorf("type definition node not found for type: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
+			}
+
+			field, err := r.buildField(
+				typeDefNode,
+				contextField.fieldRef,
+				r.definition.FieldDefinitionNameString(contextField.fieldRef),
+				"",
+			)
+
+			field.ResolvePath = contextField.resolvePath
+
+			if err != nil {
+				return nil, err
+			}
+
+			contextMessage.Fields = append(contextMessage.Fields, field)
+		}
+
+		fieldArgsMessage.Fields = make(RPCFields, 0, len(resolvedField.fieldArguments))
+		for _, fieldArgument := range resolvedField.fieldArguments {
+			field, err := r.createRPCFieldFromFieldArgument(fieldArgument)
+
+			if err != nil {
+				return nil, err
+			}
+
+			fieldArgsMessage.Fields = append(fieldArgsMessage.Fields, field)
+		}
+
+		calls = append(calls, call)
+	}
+
+	return calls, nil
+}
+
+func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPCCall, error) {
+	resolveConfig := config.resolveConfig
+	resolvedField := config.resolvedField
+
+	underlyingTypeRef := r.definition.ResolveUnderlyingType(resolvedField.fieldDefinitionTypeRef)
+	fieldTypeName := r.definition.ResolveTypeNameString(underlyingTypeRef)
+	dataType := r.toDataType(&r.definition.Types[underlyingTypeRef])
+
+	var responseFieldsMessage *RPCMessage
+	if dataType == DataTypeMessage {
+		var err error
+		responseFieldsMessage, err = r.resolveRequiredFields(fieldTypeName, resolvedField.requiredFields)
+		if err != nil {
+			return RPCCall{}, err
+		}
+	}
+
+	response := RPCMessage{
+		Name: resolveConfig.Response,
+		Fields: RPCFields{
+			{
+				Name:     "result",
+				TypeName: string(DataTypeMessage),
+				JSONPath: "result",
+				Repeated: true,
+				Message: &RPCMessage{
+					Name: resolveConfig.RPC + "Result",
+					Fields: RPCFields{
+						{
+							Name:     resolveConfig.FieldMappingData.TargetName,
+							TypeName: string(dataType),
+							JSONPath: config.fieldName,
+							Message:  responseFieldsMessage,
+							Optional: !r.definition.TypeIsNonNull(resolvedField.fieldDefinitionTypeRef),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return RPCCall{
+		DependentCalls: []int{resolvedField.callerRef},
+		ResponsePath:   resolvedField.responsePath,
+		ServiceName:    r.resolveServiceName(config.serviceName),
+		MethodName:     resolveConfig.RPC,
+		Kind:           CallKindResolve,
+		Request: RPCMessage{
+			Name: resolveConfig.Request,
+			Fields: RPCFields{
+				{
+					Name:     "context",
+					TypeName: string(DataTypeMessage),
+					Repeated: true,
+					Message:  config.contextMessage,
+				},
+				{
+					Name:     "field_args",
+					TypeName: string(DataTypeMessage),
+					JSONPath: "",
+					Message:  config.fieldArgsMessage,
+				},
+			},
+		},
+		Response: response,
+	}, nil
 }

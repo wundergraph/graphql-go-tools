@@ -6,11 +6,17 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/runes"
 )
 
+// LookupFieldMapDefinition defines the mapping between a GraphQL field and a gRPC field
+type RPCMapping interface {
+	RPCConfig | ResolveRPCMapping
+	// TODO: add requires RPC mapping
+}
+
 type (
 	// RPCConfigMap is a map of RPC names to RPC configurations
 	// The key is the field name in the GraphQL operation type (query, mutation, subscription).
 	// The value is the RPC configuration for that field.
-	RPCConfigMap map[string]RPCConfig
+	RPCConfigMap[T RPCMapping] map[string]T
 	// FieldMap defines the mapping between a GraphQL field and a gRPC field
 	// The key is the field name in the GraphQL type.
 	// The value is the FieldMapData for that field which contains the target name and the argument mappings.
@@ -21,11 +27,13 @@ type GRPCMapping struct {
 	// Service is the name of the gRPC service to use
 	Service string
 	// QueryRPCs maps GraphQL query fields to the corresponding gRPC RPC configurations
-	QueryRPCs RPCConfigMap
+	QueryRPCs RPCConfigMap[RPCConfig]
 	// MutationRPCs maps GraphQL mutation fields to the corresponding gRPC RPC configurations
-	MutationRPCs RPCConfigMap
+	MutationRPCs RPCConfigMap[RPCConfig]
 	// SubscriptionRPCs maps GraphQL subscription fields to the corresponding gRPC RPC configurations
-	SubscriptionRPCs RPCConfigMap
+	SubscriptionRPCs RPCConfigMap[RPCConfig]
+	// ResolveRPCs maps GraphQL resolve fields to the corresponding gRPC RPC configurations
+	ResolveRPCs RPCConfigMap[ResolveRPCMapping]
 	// EntityRPCs defines how GraphQL types are resolved as entities using specific RPCs
 	// The key is the type name and the value is a list of EntityRPCConfig for that type
 	EntityRPCs map[string][]EntityRPCConfig
@@ -78,8 +86,19 @@ type FieldMapData struct {
 // FieldArgumentMap defines the mapping between a GraphQL field argument and a gRPC field
 type FieldArgumentMap map[string]string
 
-// ResolveFieldMapping resolves the gRPC field name for a given GraphQL field name and type
-func (g *GRPCMapping) ResolveFieldMapping(typeName string, fieldName string) (string, bool) {
+// ResolveRPCMapping defines the mapping between a GraphQL field resolver and a gRPC RPC configuration
+type ResolveRPCMapping map[string]ResolveRPCTypeField
+
+// ResolveRPCTypeField defines the mapping between a GraphQL resolve field and a gRPC RPC configuration
+type ResolveRPCTypeField struct {
+	FieldMappingData FieldMapData // The mapping between GraphQL field arguments and gRPC request arguments
+	RPC              string       // The name of the RPC method to call
+	Request          string       // The name of the request message type
+	Response         string       // The name of the response message type
+}
+
+// FindFieldMapping finds the gRPC field name for a given GraphQL field name and type
+func (g *GRPCMapping) FindFieldMapping(typeName string, fieldName string) (string, bool) {
 	if g == nil || g.Fields == nil {
 		return "", false
 	}
@@ -97,7 +116,8 @@ func (g *GRPCMapping) ResolveFieldMapping(typeName string, fieldName string) (st
 	return field.TargetName, true
 }
 
-func (g *GRPCMapping) ResolveFieldArgumentMapping(typeName, fieldName, argumentName string) (string, bool) {
+// FindFieldArgumentMapping finds the gRPC field name for a given GraphQL field name and argument name
+func (g *GRPCMapping) FindFieldArgumentMapping(typeName, fieldName, argumentName string) (string, bool) {
 	if g == nil || g.Fields == nil {
 		return "", false
 	}
@@ -116,7 +136,8 @@ func (g *GRPCMapping) ResolveFieldArgumentMapping(typeName, fieldName, argumentN
 	return grpcFieldName, ok
 }
 
-func (g *GRPCMapping) ResolveEnumValue(enumName, enumValue string) (string, bool) {
+// FindEnumValueMapping finds the gRPC enum value for a given GraphQL enum value
+func (g *GRPCMapping) FindEnumValueMapping(enumName, enumValue string) (string, bool) {
 	if g == nil || g.EnumValues == nil {
 		return "", false
 	}
@@ -139,7 +160,8 @@ func (g *GRPCMapping) ResolveEnumValue(enumName, enumValue string) (string, bool
 	return "", false
 }
 
-func (g *GRPCMapping) ResolveEntityRPCConfig(typeName, key string) (RPCConfig, bool) {
+// FindEntityRPCConfig finds the gRPC RPC config for a given GraphQL type and key
+func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool) {
 	rpcConfig, ok := g.EntityRPCs[typeName]
 	if !ok {
 		return RPCConfig{}, false
@@ -153,6 +175,25 @@ func (g *GRPCMapping) ResolveEntityRPCConfig(typeName, key string) (RPCConfig, b
 	}
 
 	return RPCConfig{}, false
+}
+
+// FindResolveTypeFieldMapping finds the gRPC field name for a given GraphQL field name and type
+func (g *GRPCMapping) FindResolveTypeFieldMapping(typeName, fieldName string) (ResolveRPCTypeField, bool) {
+	if g == nil || g.ResolveRPCs == nil {
+		return ResolveRPCTypeField{}, false
+	}
+
+	fieldMappings, ok := g.ResolveRPCs[typeName]
+	if !ok {
+		return ResolveRPCTypeField{}, false
+	}
+
+	field, ok := fieldMappings[fieldName]
+	if !ok {
+		return ResolveRPCTypeField{}, false
+	}
+
+	return field, true
 }
 
 type keySet map[string]struct{}

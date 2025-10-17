@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -47,6 +48,18 @@ func runTest(t *testing.T, testCase testCase) {
 	if diff != "" {
 		t.Fatalf("execution plan mismatch: %s", diff)
 	}
+}
+
+func buildPath(path string) ast.Path {
+	pathElements := strings.Split(path, ".")
+	pathItems := make([]ast.PathItem, 0, len(pathElements))
+	for _, element := range pathElements {
+		pathItems = append(pathItems, ast.PathItem{
+			Kind:      ast.FieldName,
+			FieldName: []byte(element),
+		})
+	}
+	return pathItems
 }
 
 func TestQueryExecutionPlans(t *testing.T) {

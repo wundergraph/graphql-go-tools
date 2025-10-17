@@ -285,12 +285,12 @@ func TestBuildProtoMessage(t *testing.T) {
 
 	// Compile the execution plan with the variables
 	// This should build a protobuf message ready to be sent to the gRPC service
-	invocations, err := compiler.Compile(executionPlan, gjson.ParseBytes(variables))
+	serviceCalls, err := compiler.Compile(executionPlan, gjson.ParseBytes(variables))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
 
-	require.Equal(t, 1, len(invocations))
+	require.Equal(t, 1, len(serviceCalls))
 
 }
 
@@ -400,11 +400,11 @@ func TestCompileNestedLists(t *testing.T) {
 		},
 	}
 
-	invocations, err := compiler.Compile(plan, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
+	serviceCalls, err := compiler.Compile(plan, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
 	require.NoError(t, err)
-	require.Equal(t, 1, len(invocations))
+	require.Equal(t, 1, len(serviceCalls))
 
-	proto := invocations[0].Input.ProtoReflect()
+	proto := serviceCalls[0].Input.ProtoReflect()
 
 	msgDesc := proto.Descriptor()
 
