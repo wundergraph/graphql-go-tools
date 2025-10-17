@@ -155,6 +155,8 @@ func (f *DataSourceFilter) collectNodes() {
 			fieldInfo:      make(map[int]fieldInfo),
 			newFieldRefs:   f.newFieldRefs,
 		}
+		
+		f.nodesCollector.initVisitors()
 	}
 
 	keysInfo := f.nodesCollector.CollectNodes()

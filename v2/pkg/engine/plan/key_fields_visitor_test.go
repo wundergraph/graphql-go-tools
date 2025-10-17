@@ -483,7 +483,7 @@ func TestCollectKeysForPath(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			definition := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(c.definition)
 
-			collectNodesVisitor := &collectNodesVisitor{
+			collectNodesVisitor := &collectNodesDSVisitor{
 				definition:          &definition,
 				dataSource:          c.dataSource,
 				providesEntries:     c.providesEntries,

@@ -87,7 +87,7 @@ type Entity {
 
 */
 
-func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) error {
+func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string) error {
 	indexKey := SeenKeyPath{
 		TypeName: typeName,
 		Path:     parentPath,
