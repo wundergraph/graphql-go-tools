@@ -3,15 +3,8 @@ go 1.25
 toolchain go1.25.1
 
 use (
-	// v1
-	.
-	// examples
 	examples/federation
-
-	// execution
 	execution
-
-	// v2
 	v2
 )
 
