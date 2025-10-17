@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -359,7 +358,9 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 }
 
 func (l *Loader) selectItemsForPath(path []FetchItemPathElement) []*astjson.Value {
-	items := []*astjson.Value{l.resolvable.data}
+	// Use arena allocation for the initial items slice
+	items := arena.AllocateSlice[*astjson.Value](l.jsonArena, 1, 1)
+	items[0] = l.resolvable.data
 	if len(path) == 0 {
 		return l.taintedObjs.filterOutTainted(items)
 	}
@@ -1286,7 +1287,7 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	buf := &bytes.Buffer{}
+	buf := bytes.NewBuffer(nil)
 
 	inputData := itemsData(l.jsonArena, items)
 	if l.ctx.TracingOptions.Enable {
@@ -1325,36 +1326,8 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	return nil
 }
 
-var (
-	entityFetchPool = sync.Pool{
-		New: func() any {
-			return &entityFetchBuffer{
-				item:          &bytes.Buffer{},
-				preparedInput: &bytes.Buffer{},
-			}
-		},
-	}
-)
-
-type entityFetchBuffer struct {
-	item          *bytes.Buffer
-	preparedInput *bytes.Buffer
-}
-
-func acquireEntityFetchBuffer() *entityFetchBuffer {
-	return entityFetchPool.Get().(*entityFetchBuffer)
-}
-
-func releaseEntityFetchBuffer(buf *entityFetchBuffer) {
-	buf.item.Reset()
-	buf.preparedInput.Reset()
-	entityFetchPool.Put(buf)
-}
-
 func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	buf := acquireEntityFetchBuffer()
-	defer releaseEntityFetchBuffer(buf)
 	input := itemsData(l.jsonArena, items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1363,14 +1336,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		}
 	}
 
+	preparedInput := bytes.NewBuffer(nil)
+	item := bytes.NewBuffer(nil)
+
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = fetch.Input.Item.Render(l.ctx, input, buf.item)
+	err = fetch.Input.Item.Render(l.ctx, input, item)
 	if err != nil {
 		if fetch.Input.SkipErrItem {
 			// skip fetch on render item error
@@ -1382,7 +1358,7 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 		}
 		return errors.WithStack(err)
 	}
-	renderedItem := buf.item.Bytes()
+	renderedItem := item.Bytes()
 	if bytes.Equal(renderedItem, null) {
 		// skip fetch if item is null
 		res.fetchSkipped = true
@@ -1401,17 +1377,17 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 			return nil
 		}
 	}
-	_, _ = buf.item.WriteTo(buf.preparedInput)
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	_, _ = item.WriteTo(preparedInput)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := buf.preparedInput.Bytes()
+	fetchInput := preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
@@ -1429,40 +1405,8 @@ func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetc
 	return nil
 }
 
-var (
-	batchEntityFetchPool = sync.Pool{}
-)
-
-type batchEntityFetchBuffer struct {
-	preparedInput *bytes.Buffer
-	itemInput     *bytes.Buffer
-	keyGen        *xxhash.Digest
-}
-
-func acquireBatchEntityFetchBuffer() *batchEntityFetchBuffer {
-	buf := batchEntityFetchPool.Get()
-	if buf == nil {
-		return &batchEntityFetchBuffer{
-			preparedInput: &bytes.Buffer{},
-			itemInput:     &bytes.Buffer{},
-			keyGen:        xxhash.New(),
-		}
-	}
-	return buf.(*batchEntityFetchBuffer)
-}
-
-func releaseBatchEntityFetchBuffer(buf *batchEntityFetchBuffer) {
-	buf.preparedInput.Reset()
-	buf.itemInput.Reset()
-	buf.keyGen.Reset()
-	batchEntityFetchPool.Put(buf)
-}
-
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-
-	buf := acquireBatchEntityFetchBuffer()
-	defer releaseBatchEntityFetchBuffer(buf)
 
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1474,9 +1418,13 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 		}
 	}
 
+	preparedInput := bytes.NewBuffer(make([]byte, 0, 64))
+	itemInput := bytes.NewBuffer(make([]byte, 0, 32))
+	keyGen := xxhash.New()
+
 	var undefinedVariables []string
 
-	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err := fetch.Input.Header.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -1488,8 +1436,8 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 WithNextItem:
 	for i, item := range items {
 		for j := range fetch.Input.Items {
-			buf.itemInput.Reset()
-			err = fetch.Input.Items[j].Render(l.ctx, item, buf.itemInput)
+			itemInput.Reset()
+			err = fetch.Input.Items[j].Render(l.ctx, item, itemInput)
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					err = nil // nolint:ineffassign
@@ -1501,18 +1449,18 @@ WithNextItem:
 				}
 				return errors.WithStack(err)
 			}
-			if fetch.Input.SkipNullItems && buf.itemInput.Len() == 4 && bytes.Equal(buf.itemInput.Bytes(), null) {
+			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
 				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
-			if fetch.Input.SkipEmptyObjectItems && buf.itemInput.Len() == 2 && bytes.Equal(buf.itemInput.Bytes(), emptyObject) {
+			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
 				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
 
-			buf.keyGen.Reset()
-			_, _ = buf.keyGen.Write(buf.itemInput.Bytes())
-			itemHash := buf.keyGen.Sum64()
+			keyGen.Reset()
+			_, _ = keyGen.Write(itemInput.Bytes())
+			itemHash := keyGen.Sum64()
 			for k := range itemHashes {
 				if itemHashes[k] == itemHash {
 					res.batchStats[i] = append(res.batchStats[i], k)
@@ -1521,12 +1469,12 @@ WithNextItem:
 			}
 			itemHashes = append(itemHashes, itemHash)
 			if addSeparator {
-				err = fetch.Input.Separator.Render(l.ctx, nil, buf.preparedInput)
+				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
 				if err != nil {
 					return errors.WithStack(err)
 				}
 			}
-			_, _ = buf.itemInput.WriteTo(buf.preparedInput)
+			_, _ = itemInput.WriteTo(preparedInput)
 			res.batchStats[i] = append(res.batchStats[i], batchItemIndex)
 			batchItemIndex++
 			addSeparator = true
@@ -1543,16 +1491,16 @@ WithNextItem:
 		}
 	}
 
-	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, buf.preparedInput, &undefinedVariables)
+	err = fetch.Input.Footer.RenderAndCollectUndefinedVariables(l.ctx, nil, preparedInput, &undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 
-	err = SetInputUndefinedVariables(buf.preparedInput, undefinedVariables)
+	err = SetInputUndefinedVariables(preparedInput, undefinedVariables)
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	fetchInput := buf.preparedInput.Bytes()
+	fetchInput := preparedInput.Bytes()
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)

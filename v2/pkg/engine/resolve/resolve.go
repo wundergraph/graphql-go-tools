@@ -7,15 +7,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
-	"weak"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
 
-	"github.com/wundergraph/go-arena"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
@@ -73,16 +70,10 @@ type Resolver struct {
 	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	maxSubscriptionFetchTimeout time.Duration
 
-	arenaPool   []weak.Pointer[arenaPoolItem]
-	arenaSize   map[uint64]int
-	arenaPoolMu sync.Mutex
+	arenaPool *ArenaPool
 
 	// Single flight cache for deduplicating requests across all loaders
 	sf *SingleFlight
-}
-
-type arenaPoolItem struct {
-	jsonArena arena.Arena
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -236,14 +227,13 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedErrorFields:           allowedErrorFields,
 		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
+		arenaPool:                    NewArenaPool(),
 		sf:                           NewSingleFlight(),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
 		resolver.maxConcurrency <- struct{}{}
 	}
-
-	resolver.arenaSize = make(map[uint64]int)
 
 	go resolver.processEvents()
 
@@ -309,46 +299,6 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 	return resp, err
 }
 
-func (r *Resolver) acquireArena(id uint64) *arenaPoolItem {
-	r.arenaPoolMu.Lock()
-	defer r.arenaPoolMu.Unlock()
-
-	for i := 0; i < len(r.arenaPool); i++ {
-		v := r.arenaPool[i].Value()
-		r.arenaPool = append(r.arenaPool[:i], r.arenaPool[i+1:]...)
-		if v == nil {
-			continue
-		}
-		return v
-	}
-
-	size := arena.WithMinBufferSize(r.getArenaSize(id))
-
-	return &arenaPoolItem{
-		jsonArena: arena.NewMonotonicArena(size),
-	}
-}
-
-func (r *Resolver) getArenaSize(id uint64) int {
-	if size, ok := r.arenaSize[id]; ok {
-		return size
-	}
-	return 1024 * 1024
-}
-
-func (r *Resolver) releaseArena(id uint64, item *arenaPoolItem) {
-	peak := item.jsonArena.Peak()
-	item.jsonArena.Reset()
-
-	r.arenaPoolMu.Lock()
-	defer r.arenaPoolMu.Unlock()
-
-	r.arenaSize[id] = peak
-
-	w := weak.Make(item)
-	r.arenaPool = append(r.arenaPool, w)
-}
-
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
 	resp := &GraphQLResolveInfo{}
 
@@ -361,10 +311,10 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
-	poolItem := r.acquireArena(ctx.Request.ID)
-	defer r.releaseArena(ctx.Request.ID, poolItem)
-	t.loader.jsonArena = poolItem.jsonArena
-	t.resolvable.astjsonArena = poolItem.jsonArena
+	poolItem := r.arenaPool.Acquire(ctx.Request.ID)
+	defer r.arenaPool.Release(ctx.Request.ID, poolItem)
+	t.loader.jsonArena = poolItem.Arena
+	t.resolvable.astjsonArena = poolItem.Arena
 
 	err := t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
