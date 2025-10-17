@@ -471,12 +471,12 @@ func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
 
 // objectValueViolatesOneOf checks if an input object value violates the @oneOf directive constraint.
 func (v *valuesVisitor) objectValueViolatesOneOf(objectValue ast.Value, defRef int) bool {
-	def := v.definition.InputObjectTypeDefinitions[defRef]
+	inputObjectTypeDef := v.definition.InputObjectTypeDefinitions[defRef]
 	// Check if the input object type has @oneOf directive
-	if !def.HasDirectives {
+	if !inputObjectTypeDef.HasDirectives {
 		return false
 	}
-	hasOneOfDirective := def.Directives.HasDirectiveByName(v.definition, "oneOf")
+	hasOneOfDirective := inputObjectTypeDef.Directives.HasDirectiveByName(v.definition, "oneOf")
 	if !hasOneOfDirective {
 		return false
 	}
