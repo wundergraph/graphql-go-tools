@@ -1,8 +1,0 @@
-{
-    empireHero: hero {
-        name
-    }
-    jediHero: hero {
-        name
-    }
-}
