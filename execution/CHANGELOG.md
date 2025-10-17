@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.5.0...execution/v1.6.0) (2025-10-17)
+
+
+### Features
+
+* validate presence of optional [@requires](https://github.com/requires) dependencies ([#1297](https://github.com/wundergraph/graphql-go-tools/issues/1297)) ([ba75e25](https://github.com/wundergraph/graphql-go-tools/commit/ba75e25483165fa0172bad6c4504b0f48d94cd9b))
+
+
+### Bug Fixes
+
+* propagate fetch reasons for interface-related fields ([#1312](https://github.com/wundergraph/graphql-go-tools/issues/1312)) ([5ee3014](https://github.com/wundergraph/graphql-go-tools/commit/5ee3014edef13461fb1ef9e6297629f31ef6db7c))
+
 ## [1.5.0](https://github.com/wundergraph/graphql-go-tools/compare/execution/v1.4.0...execution/v1.5.0) (2025-09-12)
 
 
