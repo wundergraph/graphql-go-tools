@@ -12,8 +12,13 @@ import (
 // a pool of reusable arenas for high-frequency allocation patterns.
 type ArenaPool struct {
 	pool  []weak.Pointer[ArenaPoolItem]
-	sizes map[uint64]int
+	sizes map[uint64]*arenaPoolItemSize
 	mu    sync.Mutex
+}
+
+type arenaPoolItemSize struct {
+	count      int
+	totalBytes int
 }
 
 // ArenaPoolItem wraps an arena.Arena for use in the pool
@@ -24,7 +29,7 @@ type ArenaPoolItem struct {
 // NewArenaPool creates a new ArenaPool instance
 func NewArenaPool() *ArenaPool {
 	return &ArenaPool{
-		sizes: make(map[uint64]int),
+		sizes: make(map[uint64]*arenaPoolItemSize),
 	}
 }
 
@@ -61,7 +66,19 @@ func (p *ArenaPool) Release(id uint64, item *ArenaPoolItem) {
 	defer p.mu.Unlock()
 
 	// Record the peak usage for this use case
-	p.sizes[id] = peak
+	if size, ok := p.sizes[id]; ok {
+		if size.count == 50 {
+			size.count = 1
+			size.totalBytes = size.totalBytes / 50
+		}
+		size.count++
+		size.totalBytes += peak
+	} else {
+		p.sizes[id] = &arenaPoolItemSize{
+			count:      1,
+			totalBytes: peak,
+		}
+	}
 
 	// Add the arena back to the pool using a weak pointer
 	w := weak.Make(item)
@@ -72,7 +89,7 @@ func (p *ArenaPool) Release(id uint64, item *ArenaPoolItem) {
 // If no size is recorded, it defaults to 1MB.
 func (p *ArenaPool) getArenaSize(id uint64) int {
 	if size, ok := p.sizes[id]; ok {
-		return size
+		return size.totalBytes / size.count
 	}
 	return 1024 * 1024 // Default 1MB
 }

@@ -143,7 +143,7 @@ func buffer(ctx context.Context) *bytes.Buffer {
 	if sizeHint, ok := ctx.Value(sizeHintKey).(int); ok && sizeHint > 0 {
 		return bytes.NewBuffer(make([]byte, 0, sizeHint))
 	}
-	return bytes.NewBuffer(make([]byte, 0, 1024*4)) // default to 4KB
+	return bytes.NewBuffer(make([]byte, 0, 64))
 }
 
 func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, contentType string) ([]byte, error) {
