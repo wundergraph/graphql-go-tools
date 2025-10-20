@@ -11,6 +11,7 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
+	"github.com/wundergraph/go-arena"
 	"go.uber.org/atomic"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
@@ -70,7 +71,8 @@ type Resolver struct {
 	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	maxSubscriptionFetchTimeout time.Duration
 
-	arenaPool *ArenaPool
+	resolveArenaPool   *ArenaPool
+	responseBufferPool *ArenaPool
 
 	// Single flight cache for deduplicating requests across all loaders
 	sf *SingleFlight
@@ -227,7 +229,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedErrorFields:           allowedErrorFields,
 		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
-		arenaPool:                    NewArenaPool(),
+		resolveArenaPool:             NewArenaPool(),
+		responseBufferPool:           NewArenaPool(),
 		sf:                           NewSingleFlight(),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
@@ -311,28 +314,36 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
 
-	poolItem := r.arenaPool.Acquire(ctx.Request.ID)
-	defer r.arenaPool.Release(ctx.Request.ID, poolItem)
-	t.loader.jsonArena = poolItem.Arena
-	t.resolvable.astjsonArena = poolItem.Arena
+	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
+	t.loader.jsonArena = resolveArena.Arena
+	t.resolvable.astjsonArena = resolveArena.Arena
 
 	err := t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
+		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
 		return nil, err
 	}
 
 	if !ctx.ExecutionOptions.SkipLoader {
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
+			r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
 			return nil, err
 		}
 	}
 
-	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, writer)
+	responseArena := r.responseBufferPool.Acquire(ctx.Request.ID)
+	buf := arena.NewArenaBuffer(responseArena.Arena)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 	if err != nil {
+		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+		r.responseBufferPool.Release(ctx.Request.ID, responseArena)
 		return nil, err
 	}
 
+	r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+	_, err = writer.Write(buf.Bytes())
+	r.responseBufferPool.Release(ctx.Request.ID, responseArena)
 	return resp, err
 }
 
