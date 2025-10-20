@@ -1578,7 +1578,7 @@ func TestVariablesValidation(t *testing.T) {
 				}
 				err := runTest(t, tc)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), `OneOf input object "PetInput" field "dog" value must be non-null`)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" field "dog" value must be non-null`)
 			})
 
 			t.Run("all fields null", func(t *testing.T) {
@@ -1635,7 +1635,7 @@ func TestVariablesValidation(t *testing.T) {
 				}
 				err := runTest(t, tc)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), `OneOf input object "SearchInput" must have exactly one field provided, but 2 fields were provided`)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "SearchInput" must have exactly one field provided, but 2 fields were provided`)
 			})
 		})
 
@@ -1661,7 +1661,7 @@ func TestVariablesValidation(t *testing.T) {
 				}
 				err := runTest(t, tc)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value at "input.[1]"; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
 			})
 			t.Run("oneOf field is list", func(t *testing.T) {
 				tc := testCase{
@@ -1696,8 +1696,7 @@ func TestVariablesValidation(t *testing.T) {
 				}
 				err := runTestWithVariablesContentEnabled(t, tc)
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":"Fluffy","dog":"Rex"}`)
-				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":"Fluffy","dog":"Rex"}; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
 			})
 			t.Run("nested oneOf error shows the value", func(t *testing.T) {
 				tc := testCase{

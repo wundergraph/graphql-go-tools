@@ -394,12 +394,12 @@ func (v *variablesVisitor) violatesOneOfConstraint(inputObjectDefRef int, jsonVa
 		if len(v.path) > 1 {
 			path = fmt.Sprintf(` at "%s"`, v.renderPath())
 		}
-		v.err = v.newInvalidVariableError(
-			fmt.Sprintf(`%s%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
-				v.invalidValueMessage(string(v.currentVariableName), variableContent),
-				path,
-				string(typeName),
-				totalFieldCount))
+		message := fmt.Sprintf(`%s%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
+			v.invalidValueMessage(string(v.currentVariableName), variableContent),
+			path,
+			string(typeName),
+			totalFieldCount)
+		v.err = v.newInvalidVariableError(message)
 		return true
 	}
 
