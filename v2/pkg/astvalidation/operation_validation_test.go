@@ -2384,7 +2384,8 @@ func TestExecutionValidation(t *testing.T) {
 								fragment missingRequiredArg on ValidArguments {
 									nonNullBooleanArgField(nonNullBooleanArg: null)
 								}`,
-					RequiredArguments(), Invalid)
+					RequiredArguments(), Invalid,
+					withValidationErrors("argument: nonNullBooleanArg on field: nonNullBooleanArgField must not be null"))
 			})
 			t.Run("125 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3176,6 +3177,15 @@ type Query {
 						}`, Values(), Invalid,
 						withValidationErrors(`OneOf input object "PetInput" field "dog" cannot use nullable variable "$dog". Variables used in oneOf fields must be non-nullable`))
 				})
+				t.Run("oneOf field with undefined variable should fail validation", func(t *testing.T) {
+					run(t, `
+						mutation AddPet($name: String!) {
+							addPet(pet: { cat: { name: $name, meowVolume: $undefinedVolume } })
+						}
+					`, Values(), Invalid,
+						withValidationErrors(`variable "$undefinedVolume" is not defined on operation`))
+				})
+
 			})
 		})
 		t.Run("5.6.2 Input Object Field Names", func(t *testing.T) {
@@ -3640,7 +3650,8 @@ type Query {
 										isHousetrained(atOtherHomes: $atOtherHomes)
 									}
 								}`,
-					AllVariableUsesDefined(), Invalid)
+					AllVariableUsesDefined(), Invalid,
+					withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 			})
 			t.Run("160", func(t *testing.T) {
 				run(t, `query variableIsDefinedUsedInSingleFragment($atOtherHomes: Boolean) {
@@ -3662,7 +3673,8 @@ type Query {
 								fragment isHousetrainedFragment on Dog {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
-					AllVariableUsesDefined(), Invalid)
+					AllVariableUsesDefined(), Invalid,
+					withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 			})
 			t.Run("162", func(t *testing.T) {
 				run(t, `query variableIsNotDefinedUsedInNestedFragment {
@@ -3676,7 +3688,8 @@ type Query {
 								fragment isHousetrainedFragment on Dog {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
-					AllVariableUsesDefined(), Invalid)
+					AllVariableUsesDefined(), Invalid,
+					withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 				t.Run("163", func(t *testing.T) {
 					run(t, `query housetrainedQueryOne($atOtherHomes: Boolean) {
 										dog {
@@ -3707,7 +3720,8 @@ type Query {
 									fragment isHousetrainedFragment on Dog {
 										isHousetrained(atOtherHomes: $atOtherHomes)
 									}`,
-						AllVariableUsesDefined(), Invalid)
+						AllVariableUsesDefined(), Invalid,
+						withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 				})
 			})
 		})
@@ -4082,6 +4096,22 @@ type Query {
 					withValidationErrors(
 						`Variable "$a" of type "Boolean" used in position expecting type "[String]"`,
 					))
+			})
+			t.Run("undefined variable in nullable input object field", func(t *testing.T) {
+				run(t, `
+					query findDog($name: String!) {
+						findDog(complex: { name: $name, owner: $undefinedVar })
+					}
+				`, Values(), Invalid,
+					withValidationErrors(`variable "$undefinedVar" is not defined on operation, locations: [{Line:3 Column:46}]`))
+			})
+			t.Run("undefined variable in non-nullable input object field", func(t *testing.T) {
+				run(t, `
+					query findDog($name: String!) {
+						findDogNonOptional(complex: { name: $undefinedVar })
+					}
+				`, Values(), Invalid,
+					withValidationErrors(`variable "$undefinedVar" is not defined on operation, locations: [{Line:3 Column:43}]`))
 			})
 
 			t.Run("variables for OneOf fields must be non-nullable", func(t *testing.T) {

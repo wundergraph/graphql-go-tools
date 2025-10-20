@@ -221,34 +221,17 @@ func ErrDuplicatedFieldInputObject(fieldName ast.ByteSlice, first, duplicated po
 func ErrOneOfInputObjectFieldCount(objName ast.ByteSlice, fieldsProvided int, position position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(OneOfInputObjectFieldCountErrMsg, objName, fieldsProvided)
 	err.Locations = LocationsFromPosition(position)
-
 	return err
 }
 
 func ErrOneOfInputObjectNullValue(objName, fieldName ast.ByteSlice, fieldPosition position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(OneOfInputObjectNullValueErrMsg, objName, fieldName)
-	err.Locations = []Location{
-		{
-			Line:   fieldPosition.LineStart,
-			Column: fieldPosition.CharStart,
-		},
-	}
-
+	err.Locations = LocationsFromPosition(fieldPosition)
 	return err
 }
 func ErrOneOfInputObjectNullableVariable(objName, fieldName, variableName ast.ByteSlice, fieldPosition, variablePosition position.Position) (err ExternalError) {
 	err.Message = fmt.Sprintf(OneOfInputObjectNullableVariableErrMsg, objName, fieldName, variableName)
-	err.Locations = []Location{
-		{
-			Line:   fieldPosition.LineStart,
-			Column: fieldPosition.CharStart,
-		},
-		{
-			Line:   variablePosition.LineStart,
-			Column: variablePosition.CharStart,
-		},
-	}
-
+	err.Locations = LocationsFromPosition(fieldPosition, variablePosition)
 	return err
 }
 
@@ -342,8 +325,9 @@ func ErrVariableTypeDoesntSatisfyInputValueDefinition(value, inputType, expected
 	return err
 }
 
-func ErrVariableNotDefinedOnOperation(variableName, operationName ast.ByteSlice) (err ExternalError) {
-	err.Message = fmt.Sprintf("variable: %s not defined on operation: %s", variableName, operationName)
+func ErrVariableNotDefinedOnOperation(variableName ast.ByteSlice, valuePos position.Position) (err ExternalError) {
+	err.Message = fmt.Sprintf("variable \"%s\" is not defined on operation", variableName)
+	err.Locations = LocationsFromPosition(valuePos)
 	return err
 }
 
