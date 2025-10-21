@@ -169,7 +169,8 @@ func TestExecutionValidation(t *testing.T) {
     									}
   									}
 								}`,
-						OperationNameUniqueness(), Invalid)
+						OperationNameUniqueness(), Invalid,
+						withValidationErrors(`operation name must be unique: getName`))
 				})
 				t.Run("94", func(t *testing.T) {
 					run(t, `	
@@ -183,7 +184,8 @@ func TestExecutionValidation(t *testing.T) {
       									id
     								}
   								}`,
-						OperationNameUniqueness(), Invalid)
+						OperationNameUniqueness(), Invalid,
+						withValidationErrors(`operation name must be unique: dogOperation`))
 				})
 			})
 		})
@@ -210,7 +212,8 @@ func TestExecutionValidation(t *testing.T) {
   										}
   									}
   								}`,
-						LoneAnonymousOperation(), Invalid)
+						LoneAnonymousOperation(), Invalid,
+						withValidationErrors(`anonymous operation name the only operation in a graphql document`))
 				})
 				t.Run("96 variant", func(t *testing.T) {
 					run(t, `	query getDogName {
@@ -255,7 +258,8 @@ func TestExecutionValidation(t *testing.T) {
   									... { foo }
   									... { bar }
 								}`,
-						SubscriptionSingleRootField(), Invalid)
+						SubscriptionSingleRootField(), Invalid,
+						withValidationErrors(`subscription: sub must only have one root selection`))
 				})
 				t.Run("98", func(t *testing.T) {
 					run(t, `	subscription sub {
@@ -278,7 +282,8 @@ func TestExecutionValidation(t *testing.T) {
   									}
   									disallowedSecondRootField
 								}`,
-						SubscriptionSingleRootField(), Invalid)
+						SubscriptionSingleRootField(), Invalid,
+						withValidationErrors(`subscription: sub must only have one root selection`))
 				})
 				t.Run("100", func(t *testing.T) {
 					run(t, `	
@@ -292,7 +297,8 @@ func TestExecutionValidation(t *testing.T) {
   									}
   									disallowedSecondRootField
 								}`,
-						SubscriptionSingleRootField(), Invalid)
+						SubscriptionSingleRootField(), Invalid,
+						withValidationErrors(`subscription: sub must only have one root selection`))
 				})
 				t.Run("101", func(t *testing.T) {
 					run(t, `
@@ -303,7 +309,8 @@ func TestExecutionValidation(t *testing.T) {
 								}
 								__typename
 							}`,
-						SubscriptionSingleRootField(), Invalid)
+						SubscriptionSingleRootField(), Invalid,
+						withValidationErrors(`subscription: sub must only have one root selection`))
 				})
 			})
 		})
@@ -689,7 +696,8 @@ func TestExecutionValidation(t *testing.T) {
 							}
 							fragment B on Query {
 								x: b
-							}`, FieldSelectionMerging(), Invalid)
+							}`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("reports each conflict once", func(t *testing.T) {
 					run(t, `
@@ -713,7 +721,8 @@ func TestExecutionValidation(t *testing.T) {
 							  }
 							  fragment B on Field {
 								x: b
-							  }`, FieldSelectionMerging(), Invalid)
+							  }`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("deep conflict", func(t *testing.T) {
 					run(t, `
@@ -724,7 +733,8 @@ func TestExecutionValidation(t *testing.T) {
 								field {
 								  x: b
 								}
-						 	 }`, FieldSelectionMerging(), Invalid)
+						 	 }`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("deep conflict with multiple issues", func(t *testing.T) {
 					run(t, `
@@ -737,7 +747,8 @@ func TestExecutionValidation(t *testing.T) {
 								  x: b
 								  y: d
 								}
-						 	}`, FieldSelectionMerging(), Invalid)
+						 	}`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("very deep conflict", func(t *testing.T) {
 					run(t, `
@@ -752,7 +763,8 @@ func TestExecutionValidation(t *testing.T) {
 									x: b
 								  }
 								}
-						 	 }`, FieldSelectionMerging(), Invalid)
+						 	 }`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("very deep conflict validated", func(t *testing.T) {
 					run(t, `
@@ -785,7 +797,8 @@ func TestExecutionValidation(t *testing.T) {
 								y
 							  }
 							}
-						}`, FieldSelectionMerging(), Invalid)
+						}`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("reports deep conflict to nearest common ancestor in fragments", func(t *testing.T) {
 					run(t, `
@@ -811,7 +824,8 @@ func TestExecutionValidation(t *testing.T) {
 								y
 							  }
 							}
-					  	}`, FieldSelectionMerging(), Invalid)
+					  	}`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'x' on (potentially) same type`))
 				})
 				t.Run("reports deep conflict in nested fragments", func(t *testing.T) {
 					run(t, `
@@ -836,7 +850,8 @@ func TestExecutionValidation(t *testing.T) {
 							  }
 							  fragment J on Field {
 								x: b
-						 	 }`, FieldSelectionMerging(), Invalid)
+						 	 }`, FieldSelectionMerging(), Invalid,
+						withValidationErrors(`differing fields for objectName 'y' on (potentially) same type`))
 				})
 				t.Run("ignores unknown fragments", func(t *testing.T) {
 					run(t, `
@@ -866,7 +881,8 @@ func TestExecutionValidation(t *testing.T) {
 										scalar
 									}
 								}
-							}`, FieldSelectionMerging(), Invalid)
+							}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'Int' and 'String!'`))
 					})
 					t.Run("compatible return shapes on different return types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -896,7 +912,8 @@ func TestExecutionValidation(t *testing.T) {
 											scalar
 								  		}
 									}
-								}`, FieldSelectionMerging(), Invalid)
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'Int' and 'String'`))
 					})
 					t.Run("disallows differing return types despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -912,7 +929,8 @@ func TestExecutionValidation(t *testing.T) {
 											b: scalar
 								  		}
 									}
-								}`, FieldSelectionMerging(), Invalid)
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`differing fields for objectName 'b' on (potentially) same type`))
 					})
 					t.Run("deeply nested", func(t *testing.T) {
 						// reports correctly when a non-exclusive follows an exclusive
@@ -958,7 +976,8 @@ func TestExecutionValidation(t *testing.T) {
 								}
 								fragment Y on SomeBox {
 									scalar: unrelatedField
-								}`, FieldSelectionMerging(), Invalid)
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'Int' and 'String'`))
 					})
 					t.Run("disallows differing return type nullability despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -971,7 +990,8 @@ func TestExecutionValidation(t *testing.T) {
 											scalar
 								  		}
 									}
-								}`, FieldSelectionMerging(), Invalid)
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String!' and 'String'`))
 					})
 					t.Run("disallows differing return type list despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -988,7 +1008,8 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 									}
-							 	}`, FieldSelectionMerging(), Invalid)
+							 	}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`differing types '[StringBox]' and 'StringBox' for objectName 'box'`))
 						runWithDefinition(t, boxDefinition, `
 								{
 									someBox {
@@ -1003,7 +1024,8 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 									}
-								  }`, FieldSelectionMerging(), Invalid)
+								  }`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`differing types 'StringBox' and '[StringBox]' for objectName 'box'`))
 					})
 					t.Run("disallows differing subfields", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -1021,7 +1043,8 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									  }
 									}
-								}`, FieldSelectionMerging(), Invalid)
+								}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`differing fields for objectName 'val' on (potentially) same type`))
 					})
 					t.Run("disallows differing deep return types despite no overlap", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -1038,7 +1061,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								  }
 								}
-							}`, FieldSelectionMerging(), Invalid)
+							}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`fields 'scalar' conflict because they return conflicting types 'String' and 'Int'`))
 					})
 					t.Run("allows non-conflicting overlapping types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -1093,7 +1117,8 @@ func TestExecutionValidation(t *testing.T) {
 								id
 							  }
 								}
-							}`, FieldSelectionMerging(), Invalid)
+							}`, FieldSelectionMerging(), Invalid,
+							withValidationErrors(`differing fields for objectName 'id' on (potentially) same type`))
 					})
 					t.Run("ignores unknown types", func(t *testing.T) {
 						runWithDefinition(t, boxDefinition, `
@@ -1144,7 +1169,8 @@ func TestExecutionValidation(t *testing.T) {
   								name: nickname
   								name
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1154,7 +1180,8 @@ func TestExecutionValidation(t *testing.T) {
   									name
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1203,7 +1230,8 @@ func TestExecutionValidation(t *testing.T) {
   									extra { string: noString }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'string' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1212,7 +1240,8 @@ func TestExecutionValidation(t *testing.T) {
   									extra: extras { string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing types 'DogExtra' and '[DogExtra]' for objectName 'extra'`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1221,7 +1250,8 @@ func TestExecutionValidation(t *testing.T) {
   									extras: mustExtras { string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing types '[DogExtra]' and '[DogExtra]!' for objectName 'extras'`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1231,7 +1261,8 @@ func TestExecutionValidation(t *testing.T) {
   									x: mustExtras { string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing types '[DogExtra]' and '[DogExtra]!' for objectName 'x'`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1261,7 +1292,8 @@ func TestExecutionValidation(t *testing.T) {
   									extras { string,string2: string,string3: string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'string2' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1280,7 +1312,8 @@ func TestExecutionValidation(t *testing.T) {
   									extras { ... { string1: string },string2: string }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'string' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1308,7 +1341,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'string1' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	
@@ -1320,7 +1354,8 @@ func TestExecutionValidation(t *testing.T) {
   							}
 							fragment frag on DogExtra { string1 }
 							fragment frag2 on DogExtra { string1: string }`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'string1' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1329,7 +1364,8 @@ func TestExecutionValidation(t *testing.T) {
   									extra { looksLikeString: bool }
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'looksLikeString' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1341,7 +1377,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment nameFrag on Dog {
 								name
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1356,7 +1393,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment nameFrag2 on Dog {
 								name
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1370,7 +1408,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment nameFrag on Dog {
 								name
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1381,7 +1420,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1392,7 +1432,8 @@ func TestExecutionValidation(t *testing.T) {
 												}
 											}
 			  							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'name' on (potentially) same type`))
 			})
 			t.Run("108 variant", func(t *testing.T) {
 				run(t, `	query conflictingBecauseAlias {
@@ -1430,7 +1471,8 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: 1)
     							doesKnowCommand(dogCommand: 0)
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
@@ -1444,7 +1486,8 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: 1.1)
     							doesKnowCommand(dogCommand: 0.1)
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
@@ -1458,7 +1501,8 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: "foo")
     							doesKnowCommand(dogCommand: "bar")
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
@@ -1472,7 +1516,8 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: null)
     							doesKnowCommand(dogCommand: 0)
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
@@ -1486,14 +1531,16 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: [1.1])
     							doesKnowCommand(dogCommand: [0.1])
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: [1.1])
     							doesKnowCommand(dogCommand: [1.1,1.1])
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	
@@ -1509,7 +1556,8 @@ func TestExecutionValidation(t *testing.T) {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {bar: "bar"})
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
@@ -1517,41 +1565,48 @@ func TestExecutionValidation(t *testing.T) {
     							doesKnowCommand(dogCommand: {foo: "baz"})
     							doesKnowCommand(dogCommand: {bar: "baz"})
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("109 variant", func(t *testing.T) {
 				run(t, `	fragment mergeIdenticalFieldsWithIdenticalValues on Dog {
   								doesKnowCommand(dogCommand: {foo: "bar"})
     							doesKnowCommand(dogCommand: {foo: "baz",bar: "bat"})
   							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("110", func(t *testing.T) {
 				run(t, `	fragment conflictingArgsOnValues on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand(dogCommand: HEEL)
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment conflictingArgsOnValues on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand(dogCommand1: HEEL)
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment conflictingArgsValueAndVar on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand(dogCommand: $dogCommand)
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment conflictingArgsWithVars on Dog {
 								doesKnowCommand(dogCommand: $varOne)
 								doesKnowCommand(dogCommand: $varTwo)
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 				run(t, `	fragment differingArgs on Dog {
 								doesKnowCommand(dogCommand: SIT)
 								doesKnowCommand
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`differing fields for objectName 'doesKnowCommand' on (potentially) same type`))
 			})
 			t.Run("111", func(t *testing.T) {
 				run(t, `	
@@ -1583,7 +1638,8 @@ func TestExecutionValidation(t *testing.T) {
 									someValue: meowVolume
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'someValue' conflict because they return conflicting types 'String!' and 'Int'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	
@@ -1630,7 +1686,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and '[String]'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1645,7 +1702,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and '[String]!'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1691,7 +1749,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and 'Boolean'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1708,7 +1767,8 @@ func TestExecutionValidation(t *testing.T) {
 									}
 								}
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'string' conflict because they return conflicting types 'String' and 'Boolean'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1810,7 +1870,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment catFrag on Cat {
 								someValue: meowVolume
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'someValue' conflict because they return conflicting types 'String!' and 'Int'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	query conflictingDifferingResponses {
@@ -1877,7 +1938,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment dogFrag on Dog {
 								someValue: name
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'someValue' conflict because they return conflicting types 'Int' and 'String!'`))
 			})
 			t.Run("112 variant", func(t *testing.T) {
 				run(t, `	fragment conflictingDifferingResponses on Pet {
@@ -1985,7 +2047,8 @@ func TestExecutionValidation(t *testing.T) {
 									... on DogExtra { value: bool }
 								}	
 							}`,
-					FieldSelectionMerging(), Invalid)
+					FieldSelectionMerging(), Invalid,
+					withValidationErrors(`fields 'value' conflict because they return conflicting types 'Boolean' and 'Int'`))
 			})
 			t.Run("skip/include do not creates conflicts", func(t *testing.T) {
 				run(t, `query noConflictOnDifferentFieldIncludeSkip {
@@ -2039,15 +2102,18 @@ func TestExecutionValidation(t *testing.T) {
 							query directQueryOnObjectWithoutSubFields {
 								human
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid,
+					withValidationErrors(`Field "human" of type "Human" must have a selection of subfields. Did you mean "human { ... }"?, locations: [{Line:3 Column:9}]`))
 				run(t, `	query directQueryOnInterfaceWithoutSubFields {
 								pet
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid,
+					withValidationErrors(`Field "pet" of type "Pet" must have a selection of subfields. Did you mean "pet { ... }"?, locations: [{Line:2 Column:9}]`))
 				run(t, `	query directQueryOnUnionWithoutSubFields {
 								catOrDog
 							}`,
-					FieldSelections(), Invalid)
+					FieldSelections(), Invalid,
+					withValidationErrors(`Field "catOrDog" of type "CatOrDog" must have a selection of subfields. Did you mean "catOrDog { ... }"?, locations: [{Line:2 Column:9}]`))
 				run(t, `
 							mutation directQueryOnUnionWithoutSubFields {
 								catOrDog
@@ -2117,7 +2183,8 @@ func TestExecutionValidation(t *testing.T) {
 									doesKnowCommand(dogCommand: $catCommand)
 								}
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$catCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$catCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `query argOnRequiredArg($dogCommand: CatCommand) {
@@ -2127,7 +2194,8 @@ func TestExecutionValidation(t *testing.T) {
 										}
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$dogCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$dogCommand" of type "CatCommand" used in position expecting type "DogCommand!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean) {
@@ -2162,7 +2230,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $booleanArg) @include(if: $booleanArg)
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($booleanArg: Boolean!) {
@@ -2186,7 +2255,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2197,7 +2267,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("117 variant", func(t *testing.T) {
 				run(t, `	query argOnRequiredArg($intArg: Integer) {
@@ -2210,7 +2281,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment argOnOptional on Dog {
 								isHousetrained(atOtherHomes: $intArg) @include(if: true)
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$intArg" of type "Integer" used in position expecting type "Boolean".`))
 			})
 			t.Run("118", func(t *testing.T) {
 				run(t, `	
@@ -2220,7 +2292,8 @@ func TestExecutionValidation(t *testing.T) {
 							fragment invalidArgName on Dog {
 								doesKnowCommand(command: CLEAN_UP_HOUSE)
 							}`,
-					KnownArguments(), Invalid, withValidationErrors(`Unknown argument "command" on field "Dog.doesKnowCommand"`))
+					KnownArguments(), Invalid,
+					withValidationErrors(`Unknown argument "command" on field "Dog.doesKnowCommand"`))
 			})
 			t.Run("118 variant", func(t *testing.T) {
 				run(t, `	
@@ -2241,7 +2314,8 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidArgName on Dog {
 										isHousetrained(atOtherHomes: true) @include(unless: false)
 									}`,
-					KnownArguments(), Invalid, withValidationErrors(`Unknown argument "unless" on directive "@include".`))
+					KnownArguments(), Invalid,
+					withValidationErrors(`Unknown argument "unless" on directive "@include".`))
 			})
 			t.Run("121 args in reversed order", func(t *testing.T) {
 				run(t, `	fragment multipleArgs on ValidArguments {
@@ -2258,7 +2332,8 @@ func TestExecutionValidation(t *testing.T) {
 									name
 								}
 							}`,
-					KnownArguments(), Invalid, withValidationErrors(`Unknown argument "name" on field "Query.dog".`))
+					KnownArguments(), Invalid,
+					withValidationErrors(`Unknown argument "name" on field "Query.dog".`))
 			})
 		})
 		t.Run("5.4.2 Argument Uniqueness", func(t *testing.T) {
@@ -2270,7 +2345,8 @@ func TestExecutionValidation(t *testing.T) {
 								fragment multipleArgs on ValidArguments {
 									multipleReqs(x: 1, x: 2)
 								}`,
-					ArgumentUniqueness(), Invalid)
+					ArgumentUniqueness(), Invalid,
+					withValidationErrors(`argument: x must be unique`))
 			})
 			t.Run("121 variant", func(t *testing.T) {
 				run(t, `{
@@ -2290,7 +2366,8 @@ func TestExecutionValidation(t *testing.T) {
 											requiredString(s: foo)
 										}
 									}`,
-					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: foo`))
+					Values(), Invalid,
+					withValidationErrors(`String cannot represent a non string value: foo`))
 			})
 			t.Run("required String", func(t *testing.T) {
 				run(t, `	query requiredString {
@@ -2298,7 +2375,8 @@ func TestExecutionValidation(t *testing.T) {
 											requiredString(s: null)
 										}
 									}`,
-					Values(), Invalid, withValidationErrors(`Expected value of type "String!", found null`))
+					Values(), Invalid,
+					withValidationErrors(`Expected value of type "String!", found null`))
 			})
 
 			t.Run("required Float", func(t *testing.T) {
@@ -2307,7 +2385,8 @@ func TestExecutionValidation(t *testing.T) {
 											requiredFloat(f: "1.1")
 										}
 									}`,
-					Values(), Invalid, withValidationErrors(`Float cannot represent non numeric value: "1.1"`))
+					Values(), Invalid,
+					withValidationErrors(`Float cannot represent non numeric value: "1.1"`))
 			})
 			t.Run("required Float", func(t *testing.T) {
 				run(t, `	query requiredFloat {
@@ -2315,7 +2394,8 @@ func TestExecutionValidation(t *testing.T) {
 											requiredFloat(f: null)
 										}
 									}`,
-					Values(), Invalid, withValidationErrors(`Expected value of type "Float!", found null`))
+					Values(), Invalid,
+					withValidationErrors(`Expected value of type "Float!", found null`))
 			})
 		})
 
@@ -2373,7 +2453,8 @@ func TestExecutionValidation(t *testing.T) {
 								fragment missingRequiredArg on ValidArguments {
 									nonNullBooleanArgField
 								}`,
-					RequiredArguments(), Invalid)
+					RequiredArguments(), Invalid,
+					withValidationErrors(`argument: nonNullBooleanArg is required on field: nonNullBooleanArgField but missing`))
 			})
 			t.Run("125", func(t *testing.T) {
 				run(t, `	{
@@ -2442,7 +2523,8 @@ func TestExecutionValidation(t *testing.T) {
     									name
   									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid,
+						withValidationErrors(`fragment: fragmentOne must be unique per document`))
 				})
 			})
 			t.Run("5.5.1.2 Fragment Spread Existence", func(t *testing.T) {
@@ -2544,7 +2626,8 @@ func TestExecutionValidation(t *testing.T) {
 										...nameFragment2
 									}
 								}`,
-						Fragments(), Invalid)
+						Fragments(), Invalid,
+						withValidationErrors(`fragment: nameFragment3 defined but not used`))
 				})
 				t.Run("132 variant", func(t *testing.T) {
 					run(t, `
@@ -2621,7 +2704,8 @@ func TestExecutionValidation(t *testing.T) {
 						barkVolume
 						...nameFragment
 					}`,
-						Fragments(), Invalid, withValidationErrors("external: fragment spread: nameFragment forms fragment cycle"), withDisableNormalization())
+						Fragments(), Invalid,
+						withValidationErrors("external: fragment spread: nameFragment forms fragment cycle"), withDisableNormalization())
 				})
 				t.Run("136", func(t *testing.T) {
 					run(t, `
@@ -2708,7 +2792,8 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Cat".`))
+							Fragments(), Invalid,
+							withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Cat".`))
 					})
 					t.Run("138 variant", func(t *testing.T) {
 						run(t, `
@@ -2734,7 +2819,8 @@ func TestExecutionValidation(t *testing.T) {
 									fragment invalidCatFragment on Cat {
 										meowVolume
 									}`,
-							Fragments(), Invalid, withValidationErrors("fragment invalidCatFragment must be spread on type Cat and not type Dog"))
+							Fragments(), Invalid,
+							withValidationErrors("fragment invalidCatFragment must be spread on type Cat and not type Dog"))
 					})
 				})
 				t.Run("5.5.2.3.2 Abstract Spreads in Object Scope", func(t *testing.T) {
@@ -2787,7 +2873,8 @@ func TestExecutionValidation(t *testing.T) {
 											barkVolume
 										}
 									}`,
-							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Sentient" can never be of type "Dog".`))
+							Fragments(), Invalid,
+							withValidationErrors(`Fragment cannot be spread here as objects of type "Sentient" can never be of type "Dog".`))
 					})
 					t.Run("142 variant", func(t *testing.T) {
 						run(t, ` fragment humanOrAlienFragment on HumanOrAlien {
@@ -2795,7 +2882,8 @@ func TestExecutionValidation(t *testing.T) {
 											meowVolume
 										}
 									}`,
-							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "HumanOrAlien" can never be of type "Cat"`))
+							Fragments(), Invalid,
+							withValidationErrors(`Fragment cannot be spread here as objects of type "HumanOrAlien" can never be of type "Cat"`))
 					})
 				})
 				t.Run("5.5.2.3.4 Abstract Spreads in Abstract Scope", func(t *testing.T) {
@@ -2815,7 +2903,8 @@ func TestExecutionValidation(t *testing.T) {
 											...on Sentient { ...on DogOrHuman { ...on Dog { barkVolume } } }
 										}
 									}`,
-							Fragments(), Invalid, withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Sentient"`))
+							Fragments(), Invalid,
+							withValidationErrors(`Fragment cannot be spread here as objects of type "Dog" can never be of type "Sentient"`))
 					})
 					t.Run("143 variant", func(t *testing.T) {
 						run(t, `
@@ -2839,7 +2928,8 @@ func TestExecutionValidation(t *testing.T) {
 									fragment sentientFragment on Sentient {
 										name
 									}`,
-							Fragments(), Invalid, withValidationErrors(`fragment sentientFragment must be spread on type Sentient and not type Dog`))
+							Fragments(), Invalid,
+							withValidationErrors(`fragment sentientFragment must be spread on type Sentient and not type Dog`))
 					})
 					t.Run("interface into interface", func(t *testing.T) {
 						runWithDefinition(t,
@@ -3024,7 +3114,8 @@ type Query {
 							query goodComplexDefaultValue($name: String ) {
 								findDogNonOptional(complex: { name: $name })
 							}`,
-					Values(), Invalid, withValidationErrors(`Variable "$name" of type "String" used in position expecting type "String!"`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$name" of type "String" used in position expecting type "String!"`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `
@@ -3043,7 +3134,8 @@ type Query {
 				run(t, `	query goodComplexDefaultValue {
 										findDog(complex: { name: 123 })
 									}`,
-					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
+					Values(), Invalid,
+					withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `	query goodComplexDefaultValue {
@@ -3065,7 +3157,8 @@ type Query {
 									doesKnowCommand(dogCommand: MEOW)
 								}
 							}`,
-					Values(), Invalid, withValidationErrors(`Value "MEOW" does not exist in "DogCommand" enum`))
+					Values(), Invalid,
+					withValidationErrors(`Value "MEOW" does not exist in "DogCommand" enum`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3073,7 +3166,8 @@ type Query {
 									doesKnowCommand(dogCommand: [true])
 								}
 							}`,
-					Values(), Invalid, withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: [true]`))
+					Values(), Invalid,
+					withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: [true]`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3081,7 +3175,8 @@ type Query {
 									doesKnowCommand(dogCommand: {foo: "bar"})
 								}
 							}`,
-					Values(), Invalid, withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: {foo: "bar"}`))
+					Values(), Invalid,
+					withValidationErrors(`Enum "DogCommand" cannot represent non-enum value: {foo: "bar"}`))
 			})
 			t.Run("146", func(t *testing.T) {
 				run(t, `
@@ -3091,12 +3186,14 @@ type Query {
 							fragment stringIntoInt on ValidArguments {
 								intArgField(intArg: "123")
 							}`,
-					Values(), Invalid, withValidationErrors(`Int cannot represent non-integer value: "123"`))
+					Values(), Invalid,
+					withValidationErrors(`Int cannot represent non-integer value: "123"`))
 				run(t, `
 							query badComplexValue {
 								findDog(complex: { name: 123 })
 							}`,
-					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
+					Values(), Invalid,
+					withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 			t.Run("146 variant", func(t *testing.T) {
 				run(t, `
@@ -3199,7 +3296,8 @@ type Query {
 				run(t, `{
  									findDog(complex: { favoriteCookieFlavor: "Bacon" })
 								}`,
-					Values(), Invalid, withValidationErrors(`Field "favoriteCookieFlavor" is not defined by type "ComplexInput"`))
+					Values(), Invalid,
+					withValidationErrors(`Field "favoriteCookieFlavor" is not defined by type "ComplexInput"`))
 			})
 		})
 		t.Run("5.6.3 Input Object Field Uniqueness", func(t *testing.T) {
@@ -3207,7 +3305,8 @@ type Query {
 				run(t, `{
 									findDog(complex: { name: "Fido", name: "Goofy"})
 								}`,
-					Values(), Invalid, withValidationErrors(`There can be only one input field named "name"`))
+					Values(), Invalid,
+					withValidationErrors(`There can be only one input field named "name"`))
 			})
 		})
 		t.Run("5.6.4 Input Object Required Fields", func(t *testing.T) {
@@ -3233,7 +3332,8 @@ type Query {
 				run(t, `query goodComplexDefaultValue {
 									findDogNonOptional(complex: {})
 								}`,
-					Values(), Invalid, withValidationErrors(`Field "ComplexNonOptionalInput.name" of required type "String!" was not provided.`))
+					Values(), Invalid,
+					withValidationErrors(`Field "ComplexNonOptionalInput.name" of required type "String!" was not provided.`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `query goodComplexDefaultValue {
@@ -3257,7 +3357,8 @@ type Query {
 								fragment viaFragment on Query {
 									findDogNonOptional(complex: { name: 123 })
 								}`,
-					Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
+					Values(), Invalid,
+					withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 		})
 		t.Run("complex nested validation", func(t *testing.T) {
@@ -3266,7 +3367,8 @@ type Query {
 						{
 							nested(input: {})
 						}
-						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
+						`, Values(), Invalid,
+					withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
 			})
 			t.Run("complex nested ok", func(t *testing.T) {
 				run(t, `
@@ -3342,7 +3444,8 @@ type Query {
 								]
 							})
 						}
-						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
+						`, Values(), Invalid,
+					withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
 			})
 			t.Run("complex nested 'str' is not String", func(t *testing.T) {
 				run(t, `
@@ -3354,7 +3457,8 @@ type Query {
 								requiredListOfOptionalStringsWithDefault: ["more strings"]
 							})
 						}
-						`, Values(), Invalid, withValidationErrors(`String cannot represent a non string value: str`))
+						`, Values(), Invalid,
+					withValidationErrors(`String cannot represent a non string value: str`))
 			})
 			t.Run("complex nested requiredListOfRequiredStrings could be empty but not `null` or `[null]`", func(t *testing.T) {
 				run(t, `
@@ -3396,7 +3500,8 @@ type Query {
 								}
 							})
 						}
-						`, Values(), Invalid, withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
+						`, Values(), Invalid,
+					withValidationErrors(`Field "NestedInput.requiredString" of required type "String!" was not provided.`))
 			})
 			t.Run("complex 2x nested '123' is no String", func(t *testing.T) {
 				run(t, `
@@ -3412,7 +3517,8 @@ type Query {
 								}
 							})
 						}
-						`, Values(), Invalid, withValidationErrors(`String cannot represent a non string value: 123`))
+						`, Values(), Invalid,
+					withValidationErrors(`String cannot represent a non string value: 123`))
 			})
 		})
 	})
@@ -3432,7 +3538,8 @@ type Query {
 										booleanArgField(booleanArg: true) @noSkip(if: true)
 									}
 								}`,
-					DirectivesAreDefined(), Invalid)
+					DirectivesAreDefined(), Invalid,
+					withValidationErrors(`directive: noSkip undefined`))
 			})
 			t.Run("145 variant", func(t *testing.T) {
 				run(t, `query undefinedDirective {
@@ -3443,7 +3550,8 @@ type Query {
 								fragment viaFragment on ValidArguments {
 									booleanArgField(booleanArg: true) @noSkip(if: true)
 								}`,
-					DirectivesAreDefined(), Invalid)
+					DirectivesAreDefined(), Invalid,
+					withValidationErrors(`directive: noSkip undefined`))
 			})
 		})
 		t.Run("5.7.2 Directives Are In Valid Locations", func(t *testing.T) {
@@ -3451,7 +3559,8 @@ type Query {
 				run(t, `query @skip(if: true) {
 									dog
 								}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: skip not allowed on node of kind: QUERY`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `query {
@@ -3473,7 +3582,8 @@ type Query {
 									dog @inline
 								}
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: inline not allowed on node of kind: FIELD`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3481,7 +3591,8 @@ type Query {
 									dog @spread
 								}
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: spread not allowed on node of kind: FIELD`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3489,7 +3600,8 @@ type Query {
 									dog @fragmentDefinition
 								}
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: fragmentDefinition not allowed on node of kind: FIELD`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	query @onQuery {
@@ -3501,27 +3613,31 @@ type Query {
 				run(t, `	query @onMutation {
 								dog
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: onMutation not allowed on node of kind: QUERY`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `	query @onSubscription {
 								dog
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: onSubscription not allowed on node of kind: QUERY`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `
 							mutation @onQuery {
 								mutateDog
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: onQuery not allowed on node of kind: MUTATION`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `
 							mutation @onSubscription {
 								mutateDog
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: onSubscription not allowed on node of kind: MUTATION`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `
@@ -3535,14 +3651,16 @@ type Query {
 							subscription @onQuery {
 								subscribeDog
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: onQuery not allowed on node of kind: SUBSCRIPTION`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `
 							subscription @onMutation {
 								foo
 							}`,
-					DirectivesAreInValidLocations(), Invalid)
+					DirectivesAreInValidLocations(), Invalid,
+					withValidationErrors(`directive: onMutation not allowed on node of kind: SUBSCRIPTION`))
 			})
 			t.Run("150 variant", func(t *testing.T) {
 				run(t, `
@@ -3557,7 +3675,8 @@ type Query {
 				run(t, `query MyQuery($foo: Boolean, $bar: Boolean) {
 									field @skip(if: $foo) @skip(if: $bar)
 								}`,
-					DirectivesAreUniquePerLocation(), Invalid)
+					DirectivesAreUniquePerLocation(), Invalid,
+					withValidationErrors(`The directive "@skip" can only be used once at this location., locations: [{Line:2 Column:16}`))
 			})
 			t.Run("152", func(t *testing.T) {
 				run(t, `query MyQuery($foo: Boolean = true, $bar: Boolean = false) {
@@ -3580,7 +3699,8 @@ type Query {
 										isHousetrained(atOtherHomes: $atOtherHomes)
 									}
 								}`,
-					VariableUniqueness(), Invalid)
+					VariableUniqueness(), Invalid,
+					withValidationErrors(`variable: atOtherHomes must be unique per operation: houseTrainedQuery`))
 			})
 			t.Run("154", func(t *testing.T) {
 				run(t, `
@@ -3624,13 +3744,17 @@ type Query {
 			})
 			t.Run("157", func(t *testing.T) {
 				run(t, `query takesCat($cat: Cat) { a }`,
-					VariablesAreInputTypes(), Invalid)
+					VariablesAreInputTypes(), Invalid,
+					withValidationErrors(`Variable "$cat" cannot be non-input type "Cat"., locations: [{Line:1 Column:22}]`))
 				run(t, `query takesDogBang($dog: Dog!) { a }`,
-					VariablesAreInputTypes(), Invalid)
+					VariablesAreInputTypes(), Invalid,
+					withValidationErrors(`Variable "$dog" cannot be non-input type "Dog!"., locations: [{Line:1 Column:26}]`))
 				run(t, `query takesListOfPet($pets: [Pet]) { a }`,
-					VariablesAreInputTypes(), Invalid)
+					VariablesAreInputTypes(), Invalid,
+					withValidationErrors(`Variable "$pets" cannot be non-input type "[Pet]"., locations: [{Line:1 Column:29}]`))
 				run(t, `query takesCatOrDog($catOrDog: CatOrDog) { a }`,
-					VariablesAreInputTypes(), Invalid)
+					VariablesAreInputTypes(), Invalid,
+					withValidationErrors(`Variable "$catOrDog" cannot be non-input type "CatOrDog"., locations: [{Line:1 Column:32}]`))
 				run(t, `query takesCatOrDog($catCommand: CatCommand) { a }`,
 					VariablesAreInputTypes(), Valid)
 			})
@@ -3744,7 +3868,8 @@ type Query {
 										isHousetrained
 									}
 								}`,
-					AllVariablesUsed(), Invalid)
+					AllVariablesUsed(), Invalid,
+					withValidationErrors(`variable: atOtherHomes defined on operation: variableUnused but never used`))
 			})
 			t.Run("165 variant", func(t *testing.T) {
 				run(t, `query variableUnused($x: Int!) {
@@ -3798,7 +3923,8 @@ type Query {
 								fragment isHousetrainedWithoutVariableFragment on Dog {
 									isHousetrained
 								}`,
-					AllVariablesUsed(), Invalid)
+					AllVariablesUsed(), Invalid,
+					withValidationErrors(`variable: atOtherHomes defined on operation: variableNotUsedWithinFragment but never used`))
 			})
 			t.Run("168", func(t *testing.T) {
 				run(t, `query queryWithUsedVar($atOtherHomes: Boolean) {
@@ -3814,7 +3940,8 @@ type Query {
 								fragment isHousetrainedFragment on Dog {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
-					AllVariablesUsed(), Invalid)
+					AllVariablesUsed(), Invalid,
+					withValidationErrors(`variable: extra defined on operation: queryWithExtraVar but never used`))
 			})
 			t.Run("variables in array object", func(t *testing.T) {
 				runWithDefinition(t, todoSchema, `mutation AddTak($title: String!, $completed: Boolean!, $name: String! @fromClaim(name: "sub")) {
@@ -3878,7 +4005,8 @@ type Query {
 										booleanArgField(booleanArg: $intArg)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$intArg" of type "Int" used in position expecting type "Boolean".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$intArg" of type "Int" used in position expecting type "Boolean".`))
 			})
 			t.Run("170", func(t *testing.T) {
 				run(t, `query booleanListCannotGoIntoBoolean($booleanListArg: [Boolean]) {
@@ -3886,7 +4014,8 @@ type Query {
 										booleanArgField(booleanArg: $booleanListArg)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$booleanListArg" of type "[Boolean]" used in position expecting type "Boolean".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$booleanListArg" of type "[Boolean]" used in position expecting type "Boolean".`))
 			})
 			t.Run("171", func(t *testing.T) {
 				run(t, `query booleanArgQuery($booleanArg: Boolean) {
@@ -3894,7 +4023,8 @@ type Query {
 										nonNullBooleanArgField(nonNullBooleanArg: $booleanArg)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$booleanArg" of type "Boolean" used in position expecting type "Boolean!".`))
 			})
 			// Non-null types are compatible with nullable types.
 			t.Run("172", func(t *testing.T) {
@@ -3944,7 +4074,8 @@ type Query {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,"123"])
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Boolean cannot represent a non boolean value: "123"`))
+					Values(), Invalid,
+					withValidationErrors(`Boolean cannot represent a non boolean value: "123"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listContainingIncorrectType {
@@ -3952,7 +4083,8 @@ type Query {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: [true,false,123])
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Boolean cannot represent a non boolean value: 123`))
+					Values(), Invalid,
+					withValidationErrors(`Boolean cannot represent a non boolean value: 123`))
 			})
 			// Nullable types are NOT compatible with non-null types.
 			t.Run("172 variant", func(t *testing.T) {
@@ -3961,7 +4093,8 @@ type Query {
 										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $listOfBoolean)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean!]"`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean!]"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query nonNullListToListOfNonNull($nonNullListOfBoolean: [Boolean]!) {
@@ -3969,7 +4102,8 @@ type Query {
 										listOfNonNullBooleanArgField(listOfNonNullBooleanArg: $nonNullListOfBoolean)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$nonNullListOfBoolean" of type "[Boolean]!" used in position expecting type "[Boolean!]"`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$nonNullListOfBoolean" of type "[Boolean]!" used in position expecting type "[Boolean!]"`))
 			})
 			t.Run("172 variant", func(t *testing.T) {
 				run(t, `query listOfNonNullToNonNullList($listOfNonNullBoolean: [Boolean!]) {
@@ -3977,7 +4111,8 @@ type Query {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfNonNullBoolean)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$listOfNonNullBoolean" of type "[Boolean!]" used in position expecting type "[Boolean]!"`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$listOfNonNullBoolean" of type "[Boolean!]" used in position expecting type "[Boolean]!"`))
 			})
 			t.Run("173", func(t *testing.T) {
 				run(t, `query listToNonNullList($listOfBoolean: [Boolean]) {
@@ -3985,7 +4120,8 @@ type Query {
 										nonNullListOfBooleanArgField(nonNullListOfBooleanArg: $listOfBoolean)
 									}
 								}`,
-					Values(), Invalid, withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean]!"`))
+					Values(), Invalid,
+					withValidationErrors(`Variable "$listOfBoolean" of type "[Boolean]" used in position expecting type "[Boolean]!"`))
 			})
 			t.Run("174", func(t *testing.T) {
 				run(t, `query booleanArgQueryWithDefault($booleanArg: Boolean) {
@@ -4140,7 +4276,8 @@ type Query {
 								name
 							}
 						}
-						`, Values(), Invalid, withValidationErrors(`OneOf input object "PetInput" field "cat" cannot use nullable variable "$cat". Variables used in oneOf fields must be non-nullable`))
+						`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" field "cat" cannot use nullable variable "$cat". Variables used in oneOf fields must be non-nullable`))
 				})
 			})
 
