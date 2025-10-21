@@ -2384,7 +2384,8 @@ func TestExecutionValidation(t *testing.T) {
 								fragment missingRequiredArg on ValidArguments {
 									nonNullBooleanArgField(nonNullBooleanArg: null)
 								}`,
-					RequiredArguments(), Invalid)
+					RequiredArguments(), Invalid,
+					withValidationErrors("argument: nonNullBooleanArg on field: nonNullBooleanArgField must not be null"))
 			})
 			t.Run("125 variant", func(t *testing.T) {
 				run(t, `	{
@@ -3104,6 +3105,88 @@ type Query {
 							}`,
 					Values(), Valid)
 			})
+
+			t.Run("oneOf", func(t *testing.T) {
+				t.Run("oneOf with default value", func(t *testing.T) {
+					run(t, `
+						mutation addPet($pet: PetInput! = { cat: { name: "black" } }) {
+							addPet(pet: $pet) {
+								name
+							}
+						}`, Values(), Valid)
+				})
+				t.Run("list of oneOf with non-null variable", func(t *testing.T) {
+					run(t, `
+						mutation addPet($dog: DogInput!) {
+							addPets(pets: [{ dog: $dog }]) {
+								name
+							}
+						}`, Values(), Valid)
+				})
+				t.Run("oneOf with no fields", func(t *testing.T) {
+					run(t, `
+						mutation {
+							addPet(pet: {}) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 0 fields were provided`))
+				})
+				t.Run("oneOf with null field", func(t *testing.T) {
+					run(t, `
+						mutation {
+							addPet(pet: { cat: null }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" field "cat" value must be non-null`))
+				})
+				t.Run("oneOf with two null fields", func(t *testing.T) {
+					run(t, `
+						mutation {
+							addPet(pet: { cat: null, dog: null }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`))
+				})
+				t.Run("oneOf with one null field", func(t *testing.T) {
+					run(t, `
+						mutation {
+							addPet(pet: { cat: { name: "black" }, dog: null }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`))
+				})
+				t.Run("oneOf with two fields", func(t *testing.T) {
+					run(t, `
+						mutation oneOfWithTwoFields($dog: DogInput) {
+							addPet(pet: { cat: { name: "black" }, dog: $dog }) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`))
+				})
+				t.Run("list of oneOf with nullable variable", func(t *testing.T) {
+					run(t, `
+						mutation listOfOneOfWithNullableVariable($dog: DogInput) {
+							addPets(pets: [{ dog: $dog }]) {
+								name
+							}
+						}`, Values(), Invalid,
+						withValidationErrors(`OneOf input object "PetInput" field "dog" cannot use nullable variable "$dog". Variables used in oneOf fields must be non-nullable`))
+				})
+				t.Run("oneOf field with undefined variable should fail validation", func(t *testing.T) {
+					run(t, `
+						mutation AddPet($name: String!) {
+							addPet(pet: { cat: { name: $name, meowVolume: $undefinedVolume } })
+						}
+					`, Values(), Invalid,
+						withValidationErrors(`variable "$undefinedVolume" is not defined on operation`))
+				})
+
+			})
 		})
 		t.Run("5.6.2 Input Object Field Names", func(t *testing.T) {
 			t.Run("147", func(t *testing.T) {
@@ -3567,7 +3650,8 @@ type Query {
 										isHousetrained(atOtherHomes: $atOtherHomes)
 									}
 								}`,
-					AllVariableUsesDefined(), Invalid)
+					AllVariableUsesDefined(), Invalid,
+					withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 			})
 			t.Run("160", func(t *testing.T) {
 				run(t, `query variableIsDefinedUsedInSingleFragment($atOtherHomes: Boolean) {
@@ -3589,7 +3673,8 @@ type Query {
 								fragment isHousetrainedFragment on Dog {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
-					AllVariableUsesDefined(), Invalid)
+					AllVariableUsesDefined(), Invalid,
+					withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 			})
 			t.Run("162", func(t *testing.T) {
 				run(t, `query variableIsNotDefinedUsedInNestedFragment {
@@ -3603,7 +3688,8 @@ type Query {
 								fragment isHousetrainedFragment on Dog {
 									isHousetrained(atOtherHomes: $atOtherHomes)
 								}`,
-					AllVariableUsesDefined(), Invalid)
+					AllVariableUsesDefined(), Invalid,
+					withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 				t.Run("163", func(t *testing.T) {
 					run(t, `query housetrainedQueryOne($atOtherHomes: Boolean) {
 										dog {
@@ -3634,7 +3720,8 @@ type Query {
 									fragment isHousetrainedFragment on Dog {
 										isHousetrained(atOtherHomes: $atOtherHomes)
 									}`,
-						AllVariableUsesDefined(), Invalid)
+						AllVariableUsesDefined(), Invalid,
+						withValidationErrors(`variable: atOtherHomes not defined on argument: atOtherHomes`))
 				})
 			})
 		})
@@ -4009,6 +4096,52 @@ type Query {
 					withValidationErrors(
 						`Variable "$a" of type "Boolean" used in position expecting type "[String]"`,
 					))
+			})
+			t.Run("undefined variable in nullable input object field", func(t *testing.T) {
+				run(t, `
+					query findDog($name: String!) {
+						findDog(complex: { name: $name, owner: $undefinedVar })
+					}
+				`, Values(), Invalid,
+					withValidationErrors(`variable "$undefinedVar" is not defined on operation, locations: [{Line:3 Column:46}]`))
+			})
+			t.Run("undefined variable in non-nullable input object field", func(t *testing.T) {
+				run(t, `
+					query findDog($name: String!) {
+						findDogNonOptional(complex: { name: $undefinedVar })
+					}
+				`, Values(), Invalid,
+					withValidationErrors(`variable "$undefinedVar" is not defined on operation, locations: [{Line:3 Column:43}]`))
+			})
+
+			t.Run("variables for OneOf fields must be non-nullable", func(t *testing.T) {
+				t.Run("non-nullable var", func(t *testing.T) {
+					run(t, `
+						mutation addCat($cat: CatInput!) {
+							addPet(pet: { cat: $cat }) {
+								name
+							}
+						}
+						`, Values(), Valid)
+				})
+				t.Run("non-nullable var with default", func(t *testing.T) {
+					run(t, `
+						mutation addCatWithDefault($cat: CatInput! = { name: "black" }) {
+							addPet(pet: { cat: $cat }) {
+								name
+							}
+						}
+						`, Values(), Valid)
+				})
+				t.Run("nullable cat", func(t *testing.T) {
+					run(t, `
+						mutation addNullableCat($cat: CatInput) {
+							addPet(pet: { cat: $cat }) {
+								name
+							}
+						}
+						`, Values(), Invalid, withValidationErrors(`OneOf input object "PetInput" field "cat" cannot use nullable variable "$cat". Variables used in oneOf fields must be non-nullable`))
+				})
 			})
 
 			t.Run("nested variable with a list type validation", func(t *testing.T) {
@@ -4946,6 +5079,25 @@ type Subscription {
 
 type Mutation {
 	mutateDog: Dog
+    addPet(pet: PetInput!): Pet
+    addPets(pets: [PetInput!]!): [Pet]
+}
+
+input CatInput {
+    name: String!
+    nickname: String
+    meowVolume: Int
+}
+
+input DogInput {
+    name: String!
+    nickname: String
+    barkVolume: Int
+}
+
+input PetInput @oneOf {
+    cat: CatInput
+    dog: DogInput
 }
 
 input ComplexInput { name: String, owner: String, optionalListOfOptionalStrings: [String]}
@@ -5137,6 +5289,13 @@ directive @deprecated(
     """
     reason: String = "No longer supported"
 ) on FIELD_DEFINITION | ENUM_VALUE
+
+"""
+The @oneOf built-in directive marks an input object as a OneOf Input Object.
+Exactly one field must be provided and its value must be non-null at runtime.
+All fields defined within a @oneOf input must be nullable in the schema.
+"""
+directive @oneOf on INPUT_OBJECT
 
 """
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
