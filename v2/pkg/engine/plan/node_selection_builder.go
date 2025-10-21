@@ -58,7 +58,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 		newFieldRefs:                  make(map[int]struct{}),
 	}
 
-	nodeSelectionsWalker.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
+	nodeSelectionsWalker.RegisterDocumentVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterFieldVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterEnterOperationVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterSelectionSetVisitor(nodeSelectionVisitor)
@@ -125,9 +125,9 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	}
 
 	i := 1
+	hasUnresolvedFields := false
 	// secondary runs to add path for the new required fields
-	for p.nodeSelectionsVisitor.shouldRevisit() {
-
+	for p.nodeSelectionsVisitor.hasNewFields || hasUnresolvedFields {
 		// when we have rewritten a field old node suggestion are not make sense anymore
 		// so we are removing child nodes of the rewritten fields
 		for _, fieldRef := range p.nodeSelectionsVisitor.rewrittenFieldRefs {
@@ -167,15 +167,19 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		i++
 
 		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			p.nodeSelectionsVisitor.hasUnresolvedFields = true
+			hasUnresolvedFields = true
 
 			if i > 100 {
 				report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
 				return
 			}
+
+			continue
+		} else {
+			hasUnresolvedFields = false
 		}
 
-		// TODO: what logic should be here?
+		// if we have revisited operation more than 100 times, we have a bug
 		if i > 100 {
 			report.AddInternalError(fmt.Errorf("something went wrong"))
 			return
@@ -185,8 +189,8 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 	if i == 1 {
 		// if we have not revisited the operation, we need to check if it is resolvable
 		if resolvableReport := p.isResolvable(operation, definition, p.nodeSelectionsVisitor.nodeSuggestions); resolvableReport.HasErrors() {
-			p.nodeSelectionsVisitor.hasUnresolvedFields = true
 			report.AddInternalError(fmt.Errorf("could not resolve a field: %v", resolvableReport))
+			return
 		}
 	}
 

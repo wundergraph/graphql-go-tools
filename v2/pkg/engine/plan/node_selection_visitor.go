@@ -43,7 +43,6 @@ type nodeSelectionVisitor struct {
 
 	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
-	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
 	rewrittenFieldRefs []int
 
@@ -68,10 +67,6 @@ func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
 
 type fieldDependencyKey struct {
 	field, dependsOn int
-}
-
-func (c *nodeSelectionVisitor) shouldRevisit() bool {
-	return c.hasNewFields || c.hasUnresolvedFields
 }
 
 type fieldIndexKey struct {
@@ -135,7 +130,6 @@ func (c *nodeSelectionVisitor) debugPrint(args ...any) {
 
 func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document) {
 	c.hasNewFields = false
-	c.hasUnresolvedFields = false
 	c.rewrittenFieldRefs = c.rewrittenFieldRefs[:0]
 
 	if c.selectionSetRefs == nil {
