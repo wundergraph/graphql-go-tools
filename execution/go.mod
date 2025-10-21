@@ -17,7 +17,7 @@ require (
 	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
 	github.com/wundergraph/cosmo/composition-go v0.0.0-20241020204711-78f240a77c99
 	github.com/wundergraph/cosmo/router v0.0.0-20251013094319-c611abf26b17
-	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.230
+	github.com/wundergraph/graphql-go-tools/v2 v2.0.0-rc.231
 	go.uber.org/atomic v1.11.0
 	google.golang.org/grpc v1.68.1
 	google.golang.org/protobuf v1.36.9
@@ -61,15 +61,15 @@ require (
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/urfave/cli/v2 v2.27.7 // indirect
-	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
+	github.com/xrash/smetrics v0.0.0-20250705151800-55b8f293f342 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/mod v0.28.0 // indirect
-	golang.org/x/net v0.44.0 // indirect
+	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
-	golang.org/x/tools v0.37.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
 	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
