@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.231](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.230...v2.0.0-rc.231) (2025-10-20)
+
+
+### Features
+
+* support the oneOf directive ([#1308](https://github.com/wundergraph/graphql-go-tools/issues/1308)) ([251cb02](https://github.com/wundergraph/graphql-go-tools/commit/251cb029a9e232f522ab3260db3d80942222ed2c))
+
 ## [2.0.0-rc.230](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.229...v2.0.0-rc.230) (2025-10-09)
 
 
