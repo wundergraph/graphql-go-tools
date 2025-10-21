@@ -1,12 +1,10 @@
 # Directive for gRPC field resolvers
-directive @configureResolver(context: openfed__FieldSet!) on FIELD_DEFINITION
-
 type Product @key(fields: "id") {
   id: ID!
   name: String!
   price: Float!
-  shippingEstimate(input: ShippingEstimateInput!): Float! @configureResolver(context: "id price")
-  recommendedCategory(maxPrice: Int!): Category @configureResolver(context: "id name price")
+  shippingEstimate(input: ShippingEstimateInput!): Float! @connect__configureResolver(context: "id price")
+  recommendedCategory(maxPrice: Int!): Category @connect__configureResolver(context: "id name price")
 }
 
 type Storage @key(fields: "id") {
@@ -20,7 +18,6 @@ type Warehouse @key(fields: "id") {
   name: String!
   location: String!
 }
-
 
 type User {
   id: ID!
@@ -117,10 +114,10 @@ type Category {
   id: ID!
   name: String!
   kind: CategoryKind!
-  productCount(filters: ProductCountFilter): Int! @configureResolver(context: "id name")
+  productCount(filters: ProductCountFilter): Int! @connect__configureResolver(context: "id name")
   subcategories: [Subcategory!]
-  popularityScore(threshold: Int): Int @configureResolver(context: "id")
-  categoryMetrics(metricType: String!): CategoryMetrics @configureResolver(context: "id name")
+  popularityScore(threshold: Int): Int @connect__configureResolver(context: "id")
+  categoryMetrics(metricType: String!): CategoryMetrics @connect__configureResolver(context: "id name")
 }
 
 type Subcategory {
@@ -128,7 +125,7 @@ type Subcategory {
   name: String!
   description: String
   isActive: Boolean!
-  itemCount(filters: SubcategoryItemFilter): Int! @configureResolver(context: "id")
+  itemCount(filters: SubcategoryItemFilter): Int! @connect__configureResolver(context: "id")
 }
 
 type CategoryMetrics {
@@ -449,8 +446,9 @@ type Mutation {
   bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
 }
 
-
-
 union _Entity = Product | Storage | Warehouse
 scalar _Any
 scalar openfed__FieldSet
+
+scalar connect__FieldSet
+directive @connect__configureResolver(context: connect__FieldSet!) on FIELD_DEFINITION

@@ -16,7 +16,7 @@ const (
 	knownTypeOptionalFieldValueName = "value"
 
 	// resolverContextDirectiveName is the name of the directive that is used to configure the resolver context.
-	resolverContextDirectiveName = "configureResolver"
+	resolverContextDirectiveName = "connect__configureResolver"
 )
 
 // OneOfType represents the type of a oneof field in a protobuf message.
