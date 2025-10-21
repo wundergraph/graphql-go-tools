@@ -3,6 +3,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/position"
@@ -240,4 +241,10 @@ func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
 		fieldNames = append(fieldNames, d.FieldNameString(d.Selections[fieldSelectionRef].Ref))
 	}
 	return
+}
+
+// SelectionSetFieldSetString returns a string of the field names in the selection set separated by a space
+// Example: "{ name status }" -> "name status"
+func (d *Document) SelectionSetFieldSetString(set int) string {
+	return strings.Join(d.SelectionSetFieldNames(set), " ")
 }

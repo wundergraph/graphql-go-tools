@@ -632,7 +632,7 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 	}
 
 	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
-	contextData := p.resolveContextData(context[0], contextRPCField)
+	contextData := p.resolveContextData(context[0], contextRPCField) // TODO handle multiple contexts (resolver requires another resolver)
 
 	for _, data := range contextData {
 		val := contextList.NewElement()
