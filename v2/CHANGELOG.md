@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.232](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.231...v2.0.0-rc.232) (2025-10-22)
+
+
+### Bug Fixes
+
+* correct SSE datasource complete behaviour ([#1311](https://github.com/wundergraph/graphql-go-tools/issues/1311)) ([18c39e7](https://github.com/wundergraph/graphql-go-tools/commit/18c39e7d7e42086bb710d7dc757e32c4eeed94f9))
+
 ## [2.0.0-rc.231](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.230...v2.0.0-rc.231) (2025-10-20)
 
 
