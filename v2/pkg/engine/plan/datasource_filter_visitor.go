@@ -108,7 +108,9 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 		node, ok := f.nodes.responseTree.Find(treeNodeID)
 		if !ok {
-			panic("node not found")
+			// no such node in the tree
+			// we may removed it as orphaned
+			continue
 		}
 
 		nodeData := node.GetData()
