@@ -125,7 +125,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 				response, err := builder.marshalResponseJSON(&a, &serviceCall.RPC.Response, serviceCall.Output)
 				if err != nil {
-					return nil
+					return err
 				}
 
 				// In case of a federated response, we need to ensure that the response is valid.
