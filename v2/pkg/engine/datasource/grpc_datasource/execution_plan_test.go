@@ -50,16 +50,29 @@ func runTest(t *testing.T, testCase testCase) {
 	}
 }
 
+// buildPath builds a path from a string which is a dot-separated list of field names.
 func buildPath(path string) ast.Path {
-	pathElements := strings.Split(path, ".")
-	pathItems := make([]ast.PathItem, 0, len(pathElements))
-	for _, element := range pathElements {
-		pathItems = append(pathItems, ast.PathItem{
-			Kind:      ast.FieldName,
-			FieldName: []byte(element),
-		})
+	b := make([]byte, len(path))
+	copy(b, path)
+	n := 1
+	for i := 0; i < len(b); i++ {
+		if b[i] == '.' {
+			n++
+		}
 	}
-	return pathItems
+	items := make([]ast.PathItem, n)
+	start, seg := 0, 0
+	for i := 0; i <= len(b); i++ {
+		if i == len(b) || b[i] == '.' {
+			items[seg] = ast.PathItem{
+				Kind:      ast.FieldName,
+				FieldName: b[start:i],
+			}
+			seg++
+			start = i + 1
+		}
+	}
+	return items
 }
 
 func TestQueryExecutionPlans(t *testing.T) {

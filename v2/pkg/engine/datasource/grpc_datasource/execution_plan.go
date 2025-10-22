@@ -923,8 +923,8 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 			return nil, err
 		}
 
-		contextMessage.Fields = make(RPCFields, 0, len(resolvedField.contextFields))
-		for _, contextField := range resolvedField.contextFields {
+		contextMessage.Fields = make(RPCFields, len(resolvedField.contextFields))
+		for i := range resolvedField.contextFields {
 			typeDefNode, found := r.definition.NodeByNameStr(r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
 			if !found {
 				return nil, fmt.Errorf("type definition node not found for type: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
@@ -932,29 +932,29 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 
 			field, err := r.buildField(
 				typeDefNode,
-				contextField.fieldRef,
-				r.definition.FieldDefinitionNameString(contextField.fieldRef),
+				resolvedField.contextFields[i].fieldRef,
+				r.definition.FieldDefinitionNameString(resolvedField.contextFields[i].fieldRef),
 				"",
 			)
 
-			field.ResolvePath = contextField.resolvePath
+			field.ResolvePath = resolvedField.contextFields[i].resolvePath
 
 			if err != nil {
 				return nil, err
 			}
 
-			contextMessage.Fields = append(contextMessage.Fields, field)
+			contextMessage.Fields[i] = field
 		}
 
-		fieldArgsMessage.Fields = make(RPCFields, 0, len(resolvedField.fieldArguments))
-		for _, fieldArgument := range resolvedField.fieldArguments {
-			field, err := r.createRPCFieldFromFieldArgument(fieldArgument)
+		fieldArgsMessage.Fields = make(RPCFields, len(resolvedField.fieldArguments))
+		for i := range resolvedField.fieldArguments {
+			field, err := r.createRPCFieldFromFieldArgument(resolvedField.fieldArguments[i])
 
 			if err != nil {
 				return nil, err
 			}
 
-			fieldArgsMessage.Fields = append(fieldArgsMessage.Fields, field)
+			fieldArgsMessage.Fields[i] = field
 		}
 
 		calls = append(calls, call)

@@ -7,13 +7,13 @@ import (
 	"strings"
 
 	"github.com/bufbuild/protocompile"
-	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	protoref "google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -123,8 +123,11 @@ type Document struct {
 
 // newNode creates a new node in the document.
 func (d *Document) newNode(ref int, name string, kind NodeKind) {
-	h := xxhash.Sum64String(name)
-	d.nodes[h] = node{
+	digest := pool.Hash64.Get()
+	defer pool.Hash64.Put(digest)
+	_, _ = digest.WriteString(name)
+
+	d.nodes[digest.Sum64()] = node{
 		ref:  ref,
 		kind: kind,
 	}
@@ -133,8 +136,11 @@ func (d *Document) newNode(ref int, name string, kind NodeKind) {
 // nodeByName returns a node by its name.
 // Returns false if the node does not exist.
 func (d *Document) nodeByName(name string) (node, bool) {
-	h := xxhash.Sum64String(name)
-	node, exists := d.nodes[h]
+	digest := pool.Hash64.Get()
+	defer pool.Hash64.Put(digest)
+	_, _ = digest.WriteString(name)
+
+	node, exists := d.nodes[digest.Sum64()]
 	return node, exists
 }
 
@@ -833,21 +839,22 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 	}
 
 	itemsList := itemsValue.List()
-	if itemsList.Len() == 0 {
+	itemsListLen := itemsList.Len()
+	if itemsListLen == 0 {
 		return nil
 	}
 
 	if nestingLevel > 1 {
-		items := make([]protoref.Value, 0, itemsList.Len())
-		for i := 0; i < itemsList.Len(); i++ {
+		items := make([]protoref.Value, 0, itemsListLen)
+		for i := 0; i < itemsListLen; i++ {
 			items = append(items, p.resolveUnderlyingListItems(itemsList.Get(i), nestingLevel-1)...)
 		}
 
 		return items
 	}
 
-	result := make([]protoref.Value, itemsList.Len())
-	for i := 0; i < itemsList.Len(); i++ {
+	result := make([]protoref.Value, itemsListLen)
+	for i := 0; i < itemsListLen; i++ {
 		result[i] = itemsList.Get(i)
 	}
 

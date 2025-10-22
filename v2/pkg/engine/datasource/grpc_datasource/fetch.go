@@ -2,7 +2,6 @@ package grpcdatasource
 
 import (
 	"fmt"
-	"sync"
 )
 
 // FetchItem is a single fetch item in the execution plan.
@@ -17,7 +16,6 @@ type FetchItem struct {
 // DependencyGraph is a graph of the calls in the execution plan.
 // It is used to determine the order in which to execute the calls.
 type DependencyGraph struct {
-	mu      sync.Mutex
 	fetches []FetchItem
 	// nodes is a list of lists of dependent calls.
 	// Each node index corresponds to a call index in the execution plan
@@ -160,9 +158,7 @@ func (g *DependencyGraph) FetchDependencies(fetch *FetchItem) ([]FetchItem, erro
 
 // SetFetchData sets the service call for a given index.
 func (g *DependencyGraph) SetFetchData(index int, serviceCall *ServiceCall) {
-	g.mu.Lock()
 	g.fetches[index].ServiceCall = serviceCall
-	g.mu.Unlock()
 }
 
 // initializeSlice initializes a slice with a given length and a given value.
