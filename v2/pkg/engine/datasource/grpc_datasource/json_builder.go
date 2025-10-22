@@ -246,8 +246,8 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 		responseValues = append(responseValues, values...)
 	}
 
-	if len(resolvedValues) < len(responseValues) {
-		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(responseValues), len(resolvedValues))
+	if len(resolvedValues) != len(responseValues) {
+		return fmt.Errorf("length of values doesn't match the length of the result array, expected %d, got %d", len(resolvedValues), len(responseValues))
 	}
 
 	for i := range responseValues {
