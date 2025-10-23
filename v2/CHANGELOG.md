@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.233](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.232...v2.0.0-rc.233) (2025-10-23)
+
+
+### Bug Fixes
+
+* omit introspection queries from complexity limits ([#1332](https://github.com/wundergraph/graphql-go-tools/issues/1332)) ([971a239](https://github.com/wundergraph/graphql-go-tools/commit/971a239d0ddc8b2378f81af82f0457f8eeea0db3))
+
 ## [2.0.0-rc.232](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.231...v2.0.0-rc.232) (2025-10-22)
 
 
