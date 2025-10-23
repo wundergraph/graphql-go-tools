@@ -71,9 +71,9 @@ func TestCalculateOperationComplexity(t *testing.T) {
 		run(t, testDefinition, `
 				{
 				  activeUsers {
-					id
-					balance
-					name
+				    id
+				    balance
+				    name
 				  }
 				}`,
 			OperationStats{
