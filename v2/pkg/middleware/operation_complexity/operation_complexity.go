@@ -50,8 +50,8 @@ var (
 
 const (
 	skipIntrospection = true
-	dashSchema        = "__schema"
-	dashType          = "__type"
+	__schemaLiteral   = "__schema"
+	__typeLiteral     = "__type"
 )
 
 type OperationComplexityEstimator struct {
@@ -199,7 +199,7 @@ func (c *complexityVisitor) EnterField(ref int) {
 	}
 
 	typeName, fieldName, alias := c.extractFieldRelatedNames(ref, definition)
-	if skipIntrospection && (fieldName == dashSchema || fieldName == dashType) {
+	if skipIntrospection && (fieldName == __schemaLiteral || fieldName == __typeLiteral) {
 		c.SkipNode()
 		return
 	}
