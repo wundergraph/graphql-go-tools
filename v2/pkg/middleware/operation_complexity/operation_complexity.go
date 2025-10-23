@@ -20,7 +20,10 @@ To help the algorithm understand the schema make use of these two directives:
 should be used as a Node multiplier.
 
 "nodeCountSkip" indicates that the algorithm should skip this Node.
-It can be used to allowlist certain query paths, e.g. for introspection.
+It can be used to allowlist certain query paths.
+
+Note: Introspection fields (__schema and __type) are automatically skipped
+from complexity calculations by default.
 */
 package operation_complexity
 
