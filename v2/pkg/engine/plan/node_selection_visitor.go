@@ -714,6 +714,8 @@ func (c *nodeSelectionVisitor) resetVisitedAbstractChecksForModifiedFields(modif
 }
 
 func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]int) {
+	updateKeys := make([]fieldIndexKey, 0, len(c.fieldDependsOn))
+	// update dependencies field refs
 	for key, fieldRefs := range c.fieldDependsOn {
 		updatedFieldRefs := make([]int, 0, len(fieldRefs))
 		for _, fieldRef := range fieldRefs {
@@ -725,8 +727,24 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 		}
 
 		c.fieldDependsOn[key] = updatedFieldRefs
+
+		if newFieldRefs := changedFieldRefs[key.fieldRef]; newFieldRefs != nil {
+			updateKeys = append(updateKeys, key)
+		}
 	}
 
+	// update dependent fields which had their field refs changed
+	for _, key := range updateKeys {
+		newFieldRefs := changedFieldRefs[key.fieldRef]
+		dependentFieldRefs := c.fieldDependsOn[key]
+		delete(c.fieldDependsOn, key)
+		for _, newFieldRef := range newFieldRefs {
+			newKey := fieldIndexKey{fieldRef: newFieldRef, dsHash: key.dsHash}
+			c.fieldDependsOn[newKey] = append(c.fieldDependsOn[newKey], dependentFieldRefs...)
+		}
+	}
+
+	updateFieldRefs := make([]int, 0, len(c.fieldRefDependsOn))
 	for key, fieldRefs := range c.fieldRefDependsOn {
 		updatedFieldRefs := make([]int, 0, len(fieldRefs))
 		for _, fieldRef := range fieldRefs {
@@ -738,6 +756,18 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 		}
 
 		c.fieldRefDependsOn[key] = updatedFieldRefs
+		if newFieldRefs := changedFieldRefs[key]; newFieldRefs != nil {
+			updateFieldRefs = append(updateFieldRefs, key)
+		}
+	}
+
+	for _, key := range updateFieldRefs {
+		newFieldRefs := changedFieldRefs[key]
+		dependentFieldRefs := c.fieldRefDependsOn[key]
+		delete(c.fieldRefDependsOn, key)
+		for _, newFieldRef := range newFieldRefs {
+			c.fieldRefDependsOn[newFieldRef] = append(c.fieldRefDependsOn[newFieldRef], dependentFieldRefs...)
+		}
 	}
 
 	for _, newRefs := range changedFieldRefs {
