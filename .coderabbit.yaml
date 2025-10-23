@@ -15,5 +15,8 @@ reviews:
   path_filters:
     # Exclude these paths (prefix with !)
     - "!pkg/**"
+  pre_merge_checks:
+    docstrings:
+      mode: off
 chat:
   art: false
