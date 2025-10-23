@@ -276,6 +276,11 @@ func (p *printVisitor) LeaveArgument(ref int) {
 
 func (p *printVisitor) EnterOperationDefinition(ref int) {
 
+	if p.document.OperationDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.OperationDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.LINETERMINATOR)
+	}
+
 	hasName := p.document.OperationDefinitions[ref].Name.Length() > 0
 	hasVariables := p.document.OperationDefinitions[ref].HasVariableDefinitions
 

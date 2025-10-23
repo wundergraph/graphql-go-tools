@@ -34,6 +34,7 @@ func (t OperationType) Name() string {
 }
 
 type OperationDefinition struct {
+	Description            Description        // optional, describes the operation
 	OperationType          OperationType      // one of query, mutation, subscription
 	OperationTypeLiteral   position.Position  // position of the operation type literal, if present
 	Name                   ByteSliceReference // optional, user defined name of the operation
@@ -61,6 +62,14 @@ func (d *Document) OperationDefinitionNameBytes(ref int) ByteSlice {
 
 func (d *Document) OperationDefinitionNameString(ref int) string {
 	return unsafebytes.BytesToString(d.Input.ByteSlice(d.OperationDefinitions[ref].Name))
+}
+
+func (d *Document) OperationDefinitionDescriptionBytes(ref int) ByteSlice {
+	return d.Input.ByteSlice(d.OperationDefinitions[ref].Description.Content)
+}
+
+func (d *Document) OperationDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.Input.ByteSlice(d.OperationDefinitions[ref].Description.Content))
 }
 
 func (d *Document) AddOperationDefinitionToRootNodes(definition OperationDefinition) Node {

@@ -751,8 +751,10 @@ func (p *Parser) parseRootDescription() {
 		p.parseExtension()
 	case identkeyword.SCHEMA:
 		p.parseSchemaDefinition(&description)
+	case identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION:
+		p.parseOperationDefinitionWithDescription(&description)
 	default:
-		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE)
+		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
 	}
 }
 
@@ -1465,8 +1467,16 @@ func (p *Parser) parseTypeCondition() (typeCondition ast.TypeCondition) {
 }
 
 func (p *Parser) parseOperationDefinition() {
+	p.parseOperationDefinitionWithDescription(nil)
+}
+
+func (p *Parser) parseOperationDefinitionWithDescription(description *ast.Description) {
 
 	var operationDefinition ast.OperationDefinition
+
+	if description != nil {
+		operationDefinition.Description = *description
+	}
 
 	next, literal := p.peekLiteral()
 	switch next {

@@ -1986,6 +1986,122 @@ func TestParser_Parse(t *testing.T) {
 					  role#comment
 					}#comment`, parse, false)
 		})
+
+		t.Run("query with description", func(t *testing.T) {
+			run(`"Fetches a user by ID" query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if !query.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(query.Description.Content)
+					if description != "Fetches a user by ID" {
+						panic(fmt.Errorf("want 'Fetches a user by ID', got '%s'", description))
+					}
+					if doc.Input.ByteSliceString(query.Name) != "GetUser" {
+						panic("want GetUser")
+					}
+				})
+		})
+
+		t.Run("query with block string description", func(t *testing.T) {
+			run(`"""
+Fetches a user by their unique identifier.
+This operation returns detailed user information.
+"""
+query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if !query.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					if !query.Description.IsBlockString {
+						panic("want block string description")
+					}
+					description := doc.Input.ByteSliceString(query.Description.Content)
+					expected := "Fetches a user by their unique identifier.\nThis operation returns detailed user information."
+					if description != expected {
+						panic(fmt.Errorf("want '%s', got '%s'", expected, description))
+					}
+				})
+		})
+
+		t.Run("mutation with description", func(t *testing.T) {
+			run(`"Creates a new user" mutation CreateUser($input: UserInput!) { createUser(input: $input) { id } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					mutation := doc.OperationDefinitions[0]
+					if mutation.OperationType != ast.OperationTypeMutation {
+						panic("want OperationTypeMutation")
+					}
+					if !mutation.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(mutation.Description.Content)
+					if description != "Creates a new user" {
+						panic(fmt.Errorf("want 'Creates a new user', got '%s'", description))
+					}
+				})
+		})
+
+		t.Run("subscription with description", func(t *testing.T) {
+			run(`"""Subscribes to user updates""" subscription UserUpdated($userId: ID!) { userUpdated(userId: $userId) { id } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					subscription := doc.OperationDefinitions[0]
+					if subscription.OperationType != ast.OperationTypeSubscription {
+						panic("want OperationTypeSubscription")
+					}
+					if !subscription.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(subscription.Description.Content)
+					if description != "Subscribes to user updates" {
+						panic(fmt.Errorf("want 'Subscribes to user updates', got '%s'", description))
+					}
+				})
+		})
+
+		t.Run("multiple operations with and without descriptions", func(t *testing.T) {
+			run(`
+"Get user query"
+query GetUser { user { id } }
+
+mutation CreateUser { createUser { id } }
+
+"Subscribe to updates"
+subscription Updates { updates { id } }
+`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					// First operation with description
+					query := doc.OperationDefinitions[0]
+					if !query.Description.IsDefined {
+						panic("want first operation description to be defined")
+					}
+					if doc.Input.ByteSliceString(query.Description.Content) != "Get user query" {
+						panic("want 'Get user query'")
+					}
+
+					// Second operation without description
+					mutation := doc.OperationDefinitions[1]
+					if mutation.Description.IsDefined {
+						panic("want second operation description to not be defined")
+					}
+
+					// Third operation with description
+					subscription := doc.OperationDefinitions[2]
+					if !subscription.Description.IsDefined {
+						panic("want third operation description to be defined")
+					}
+					if doc.Input.ByteSliceString(subscription.Description.Content) != "Subscribe to updates" {
+						panic("want 'Subscribe to updates'")
+					}
+				})
+		})
 	})
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
