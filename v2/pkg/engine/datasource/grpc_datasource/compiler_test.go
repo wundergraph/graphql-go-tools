@@ -209,23 +209,23 @@ func TestBuildProtoMessage(t *testing.T) {
 					Name: "LookupProductByIdRequest",
 					Fields: []RPCField{
 						{
-							Name:     "inputs",
-							TypeName: string(DataTypeMessage),
-							Repeated: true,
-							JSONPath: "representations", // Path to extract data from GraphQL variables
+							Name:          "inputs",
+							ProtoTypeName: DataTypeMessage,
+							Repeated:      true,
+							JSONPath:      "representations", // Path to extract data from GraphQL variables
 							Message: &RPCMessage{
 								Name: "LookupProductByIdInput",
 								Fields: []RPCField{
 									{
-										Name:     "key",
-										TypeName: string(DataTypeMessage),
+										Name:          "key",
+										ProtoTypeName: DataTypeMessage,
 										Message: &RPCMessage{
 											Name: "ProductByIdKey",
 											Fields: []RPCField{
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id", // Extract 'id' from each representation
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id", // Extract 'id' from each representation
 												},
 											},
 										},
@@ -240,33 +240,33 @@ func TestBuildProtoMessage(t *testing.T) {
 					Name: "LookupProductByIdResponse",
 					Fields: []RPCField{
 						{
-							Name:     "results",
-							TypeName: string(DataTypeMessage),
-							Repeated: true,
-							JSONPath: "results",
+							Name:          "results",
+							ProtoTypeName: DataTypeMessage,
+							Repeated:      true,
+							JSONPath:      "results",
 							Message: &RPCMessage{
 								Name: "LookupProductByIdResult",
 								Fields: []RPCField{
 									{
-										Name:     "product",
-										TypeName: string(DataTypeMessage),
+										Name:          "product",
+										ProtoTypeName: DataTypeMessage,
 										Message: &RPCMessage{
 											Name: "Product",
 											Fields: []RPCField{
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
 												},
 											},
 										},
@@ -307,47 +307,47 @@ func TestCompileNestedLists(t *testing.T) {
 					Name: "QueryCalculateTotalsRequest",
 					Fields: []RPCField{
 						{
-							Name:     "orders",
-							TypeName: string(DataTypeMessage),
-							JSONPath: "orders",
-							Repeated: true,
+							Name:          "orders",
+							ProtoTypeName: DataTypeMessage,
+							JSONPath:      "orders",
+							Repeated:      true,
 							Message: &RPCMessage{
 								Name: "OrderInput",
 								Fields: []RPCField{
 									{
-										Name:     "order_id",
-										TypeName: string(DataTypeString),
-										JSONPath: "orderId",
+										Name:          "order_id",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "orderId",
 									},
 									{
-										Name:     "customer_name",
-										TypeName: string(DataTypeString),
-										JSONPath: "customerName",
+										Name:          "customer_name",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "customerName",
 									},
 									{
-										Name:     "lines",
-										TypeName: string(DataTypeMessage),
-										JSONPath: "lines",
-										Repeated: true,
+										Name:          "lines",
+										ProtoTypeName: DataTypeMessage,
+										JSONPath:      "lines",
+										Repeated:      true,
 										Message: &RPCMessage{
 											Name: "OrderLineInput",
 											Fields: []RPCField{
 												{
-													Name:     "product_id",
-													TypeName: string(DataTypeString),
-													JSONPath: "productId",
+													Name:          "product_id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "productId",
 												},
 												{
-													Name:     "quantity",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "quantity",
+													Name:          "quantity",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "quantity",
 												},
 												{
-													Name:       "modifiers",
-													TypeName:   string(DataTypeString),
-													JSONPath:   "modifiers",
-													Optional:   true,
-													IsListType: true,
+													Name:          "modifiers",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "modifiers",
+													Optional:      true,
+													IsListType:    true,
 													ListMetadata: &ListMetadata{
 														NestingLevel: 1,
 														LevelInfo: []LevelInfo{
@@ -369,27 +369,27 @@ func TestCompileNestedLists(t *testing.T) {
 					Name: "QueryCalculateTotalsResponse",
 					Fields: []RPCField{
 						{
-							Name:     "calculate_totals",
-							TypeName: string(DataTypeMessage),
-							JSONPath: "calculateTotals",
-							Repeated: true,
+							Name:          "calculate_totals",
+							ProtoTypeName: DataTypeMessage,
+							JSONPath:      "calculateTotals",
+							Repeated:      true,
 							Message: &RPCMessage{
 								Name: "Order",
 								Fields: []RPCField{
 									{
-										Name:     "order_id",
-										TypeName: string(DataTypeString),
-										JSONPath: "orderId",
+										Name:          "order_id",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "orderId",
 									},
 									{
-										Name:     "customer_name",
-										TypeName: string(DataTypeString),
-										JSONPath: "customerName",
+										Name:          "customer_name",
+										ProtoTypeName: DataTypeString,
+										JSONPath:      "customerName",
 									},
 									{
-										Name:     "total_items",
-										TypeName: string(DataTypeInt32),
-										JSONPath: "totalItems",
+										Name:          "total_items",
+										ProtoTypeName: DataTypeInt32,
+										JSONPath:      "totalItems",
 									},
 								},
 							},

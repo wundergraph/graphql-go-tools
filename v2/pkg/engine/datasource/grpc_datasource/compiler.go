@@ -1050,7 +1050,7 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc).List()
 
 	if level >= rpcField.ListMetadata.NestingLevel {
-		switch DataType(rpcField.TypeName) {
+		switch DataType(rpcField.ProtoTypeName) {
 		case DataTypeMessage:
 			itemsFieldMsg, ok := p.doc.MessageByName(rpcField.Message.Name)
 			if !ok {

@@ -438,11 +438,11 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(fc federationConfigData)
 
 	r.planInfo.currentRequestMessage.Fields = []RPCField{
 		{
-			Name:     "keys",
-			TypeName: DataTypeMessage.String(),
-			Repeated: true, // The inputs are always a list of objects
-			JSONPath: "representations",
-			Message:  keyFieldMessage,
+			Name:          "keys",
+			ProtoTypeName: DataTypeMessage,
+			Repeated:      true, // The inputs are always a list of objects
+			JSONPath:      "representations",
+			Message:       keyFieldMessage,
 		},
 	}
 
@@ -450,10 +450,10 @@ func (r *rpcPlanVisitorFederation) scaffoldEntityLookup(fc federationConfigData)
 	// As this is a special case we directly map it to _entities.
 	r.planInfo.currentResponseMessage.Fields = []RPCField{
 		{
-			Name:     "result",
-			TypeName: DataTypeMessage.String(),
-			JSONPath: "_entities",
-			Repeated: true,
+			Name:          "result",
+			ProtoTypeName: DataTypeMessage,
+			JSONPath:      "_entities",
+			Repeated:      true,
 		},
 	}
 }

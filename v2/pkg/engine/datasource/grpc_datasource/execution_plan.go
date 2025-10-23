@@ -17,6 +17,9 @@ const (
 
 	// resolverContextDirectiveName is the name of the directive that is used to configure the resolver context.
 	resolverContextDirectiveName = "connect__fieldResolver"
+
+	// typenameFieldName is the name of the field that is used to store the typename of the object.
+	typenameFieldName = "__typename"
 )
 
 // OneOfType represents the type of a oneof field in a protobuf message.
@@ -127,15 +130,15 @@ func (r *RPCMessage) SelectValidTypes(typeName string) []string {
 }
 
 func (r *RPCMessage) AppendTypeNameField(typeName string) {
-	if r.Fields != nil && r.Fields.Exists("__typename", "") {
+	if r.Fields != nil && r.Fields.Exists(typenameFieldName, "") {
 		return
 	}
 
 	r.Fields = append(r.Fields, RPCField{
-		Name:        "__typename",
-		TypeName:    DataTypeString.String(),
-		StaticValue: typeName,
-		JSONPath:    "__typename",
+		Name:          typenameFieldName,
+		ProtoTypeName: DataTypeString,
+		StaticValue:   typeName,
+		JSONPath:      typenameFieldName,
 	})
 }
 
@@ -187,8 +190,8 @@ type RPCField struct {
 	Repeated bool
 	// Name is the name of the field as defined in the protobuf message
 	Name string
-	// TypeName is the name of the type of the field in the protobuf definition
-	TypeName string
+	// ProtoTypeName is the name of the type of the field in the protobuf definition
+	ProtoTypeName DataType
 	// JSONPath either holds the path to the variable definition for the request message,
 	// or defines the name of the response field in the message.
 	JSONPath string
@@ -234,11 +237,11 @@ func (r *RPCField) ToOptionalTypeMessage(protoName string) *RPCMessage {
 		Name: protoName,
 		Fields: RPCFields{
 			RPCField{
-				Name:     knownTypeOptionalFieldValueName,
-				JSONPath: r.JSONPath,
-				TypeName: r.TypeName,
-				Repeated: r.Repeated,
-				EnumName: r.EnumName,
+				Name:          knownTypeOptionalFieldValueName,
+				JSONPath:      r.JSONPath,
+				ProtoTypeName: r.ProtoTypeName,
+				Repeated:      r.Repeated,
+				EnumName:      r.EnumName,
 			},
 		},
 	}
@@ -255,7 +258,7 @@ func (r *RPCField) AliasOrPath() string {
 
 // IsOptionalScalar checks if the field is an optional scalar value.
 func (r *RPCField) IsOptionalScalar() bool {
-	return r.Optional && r.TypeName != string(DataTypeMessage)
+	return r.Optional && r.ProtoTypeName != DataTypeMessage
 }
 
 // RPCFields is a list of RPCFields that provides helper methods
@@ -356,7 +359,7 @@ func formatRPCMessage(sb *strings.Builder, message RPCMessage, indent int) {
 
 	for _, field := range message.Fields {
 		fmt.Fprintf(sb, "%s  - Name: %s\n", indentStr, field.Name)
-		fmt.Fprintf(sb, "%s    TypeName: %s\n", indentStr, field.TypeName)
+		fmt.Fprintf(sb, "%s    TypeName: %s\n", indentStr, field.ProtoTypeName)
 		fmt.Fprintf(sb, "%s    Repeated: %v\n", indentStr, field.Repeated)
 		fmt.Fprintf(sb, "%s    JSONPath: %s\n", indentStr, field.JSONPath)
 
@@ -529,11 +532,11 @@ func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fiel
 	parentTypeName := enclosingTypeNode.NameString(r.definition)
 
 	field := RPCField{
-		Name:     r.resolveFieldMapping(parentTypeName, fieldName),
-		Alias:    fieldAlias,
-		Optional: !r.definition.TypeIsNonNull(fdt),
-		JSONPath: fieldName,
-		TypeName: typeName.String(),
+		Name:          r.resolveFieldMapping(parentTypeName, fieldName),
+		Alias:         fieldAlias,
+		Optional:      !r.definition.TypeIsNonNull(fdt),
+		JSONPath:      fieldName,
+		ProtoTypeName: typeName,
 	}
 
 	if r.definition.TypeIsList(fdt) {
@@ -557,7 +560,7 @@ func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fiel
 		field.EnumName = r.definition.FieldDefinitionTypeNameString(fd)
 	}
 
-	if fieldName == "__typename" {
+	if fieldName == typenameFieldName {
 		field.StaticValue = parentTypeName
 	}
 
@@ -673,10 +676,10 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 
 func (r *rpcPlanningContext) buildInputMessageField(typeRef int, fieldName, jsonPath string, dt DataType) (RPCField, error) {
 	field := RPCField{
-		Name:     fieldName,
-		Optional: !r.definition.TypeIsNonNull(typeRef),
-		TypeName: dt.String(),
-		JSONPath: jsonPath,
+		Name:          fieldName,
+		Optional:      !r.definition.TypeIsNonNull(typeRef),
+		ProtoTypeName: dt,
+		JSONPath:      jsonPath,
 	}
 
 	if r.definition.TypeIsList(typeRef) {
@@ -984,19 +987,19 @@ func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPC
 		Name: resolveConfig.Response,
 		Fields: RPCFields{
 			{
-				Name:     "result",
-				TypeName: string(DataTypeMessage),
-				JSONPath: "result",
-				Repeated: true,
+				Name:          "result",
+				ProtoTypeName: DataTypeMessage,
+				JSONPath:      "result",
+				Repeated:      true,
 				Message: &RPCMessage{
 					Name: resolveConfig.RPC + "Result",
 					Fields: RPCFields{
 						{
-							Name:     resolveConfig.FieldMappingData.TargetName,
-							TypeName: string(dataType),
-							JSONPath: config.fieldName,
-							Message:  responseFieldsMessage,
-							Optional: !r.definition.TypeIsNonNull(resolvedField.fieldDefinitionTypeRef),
+							Name:          resolveConfig.FieldMappingData.TargetName,
+							ProtoTypeName: dataType,
+							JSONPath:      config.fieldName,
+							Message:       responseFieldsMessage,
+							Optional:      !r.definition.TypeIsNonNull(resolvedField.fieldDefinitionTypeRef),
 						},
 					},
 				},
@@ -1014,16 +1017,16 @@ func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPC
 			Name: resolveConfig.Request,
 			Fields: RPCFields{
 				{
-					Name:     "context",
-					TypeName: string(DataTypeMessage),
-					Repeated: true,
-					Message:  config.contextMessage,
+					Name:          "context",
+					ProtoTypeName: DataTypeMessage,
+					Repeated:      true,
+					Message:       config.contextMessage,
 				},
 				{
-					Name:     "field_args",
-					TypeName: string(DataTypeMessage),
-					JSONPath: "",
-					Message:  config.fieldArgsMessage,
+					Name:          "field_args",
+					ProtoTypeName: DataTypeMessage,
+					JSONPath:      "",
+					Message:       config.fieldArgsMessage,
 				},
 			},
 		},

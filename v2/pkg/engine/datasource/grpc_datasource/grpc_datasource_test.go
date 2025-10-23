@@ -83,13 +83,14 @@ func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
 
 	b.ReportAllocs()
 	b.ResetTimer()
+	const subgraphName = "Products"
 
 	mapping := testMapping()
 	for b.Loop() {
 		ds, err := NewDataSource(conn, DataSourceConfig{
 			Operation:    &queryDoc,
 			Definition:   &schemaDoc,
-			SubgraphName: "Products",
+			SubgraphName: subgraphName,
 			Compiler:     compiler,
 			Mapping:      mapping,
 		})
@@ -519,33 +520,33 @@ func TestMarshalResponseJSON(t *testing.T) {
 		Name: "LookupProductByIdResponse",
 		Fields: []RPCField{
 			{
-				Name:     "result",
-				TypeName: string(DataTypeMessage),
-				Repeated: true,
-				JSONPath: "_entities",
+				Name:          "result",
+				ProtoTypeName: DataTypeMessage,
+				Repeated:      true,
+				JSONPath:      "_entities",
 				Message: &RPCMessage{
 					Name: "Product",
 					Fields: []RPCField{
 						{
-							Name:        "__typename",
-							TypeName:    string(DataTypeString),
-							JSONPath:    "__typename",
-							StaticValue: "Product",
+							Name:          "__typename",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "__typename",
+							StaticValue:   "Product",
 						},
 						{
-							Name:     "id",
-							TypeName: string(DataTypeString),
-							JSONPath: "id",
+							Name:          "id",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "id",
 						},
 						{
-							Name:     "name",
-							TypeName: string(DataTypeString),
-							JSONPath: "name_different",
+							Name:          "name",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "name_different",
 						},
 						{
-							Name:     "price",
-							TypeName: string(DataTypeDouble),
-							JSONPath: "price_different",
+							Name:          "price",
+							ProtoTypeName: DataTypeDouble,
+							JSONPath:      "price_different",
 						},
 					},
 				},
