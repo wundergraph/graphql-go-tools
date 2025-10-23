@@ -2339,6 +2339,85 @@ subscription Updates { updates { id } }
 					}
 				})
 		})
+
+		t.Run("with description", func(t *testing.T) {
+			run(`"User fields fragment" fragment UserFields on User { id name }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					fragment := doc.FragmentDefinitions[0]
+					if doc.Input.ByteSliceString(fragment.Name) != "UserFields" {
+						panic("want UserFields")
+					}
+					if !fragment.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(fragment.Description.Content)
+					if description != "User fields fragment" {
+						panic(fmt.Errorf("want 'User fields fragment', got '%s'", description))
+					}
+				})
+		})
+
+		t.Run("with block string description", func(t *testing.T) {
+			run(`"""
+This fragment selects user information.
+It demonstrates fragment descriptions in GraphQL.
+"""
+fragment UserInfo on User { id name email }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					fragment := doc.FragmentDefinitions[0]
+					if doc.Input.ByteSliceString(fragment.Name) != "UserInfo" {
+						panic("want UserInfo")
+					}
+					if !fragment.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					if !fragment.Description.IsBlockString {
+						panic("want block string description")
+					}
+					description := doc.Input.ByteSliceString(fragment.Description.Content)
+					expected := "This fragment selects user information.\nIt demonstrates fragment descriptions in GraphQL."
+					if description != expected {
+						panic(fmt.Errorf("want '%s', got '%s'", expected, description))
+					}
+				})
+		})
+
+		t.Run("multiple fragments with and without descriptions", func(t *testing.T) {
+			run(`
+"First fragment"
+fragment Fragment1 on User { id }
+
+fragment Fragment2 on User { name }
+
+"Third fragment"
+fragment Fragment3 on User { email }
+`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					// First fragment with description
+					fragment1 := doc.FragmentDefinitions[0]
+					if !fragment1.Description.IsDefined {
+						panic("want first fragment description to be defined")
+					}
+					if doc.Input.ByteSliceString(fragment1.Description.Content) != "First fragment" {
+						panic("want 'First fragment'")
+					}
+
+					// Second fragment without description
+					fragment2 := doc.FragmentDefinitions[1]
+					if fragment2.Description.IsDefined {
+						panic("want second fragment description to not be defined")
+					}
+
+					// Third fragment with description
+					fragment3 := doc.FragmentDefinitions[2]
+					if !fragment3.Description.IsDefined {
+						panic("want third fragment description to be defined")
+					}
+					if doc.Input.ByteSliceString(fragment3.Description.Content) != "Third fragment" {
+						panic("want 'Third fragment'")
+					}
+				})
+		})
 	})
 	t.Run("index", func(t *testing.T) {
 		run(`

@@ -753,8 +753,10 @@ func (p *Parser) parseRootDescription() {
 		p.parseSchemaDefinition(&description)
 	case identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION:
 		p.parseOperationDefinitionWithDescription(&description)
+	case identkeyword.FRAGMENT:
+		p.parseFragmentDefinitionWithDescription(&description)
 	default:
-		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION)
+		p.errUnexpectedIdentKey(p.read(), next, identkeyword.TYPE, identkeyword.INPUT, identkeyword.SCALAR, identkeyword.INTERFACE, identkeyword.UNION, identkeyword.ENUM, identkeyword.DIRECTIVE, identkeyword.QUERY, identkeyword.MUTATION, identkeyword.SUBSCRIPTION, identkeyword.FRAGMENT)
 	}
 }
 
@@ -1596,7 +1598,16 @@ func (p *Parser) parseDefaultValue() ast.DefaultValue {
 }
 
 func (p *Parser) parseFragmentDefinition() {
+	p.parseFragmentDefinitionWithDescription(nil)
+}
+
+func (p *Parser) parseFragmentDefinitionWithDescription(description *ast.Description) {
 	var fragmentDefinition ast.FragmentDefinition
+
+	if description != nil {
+		fragmentDefinition.Description = *description
+	}
+
 	fragmentDefinition.FragmentLiteral = p.mustReadIdentKey(identkeyword.FRAGMENT).TextPosition
 	fragmentDefinition.Name = p.mustRead(keyword.IDENT).Literal
 	fragmentDefinition.TypeCondition = p.parseTypeCondition()
