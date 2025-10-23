@@ -39,6 +39,7 @@ func TestCalculateOperationComplexity(t *testing.T) {
 		run(t, testDefinition, `
 				{
 				  users(first: 1) {
+					__typename
 					id
 					balance
 					name
@@ -64,6 +65,23 @@ func TestCalculateOperationComplexity(t *testing.T) {
 					},
 				},
 			},
+		)
+	})
+	t.Run("skipped node", func(t *testing.T) {
+		run(t, testDefinition, `
+				{
+				  activeUsers {
+					id
+					balance
+					name
+				  }
+				}`,
+			OperationStats{
+				NodeCount:  0,
+				Complexity: 0,
+				Depth:      0,
+			},
+			[]RootFieldStats{},
 		)
 	})
 	t.Run("one user with inline fragments", func(t *testing.T) {
@@ -592,11 +610,12 @@ input NewUserInput {
 }
 
 type Query {
-	__schema: __Schema! @nodeCountSkip
+	__schema: __Schema!
     user(id: ID!): User
     users(first: Int! @nodeCountMultiply, afterID: ID): [User]
     transactions(first: Int! @nodeCountMultiply, afterID: ID): [Transaction]
     currentPeriod: String
+	activeUsers: [User] @nodeCountSkip
 }
 
 type Mutation {
