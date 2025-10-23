@@ -2919,6 +2919,73 @@ func TestParser_ParseWithLimits(t *testing.T) {
 	})
 }
 
+func TestParseOperationsWithDescriptions(t *testing.T) {
+	operationsFile, err := os.ReadFile("./testdata/operation_with_description.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, report := ParseGraphqlDocumentBytes(operationsFile)
+	if report.HasErrors() {
+		t.Fatal(report)
+	}
+
+	// Verify we parsed all 4 operations
+	require.Len(t, doc.OperationDefinitions, 4)
+
+	// First operation: GetUser with block string description
+	getUserOp := doc.OperationDefinitions[0]
+	assert.True(t, getUserOp.Description.IsDefined, "GetUser should have description")
+	assert.True(t, getUserOp.Description.IsBlockString, "GetUser description should be block string")
+	assert.Contains(t, doc.Input.ByteSliceString(getUserOp.Description.Content), "Fetches a user by their unique identifier")
+
+	// Second operation: CreateUser with single-line description
+	createUserOp := doc.OperationDefinitions[1]
+	assert.True(t, createUserOp.Description.IsDefined, "CreateUser should have description")
+	assert.False(t, createUserOp.Description.IsBlockString, "CreateUser description should be single-line")
+	assert.Equal(t, "Creates a new user account with the provided information", doc.Input.ByteSliceString(createUserOp.Description.Content))
+
+	// Third operation: UserUpdated with block string description
+	userUpdatedOp := doc.OperationDefinitions[2]
+	assert.True(t, userUpdatedOp.Description.IsDefined, "UserUpdated should have description")
+	assert.True(t, userUpdatedOp.Description.IsBlockString, "UserUpdated description should be block string")
+
+	// Fourth operation: GetAllUsers without description (backward compatibility)
+	getAllUsersOp := doc.OperationDefinitions[3]
+	assert.False(t, getAllUsersOp.Description.IsDefined, "GetAllUsers should not have description")
+}
+
+func TestParseFragmentsWithDescriptions(t *testing.T) {
+	fragmentsFile, err := os.ReadFile("./testdata/fragment_with_description.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, report := ParseGraphqlDocumentBytes(fragmentsFile)
+	if report.HasErrors() {
+		t.Fatal(report)
+	}
+
+	// Verify we parsed all 3 fragments
+	require.Len(t, doc.FragmentDefinitions, 3)
+
+	// First fragment: UserInfo with block string description
+	userInfoFrag := doc.FragmentDefinitions[0]
+	assert.True(t, userInfoFrag.Description.IsDefined, "UserInfo should have description")
+	assert.True(t, userInfoFrag.Description.IsBlockString, "UserInfo description should be block string")
+	assert.Contains(t, doc.Input.ByteSliceString(userInfoFrag.Description.Content), "This fragment selects user information")
+
+	// Second fragment: UserProfile with single-line description
+	userProfileFrag := doc.FragmentDefinitions[1]
+	assert.True(t, userProfileFrag.Description.IsDefined, "UserProfile should have description")
+	assert.False(t, userProfileFrag.Description.IsBlockString, "UserProfile description should be single-line")
+	assert.Equal(t, "Single line fragment description", doc.Input.ByteSliceString(userProfileFrag.Description.Content))
+
+	// Third fragment: UserWithoutDescription without description (backward compatibility)
+	userWithoutDescFrag := doc.FragmentDefinitions[2]
+	assert.False(t, userWithoutDescFrag.Description.IsDefined, "UserWithoutDescription should not have description")
+}
+
 func BenchmarkParseStarwars(b *testing.B) {
 
 	inputFileName := "./testdata/starwars.schema.graphql"
