@@ -243,26 +243,26 @@ type RPCCompiler struct {
 
 // ServiceByName returns a Service by its name.
 // Returns an empty Service if no service with the given name exists.
-func (d *Document) ServiceByName(name string) Service {
+func (d *Document) ServiceByName(name string) *Service {
 	for _, s := range d.Services {
 		if s.Name == name {
-			return s
+			return &s
 		}
 	}
 
-	return Service{}
+	return nil
 }
 
 // MethodByName returns a Method by its name.
 // Returns an empty Method if no method with the given name exists.
-func (d *Document) MethodByName(name string) Method {
+func (d *Document) MethodByName(name string) *Method {
 	for _, m := range d.Methods {
 		if m.Name == name {
-			return m
+			return &m
 		}
 	}
 
-	return Method{}
+	return nil
 }
 
 // MethodRefByName returns the index of a Method in the Methods slice by its name.
@@ -426,6 +426,18 @@ type ServiceCall struct {
 	RPC *RPCCall
 }
 
+func (s *ServiceCall) MethodFullName() string {
+	var builder strings.Builder
+
+	builder.Grow(len(s.ServiceName) + len(s.MethodName) + 2)
+	builder.WriteRune('/')
+	builder.WriteString(s.ServiceName)
+	builder.WriteRune('/')
+	builder.WriteString(s.MethodName)
+
+	return builder.String()
+}
+
 // func (p *RPCCompiler) CompileFetches(graph *DependencyGraph, fetches []FetchItem, inputData gjson.Result) ([]Invocation, error) {
 // 	invocations := make([]Invocation, 0, len(fetches))
 
@@ -515,7 +527,7 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		request = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
 	}
 
-	serviceName, ok := p.resolveServiceName(call.MethodName)
+	serviceName, ok := p.resolveServiceName(call)
 	if !ok {
 		return ServiceCall{}, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
 	}
@@ -530,51 +542,15 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 
 }
 
-// Compile processes an RPCExecutionPlan and builds protobuf messages from JSON data
-// based on the compiled schema.
-// Deprecated: Use CompileFetches instead.
-func (p *RPCCompiler) Compile(executionPlan *RPCExecutionPlan, inputData gjson.Result) ([]ServiceCall, error) {
-	serviceCalls := make([]ServiceCall, 0, len(executionPlan.Calls))
-
-	for _, call := range executionPlan.Calls {
-		inputMessage, ok := p.doc.MessageByName(call.Request.Name)
-		if !ok {
-			return nil, fmt.Errorf("input message %s not found in document", call.Request.Name)
-		}
-
-		outputMessage, ok := p.doc.MessageByName(call.Response.Name)
-		if !ok {
-			return nil, fmt.Errorf("output message %s not found in document", call.Response.Name)
-		}
-
-		request := p.buildProtoMessage(inputMessage, &call.Request, inputData)
-		response := p.newEmptyMessage(outputMessage)
-
-		if p.report.HasErrors() {
-			return nil, fmt.Errorf("failed to compile invocation: %w", p.report)
-		}
-
-		serviceName, ok := p.resolveServiceName(call.MethodName)
-		if !ok {
-			return nil, fmt.Errorf("failed to resolve service name for method %s from the protobuf definition", call.MethodName)
-		}
-
-		serviceCalls = append(serviceCalls, ServiceCall{
-			ServiceName: serviceName,
-			MethodName:  call.MethodName,
-			Input:       request,
-			Output:      response,
-			RPC:         &call,
-		})
+func (p *RPCCompiler) resolveServiceName(call *RPCCall) (string, bool) {
+	if service := p.doc.ServiceByName(call.ServiceName); service != nil {
+		return service.FullName, true
 	}
 
-	return serviceCalls, nil
-}
-
-func (p *RPCCompiler) resolveServiceName(methodName string) (string, bool) {
+	// Fallback. Try to find the service by the method name.
 	for _, service := range p.doc.Services {
 		for _, methodRef := range service.MethodsRefs {
-			if p.doc.Methods[methodRef].Name == methodName {
+			if p.doc.Methods[methodRef].Name == call.MethodName {
 				return service.FullName, true
 			}
 		}
@@ -678,10 +654,10 @@ func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCFie
 	}
 
 	contextValues := make([]map[string]protoref.Value, 0)
-	outputMessage := context.ServiceCall.Output
 	for _, field := range contextField.Message.Fields {
-		resolvePath := field.ResolvePath
-		values := p.resolveContextDataForPath(outputMessage, resolvePath)
+		values := p.resolveContextDataForPath(context.ServiceCall.Output, field.ResolvePath)
+
+		contextValues = slices.Grow(contextValues, len(values))
 
 		for index, value := range values {
 			if index >= len(contextValues) {
@@ -861,7 +837,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 	return result
 }
 
-func (p *RPCCompiler) newEmptyListMessageByName(msg *dynamicpb.Message, name string) protoref.List {
+func (p *RPCCompiler) newEmptyListMessageByName(msg protoref.Message, name string) protoref.List {
 	return msg.Mutable(msg.Descriptor().Fields().ByName(protoref.Name(name))).List()
 }
 

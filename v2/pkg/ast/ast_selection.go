@@ -246,5 +246,14 @@ func (d *Document) SelectionSetFieldNames(set int) (fieldNames []string) {
 // SelectionSetFieldSetString returns a string of the field names in the selection set separated by a space
 // Example: "{ name status }" -> "name status"
 func (d *Document) SelectionSetFieldSetString(set int) string {
-	return strings.Join(d.SelectionSetFieldNames(set), " ")
+	fieldSelections := d.SelectionSetFieldSelections(set)
+	builder := strings.Builder{}
+	for i, fieldSelection := range fieldSelections {
+		builder.Write(d.FieldNameBytes(d.Selections[fieldSelection].Ref))
+		if i != len(fieldSelections)-1 {
+			builder.WriteRune(' ')
+		}
+	}
+
+	return builder.String()
 }

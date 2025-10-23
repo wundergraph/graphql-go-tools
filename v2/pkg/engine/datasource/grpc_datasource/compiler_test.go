@@ -285,7 +285,14 @@ func TestBuildProtoMessage(t *testing.T) {
 
 	// Compile the execution plan with the variables
 	// This should build a protobuf message ready to be sent to the gRPC service
-	serviceCalls, err := compiler.Compile(executionPlan, gjson.ParseBytes(variables))
+	graph := NewDependencyGraph(executionPlan)
+	fetches := make([]FetchItem, 0, len(executionPlan.Calls))
+	graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		fetches = append(fetches, nodes...)
+		return nil
+	})
+
+	serviceCalls, err := compiler.CompileFetches(graph, fetches, gjson.ParseBytes(variables))
 	if err != nil {
 		t.Fatalf("failed to compile proto: %v", err)
 	}
@@ -400,7 +407,15 @@ func TestCompileNestedLists(t *testing.T) {
 		},
 	}
 
-	serviceCalls, err := compiler.Compile(plan, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
+	graph := NewDependencyGraph(plan)
+	fetches := make([]FetchItem, 0, len(plan.Calls))
+
+	graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		fetches = append(fetches, nodes...)
+		return nil
+	})
+
+	serviceCalls, err := compiler.CompileFetches(graph, fetches, gjson.ParseBytes([]byte(`{"orders":[{"orderId":"123","customerName":"John Doe","lines":[{"productId":"123","quantity":1, "modifiers":["modifier1", "modifier2"]}]}]}`)))
 	require.NoError(t, err)
 	require.Equal(t, 1, len(serviceCalls))
 

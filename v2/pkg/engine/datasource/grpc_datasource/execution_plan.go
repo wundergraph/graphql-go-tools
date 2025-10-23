@@ -719,7 +719,7 @@ type resolvedField struct {
 	parentTypeRef          int
 	fieldRef               int
 	fieldDefinitionTypeRef int
-	requiredFields         string
+	requiredFieldSelection int
 	responsePath           ast.Path
 
 	contextFields  []contextField
@@ -809,9 +809,10 @@ func (r *rpcPlanningContext) getFieldsFromContext(parentNode ast.Node, contextRe
 
 	fieldsString := r.definition.ValueContentString(val)
 
-	walker := astvisitor.NewDefaultWalker()
+	walker := astvisitor.WalkerFromPool()
+	defer walker.Release()
 
-	v := newRequiredFieldsVisitor(&walker, &RPCMessage{}, r)
+	v := newRequiredFieldsVisitor(walker, &RPCMessage{}, r)
 	if err := v.visitRequiredFields(r.definition, parentNode.NameString(r.definition), fieldsString); err != nil {
 		return nil, err
 	}
@@ -866,16 +867,13 @@ func (r *rpcPlanningContext) nodeByTypeRef(typeRef int) (ast.Node, bool) {
 }
 
 type resolveRPCCallConfig struct {
-	serviceName      string
-	typeName         string
-	fieldName        string
-	resolveConfig    ResolveRPCTypeField
-	resolvedField    resolvedField
+	resolveConfig    *ResolveRPCTypeField
+	resolvedField    *resolvedField
 	contextMessage   *RPCMessage
 	fieldArgsMessage *RPCMessage
 }
 
-func (r *rpcPlanningContext) resolveRequiredFields(typeName, requiredFields string) (*RPCMessage, error) {
+func (r *rpcPlanningContext) resolveRequiredFields(typeName string, requiredFieldSelection int) (*RPCMessage, error) {
 	walker := astvisitor.WalkerFromPool()
 	defer walker.Release()
 	message := &RPCMessage{
@@ -883,7 +881,7 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName, requiredFields stri
 	}
 
 	rfv := newRequiredFieldsVisitor(walker, message, r)
-	if err := rfv.visitWithMemberTypes(r.definition, typeName, requiredFields, nil); err != nil {
+	if err := rfv.visitWithMemberTypes(r.definition, typeName, r.operation.SelectionSetFieldSetString(requiredFieldSelection), nil); err != nil {
 		return nil, err
 	}
 	return message, nil
@@ -895,12 +893,12 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 	calls := make([]RPCCall, 0, len(resolvedFields))
 
 	for _, resolvedField := range resolvedFields {
-		resolveConfig, exists := r.mapping.FindResolveTypeFieldMapping(
+		resolveConfig := r.mapping.FindResolveTypeFieldMapping(
 			r.definition.ObjectTypeDefinitionNameString(resolvedField.parentTypeRef),
 			r.operation.FieldNameString(resolvedField.fieldRef),
 		)
 
-		if !exists {
+		if resolveConfig == nil {
 			return nil, fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef), r.operation.FieldAliasString(resolvedField.fieldRef))
 		}
 
@@ -912,12 +910,9 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 			Name: resolveConfig.RPC + "Args",
 		}
 
-		call, err := r.newResolveRPCCall(resolveRPCCallConfig{
-			serviceName:      subgraphName,
-			typeName:         r.definition.ResolveTypeNameString(resolvedField.parentTypeRef),
-			fieldName:        r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
+		call, err := r.newResolveRPCCall(&resolveRPCCallConfig{
 			resolveConfig:    resolveConfig,
-			resolvedField:    resolvedField,
+			resolvedField:    &resolvedField,
 			contextMessage:   contextMessage,
 			fieldArgsMessage: fieldArgsMessage,
 		})
@@ -925,6 +920,8 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 		if err != nil {
 			return nil, err
 		}
+
+		call.ServiceName = r.resolveServiceName(subgraphName)
 
 		contextMessage.Fields = make(RPCFields, len(resolvedField.contextFields))
 		for i := range resolvedField.contextFields {
@@ -966,18 +963,27 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 	return calls, nil
 }
 
-func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPCCall, error) {
+const (
+	resultFieldName    = "result"
+	contextFieldName   = "context"
+	fieldArgsFieldName = "field_args"
+)
+
+func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RPCCall, error) {
 	resolveConfig := config.resolveConfig
 	resolvedField := config.resolvedField
 
 	underlyingTypeRef := r.definition.ResolveUnderlyingType(resolvedField.fieldDefinitionTypeRef)
-	fieldTypeName := r.definition.ResolveTypeNameString(underlyingTypeRef)
 	dataType := r.toDataType(&r.definition.Types[underlyingTypeRef])
 
 	var responseFieldsMessage *RPCMessage
 	if dataType == DataTypeMessage {
 		var err error
-		responseFieldsMessage, err = r.resolveRequiredFields(fieldTypeName, resolvedField.requiredFields)
+		responseFieldsMessage, err = r.resolveRequiredFields(
+			r.definition.ResolveTypeNameString(underlyingTypeRef),
+			resolvedField.requiredFieldSelection,
+		)
+
 		if err != nil {
 			return RPCCall{}, err
 		}
@@ -987,9 +993,9 @@ func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPC
 		Name: resolveConfig.Response,
 		Fields: RPCFields{
 			{
-				Name:          "result",
+				Name:          resultFieldName,
 				ProtoTypeName: DataTypeMessage,
-				JSONPath:      "result",
+				JSONPath:      resultFieldName,
 				Repeated:      true,
 				Message: &RPCMessage{
 					Name: resolveConfig.RPC + "Result",
@@ -997,7 +1003,7 @@ func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPC
 						{
 							Name:          resolveConfig.FieldMappingData.TargetName,
 							ProtoTypeName: dataType,
-							JSONPath:      config.fieldName,
+							JSONPath:      r.operation.FieldAliasOrNameString(resolvedField.fieldRef),
 							Message:       responseFieldsMessage,
 							Optional:      !r.definition.TypeIsNonNull(resolvedField.fieldDefinitionTypeRef),
 						},
@@ -1010,22 +1016,20 @@ func (r *rpcPlanningContext) newResolveRPCCall(config resolveRPCCallConfig) (RPC
 	return RPCCall{
 		DependentCalls: []int{resolvedField.callerRef},
 		ResponsePath:   resolvedField.responsePath,
-		ServiceName:    r.resolveServiceName(config.serviceName),
 		MethodName:     resolveConfig.RPC,
 		Kind:           CallKindResolve,
 		Request: RPCMessage{
 			Name: resolveConfig.Request,
 			Fields: RPCFields{
 				{
-					Name:          "context",
+					Name:          contextFieldName,
 					ProtoTypeName: DataTypeMessage,
 					Repeated:      true,
 					Message:       config.contextMessage,
 				},
 				{
-					Name:          "field_args",
+					Name:          fieldArgsFieldName,
 					ProtoTypeName: DataTypeMessage,
-					JSONPath:      "",
 					Message:       config.fieldArgsMessage,
 				},
 			},

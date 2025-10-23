@@ -11,7 +11,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -189,10 +188,7 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 
 	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
 	if r.resolvedFieldIndex != ast.InvalidRef {
-		lbrace := r.operation.SelectionSets[ref].LBrace.CharEnd
-		rbrace := r.operation.SelectionSets[ref].RBrace.CharStart - 1
-
-		r.resolvedFields[r.resolvedFieldIndex].requiredFields = unsafebytes.BytesToString(r.operation.Input.RawBytes[lbrace:rbrace])
+		r.resolvedFields[r.resolvedFieldIndex].requiredFieldSelection = ref
 		r.walker.SkipNode()
 		return
 	}

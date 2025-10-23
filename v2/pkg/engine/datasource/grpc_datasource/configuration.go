@@ -178,22 +178,22 @@ func (g *GRPCMapping) FindEntityRPCConfig(typeName, key string) (RPCConfig, bool
 }
 
 // FindResolveTypeFieldMapping finds the gRPC field name for a given GraphQL field name and type
-func (g *GRPCMapping) FindResolveTypeFieldMapping(typeName, fieldName string) (ResolveRPCTypeField, bool) {
+func (g *GRPCMapping) FindResolveTypeFieldMapping(typeName, fieldName string) *ResolveRPCTypeField {
 	if g == nil || g.ResolveRPCs == nil {
-		return ResolveRPCTypeField{}, false
+		return nil
 	}
 
 	fieldMappings, ok := g.ResolveRPCs[typeName]
 	if !ok {
-		return ResolveRPCTypeField{}, false
+		return nil
 	}
 
 	field, ok := fieldMappings[fieldName]
 	if !ok {
-		return ResolveRPCTypeField{}, false
+		return nil
 	}
 
-	return field, true
+	return &field
 }
 
 type keySet map[string]struct{}

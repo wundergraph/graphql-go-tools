@@ -9,7 +9,7 @@ package grpcdatasource
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
@@ -91,11 +91,12 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	builder := newJSONBuilder(d.mapping, variables)
 
 	if d.disabled {
-		out.Write(builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")))
+		out.Write(builder.writeErrorBytes(errors.New("gRPC datasource needs to be enabled to be used")))
 		return nil
 	}
 
 	arena := astjson.Arena{}
+	defer arena.Reset()
 	root := arena.NewObject()
 
 	failed := false
@@ -114,9 +115,8 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			errGrp.Go(func() error {
 				a := astjson.Arena{}
 				// Invoke the gRPC method - this will populate serviceCall.Output
-				methodName := fmt.Sprintf("/%s/%s", serviceCall.ServiceName, serviceCall.MethodName)
 
-				err := d.cc.Invoke(errGrpCtx, methodName, serviceCall.Input, serviceCall.Output)
+				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
 				if err != nil {
 					return err
 				}
