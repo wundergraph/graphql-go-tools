@@ -78,9 +78,12 @@ func (d *Document) FragmentDefinitionIsUsed(name ByteSlice) bool {
 }
 
 func (d *Document) FragmentDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.FragmentDefinitions[ref].Description.IsDefined {
+		return nil
+	}
 	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Description.Content)
 }
 
 func (d *Document) FragmentDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.Input.ByteSlice(d.FragmentDefinitions[ref].Description.Content))
+	return unsafebytes.BytesToString(d.FragmentDefinitionDescriptionBytes(ref))
 }

@@ -65,11 +65,14 @@ func (d *Document) OperationDefinitionNameString(ref int) string {
 }
 
 func (d *Document) OperationDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.OperationDefinitions[ref].Description.IsDefined {
+		return nil
+	}
 	return d.Input.ByteSlice(d.OperationDefinitions[ref].Description.Content)
 }
 
 func (d *Document) OperationDefinitionDescriptionString(ref int) string {
-	return unsafebytes.BytesToString(d.Input.ByteSlice(d.OperationDefinitions[ref].Description.Content))
+	return unsafebytes.BytesToString(d.OperationDefinitionDescriptionBytes(ref))
 }
 
 func (d *Document) AddOperationDefinitionToRootNodes(definition OperationDefinition) Node {
