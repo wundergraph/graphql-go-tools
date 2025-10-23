@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
@@ -109,7 +108,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 
 		results := make([]resultData, len(serviceCalls))
 		errGrp, errGrpCtx := errgroup.WithContext(ctx)
-		mu := sync.Mutex{}
 
 		// make gRPC calls
 		for index, serviceCall := range serviceCalls {
@@ -137,13 +135,11 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 					}
 				}
 
-				mu.Lock()
 				results[index] = resultData{
 					kind:         serviceCall.RPC.Kind,
 					response:     response,
 					responsePath: serviceCall.RPC.ResponsePath,
 				}
-				mu.Unlock()
 
 				return nil
 			})

@@ -221,6 +221,10 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 }
 
 func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
+	if len(path) == 0 {
+		return errors.New("path is empty")
+	}
+
 	resolvedValues := resolved.GetArray(resolveResponsePath)
 
 	searchPath := path[:len(path)-1]
@@ -509,7 +513,7 @@ func (j *jsonBuilder) traverseList(level int, arena *astjson.Arena, current *ast
 			return arena.NewNull(), nil
 		}
 
-		return arena.NewArray(), fmt.Errorf("cannot add null item to response for non nullable list")
+		return arena.NewArray(), errors.New("cannot add null item to response for non nullable list")
 	}
 
 	// The actual list is always at field number 1 in the wrapper

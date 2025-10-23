@@ -84,18 +84,18 @@ func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 
+	mapping := testMapping()
 	for b.Loop() {
 		ds, err := NewDataSource(conn, DataSourceConfig{
 			Operation:    &queryDoc,
 			Definition:   &schemaDoc,
 			SubgraphName: "Products",
 			Compiler:     compiler,
-			Mapping:      testMapping(),
+			Mapping:      mapping,
 		})
 		require.NoError(b, err)
 
-		output := new(bytes.Buffer)
-		err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
+		err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), new(bytes.Buffer))
 		require.NoError(b, err)
 	}
 }
@@ -3931,11 +3931,6 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
 			err = ds.Load(context.Background(), []byte(input), output)
 			require.NoError(t, err)
-
-			pretty := new(bytes.Buffer)
-			err = json.Indent(pretty, output.Bytes(), "", " ")
-			require.NoError(t, err)
-			fmt.Println(pretty.String())
 
 			// Parse the response
 			var resp graphqlResponse
