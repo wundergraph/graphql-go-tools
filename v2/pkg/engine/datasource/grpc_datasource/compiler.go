@@ -916,7 +916,11 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 					return nil, fmt.Errorf("list metadata not found for field %s", rpcField.JSONPath)
 				}
 
-				fieldMsg = p.buildListMessage(inputMessage.Desc, field, &rpcField, data)
+				fieldMsg, err = p.buildListMessage(inputMessage.Desc, field, &rpcField, data)
+				if err != nil {
+					return nil, err
+				}
+
 				if fieldMsg == nil {
 					continue
 				}
@@ -982,10 +986,19 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 //	  }
 //	  List list = 1;
 //	}
-func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field *Field, rpcField *RPCField, data gjson.Result) *dynamicpb.Message {
-	rootMsg := dynamicpb.NewMessage(desc.Fields().ByName(protoref.Name(field.Name)).Message())
-	p.traverseList(rootMsg, 1, field, rpcField, data.Get(rpcField.JSONPath))
-	return rootMsg
+func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field *Field, rpcField *RPCField, data gjson.Result) (protoref.Message, error) {
+	msg, err := p.traverseList(
+		dynamicpb.NewMessage(desc.Fields().ByName(protoref.Name(field.Name)).Message()),
+		1,
+		field,
+		rpcField,
+		data.Get(rpcField.JSONPath),
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	return msg, nil
 }
 
 // traverseList makes sure we can handle nested lists properly.
