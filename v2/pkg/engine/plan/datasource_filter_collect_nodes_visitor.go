@@ -77,9 +77,8 @@ func (c *nodesCollector) initVisitors() {
 	// prepare visitors for each data source
 	for _, dataSource := range c.dataSources {
 		visitor := &collectNodesDSVisitor{
-			operation:  c.operation,
-			definition: c.definition,
-			// walker:         walker,
+			operation:             c.operation,
+			definition:            c.definition,
 			nodes:                 c.nodes,
 			info:                  c.fieldInfo,
 			keys:                  make([]DSKeyInfo, 0, 2),
@@ -249,7 +248,6 @@ func (f *treeBuilderVisitor) LeaveField(ref int) {
 }
 
 type collectNodesDSVisitor struct {
-	// walker     *astvisitor.Walker
 	operation  *ast.Document
 	definition *ast.Document
 	dataSource DataSource
