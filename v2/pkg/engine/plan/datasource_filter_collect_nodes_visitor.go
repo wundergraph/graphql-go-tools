@@ -414,6 +414,8 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return err
 	}
 
+	// we need to check that we have entity with such name in the datasource
+	// for pubsub such entity could also be a child node, so checking for only root nodes is not enough
 	hasEntityWithName := f.dataSource.HasEntity(info.typeName)
 	if hasEntityWithName {
 		// should be done after handling provides
