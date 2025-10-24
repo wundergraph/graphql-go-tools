@@ -1491,6 +1491,229 @@ func TestVariablesValidation(t *testing.T) {
 		err := runTest(t, tc)
 		require.NoError(t, err)
 	})
+
+	t.Run("oneOf input objects", func(t *testing.T) {
+		catDogSchema := `
+			input PetInput @oneOf {
+				cat: String, dog: String
+			}
+			type Query {
+				pet(input: PetInput!): String
+			}`
+		t.Run("valid cases", func(t *testing.T) {
+			t.Run("exactly one field provided", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy"}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("exactly one field provided - different field", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"dog": "Rex"}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("exactly one field provided - via nested var", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($s: String) { pet(input: {cat: $s} ) }`,
+					variables: `{"s": "Rex"}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("exactly one field with complex type", func(t *testing.T) {
+				tc := testCase{
+					schema:    `input CatInput { name: String! } input PetInput @oneOf { cat: CatInput, dog: String } type Query { pet(input: PetInput!): String }`,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": {"name": "Fluffy"}}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+		})
+
+		t.Run("invalid cases", func(t *testing.T) {
+			t.Run("no fields provided", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 0 fields were provided`)
+			})
+			t.Run("multiple fields provided", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy", "dog": "Rex"}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("multiple fields with one null", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy", "dog": null}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("one field provided but null", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"dog": null}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" field "dog" value must be non-null`)
+			})
+
+			t.Run("all fields null", func(t *testing.T) {
+				tc := testCase{
+					schema:    catDogSchema,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": null, "dog": null}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+		})
+
+		t.Run("nested oneOf input objects", func(t *testing.T) {
+			t.Run("valid nested oneOf", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						input SearchInput @oneOf { byName: String, byPet: PetInput }
+						type Query { search(input: SearchInput!): String }
+					`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"byPet": {"cat": "Fluffy"}}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+
+			t.Run("invalid nested oneOf - inner violation", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						input SearchInput @oneOf { byName: String, byPet: PetInput }
+						type Query { search(input: SearchInput!): String }
+					`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"byPet": {"cat": "Fluffy", "dog": "Rex"}}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value at "input.byPet"; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+
+			t.Run("invalid nested oneOf - outer violation", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						input SearchInput @oneOf { byName: String, byPet: PetInput }
+						type Query { search(input: SearchInput!): String }
+					`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"byName": "Fluffy", "byPet": {"cat": "Fluffy"}}}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value; OneOf input object "SearchInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+		})
+
+		t.Run("oneOf with lists", func(t *testing.T) {
+			t.Run("valid list of oneOf", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						type Query { pets(input: [PetInput!]!): String }`,
+					operation: `query($input: [PetInput!]!) { pets(input: $input) }`,
+					variables: `{"input": [{"cat": "Fluffy"}, {"dog": "Rex"}]}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("invalid list of oneOf - one element violates", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input PetInput @oneOf { cat: String, dog: String }
+						type Query { pets(input: [PetInput!]!): String }`,
+					operation: `query($input: [PetInput!]!) { pets(input: $input) }`,
+					variables: `{"input": [{"cat": "Fluffy"}, {"cat": "Whiskers", "dog": "Rex"}]}`,
+				}
+				err := runTest(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value at "input.[1]"; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("oneOf field is list", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input SearchInput @oneOf { names: [String!], ids: [ID!] }
+						type Query { search(input: SearchInput!): String }`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"names": ["Fluffy", "Rex"]}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+			t.Run("oneOf field is an empty list", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+						input SearchInput @oneOf { names: [String!], ids: [ID!] }
+						type Query { search(input: SearchInput!): String }`,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"names": []}}`,
+				}
+				err := runTest(t, tc)
+				require.NoError(t, err)
+			})
+		})
+
+		t.Run("oneOf with variables content enabled", func(t *testing.T) {
+			t.Run("multiple fields error with content", func(t *testing.T) {
+				tc := testCase{
+					schema:    `input PetInput @oneOf { cat: String, dog: String } type Query { pet(input: PetInput!): String }`,
+					operation: `query($input: PetInput!) { pet(input: $input) }`,
+					variables: `{"input": {"cat": "Fluffy", "dog": "Rex"}}`,
+				}
+				err := runTestWithVariablesContentEnabled(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":"Fluffy","dog":"Rex"}; OneOf input object "PetInput" must have exactly one field provided, but 2 fields were provided`)
+			})
+			t.Run("nested oneOf error shows the value", func(t *testing.T) {
+				tc := testCase{
+					schema: `
+                input PetInput @oneOf { cat: String, dog: String }
+                input SearchInput { pets: [PetInput!] }
+                type Query { search(input: SearchInput!): String }
+            `,
+					operation: `query($input: SearchInput!) { search(input: $input) }`,
+					variables: `{"input": {"pets": [{"cat": "Fluffy"}, {"cat": null}]}}`,
+				}
+				err := runTestWithVariablesContentEnabled(t, tc)
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), `Variable "$input" got invalid value {"cat":null} at "input.pets.[1]"; OneOf input object "PetInput" field "cat" value must be non-null`)
+			})
+		})
+	})
 }
 
 type testCase struct {

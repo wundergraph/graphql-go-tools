@@ -769,6 +769,14 @@
               "defaultValue": null
             }
           ]
+        },
+        {
+          "name": "oneOf",
+          "description": "The @oneOf built-in directive marks an input object as a OneOf Input Object.\nExactly one field must be provided and its value must be non-null at runtime.\nAll fields defined within a @oneOf input must be nullable in the schema.",
+          "locations": [
+            "INPUT_OBJECT"
+          ],
+          "args": []
         }
       ]
     }

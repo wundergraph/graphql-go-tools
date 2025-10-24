@@ -1,0 +1,21 @@
+"""
+This fragment selects user information.
+It demonstrates fragment descriptions in GraphQL.
+"""
+fragment UserInfo on User {
+  id
+  name
+  email
+}
+
+"Single line fragment description"
+fragment UserProfile on User {
+  id
+  username
+  avatar
+}
+
+fragment UserWithoutDescription on User {
+  id
+  name
+}

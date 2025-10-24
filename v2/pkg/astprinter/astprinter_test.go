@@ -658,6 +658,135 @@ fragment NameFragment on Dog {
 		run(t, "interface I1 {id: ID!} interface I2 implements I1 {id: ID!} interface I3 implements I1 & I2 {id: ID!}",
 			"interface I1 {id: ID!} interface I2 implements I1 {id: ID!} interface I3 implements I1 & I2 {id: ID!}")
 	})
+	t.Run("operation with description", func(t *testing.T) {
+		t.Run("block string description", func(t *testing.T) {
+			run(t, `"""
+This is a query description
+"""
+query GetUser {
+	user {
+		id
+		name
+	}
+}`, `"""
+This is a query description
+"""
+query GetUser {user {id name}}`)
+		})
+		t.Run("single line description", func(t *testing.T) {
+			run(t, `"This is a mutation description"
+mutation CreateUser {
+	createUser {
+		id
+	}
+}`, `"This is a mutation description"
+mutation CreateUser {createUser {id}}`)
+		})
+		t.Run("subscription with description", func(t *testing.T) {
+			run(t, `"""
+Subscribe to new messages
+"""
+subscription OnNewMessage {
+	newMessage {
+		body
+	}
+}`, `"""
+Subscribe to new messages
+"""
+subscription OnNewMessage {newMessage {body}}`)
+		})
+		t.Run("anonymous query without description", func(t *testing.T) {
+			run(t, `{
+	user {
+		id
+	}
+}`, `{user {id}}`)
+		})
+		t.Run("operation with description and variables", func(t *testing.T) {
+			run(t, `"Get user by ID"
+query GetUser($id: ID!) {
+	user(id: $id) {
+		id
+		name
+	}
+}`, `"Get user by ID"
+query GetUser($id: ID!){user(id: $id){id name}}`)
+		})
+		t.Run("operation with description and directives", func(t *testing.T) {
+			run(t, `"""
+Query with directive
+"""
+query GetUser @cached {
+	user {
+		id
+	}
+}`, `"""
+Query with directive
+"""
+query GetUser @cached {user {id}}`)
+		})
+	})
+	t.Run("fragment with description", func(t *testing.T) {
+		t.Run("block string description", func(t *testing.T) {
+			run(t, `"""
+User fields fragment
+"""
+fragment UserFields on User {
+	id
+	name
+	email
+}`, `"""
+User fields fragment
+"""
+fragment UserFields on User {id name email}`)
+		})
+		t.Run("single line description", func(t *testing.T) {
+			run(t, `"Basic user info"
+fragment BasicUser on User {
+	id
+	name
+}`, `"Basic user info"
+fragment BasicUser on User {id name}`)
+		})
+		t.Run("fragment without description", func(t *testing.T) {
+			run(t, `fragment UserFields on User {
+	id
+	name
+}`, `fragment UserFields on User {id name}`)
+		})
+		t.Run("fragment with description and directives", func(t *testing.T) {
+			run(t, `"""
+Fragment with directive
+"""
+fragment UserFields on User @fragmentDefinition {
+	id
+	name
+}`, `"""
+Fragment with directive
+"""
+fragment UserFields on User @fragmentDefinition {id name}`)
+		})
+	})
+	t.Run("mixed operations and fragments with descriptions", func(t *testing.T) {
+		run(t, `"Get user query"
+query GetUser {
+	user {
+		...UserFields
+	}
+}
+
+"""
+User fields fragment
+"""
+fragment UserFields on User {
+	id
+	name
+}`, `"Get user query"
+query GetUser {user {...UserFields}} """
+User fields fragment
+"""
+fragment UserFields on User {id name}`)
+	})
 }
 
 func TestPrintArgumentWithBeforeAfterValue(t *testing.T) {

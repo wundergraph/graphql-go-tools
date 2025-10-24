@@ -1986,6 +1986,122 @@ func TestParser_Parse(t *testing.T) {
 					  role#comment
 					}#comment`, parse, false)
 		})
+
+		t.Run("query with description", func(t *testing.T) {
+			run(`"Fetches a user by ID" query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if !query.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(query.Description.Content)
+					if description != "Fetches a user by ID" {
+						panic(fmt.Errorf("want 'Fetches a user by ID', got '%s'", description))
+					}
+					if doc.Input.ByteSliceString(query.Name) != "GetUser" {
+						panic("want GetUser")
+					}
+				})
+		})
+
+		t.Run("query with block string description", func(t *testing.T) {
+			run(`"""
+Fetches a user by their unique identifier.
+This operation returns detailed user information.
+"""
+query GetUser($id: ID!) { user(id: $id) { id name } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					query := doc.OperationDefinitions[0]
+					if query.OperationType != ast.OperationTypeQuery {
+						panic("want OperationTypeQuery")
+					}
+					if !query.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					if !query.Description.IsBlockString {
+						panic("want block string description")
+					}
+					description := doc.Input.ByteSliceString(query.Description.Content)
+					expected := "Fetches a user by their unique identifier.\nThis operation returns detailed user information."
+					if description != expected {
+						panic(fmt.Errorf("want '%s', got '%s'", expected, description))
+					}
+				})
+		})
+
+		t.Run("mutation with description", func(t *testing.T) {
+			run(`"Creates a new user" mutation CreateUser($input: UserInput!) { createUser(input: $input) { id } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					mutation := doc.OperationDefinitions[0]
+					if mutation.OperationType != ast.OperationTypeMutation {
+						panic("want OperationTypeMutation")
+					}
+					if !mutation.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(mutation.Description.Content)
+					if description != "Creates a new user" {
+						panic(fmt.Errorf("want 'Creates a new user', got '%s'", description))
+					}
+				})
+		})
+
+		t.Run("subscription with description", func(t *testing.T) {
+			run(`"""Subscribes to user updates""" subscription UserUpdated($userId: ID!) { userUpdated(userId: $userId) { id } }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					subscription := doc.OperationDefinitions[0]
+					if subscription.OperationType != ast.OperationTypeSubscription {
+						panic("want OperationTypeSubscription")
+					}
+					if !subscription.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(subscription.Description.Content)
+					if description != "Subscribes to user updates" {
+						panic(fmt.Errorf("want 'Subscribes to user updates', got '%s'", description))
+					}
+				})
+		})
+
+		t.Run("multiple operations with and without descriptions", func(t *testing.T) {
+			run(`
+"Get user query"
+query GetUser { user { id } }
+
+mutation CreateUser { createUser { id } }
+
+"Subscribe to updates"
+subscription Updates { updates { id } }
+`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					// First operation with description
+					query := doc.OperationDefinitions[0]
+					if !query.Description.IsDefined {
+						panic("want first operation description to be defined")
+					}
+					if doc.Input.ByteSliceString(query.Description.Content) != "Get user query" {
+						panic("want 'Get user query'")
+					}
+
+					// Second operation without description
+					mutation := doc.OperationDefinitions[1]
+					if mutation.Description.IsDefined {
+						panic("want second operation description to not be defined")
+					}
+
+					// Third operation with description
+					subscription := doc.OperationDefinitions[2]
+					if !subscription.Description.IsDefined {
+						panic("want third operation description to be defined")
+					}
+					if doc.Input.ByteSliceString(subscription.Description.Content) != "Subscribe to updates" {
+						panic("want 'Subscribe to updates'")
+					}
+				})
+		})
 	})
 	t.Run("variable definition", func(t *testing.T) {
 		t.Run("simple", func(t *testing.T) {
@@ -2220,6 +2336,85 @@ func TestParser_Parse(t *testing.T) {
 					id := doc.Fields[selection1.Ref]
 					if doc.Input.ByteSliceString(id.Name) != "id" {
 						panic("want id")
+					}
+				})
+		})
+
+		t.Run("with description", func(t *testing.T) {
+			run(`"User fields fragment" fragment UserFields on User { id name }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					fragment := doc.FragmentDefinitions[0]
+					if doc.Input.ByteSliceString(fragment.Name) != "UserFields" {
+						panic("want UserFields")
+					}
+					if !fragment.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					description := doc.Input.ByteSliceString(fragment.Description.Content)
+					if description != "User fields fragment" {
+						panic(fmt.Errorf("want 'User fields fragment', got '%s'", description))
+					}
+				})
+		})
+
+		t.Run("with block string description", func(t *testing.T) {
+			run(`"""
+This fragment selects user information.
+It demonstrates fragment descriptions in GraphQL.
+"""
+fragment UserInfo on User { id name email }`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					fragment := doc.FragmentDefinitions[0]
+					if doc.Input.ByteSliceString(fragment.Name) != "UserInfo" {
+						panic("want UserInfo")
+					}
+					if !fragment.Description.IsDefined {
+						panic("want description to be defined")
+					}
+					if !fragment.Description.IsBlockString {
+						panic("want block string description")
+					}
+					description := doc.Input.ByteSliceString(fragment.Description.Content)
+					expected := "This fragment selects user information.\nIt demonstrates fragment descriptions in GraphQL."
+					if description != expected {
+						panic(fmt.Errorf("want '%s', got '%s'", expected, description))
+					}
+				})
+		})
+
+		t.Run("multiple fragments with and without descriptions", func(t *testing.T) {
+			run(`
+"First fragment"
+fragment Fragment1 on User { id }
+
+fragment Fragment2 on User { name }
+
+"Third fragment"
+fragment Fragment3 on User { email }
+`, parse, false,
+				func(doc *ast.Document, extra interface{}) {
+					// First fragment with description
+					fragment1 := doc.FragmentDefinitions[0]
+					if !fragment1.Description.IsDefined {
+						panic("want first fragment description to be defined")
+					}
+					if doc.Input.ByteSliceString(fragment1.Description.Content) != "First fragment" {
+						panic("want 'First fragment'")
+					}
+
+					// Second fragment without description
+					fragment2 := doc.FragmentDefinitions[1]
+					if fragment2.Description.IsDefined {
+						panic("want second fragment description to not be defined")
+					}
+
+					// Third fragment with description
+					fragment3 := doc.FragmentDefinitions[2]
+					if !fragment3.Description.IsDefined {
+						panic("want third fragment description to be defined")
+					}
+					if doc.Input.ByteSliceString(fragment3.Description.Content) != "Third fragment" {
+						panic("want 'Third fragment'")
 					}
 				})
 		})
@@ -2722,6 +2917,73 @@ func TestParser_ParseWithLimits(t *testing.T) {
 		assert.Equal(t, 5, stats.TotalFields)
 		assert.Equal(t, 5, stats.TotalDepth)
 	})
+}
+
+func TestParseOperationsWithDescriptions(t *testing.T) {
+	operationsFile, err := os.ReadFile("./testdata/operation_with_description.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, report := ParseGraphqlDocumentBytes(operationsFile)
+	if report.HasErrors() {
+		t.Fatal(report)
+	}
+
+	// Verify we parsed all 4 operations
+	require.Len(t, doc.OperationDefinitions, 4)
+
+	// First operation: GetUser with block string description
+	getUserOp := doc.OperationDefinitions[0]
+	assert.True(t, getUserOp.Description.IsDefined, "GetUser should have description")
+	assert.True(t, getUserOp.Description.IsBlockString, "GetUser description should be block string")
+	assert.Contains(t, doc.Input.ByteSliceString(getUserOp.Description.Content), "Fetches a user by their unique identifier")
+
+	// Second operation: CreateUser with single-line description
+	createUserOp := doc.OperationDefinitions[1]
+	assert.True(t, createUserOp.Description.IsDefined, "CreateUser should have description")
+	assert.False(t, createUserOp.Description.IsBlockString, "CreateUser description should be single-line")
+	assert.Equal(t, "Creates a new user account with the provided information", doc.Input.ByteSliceString(createUserOp.Description.Content))
+
+	// Third operation: UserUpdated with block string description
+	userUpdatedOp := doc.OperationDefinitions[2]
+	assert.True(t, userUpdatedOp.Description.IsDefined, "UserUpdated should have description")
+	assert.True(t, userUpdatedOp.Description.IsBlockString, "UserUpdated description should be block string")
+
+	// Fourth operation: GetAllUsers without description (backward compatibility)
+	getAllUsersOp := doc.OperationDefinitions[3]
+	assert.False(t, getAllUsersOp.Description.IsDefined, "GetAllUsers should not have description")
+}
+
+func TestParseFragmentsWithDescriptions(t *testing.T) {
+	fragmentsFile, err := os.ReadFile("./testdata/fragment_with_description.graphql")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	doc, report := ParseGraphqlDocumentBytes(fragmentsFile)
+	if report.HasErrors() {
+		t.Fatal(report)
+	}
+
+	// Verify we parsed all 3 fragments
+	require.Len(t, doc.FragmentDefinitions, 3)
+
+	// First fragment: UserInfo with block string description
+	userInfoFrag := doc.FragmentDefinitions[0]
+	assert.True(t, userInfoFrag.Description.IsDefined, "UserInfo should have description")
+	assert.True(t, userInfoFrag.Description.IsBlockString, "UserInfo description should be block string")
+	assert.Contains(t, doc.Input.ByteSliceString(userInfoFrag.Description.Content), "This fragment selects user information")
+
+	// Second fragment: UserProfile with single-line description
+	userProfileFrag := doc.FragmentDefinitions[1]
+	assert.True(t, userProfileFrag.Description.IsDefined, "UserProfile should have description")
+	assert.False(t, userProfileFrag.Description.IsBlockString, "UserProfile description should be single-line")
+	assert.Equal(t, "Single line fragment description", doc.Input.ByteSliceString(userProfileFrag.Description.Content))
+
+	// Third fragment: UserWithoutDescription without description (backward compatibility)
+	userWithoutDescFrag := doc.FragmentDefinitions[2]
+	assert.False(t, userWithoutDescFrag.Description.IsDefined, "UserWithoutDescription should not have description")
 }
 
 func BenchmarkParseStarwars(b *testing.B) {

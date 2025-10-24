@@ -400,6 +400,13 @@ directive @specifiedBy(
 ) on SCALAR
 
 """
+The @oneOf built-in directive marks an input object as a OneOf Input Object.
+Exactly one field must be provided and its value must be non-null at runtime.
+All fields defined within a @oneOf input must be nullable in the schema.
+"""
+directive @oneOf on INPUT_OBJECT
+
+"""
 A Directive provides a way to describe alternate runtime execution and type validation behavior in a GraphQL document.
 In some cases, you need to provide options to alter GraphQL's execution behavior
 in ways field arguments will not suffice, such as conditionally including or
