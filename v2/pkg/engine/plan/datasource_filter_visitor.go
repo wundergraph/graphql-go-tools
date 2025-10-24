@@ -3,8 +3,6 @@ package plan
 import (
 	"slices"
 
-	"github.com/kingledion/go-tools/tree"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
@@ -155,7 +153,7 @@ func (f *DataSourceFilter) collectNodes() {
 			fieldInfo:      make(map[int]fieldInfo),
 			newFieldRefs:   f.newFieldRefs,
 		}
-		
+
 		f.nodesCollector.initVisitors()
 	}
 
@@ -383,14 +381,11 @@ func (f *DataSourceFilter) assignKeys(itemIdx int, parentNodeIndexes []int) {
 // On a second run in additional to all the checks from the first run
 // we select nodes which was not chosen by previous stages, so we just pick first available datasource
 func (f *DataSourceFilter) selectDuplicateNodes(secondPass bool) {
-
-	treeNodes := f.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
-
-	for treeNode := range treeNodes {
+	for id, treeNode := range TraverseBFS(f.nodes.responseTree) {
 		// f.nodes.printNodes("nodes")
 		// fmt.Println()
 
-		if treeNode.GetID() == treeRootID {
+		if id == treeRootID {
 			continue
 		}
 
