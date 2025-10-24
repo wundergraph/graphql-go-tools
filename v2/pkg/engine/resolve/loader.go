@@ -1851,7 +1851,7 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	out := dst.Bytes()
-	v, err := astjson.ParseBytesWithArena(l.jsonArena, out)
+	v, err := astjson.ParseBytes(out)
 	if err != nil {
 		return nil, err
 	}
