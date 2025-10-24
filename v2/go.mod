@@ -26,7 +26,7 @@ require (
 	github.com/sebdah/goldie/v2 v2.7.1
 	github.com/stretchr/testify v1.11.1
 	github.com/tidwall/gjson v1.17.0
-	github.com/tidwall/sjson v1.2.5
+	github.com/tidwall/sjson v1.0.4
 	github.com/vektah/gqlparser/v2 v2.5.30
 	github.com/wundergraph/astjson v0.0.0-20250106123708-be463c97e083
 	go.uber.org/atomic v1.11.0
