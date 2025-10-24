@@ -414,8 +414,8 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return err
 	}
 
-	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypename(info.typeName)
-	if hasRootNodeWithTypename {
+	hasEntityWithName := f.dataSource.HasEntity(info.typeName)
+	if hasEntityWithName {
 		// should be done after handling provides
 		if err := f.collectKeysForPath(info.typeName, info.parentPath); err != nil {
 			return err
@@ -457,6 +457,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return nil
 	}
 
+	hasRootNodeWithTypename := f.dataSource.HasRootNodeWithTypename(info.typeName)
 	// hasRootNode is true when:
 	// - ds config has a root node for the field
 	// - we have a root node with typename and the field is a __typename field
