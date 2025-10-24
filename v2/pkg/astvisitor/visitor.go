@@ -2,9 +2,7 @@ package astvisitor
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"runtime/pprof"
 	"sync"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
@@ -129,9 +127,7 @@ func NewDefaultWalkerWithID(id string) Walker {
 }
 
 var (
-	walkerPool  = sync.Pool{}
-	walkerPoolA = sync.Pool{}
-	walkerPoolB = sync.Pool{}
+	walkerPool = sync.Pool{}
 )
 
 func WalkerFromPool() *Walker {
@@ -141,32 +137,6 @@ func WalkerFromPool() *Walker {
 		return &w
 	}
 	return walker.(*Walker)
-}
-
-func WalkerFromPool2(pool string) *Walker {
-	switch pool {
-	case "A":
-		walker := walkerPoolA.Get()
-		if walker == nil {
-			w := NewWalkerWithID(8, "RepresentationVariables")
-			return &w
-		}
-		return walker.(*Walker)
-	case "B":
-		walker := walkerPoolB.Get()
-		if walker == nil {
-			w := NewWalkerWithID(8, "CollectNodes")
-			return &w
-		}
-		return walker.(*Walker)
-	default:
-		walker := walkerPool.Get()
-		if walker == nil {
-			w := NewWalker(8)
-			return &w
-		}
-		return walker.(*Walker)
-	}
 }
 
 func (w *Walker) Release() {
@@ -1410,24 +1380,25 @@ func (w *Walker) SetVisitorFilter(filter VisitorFilter) {
 
 // Walk initiates the walker to start walking the AST from the top root Node
 func (w *Walker) Walk(document, definition *ast.Document, report *operationreport.Report) {
-	ctx := context.Background()
-	labels := pprof.Labels("walker_id", w.walkerID)
+	// uncomment to get walker labels in pprof profiles
+	// ctx := context.Background()
+	// labels := pprof.Labels("walker_id", w.walkerID)
+	// pprof.Do(ctx, labels, func(ctx context.Context) {
+	// })
 
-	pprof.Do(ctx, labels, func(ctx context.Context) {
-		if report == nil {
-			w.Report = &operationreport.Report{}
-		} else {
-			w.Report = report
-		}
-		w.Ancestors = w.Ancestors[:0]
-		w.Path = w.Path[:0]
-		w.TypeDefinitions = w.TypeDefinitions[:0]
-		w.document = document
-		w.definition = definition
-		w.Depth = 0
-		w.stop = false
-		w.walk()
-	})
+	if report == nil {
+		w.Report = &operationreport.Report{}
+	} else {
+		w.Report = report
+	}
+	w.Ancestors = w.Ancestors[:0]
+	w.Path = w.Path[:0]
+	w.TypeDefinitions = w.TypeDefinitions[:0]
+	w.document = document
+	w.definition = definition
+	w.Depth = 0
+	w.stop = false
+	w.walk()
 }
 
 // DefferOnEnterField runs the provided func() after the current batch of visitors
