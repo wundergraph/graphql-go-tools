@@ -3,8 +3,10 @@ package plan
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 
 	"github.com/kingledion/go-tools/tree"
+	"github.com/phf/go-queue/queue"
 )
 
 const treeRootID = ^uint(0)
@@ -93,6 +95,28 @@ type NodeSuggestions struct {
 	pathSuggestions map[string][]*NodeSuggestion
 	seenFields      map[int]struct{}
 	responseTree    tree.Tree[[]int]
+}
+
+func TraverseBFS(data tree.Tree[[]int]) iter.Seq2[uint, tree.Node[[]int]] {
+	return func(yield func(uint, tree.Node[[]int]) bool) {
+		q := queue.New()
+		q.PushBack(data.Root())
+
+		for {
+			current := q.PopFront()
+			switch node := current.(type) {
+			case tree.Node[[]int]:
+				for _, child := range node.GetChildren() {
+					q.PushBack(child)
+				}
+				if !yield(node.GetID(), node) {
+					return
+				}
+			case nil:
+				return
+			}
+		}
+	}
 }
 
 func NewNodeSuggestions() *NodeSuggestions {

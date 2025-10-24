@@ -53,12 +53,12 @@ func NewPlanner(config Configuration) (*Planner, error) {
 	config.EntityInterfaceNames = entityInterfaceNames
 
 	// prepare operation walker handles internal normalization for planner
-	prepareOperationWalker := astvisitor.NewWalker(48)
+	prepareOperationWalker := astvisitor.NewWalkerWithID(48, "PrepareOperationWalker")
 	astnormalization.InlineFragmentAddOnType(&prepareOperationWalker)
 
 	// planning
 
-	planningWalker := astvisitor.NewWalker(48)
+	planningWalker := astvisitor.NewWalkerWithID(48, "PlanningWalker")
 	planningVisitor := &Visitor{
 		Walker:                       &planningWalker,
 		fieldConfigs:                 map[int]*FieldConfiguration{},

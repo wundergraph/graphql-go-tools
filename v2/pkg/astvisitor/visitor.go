@@ -63,6 +63,7 @@ func newSkipVisitors(skips []int, planner interface{}, allowedToVisit bool) Skip
 // Walker orchestrates the process of walking an AST and calling all registered callbacks
 // Always use NewWalker to instantiate a new Walker
 type Walker struct {
+	walkerID string
 	// Ancestors is the slice of Nodes to the current Node in a callback
 	// don't keep a reference to this slice, always copy it if you want to work with it after the callback returned
 	Ancestors []ast.Node
@@ -96,11 +97,21 @@ type Walker struct {
 	OnExternalError func(err *operationreport.ExternalError)
 }
 
+func NewWalkerWithID(ancestorSize int, id string) Walker {
+	return Walker{
+		Ancestors:       make([]ast.Node, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, 64),
+		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
+		deferred:        make([]func(), 0, 8),
+		walkerID:        id,
+	}
+}
+
 // NewWalker returns a fully initialized Walker
 func NewWalker(ancestorSize int) Walker {
 	return Walker{
 		Ancestors:       make([]ast.Node, 0, ancestorSize),
-		Path:            make([]ast.PathItem, 0, ancestorSize),
+		Path:            make([]ast.PathItem, 0, 64),
 		TypeDefinitions: make([]ast.Node, 0, ancestorSize),
 		deferred:        make([]func(), 0, 8),
 	}
@@ -109,6 +120,10 @@ func NewWalker(ancestorSize int) Walker {
 // NewDefaultWalker returns a fully initialized Walker with the default ancestor size of 8
 func NewDefaultWalker() Walker {
 	return NewWalker(8)
+}
+
+func NewDefaultWalkerWithID(id string) Walker {
+	return NewWalkerWithID(8, id)
 }
 
 var (
@@ -1365,6 +1380,12 @@ func (w *Walker) SetVisitorFilter(filter VisitorFilter) {
 
 // Walk initiates the walker to start walking the AST from the top root Node
 func (w *Walker) Walk(document, definition *ast.Document, report *operationreport.Report) {
+	// uncomment to get walker labels in pprof profiles
+	// ctx := context.Background()
+	// labels := pprof.Labels("walker_id", w.walkerID)
+	// pprof.Do(ctx, labels, func(ctx context.Context) {
+	// })
+
 	if report == nil {
 		w.Report = &operationreport.Report{}
 	} else {

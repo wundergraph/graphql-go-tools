@@ -30,7 +30,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 		opt(&opts)
 	}
 	validator := OperationValidator{
-		walker: astvisitor.NewWalker(48),
+		walker: astvisitor.NewWalkerWithID(48, "OperationValidator"),
 	}
 
 	if opts.ApolloCompatibilityFlags.UseGraphQLValidationFailedStatus {
@@ -64,7 +64,7 @@ func DefaultOperationValidator(options ...Option) *OperationValidator {
 
 func NewOperationValidator(rules []Rule) *OperationValidator {
 	validator := OperationValidator{
-		walker: astvisitor.NewWalker(48),
+		walker: astvisitor.NewWalkerWithID(48, "OperationValidator"),
 	}
 
 	for _, rule := range rules {

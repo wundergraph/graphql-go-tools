@@ -50,6 +50,20 @@ type nodeSelectionVisitor struct {
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
 	addTypenameInNestedSelections bool
+
+	newFieldRefs map[int]struct{}
+}
+
+func (c *nodeSelectionVisitor) addSkipFieldRefs(fieldRefs ...int) {
+	c.skipFieldsRefs = append(c.skipFieldsRefs, fieldRefs...)
+
+	c.addNewFieldRefs(fieldRefs...)
+}
+
+func (c *nodeSelectionVisitor) addNewFieldRefs(fieldRefs ...int) {
+	for _, fieldRef := range fieldRefs {
+		c.newFieldRefs[fieldRef] = struct{}{}
+	}
 }
 
 type fieldDependencyKey struct {
@@ -483,7 +497,7 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	}
 	c.resetVisitedAbstractChecksForModifiedFields(addFieldsResult.modifiedFieldRefs)
 
-	c.skipFieldsRefs = append(c.skipFieldsRefs, addFieldsResult.skipFieldRefs...)
+	c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 	// add mapping for the field dependencies
 	for _, requestedByFieldRef := range requirements.requestedByFieldRefs {
 		fieldKey := fieldIndexKey{requestedByFieldRef, requirements.dsHash}
@@ -573,7 +587,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 		// op, _ := astprinter.PrintStringIndentDebug(c.operation, " ")
 		// fmt.Println("operation: ", op)
 
-		c.skipFieldsRefs = append(c.skipFieldsRefs, addFieldsResult.skipFieldRefs...)
+		c.addSkipFieldRefs(addFieldsResult.skipFieldRefs...)
 
 		// setup deps between key chain items
 		if currentFieldRefs != nil && previousJump != nil {
@@ -656,7 +670,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	c.skipFieldsRefs = append(c.skipFieldsRefs, rewriter.skipFieldRefs...)
+	c.addSkipFieldRefs(rewriter.skipFieldRefs...)
 	c.hasNewFields = true
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 
@@ -698,5 +712,9 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 		}
 
 		c.fieldRefDependsOn[key] = updatedFieldRefs
+	}
+
+	for _, newRefs := range changedFieldRefs {
+		c.addNewFieldRefs(newRefs...)
 	}
 }

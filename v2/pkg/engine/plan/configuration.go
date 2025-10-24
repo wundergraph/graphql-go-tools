@@ -115,7 +115,7 @@ type FieldConfiguration struct {
 	TypeName  string
 	FieldName string
 	// DisableDefaultMapping - instructs planner whether to use path mapping coming from Path field
-	DisableDefaultMapping bool
+	DisableDefaultMapping bool // TODO: has no effect as of now, remove?
 	// Path - represents a json path to lookup for a field value in response json
 	Path      []string
 	Arguments ArgumentsConfigurations
