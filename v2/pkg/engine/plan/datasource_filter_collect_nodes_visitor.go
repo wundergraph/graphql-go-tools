@@ -6,8 +6,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/kingledion/go-tools/tree"
-
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvisitor"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -65,10 +63,10 @@ func (c *nodesCollector) CollectNodes() (keys []DSKeyInfo) {
 	return c.keys
 }
 
-type fieldVisitTask struct {
-	fieldRef   int
-	treeNode   tree.Node[[]int]
-	treeNodeId uint
+type nodeVisitTask struct {
+	fieldRef     int
+	treeNodeData []int
+	treeNodeId   uint
 }
 
 func (c *nodesCollector) initVisitors() {
@@ -98,7 +96,7 @@ func (c *nodesCollector) initVisitors() {
 
 func (c *nodesCollector) collectNodes() {
 	// collect fields to visit
-	tasks := make([]fieldVisitTask, 0, 100)
+	nodesToVisit := make([]nodeVisitTask, 0, len(c.operation.Fields))
 	for treeNodeID, treeNode := range TraverseBFS(c.nodes.responseTree) {
 		if treeNodeID == treeRootID {
 			continue
@@ -112,20 +110,20 @@ func (c *nodesCollector) collectNodes() {
 			}
 		}
 
-		task := fieldVisitTask{
-			fieldRef:   fieldRef,
-			treeNode:   treeNode,
-			treeNodeId: treeNodeID,
+		task := nodeVisitTask{
+			fieldRef:     fieldRef,
+			treeNodeData: treeNode.GetData(),
+			treeNodeId:   treeNodeID,
 		}
 
-		tasks = append(tasks, task)
+		nodesToVisit = append(nodesToVisit, task)
 	}
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(c.dsVisitors))
 
 	for i, visitor := range c.dsVisitors {
-		go func(visitor *collectNodesDSVisitor, report *operationreport.Report, tasks []fieldVisitTask) {
+		go func(visitor *collectNodesDSVisitor, report *operationreport.Report, nodesToVisit []nodeVisitTask) {
 			defer func() {
 				// recover from panic and add it to the report
 				if r := recover(); r != nil {
@@ -139,14 +137,14 @@ func (c *nodesCollector) collectNodes() {
 			// cleanup data from previous runs, but preserve indexes
 			visitor.reset()
 
-			for _, task := range tasks {
-				if err := visitor.EnterField(task.fieldRef, task.treeNode, task.treeNodeId); err != nil {
+			for _, node := range nodesToVisit {
+				if err := visitor.EnterField(node.fieldRef, node.treeNodeData, node.treeNodeId); err != nil {
 					report.AddInternalError(fmt.Errorf("data source %s: %v", visitor.dataSource.Name(), err))
 					// stop processing on error
 					return
 				}
 			}
-		}(visitor, c.dsVisitorsReports[i], tasks)
+		}(visitor, c.dsVisitorsReports[i], nodesToVisit)
 	}
 
 	wg.Wait()
@@ -394,7 +392,7 @@ func (f *collectNodesDSVisitor) isNotExternalKeyField(currentPath string) bool {
 	return ok
 }
 
-func (f *collectNodesDSVisitor) EnterField(fieldRef int, treeNode tree.Node[[]int], treeNodeId uint) error {
+func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNodeId uint) error {
 	info, ok := f.info[fieldRef]
 	if !ok {
 		return nil
@@ -422,8 +420,6 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, treeNode tree.Node[[]in
 			}
 		}
 	}
-
-	itemIds := treeNode.GetData()
 
 	// this is the check for the global suggestions
 	if _, ok := f.hasSuggestionForFieldOnCurrentDataSource(itemIds, fieldRef); ok {
