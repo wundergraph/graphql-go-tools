@@ -492,9 +492,9 @@ func TestCollectKeysForPath(t *testing.T) {
 				notExternalKeyPaths: make(map[string]struct{}),
 			}
 
-			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
+			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath))
 			// call it again to test the deduplication
-			collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath)
+			assert.NoError(t, collectNodesVisitor.collectKeysForPath(c.typeName, c.parentPath))
 
 			assert.Equal(t, len(c.expectKeys), len(collectNodesVisitor.keys))
 			assert.Equal(t, c.expectKeys, collectNodesVisitor.keys)
