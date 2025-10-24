@@ -33,10 +33,10 @@ type Context struct {
 
 	subgraphErrors error
 
-	SubgraphHeadersBuilder HeadersForSubgraphRequest
+	SubgraphHeadersBuilder SubgraphHeadersBuilder
 }
 
-type HeadersForSubgraphRequest interface {
+type SubgraphHeadersBuilder interface {
 	HeadersForSubgraph(subgraphName string) (http.Header, uint64)
 }
 
