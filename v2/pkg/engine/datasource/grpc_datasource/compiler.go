@@ -244,47 +244,12 @@ type RPCCompiler struct {
 // ServiceByName returns a Service by its name.
 // Returns an empty Service if no service with the given name exists.
 func (d *Document) ServiceByName(name string) *Service {
-	for _, s := range d.Services {
-		if s.Name == name {
-			return &s
-		}
+	node, found := d.nodeByName(name)
+	if !found || node.kind != NodeKindService {
+		return nil
 	}
 
-	return nil
-}
-
-// MethodByName returns a Method by its name.
-// Returns an empty Method if no method with the given name exists.
-func (d *Document) MethodByName(name string) *Method {
-	for _, m := range d.Methods {
-		if m.Name == name {
-			return &m
-		}
-	}
-
-	return nil
-}
-
-// MethodRefByName returns the index of a Method in the Methods slice by its name.
-// Returns -1 if no method with the given name exists.
-func (d *Document) MethodRefByName(name string) int {
-	for i, m := range d.Methods {
-		if m.Name == name {
-			return i
-		}
-	}
-
-	return -1
-}
-
-// MethodByRef returns a Method by its reference index.
-func (d *Document) MethodByRef(ref int) Method {
-	return d.Methods[ref]
-}
-
-// ServiceByRef returns a Service by its reference index.
-func (d *Document) ServiceByRef(ref int) Service {
-	return d.Services[ref]
+	return &d.Services[node.ref]
 }
 
 // MessageByName returns a Message by its name.
@@ -292,13 +257,12 @@ func (d *Document) ServiceByRef(ref int) Service {
 // We only expect this function to return false if either the message name was provided incorrectly,
 // or the schema and mapping was not properly configured.
 func (d *Document) MessageByName(name string) (Message, bool) {
-	for _, m := range d.Messages {
-		if m.Name == name {
-			return m, true
-		}
+	node, found := d.nodeByName(name)
+	if !found || node.kind != NodeKindMessage {
+		return Message{}, false
 	}
 
-	return Message{}, false
+	return d.Messages[node.ref], true
 }
 
 // MessageRefByName returns the index of a Message in the Messages slice by its name.
@@ -320,13 +284,12 @@ func (d *Document) MessageByRef(ref int) Message {
 // EnumByName returns an Enum by its name.
 // Returns false if the enum does not exist.
 func (d *Document) EnumByName(name string) (Enum, bool) {
-	for _, e := range d.Enums {
-		if e.Name == name {
-			return e, true
-		}
+	node, found := d.nodeByName(name)
+	if !found || node.kind != NodeKindEnum {
+		return Enum{}, false
 	}
 
-	return Enum{}, false
+	return d.Enums[node.ref], true
 }
 
 // NewProtoCompiler compiles the protobuf schema into a Document structure.

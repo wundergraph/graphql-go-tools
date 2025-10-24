@@ -1,3 +1,5 @@
+// mapping_helper is a tool that generates a mapping.go file from a mapping.json file.
+// The mapping.go file is used for testing the grpc_datasource package.
 package main
 
 import (
