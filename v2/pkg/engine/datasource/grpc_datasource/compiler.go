@@ -2,6 +2,7 @@ package grpcdatasource
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"google.golang.org/protobuf/types/dynamicpb"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
@@ -180,21 +180,36 @@ type Method struct {
 
 // Message represents a protobuf message type with its fields.
 type Message struct {
+	Fields map[uint64]Field
 	Name   string                     // The name of the message
-	Fields []Field                    // The fields in the message
 	Desc   protoref.MessageDescriptor // The protobuf descriptor for the message
 }
 
-// FieldByName returns a field by its name.
+// GetField returns a field by its name.
 // Returns nil if no field with the given name exists.
-func (m *Message) FieldByName(name string) *Field {
-	for index, field := range m.Fields {
-		if field.Name == name {
-			return &m.Fields[index]
-		}
+func (m *Message) GetField(name string) *Field {
+	digest := pool.Hash64.Get()
+	defer pool.Hash64.Put(digest)
+	_, _ = digest.WriteString(name)
+
+	field, found := m.Fields[digest.Sum64()]
+	if !found {
+		return nil
 	}
 
-	return nil
+	return &field
+}
+
+func (m *Message) SetField(f Field) {
+	digest := pool.Hash64.Get()
+	defer pool.Hash64.Put(digest)
+	_, _ = digest.WriteString(f.Name)
+
+	if m.Fields == nil {
+		m.Fields = make(map[uint64]Field)
+	}
+
+	m.Fields[digest.Sum64()] = f
 }
 
 // Field represents a field in a protobuf message.
@@ -238,7 +253,6 @@ type EnumValue struct {
 type RPCCompiler struct {
 	doc      *Document // The compiled Document
 	Ancestor []Message
-	report   operationreport.Report
 }
 
 // ServiceByName returns a Service by its name.
@@ -321,7 +335,6 @@ func NewProtoCompiler(schema string, mapping *GRPCMapping) (*RPCCompiler, error)
 			nodes:   make(map[uint64]node),
 			Package: string(schemaFile.Package()),
 		},
-		report: operationreport.Report{},
 	}
 
 	// Extract information from the compiled file descriptor
@@ -382,9 +395,9 @@ type ServiceCall struct {
 	// MethodName is the name of the method on the service to call
 	MethodName string
 	// Input is the input message for the gRPC call
-	Input *dynamicpb.Message
+	Input protoref.Message
 	// Output is the output message for the gRPC call
-	Output *dynamicpb.Message
+	Output protoref.Message
 	// RPC is the call that was made to the gRPC service
 	RPC *RPCCall
 }
@@ -472,11 +485,23 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 		return ServiceCall{}, fmt.Errorf("output message %s not found in document", call.Response.Name)
 	}
 
-	request, response := p.newEmptyMessage(inputMessage), p.newEmptyMessage(outputMessage)
+	request, err := p.newEmptyMessage(inputMessage)
+	if err != nil {
+		return ServiceCall{}, err
+	}
+
+	response, err := p.newEmptyMessage(outputMessage)
+	if err != nil {
+		return ServiceCall{}, err
+	}
 
 	switch call.Kind {
 	case CallKindStandard, CallKindEntity:
-		request = p.buildProtoMessage(inputMessage, &call.Request, inputData)
+		request, err = p.buildProtoMessage(inputMessage, &call.Request, inputData)
+		if err != nil {
+			return ServiceCall{}, err
+		}
+
 	case CallKindResolve:
 		context, err := graph.FetchDependencies(&fetch)
 		if err != nil {
@@ -487,7 +512,10 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 			return ServiceCall{}, fmt.Errorf("context is required for resolve calls")
 		}
 
-		request = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
+		request, err = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
+		if err != nil {
+			return ServiceCall{}, err
+		}
 	}
 
 	serviceName, ok := p.resolveServiceName(call)
@@ -523,13 +551,12 @@ func (p *RPCCompiler) resolveServiceName(call *RPCCall) (string, bool) {
 }
 
 // newEmptyMessage creates a new empty dynamicpb.Message from a Message definition.
-func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
+func (p *RPCCompiler) newEmptyMessage(message Message) (protoref.Message, error) {
 	if p.doc.MessageRefByName(message.Name) == InvalidRef {
-		p.report.AddInternalError(fmt.Errorf("message %s not found in document", message.Name))
-		return nil
+		return nil, fmt.Errorf("message %s not found in document", message.Name)
 	}
 
-	return dynamicpb.NewMessage(message.Desc)
+	return dynamicpb.NewMessage(message.Desc), nil
 }
 
 // buildProtoMessageWithContext builds a protobuf message from an RPCMessage definition
@@ -541,39 +568,34 @@ func (p *RPCCompiler) newEmptyMessage(message Message) *dynamicpb.Message {
 //	  repeated CategoryProductCountContext context = 1;
 //	  CategoryProductCountArgs field_args = 2;
 //	}
-func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result, context []FetchItem) *dynamicpb.Message {
+func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result, context []FetchItem) (protoref.Message, error) {
 	if rpcMessage == nil {
-		return nil
+		return nil, fmt.Errorf("rpc message is nil")
 	}
 
 	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {
-		p.report.AddInternalError(fmt.Errorf("message %s not found in document", rpcMessage.Name))
-		return nil
+		return nil, fmt.Errorf("message %s not found in document", rpcMessage.Name)
 	}
 
 	rootMessage := dynamicpb.NewMessage(inputMessage.Desc)
 
 	if len(inputMessage.Fields) != 2 {
-		p.report.AddInternalError(fmt.Errorf("message %s must have exactly two fields: context and field_args", inputMessage.Name))
-		return nil
+		return nil, fmt.Errorf("message %s must have exactly two fields: context and field_args", inputMessage.Name)
 	}
 
-	contextSchemaField := inputMessage.FieldByName("context")
+	contextSchemaField := inputMessage.GetField("context")
 	if contextSchemaField == nil {
-		p.report.AddInternalError(fmt.Errorf("context field not found in message %s", inputMessage.Name))
-		return nil
+		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
 	}
 
 	contextRPCField := rpcMessage.Fields.ByName(contextSchemaField.Name)
 	if contextRPCField == nil {
-		p.report.AddInternalError(fmt.Errorf("context field not found in message %s", rpcMessage.Name))
-		return nil
+		return nil, fmt.Errorf("context field not found in message %s", rpcMessage.Name)
 	}
 
 	contextField := rootMessage.Descriptor().Fields().ByNumber(protoref.FieldNumber(contextSchemaField.Number))
 	if contextField == nil {
-		p.report.AddInternalError(fmt.Errorf("context field not found in message %s", inputMessage.Name))
-		return nil
+		return nil, fmt.Errorf("context field not found in message %s", inputMessage.Name)
 	}
 
 	contextList := p.newEmptyListMessageByName(rootMessage, contextSchemaField.Name)
@@ -589,26 +611,27 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		contextList.Append(val)
 	}
 
-	argsSchemaField := inputMessage.FieldByName("field_args")
+	argsSchemaField := inputMessage.GetField("field_args")
 	if argsSchemaField == nil {
-		p.report.AddInternalError(fmt.Errorf("field_args field not found in message %s", inputMessage.Name))
-		return nil
+		return nil, fmt.Errorf("field_args field not found in message %s", inputMessage.Name)
 	}
 
 	argsMessage := p.doc.Messages[argsSchemaField.MessageRef]
 	argsRPCField := rpcMessage.Fields.ByName("field_args")
 	if argsRPCField == nil {
-		p.report.AddInternalError(fmt.Errorf("field_args field not found in message %s", rpcMessage.Name))
-		return nil
+		return nil, fmt.Errorf("field_args field not found in message %s", rpcMessage.Name)
 	}
 
-	args := p.buildProtoMessage(argsMessage, argsRPCField.Message, data)
+	args, err := p.buildProtoMessage(argsMessage, argsRPCField.Message, data)
+	if err != nil {
+		return nil, err
+	}
 
 	// // Set the key list
 	p.setMessageValue(rootMessage, contextSchemaField.Name, protoref.ValueOfList(contextList))
 	p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args))
 
-	return rootMessage
+	return rootMessage, nil
 }
 
 func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCField) []map[string]protoref.Value {
@@ -810,25 +833,24 @@ func (p *RPCCompiler) setMessageValue(message protoref.Message, fieldName string
 
 // buildProtoMessage recursively builds a protobuf message from an RPCMessage definition
 // and JSON data. It handles nested messages and repeated fields.
-func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) *dynamicpb.Message {
+func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result) (protoref.Message, error) {
 	if rpcMessage == nil {
-		return nil
+		return nil, errors.New("rpc message is nil")
 	}
 
 	inputMessageRef := p.doc.MessageRefByName(inputMessage.Name)
 	if inputMessageRef == InvalidRef {
-		p.report.AddInternalError(fmt.Errorf("message %s not found in document", inputMessage.Name))
-		return nil
+		return nil, fmt.Errorf("message %s not found in document", inputMessage.Name)
 	}
 
 	message := dynamicpb.NewMessage(inputMessage.Desc)
 
-	for _, field := range inputMessage.Fields {
+	for _, rpcField := range rpcMessage.Fields {
 		fd := inputMessage.Desc.Fields()
 
 		// Look up the field in the RPC message definition
-		rpcField := rpcMessage.Fields.ByName(field.Name)
-		if rpcField == nil {
+		field := inputMessage.GetField(rpcField.Name)
+		if field == nil {
 			continue
 		}
 
@@ -852,7 +874,11 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 						continue
 					}
 
-					fieldMsg := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
+					fieldMsg, err := p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, element)
+					if err != nil {
+						return nil, err
+					}
+
 					list.Append(protoref.ValueOfMessage(fieldMsg))
 				default:
 					list.Append(p.setValueForKind(field.Type, element))
@@ -864,10 +890,12 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 
 		// Handle nested message fields
 		if field.MessageRef >= 0 {
-			var fieldMsg *dynamicpb.Message
+			var (
+				fieldMsg protoref.Message
+				err      error
+			)
 
 			switch {
-
 			case rpcField.IsListType:
 				// Nested and nullable lists are wrapped in a message, therefore we need to handle them differently
 				// than repeated fields. We need to do this because protobuf repeated fields are not nullable and cannot be nested.
@@ -878,21 +906,21 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				// }
 				if !data.Get(rpcField.JSONPath).Exists() {
 					if !rpcField.Optional {
-						p.report.AddInternalError(fmt.Errorf("field %s is required but has no value", rpcField.JSONPath))
+						return nil, fmt.Errorf("field %s is required but has no value", rpcField.JSONPath)
 					}
 
 					continue
 				}
 
 				if rpcField.ListMetadata == nil {
-					p.report.AddInternalError(fmt.Errorf("list metadata not found for field %s", rpcField.JSONPath))
-					continue
+					return nil, fmt.Errorf("list metadata not found for field %s", rpcField.JSONPath)
 				}
 
-				fieldMsg = p.buildListMessage(inputMessage.Desc, field, rpcField, data)
+				fieldMsg = p.buildListMessage(inputMessage.Desc, field, &rpcField, data)
 				if fieldMsg == nil {
 					continue
 				}
+
 			case rpcField.IsOptionalScalar():
 				// If the field is optional, we are handling a scalar value that is wrapped in a message
 				// as protobuf scalar types are not nullable.
@@ -903,13 +931,20 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 				}
 
 				// As those optional messages are well known wrapper types, we can convert them to the underlying message definition.
-				fieldMsg = p.buildProtoMessage(
+				fieldMsg, err = p.buildProtoMessage(
 					p.doc.Messages[field.MessageRef],
 					rpcField.ToOptionalTypeMessage(p.doc.Messages[field.MessageRef].Name),
 					data,
 				)
+
+				if err != nil {
+					return nil, err
+				}
 			default:
-				fieldMsg = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
+				fieldMsg, err = p.buildProtoMessage(p.doc.Messages[field.MessageRef], rpcField.Message, data.Get(rpcField.JSONPath))
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			message.Set(inputMessage.Desc.Fields().ByName(protoref.Name(field.Name)), protoref.ValueOfMessage(fieldMsg))
@@ -917,11 +952,13 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		}
 
 		if field.Type == DataTypeEnum {
-			if val := p.getEnumValue(rpcField.EnumName, data.Get(rpcField.JSONPath)); val != nil {
-				message.Set(
-					fd.ByName(protoref.Name(field.Name)),
-					*val,
-				)
+			val, err := p.getEnumValue(rpcField.EnumName, data.Get(rpcField.JSONPath))
+			if err != nil {
+				return nil, err
+			}
+
+			if val != nil {
+				message.Set(fd.ByName(protoref.Name(field.Name)), *val)
 			}
 
 			continue
@@ -932,7 +969,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 		message.Set(fd.ByName(protoref.Name(field.Name)), p.setValueForKind(field.Type, value))
 	}
 
-	return message
+	return message, nil
 }
 
 // buildListMessage creates a new protobuf message, which reflects a wrapper type to work with a list in GraphQL.
@@ -945,7 +982,7 @@ func (p *RPCCompiler) buildProtoMessage(inputMessage Message, rpcMessage *RPCMes
 //	  }
 //	  List list = 1;
 //	}
-func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field Field, rpcField *RPCField, data gjson.Result) *dynamicpb.Message {
+func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field *Field, rpcField *RPCField, data gjson.Result) *dynamicpb.Message {
 	rootMsg := dynamicpb.NewMessage(desc.Fields().ByName(protoref.Name(field.Name)).Message())
 	p.traverseList(rootMsg, 1, field, rpcField, data.Get(rpcField.JSONPath))
 	return rootMsg
@@ -960,30 +997,28 @@ func (p *RPCCompiler) buildListMessage(desc protoref.MessageDescriptor, field Fi
 //	  }
 //	  List list = 1;
 //	}
-func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Field, rpcField *RPCField, data gjson.Result) protoref.Message {
+func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field *Field, rpcField *RPCField, data gjson.Result) (protoref.Message, error) {
 	listFieldDesc := rootMsg.Descriptor().Fields().ByNumber(1)
 	if listFieldDesc == nil {
-		p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name()))
-		return nil
+		return nil, fmt.Errorf("field with number %d not found in message %s", 1, rootMsg.Descriptor().Name())
 	}
 
 	elements := data.Array()
 	newListField := rootMsg.NewField(listFieldDesc)
 	if len(elements) == 0 {
 		if rpcField.ListMetadata.LevelInfo[level-1].Optional {
-			return nil
+			return nil, nil
 		}
 
 		rootMsg.Set(listFieldDesc, newListField)
-		return rootMsg
+		return rootMsg, nil
 	}
 
 	// Inside of a List message type we expect a repeated "items" field with field number 1
 	itemsFieldMsg := newListField.Message()
 	itemsFieldDesc := itemsFieldMsg.Descriptor().Fields().ByNumber(1)
 	if itemsFieldDesc == nil {
-		p.report.AddInternalError(fmt.Errorf("field with number %d not found in message %s", 1, itemsFieldMsg.Descriptor().Name()))
-		return nil
+		return nil, fmt.Errorf("field with number %d not found in message %s", 1, itemsFieldMsg.Descriptor().Name())
 	}
 
 	itemsField := itemsFieldMsg.Mutable(itemsFieldDesc).List()
@@ -993,18 +1028,27 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 		case DataTypeMessage:
 			itemsFieldMsg, ok := p.doc.MessageByName(rpcField.Message.Name)
 			if !ok {
-				p.report.AddInternalError(fmt.Errorf("message %s not found in document", rpcField.Message.Name))
-				return nil
+				return nil, fmt.Errorf("message %s not found in document", rpcField.Message.Name)
 			}
 
 			for _, element := range elements {
-				if msg := p.buildProtoMessage(itemsFieldMsg, rpcField.Message, element); msg != nil {
+				msg, err := p.buildProtoMessage(itemsFieldMsg, rpcField.Message, element)
+				if err != nil {
+					return nil, err
+				}
+
+				if msg != nil {
 					itemsField.Append(protoref.ValueOfMessage(msg))
 				}
 			}
 		case DataTypeEnum:
 			for _, element := range elements {
-				if val := p.getEnumValue(rpcField.EnumName, element); val != nil {
+				val, err := p.getEnumValue(rpcField.EnumName, element)
+				if err != nil {
+					return nil, err
+				}
+
+				if val != nil {
 					itemsField.Append(*val)
 				}
 			}
@@ -1016,35 +1060,39 @@ func (p *RPCCompiler) traverseList(rootMsg protoref.Message, level int, field Fi
 
 		itemsFieldMsg.Set(itemsFieldDesc, protoref.ValueOfList(itemsField))
 		rootMsg.Set(listFieldDesc, newListField)
-		return rootMsg
+		return rootMsg, nil
 	}
 
 	for _, element := range elements {
 		newElement := itemsField.NewElement()
-		if val := p.traverseList(newElement.Message(), level+1, field, rpcField, element); val != nil {
+		val, err := p.traverseList(newElement.Message(), level+1, field, rpcField, element)
+		if err != nil {
+			return nil, err
+		}
+
+		if val != nil {
 			itemsField.Append(protoref.ValueOfMessage(val))
 		}
 	}
 
 	rootMsg.Set(listFieldDesc, newListField)
-	return rootMsg
+	return rootMsg, nil
 }
 
-func (p *RPCCompiler) getEnumValue(enumName string, data gjson.Result) *protoref.Value {
+func (p *RPCCompiler) getEnumValue(enumName string, data gjson.Result) (*protoref.Value, error) {
 	enum, ok := p.doc.EnumByName(enumName)
 	if !ok {
-		p.report.AddInternalError(fmt.Errorf("enum %s not found in document", enumName))
-		return nil
+		return nil, fmt.Errorf("enum %s not found in document", enumName)
 	}
 
 	for _, enumValue := range enum.Values {
 		if enumValue.GraphqlValue == data.String() {
 			v := protoref.ValueOfEnum(protoref.EnumNumber(enumValue.Number))
-			return &v
+			return &v, nil
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // setValueForKind converts a gjson.Result value to the appropriate protobuf value
@@ -1167,8 +1215,6 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 
 // enrichMessageData enriches the message data with the field information.
 func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
-	fields := []Field{}
-
 	msg := p.doc.Messages[ref]
 	// Process all fields in the message
 	for i := 0; i < m.Fields().Len(); i++ {
@@ -1181,10 +1227,9 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 			field.MessageRef = p.doc.MessageRefByName(string(f.Message().Name()))
 		}
 
-		fields = append(fields, field)
+		msg.SetField(field)
 	}
 
-	msg.Fields = fields
 	p.doc.Messages[ref] = msg
 }
 

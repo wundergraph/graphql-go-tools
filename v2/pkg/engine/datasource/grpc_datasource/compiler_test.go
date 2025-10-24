@@ -129,12 +129,12 @@ func TestNewProtoCompilerRecursiveType(t *testing.T) {
 	require.Equal(t, 1, len(compiler.doc.Messages))
 	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Name)
 	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
-	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].Name)
-	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
-	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields))
-	require.Equal(t, "id", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[0].Name)
-	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[1].Name)
-	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc).Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").Name)
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, 2, len(compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).Fields))
+	require.Equal(t, "id", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("id").Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("nested").Name)
+	require.Equal(t, "RecursiveMessage", compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc).GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
 }
 
 func TestNewProtoCompilerNestedRecursiveType(t *testing.T) {
@@ -162,30 +162,30 @@ message RecursiveMessage {
 
 	require.Equal(t, "NestedRecursiveMessage", compiler.doc.Messages[0].Name)
 	require.Equal(t, 2, len(compiler.doc.Messages[0].Fields))
-	require.Equal(t, "id", compiler.doc.Messages[0].Fields[0].Name)
-	require.Equal(t, "nested", compiler.doc.Messages[0].Fields[1].Name)
+	require.Equal(t, "id", compiler.doc.Messages[0].GetField("id").Name)
+	require.Equal(t, "nested", compiler.doc.Messages[0].GetField("nested").Name)
 
-	nested := compiler.doc.Messages[0].Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	nested := compiler.doc.Messages[0].GetField("nested").ResolveUnderlyingMessage(compiler.doc)
 	require.Equal(t, "RecursiveMessage", nested.Name)
 
 	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.Fields[0].Name)
-	require.Equal(t, "nested", nested.Fields[1].Name)
+	require.Equal(t, "id", nested.GetField("id").Name)
+	require.Equal(t, "nested", nested.GetField("nested").Name)
 
-	nested = nested.Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	nested = nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc)
 	require.Equal(t, "NestedRecursiveMessage", nested.Name)
 
 	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.Fields[0].Name)
-	require.Equal(t, "nested", nested.Fields[1].Name)
+	require.Equal(t, "id", nested.GetField("id").Name)
+	require.Equal(t, "nested", nested.GetField("nested").Name)
 
-	nested = nested.Fields[1].ResolveUnderlyingMessage(compiler.doc)
+	nested = nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc)
 	require.Equal(t, "RecursiveMessage", nested.Name)
 
 	require.Equal(t, 2, len(nested.Fields))
-	require.Equal(t, "id", nested.Fields[0].Name)
-	require.Equal(t, "nested", nested.Fields[1].Name)
-	require.Equal(t, "NestedRecursiveMessage", nested.Fields[1].ResolveUnderlyingMessage(compiler.doc).Name)
+	require.Equal(t, "id", nested.GetField("id").Name)
+	require.Equal(t, "nested", nested.GetField("nested").Name)
+	require.Equal(t, "NestedRecursiveMessage", nested.GetField("nested").ResolveUnderlyingMessage(compiler.doc).Name)
 }
 
 // TestBuildProtoMessage tests the ability to build a protobuf message
@@ -419,7 +419,7 @@ func TestCompileNestedLists(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(serviceCalls))
 
-	proto := serviceCalls[0].Input.ProtoReflect()
+	proto := serviceCalls[0].Input
 
 	msgDesc := proto.Descriptor()
 
