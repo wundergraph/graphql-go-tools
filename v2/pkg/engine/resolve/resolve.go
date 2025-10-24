@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/buger/jsonparser"
@@ -707,14 +708,16 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		asyncDataSource = async
 	}
 
+	headers, _ := r.triggerHeaders(add.ctx, add.sourceName)
+
 	go func() {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 		if asyncDataSource != nil {
-			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
+			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, headers, add.input, updater)
 		} else {
-			err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+			err = add.resolve.Trigger.Source.Start(cloneCtx, headers, add.input, updater)
 		}
 		if err != nil {
 			if r.options.Debug {
@@ -1057,6 +1060,13 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 	return nil
 }
 
+func (r *Resolver) triggerHeaders(ctx *Context, sourceName string) (http.Header, uint64) {
+	if ctx.SubgraphHeadersBuilder != nil {
+		return ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
+	}
+	return nil, 0
+}
+
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
 	if subscription.Trigger.Source == nil {
 		return errors.New("no data source found")
@@ -1094,14 +1104,14 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
+	_, headersHash := r.triggerHeaders(ctx, subscription.Trigger.SourceName)
+
 	xxh := pool.Hash64.Get()
-	defer pool.Hash64.Put(xxh)
-	err = subscription.Trigger.Source.UniqueRequestID(ctx, input, xxh)
-	if err != nil {
-		msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
-		return writeFlushComplete(writer, msg)
-	}
-	uniqueID := xxh.Sum64()
+	_, _ = xxh.Write(input)
+	// the hash for subgraph headers is pre-computed
+	// we can just add it to the input hash to get a unique id
+	uniqueID := xxh.Sum64() + headersHash
+	pool.Hash64.Put(xxh)
 	id := SubscriptionIdentifier{
 		ConnectionID:   ConnectionIDs.Inc(),
 		SubscriptionID: 0,
@@ -1120,12 +1130,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		triggerID: uniqueID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
-			ctx:       ctx,
-			input:     input,
-			resolve:   subscription,
-			writer:    writer,
-			id:        id,
-			completed: completed,
+			ctx:        ctx,
+			input:      input,
+			resolve:    subscription,
+			writer:     writer,
+			id:         id,
+			completed:  completed,
+			sourceName: subscription.Trigger.SourceName,
 		},
 	}:
 	}
@@ -1203,13 +1214,14 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return nil
 	}
 
+	_, headersHash := r.triggerHeaders(ctx, subscription.Trigger.SourceName)
+
 	xxh := pool.Hash64.Get()
-	defer pool.Hash64.Put(xxh)
-	err = subscription.Trigger.Source.UniqueRequestID(ctx, input, xxh)
-	if err != nil {
-		msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
-		return writeFlushComplete(writer, msg)
-	}
+	_, _ = xxh.Write(input)
+	// the hash for subgraph headers is pre-computed
+	// we can just add it to the input hash to get a unique id
+	uniqueID := xxh.Sum64() + headersHash
+	pool.Hash64.Put(xxh)
 
 	select {
 	case <-r.ctx.Done():
@@ -1219,15 +1231,16 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		// Stop resolving if the client is gone
 		return ctx.ctx.Err()
 	case r.events <- subscriptionEvent{
-		triggerID: xxh.Sum64(),
+		triggerID: uniqueID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
-			ctx:       ctx,
-			input:     input,
-			resolve:   subscription,
-			writer:    writer,
-			id:        id,
-			completed: make(chan struct{}),
+			ctx:        ctx,
+			input:      input,
+			resolve:    subscription,
+			writer:     writer,
+			id:         id,
+			completed:  make(chan struct{}),
+			sourceName: subscription.Trigger.SourceName,
 		},
 	}:
 	}
@@ -1335,12 +1348,13 @@ type subscriptionEvent struct {
 }
 
 type addSubscription struct {
-	ctx       *Context
-	input     []byte
-	resolve   *GraphQLSubscription
-	writer    SubscriptionResponseWriter
-	id        SubscriptionIdentifier
-	completed chan struct{}
+	ctx        *Context
+	input      []byte
+	resolve    *GraphQLSubscription
+	writer     SubscriptionResponseWriter
+	id         SubscriptionIdentifier
+	completed  chan struct{}
+	sourceName string
 }
 
 type subscriptionEventKind int

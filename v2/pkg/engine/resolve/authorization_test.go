@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 	"sync/atomic"
 	"testing"
 
@@ -509,8 +510,8 @@ func TestAuthorization(t *testing.T) {
 func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller) *GraphQLResponse {
 	userService := NewMockDataSource(ctrl)
 	userService.EXPECT().
-		Load(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 			assert.Equal(t, expected, actual)
@@ -519,8 +520,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 
 	reviewsService := NewMockDataSource(ctrl)
 	reviewsService.EXPECT().
-		Load(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 			assert.Equal(t, expected, actual)
@@ -529,8 +530,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 
 	productService := NewMockDataSource(ctrl)
 	productService.EXPECT().
-		Load(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 			assert.Equal(t, expected, actual)
@@ -814,8 +815,8 @@ func generateTestFederationGraphQLResponse(t *testing.T, ctrl *gomock.Controller
 func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T, ctrl *gomock.Controller) *GraphQLResponse {
 	userService := NewMockDataSource(ctrl)
 	userService.EXPECT().
-		Load(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 			assert.Equal(t, expected, actual)
@@ -824,8 +825,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 
 	reviewsService := NewMockDataSource(ctrl)
 	reviewsService.EXPECT().
-		Load(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 			assert.Equal(t, expected, actual)
@@ -834,8 +835,8 @@ func generateTestFederationGraphQLResponseWithoutAuthorizationRules(t *testing.T
 
 	productService := NewMockDataSource(ctrl)
 	productService.EXPECT().
-		Load(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+		Load(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 			actual := string(input)
 			expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 			assert.Equal(t, expected, actual)

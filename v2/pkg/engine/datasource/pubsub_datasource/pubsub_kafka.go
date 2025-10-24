@@ -3,9 +3,7 @@ package pubsub_datasource
 import (
 	"context"
 	"encoding/json"
-
-	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
+	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
@@ -31,28 +29,7 @@ type KafkaSubscriptionSource struct {
 	pubSub KafkaPubSub
 }
 
-func (s *KafkaSubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) error {
-
-	val, _, _, err := jsonparser.Get(input, "topics")
-	if err != nil {
-		return err
-	}
-
-	_, err = xxh.Write(val)
-	if err != nil {
-		return err
-	}
-
-	val, _, _, err = jsonparser.Get(input, "providerId")
-	if err != nil {
-		return err
-	}
-
-	_, err = xxh.Write(val)
-	return err
-}
-
-func (s *KafkaSubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
+func (s *KafkaSubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var subscriptionConfiguration KafkaSubscriptionEventConfiguration
 	err := json.Unmarshal(input, &subscriptionConfiguration)
 	if err != nil {
@@ -66,7 +43,7 @@ type KafkaPublishDataSource struct {
 	pubSub KafkaPubSub
 }
 
-func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
+func (s *KafkaPublishDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	var publishConfiguration KafkaPublishEventConfiguration
 	err = json.Unmarshal(input, &publishConfiguration)
 	if err != nil {
@@ -79,6 +56,6 @@ func (s *KafkaPublishDataSource) Load(ctx context.Context, input []byte) (data [
 	return []byte(`{"success": true}`), nil
 }
 
-func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (s *KafkaPublishDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("not implemented")
 }

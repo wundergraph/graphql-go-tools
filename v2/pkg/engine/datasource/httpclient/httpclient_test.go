@@ -79,7 +79,7 @@ func TestHttpClientDo(t *testing.T) {
 
 	runTest := func(ctx context.Context, input []byte, expectedOutput string) func(t *testing.T) {
 		return func(t *testing.T) {
-			output, err := Do(http.DefaultClient, ctx, input)
+			output, err := Do(http.DefaultClient, ctx, nil, input)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedOutput, string(output))
 		}
@@ -209,7 +209,7 @@ func TestHttpClientDo(t *testing.T) {
 		input = SetInputURL(input, []byte(server.URL))
 		input, err := sjson.SetBytes(input, TRACE, true)
 		assert.NoError(t, err)
-		output, err := Do(http.DefaultClient, context.Background(), input)
+		output, err := Do(http.DefaultClient, context.Background(), nil, input)
 		assert.NoError(t, err)
 		assert.Contains(t, string(output), `"Authorization":["****"]`)
 	})

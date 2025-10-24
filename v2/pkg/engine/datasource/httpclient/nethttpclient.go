@@ -27,6 +27,7 @@ const (
 	AcceptEncodingHeader  = "Accept-Encoding"
 	AcceptHeader          = "Accept"
 	ContentTypeHeader     = "Content-Type"
+	ContentLengthHeader   = "Content-Length"
 
 	EncodingGzip    = "gzip"
 	EncodingDeflate = "deflate"
@@ -146,11 +147,15 @@ func buffer(ctx context.Context) *bytes.Buffer {
 	return bytes.NewBuffer(make([]byte, 0, 64))
 }
 
-func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, contentType string) ([]byte, error) {
+func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.Header, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, contentType string, contentLength int) ([]byte, error) {
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
 		return nil, err
+	}
+
+	if baseHeaders != nil {
+		request.Header = baseHeaders
 	}
 
 	if headers != nil {
@@ -205,6 +210,9 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	request.Header.Add(ContentTypeHeader, contentType)
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
+	if contentLength > 0 {
+		request.Header.Set(ContentLengthHeader, fmt.Sprintf("%d", contentLength))
+	}
 
 	setRequest(ctx, request)
 
@@ -256,13 +264,13 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	return responseWithTraceExtension, nil
 }
 
-func Do(client *http.Client, ctx context.Context, requestInput []byte) (data []byte, err error) {
+func Do(client *http.Client, ctx context.Context, baseHeaders http.Header, requestInput []byte) (data []byte, err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, ContentTypeJSON)
+	return makeHTTPRequest(client, ctx, baseHeaders, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, ContentTypeJSON, len(body))
 }
 
 func DoMultipartForm(
-	client *http.Client, ctx context.Context, requestInput []byte, files []*FileUpload,
+	client *http.Client, ctx context.Context, baseHeaders http.Header, requestInput []byte, files []*FileUpload,
 ) (data []byte, err error) {
 	if len(files) == 0 {
 		return nil, errors.New("no files provided")
@@ -316,7 +324,7 @@ func DoMultipartForm(
 		}
 	}()
 
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, contentType)
+	return makeHTTPRequest(client, ctx, baseHeaders, url, method, headers, queryParams, multipartBody, enableTrace, contentType, 0)
 }
 
 func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeReader, string, error) {

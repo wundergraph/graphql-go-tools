@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cespare/xxhash/v2"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,7 @@ type _fakeDataSource struct {
 	artificialLatency time.Duration
 }
 
-func (f *_fakeDataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
+func (f *_fakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -44,7 +43,7 @@ func (f *_fakeDataSource) Load(ctx context.Context, input []byte) (data []byte, 
 	return f.data, nil
 }
 
-func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (f *_fakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	if f.artificialLatency != 0 {
 		time.Sleep(f.artificialLatency)
 	}
@@ -349,8 +348,8 @@ func TestResolver_ResolveNode(t *testing.T) {
 	t.Run("fetch with context variable resolver", testFn(true, func(t *testing.T, ctrl *gomock.Controller) (response *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), []byte(`{"id":1}`)).
-			Do(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), []byte(`{"id":1}`)).
+			Do(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"name":"Jens"}`), nil
 			}).
 			Return([]byte(`{"name":"Jens"}`), nil)
@@ -1799,8 +1798,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with simple error without datasource ID", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		return &GraphQLResponse{
@@ -1829,8 +1828,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with simple error without datasource ID no subgraph error forwarding", testFnNoSubgraphErrorForwarding(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		return &GraphQLResponse{
@@ -1859,8 +1858,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with simple error", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		return &GraphQLResponse{
@@ -1893,8 +1892,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with simple error in pass through Subgraph Error Mode", testFnSubgraphErrorsPassthrough(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
 			})
 		return &GraphQLResponse{
@@ -1927,8 +1926,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with pass through mode and omit custom fields", testFnSubgraphErrorsPassthroughAndOmitCustomFields(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"errorMessage","longMessage":"This is a long message","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":{"name":null}}`), nil
 			})
 		return &GraphQLResponse{
@@ -1964,8 +1963,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with returned err (with DataSourceID)", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return nil, &net.AddrError{}
 			})
 		return &GraphQLResponse{
@@ -1998,8 +1997,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with returned err (no DataSourceID)", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return nil, &net.AddrError{}
 			})
 		return &GraphQLResponse{
@@ -2028,8 +2027,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with returned err and non-nullable root field", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return nil, &net.AddrError{}
 			})
 		return &GraphQLResponse{
@@ -2206,8 +2205,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("fetch with two Errors", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"errorMessage1"},{"message":"errorMessage2"}]}`), nil
 			}).Times(1)
 		return &GraphQLResponse{
@@ -2562,8 +2561,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 	t.Run("complex GraphQL Server plan", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		serviceOne := NewMockDataSource(ctrl)
 		serviceOne.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"query($firstArg: String, $thirdArg: Int){serviceOne(serviceOneArg: $firstArg){fieldOne} anotherServiceOne(anotherServiceOneArg: $thirdArg){fieldOne} reusingServiceOne(reusingServiceOneArg: $firstArg){fieldOne}}","variables":{"thirdArg":123,"firstArg":"firstArgValue"}}}`
 				assert.Equal(t, expected, actual)
@@ -2572,8 +2571,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 		serviceTwo := NewMockDataSource(ctrl)
 		serviceTwo.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				actual := string(input)
 				expected := `{"url":"https://service.two","body":{"query":"query($secondArg: Boolean, $fourthArg: Float){serviceTwo(serviceTwoArg: $secondArg){fieldTwo} secondServiceTwo(secondServiceTwoArg: $fourthArg){fieldTwo}}","variables":{"fourthArg":12.34,"secondArg":true}}}`
 				assert.Equal(t, expected, actual)
@@ -2582,8 +2581,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 		nestedServiceOne := NewMockDataSource(ctrl)
 		nestedServiceOne.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				actual := string(input)
 				expected := `{"url":"https://service.one","body":{"query":"{serviceOne {fieldOne}}"}}`
 				assert.Equal(t, expected, actual)
@@ -2798,8 +2797,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
@@ -2808,8 +2807,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -2820,8 +2819,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					productServiceCallCount.Add(1)
 					switch actual {
@@ -3005,8 +3004,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		t.Run("federation with batch", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
@@ -3015,8 +3014,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3025,8 +3024,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3202,8 +3201,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		t.Run("federation with merge paths", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
@@ -3212,8 +3211,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"__typename":"User","id":"1234"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3222,8 +3221,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"__typename":"Product","upc":"top-1"},{"__typename":"Product","upc":"top-2"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3400,8 +3399,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		t.Run("federation with null response", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
@@ -3410,8 +3409,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3427,8 +3426,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"},{"upc":"top-4","__typename":"Product"},{"upc":"top-5","__typename":"Product"},{"upc":"top-6","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3627,8 +3626,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
@@ -3637,8 +3636,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3647,8 +3646,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3814,8 +3813,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 					assert.Equal(t, expected, actual)
@@ -3824,8 +3823,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			reviewsService := NewMockDataSource(ctrl)
 			reviewsService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3834,8 +3833,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			productService := NewMockDataSource(ctrl)
 			productService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -3998,8 +3997,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 		t.Run("federation with optional variable", testFn(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 			userService := NewMockDataSource(ctrl)
 			userService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:8080/query","body":{"query":"{me {id}}"}}`
 					assert.Equal(t, expected, actual)
@@ -4008,8 +4007,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			employeeService := NewMockDataSource(ctrl)
 			employeeService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:8081/query","body":{"query":"query($representations: [_Any!]!, $companyId: ID!){_entities(representations: $representations){... on User {employment(companyId: $companyId){id}}}}","variables":{"companyId":"abc123","representations":[{"id":"1234","__typename":"User"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -4018,8 +4017,8 @@ func TestResolver_ResolveGraphQLResponse(t *testing.T) {
 
 			timeService := NewMockDataSource(ctrl)
 			timeService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					expected := `{"method":"POST","url":"http://localhost:8082/query","body":{"query":"query($representations: [_Any!]!, $date: LocalTime){_entities(representations: $representations){... on Employee {times(date: $date){id employee {id} start end}}}}","variables":{"date":null,"representations":[{"id":"xyz987","__typename":"Employee"}]}}}`
 					assert.Equal(t, expected, actual)
@@ -4538,8 +4537,8 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 	t.Run("with variables", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), []byte(`{"id":1}`)).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), []byte(`{"id":1}`)).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"name":"Jens"}`), nil
 			})
 		return &GraphQLResponse{
@@ -4582,8 +4581,8 @@ func TestResolver_ArenaResolveGraphQLResponse(t *testing.T) {
 	t.Run("error handling", testFnArena(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return nil, errors.New("data source error")
 			})
 		return &GraphQLResponse{
@@ -4659,8 +4658,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 	t.Run("simple fetch with fetch error suppression - empty response", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte("{}"), nil
 			})
 		return &GraphQLResponse{
@@ -4697,8 +4696,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 	t.Run("simple fetch with fetch error suppression - response with error", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				return []byte(`{"errors":[{"message":"Cannot query field 'name' on type 'Query'"}]}`), nil
 			})
 		return &GraphQLResponse{
@@ -4735,8 +4734,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 	t.Run("complex fetch with fetch error suppression", testFnApolloCompatibility(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx Context, expectedOutput string) {
 		userService := NewMockDataSource(ctrl)
 		userService.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4001","body":{"query":"{me {id username}}"}}`
 				assert.Equal(t, expected, actual)
@@ -4745,8 +4744,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 
 		reviewsService := NewMockDataSource(ctrl)
 		reviewsService.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4002","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on User {reviews {body product {upc __typename}}}}}","variables":{"representations":[{"id":"1234","__typename":"User"}]}}}`
 				assert.Equal(t, expected, actual)
@@ -4755,8 +4754,8 @@ func TestResolver_ApolloCompatibilityMode_FetchError(t *testing.T) {
 
 		productService := NewMockDataSource(ctrl)
 		productService.EXPECT().
-			Load(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+			Load(gomock.Any(), gomock.Any(), gomock.Any()).
+			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 				actual := string(input)
 				expected := `{"method":"POST","url":"http://localhost:4003","body":{"query":"query($representations: [_Any!]!){_entities(representations: $representations){... on Product {name}}}","variables":{"representations":[{"upc":"top-1","__typename":"Product"},{"upc":"top-2","__typename":"Product"}]}}}`
 				assert.Equal(t, expected, actual)
@@ -4946,8 +4945,8 @@ func TestResolver_WithHeader(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			fakeService := NewMockDataSource(ctrl)
 			fakeService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					assert.Equal(t, "foo", actual)
 					return []byte(`{"bar":"baz"}`), nil
@@ -5017,8 +5016,8 @@ func TestResolver_WithVariableRemapping(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			fakeService := NewMockDataSource(ctrl)
 			fakeService.EXPECT().
-				Load(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(ctx context.Context, input []byte) ([]byte, error) {
+				Load(gomock.Any(), gomock.Any(), gomock.Any()).
+				DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
 					actual := string(input)
 					assert.Equal(t, tc.expectedOutput, actual)
 					return []byte(`{"bar":"baz"}`), nil
@@ -5203,16 +5202,7 @@ func (f *_fakeStream) AwaitIsDone(t *testing.T, timeout time.Duration) {
 	}
 }
 
-func (f *_fakeStream) UniqueRequestID(ctx *Context, input []byte, xxh *xxhash.Digest) (err error) {
-	_, err = fmt.Fprint(xxh, fakeStreamRequestId.Add(1))
-	if err != nil {
-		return
-	}
-	_, err = xxh.Write(input)
-	return
-}
-
-func (f *_fakeStream) Start(ctx *Context, input []byte, updater SubscriptionUpdater) error {
+func (f *_fakeStream) Start(ctx *Context, headers http.Header, input []byte, updater SubscriptionUpdater) error {
 	if f.onStart != nil {
 		f.onStart(input)
 	}

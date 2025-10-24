@@ -9,6 +9,7 @@ package grpcdatasource
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/tidwall/gjson"
@@ -77,7 +78,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 //
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
-func (d *DataSource) Load(ctx context.Context, input []byte) (data []byte, err error) {
+func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	// get variables from input
 	variables := gjson.Parse(string(input)).Get("body.variables")
 	builder := newJSONBuilder(d.mapping, variables)
@@ -150,6 +151,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte) (data []byte, err e
 // might not be applicable for most gRPC use cases.
 //
 // Currently unimplemented.
-func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("unimplemented")
 }

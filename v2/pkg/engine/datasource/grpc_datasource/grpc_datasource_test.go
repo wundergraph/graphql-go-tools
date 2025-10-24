@@ -146,7 +146,7 @@ func Test_DataSource_Load(t *testing.T) {
 
 	require.NoError(t, err)
 
-	output, err := ds.Load(context.Background(), []byte(`{"query":"`+query+`","variables":`+variables+`}`))
+	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
 	require.NoError(t, err)
 
 	fmt.Println(string(output))
@@ -217,7 +217,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 	require.NoError(t, err)
 
 	// 3. Execute the query through our datasource
-	output, err := ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`))
+	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err)
 
 	// Print the response for debugging
@@ -309,7 +309,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 	// Format the input with query and variables
 	inputJSON := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
 
-	output, err := ds.Load(context.Background(), []byte(inputJSON))
+	output, err := ds.Load(context.Background(), nil, []byte(inputJSON))
 	require.NoError(t, err)
 
 	// Set up the correct response structure based on your GraphQL schema
@@ -401,7 +401,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 	require.NoError(t, err)
 
 	// 4. Execute the query
-	output, err := ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`))
+	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 	require.NoError(t, err, "Load should not return an error even when the gRPC call fails")
 
 	responseJson := string(output)
@@ -727,7 +727,7 @@ func Test_DataSource_Load_WithAnimalInterface(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -997,7 +997,7 @@ func Test_Datasource_Load_WithUnionTypes(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1133,7 +1133,7 @@ func Test_DataSource_Load_WithCategoryQueries(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -1213,7 +1213,7 @@ func Test_DataSource_Load_WithTotalCalculation(t *testing.T) {
 
 	// Execute the query through our datasource
 	input := fmt.Sprintf(`{"query":%q,"body":%s}`, query, variables)
-	output, err := ds.Load(context.Background(), []byte(input))
+	output, err := ds.Load(context.Background(), nil, []byte(input))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1303,7 +1303,7 @@ func Test_DataSource_Load_WithTypename(t *testing.T) {
 
 	// Execute the query through our datasource
 	input := fmt.Sprintf(`{"query":%q,"body":{}}`, query)
-	output, err := ds.Load(context.Background(), []byte(input))
+	output, err := ds.Load(context.Background(), nil, []byte(input))
 	require.NoError(t, err)
 
 	// Parse the response
@@ -1772,7 +1772,7 @@ func Test_DataSource_Load_WithAliases(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -2150,7 +2150,7 @@ func Test_DataSource_Load_WithNullableFieldsType(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -3451,7 +3451,7 @@ func Test_DataSource_Load_WithNestedLists(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
@@ -3603,7 +3603,7 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 
 			// Execute the query through our datasource
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			output, err := ds.Load(context.Background(), []byte(input))
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response

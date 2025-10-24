@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wundergraph/astjson"
@@ -1420,7 +1420,8 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 
 	preparedInput := bytes.NewBuffer(make([]byte, 0, 64))
 	itemInput := bytes.NewBuffer(make([]byte, 0, 32))
-	keyGen := xxhash.New()
+	keyGen := pool.Hash64.Get()
+	defer pool.Hash64.Put(keyGen)
 
 	var undefinedVariables []string
 
@@ -1590,18 +1591,33 @@ func GetOperationTypeFromContext(ctx context.Context) ast.OperationType {
 	return ast.OperationTypeQuery
 }
 
+func (l *Loader) headersForSubgraphRequest(fetchItem *FetchItem) (http.Header, uint64) {
+	if fetchItem == nil || fetchItem.Fetch == nil {
+		return nil, 0
+	}
+	info := fetchItem.Fetch.FetchInfo()
+	if info == nil {
+		return nil, 0
+	}
+	return l.ctx.HeadersForSubgraphRequest(info.DataSourceName)
+}
+
 func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem *FetchItem, input []byte, res *result) error {
 
 	if l.info != nil {
 		ctx = context.WithValue(ctx, operationTypeContextKey, l.info.OperationType)
 	}
 
-	if l.info == nil || l.info.OperationType == ast.OperationTypeMutation {
+	headers, extraKey := l.headersForSubgraphRequest(fetchItem)
+
+	if l.info == nil ||
+		l.info.OperationType == ast.OperationTypeMutation ||
+		l.ctx.ExecutionOptions.DisableRequestDeduplication {
 		// Disable single flight for mutations
-		return l.loadByContextDirect(ctx, source, input, res)
+		return l.loadByContextDirect(ctx, source, headers, input, res)
 	}
 
-	sfKey, fetchKey, item, shared := l.sf.GetOrCreateItem(ctx, fetchItem, input)
+	sfKey, fetchKey, item, shared := l.sf.GetOrCreateItem(fetchItem, input, extraKey)
 	if res.singleFlightStats != nil {
 		res.singleFlightStats.used = shared
 		res.singleFlightStats.shared = shared
@@ -1627,7 +1643,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	defer l.sf.Finish(sfKey, fetchKey, item)
 
 	// Perform the actual load
-	err := l.loadByContextDirect(ctx, source, input, res)
+	err := l.loadByContextDirect(ctx, source, headers, input, res)
 	if err != nil {
 		item.err = err
 		return err
@@ -1637,11 +1653,11 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	return nil
 }
 
-func (l *Loader) loadByContextDirect(ctx context.Context, source DataSource, input []byte, res *result) error {
+func (l *Loader) loadByContextDirect(ctx context.Context, source DataSource, headers http.Header, input []byte, res *result) error {
 	if l.ctx.Files != nil {
-		res.out, res.err = source.LoadWithFiles(ctx, input, l.ctx.Files)
+		res.out, res.err = source.LoadWithFiles(ctx, headers, input, l.ctx.Files)
 	} else {
-		res.out, res.err = source.Load(ctx, input)
+		res.out, res.err = source.Load(ctx, headers, input)
 	}
 	if res.err != nil {
 		return errors.WithStack(res.err)

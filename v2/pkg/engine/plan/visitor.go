@@ -1290,6 +1290,8 @@ func (v *Visitor) configureSubscription(config *objectFetchConfiguration) {
 	v.subscription.Trigger.QueryPlan = subscription.QueryPlan
 	v.resolveInputTemplates(config, &subscription.Input, &v.subscription.Trigger.Variables)
 	v.subscription.Trigger.Input = []byte(subscription.Input)
+	v.subscription.Trigger.SourceName = config.sourceName
+	v.subscription.Trigger.SourceID = config.sourceID
 	v.subscription.Filter = config.filter
 }
 

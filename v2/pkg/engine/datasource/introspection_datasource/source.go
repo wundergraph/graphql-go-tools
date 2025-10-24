@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net/http"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/introspection"
@@ -18,7 +19,7 @@ type Source struct {
 	introspectionData *introspection.Data
 }
 
-func (s *Source) Load(ctx context.Context, input []byte) (data []byte, err error) {
+func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	var req introspectionInput
 	if err := json.Unmarshal(input, &req); err != nil {
 		return nil, err
@@ -31,7 +32,7 @@ func (s *Source) Load(ctx context.Context, input []byte) (data []byte, err error
 	return json.Marshal(s.introspectionData.Schema)
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	return nil, errors.New("introspection data source does not support file uploads")
 }
 

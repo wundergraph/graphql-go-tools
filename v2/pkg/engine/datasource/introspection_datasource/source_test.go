@@ -28,7 +28,7 @@ func TestSource_Load(t *testing.T) {
 			require.False(t, report.HasErrors())
 
 			source := &Source{introspectionData: &data}
-			responseData, err := source.Load(context.Background(), []byte(input))
+			responseData, err := source.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			actualResponse := &bytes.Buffer{}

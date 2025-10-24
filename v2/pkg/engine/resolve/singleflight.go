@@ -1,7 +1,6 @@
 package resolve
 
 import (
-	"context"
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
@@ -41,8 +40,8 @@ func NewSingleFlight() *SingleFlight {
 	}
 }
 
-func (s *SingleFlight) GetOrCreateItem(ctx context.Context, fetchItem *FetchItem, input []byte) (sfKey, fetchKey uint64, item *SingleFlightItem, shared bool) {
-	sfKey, fetchKey = s.keys(fetchItem, input)
+func (s *SingleFlight) GetOrCreateItem(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64, item *SingleFlightItem, shared bool) {
+	sfKey, fetchKey = s.keys(fetchItem, input, extraKey)
 
 	// First, try to get the item with a read lock
 	s.mu.RLock()
@@ -73,9 +72,9 @@ func (s *SingleFlight) GetOrCreateItem(ctx context.Context, fetchItem *FetchItem
 	return sfKey, fetchKey, item, false
 }
 
-func (s *SingleFlight) keys(fetchItem *FetchItem, input []byte) (sfKey, fetchKey uint64) {
+func (s *SingleFlight) keys(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64) {
 	h := s.xxPool.Get().(*xxhash.Digest)
-	sfKey = s.sfKey(h, fetchItem, input)
+	sfKey = s.sfKey(h, fetchItem, input, extraKey)
 	h.Reset()
 	fetchKey = s.fetchKey(h, fetchItem)
 	h.Reset()
@@ -83,7 +82,7 @@ func (s *SingleFlight) keys(fetchItem *FetchItem, input []byte) (sfKey, fetchKey
 	return sfKey, fetchKey
 }
 
-func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byte) uint64 {
+func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byte, extraKey uint64) uint64 {
 	if fetchItem != nil && fetchItem.Fetch != nil {
 		info := fetchItem.Fetch.FetchInfo()
 		if info != nil {
@@ -92,7 +91,7 @@ func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byt
 		}
 	}
 	_, _ = h.Write(input)
-	return h.Sum64()
+	return h.Sum64() + extraKey
 }
 
 func (s *SingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {

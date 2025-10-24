@@ -32,12 +32,27 @@ type Context struct {
 	fieldRenderer FieldValueRenderer
 
 	subgraphErrors error
+
+	SubgraphHeadersBuilder HeadersForSubgraphRequest
+}
+
+type HeadersForSubgraphRequest interface {
+	HeadersForSubgraph(subgraphName string) (http.Header, uint64)
+}
+
+func (c *Context) HeadersForSubgraphRequest(subgraphName string) (http.Header, uint64) {
+	if c.SubgraphHeadersBuilder == nil {
+		return nil, 0
+	}
+	return c.SubgraphHeadersBuilder.HeadersForSubgraph(subgraphName)
 }
 
 type ExecutionOptions struct {
 	SkipLoader                 bool
 	IncludeQueryPlanInResponse bool
 	SendHeartbeat              bool
+	// DisableRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
+	DisableRequestDeduplication bool
 }
 
 type FieldValue struct {
