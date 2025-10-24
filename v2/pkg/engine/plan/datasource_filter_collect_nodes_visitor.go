@@ -122,16 +122,30 @@ func (c *nodesCollector) collectNodes() {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(c.dsVisitors))
 
+	// Create a semaphore if concurrency is limited
+	var sem chan struct{}
+	if c.maxConcurrency > 0 {
+		sem = make(chan struct{}, c.maxConcurrency)
+	}
+
 	for i, visitor := range c.dsVisitors {
+		if sem != nil {
+			sem <- struct{}{}
+		}
 		go func(visitor *collectNodesDSVisitor, report *operationreport.Report, nodesToVisit []nodeVisitTask) {
+			defer func() {
+				wg.Done()
+			}()
+			defer func() {
+				if sem != nil {
+					<-sem
+				}
+			}()
 			defer func() {
 				// recover from panic and add it to the report
 				if r := recover(); r != nil {
 					report.AddInternalError(fmt.Errorf("panic: %v stack: %s", r, debug.Stack()))
 				}
-			}()
-			defer func() {
-				wg.Done()
 			}()
 
 			// cleanup data from previous runs, but preserve indexes
