@@ -97,16 +97,12 @@ func (c *nodesCollector) initVisitors() {
 }
 
 func (c *nodesCollector) collectNodes() {
-	treeNodes := c.nodes.responseTree.Traverse(tree.TraverseBreadthFirst)
-
 	// collect fields to visit
 	tasks := make([]fieldVisitTask, 0, 100)
-	for treeNode := range treeNodes {
-		if treeNode.GetID() == treeRootID {
+	for treeNodeID, treeNode := range TraverseBFS(c.nodes.responseTree) {
+		if treeNodeID == treeRootID {
 			continue
 		}
-
-		treeNodeID := treeNode.GetID()
 		fieldRef := TreeNodeFieldRef(treeNodeID)
 
 		if len(c.newFieldRefs) > 0 {
