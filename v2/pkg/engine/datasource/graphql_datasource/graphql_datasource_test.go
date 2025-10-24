@@ -4994,12 +4994,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								TypeName:   "Query",
 								FieldNames: []string{"me", "user"},
 							},
-						},
-						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
 								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 							},
+						},
+						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "UserMetadata",
 								FieldNames: []string{"name", "address", "description"},
@@ -5099,7 +5099,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 			DisableResolveFieldPositions: true,
-		}, WithDefaultPostProcessor(), WithSkipReason("fix me")))
+		}, WithDefaultPostProcessor()))
 
 	t.Run("complex nested federation different order", RunTest(complexFederationSchema,
 		`	query User {
@@ -5380,12 +5380,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								TypeName:   "Query",
 								FieldNames: []string{"me", "user"},
 							},
-						},
-						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
 								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 							},
+						},
+						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "UserMetadata",
 								FieldNames: []string{"name", "address", "description"},
@@ -5478,7 +5478,7 @@ func TestGraphQLDataSource(t *testing.T) {
 				},
 			},
 			DisableResolveFieldPositions: true,
-		}, WithDefaultPostProcessor(), WithSkipReason("fix me")))
+		}, WithDefaultPostProcessor()))
 
 	t.Run("federated entity with requires", RunTest(requiredFieldTestSchema,
 		`	query QueryWithRequiredFields {
