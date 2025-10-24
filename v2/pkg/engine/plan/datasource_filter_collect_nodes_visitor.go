@@ -367,7 +367,7 @@ func (f *collectNodesDSVisitor) shouldAddUnionTypenameFieldSuggestion(info field
 		return false
 	}
 
-	if info.EnclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
+	if info.enclosingTypeDefinition.Kind != ast.NodeKindUnionTypeDefinition {
 		return false
 	}
 
@@ -398,7 +398,7 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return nil
 	}
 
-	if err := f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath, info.EnclosingTypeDefinition); err != nil {
+	if err := f.handleProvidesSuggestions(fieldRef, info.typeName, info.fieldName, info.currentPath, info.enclosingTypeDefinition); err != nil {
 		return err
 	}
 
@@ -541,7 +541,7 @@ type fieldInfo struct {
 	parentPathWithoutFragment                                      string
 	possibleTypeNames                                              []string
 	currentPathWithoutFragments                                    string
-	EnclosingTypeDefinition                                        ast.Node
+	enclosingTypeDefinition                                        ast.Node
 }
 
 func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
@@ -577,6 +577,6 @@ func (f *treeBuilderVisitor) collectFieldInfo(fieldRef int) {
 		parentPathWithoutFragment:   parentPathWithoutFragment,
 		currentPathWithoutFragments: currentPathWithoutFragments,
 		isTypeName:                  isTypeName,
-		EnclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
+		enclosingTypeDefinition:     f.walker.EnclosingTypeDefinition,
 	}
 }
