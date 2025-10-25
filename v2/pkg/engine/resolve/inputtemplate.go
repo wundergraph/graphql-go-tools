@@ -158,14 +158,20 @@ func (i *InputTemplate) renderHeaderVariable(ctx *Context, path []string, prepar
 		return nil
 	}
 	if len(value) == 1 {
-		preparedInput.WriteString(value[0])
+		if _, err := preparedInput.WriteString(value[0]); err != nil {
+			return err
+		}
 		return nil
 	}
 	for j := range value {
 		if j != 0 {
-			_, _ = preparedInput.Write(literal.COMMA)
+			if _, err := preparedInput.Write(literal.COMMA); err != nil {
+				return err
+			}
 		}
-		preparedInput.WriteString(value[j])
+		if _, err := preparedInput.WriteString(value[j]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
