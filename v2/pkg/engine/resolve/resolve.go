@@ -12,8 +12,9 @@ import (
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
-	"github.com/wundergraph/go-arena"
 	"go.uber.org/atomic"
+
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"

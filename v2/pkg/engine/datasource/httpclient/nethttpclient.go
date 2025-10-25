@@ -217,7 +217,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
 	if contentLength > 0 {
-		// always set the Content-Length Header so that chunking can be avoided
+		// always set the ContentLength field so that chunking can be avoided
 		// and other parties can more efficiently parse
 		request.ContentLength = int64(contentLength)
 	}
