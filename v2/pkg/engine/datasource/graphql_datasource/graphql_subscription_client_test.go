@@ -2437,7 +2437,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 					w.Header().Set(key, value)
 				}
 				w.WriteHeader(tc.statusCode)
-				fmt.Fprintf(w, `{"error": "WebSocket upgrade failed", "status": %d}`, tc.statusCode)
+				_, _ = fmt.Fprintf(w, `{"error": "WebSocket upgrade failed", "status": %d}`, tc.statusCode)
 			}))
 			defer server.Close()
 

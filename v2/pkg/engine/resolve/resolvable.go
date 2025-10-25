@@ -31,7 +31,8 @@ type Resolvable struct {
 	errors               *astjson.Value
 	valueCompletion      *astjson.Value
 	skipAddingNullErrors bool
-
+	// astjsonArena is the arena to handle json, supplied by Resolver
+	// not thread safe, but Resolvable is single threaded anyways
 	astjsonArena arena.Arena
 	parsers      []*astjson.Parser
 
@@ -111,6 +112,7 @@ func (r *Resolvable) Init(ctx *Context, initialData []byte, operationType ast.Op
 	r.operationType = operationType
 	r.renameTypeNames = ctx.RenameTypeNames
 	r.data = astjson.ObjectValue(r.astjsonArena)
+	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
@@ -129,6 +131,7 @@ func (r *Resolvable) InitSubscription(ctx *Context, initialData []byte, postProc
 	r.ctx = ctx
 	r.operationType = ast.OperationTypeSubscription
 	r.renameTypeNames = ctx.RenameTypeNames
+	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
 	if initialData != nil {
 		initialValue, err := astjson.ParseBytesWithArena(r.astjsonArena, initialData)
@@ -167,6 +170,7 @@ func (r *Resolvable) ResolveNode(node Node, data *astjson.Value, out io.Writer) 
 	r.print = false
 	r.printErr = nil
 	r.authorizationError = nil
+	// don't init errors! It will heavily increase memory usage
 	r.errors = nil
 
 	hasErrors := r.walkNode(node, data)
@@ -233,6 +237,7 @@ func (r *Resolvable) Resolve(ctx context.Context, rootData *Object, fetchTree *F
 	return r.printErr
 }
 
+// ensureErrorsInitialized is used to lazily init r.errors if needed
 func (r *Resolvable) ensureErrorsInitialized() {
 	if r.errors == nil {
 		r.errors = astjson.ArrayValue(r.astjsonArena)

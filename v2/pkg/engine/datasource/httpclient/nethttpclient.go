@@ -136,6 +136,9 @@ const (
 	sizeHintKey httpClientContext = "size-hint"
 )
 
+// WithHTTPClientSizeHint allows the engine to keep track of response sizes per subgraph fetch
+// If a hint is supplied, we can create a buffer of size close to the required size
+// This reduces allocations by reducing the buffer grow calls, which always copies the buffer
 func WithHTTPClientSizeHint(ctx context.Context, size int) context.Context {
 	return context.WithValue(ctx, sizeHintKey, size)
 }
@@ -144,6 +147,9 @@ func buffer(ctx context.Context) *bytes.Buffer {
 	if sizeHint, ok := ctx.Value(sizeHintKey).(int); ok && sizeHint > 0 {
 		return bytes.NewBuffer(make([]byte, 0, sizeHint))
 	}
+	// if we start with zero, doubling will take a while until we reach the required size
+	// if we start with a high number, e.g. 1024, we just increase the memory usage of the engine
+	// 64 seems to be a healthy middle ground
 	return bytes.NewBuffer(make([]byte, 0, 64))
 }
 
@@ -211,6 +217,8 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
 	if contentLength > 0 {
+		// always set the Content-Length Header so that chunking can be avoided
+		// and other parties can more efficiently parse
 		request.Header.Set(ContentLengthHeader, fmt.Sprintf("%d", contentLength))
 	}
 
@@ -229,6 +237,12 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.
 		return nil, err
 	}
 
+	// we intentionally don't use a pool of sorts here
+	// we're buffering the response and then later, in the engine,
+	// parse it into an JSON AST with the use of an arena, which is quite efficient
+	// Through trial and error it turned out that it's best to leave this buffer to the GC
+	// It'll know best the lifecycle of the buffer
+	// Using an arena here just increased overall memory usage
 	out := buffer(ctx)
 	_, err = out.ReadFrom(respReader)
 	if err != nil {

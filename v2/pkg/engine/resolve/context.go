@@ -36,10 +36,17 @@ type Context struct {
 	SubgraphHeadersBuilder SubgraphHeadersBuilder
 }
 
+// SubgraphHeadersBuilder allows the user of the engine to "define" the headers for a subgraph request
+// Instead of going back and forth between engine & transport,
+// you can simply define a function that returns headers for a Subgraph request
+// In addition to just the header, the implementer can return a hash for the header which will be used by request deduplication
 type SubgraphHeadersBuilder interface {
+	// HeadersForSubgraph must return the headers and a hash for a Subgraph Request
+	// The hash will be used for request deduplication
 	HeadersForSubgraph(subgraphName string) (http.Header, uint64)
 }
 
+// HeadersForSubgraphRequest returns headers and a hash for a request that the engine will make to a subgraph
 func (c *Context) HeadersForSubgraphRequest(subgraphName string) (http.Header, uint64) {
 	if c.SubgraphHeadersBuilder == nil {
 		return nil, 0

@@ -137,8 +137,9 @@ type result struct {
 	loaderHookContext context.Context
 
 	httpResponseContext *httpclient.ResponseContext
-	out                 []byte
-	singleFlightStats   *singleFlightStats
+	// out is the subgraph response body
+	out               []byte
+	singleFlightStats *singleFlightStats
 }
 
 func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
@@ -182,6 +183,14 @@ type Loader struct {
 
 	taintedObjs taintedObjects
 
+	// jsonArena is the arena to allocation json, supplied by the Resolver
+	// Disclaimer: this arena is NOT thread safe!
+	// Only use from main goroutine
+	// Don't Reset or Release, the Resolver handles this
+	// Disclaimer: When parsing json into the arena, the underlying bytes must also be allocated on the arena!
+	// This is very important to "tie" their lifecycles together
+	// If you're not doing this, you will see segfaults
+	// Example of correct usage in func "mergeResult"
 	jsonArena arena.Arena
 	sf        *SingleFlight
 }
@@ -773,9 +782,11 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 				return err
 			}
 		}
-
-		// If the error propagation mode is pass-through, we append the errors to the root array
+		// for efficiency purposes, resolvable.errors is not initialized
+		// don't change this, it's measurable
+		// downside: we have to verify it's initialized before appending to it
 		l.resolvable.ensureErrorsInitialized()
+		// If the error propagation mode is pass-through, we append the errors to the root array
 		l.resolvable.errors.AppendArrayItems(value)
 		return nil
 	}
@@ -811,7 +822,9 @@ func (l *Loader) mergeErrors(res *result, fetchItem *FetchItem, value *astjson.V
 	if err := l.addApolloRouterCompatibilityError(res); err != nil {
 		return err
 	}
-
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 
@@ -1066,7 +1079,9 @@ func (l *Loader) addApolloRouterCompatibilityError(res *result) error {
 	if err != nil {
 		return err
 	}
-
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, apolloRouterStatusError)
 
@@ -1081,6 +1096,9 @@ func (l *Loader) renderErrorsFailedDeps(fetchItem *FetchItem, res *result) error
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
@@ -1093,6 +1111,9 @@ func (l *Loader) renderErrorsFailedToFetch(fetchItem *FetchItem, res *result, re
 		return err
 	}
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
@@ -1112,6 +1133,9 @@ func (l *Loader) renderErrorsStatusFallback(fetchItem *FetchItem, res *result, s
 	}
 
 	l.setSubgraphStatusCode([]*astjson.Value{errorObject}, res.statusCode)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
@@ -1137,6 +1161,9 @@ func (l *Loader) renderAuthorizationRejectedErrors(fetchItem *FetchItem, res *re
 	}
 	pathPart := l.renderAtPathErrorPart(fetchItem.ResponsePath)
 	extensionErrorCode := fmt.Sprintf(`"extensions":{"code":"%s"}`, errorcodes.UnauthorizedFieldOrType)
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	if res.ds.Name == "" {
 		for _, reason := range res.authorizationRejectedReasons {
@@ -1216,6 +1243,9 @@ func (l *Loader) renderRateLimitRejectedErrors(fetchItem *FetchItem, res *result
 			return err
 		}
 	}
+	// for efficiency purposes, resolvable.errors is not initialized
+	// don't change this, it's measurable
+	// downside: we have to verify it's initialized before appending to it
 	l.resolvable.ensureErrorsInitialized()
 	astjson.AppendToArray(l.resolvable.errors, errorObject)
 	return nil
@@ -1417,7 +1447,7 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 			}
 		}
 	}
-
+	// I tried using arena here but it only worsened the situation
 	preparedInput := bytes.NewBuffer(make([]byte, 0, 64))
 	itemInput := bytes.NewBuffer(make([]byte, 0, 32))
 	keyGen := pool.Hash64.Get()
@@ -1579,6 +1609,7 @@ const (
 	operationTypeContextKey loaderContextKey = "operationType"
 )
 
+// GetOperationTypeFromContext can be used, e.g. by the transport, to check if the operation is a Mutation
 func GetOperationTypeFromContext(ctx context.Context) ast.OperationType {
 	if ctx == nil {
 		return ast.OperationTypeQuery
@@ -1638,6 +1669,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		return nil
 	}
 
+	// helps the http client to create buffers at the right size
 	ctx = httpclient.WithHTTPClientSizeHint(ctx, item.sizeHint)
 
 	defer l.sf.Finish(sfKey, fetchKey, item)
@@ -1851,6 +1883,9 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	out := dst.Bytes()
+	// don't use arena here or segfault
+	// it's also not a hot path and not important to optimize
+	// arena requires the parsed content to be on the arena as well
 	v, err := astjson.ParseBytes(out)
 	if err != nil {
 		return nil, err

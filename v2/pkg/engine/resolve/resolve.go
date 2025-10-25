@@ -72,7 +72,13 @@ type Resolver struct {
 	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	maxSubscriptionFetchTimeout time.Duration
 
-	resolveArenaPool   *ArenaPool
+	// resolveArenaPool is the arena pool dedicated for Loader & Resolvable
+	// ArenaPool automatically adjusts arena buffer sizes per workload
+	// resolving & response buffering are very different tasks
+	// as such, it was best to have two arena pools in terms of memory usage
+	// A single pool for both was much less efficient
+	resolveArenaPool *ArenaPool
+	// responseBufferPool is the arena pool dedicated for response buffering before sending to the client
 	responseBufferPool *ArenaPool
 
 	// Single flight cache for deduplicating requests across all loaders
@@ -246,6 +252,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 
 func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SingleFlight) *tools {
 	return &tools{
+		// we set the arena manually
 		resolvable: NewResolvable(nil, options.ResolvableOptions),
 		loader: &Loader{
 			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
