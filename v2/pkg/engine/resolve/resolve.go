@@ -322,10 +322,8 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	}()
 
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
+	// we're intentionally not using defer Release to have more control over the timing (see below)
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, resolveArena.Arena)
-
-	t.loader.jsonArena = resolveArena.Arena
-	t.resolvable.astjsonArena = resolveArena.Arena
 
 	err := t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
@@ -341,6 +339,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		}
 	}
 
+	// only when loading is done, acquire an arena for the response buffer
 	responseArena := r.responseBufferPool.Acquire(ctx.Request.ID)
 	buf := arena.NewArenaBuffer(responseArena.Arena)
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
@@ -350,8 +349,16 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		return nil, err
 	}
 
+	// first release resolverArena
+	// all data is resolved and written into the response arena
 	r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+	// next we write back to the client
+	// this includes flushing and syscalls
+	// as such, it can take some time
+	// which is why we split the arenas and released the first one
 	_, err = writer.Write(buf.Bytes())
+	// all data is written to the client
+	// we're safe to release our buffer
 	r.responseBufferPool.Release(ctx.Request.ID, responseArena)
 	return resp, err
 }
@@ -722,16 +729,14 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 		asyncDataSource = async
 	}
 
-	headers, _ := r.triggerHeaders(add.ctx, add.sourceName)
-
 	go func() {
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 		if asyncDataSource != nil {
-			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, headers, add.input, updater)
+			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.headers, add.input, updater)
 		} else {
-			err = add.resolve.Trigger.Source.Start(cloneCtx, headers, add.input, updater)
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, updater)
 		}
 		if err != nil {
 			if r.options.Debug {
@@ -1074,9 +1079,17 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 	return nil
 }
 
-func (r *Resolver) triggerHeaders(ctx *Context, sourceName string) (http.Header, uint64) {
+// prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
+// the generated has is the unique triggerID
+// the headers must be forwarded to the DataSource to create the trigger
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte) (headers http.Header, triggerID uint64) {
 	if ctx.SubgraphHeadersBuilder != nil {
-		return ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
+		header, headerHash := ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
+		keyGen := pool.Hash64.Get()
+		_, _ = keyGen.Write(input)
+		triggerID = keyGen.Sum64() + headerHash
+		pool.Hash64.Put(keyGen)
+		return header, triggerID
 	}
 	return nil, 0
 }
@@ -1118,20 +1131,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
-	_, headersHash := r.triggerHeaders(ctx, subscription.Trigger.SourceName)
-
-	xxh := pool.Hash64.Get()
-	_, _ = xxh.Write(input)
-	// the hash for subgraph headers is pre-computed
-	// we can just add it to the input hash to get a unique id
-	uniqueID := xxh.Sum64() + headersHash
-	pool.Hash64.Put(xxh)
+	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input)
 	id := SubscriptionIdentifier{
 		ConnectionID:   ConnectionIDs.Inc(),
 		SubscriptionID: 0,
 	}
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
+		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", triggerID, id.SubscriptionID)
 	}
 
 	completed := make(chan struct{})
@@ -1141,7 +1147,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		// Stop processing if the resolver is shutting down
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
-		triggerID: uniqueID,
+		triggerID: triggerID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
 			ctx:        ctx,
@@ -1151,6 +1157,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 			id:         id,
 			completed:  completed,
 			sourceName: subscription.Trigger.SourceName,
+			headers:    headers,
 		},
 	}:
 	}
@@ -1177,13 +1184,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:unsubscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
+		fmt.Printf("resolver:trigger:unsubscribe:sync:%d:%d\n", triggerID, id.SubscriptionID)
 	}
 
 	// Remove the subscription when the client disconnects.
 
 	r.events <- subscriptionEvent{
-		triggerID: uniqueID,
+		triggerID: triggerID,
 		kind:      subscriptionEventKindRemoveSubscription,
 		id:        id,
 	}
@@ -1228,14 +1235,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return nil
 	}
 
-	_, headersHash := r.triggerHeaders(ctx, subscription.Trigger.SourceName)
-
-	xxh := pool.Hash64.Get()
-	_, _ = xxh.Write(input)
-	// the hash for subgraph headers is pre-computed
-	// we can just add it to the input hash to get a unique id
-	uniqueID := xxh.Sum64() + headersHash
-	pool.Hash64.Put(xxh)
+	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input)
 
 	select {
 	case <-r.ctx.Done():
@@ -1245,7 +1245,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		// Stop resolving if the client is gone
 		return ctx.ctx.Err()
 	case r.events <- subscriptionEvent{
-		triggerID: uniqueID,
+		triggerID: triggerID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
 			ctx:        ctx,
@@ -1255,6 +1255,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 			id:         id,
 			completed:  make(chan struct{}),
 			sourceName: subscription.Trigger.SourceName,
+			headers:    headers,
 		},
 	}:
 	}
@@ -1369,6 +1370,7 @@ type addSubscription struct {
 	id         SubscriptionIdentifier
 	completed  chan struct{}
 	sourceName string
+	headers    http.Header
 }
 
 type subscriptionEventKind int
