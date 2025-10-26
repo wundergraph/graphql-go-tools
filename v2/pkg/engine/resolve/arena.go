@@ -10,12 +10,20 @@ import (
 // ArenaPool provides a thread-safe pool of arena.Arena instances for memory-efficient allocations.
 // It uses weak pointers to allow garbage collection of unused arenas while maintaining
 // a pool of reusable arenas for high-frequency allocation patterns.
+//
+// by storing ArenaPoolItem as weak pointers, the GC can collect them at any time
+// before using an ArenaPoolItem, we try to get a strong pointer while removing it from the pool
+// once we call Release, we turn the item back to the pool and make it a weak pointer again
+// this means that at any time, GC can claim back the memory if required,
+// allowing GC to automatically manage an appropriate pool size depending on available memory and GC pressure
 type ArenaPool struct {
+	// pool is a slice of weak pointers to the struct holding the arena.Arena
 	pool  []weak.Pointer[ArenaPoolItem]
 	sizes map[uint64]*arenaPoolItemSize
 	mu    sync.Mutex
 }
 
+// arenaPoolItemSize is used to track the required memory across the last 50 arenas in the pool
 type arenaPoolItemSize struct {
 	count      int
 	totalBytes int

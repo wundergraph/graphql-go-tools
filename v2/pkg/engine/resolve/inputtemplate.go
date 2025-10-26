@@ -55,6 +55,8 @@ func SetInputUndefinedVariables(preparedInput InputTemplateWriter, undefinedVari
 // to callers; renderSegments intercepts it and writes literal.NULL instead.
 var errSetTemplateOutputNull = errors.New("set to null")
 
+// InputTemplateWriter is used to decouple Buffer implementations from InputTemplate
+// This way, the implementation can easily be swapped, e.g. between bytes.Buffer and similar implementations
 type InputTemplateWriter interface {
 	io.Writer
 	io.StringWriter

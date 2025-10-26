@@ -192,7 +192,9 @@ type Loader struct {
 	// If you're not doing this, you will see segfaults
 	// Example of correct usage in func "mergeResult"
 	jsonArena arena.Arena
-	sf        *SingleFlight
+	// sf is the SingleFlight object shared across all client requests
+	// it's thread safe and can be used to de-duplicate subgraph requests
+	sf *SingleFlight
 }
 
 func (l *Loader) Free() {
@@ -302,7 +304,6 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		if l.ctx.LoaderHooks != nil {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
-
 		return err
 	case *BatchEntityFetch:
 		res := &result{}
@@ -438,7 +439,7 @@ func selectItems(a arena.Arena, items []*astjson.Value, element FetchItemPathEle
 	return selected
 }
 
-func itemsData(a arena.Arena, items []*astjson.Value) *astjson.Value {
+func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 	if len(items) == 0 {
 		return astjson.NullValue
 	}
@@ -449,7 +450,7 @@ func itemsData(a arena.Arena, items []*astjson.Value) *astjson.Value {
 	// however, itemsData can be called concurrently, so this might result in a race
 	arr := astjson.MustParseBytes([]byte(`[]`))
 	for i, item := range items {
-		arr.SetArrayItem(a, i, item)
+		arr.SetArrayItem(nil, i, item)
 	}
 	return arr
 }
@@ -553,6 +554,9 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if len(res.out) == 0 {
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
+	// before parsing bytes with an arena.Arena, it's important to first allocate the bytes ON the same arena.Arena
+	// this ties their lifecycles together
+	// if you don't do this, you'll get segfaults
 	slice := arena.AllocateSlice[byte](l.jsonArena, len(res.out), len(res.out))
 	copy(slice, res.out)
 	response, err := astjson.ParseBytesWithArena(l.jsonArena, slice)
@@ -707,7 +711,7 @@ var (
 )
 
 func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem) []byte {
-	out := &bytes.Buffer{}
+	out := bytes.NewBuffer(nil)
 	elements := fetchItem.ResponsePathElements
 	if len(elements) > 0 && elements[len(elements)-1] == "@" {
 		elements = elements[:len(elements)-1]
@@ -1319,7 +1323,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 	res.init(fetch.PostProcessing, fetch.Info)
 	buf := bytes.NewBuffer(nil)
 
-	inputData := itemsData(l.jsonArena, items)
+	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && inputData != nil {
@@ -1358,7 +1362,7 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 
 func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result) error {
 	res.init(fetch.PostProcessing, fetch.Info)
-	input := itemsData(l.jsonArena, items)
+	input := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && input != nil {
@@ -1441,17 +1445,22 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && len(items) != 0 {
-			data := itemsData(l.jsonArena, items)
+			data := l.itemsData(items)
 			if data != nil {
 				fetch.Trace.RawInputData, _ = l.compactJSON(data.MarshalTo(nil))
 			}
 		}
 	}
-	// I tried using arena here but it only worsened the situation
+	// I tried using arena here, but it only worsened the situation
 	preparedInput := bytes.NewBuffer(make([]byte, 0, 64))
 	itemInput := bytes.NewBuffer(make([]byte, 0, 32))
 	keyGen := pool.Hash64.Get()
-	defer pool.Hash64.Put(keyGen)
+	defer func() {
+		if keyGen == nil {
+			return
+		}
+		pool.Hash64.Put(keyGen)
+	}()
 
 	var undefinedVariables []string
 
@@ -1511,6 +1520,11 @@ WithNextItem:
 			addSeparator = true
 		}
 	}
+
+	// not used anymore
+	pool.Hash64.Put(keyGen)
+	// setting to nil so that the defer func doesn't return it twice
+	keyGen = nil
 
 	if len(itemHashes) == 0 {
 		// all items were skipped - discard fetch

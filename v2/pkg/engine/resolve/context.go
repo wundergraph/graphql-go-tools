@@ -55,9 +55,15 @@ func (c *Context) HeadersForSubgraphRequest(subgraphName string) (http.Header, u
 }
 
 type ExecutionOptions struct {
-	SkipLoader                 bool
+	// SkipLoader will, as the name indicates, skip loading data
+	// However, it does indeed resolve a response
+	// This can be useful, e.g. in combination with IncludeQueryPlanInResponse
+	// The purpose is to get a QueryPlan (even for Subscriptions)
+	SkipLoader bool
+	// IncludeQueryPlanInResponse generates a QueryPlan as part of the response in Resolvable
 	IncludeQueryPlanInResponse bool
-	SendHeartbeat              bool
+	// SendHeartbeat sends regular HeartBeats for Subscriptions
+	SendHeartbeat bool
 	// DisableRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
 	DisableRequestDeduplication bool
 }
