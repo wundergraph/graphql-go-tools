@@ -251,10 +251,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SingleFlight) *tools {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SingleFlight, a arena.Arena) *tools {
 	return &tools{
-		// we set the arena manually
-		resolvable: NewResolvable(nil, options.ResolvableOptions),
+		resolvable: NewResolvable(a, options.ResolvableOptions),
 		loader: &Loader{
 			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
 			propagateSubgraphStatusCodes:                 options.PropagateSubgraphStatusCodes,
@@ -271,6 +270,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			propagateFetchReasons:                        options.PropagateFetchReasons,
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
 			sf:                                           sf,
+			jsonArena:                                    a,
 		},
 	}
 }
@@ -289,7 +289,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, nil)
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -321,9 +321,9 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
-
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, resolveArena.Arena)
+
 	t.loader.jsonArena = resolveArena.Arena
 	t.resolvable.astjsonArena = resolveArena.Arena
 
@@ -486,11 +486,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
-
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
-	t.loader.jsonArena = resolveArena.Arena
-	t.resolvable.astjsonArena = resolveArena.Arena
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, resolveArena.Arena)
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
@@ -1097,7 +1094,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, nil)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
@@ -1207,7 +1204,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, nil)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {

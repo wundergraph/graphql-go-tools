@@ -16,13 +16,14 @@ type GraphQLSubscription struct {
 }
 
 type GraphQLSubscriptionTrigger struct {
-	Input                []byte
-	InputTemplate        InputTemplate
-	Variables            Variables
-	Source               SubscriptionDataSource
-	PostProcessing       PostProcessingConfiguration
-	QueryPlan            *QueryPlan
-	SourceName, SourceID string
+	Input          []byte
+	InputTemplate  InputTemplate
+	Variables      Variables
+	Source         SubscriptionDataSource
+	PostProcessing PostProcessingConfiguration
+	QueryPlan      *QueryPlan
+	SourceName     string
+	SourceID       string
 }
 
 // GraphQLResponse contains an ordered tree of fetches and the response shape.

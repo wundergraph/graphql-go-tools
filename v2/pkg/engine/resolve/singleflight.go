@@ -6,13 +6,6 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-type SingleFlightItem struct {
-	loaded   chan struct{}
-	response []byte
-	err      error
-	sizeHint int
-}
-
 type SingleFlight struct {
 	mu      *sync.RWMutex
 	items   map[uint64]*SingleFlightItem
@@ -21,8 +14,26 @@ type SingleFlight struct {
 	cleanup chan func()
 }
 
+// SingleFlightItem is used to communicate between leader and followers
+// If an Item for a key doesn't exist, the leader creates and followers can join
+type SingleFlightItem struct {
+	// loaded will be closed by the leader to indicate to followers when the work is done
+	loaded chan struct{}
+	// response is the shared result, it must not be modified
+	response []byte
+	// err is non nil if the leader produced an error while doing the work
+	err error
+	// sizeHint keeps track of the last 50 responses per fetchKey to give an estimate on the size
+	// this gives a leader a hint on how much space it should pre-allocate for buffers when fetching
+	// this reduces memory usage
+	sizeHint int
+}
+
+// fetchSize gives an estimate of required buffer size for a given fetchKey when dividing totalBytes / count
 type fetchSize struct {
-	count      int
+	// count is the number of fetches tracked
+	count int
+	// totalBytes is the cumulative bytes across tracked fetches
 	totalBytes int
 }
 
@@ -40,6 +51,13 @@ func NewSingleFlight() *SingleFlight {
 	}
 }
 
+// GetOrCreateItem generates a single flight key (100% identical fetches) and a fetchKey (similar fetches, collisions possible but unproblematic)
+// and return a SingleFlightItem as well as an indication if it's shared or not
+// If shared == false, the caller is a leader
+// If shared == true, the caller is a follower
+// item.sizeHint can be used to create an optimal buffer for the fetch in case of a leader
+// item.err must always be checked
+// item.response must never be mutated
 func (s *SingleFlight) GetOrCreateItem(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64, item *SingleFlightItem, shared bool) {
 	sfKey, fetchKey = s.keys(fetchItem, input, extraKey)
 
@@ -62,6 +80,7 @@ func (s *SingleFlight) GetOrCreateItem(fetchItem *FetchItem, input []byte, extra
 
 	// Create a new item
 	item = &SingleFlightItem{
+		// empty chan to indicate to all followers when we're done (close)
 		loaded: make(chan struct{}),
 	}
 	if size, ok := s.sizes[fetchKey]; ok {
@@ -82,6 +101,8 @@ func (s *SingleFlight) keys(fetchItem *FetchItem, input []byte, extraKey uint64)
 	return sfKey, fetchKey
 }
 
+// sfKey returns a key that 100% uniquely identifies a fetch with no collision
+// two sfKey are only the same when the fetches are 100% equal
 func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byte, extraKey uint64) uint64 {
 	if fetchItem != nil && fetchItem.Fetch != nil {
 		info := fetchItem.Fetch.FetchInfo()
@@ -91,9 +112,13 @@ func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byt
 		}
 	}
 	_, _ = h.Write(input)
-	return h.Sum64() + extraKey
+	return h.Sum64() + extraKey // extraKey in this case is the pre-generated hash for the headers
 }
 
+// fetchKey is a less robust key compared to sfKey
+// the purpose is to create a key from the DataSourceID and root fields to have less cardinality
+// the goal is to get an estimate buffer size for similar fetches
+// there's no point in hashing headers or the body for this purpose
 func (s *SingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
 	if fetchItem == nil || fetchItem.Fetch == nil {
 		return 0
@@ -115,6 +140,9 @@ func (s *SingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
 	return h.Sum64()
 }
 
+// Finish is for the leader to mark the SingleFlightItem as "done"
+// trigger all followers to look at the err & response of the item
+// and to update the size estimates
 func (s *SingleFlight) Finish(sfKey, fetchKey uint64, item *SingleFlightItem) {
 	close(item.loaded)
 	s.mu.Lock()
