@@ -248,69 +248,6 @@ func TestLoaderHooks_FetchPipeline(t *testing.T) {
 			}
 	}))
 
-	t.Run("parallel list item fetch with simple subgraph error", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
-		mockDataSource := NewMockDataSource(ctrl)
-		mockDataSource.EXPECT().
-			Load(gomock.Any(), gomock.Any(), gomock.Any()).
-			DoAndReturn(func(ctx context.Context, headers http.Header, input []byte) ([]byte, error) {
-				return []byte(`{"errors":[{"message":"errorMessage"}]}`), nil
-			})
-		resolveCtx := Context{
-			ctx:         context.Background(),
-			LoaderHooks: NewTestLoaderHooks(),
-		}
-		return &GraphQLResponse{
-				Info: &GraphQLResponseInfo{
-					OperationType: ast.OperationTypeQuery,
-				},
-				Fetches: SingleWithPath(&ParallelListItemFetch{
-					Fetch: &SingleFetch{
-						FetchConfiguration: FetchConfiguration{
-							DataSource: mockDataSource,
-							PostProcessing: PostProcessingConfiguration{
-								SelectResponseErrorsPath: []string{"errors"},
-							},
-						},
-						Info: &FetchInfo{
-							DataSourceID:   "Users",
-							DataSourceName: "Users",
-						},
-					},
-				}, "query"),
-				Data: &Object{
-					Nullable: false,
-					Fields: []*Field{
-						{
-							Name: []byte("name"),
-							Value: &String{
-								Path:     []string{"name"},
-								Nullable: true,
-							},
-						},
-					},
-				},
-			}, &resolveCtx, `{"errors":[{"message":"Failed to fetch from Subgraph 'Users' at Path 'query'.","extensions":{"errors":[{"message":"errorMessage"}]}}],"data":{"name":null}}`,
-			func(t *testing.T) {
-				loaderHooks := resolveCtx.LoaderHooks.(*TestLoaderHooks)
-
-				assert.Equal(t, int64(1), loaderHooks.preFetchCalls.Load())
-				assert.Equal(t, int64(1), loaderHooks.postFetchCalls.Load())
-
-				var subgraphError *SubgraphError
-				assert.Len(t, loaderHooks.errors, 1)
-				assert.ErrorAs(t, loaderHooks.errors[0], &subgraphError)
-				assert.Equal(t, "Users", subgraphError.DataSourceInfo.Name)
-				assert.Equal(t, "query", subgraphError.Path)
-				assert.Equal(t, "", subgraphError.Reason)
-				assert.Equal(t, 0, subgraphError.ResponseCode)
-				assert.Len(t, subgraphError.DownstreamErrors, 1)
-				assert.Equal(t, "errorMessage", subgraphError.DownstreamErrors[0].Message)
-				assert.Nil(t, subgraphError.DownstreamErrors[0].Extensions)
-
-				assert.NotNil(t, resolveCtx.SubgraphErrors())
-			}
-	}))
-
 	t.Run("fetch with subgraph error and custom extension code. No extension fields are propagated by default", testFnWithPostEvaluation(func(t *testing.T, ctrl *gomock.Controller) (node *GraphQLResponse, ctx *Context, expectedOutput string, postEvaluation func(t *testing.T)) {
 		mockDataSource := NewMockDataSource(ctrl)
 		mockDataSource.EXPECT().

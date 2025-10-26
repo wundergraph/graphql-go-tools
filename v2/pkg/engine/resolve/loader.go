@@ -327,41 +327,6 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 			l.ctx.LoaderHooks.OnFinished(res.loaderHookContext, res.ds, newResponseInfo(res, l.ctx.subgraphErrors))
 		}
 		return err
-	case *ParallelListItemFetch:
-		results := make([]*result, len(items))
-		if l.ctx.TracingOptions.Enable {
-			f.Traces = make([]*SingleFetch, len(items))
-		}
-		g, ctx := errgroup.WithContext(l.ctx.ctx)
-		for i := range items {
-			i := i
-			results[i] = &result{}
-			if l.ctx.TracingOptions.Enable {
-				f.Traces[i] = new(SingleFetch)
-				*f.Traces[i] = *f.Fetch
-				g.Go(func() error {
-					return l.loadFetch(ctx, f.Traces[i], item, items[i:i+1], results[i])
-				})
-				continue
-			}
-			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetch, item, items[i:i+1], results[i])
-			})
-		}
-		err := g.Wait()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		for i := range results {
-			err = l.mergeResult(item, results[i], items[i:i+1])
-			if l.ctx.LoaderHooks != nil {
-				l.ctx.LoaderHooks.OnFinished(results[i].loaderHookContext, results[i].ds, newResponseInfo(results[i], l.ctx.subgraphErrors))
-			}
-			if err != nil {
-				return errors.WithStack(err)
-			}
-		}
-		return nil
 	default:
 		return nil
 	}
@@ -459,33 +424,6 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 	switch f := fetch.(type) {
 	case *SingleFetch:
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
-	case *ParallelListItemFetch:
-		results := make([]*result, len(items))
-		if l.ctx.TracingOptions.Enable {
-			f.Traces = make([]*SingleFetch, len(items))
-		}
-		g, ctx := errgroup.WithContext(l.ctx.ctx)
-		for i := range items {
-			i := i
-			results[i] = &result{}
-			if l.ctx.TracingOptions.Enable {
-				f.Traces[i] = new(SingleFetch)
-				*f.Traces[i] = *f.Fetch
-				g.Go(func() error {
-					return l.loadFetch(ctx, f.Traces[i], fetchItem, items[i:i+1], results[i])
-				})
-				continue
-			}
-			g.Go(func() error {
-				return l.loadFetch(ctx, f.Fetch, fetchItem, items[i:i+1], results[i])
-			})
-		}
-		err := g.Wait()
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		res.nestedMergeItems = results
-		return nil
 	case *EntityFetch:
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
