@@ -1429,6 +1429,16 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	preparedInput := arena.NewArenaBuffer(res.tools.a)
 	itemInput := arena.NewArenaBuffer(res.tools.a)
 	batchStats := arena.AllocateSlice[[]*astjson.Value](res.tools.a, 0, len(items))
+	defer func() {
+		// we need to clear the batchStats slice to avoid memory corruption
+		// once the outer func returns, we must not keep pointers to items on the arena
+		for i := range batchStats {
+			// nolint:ineffassign
+			batchStats[i] = nil
+		}
+		// nolint:ineffassign
+		batchStats = nil
+	}()
 
 	// I tried using arena here, but it only worsened the situation
 	var undefinedVariables []string
@@ -1512,9 +1522,7 @@ WithNextItem:
 	for i := range batchStats {
 		res.batchStats[i] = make([]*astjson.Value, len(batchStats[i]))
 		copy(res.batchStats[i], batchStats[i])
-		batchStats[i] = nil
 	}
-	batchStats = nil
 
 	if l.ctx.TracingOptions.Enable && res.fetchSkipped {
 		l.setTracingInput(fetchItem, fetchInput, fetch.Trace)
