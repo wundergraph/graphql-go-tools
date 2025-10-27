@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.234](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.233...v2.0.0-rc.234) (2025-10-24)
+
+
+### Features
+
+* september 2025 spec description support for `OperationDocument` and `Fragment` ([#1331](https://github.com/wundergraph/graphql-go-tools/issues/1331)) ([aedaf71](https://github.com/wundergraph/graphql-go-tools/commit/aedaf7183888ee0ccd76e3baaddf44dde03df701))
+
 ## [2.0.0-rc.233](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.232...v2.0.0-rc.233) (2025-10-23)
 
 

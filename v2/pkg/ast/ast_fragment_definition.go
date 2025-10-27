@@ -24,6 +24,7 @@ type TypeCondition struct {
 //	 profilePic(size: 50)
 //	}
 type FragmentDefinition struct {
+	Description     Description        // optional, describes the fragment
 	FragmentLiteral position.Position  // fragment
 	Name            ByteSliceReference // Name but not on, e.g. friendFields
 	TypeCondition   TypeCondition      // e.g. on User
@@ -74,4 +75,15 @@ func (d *Document) FragmentDefinitionIsUsed(name ByteSlice) bool {
 		}
 	}
 	return false
+}
+
+func (d *Document) FragmentDefinitionDescriptionBytes(ref int) ByteSlice {
+	if !d.FragmentDefinitions[ref].Description.IsDefined {
+		return nil
+	}
+	return d.Input.ByteSlice(d.FragmentDefinitions[ref].Description.Content)
+}
+
+func (d *Document) FragmentDefinitionDescriptionString(ref int) string {
+	return unsafebytes.BytesToString(d.FragmentDefinitionDescriptionBytes(ref))
 }
