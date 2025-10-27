@@ -1,8 +1,10 @@
 package resolve
 
 import (
+	"encoding/binary"
 	"sync"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
@@ -61,18 +63,16 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		return nil, nil
 	}
 
-	// ctx.Request.ID is the unique ID of the normalized GraphQL document +1 (offset)
-	key := ctx.Request.ID + 1
-	// ctx.VariablesHash is the hash of the normalized variables from the client request
-	// this makes the key unique across different variables
-	key += ctx.VariablesHash + 1
+	// Derive a robust key from request ID, variables hash and (optional) headers hash
+	var b [24]byte
+	binary.LittleEndian.PutUint64(b[0:8], ctx.Request.ID)
+	binary.LittleEndian.PutUint64(b[8:16], ctx.VariablesHash)
+	hh := uint64(0)
 	if ctx.SubgraphHeadersBuilder != nil {
-		// ctx.SubgraphHeadersBuilder.HashAll() returns the hash of all headers that will be forwarded to all subgraphs
-		// this makes the key unique across different client request headers, given that we forward them
-		// we pre-compute all headers that will be forwarded to each subgraph
-		// if we combine all the subgraph header hashes, the key will be stable across all headers
-		key += ctx.SubgraphHeadersBuilder.HashAll()
+		hh = ctx.SubgraphHeadersBuilder.HashAll()
 	}
+	binary.LittleEndian.PutUint64(b[16:24], hh)
+	key := xxhash.Sum64(b[:])
 
 	shard := r.shardFor(key)
 	shard.mu.Lock()

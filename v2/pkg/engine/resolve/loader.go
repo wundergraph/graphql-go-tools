@@ -1642,7 +1642,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 
 	sfKey, fetchKey, item, shared := l.sf.GetOrCreateItem(fetchItem, input, extraKey)
 	if res.singleFlightStats != nil {
-		res.singleFlightStats.used = shared
+		res.singleFlightStats.used = true
 		res.singleFlightStats.shared = shared
 	}
 

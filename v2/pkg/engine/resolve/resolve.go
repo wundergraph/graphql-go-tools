@@ -5,6 +5,7 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net/http"
@@ -1104,7 +1105,10 @@ func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte)
 		header, headerHash := ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
 		keyGen := pool.Hash64.Get()
 		_, _ = keyGen.Write(input)
-		triggerID = keyGen.Sum64() + headerHash
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], headerHash)
+		_, _ = keyGen.Write(b[:])
+		triggerID = keyGen.Sum64()
 		pool.Hash64.Put(keyGen)
 		return header, triggerID
 	}
