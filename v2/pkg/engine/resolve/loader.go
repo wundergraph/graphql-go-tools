@@ -1389,12 +1389,6 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	preparedInput := bytes.NewBuffer(make([]byte, 0, 64))
 	itemInput := bytes.NewBuffer(make([]byte, 0, 32))
 	keyGen := pool.Hash64.Get()
-	defer func() {
-		if keyGen == nil {
-			return
-		}
-		pool.Hash64.Put(keyGen)
-	}()
 
 	var undefinedVariables []string
 
@@ -1420,6 +1414,7 @@ WithNextItem:
 				if l.ctx.TracingOptions.Enable {
 					fetch.Trace.LoadSkipped = true
 				}
+				pool.Hash64.Put(keyGen)
 				return errors.WithStack(err)
 			}
 			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
@@ -1439,6 +1434,7 @@ WithNextItem:
 				if addSeparator {
 					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
 					if err != nil {
+						pool.Hash64.Put(keyGen)
 						return errors.WithStack(err)
 					}
 				}
@@ -1453,10 +1449,7 @@ WithNextItem:
 		}
 	}
 
-	// not used anymore
 	pool.Hash64.Put(keyGen)
-	// setting to nil so that the defer func doesn't return it twice
-	keyGen = nil
 
 	if len(res.batchStats) == 0 {
 		// all items were skipped - discard fetch
