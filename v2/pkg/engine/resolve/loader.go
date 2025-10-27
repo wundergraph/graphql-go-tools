@@ -181,9 +181,9 @@ type Loader struct {
 	// If you're not doing this, you will see segfaults
 	// Example of correct usage in func "mergeResult"
 	jsonArena arena.Arena
-	// sf is the SingleFlight object shared across all client requests
+	// sf is the SubgraphRequestSingleFlight object shared across all client requests
 	// it's thread safe and can be used to de-duplicate subgraph requests
-	sf *SingleFlight
+	sf *SubgraphRequestSingleFlight
 }
 
 func (l *Loader) Free() {

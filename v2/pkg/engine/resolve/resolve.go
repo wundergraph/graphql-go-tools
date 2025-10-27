@@ -82,8 +82,10 @@ type Resolver struct {
 	// responseBufferPool is the arena pool dedicated for response buffering before sending to the client
 	responseBufferPool *ArenaPool
 
-	// Single flight cache for deduplicating requests across all loaders
-	sf *SingleFlight
+	// subgraphRequestSingleFlight is used to de-duplicate subgraph requests
+	subgraphRequestSingleFlight *SubgraphRequestSingleFlight
+	// inboundRequestSingleFlight is used to de-duplicate subgraph requests
+	inboundRequestSingleFlight *InboundRequestSingleFlight
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -239,7 +241,8 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
 		resolveArenaPool:             NewArenaPool(),
 		responseBufferPool:           NewArenaPool(),
-		sf:                           NewSingleFlight(),
+		subgraphRequestSingleFlight:  NewSingleFlight(8),
+		inboundRequestSingleFlight:   NewRequestSingleFlight(8),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
@@ -251,7 +254,7 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SingleFlight, a arena.Arena) *tools {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena) *tools {
 	return &tools{
 		resolvable: NewResolvable(a, options.ResolvableOptions),
 		loader: &Loader{
@@ -289,7 +292,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, nil)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -314,6 +317,16 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
 	resp := &GraphQLResolveInfo{}
 
+	inflight, err := r.inboundRequestSingleFlight.GetOrCreate(ctx, response)
+	if err != nil {
+		return nil, err
+	}
+
+	if inflight != nil && inflight.Data != nil { // follower
+		_, err = writer.Write(inflight.Data)
+		return resp, err
+	}
+
 	start := time.Now()
 	<-r.maxConcurrency
 	resp.ResolveAcquireWaitTime = time.Since(start)
@@ -323,10 +336,11 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 
 	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
 	// we're intentionally not using defer Release to have more control over the timing (see below)
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, resolveArena.Arena)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
 
-	err := t.resolvable.Init(ctx, nil, response.Info.OperationType)
+	err = t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
+		r.inboundRequestSingleFlight.FinishErr(inflight, err)
 		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
 		return nil, err
 	}
@@ -334,6 +348,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	if !ctx.ExecutionOptions.SkipLoader {
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
+			r.inboundRequestSingleFlight.FinishErr(inflight, err)
 			r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
 			return nil, err
 		}
@@ -344,6 +359,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	buf := arena.NewArenaBuffer(responseArena.Arena)
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 	if err != nil {
+		r.inboundRequestSingleFlight.FinishErr(inflight, err)
 		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
 		r.responseBufferPool.Release(ctx.Request.ID, responseArena)
 		return nil, err
@@ -357,6 +373,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	// as such, it can take some time
 	// which is why we split the arenas and released the first one
 	_, err = writer.Write(buf.Bytes())
+	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
 	// all data is written to the client
 	// we're safe to release our buffer
 	r.responseBufferPool.Release(ctx.Request.ID, responseArena)
@@ -494,7 +511,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	copy(input, sharedInput)
 
 	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, resolveArena.Arena)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
 		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
@@ -1107,7 +1124,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, nil)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
@@ -1211,7 +1228,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.sf, nil)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {

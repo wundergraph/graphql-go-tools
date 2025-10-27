@@ -6,13 +6,22 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-type SingleFlight struct {
-	mu      *sync.RWMutex
-	items   map[uint64]*SingleFlightItem
-	sizes   map[uint64]*fetchSize
+// SubgraphRequestSingleFlight is a sharded, goroutine safe single flight implementation to de-duplicate subgraph requests
+// It's hashing the input and adds the pre-computed subgraph headers hash to avoid collisions
+// In addition to single flight, it provides size hints to create right-sized buffers for subgraph requests
+type SubgraphRequestSingleFlight struct {
+	shards  []singleFlightShard
 	xxPool  *sync.Pool
 	cleanup chan func()
 }
+
+type singleFlightShard struct {
+	mu    sync.RWMutex
+	items map[uint64]*SingleFlightItem
+	sizes map[uint64]*fetchSize
+}
+
+const defaultSingleFlightShardCount = 4
 
 // SingleFlightItem is used to communicate between leader and followers
 // If an Item for a key doesn't exist, the leader creates and followers can join
@@ -37,11 +46,12 @@ type fetchSize struct {
 	totalBytes int
 }
 
-func NewSingleFlight() *SingleFlight {
-	return &SingleFlight{
-		items: make(map[uint64]*SingleFlightItem),
-		sizes: make(map[uint64]*fetchSize),
-		mu:    new(sync.RWMutex),
+func NewSingleFlight(shardCount int) *SubgraphRequestSingleFlight {
+	if shardCount <= 0 {
+		shardCount = defaultSingleFlightShardCount
+	}
+	s := &SubgraphRequestSingleFlight{
+		shards: make([]singleFlightShard, shardCount),
 		xxPool: &sync.Pool{
 			New: func() any {
 				return xxhash.New()
@@ -49,6 +59,13 @@ func NewSingleFlight() *SingleFlight {
 		},
 		cleanup: make(chan func()),
 	}
+	for i := range s.shards {
+		s.shards[i] = singleFlightShard{
+			items: make(map[uint64]*SingleFlightItem),
+			sizes: make(map[uint64]*fetchSize),
+		}
+	}
+	return s
 }
 
 // GetOrCreateItem generates a single flight key (100% identical fetches) and a fetchKey (similar fetches, collisions possible but unproblematic)
@@ -58,23 +75,26 @@ func NewSingleFlight() *SingleFlight {
 // item.sizeHint can be used to create an optimal buffer for the fetch in case of a leader
 // item.err must always be checked
 // item.response must never be mutated
-func (s *SingleFlight) GetOrCreateItem(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64, item *SingleFlightItem, shared bool) {
+func (s *SubgraphRequestSingleFlight) GetOrCreateItem(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64, item *SingleFlightItem, shared bool) {
 	sfKey, fetchKey = s.keys(fetchItem, input, extraKey)
 
-	// First, try to get the item with a read lock
-	s.mu.RLock()
-	item, exists := s.items[sfKey]
-	s.mu.RUnlock()
+	// Get shard based on sfKey for items
+	shard := s.shardFor(sfKey)
+
+	// First, try to get the item with a read lock on its shard
+	shard.mu.RLock()
+	item, exists := shard.items[sfKey]
+	shard.mu.RUnlock()
 	if exists {
 		return sfKey, fetchKey, item, true
 	}
 
 	// If not exists, acquire a write lock to create the item
-	s.mu.Lock()
+	shard.mu.Lock()
 	// Double-check if the item was created while acquiring the write lock
-	item, exists = s.items[sfKey]
+	item, exists = shard.items[sfKey]
 	if exists {
-		s.mu.Unlock()
+		shard.mu.Unlock()
 		return sfKey, fetchKey, item, true
 	}
 
@@ -83,15 +103,16 @@ func (s *SingleFlight) GetOrCreateItem(fetchItem *FetchItem, input []byte, extra
 		// empty chan to indicate to all followers when we're done (close)
 		loaded: make(chan struct{}),
 	}
-	if size, ok := s.sizes[fetchKey]; ok {
+	// Read size hint from the same shard (both items and sizes use the same shard now)
+	if size, ok := shard.sizes[fetchKey]; ok {
 		item.sizeHint = size.totalBytes / size.count
 	}
-	s.items[sfKey] = item
-	s.mu.Unlock()
+	shard.items[sfKey] = item
+	shard.mu.Unlock()
 	return sfKey, fetchKey, item, false
 }
 
-func (s *SingleFlight) keys(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64) {
+func (s *SubgraphRequestSingleFlight) keys(fetchItem *FetchItem, input []byte, extraKey uint64) (sfKey, fetchKey uint64) {
 	h := s.xxPool.Get().(*xxhash.Digest)
 	sfKey = s.sfKey(h, fetchItem, input, extraKey)
 	h.Reset()
@@ -103,7 +124,7 @@ func (s *SingleFlight) keys(fetchItem *FetchItem, input []byte, extraKey uint64)
 
 // sfKey returns a key that 100% uniquely identifies a fetch with no collision
 // two sfKey are only the same when the fetches are 100% equal
-func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byte, extraKey uint64) uint64 {
+func (s *SubgraphRequestSingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byte, extraKey uint64) uint64 {
 	if fetchItem != nil && fetchItem.Fetch != nil {
 		info := fetchItem.Fetch.FetchInfo()
 		if info != nil {
@@ -119,7 +140,7 @@ func (s *SingleFlight) sfKey(h *xxhash.Digest, fetchItem *FetchItem, input []byt
 // the purpose is to create a key from the DataSourceID and root fields to have less cardinality
 // the goal is to get an estimate buffer size for similar fetches
 // there's no point in hashing headers or the body for this purpose
-func (s *SingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
+func (s *SubgraphRequestSingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
 	if fetchItem == nil || fetchItem.Fetch == nil {
 		return 0
 	}
@@ -128,13 +149,13 @@ func (s *SingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
 		return 0
 	}
 	_, _ = h.WriteString(info.DataSourceID)
-	_, _ = h.WriteString("|")
+	_, _ = h.Write(pipe)
 	for i := range info.RootFields {
 		if i != 0 {
-			_, _ = h.WriteString(",")
+			_, _ = h.Write(comma)
 		}
 		_, _ = h.WriteString(info.RootFields[i].TypeName)
-		_, _ = h.WriteString(".")
+		_, _ = h.Write(dot)
 		_, _ = h.WriteString(info.RootFields[i].FieldName)
 	}
 	return h.Sum64()
@@ -143,11 +164,13 @@ func (s *SingleFlight) fetchKey(h *xxhash.Digest, fetchItem *FetchItem) uint64 {
 // Finish is for the leader to mark the SingleFlightItem as "done"
 // trigger all followers to look at the err & response of the item
 // and to update the size estimates
-func (s *SingleFlight) Finish(sfKey, fetchKey uint64, item *SingleFlightItem) {
+func (s *SubgraphRequestSingleFlight) Finish(sfKey, fetchKey uint64, item *SingleFlightItem) {
 	close(item.loaded)
-	s.mu.Lock()
-	delete(s.items, sfKey)
-	if size, ok := s.sizes[fetchKey]; ok {
+	// Update sizes in the same shard as the item (using sfKey to get the shard)
+	shard := s.shardFor(sfKey)
+	shard.mu.Lock()
+	delete(shard.items, sfKey)
+	if size, ok := shard.sizes[fetchKey]; ok {
 		if size.count == 50 {
 			size.count = 1
 			size.totalBytes = size.totalBytes / 50
@@ -155,10 +178,15 @@ func (s *SingleFlight) Finish(sfKey, fetchKey uint64, item *SingleFlightItem) {
 		size.count++
 		size.totalBytes += len(item.response)
 	} else {
-		s.sizes[fetchKey] = &fetchSize{
+		shard.sizes[fetchKey] = &fetchSize{
 			count:      1,
 			totalBytes: len(item.response),
 		}
 	}
-	s.mu.Unlock()
+	shard.mu.Unlock()
+}
+
+func (s *SubgraphRequestSingleFlight) shardFor(key uint64) *singleFlightShard {
+	idx := int(key % uint64(len(s.shards)))
+	return &s.shards[idx]
 }

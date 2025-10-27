@@ -16,6 +16,7 @@ import (
 type Context struct {
 	ctx              context.Context
 	Variables        *astjson.Value
+	VariablesHash    uint64
 	Files            []*httpclient.FileUpload
 	Request          Request
 	RenameTypeNames  []RenameTypeName
@@ -44,6 +45,8 @@ type SubgraphHeadersBuilder interface {
 	// HeadersForSubgraph must return the headers and a hash for a Subgraph Request
 	// The hash will be used for request deduplication
 	HeadersForSubgraph(subgraphName string) (http.Header, uint64)
+	// HashAll must return the hash for all subgraph requests combined
+	HashAll() uint64
 }
 
 // HeadersForSubgraphRequest returns headers and a hash for a request that the engine will make to a subgraph
