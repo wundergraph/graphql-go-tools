@@ -91,34 +91,32 @@ func newResponseInfo(res *result, subgraphError error) *ResponseInfo {
 	return responseInfo
 }
 
-// batchStats represents an index map for batched items.
-// It is used to ensure that the correct json values will be merged with the correct items from the batch.
+// batchStats represents per-unique-batch-item merge targets.
+// Outer slice index corresponds to the unique representation index in the request batch,
+// and the inner slice contains all target values that should be merged with the response at that index.
 //
 // Example:
-// [[0],[1],[0],[1]] We originally have 4 items, but we have 2 unique indexes (0 and 1).
-// This means we are deduplicating 2 items by merging them from their response entity indexes.
-// 0 -> 0, 1 -> 1, 2 -> 0, 3 -> 1
-type batchStats [][]int
+// For 4 original items that deduplicate to 2 unique representations, we might have:
+// [
+//
+//	[item0, item2], // merge response[0] into item0 and item2
+//	[item1, item3], // merge response[1] into item1 and item3
+//
+// ]
+type batchStats [][]*astjson.Value
 
-// getUniqueIndexes returns the number of unique indexes in the batchStats.
-// This is used to ensure that we can provide a valid error message in case of differing array lengths.
-func (b *batchStats) getUniqueIndexes() int {
-	uniqueIndexes := make(map[int]struct{})
-	for _, bi := range *b {
-		for _, index := range bi {
-			if index < 0 {
-				continue
-			}
-			uniqueIndexes[index] = struct{}{}
-		}
-	}
-
-	return len(uniqueIndexes)
+// expectedNumberOfBatchItems returns the number of unique indexes in the batchStats.
+// With the new structure, this equals the outer slice length.
+func (b *batchStats) expectedNumberOfBatchItems() int {
+	return len(*b)
 }
 
 type result struct {
-	postProcessing   PostProcessingConfiguration
-	batchStats       batchStats
+	postProcessing PostProcessingConfiguration
+	batchStats     batchStats
+	// batchHashToIndex maps a request item hash to its unique batch index.
+	// Used during request construction and to avoid recomputing uniqueness.
+	batchHashToIndex map[uint64]int
 	fetchSkipped     bool
 	nestedMergeItems []*result
 
@@ -597,26 +595,24 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 
 	if res.batchStats != nil {
-		uniqueIndexes := res.batchStats.getUniqueIndexes()
-		if uniqueIndexes != len(batch) {
-			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, uniqueIndexes, len(batch)))
+		expectedBatchItems := res.batchStats.expectedNumberOfBatchItems()
+		if expectedBatchItems != len(batch) {
+			return l.renderErrorsFailedToFetch(fetchItem, res, fmt.Sprintf(invalidBatchItemCount, expectedBatchItems, len(batch)))
 		}
 
-		for i, stats := range res.batchStats {
-			for _, idx := range stats {
-				if idx == -1 {
-					continue
-				}
-				items[i], _, err = astjson.MergeValuesWithPath(l.jsonArena, items[i], batch[idx], res.postProcessing.MergePath...)
-				if err != nil {
+		for batchIndex, targets := range res.batchStats {
+			src := batch[batchIndex]
+			for _, target := range targets {
+				_, _, mErr := astjson.MergeValuesWithPath(l.jsonArena, target, src, res.postProcessing.MergePath...)
+				if mErr != nil {
 					return errors.WithStack(ErrMergeResult{
 						Subgraph: res.ds.Name,
-						Reason:   err,
+						Reason:   mErr,
 						Path:     fetchItem.ResponsePath,
 					})
 				}
-				if slices.Contains(taintedIndices, idx) {
-					l.taintedObjs.add(items[i])
+				if slices.Contains(taintedIndices, batchIndex) {
+					l.taintedObjs.add(target)
 				}
 			}
 		}
@@ -1406,8 +1402,8 @@ func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem,
 	if err != nil {
 		return errors.WithStack(err)
 	}
-	res.batchStats = make(batchStats, len(items))
-	itemHashes := make([]uint64, 0, len(items))
+	res.batchStats = make(batchStats, 0, len(items))
+	res.batchHashToIndex = make(map[uint64]int, len(items))
 	batchItemIndex := 0
 	addSeparator := false
 
@@ -1419,7 +1415,6 @@ WithNextItem:
 			if err != nil {
 				if fetch.Input.SkipErrItems {
 					err = nil // nolint:ineffassign
-					res.batchStats[i] = append(res.batchStats[i], -1)
 					continue
 				}
 				if l.ctx.TracingOptions.Enable {
@@ -1428,34 +1423,33 @@ WithNextItem:
 				return errors.WithStack(err)
 			}
 			if fetch.Input.SkipNullItems && itemInput.Len() == 4 && bytes.Equal(itemInput.Bytes(), null) {
-				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
 			if fetch.Input.SkipEmptyObjectItems && itemInput.Len() == 2 && bytes.Equal(itemInput.Bytes(), emptyObject) {
-				res.batchStats[i] = append(res.batchStats[i], -1)
 				continue
 			}
 
 			keyGen.Reset()
 			_, _ = keyGen.Write(itemInput.Bytes())
 			itemHash := keyGen.Sum64()
-			for k := range itemHashes {
-				if itemHashes[k] == itemHash {
-					res.batchStats[i] = append(res.batchStats[i], k)
-					continue WithNextItem
+			if existingIndex, ok := res.batchHashToIndex[itemHash]; ok {
+				res.batchStats[existingIndex] = append(res.batchStats[existingIndex], items[i])
+				continue WithNextItem
+			} else {
+				if addSeparator {
+					err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
+					if err != nil {
+						return errors.WithStack(err)
+					}
 				}
+				_, _ = itemInput.WriteTo(preparedInput)
+				// new unique representation
+				res.batchHashToIndex[itemHash] = batchItemIndex
+				// create a new targets bucket for this unique index
+				res.batchStats = append(res.batchStats, []*astjson.Value{items[i]})
+				batchItemIndex++
+				addSeparator = true
 			}
-			itemHashes = append(itemHashes, itemHash)
-			if addSeparator {
-				err = fetch.Input.Separator.Render(l.ctx, nil, preparedInput)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			}
-			_, _ = itemInput.WriteTo(preparedInput)
-			res.batchStats[i] = append(res.batchStats[i], batchItemIndex)
-			batchItemIndex++
-			addSeparator = true
 		}
 	}
 
@@ -1464,7 +1458,7 @@ WithNextItem:
 	// setting to nil so that the defer func doesn't return it twice
 	keyGen = nil
 
-	if len(itemHashes) == 0 {
+	if len(res.batchStats) == 0 {
 		// all items were skipped - discard fetch
 		res.fetchSkipped = true
 		if l.ctx.TracingOptions.Enable {
