@@ -160,12 +160,3 @@ func (g *DependencyGraph) FetchDependencies(fetch *FetchItem) ([]FetchItem, erro
 func (g *DependencyGraph) SetFetchData(index int, serviceCall *ServiceCall) {
 	g.fetches[index].ServiceCall = serviceCall
 }
-
-// initializeSlice initializes a slice with a given length and a given value.
-func initializeSlice[T any](len int, zero T) []T {
-	s := make([]T, len)
-	for i := range s {
-		s[i] = zero
-	}
-	return s
-}

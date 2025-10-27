@@ -212,6 +212,11 @@ func (m *Message) SetField(f Field) {
 	m.Fields[digest.Sum64()] = f
 }
 
+// AllocFields allocates a new map of fields with the given count.
+func (m *Message) AllocFields(count int) {
+	m.Fields = make(map[uint64]Field, count)
+}
+
 // Field represents a field in a protobuf message.
 type Field struct {
 	Name       string   // The name of the field
@@ -1228,7 +1233,8 @@ func (p *RPCCompiler) parseMessageDefinitions(messages protoref.MessageDescripto
 
 // enrichMessageData enriches the message data with the field information.
 func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
-	msg := p.doc.Messages[ref]
+	fields := make([]Field, m.Fields().Len())
+	msg := &p.doc.Messages[ref]
 	// Process all fields in the message
 	for i := 0; i < m.Fields().Len(); i++ {
 		f := m.Fields().Get(i)
@@ -1240,10 +1246,14 @@ func (p *RPCCompiler) enrichMessageData(ref int, m protoref.MessageDescriptor) {
 			field.MessageRef = p.doc.MessageRefByName(string(f.Message().Name()))
 		}
 
-		msg.SetField(field)
+		fields[i] = field
 	}
 
-	p.doc.Messages[ref] = msg
+	msg.AllocFields(len(fields))
+
+	for i := range fields {
+		msg.SetField(fields[i])
+	}
 }
 
 // parseField extracts information from a protobuf field descriptor.
