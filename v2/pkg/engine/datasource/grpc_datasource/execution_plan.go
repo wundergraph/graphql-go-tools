@@ -129,6 +129,7 @@ func (r *RPCMessage) SelectValidTypes(typeName string) []string {
 	return []string{r.Name, typeName}
 }
 
+// AppendTypeNameField appends a typename field to the message.
 func (r *RPCMessage) AppendTypeNameField(typeName string) {
 	if r.Fields != nil && r.Fields.Exists(typenameFieldName, "") {
 		return
@@ -277,6 +278,7 @@ func (r RPCFields) ByName(name string) *RPCField {
 	return nil
 }
 
+// Exists checks if a field with the given name and alias exists in the collection of fields.
 func (r RPCFields) Exists(name, alias string) bool {
 	for _, field := range r {
 		if field.Name == name && field.Alias == alias {
@@ -376,6 +378,7 @@ type rpcPlanningContext struct {
 	mapping    *GRPCMapping
 }
 
+// newRPCPlanningContext creates a new RPCPlanningContext.
 func newRPCPlanningContext(operation *ast.Document, definition *ast.Document, mapping *GRPCMapping) *rpcPlanningContext {
 	return &rpcPlanningContext{
 		operation:  operation,
@@ -425,6 +428,7 @@ func (r *rpcPlanningContext) parseGraphQLType(t *ast.Type) DataType {
 	}
 }
 
+// resolveRPCMethodMapping resolves the RPC method mapping for a given operation type and operation field name.
 func (r *rpcPlanningContext) resolveRPCMethodMapping(operationType ast.OperationType, operationFieldName string) (RPCConfig, error) {
 	if r.mapping == nil {
 		return RPCConfig{}, nil
@@ -482,6 +486,7 @@ func (r *rpcPlanningContext) resolveFieldMapping(typeName, fieldName string) str
 	return fieldName
 }
 
+// resolveFieldArgumentMapping resolves the field argument mapping for a given type name, field name and argument name.
 func (r *rpcPlanningContext) resolveFieldArgumentMapping(typeName, fieldName, argumentName string) string {
 	if grpcFieldName, ok := r.mapping.FindFieldArgumentMapping(typeName, fieldName, argumentName); ok {
 		return grpcFieldName
@@ -490,6 +495,7 @@ func (r *rpcPlanningContext) resolveFieldArgumentMapping(typeName, fieldName, ar
 	return argumentName
 }
 
+// typeIsNullableOrNestedList checks if a type is nullable or a nested list.
 func (r *rpcPlanningContext) typeIsNullableOrNestedList(typeRef int) bool {
 	if !r.definition.TypeIsNonNull(typeRef) && r.definition.TypeIsList(typeRef) {
 		return true
@@ -502,6 +508,7 @@ func (r *rpcPlanningContext) typeIsNullableOrNestedList(typeRef int) bool {
 	return false
 }
 
+// createListMetadata creates a list metadata for a given type reference.
 func (r *rpcPlanningContext) createListMetadata(typeRef int) (*ListMetadata, error) {
 	nestingLevel := r.definition.TypeNumberOfListWraps(typeRef)
 
@@ -711,6 +718,7 @@ func (r *rpcPlanningContext) buildInputMessageField(typeRef int, fieldName, json
 	return field, nil
 }
 
+// resolveServiceName resolves the service name for a given subgraph name.
 func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 	if r.mapping == nil || r.mapping.Service == "" {
 		return subgraphName
@@ -982,6 +990,7 @@ const (
 	fieldArgsFieldName = "field_args"
 )
 
+// newResolveRPCCall creates a new resolve RPC call for a given resolved field.
 func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RPCCall, error) {
 	resolveConfig := config.resolveConfig
 	resolvedField := config.resolvedField
