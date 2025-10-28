@@ -100,6 +100,7 @@ func (p *Printer) Print(document *ast.Document, out io.Writer) error {
 
 type printVisitor struct {
 	*astvisitor.SimpleWalker
+
 	document *ast.Document
 	out      io.Writer
 	err      error
@@ -275,6 +276,11 @@ func (p *printVisitor) LeaveArgument(ref int) {
 
 func (p *printVisitor) EnterOperationDefinition(ref int) {
 
+	if p.document.OperationDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.OperationDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.LINETERMINATOR)
+	}
+
 	hasName := p.document.OperationDefinitions[ref].Name.Length() > 0
 	hasVariables := p.document.OperationDefinitions[ref].HasVariableDefinitions
 
@@ -424,6 +430,12 @@ func (p *printVisitor) LeaveInlineFragment(ref int) {
 }
 
 func (p *printVisitor) EnterFragmentDefinition(ref int) {
+
+	if p.document.FragmentDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.FragmentDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.LINETERMINATOR)
+	}
+
 	p.write(literal.FRAGMENT)
 	p.write(literal.SPACE)
 	p.write(p.document.Input.ByteSlice(p.document.FragmentDefinitions[ref].Name))

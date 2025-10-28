@@ -424,6 +424,8 @@ func TestPubSub(t *testing.T) {
 					PostProcessing: resolve.PostProcessingConfiguration{
 						MergePath: []string{"helloSubscription"},
 					},
+					SourceName: "test",
+					SourceID:   "test",
 				},
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
@@ -487,6 +489,8 @@ func TestPubSub(t *testing.T) {
 					PostProcessing: resolve.PostProcessingConfiguration{
 						MergePath: []string{"subscriptionWithMultipleSubjects"},
 					},
+					SourceName: "test",
+					SourceID:   "test",
 				},
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
@@ -532,6 +536,8 @@ func TestPubSub(t *testing.T) {
 					PostProcessing: resolve.PostProcessingConfiguration{
 						MergePath: []string{"subscriptionWithStaticValues"},
 					},
+					SourceName: "test",
+					SourceID:   "test",
 				},
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{
@@ -583,6 +589,8 @@ func TestPubSub(t *testing.T) {
 					PostProcessing: resolve.PostProcessingConfiguration{
 						MergePath: []string{"subscriptionWithArgTemplateAndStaticValue"},
 					},
+					SourceName: "test",
+					SourceID:   "test",
 				},
 				Response: &resolve.GraphQLResponse{
 					Data: &resolve.Object{

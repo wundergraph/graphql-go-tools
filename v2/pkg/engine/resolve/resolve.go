@@ -5,13 +5,17 @@ package resolve
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/buger/jsonparser"
 	"github.com/pkg/errors"
 	"go.uber.org/atomic"
+
+	"github.com/wundergraph/go-arena"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/xcontext"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
@@ -69,6 +73,20 @@ type Resolver struct {
 	heartbeatInterval time.Duration
 	// maxSubscriptionFetchTimeout defines the maximum time a subscription fetch can take before it is considered timed out
 	maxSubscriptionFetchTimeout time.Duration
+
+	// resolveArenaPool is the arena pool dedicated for Loader & Resolvable
+	// ArenaPool automatically adjusts arena buffer sizes per workload
+	// resolving & response buffering are very different tasks
+	// as such, it was best to have two arena pools in terms of memory usage
+	// A single pool for both was much less efficient
+	resolveArenaPool *ArenaPool
+	// responseBufferPool is the arena pool dedicated for response buffering before sending to the client
+	responseBufferPool *ArenaPool
+
+	// subgraphRequestSingleFlight is used to de-duplicate subgraph requests
+	subgraphRequestSingleFlight *SubgraphRequestSingleFlight
+	// inboundRequestSingleFlight is used to de-duplicate subgraph requests
+	inboundRequestSingleFlight *InboundRequestSingleFlight
 }
 
 func (r *Resolver) SetAsyncErrorWriter(w AsyncErrorWriter) {
@@ -166,6 +184,8 @@ type ResolverOptions struct {
 	// This flag does not expose the data to clients.
 	PropagateFetchReasons bool
 
+	ValidateRequiredExternalFields bool
+
 	Caches map[string]LoaderCache
 }
 
@@ -222,6 +242,10 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 		allowedErrorFields:           allowedErrorFields,
 		heartbeatInterval:            options.SubscriptionHeartbeatInterval,
 		maxSubscriptionFetchTimeout:  options.MaxSubscriptionFetchTimeout,
+		resolveArenaPool:             NewArenaPool(),
+		responseBufferPool:           NewArenaPool(),
+		subgraphRequestSingleFlight:  NewSingleFlight(8),
+		inboundRequestSingleFlight:   NewRequestSingleFlight(8),
 	}
 	resolver.maxConcurrency = make(chan struct{}, options.MaxConcurrency)
 	for i := 0; i < options.MaxConcurrency; i++ {
@@ -233,9 +257,9 @@ func New(ctx context.Context, options ResolverOptions) *Resolver {
 	return resolver
 }
 
-func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}) *tools {
+func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{}, allowedErrorFields map[string]struct{}, sf *SubgraphRequestSingleFlight, a arena.Arena) *tools {
 	return &tools{
-		resolvable: NewResolvable(options.ResolvableOptions),
+		resolvable: NewResolvable(a, options.ResolvableOptions),
 		loader: &Loader{
 			propagateSubgraphErrors:                      options.PropagateSubgraphErrors,
 			propagateSubgraphStatusCodes:                 options.PropagateSubgraphStatusCodes,
@@ -250,6 +274,9 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			allowAllErrorExtensionFields:                 options.AllowAllErrorExtensionFields,
 			apolloRouterCompatibilitySubrequestHTTPError: options.ApolloRouterCompatibilitySubrequestHTTPError,
 			propagateFetchReasons:                        options.PropagateFetchReasons,
+			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
+			sf:                                           sf,
+			jsonArena:                                    a,
 			caches: options.Caches,
 		},
 	}
@@ -269,7 +296,7 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		r.maxConcurrency <- struct{}{}
 	}()
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
 
 	err := t.resolvable.Init(ctx, data, response.Info.OperationType)
 	if err != nil {
@@ -288,6 +315,72 @@ func (r *Resolver) ResolveGraphQLResponse(ctx *Context, response *GraphQLRespons
 		return nil, err
 	}
 
+	return resp, err
+}
+
+func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLResponse, writer io.Writer) (*GraphQLResolveInfo, error) {
+	resp := &GraphQLResolveInfo{}
+
+	inflight, err := r.inboundRequestSingleFlight.GetOrCreate(ctx, response)
+	if err != nil {
+		return nil, err
+	}
+
+	if inflight != nil && inflight.Data != nil { // follower
+		_, err = writer.Write(inflight.Data)
+		return resp, err
+	}
+
+	start := time.Now()
+	<-r.maxConcurrency
+	resp.ResolveAcquireWaitTime = time.Since(start)
+	defer func() {
+		r.maxConcurrency <- struct{}{}
+	}()
+
+	resolveArena := r.resolveArenaPool.Acquire(ctx.Request.ID)
+	// we're intentionally not using defer Release to have more control over the timing (see below)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
+
+	err = t.resolvable.Init(ctx, nil, response.Info.OperationType)
+	if err != nil {
+		r.inboundRequestSingleFlight.FinishErr(inflight, err)
+		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+		return nil, err
+	}
+
+	if !ctx.ExecutionOptions.SkipLoader {
+		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
+		if err != nil {
+			r.inboundRequestSingleFlight.FinishErr(inflight, err)
+			r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+			return nil, err
+		}
+	}
+
+	// only when loading is done, acquire an arena for the response buffer
+	responseArena := r.responseBufferPool.Acquire(ctx.Request.ID)
+	buf := arena.NewArenaBuffer(responseArena.Arena)
+	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
+	if err != nil {
+		r.inboundRequestSingleFlight.FinishErr(inflight, err)
+		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+		r.responseBufferPool.Release(ctx.Request.ID, responseArena)
+		return nil, err
+	}
+
+	// first release resolverArena
+	// all data is resolved and written into the response arena
+	r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+	// next we write back to the client
+	// this includes flushing and syscalls
+	// as such, it can take some time
+	// which is why we split the arenas and released the first one
+	_, err = writer.Write(buf.Bytes())
+	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
+	// all data is written to the client
+	// we're safe to release our buffer
+	r.responseBufferPool.Release(ctx.Request.ID, responseArena)
 	return resp, err
 }
 
@@ -421,9 +514,11 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	input := make([]byte, len(sharedInput))
 	copy(input, sharedInput)
 
-	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+	resolveArena := r.resolveArenaPool.Acquire(resolveCtx.Request.ID)
+	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
+		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
@@ -435,6 +530,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	}
 
 	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
+		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
@@ -446,6 +542,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	}
 
 	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
+		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
@@ -455,6 +552,8 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 		}
 		return
 	}
+
+	r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
 
 	if err := sub.writer.Flush(); err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.
@@ -656,9 +755,9 @@ func (r *Resolver) handleAddSubscription(triggerID uint64, add *addSubscription)
 			fmt.Printf("resolver:trigger:start:%d\n", triggerID)
 		}
 		if asyncDataSource != nil {
-			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.input, updater)
+			err = asyncDataSource.AsyncStart(cloneCtx, triggerID, add.headers, add.input, updater)
 		} else {
-			err = add.resolve.Trigger.Source.Start(cloneCtx, add.input, updater)
+			err = add.resolve.Trigger.Source.Start(cloneCtx, add.headers, add.input, updater)
 		}
 		if err != nil {
 			if r.options.Debug {
@@ -957,6 +1056,18 @@ func (r *Resolver) AsyncUnsubscribeSubscription(id SubscriptionIdentifier) error
 		id:   id,
 		kind: subscriptionEventKindRemoveSubscription,
 	}:
+	default:
+		// In the event we cannot insert immediately, defer insertion a goroutine, this should prevent deadlocks, at the cost of goroutine creation.
+		go func() {
+			select {
+			case <-r.ctx.Done():
+				return
+			case r.events <- subscriptionEvent{
+				id:   id,
+				kind: subscriptionEventKindRemoveSubscription,
+			}:
+			}
+		}()
 	}
 	return nil
 }
@@ -971,8 +1082,40 @@ func (r *Resolver) AsyncUnsubscribeClient(connectionID int64) error {
 		},
 		kind: subscriptionEventKindRemoveClient,
 	}:
+	default:
+		// In the event we cannot insert immediately, defer insertion a goroutine, this should prevent deadlocks, at the cost of goroutine creation.
+		go func() {
+			select {
+			case <-r.ctx.Done():
+				return
+			case r.events <- subscriptionEvent{
+				id: SubscriptionIdentifier{
+					ConnectionID: connectionID,
+				},
+				kind: subscriptionEventKindRemoveClient,
+			}:
+			}
+		}()
 	}
 	return nil
+}
+
+// prepareTrigger safely gets the headers for the trigger Subgraph and computes the hash across headers and input
+// the generated has is the unique triggerID
+// the headers must be forwarded to the DataSource to create the trigger
+func (r *Resolver) prepareTrigger(ctx *Context, sourceName string, input []byte) (headers http.Header, triggerID uint64) {
+	if ctx.SubgraphHeadersBuilder != nil {
+		header, headerHash := ctx.SubgraphHeadersBuilder.HeadersForSubgraph(sourceName)
+		keyGen := pool.Hash64.Get()
+		_, _ = keyGen.Write(input)
+		var b [8]byte
+		binary.LittleEndian.PutUint64(b[:], headerHash)
+		_, _ = keyGen.Write(b[:])
+		triggerID = keyGen.Sum64()
+		pool.Hash64.Put(keyGen)
+		return header, triggerID
+	}
+	return nil, 0
 }
 
 func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQLSubscription, writer SubscriptionResponseWriter) error {
@@ -988,7 +1131,7 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
@@ -1012,20 +1155,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		return nil
 	}
 
-	xxh := pool.Hash64.Get()
-	defer pool.Hash64.Put(xxh)
-	err = subscription.Trigger.Source.UniqueRequestID(ctx, input, xxh)
-	if err != nil {
-		msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
-		return writeFlushComplete(writer, msg)
-	}
-	uniqueID := xxh.Sum64()
+	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input)
 	id := SubscriptionIdentifier{
 		ConnectionID:   ConnectionIDs.Inc(),
 		SubscriptionID: 0,
 	}
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
+		fmt.Printf("resolver:trigger:subscribe:sync:%d:%d\n", triggerID, id.SubscriptionID)
 	}
 
 	completed := make(chan struct{})
@@ -1035,15 +1171,17 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 		// Stop processing if the resolver is shutting down
 		return r.ctx.Err()
 	case r.events <- subscriptionEvent{
-		triggerID: uniqueID,
+		triggerID: triggerID,
 		kind:      subscriptionEventKindAddSubscription,
 		addSubscription: &addSubscription{
-			ctx:       ctx,
-			input:     input,
-			resolve:   subscription,
-			writer:    writer,
-			id:        id,
-			completed: completed,
+			ctx:        ctx,
+			input:      input,
+			resolve:    subscription,
+			writer:     writer,
+			id:         id,
+			completed:  completed,
+			sourceName: subscription.Trigger.SourceName,
+			headers:    headers,
 		},
 	}:
 	}
@@ -1070,13 +1208,13 @@ func (r *Resolver) ResolveGraphQLSubscription(ctx *Context, subscription *GraphQ
 	}
 
 	if r.options.Debug {
-		fmt.Printf("resolver:trigger:unsubscribe:sync:%d:%d\n", uniqueID, id.SubscriptionID)
+		fmt.Printf("resolver:trigger:unsubscribe:sync:%d:%d\n", triggerID, id.SubscriptionID)
 	}
 
 	// Remove the subscription when the client disconnects.
 
 	r.events <- subscriptionEvent{
-		triggerID: uniqueID,
+		triggerID: triggerID,
 		kind:      subscriptionEventKindRemoveSubscription,
 		id:        id,
 	}
@@ -1097,7 +1235,7 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 	// If SkipLoader is enabled, we skip retrieving actual data. For example, this is useful when requesting a query plan.
 	// By returning early, we avoid starting a subscription and resolve with empty data instead.
 	if ctx.ExecutionOptions.SkipLoader {
-		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields)
+		t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, nil)
 
 		err = t.resolvable.InitSubscription(ctx, nil, subscription.Trigger.PostProcessing)
 		if err != nil {
@@ -1121,32 +1259,29 @@ func (r *Resolver) AsyncResolveGraphQLSubscription(ctx *Context, subscription *G
 		return nil
 	}
 
-	xxh := pool.Hash64.Get()
-	defer pool.Hash64.Put(xxh)
-	err = subscription.Trigger.Source.UniqueRequestID(ctx, input, xxh)
-	if err != nil {
-		msg := []byte(`{"errors":[{"message":"unable to resolve"}]}`)
-		return writeFlushComplete(writer, msg)
-	}
-
-	event := subscriptionEvent{
-		triggerID: xxh.Sum64(),
-		kind:      subscriptionEventKindAddSubscription,
-		addSubscription: &addSubscription{
-			ctx:       ctx,
-			input:     input,
-			resolve:   subscription,
-			writer:    writer,
-			id:        id,
-			completed: make(chan struct{}),
-		},
-	}
+	headers, triggerID := r.prepareTrigger(ctx, subscription.Trigger.SourceName, input)
 
 	select {
 	case <-r.ctx.Done():
 		// Stop resolving if the resolver is shutting down
 		return r.ctx.Err()
-	case r.events <- event:
+	case <-ctx.ctx.Done():
+		// Stop resolving if the client is gone
+		return ctx.ctx.Err()
+	case r.events <- subscriptionEvent{
+		triggerID: triggerID,
+		kind:      subscriptionEventKindAddSubscription,
+		addSubscription: &addSubscription{
+			ctx:        ctx,
+			input:      input,
+			resolve:    subscription,
+			writer:     writer,
+			id:         id,
+			completed:  make(chan struct{}),
+			sourceName: subscription.Trigger.SourceName,
+			headers:    headers,
+		},
+	}:
 	}
 	return nil
 }
@@ -1252,12 +1387,14 @@ type subscriptionEvent struct {
 }
 
 type addSubscription struct {
-	ctx       *Context
-	input     []byte
-	resolve   *GraphQLSubscription
-	writer    SubscriptionResponseWriter
-	id        SubscriptionIdentifier
-	completed chan struct{}
+	ctx        *Context
+	input      []byte
+	resolve    *GraphQLSubscription
+	writer     SubscriptionResponseWriter
+	id         SubscriptionIdentifier
+	completed  chan struct{}
+	sourceName string
+	headers    http.Header
 }
 
 type subscriptionEventKind int

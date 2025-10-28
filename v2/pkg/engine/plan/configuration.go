@@ -40,6 +40,13 @@ type Configuration struct {
 	// It requires DisableIncludeInfo and DisableIncludeFieldDependencies set to false.
 	BuildFetchReasons bool
 
+	// ValidateRequiredExternalFields validates nullable external "@requires" dependencies.
+	// When a subgraph entity fetch returns a null value with an error for a field set specified in
+	// the "@requires" directive, any following fetch that depends on it should not receive such an
+	// entity.
+	// This option requires BuildFetchReasons set to true.
+	ValidateRequiredExternalFields bool
+
 	// DisableEntityCaching disables planning of entity caching behavior or generating relevant metadata
 	DisableEntityCaching bool
 	// DisableFetchProvidesData disables planning of meta information about which fields are provided by a fetch

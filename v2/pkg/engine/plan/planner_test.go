@@ -1,10 +1,10 @@
 package plan
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"reflect"
 	"slices"
 	"testing"
@@ -1084,10 +1084,10 @@ type FakeDataSource struct {
 	source *StatefulSource
 }
 
-func (f *FakeDataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
-	return
+func (f *FakeDataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
+	return nil, nil
 }
 
-func (f *FakeDataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
-	return
+func (f *FakeDataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
+	return nil, nil
 }

@@ -57,6 +57,7 @@ func inputCoercionForList(walker *astvisitor.Walker) {
 
 type inputCoercionForListVisitor struct {
 	*astvisitor.Walker
+
 	operation              *ast.Document
 	definition             *ast.Document
 	operationDefinitionRef int

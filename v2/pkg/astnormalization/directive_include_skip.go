@@ -29,6 +29,7 @@ func directiveIncludeSkipKeepNodes(walker *astvisitor.Walker, keepNodes bool) {
 
 type directiveIncludeSkipVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	keepNodes             bool
 }

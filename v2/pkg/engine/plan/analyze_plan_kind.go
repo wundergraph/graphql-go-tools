@@ -29,6 +29,7 @@ func AnalyzePlanKind(operation, definition *ast.Document, operationName string) 
 
 type planKindVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition                 *ast.Document
 	operationName                         string
 	hasStreamDirective, hasDeferDirective bool

@@ -3409,6 +3409,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												TypeName:  "Account",
 												FieldName: "address",
 												ByUser:    true,
+												Nullable:  true,
 											},
 											{
 												TypeName:  "Address",
@@ -3436,11 +3437,13 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												TypeName:  "Query",
 												FieldName: "user",
 												ByUser:    true,
+												Nullable:  true,
 											},
 											{
 												TypeName:  "User",
 												FieldName: "account",
 												ByUser:    true,
+												Nullable:  true,
 											},
 										},
 									},
@@ -3538,6 +3541,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												TypeName:  "Account",
 												FieldName: "address",
 												ByUser:    true,
+												Nullable:  true,
 											},
 											{
 												TypeName:    "Address",
@@ -3693,6 +3697,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												TypeName:  "Account",
 												FieldName: "address",
 												ByUser:    true,
+												Nullable:  true,
 											},
 											{
 												TypeName:    "Address",
@@ -3845,6 +3850,7 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 												TypeName:  "Account",
 												FieldName: "address",
 												ByUser:    true,
+												Nullable:  true,
 											},
 											{
 												TypeName:  "Address",

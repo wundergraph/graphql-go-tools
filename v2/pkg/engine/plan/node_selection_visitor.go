@@ -46,6 +46,10 @@ type nodeSelectionVisitor struct {
 	hasUnresolvedFields bool // hasUnresolvedFields is used to determine if we need to run the planner again. We should set it to true in case we have unresolved fields
 
 	rewrittenFieldRefs []int
+
+	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
+	// used by "requires" keys, not only when fragments are present.
+	addTypenameInNestedSelections bool
 }
 
 type fieldDependencyKey struct {
@@ -461,14 +465,15 @@ func (c *nodeSelectionVisitor) addFieldRequirementsToOperation(selectionSetRef i
 	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
 
 	input := &addRequiredFieldsConfiguration{
-		operation:                    c.operation,
-		definition:                   c.definition,
-		operationSelectionSetRef:     selectionSetRef,
-		isTypeNameForEntityInterface: requirements.isTypenameForEntityInterface,
-		isKey:                        false,
-		allowTypename:                false,
-		typeName:                     typeName,
-		fieldSet:                     requirements.selectionSet,
+		operation:                     c.operation,
+		definition:                    c.definition,
+		operationSelectionSetRef:      selectionSetRef,
+		isTypeNameForEntityInterface:  requirements.isTypenameForEntityInterface,
+		isKey:                         false,
+		allowTypename:                 false,
+		typeName:                      typeName,
+		fieldSet:                      requirements.selectionSet,
+		addTypenameInNestedSelections: c.addTypenameInNestedSelections,
 	}
 
 	addFieldsResult, report := addRequiredFields(input)

@@ -14,7 +14,6 @@ import (
 	"unicode"
 
 	"github.com/buger/jsonparser"
-	"github.com/cespare/xxhash/v2"
 	"github.com/jensneuse/abstractlogger"
 	"github.com/pkg/errors"
 	"github.com/tidwall/sjson"
@@ -1906,20 +1905,19 @@ func (s *Source) replaceEmptyObject(variables []byte) ([]byte, bool) {
 	return variables, false
 }
 
-func (s *Source) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
+func (s *Source) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.DoMultipartForm(s.httpClient, ctx, input, files, out)
+	return httpclient.DoMultipartForm(s.httpClient, ctx, headers, input, files)
 }
 
-func (s *Source) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+func (s *Source) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	input = s.compactAndUnNullVariables(input)
-	return httpclient.Do(s.httpClient, ctx, input, out)
+	return httpclient.Do(s.httpClient, ctx, headers, input)
 }
 
 type GraphQLSubscriptionClient interface {
 	// Subscribe to the origin source. The implementation must not block the calling goroutine.
 	Subscribe(ctx *resolve.Context, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
-	UniqueRequestID(ctx *resolve.Context, options GraphQLSubscriptionOptions, hash *xxhash.Digest) (err error)
 	SubscribeAsync(ctx *resolve.Context, id uint64, options GraphQLSubscriptionOptions, updater resolve.SubscriptionUpdater) error
 	Unsubscribe(id uint64)
 }
@@ -1955,12 +1953,13 @@ type SubscriptionSource struct {
 	client GraphQLSubscriptionClient
 }
 
-func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, input []byte, updater resolve.SubscriptionUpdater) error {
+func (s *SubscriptionSource) AsyncStart(ctx *resolve.Context, id uint64, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
 	}
+	options.Header = headers
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
@@ -1974,12 +1973,13 @@ func (s *SubscriptionSource) AsyncStop(id uint64) {
 }
 
 // Start the subscription. The updater is called on new events. Start needs to be called in a separate goroutine.
-func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater resolve.SubscriptionUpdater) error {
+func (s *SubscriptionSource) Start(ctx *resolve.Context, headers http.Header, input []byte, updater resolve.SubscriptionUpdater) error {
 	var options GraphQLSubscriptionOptions
 	err := json.Unmarshal(input, &options)
 	if err != nil {
 		return err
 	}
+	options.Header = headers
 	if options.Body.Query == "" {
 		return resolve.ErrUnableToResolve
 	}
@@ -1989,16 +1989,3 @@ func (s *SubscriptionSource) Start(ctx *resolve.Context, input []byte, updater r
 var (
 	dataSouceName = []byte("graphql")
 )
-
-func (s *SubscriptionSource) UniqueRequestID(ctx *resolve.Context, input []byte, xxh *xxhash.Digest) (err error) {
-	_, err = xxh.Write(dataSouceName)
-	if err != nil {
-		return err
-	}
-	var options GraphQLSubscriptionOptions
-	err = json.Unmarshal(input, &options)
-	if err != nil {
-		return err
-	}
-	return s.client.UniqueRequestID(ctx, options, xxh)
-}

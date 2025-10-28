@@ -426,7 +426,7 @@ var (
 func (g *GraphQLVariableResolveRenderer) getResolvable() *Resolvable {
 	v := _graphQLVariableResolveRendererPool.Get()
 	if v == nil {
-		return NewResolvable(ResolvableOptions{})
+		return NewResolvable(nil, ResolvableOptions{})
 	}
 	return v.(*Resolvable)
 }

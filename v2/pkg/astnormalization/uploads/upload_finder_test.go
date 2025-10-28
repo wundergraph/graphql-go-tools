@@ -206,6 +206,7 @@ func runTest(t *testing.T, tc testCase) (paths []uploads.UploadPathMapping, err 
 
 type testVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	variables             *astjson.Value
 	findUploads           *uploads.UploadFinder

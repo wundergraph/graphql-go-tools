@@ -23,6 +23,7 @@ func AllVariablesUsed() Rule {
 
 type allVariablesUsedVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	variableDefinitions   []int
 }

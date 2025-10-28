@@ -1,12 +1,11 @@
 name: execution
 on:
   pull_request:
-    branches:
-      - master
     paths:
       - 'v2/**'
       - 'execution/**'
       - '.github/workflows/execution.yml'
+      - '.golangci.yml'
   push:
     branches:
       - master
@@ -14,6 +13,7 @@ on:
       - 'v2/**'
       - 'execution/**'
       - '.github/workflows/execution.yml'
+      - '.golangci.yml'
 jobs:
   test:
     name: Build and test (go ${{ matrix.go }} / ${{ matrix.os }})

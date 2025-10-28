@@ -3,6 +3,7 @@ package grpcdatasource
 import "testing"
 
 func TestListExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string
@@ -163,6 +164,7 @@ func TestListExecutionPlan(t *testing.T) {
 }
 
 func TestListParametersExecutionPlan(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		query         string

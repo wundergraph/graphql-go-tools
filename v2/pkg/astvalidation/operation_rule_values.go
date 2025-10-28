@@ -25,6 +25,7 @@ func Values() Rule {
 
 type valuesVisitor struct {
 	*astvisitor.Walker
+
 	operation, definition *ast.Document
 	importer              astimport.Importer
 }
@@ -53,7 +54,7 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	if value.Kind == ast.ValueKindVariable {
 		_, exists := v.variableDefinition(value.Ref)
 		if !exists {
-			v.StopWithExternalErr(operationreport.ErrVariableNotDefinedOnOperation(v.operation.VariableValueNameBytes(value.Ref), []byte("")))
+			v.handleUndefinedVarError(value)
 			return
 		}
 
@@ -62,6 +63,14 @@ func (v *valuesVisitor) EnterArgument(ref int) {
 	}
 
 	v.valueSatisfiesInputValueDefinitionType(value, v.definition.InputValueDefinitions[definitionRef].Type)
+}
+
+func (v *valuesVisitor) handleUndefinedVarError(value ast.Value) {
+	printedValue, ok := v.printOperationValue(value)
+	if !ok {
+		printedValue = v.operation.VariableValueNameBytes(value.Ref)
+	}
+	v.Report.AddExternalError(operationreport.ErrVariableNotDefinedOnOperation(printedValue, value.Position))
 }
 
 func (v *valuesVisitor) valueSatisfiesOperationType(value ast.Value, operationTypeRef int) bool {
@@ -164,9 +173,9 @@ func (v *valuesVisitor) valueSatisfiesInputValueDefinitionType(value ast.Value, 
 }
 
 func (v *valuesVisitor) variableValueSatisfiesDefinitionType(value ast.Value, definitionTypeRef int) bool {
-	variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
-	if !ok {
-		v.handleTypeError(value, definitionTypeRef)
+	variableDefinitionRef, variableTypeRef, _, exists := v.operationVariableType(value.Ref)
+	if !exists {
+		v.handleUndefinedVarError(value)
 		return false
 	}
 
@@ -429,6 +438,11 @@ func (v *valuesVisitor) valueSatisfiesInputObjectTypeDefinition(value ast.Value,
 		return false
 	}
 
+	// Validate @oneOf constraint if present
+	if v.objectValueViolatesOneOf(value, inputObjectTypeDefinition) {
+		return false
+	}
+
 	return true
 }
 
@@ -463,6 +477,64 @@ func (v *valuesVisitor) objectValueHasDuplicateFields(objectValue int) bool {
 	return hasDuplicates
 }
 
+// objectValueViolatesOneOf checks if an input object value violates the @oneOf directive constraint.
+func (v *valuesVisitor) objectValueViolatesOneOf(objectValue ast.Value, defRef int) bool {
+	inputObjectTypeDef := v.definition.InputObjectTypeDefinitions[defRef]
+	// Check if the input object type has @oneOf directive
+	if !inputObjectTypeDef.HasDirectives {
+		return false
+	}
+	hasOneOfDirective := inputObjectTypeDef.Directives.HasDirectiveByName(v.definition, "oneOf")
+	if !hasOneOfDirective {
+		return false
+	}
+
+	fieldRefs := v.operation.ObjectValues[objectValue.Ref].Refs
+	if len(fieldRefs) != 1 {
+		objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+		v.Report.AddExternalError(operationreport.ErrOneOfInputObjectFieldCount(objName, len(fieldRefs), objectValue.Position))
+		return true
+	}
+
+	valid := true
+	for _, fieldRef := range fieldRefs {
+		fieldValue := v.operation.ObjectFieldValue(fieldRef)
+
+		if fieldValue.Kind == ast.ValueKindNull {
+			objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+			fieldName := v.operation.ObjectFieldNameBytes(fieldRef)
+			v.Report.AddExternalError(operationreport.ErrOneOfInputObjectNullValue(objName, fieldName, fieldValue.Position))
+			valid = false
+			continue
+		}
+
+		if fieldValue.Kind == ast.ValueKindVariable {
+			// For variables, check if the variable type is nullable
+			variableDefinitionRef, variableTypeRef, _, exists := v.operationVariableType(fieldValue.Ref)
+			if !exists {
+				// This was already checked in objectValueSatisfiesInputValueDefinition.
+				v.handleUndefinedVarError(fieldValue)
+				valid = false
+				continue
+			}
+
+			// Report nullable variables
+			if v.operation.Types[variableTypeRef].TypeKind != ast.TypeKindNonNull {
+				objName := v.definition.InputObjectTypeDefinitionNameBytes(defRef)
+				fieldName := v.operation.ObjectFieldNameBytes(fieldRef)
+				variableName := v.operation.VariableValueNameBytes(fieldValue.Ref)
+				v.Report.AddExternalError(operationreport.ErrOneOfInputObjectNullableVariable(
+					objName, fieldName, variableName, fieldValue.Position,
+					v.operation.VariableDefinitions[variableDefinitionRef].VariableValue.Position))
+				valid = false
+				continue
+			}
+		}
+	}
+
+	return !valid
+}
+
 func (v *valuesVisitor) objectFieldDefined(objectField, inputObjectTypeDefinition int) bool {
 	name := v.operation.ObjectFieldNameBytes(objectField)
 	for _, i := range v.definition.InputObjectTypeDefinitions[inputObjectTypeDefinition].InputFieldsDefinition.Refs {
@@ -495,9 +567,9 @@ func (v *valuesVisitor) objectValueSatisfiesInputValueDefinition(objectValue ast
 }
 
 func (v *valuesVisitor) variableValueHasMatchingTypeName(value ast.Value, definitionTypeRef int, expectedTypeName []byte) bool {
-	variableDefinitionRef, _, actualTypeName, ok := v.operationVariableType(value.Ref)
-	if !ok {
-		v.handleVariableHasIncompatibleTypeError(value, definitionTypeRef)
+	variableDefinitionRef, _, actualTypeName, exists := v.operationVariableType(value.Ref)
+	if !exists {
+		v.handleUndefinedVarError(value)
 		return false
 	}
 
@@ -559,8 +631,8 @@ func (v *valuesVisitor) handleNotExistingEnumValueError(value ast.Value, definit
 }
 
 func (v *valuesVisitor) handleVariableHasIncompatibleTypeError(value ast.Value, definitionTypeRef int) {
-	printedValue, ok := v.printOperationValue(value)
-	if !ok {
+	printedValue, exists := v.printOperationValue(value)
+	if !exists {
 		return
 	}
 
@@ -569,8 +641,12 @@ func (v *valuesVisitor) handleVariableHasIncompatibleTypeError(value ast.Value, 
 		return
 	}
 
-	variableDefinitionRef, variableTypeRef, _, ok := v.operationVariableType(value.Ref)
-	if !ok {
+	// This is a redundant call.
+	variableDefinitionRef, variableTypeRef, _, exists := v.operationVariableType(value.Ref)
+	if !exists {
+		// This branch could not happen because this method is called where
+		// operationVariableType already returned exists == true.
+		v.Report.AddExternalError(operationreport.ErrVariableNotDefinedOnOperation(printedValue, value.Position))
 		return
 	}
 

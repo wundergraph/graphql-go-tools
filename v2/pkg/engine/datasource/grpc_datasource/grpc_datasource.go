@@ -7,9 +7,9 @@
 package grpcdatasource
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 
 	"github.com/tidwall/gjson"
@@ -73,25 +73,24 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 }
 
 // Load implements resolve.DataSource interface.
-// It processes the input JSON data to make gRPC calls and writes
-// the response to the output buffer.
+// It processes the input JSON data to make gRPC calls and returns
+// the response data.
 //
 // The input is expected to contain the necessary information to make
 // a gRPC call, including service name, method name, and request data.
-func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) (err error) {
+func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	// get variables from input
 	variables := gjson.Parse(string(input)).Get("body.variables")
 	builder := newJSONBuilder(d.mapping, variables)
 
 	if d.disabled {
-		out.Write(builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")))
-		return nil
+		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
 	}
 
 	// get invocations from plan
 	invocations, err := d.rc.Compile(d.plan, variables)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	responses := make([]*astjson.Value, len(invocations))
@@ -101,7 +100,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	// make gRPC calls
 	for index, invocation := range invocations {
 		errGrp.Go(func() error {
-			a := astjson.Arena{}
 			// Invoke the gRPC method - this will populate invocation.Output
 			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
 
@@ -113,7 +111,7 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 			mu.Lock()
 			defer mu.Unlock()
 
-			response, err := builder.marshalResponseJSON(&a, &invocation.Call.Response, invocation.Output)
+			response, err := builder.marshalResponseJSON(&invocation.Call.Response, invocation.Output)
 			if err != nil {
 				return err
 			}
@@ -131,24 +129,19 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 	}
 
 	if err := errGrp.Wait(); err != nil {
-		out.Write(builder.writeErrorBytes(err))
-		return nil
+		return builder.writeErrorBytes(err), nil
 	}
 
-	a := astjson.Arena{}
-	root := a.NewObject()
+	root := astjson.ObjectValue(builder.jsonArena)
 	for _, response := range responses {
 		root, err = builder.mergeValues(root, response)
 		if err != nil {
-			out.Write(builder.writeErrorBytes(err))
-			return err
+			return builder.writeErrorBytes(err), err
 		}
 	}
 
-	data := builder.toDataObject(root)
-	out.Write(data.MarshalTo(nil))
-
-	return nil
+	dataObj := builder.toDataObject(root)
+	return dataObj.MarshalTo(nil), nil
 }
 
 // LoadWithFiles implements resolve.DataSource interface.
@@ -158,6 +151,6 @@ func (d *DataSource) Load(ctx context.Context, input []byte, out *bytes.Buffer) 
 // might not be applicable for most gRPC use cases.
 //
 // Currently unimplemented.
-func (d *DataSource) LoadWithFiles(ctx context.Context, input []byte, files []*httpclient.FileUpload, out *bytes.Buffer) (err error) {
+func (d *DataSource) LoadWithFiles(ctx context.Context, headers http.Header, input []byte, files []*httpclient.FileUpload) (data []byte, err error) {
 	panic("unimplemented")
 }
