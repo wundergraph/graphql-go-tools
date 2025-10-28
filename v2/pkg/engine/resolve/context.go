@@ -67,8 +67,14 @@ type ExecutionOptions struct {
 	IncludeQueryPlanInResponse bool
 	// SendHeartbeat sends regular HeartBeats for Subscriptions
 	SendHeartbeat bool
-	// DisableRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
-	DisableRequestDeduplication bool
+	// DisableSubgraphRequestDeduplication disables deduplication of requests to the same subgraph with the same input within a single operation execution.
+	DisableSubgraphRequestDeduplication bool
+	// DisableInboundRequestDeduplication disables deduplication of inbound client requests
+	// The engine is hashing the normalized operation, variables, and forwarded headers to achieve robust deduplication
+	// By default, overhead is negligible and as such this should be false (not disabled) most of the time
+	// However, if you're benchmarking internals of the engine, it can be helpful to switch it off
+	// When disabled (set to true) the code becomes a no-op
+	DisableInboundRequestDeduplication bool
 }
 
 type FieldValue struct {

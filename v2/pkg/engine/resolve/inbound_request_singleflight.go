@@ -5,8 +5,6 @@ import (
 	"sync"
 
 	"github.com/cespare/xxhash/v2"
-
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 )
 
 // InboundRequestSingleFlight is a sharded goroutine safe single flight implementation to de-couple inbound requests
@@ -54,13 +52,14 @@ type InflightRequest struct {
 // GetOrCreate blocks until ctx.ctx.Done() returns or InflightRequest.Done is closed
 // It returns an error if the leader returned an error
 // It returns nil,nil if the inbound request is not eligible for request deduplication
+// or if DisableSubgraphRequestDeduplication or DisableInboundRequestDeduplication is set to true on Context
 func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQLResponse) (*InflightRequest, error) {
 
-	if ctx.ExecutionOptions.DisableRequestDeduplication {
+	if ctx.ExecutionOptions.DisableSubgraphRequestDeduplication || ctx.ExecutionOptions.DisableInboundRequestDeduplication {
 		return nil, nil
 	}
 
-	if response != nil && response.Info != nil && response.Info.OperationType == ast.OperationTypeMutation {
+	if !response.SingleFlightAllowed() {
 		return nil, nil
 	}
 

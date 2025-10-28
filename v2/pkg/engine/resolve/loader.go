@@ -1625,6 +1625,19 @@ func (l *Loader) headersForSubgraphRequest(fetchItem *FetchItem) (http.Header, u
 	return l.ctx.HeadersForSubgraphRequest(info.DataSourceName)
 }
 
+func (l *Loader) singleFlightAllowed() bool {
+	if l.ctx.ExecutionOptions.DisableSubgraphRequestDeduplication {
+		return false
+	}
+	if l.info == nil {
+		return false
+	}
+	if l.info.OperationType == ast.OperationTypeQuery {
+		return true
+	}
+	return false
+}
+
 func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem *FetchItem, input []byte, res *result) error {
 
 	if l.info != nil {
@@ -1633,9 +1646,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 
 	headers, extraKey := l.headersForSubgraphRequest(fetchItem)
 
-	if l.info == nil ||
-		l.info.OperationType == ast.OperationTypeMutation ||
-		l.ctx.ExecutionOptions.DisableRequestDeduplication {
+	if !l.singleFlightAllowed() {
 		// Disable single flight for mutations
 		return l.loadByContextDirect(ctx, source, headers, input, res)
 	}

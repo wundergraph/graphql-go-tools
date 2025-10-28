@@ -43,6 +43,19 @@ type GraphQLResponse struct {
 	DataSources []DataSourceInfo
 }
 
+func (g *GraphQLResponse) SingleFlightAllowed() bool {
+	if g == nil {
+		return false
+	}
+	if g.Info == nil {
+		return false
+	}
+	if g.Info.OperationType == ast.OperationTypeQuery {
+		return true
+	}
+	return false
+}
+
 type GraphQLResponseInfo struct {
 	OperationType ast.OperationType
 }
