@@ -15,8 +15,8 @@ const (
 	// in a message as protobuf scalar types are not nullable.
 	knownTypeOptionalFieldValueName = "value"
 
-	// resolverContextDirectiveName is the name of the directive that is used to configure the resolver context.
-	resolverContextDirectiveName = "connect__fieldResolver"
+	// fieldResolverDirectiveName is the name of the directive that is used to configure the resolver context.
+	fieldResolverDirectiveName = "connect__fieldResolver"
 
 	// typenameFieldName is the name of the field that is used to store the typename of the object.
 	typenameFieldName = "__typename"
@@ -762,9 +762,9 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDe
 // The function attempts to resolve the context fields from the @connect__fieldResolver directive.
 // If the directive is not present it instead attempts to resolve the ID field.
 func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fieldDefRef int) ([]int, error) {
-	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fieldDefRef, ast.ByteSlice(resolverContextDirectiveName))
+	resolverDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fieldDefRef, ast.ByteSlice(fieldResolverDirectiveName))
 	if exists {
-		fields, err := r.getFieldsFromContext(walker.EnclosingTypeDefinition, contextDirectiveRef)
+		fields, err := r.getFieldsFromFieldResolverDirective(walker.EnclosingTypeDefinition, resolverDirectiveRef)
 		if err != nil {
 			return nil, err
 		}
@@ -810,7 +810,9 @@ func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fiel
 
 }
 
-func (r *rpcPlanningContext) getFieldsFromContext(parentNode ast.Node, contextRef int) ([]int, error) {
+// getFieldsFromFieldResolverDirective gets the fields from the @connect__fieldResolver directive.
+// It returns the field definition references for the fields in the context.
+func (r *rpcPlanningContext) getFieldsFromFieldResolverDirective(parentNode ast.Node, contextRef int) ([]int, error) {
 	val, exists := r.definition.DirectiveArgumentValueByName(contextRef, []byte("context"))
 	if !exists {
 		return nil, fmt.Errorf("context directive argument not found")
