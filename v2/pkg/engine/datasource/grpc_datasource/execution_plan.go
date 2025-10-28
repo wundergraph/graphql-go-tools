@@ -330,9 +330,9 @@ type PlanVisitor interface {
 // The planner is responsible for creating an RPCExecutionPlan from a given
 // GraphQL operation. It is used by the engine to execute operations against
 // gRPC services.
-func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs plan.FederationFieldConfigurations) PlanVisitor {
+func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs plan.FederationFieldConfigurations) (PlanVisitor, error) {
 	if mapping == nil {
-		mapping = new(GRPCMapping)
+		return nil, fmt.Errorf("mapping is required")
 	}
 
 	if len(federationConfigs) > 0 {
@@ -340,14 +340,14 @@ func NewPlanner(subgraphName string, mapping *GRPCMapping, federationConfigs pla
 			subgraphName:      subgraphName,
 			mapping:           mapping,
 			federationConfigs: federationConfigs,
-		})
+		}), nil
 	}
 
 	return newRPCPlanVisitor(rpcPlanVisitorConfig{
 		subgraphName:      subgraphName,
 		mapping:           mapping,
 		federationConfigs: federationConfigs,
-	})
+	}), nil
 }
 
 // formatRPCMessage formats an RPCMessage and adds it to the string builder with the specified indentation

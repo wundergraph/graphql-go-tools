@@ -62,7 +62,10 @@ type DataSourceConfig struct {
 
 // NewDataSource creates a new gRPC datasource
 func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-	planner := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
+	planner, err := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
+	if err != nil {
+		return nil, err
+	}
 	plan, err := planner.PlanOperation(config.Operation, config.Definition)
 	if err != nil {
 		return nil, err

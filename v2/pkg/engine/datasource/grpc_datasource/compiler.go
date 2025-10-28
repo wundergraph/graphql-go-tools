@@ -632,7 +632,7 @@ func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMess
 		return nil, err
 	}
 
-	// // Set the key list
+	// Set the context and args fields
 	p.setMessageValue(rootMessage, contextSchemaField.Name, protoref.ValueOfList(contextList))
 	p.setMessageValue(rootMessage, argsRPCField.Name, protoref.ValueOfMessage(args))
 
@@ -648,8 +648,6 @@ func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCFie
 	for _, field := range contextField.Message.Fields {
 		values := p.resolveContextDataForPath(context.ServiceCall.Output, field.ResolvePath)
 
-		contextValues = slices.Grow(contextValues, len(values))
-
 		for index, value := range values {
 			if index >= len(contextValues) {
 				contextValues = append(contextValues, make(map[string]protoref.Value))
@@ -663,6 +661,7 @@ func (p *RPCCompiler) resolveContextData(context FetchItem, contextField *RPCFie
 	return contextValues
 }
 
+// resolveContextDataForPath resolves the data for a given path in the context message.
 func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path ast.Path) []protoref.Value {
 	if path.Len() == 0 {
 		return nil
@@ -684,6 +683,7 @@ func (p *RPCCompiler) resolveContextDataForPath(message protoref.Message, path a
 
 }
 
+// resolveListDataForPath resolves the data for a given path in a list message.
 func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.FieldDescriptor, path ast.Path) []protoref.Value {
 	if path.Len() == 0 {
 		return nil
@@ -715,6 +715,7 @@ func (p *RPCCompiler) resolveListDataForPath(message protoref.List, fd protoref.
 	return result
 }
 
+// resolveDataForPath resolves the data for a given path in a message.
 func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Path) []protoref.Value {
 	if path.Len() == 0 {
 		return nil
@@ -751,9 +752,7 @@ func (p *RPCCompiler) resolveDataForPath(messsage protoref.Message, path ast.Pat
 }
 
 // getMessageField gets the field from the message by its name.
-// It also handles nested lists and nullable lists.
 func (p *RPCCompiler) getMessageField(message protoref.Message, fieldName string) (protoref.Value, protoref.FieldDescriptor) {
-
 	fd := message.Descriptor().Fields().ByName(protoref.Name(fieldName))
 	if fd == nil {
 		return protoref.Value{}, nil
@@ -788,9 +787,19 @@ func (p *RPCCompiler) resolveUnderlyingList(msg protoref.Message, fieldName stri
 
 }
 
+// resolveUnderlyingListItems resolves the items in a list message.
+//
+//	message ListOfFloat {
+//	  message List {
+//	    repeated double items = 1;
+//	  }
+//	  List list = 1;
+//	}
 func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLevel int) []protoref.Value {
+	// The field number of the list and items field in the message
+	const listAndItemsFieldNumber = 1
 	msg := value.Message()
-	fd := msg.Descriptor().Fields().ByNumber(1)
+	fd := msg.Descriptor().Fields().ByNumber(listAndItemsFieldNumber)
 	if fd == nil {
 		return nil
 	}
@@ -800,7 +809,7 @@ func (p *RPCCompiler) resolveUnderlyingListItems(value protoref.Value, nestingLe
 		return nil
 	}
 
-	itemsValue := listMsg.Message().Get(listMsg.Message().Descriptor().Fields().ByNumber(1))
+	itemsValue := listMsg.Message().Get(listMsg.Message().Descriptor().Fields().ByNumber(listAndItemsFieldNumber))
 	if !itemsValue.IsValid() {
 		return nil
 	}

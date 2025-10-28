@@ -282,7 +282,11 @@ func TestEntityLookup(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner %s", err)
+			}
+
 			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 			if err != nil {
 				t.Fatalf("failed to plan operation: %s", err)
@@ -1302,7 +1306,10 @@ func TestEntityLookupWithFieldResolvers(t *testing.T) {
 				t.Fatalf("failed to parse query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
 			plan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
 			if err != nil {
 				t.Fatalf("failed to plan operation: %s", err)
@@ -1350,7 +1357,10 @@ func runFederationTest(t *testing.T, tt struct {
 			t.Fatalf("failed to validate query: %s", report.Error())
 		}
 
-		planner := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+		planner, err := NewPlanner("Products", tt.mapping, tt.federationConfigs)
+		if err != nil {
+			t.Fatalf("failed to create planner: %s", err)
+		}
 		plan, err := planner.PlanOperation(&operation, &definition)
 		if err != nil {
 			t.Fatalf("failed to plan operation: %s", err)

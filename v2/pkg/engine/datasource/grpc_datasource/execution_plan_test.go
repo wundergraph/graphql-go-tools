@@ -1369,8 +1369,14 @@ func TestProductExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", testMapping(), nil)
+			planner, err := NewPlanner("Products", testMapping(), nil)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
 
 			if tt.expectedError != "" {
 				if err == nil {
@@ -2473,8 +2479,15 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", testMapping(), nil)
+			planner, err := NewPlanner("Products", testMapping(), nil)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
+
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
 
 			if tt.expectedError != "" {
 				if err == nil {
