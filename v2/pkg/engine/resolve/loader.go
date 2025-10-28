@@ -1625,14 +1625,25 @@ func (l *Loader) headersForSubgraphRequest(fetchItem *FetchItem) (http.Header, u
 	return l.ctx.HeadersForSubgraphRequest(info.DataSourceName)
 }
 
-func (l *Loader) singleFlightAllowed() bool {
+// singleFlightAllowed returns true if the specific GraphQL Operation is a Query
+// even if the root operation type is a Mutation or Subscription
+// sub-operations can still be of type Query
+// even in such cases we allow request de-duplication because such requests are idempotent
+func (l *Loader) singleFlightAllowed(fetchItem *FetchItem) bool {
 	if l.ctx.ExecutionOptions.DisableSubgraphRequestDeduplication {
 		return false
 	}
-	if l.info == nil {
+	if fetchItem == nil {
 		return false
 	}
-	if l.info.OperationType == ast.OperationTypeQuery {
+	if fetchItem.Fetch == nil {
+		return false
+	}
+	info := fetchItem.Fetch.FetchInfo()
+	if info == nil {
+		return false
+	}
+	if info.OperationType == ast.OperationTypeQuery {
 		return true
 	}
 	return false
@@ -1646,7 +1657,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 
 	headers, extraKey := l.headersForSubgraphRequest(fetchItem)
 
-	if !l.singleFlightAllowed() {
+	if !l.singleFlightAllowed(fetchItem) {
 		// Disable single flight for mutations
 		return l.loadByContextDirect(ctx, source, headers, input, res)
 	}
