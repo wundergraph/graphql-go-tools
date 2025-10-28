@@ -491,7 +491,7 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 			res.cacheItems[i] = astjson.NullValue
 			continue
 		}
-		res.cacheItems[i], err = astjson.ParseBytesWithoutCache(cachedItems[i])
+		res.cacheItems[i], err = astjson.ParseBytes(cachedItems[i])
 		if err != nil {
 			return false, errors.WithStack(err)
 		}
@@ -596,7 +596,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	}
 	if res.cacheSkippedFetch {
 		for i, item := range res.cacheItems {
-			_, _, err := astjson.MergeValues(items[i], item)
+			_, _, err := astjson.MergeValues(l.jsonArena, items[i], item)
 			if err != nil {
 				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 			}
