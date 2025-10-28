@@ -617,7 +617,7 @@ func (r *rpcPlanningContext) createRPCFieldFromFieldArgument(fieldArg fieldArgum
 // buildMessageFromInputObjectType builds a message from an input object type definition.
 func (r *rpcPlanningContext) buildMessageFromInputObjectType(node *ast.Node) (*RPCMessage, error) {
 	if node.Kind != ast.NodeKindInputObjectTypeDefinition {
-		return nil, fmt.Errorf("unsupported type: %s", node.Kind)
+		return nil, fmt.Errorf("unable to build message from input object type definition - incorrect type: %s", node.Kind)
 	}
 
 	inputObjectDefinition := r.definition.InputObjectTypeDefinitions[node.Ref]
@@ -637,13 +637,15 @@ func (r *rpcPlanningContext) buildMessageFromInputObjectType(node *ast.Node) (*R
 	return message, nil
 }
 
+// buildMessageFieldFromInputValueDefinition builds an RPCField from an input value definition.
 func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef int, node *ast.Node) (RPCField, error) {
-	ivd := r.definition.InputValueDefinitions[ivdRef]
-	ivdType := r.definition.Types[ivd.Type]
+	inputValueDef := r.definition.InputValueDefinitions[ivdRef]
+	inputValueDefType := r.definition.Types[inputValueDef.Type]
 
-	underlyingTypeNode, found := r.nodeByTypeRef(ivd.Type)
+	// We need to resolve the underlying type to determine whether we are building a nested message or a scalar type.
+	underlyingTypeNode, found := r.nodeByTypeRef(inputValueDef.Type)
 	if !found {
-		return RPCField{}, fmt.Errorf("unable to resolve underlying type node for input value definition %s", r.definition.Input.ByteSliceString(ivd.Name))
+		return RPCField{}, fmt.Errorf("unable to resolve underlying type node for input value definition %s", r.definition.Input.ByteSliceString(inputValueDef.Name))
 	}
 
 	var (
@@ -651,6 +653,7 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 		err          error
 	)
 
+	// If the type is an input object type, we need to build a nested message.
 	dt := DataTypeMessage
 	switch underlyingTypeNode.Kind {
 	case ast.NodeKindInputObjectTypeDefinition:
@@ -659,13 +662,13 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 			return RPCField{}, err
 		}
 	default:
-		dt = r.toDataType(&ivdType)
+		dt = r.toDataType(&inputValueDefType)
 	}
 
-	fieldName := r.definition.Input.ByteSliceString(ivd.Name)
+	fieldName := r.definition.Input.ByteSliceString(inputValueDef.Name)
 	mappedName := r.resolveFieldMapping(node.NameString(r.definition), fieldName)
 
-	field, err := r.buildInputMessageField(ivd.Type, mappedName, fieldName, dt)
+	field, err := r.buildInputMessageField(inputValueDef.Type, mappedName, fieldName, dt)
 	if err != nil {
 		return RPCField{}, err
 	}
@@ -674,6 +677,8 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 	return field, nil
 }
 
+// buildInputMessageField builds an RPCField from an input value definition.
+// It handles scalar, enum and list types.
 func (r *rpcPlanningContext) buildInputMessageField(typeRef int, fieldName, jsonPath string, dt DataType) (RPCField, error) {
 	field := RPCField{
 		Name:          fieldName,
@@ -726,8 +731,10 @@ type resolvedField struct {
 	fieldArguments []fieldArgument
 }
 
-func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fd int, fieldArgs []int, fieldPath ast.Path, resolvedField *resolvedField) error {
-	contextFields, err := r.resolveContextFields(walker, fd)
+// setResolvedField sets the resolved field for a given field definition reference.
+func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fieldDefRef int, fieldArgs []int, fieldPath ast.Path, resolvedField *resolvedField) error {
+	// We need to resolve the context fields for the given field definition reference.
+	contextFields, err := r.resolveContextFields(walker, fieldDefRef)
 	if err != nil {
 		return err
 	}
@@ -742,7 +749,7 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fd int,
 		})
 	}
 
-	fieldArguments, err := r.parseFieldArguments(walker, fd, fieldArgs)
+	fieldArguments, err := r.parseFieldArguments(walker, fieldDefRef, fieldArgs)
 	if err != nil {
 		return err
 	}
@@ -751,8 +758,11 @@ func (r *rpcPlanningContext) setResolvedField(walker *astvisitor.Walker, fd int,
 	return nil
 }
 
-func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fd int) ([]int, error) {
-	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fd, ast.ByteSlice(resolverContextDirectiveName))
+// resolveContextFields resolves the context fields for a given field definition reference.
+// The function attempts to resolve the context fields from the @connect__fieldResolver directive.
+// If the directive is not present it instead attempts to resolve the ID field.
+func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fieldDefRef int) ([]int, error) {
+	contextDirectiveRef, exists := r.definition.FieldDefinitionDirectiveByName(fieldDefRef, ast.ByteSlice(resolverContextDirectiveName))
 	if exists {
 		fields, err := r.getFieldsFromContext(walker.EnclosingTypeDefinition, contextDirectiveRef)
 		if err != nil {
@@ -762,37 +772,36 @@ func (r *rpcPlanningContext) resolveContextFields(walker *astvisitor.Walker, fd 
 		return fields, nil
 	}
 
-	idFieldRef, err := r.findIDField(walker.EnclosingTypeDefinition, fd)
+	// If the directive is not present it instead attempts to resolve the ID field.
+	idFieldRef, err := r.findIDField(walker.EnclosingTypeDefinition, fieldDefRef)
 	return []int{idFieldRef}, err
 }
 
-func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fd int, fieldArgs []int) ([]fieldArgument, error) {
+// parseFieldArguments parses the field arguments for a given field definition reference.
+func (r *rpcPlanningContext) parseFieldArguments(walker *astvisitor.Walker, fieldDefRef int, fieldArgs []int) ([]fieldArgument, error) {
 	result := make([]fieldArgument, 0, len(fieldArgs))
 	for _, fieldArgRef := range fieldArgs {
 		arg := r.operation.Arguments[fieldArgRef]
-		fieldArg := r.operation.ArgumentNameString(fieldArgRef)
-		fieldType := arg.Value.Kind
+
+		if arg.Value.Kind != ast.ValueKindVariable {
+			return nil, fmt.Errorf("unsupported argument value kind: %s", arg.Value.Kind)
+		}
 
 		argDefRef := r.definition.NodeFieldDefinitionArgumentDefinitionByName(
 			walker.EnclosingTypeDefinition,
-			r.definition.FieldDefinitionNameBytes(fd),
+			r.definition.FieldDefinitionNameBytes(fieldDefRef),
 			r.operation.ArgumentNameBytes(fieldArgRef),
 		)
 
 		if argDefRef == ast.InvalidRef {
-			return nil, fmt.Errorf("unable to resolve argument input value definition for argument %s", fieldArg)
-		}
-
-		jsonValue := fieldArg
-		if fieldType == ast.ValueKindVariable {
-			jsonValue = r.operation.Input.ByteSliceString(r.operation.VariableValues[arg.Value.Ref].Name)
+			return nil, fmt.Errorf("unable to resolve argument input value definition for argument %s", r.operation.ArgumentNameString(fieldArgRef))
 		}
 
 		result = append(result, fieldArgument{
-			fieldDefinitionRef:    fd,
+			fieldDefinitionRef:    fieldDefRef,
 			argumentDefinitionRef: argDefRef,
 			parentTypeNode:        walker.EnclosingTypeDefinition,
-			jsonPath:              jsonValue,
+			jsonPath:              r.operation.VariableValueNameString(arg.Value.Ref),
 		})
 
 	}
@@ -820,11 +829,16 @@ func (r *rpcPlanningContext) getFieldsFromContext(parentNode ast.Node, contextRe
 	return v.fieldDefinitionRefs, nil
 }
 
-func (r *rpcPlanningContext) findIDField(parentNode ast.Node, fd int) (int, error) {
+// findIDField attempts to find the ID field for a given field definition reference.
+// It fails if the parent node is not an object type definition.
+// The functions checks whether an available ID field is present in the object type definition.
+// If exactly one ID field is found, it returns the field definition reference.
+// If none or multiple ID fields are found, it returns an error.
+func (r *rpcPlanningContext) findIDField(parentNode ast.Node, fieldDefRef int) (int, error) {
 	switch parentNode.Kind {
 	case ast.NodeKindObjectTypeDefinition:
 		o := r.definition.ObjectTypeDefinitions[parentNode.Ref]
-		result := slices.Collect(r.filterIDFieldsFunc(o, fd))
+		result := slices.Collect(r.filterIDFieldsFunc(o, fieldDefRef))
 
 		if len(result) == 0 {
 			return ast.InvalidRef, fmt.Errorf("unable to determine ID field in object type %s", parentNode.NameString(r.definition))
@@ -840,11 +854,14 @@ func (r *rpcPlanningContext) findIDField(parentNode ast.Node, fd int) (int, erro
 	}
 }
 
-func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fd int) func(yield func(int) bool) {
+// filterIDFieldsFunc is a helper function to filter the ID fields from the object type definition.
+// It yields the field definition references for the ID fields.
+// It skips the field definition reference for the given field definition reference.
+func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fieldDefRef int) func(yield func(int) bool) {
 	fieldRefs := o.FieldsDefinition.Refs
 	return func(yield func(int) bool) {
 		for _, ref := range fieldRefs {
-			if ref == fd {
+			if ref == fieldDefRef {
 				continue
 			}
 
