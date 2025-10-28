@@ -387,12 +387,6 @@ func (p *RPCCompiler) processFile(f protoref.FileDescriptor, mapping *GRPCMappin
 	}
 }
 
-// ConstructExecutionPlan constructs an RPCExecutionPlan from a parsed GraphQL operation and schema.
-// It will return an error if the operation does not match the protobuf definition provided to the compiler.
-func (p *RPCCompiler) ConstructExecutionPlan(operation, schema *ast.Document) (*RPCExecutionPlan, error) {
-	return nil, nil
-}
-
 // ServiceCall represents a single gRPC service call with its input and output messages.
 type ServiceCall struct {
 	// ServiceName is the name of the gRPC service to call

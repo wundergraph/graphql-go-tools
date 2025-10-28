@@ -220,6 +220,7 @@ func (j *jsonBuilder) mergeEntities(left *astjson.Value, right *astjson.Value) (
 	return entities, nil
 }
 
+// mergeWithPath merges a JSON value with a resolved value by its path.
 func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value, path ast.Path) error {
 	if len(path) == 0 {
 		return errors.New("path is empty")
@@ -232,6 +233,7 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 
 	responseValues := make([]*astjson.Value, 0, len(resolvedValues))
 
+	// We retrieve a flat list of all the values that we need to merge with the resolved values.
 	current := base
 	current = current.Get(searchPath[0].FieldName.String())
 	switch current.Type() {
@@ -261,6 +263,8 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	return nil
 }
 
+// flattenObject flattens a JSON object into a list of values.
+// This is needed because we want to get the values from the object by its path to merge them with the response values.
 func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*astjson.Value, error) {
 	if path.Len() == 0 {
 		return []*astjson.Value{value}, nil
@@ -289,6 +293,8 @@ func (j *jsonBuilder) flattenObject(value *astjson.Value, path ast.Path) ([]*ast
 	return result, nil
 }
 
+// flattenList flattens a list of JSON values into a list of values.
+// This is needed because we want to get the values from the list by its path to merge them with the response values.
 func (j *jsonBuilder) flattenList(items []*astjson.Value, path ast.Path) ([]*astjson.Value, error) {
 	if path.Len() == 0 {
 		return items, nil

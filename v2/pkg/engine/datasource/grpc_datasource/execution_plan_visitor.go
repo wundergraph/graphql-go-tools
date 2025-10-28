@@ -198,6 +198,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 
 	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
 	if r.resolvedFieldIndex != ast.InvalidRef {
+		// TODO: handle nested resolved fields.
 		r.resolvedFields[r.resolvedFieldIndex].fieldsSelectionSetRef = ref
 		r.walker.SkipNode()
 		return
