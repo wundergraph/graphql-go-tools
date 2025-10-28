@@ -869,6 +869,7 @@ func (r *rpcPlanningContext) findIDField(parentNode ast.Node, fieldDefRef int) (
 // It skips the field definition reference for the given field definition reference.
 func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fieldDefRef int) func(yield func(int) bool) {
 	fieldRefs := o.FieldsDefinition.Refs
+	const idTypeName = "ID"
 	return func(yield func(int) bool) {
 		for _, ref := range fieldRefs {
 			if ref == fieldDefRef {
@@ -876,7 +877,7 @@ func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fiel
 			}
 
 			typeName := r.definition.FieldDefinitionTypeNameString(ref)
-			if typeName != "ID" {
+			if typeName != idTypeName {
 				continue
 			}
 
