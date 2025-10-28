@@ -573,7 +573,7 @@ func (r *rpcPlanningContext) buildField(enclosingTypeNode ast.Node, fd int, fiel
 func (r *rpcPlanningContext) createRPCFieldFromFieldArgument(fieldArg fieldArgument) (RPCField, error) {
 	argDef := r.definition.InputValueDefinitions[fieldArg.argumentDefinitionRef]
 	argName := r.definition.Input.ByteSliceString(argDef.Name)
-	underlyingTypeNode, found := r.nodeByTypeRef(argDef.Type)
+	underlyingTypeNode, found := r.definition.ResolveNodeFromTypeRef(argDef.Type)
 	if !found {
 		return RPCField{}, fmt.Errorf("unable to resolve underlying type node for argument %s", argName)
 	}
@@ -643,7 +643,7 @@ func (r *rpcPlanningContext) buildMessageFieldFromInputValueDefinition(ivdRef in
 	inputValueDefType := r.definition.Types[inputValueDef.Type]
 
 	// We need to resolve the underlying type to determine whether we are building a nested message or a scalar type.
-	underlyingTypeNode, found := r.nodeByTypeRef(inputValueDef.Type)
+	underlyingTypeNode, found := r.definition.ResolveNodeFromTypeRef(inputValueDef.Type)
 	if !found {
 		return RPCField{}, fmt.Errorf("unable to resolve underlying type node for input value definition %s", r.definition.Input.ByteSliceString(inputValueDef.Name))
 	}
@@ -877,12 +877,6 @@ func (r *rpcPlanningContext) filterIDFieldsFunc(o ast.ObjectTypeDefinition, fiel
 			}
 		}
 	}
-}
-
-// nodeByTypeRef is a helper function to resolve the underlying type node for a given type reference.
-func (r *rpcPlanningContext) nodeByTypeRef(typeRef int) (ast.Node, bool) {
-	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
-	return r.definition.NodeByNameStr(underlyingTypeName)
 }
 
 type resolveRPCCallConfig struct {
