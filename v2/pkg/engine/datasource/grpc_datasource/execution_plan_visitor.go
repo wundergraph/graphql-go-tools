@@ -144,8 +144,6 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 // EnterArgument implements astvisitor.EnterArgumentVisitor.
 // This method retrieves the input value definition for the argument
 // and builds the request message from the input argument.
-//
-// TODO handle field arguments to define resolvers
 func (r *rpcPlanVisitor) EnterArgument(ref int) {
 	ancestor := r.walker.Ancestor()
 	if ancestor.Kind != ast.NodeKindField || ancestor.Ref != r.operationFieldRef {
@@ -200,7 +198,7 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 
 	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
 	if r.resolvedFieldIndex != ast.InvalidRef {
-		r.resolvedFields[r.resolvedFieldIndex].requiredFieldSelection = ref
+		r.resolvedFields[r.resolvedFieldIndex].fieldsSelectionSetRef = ref
 		r.walker.SkipNode()
 		return
 	}

@@ -724,7 +724,7 @@ type resolvedField struct {
 	parentTypeRef          int
 	fieldRef               int
 	fieldDefinitionTypeRef int
-	requiredFieldSelection int
+	fieldsSelectionSetRef  int
 	responsePath           ast.Path
 
 	contextFields  []contextField
@@ -994,7 +994,7 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 		var err error
 		responseFieldsMessage, err = r.resolveRequiredFields(
 			r.definition.ResolveTypeNameString(underlyingTypeRef),
-			resolvedField.requiredFieldSelection,
+			resolvedField.fieldsSelectionSetRef,
 		)
 
 		if err != nil {
