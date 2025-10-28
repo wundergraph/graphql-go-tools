@@ -52,10 +52,10 @@ type InflightRequest struct {
 // GetOrCreate blocks until ctx.ctx.Done() returns or InflightRequest.Done is closed
 // It returns an error if the leader returned an error
 // It returns nil,nil if the inbound request is not eligible for request deduplication
-// or if DisableSubgraphRequestDeduplication or DisableInboundRequestDeduplication is set to true on Context
+// or if DisableInboundRequestDeduplication is set to true on Context
 func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQLResponse) (*InflightRequest, error) {
 
-	if ctx.ExecutionOptions.DisableSubgraphRequestDeduplication || ctx.ExecutionOptions.DisableInboundRequestDeduplication {
+	if ctx.ExecutionOptions.DisableInboundRequestDeduplication {
 		return nil, nil
 	}
 
