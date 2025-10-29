@@ -41,11 +41,10 @@ type nodeSelectionVisitor struct {
 	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
 	fieldDependencyKind         map[fieldDependencyKey]fieldDependencyKind
 
-	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
-	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
+	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
-	rewrittenFieldRefs       []int // rewrittenFieldRefs holds list of fields which had their selection sets rewritten by abstract selection rewriter
-	fieldsToCheckForRewrites []fieldRewriteInfo
+	rewrittenFieldRefs []int
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
@@ -73,12 +72,6 @@ type fieldDependencyKey struct {
 type fieldIndexKey struct {
 	fieldRef int
 	dsHash   DSHash
-}
-
-type fieldRewriteInfo struct {
-	fieldRef      int
-	enclosingType ast.Node
-	ds            DataSource
 }
 
 // selectionSetPendingRequirements - is a wrapper to been able to have predictable order of keyRequirements but at the same time deduplicate keyRequirements
@@ -139,12 +132,6 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 	c.hasNewFields = false
 	c.rewrittenFieldRefs = c.rewrittenFieldRefs[:0]
 
-	if c.fieldsToCheckForRewrites == nil {
-		c.fieldsToCheckForRewrites = make([]fieldRewriteInfo, 0, 8) // preallocate for few fields having selections
-	} else {
-		c.fieldsToCheckForRewrites = c.fieldsToCheckForRewrites[:0]
-	}
-
 	if c.selectionSetRefs == nil {
 		c.selectionSetRefs = make([]int, 0, 8)
 	} else {
@@ -175,10 +162,7 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 }
 
 func (c *nodeSelectionVisitor) LeaveDocument(operation, definition *ast.Document) {
-	// at the end of the current walk we check fields with selections if they need rewrites
-	for _, field := range c.fieldsToCheckForRewrites {
-		c.rewriteSelectionSetHavingAbstractFragments(field.fieldRef, field.ds, field.enclosingType)
-	}
+
 }
 
 func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
@@ -236,8 +220,8 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 			c.handleFieldsRequiredByKey(fieldRef, parentPath, typeName, fieldName, currentPath, ds, *suggestion.requiresKey)
 		}
 
-		// schedule a check if field selections needs rewrites
-		c.scheduleRewriteCheck(fieldRef, ds)
+		// check if field selections are abstract and needs rewrites
+		c.rewriteSelectionSetHavingAbstractFragments(fieldRef, ds)
 	}
 }
 
@@ -653,19 +637,7 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 	c.hasNewFields = true
 }
 
-func (c *nodeSelectionVisitor) scheduleRewriteCheck(fieldRef int, ds DataSource) {
-	if !c.operation.FieldHasSelections(fieldRef) {
-		return
-	}
-
-	c.fieldsToCheckForRewrites = append(c.fieldsToCheckForRewrites, fieldRewriteInfo{
-		fieldRef:      fieldRef,
-		ds:            ds,
-		enclosingType: c.walker.EnclosingTypeDefinition,
-	})
-}
-
-func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource, enclosingType ast.Node) {
+func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldRef int, ds DataSource) {
 	if _, ok := c.visitedFieldsAbstractChecks[fieldRef]; ok {
 		return
 	}
@@ -682,7 +654,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	result, err := rewriter.RewriteFieldSelection(fieldRef, enclosingType)
+	result, err := rewriter.RewriteFieldSelection(fieldRef, c.walker.EnclosingTypeDefinition)
 	if err != nil {
 		c.walker.StopWithInternalErr(err)
 		return
@@ -694,7 +666,6 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 
 	c.addSkipFieldRefs(rewriter.skipFieldRefs...)
 	c.hasNewFields = true
-
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
 
 	c.updateFieldDependsOn(result.changedFieldRefs)
@@ -714,8 +685,6 @@ func (c *nodeSelectionVisitor) resetVisitedAbstractChecksForModifiedFields(modif
 }
 
 func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]int) {
-	updateKeys := make([]fieldIndexKey, 0, len(c.fieldDependsOn))
-	// update dependencies field refs
 	for key, fieldRefs := range c.fieldDependsOn {
 		updatedFieldRefs := make([]int, 0, len(fieldRefs))
 		for _, fieldRef := range fieldRefs {
@@ -727,24 +696,8 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 		}
 
 		c.fieldDependsOn[key] = updatedFieldRefs
-
-		if newFieldRefs := changedFieldRefs[key.fieldRef]; newFieldRefs != nil {
-			updateKeys = append(updateKeys, key)
-		}
 	}
 
-	// update dependent fields which had their field refs changed
-	for _, key := range updateKeys {
-		newFieldRefs := changedFieldRefs[key.fieldRef]
-		dependentFieldRefs := c.fieldDependsOn[key]
-		delete(c.fieldDependsOn, key)
-		for _, newFieldRef := range newFieldRefs {
-			newKey := fieldIndexKey{fieldRef: newFieldRef, dsHash: key.dsHash}
-			c.fieldDependsOn[newKey] = append(c.fieldDependsOn[newKey], dependentFieldRefs...)
-		}
-	}
-
-	updateFieldRefs := make([]int, 0, len(c.fieldRefDependsOn))
 	for key, fieldRefs := range c.fieldRefDependsOn {
 		updatedFieldRefs := make([]int, 0, len(fieldRefs))
 		for _, fieldRef := range fieldRefs {
@@ -756,18 +709,6 @@ func (c *nodeSelectionVisitor) updateFieldDependsOn(changedFieldRefs map[int][]i
 		}
 
 		c.fieldRefDependsOn[key] = updatedFieldRefs
-		if newFieldRefs := changedFieldRefs[key]; newFieldRefs != nil {
-			updateFieldRefs = append(updateFieldRefs, key)
-		}
-	}
-
-	for _, key := range updateFieldRefs {
-		newFieldRefs := changedFieldRefs[key]
-		dependentFieldRefs := c.fieldRefDependsOn[key]
-		delete(c.fieldRefDependsOn, key)
-		for _, newFieldRef := range newFieldRefs {
-			c.fieldRefDependsOn[newFieldRef] = append(c.fieldRefDependsOn[newFieldRef], dependentFieldRefs...)
-		}
 	}
 
 	for _, newRefs := range changedFieldRefs {
