@@ -48,13 +48,17 @@ func (p *ArenaPool) Acquire(id uint64) *ArenaPoolItem {
 	defer p.mu.Unlock()
 
 	// Try to find an available arena in the pool
-	for i := 0; i < len(p.pool); i++ {
-		v := p.pool[i].Value()
-		p.pool = append(p.pool[:i], p.pool[i+1:]...)
-		if v == nil {
-			continue
+	for len(p.pool) > 0 {
+		// Pop the last item
+		lastIdx := len(p.pool) - 1
+		wp := p.pool[lastIdx]
+		p.pool = p.pool[:lastIdx]
+
+		v := wp.Value()
+		if v != nil {
+			return v
 		}
-		return v
+		// If weak pointer was nil (GC collected), continue to next item
 	}
 
 	// No arena available, create a new one
