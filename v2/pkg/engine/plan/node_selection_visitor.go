@@ -41,8 +41,8 @@ type nodeSelectionVisitor struct {
 	fieldLandedTo               map[int]DSHash                                   // fieldLandedTo is a map[fieldRef]DSHash - holds a datasource hash where field was landed to
 	fieldDependencyKind         map[fieldDependencyKey]fieldDependencyKind
 
-	secondaryRun        bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
-	hasNewFields        bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
+	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
+	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
 	rewrittenFieldRefs []int
 
@@ -50,7 +50,7 @@ type nodeSelectionVisitor struct {
 	// used by "requires" keys, not only when fragments are present.
 	addTypenameInNestedSelections bool
 
-	newFieldRefs map[int]struct{}
+	newFieldRefs map[int]struct{} // newFieldRefs is a set of field refs which were added by the visitor or was modified by a rewrite
 }
 
 func (c *nodeSelectionVisitor) addSkipFieldRefs(fieldRefs ...int) {
@@ -176,16 +176,39 @@ func (c *nodeSelectionVisitor) EnterOperationDefinition(ref int) {
 func (c *nodeSelectionVisitor) EnterSelectionSet(ref int) {
 	c.debugPrint("EnterSelectionSet ref:", ref)
 	c.selectionSetRefs = append(c.selectionSetRefs, ref)
+
+	c.handleRequiresInSelectionSet(ref)
+}
+
+// handleRequiresInSelectionSet adds required fields for fields having @requires directive
+// before walker actually walks into field selections
+// this is needed for the case when requires configuration has deeply nested fields
+// which will modify current field sublings
+func (c *nodeSelectionVisitor) handleRequiresInSelectionSet(selectionSetRef int) {
+	fieldSelectionsRefs := c.operation.SelectionSetFieldSelections(selectionSetRef)
+	for _, fieldSelectionRef := range fieldSelectionsRefs {
+		fieldRef := c.operation.Selections[fieldSelectionRef].Ref
+		// process the field but handle only requires configurations
+		c.handleEnterField(fieldRef, true)
+	}
+
+	// add required fields into operation right away
+	// so when the walker walks into fields, required fields will be already present
+	c.processPendingFieldRequirements(selectionSetRef)
 }
 
 func (c *nodeSelectionVisitor) LeaveSelectionSet(ref int) {
 	c.debugPrint("LeaveSelectionSet ref:", ref)
-	c.processPendingFieldRequirements(ref)
 	c.processPendingKeyRequirements(ref)
 	c.selectionSetRefs = c.selectionSetRefs[:len(c.selectionSetRefs)-1]
 }
 
 func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
+	// process field to handle keys and do rewrites of abstract selections
+	c.handleEnterField(fieldRef, false)
+}
+
+func (c *nodeSelectionVisitor) handleEnterField(fieldRef int, handleRequires bool) {
 	root := c.walker.Ancestors[0]
 	if root.Kind != ast.NodeKindOperationDefinition {
 		return
@@ -212,8 +235,12 @@ func (c *nodeSelectionVisitor) EnterField(fieldRef int) {
 		}
 		ds := c.dataSources[dsIdx]
 
-		// check if the field has @requires directive
-		c.handleFieldRequiredByRequires(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+		if handleRequires {
+			// check if the field has @requires directive
+			c.handleFieldRequiredByRequires(fieldRef, parentPath, typeName, fieldName, currentPath, ds)
+			// skip to the next suggestion as we only handle requires here
+			continue
+		}
 
 		if suggestion.requiresKey != nil {
 			// add @key requirements for the field
