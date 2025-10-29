@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/wundergraph/go-arena"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
@@ -94,6 +95,8 @@ type Walker struct {
 	deferred        []func()
 
 	OnExternalError func(err *operationreport.ExternalError)
+
+	arena arena.Arena
 }
 
 // NewWalker returns a fully initialized Walker
@@ -125,6 +128,9 @@ func WalkerFromPool() *Walker {
 }
 
 func (w *Walker) Release() {
+	if w.arena != nil {
+		w.arena.Reset()
+	}
 	w.ResetVisitors()
 	w.Report = nil
 	w.document = nil
@@ -1370,6 +1376,11 @@ func (w *Walker) Walk(document, definition *ast.Document, report *operationrepor
 	} else {
 		w.Report = report
 	}
+	if w.arena == nil {
+		w.arena = arena.NewMonotonicArena(arena.WithMinBufferSize(64))
+	} else {
+		w.arena.Reset()
+	}
 	w.Ancestors = w.Ancestors[:0]
 	w.Path = w.Path[:0]
 	w.TypeDefinitions = w.TypeDefinitions[:0]
@@ -1822,8 +1833,7 @@ func (w *Walker) walkSelectionSet(ref int, skipFor SkipVisitors) {
 
 RefsChanged:
 	for {
-		refs := make([]int, 0, len(w.document.SelectionSets[ref].SelectionRefs))
-		refs = append(refs, w.document.SelectionSets[ref].SelectionRefs...)
+		refs := arena.SliceAppend(w.arena, nil, w.document.SelectionSets[ref].SelectionRefs...)
 
 		for i, j := range refs {
 
