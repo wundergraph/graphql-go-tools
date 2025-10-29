@@ -78,7 +78,7 @@ type VariablesValidatorOptions struct {
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
-	walker := astvisitor.NewWalker(8)
+	walker := astvisitor.NewWalkerWithID(8, "VariablesValidator")
 	visitor := &variablesVisitor{
 		walker: &walker,
 		opts:   options,

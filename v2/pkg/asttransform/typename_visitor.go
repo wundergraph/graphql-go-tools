@@ -18,7 +18,7 @@ type TypeNameVisitor struct {
 }
 
 func NewTypeNameVisitor() *TypeNameVisitor {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "TypeNameVisitor")
 
 	visitor := &TypeNameVisitor{
 		Walker: &walker,

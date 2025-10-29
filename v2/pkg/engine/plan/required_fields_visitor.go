@@ -64,7 +64,7 @@ func addRequiredFields(config *addRequiredFieldsConfiguration) (out AddRequiredF
 		return out, report
 	}
 
-	walker := astvisitor.NewWalker(4)
+	walker := astvisitor.NewWalkerWithID(4, "RequiredFieldsVisitor")
 
 	visitor := &requiredFieldsVisitor{
 		Walker:            &walker,

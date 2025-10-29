@@ -203,7 +203,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	// NOTE: normalization rules for variables rely on the fact that
 	// we will visit only a single operation, so it is important to remove non-matching operations
 	if o.options.removeNotMatchingOperationDefinitions {
-		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalker(2)
+		removeNotMatchingOperationDefinitionsWalker := astvisitor.NewWalkerWithID(2, "RemoveNotMatchingOperationDefinitions")
 		// This rule does not walk deep into ast, so a separate walk is not expensive,
 		// but we could not mix this walk with other rules, because they need to go deep
 		o.removeOperationDefinitionsVisitor = removeOperationDefinitions(&removeNotMatchingOperationDefinitionsWalker)
@@ -214,11 +214,11 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	directivesIncludeSkip := astvisitor.NewWalker(8)
+	directivesIncludeSkip := astvisitor.NewWalkerWithID(8, "DirectivesIncludeSkip")
 	preventFragmentCycles(&directivesIncludeSkip)
 	directiveIncludeSkipKeepNodes(&directivesIncludeSkip, o.options.ignoreSkipInclude)
 
-	cleanup := astvisitor.NewWalker(8)
+	cleanup := astvisitor.NewWalkerWithID(8, "Cleanup")
 	deduplicateFields(&cleanup)
 	if o.options.removeUnusedVariables {
 		del := deleteUnusedVariables(&cleanup)
@@ -235,7 +235,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.inlineFragmentSpreads {
-		fragmentInline := astvisitor.NewWalker(8)
+		fragmentInline := astvisitor.NewWalkerWithID(8, "FragmentSpreadInline")
 		fragmentSpreadInline(&fragmentInline)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "fragmentInline",
@@ -244,7 +244,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	}
 
 	if o.options.extractVariables {
-		extractVariablesWalker := astvisitor.NewWalker(8)
+		extractVariablesWalker := astvisitor.NewWalkerWithID(8, "ExtractVariables")
 		extractVariables(&extractVariablesWalker)
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
 			name:   "extractVariables",
@@ -252,7 +252,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		})
 	}
 
-	other := astvisitor.NewWalker(8)
+	other := astvisitor.NewWalkerWithID(8, "Other")
 	removeSelfAliasing(&other)
 	inlineSelectionsFromInlineFragments(&other)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -260,7 +260,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 		walker: &other,
 	})
 
-	mergeInlineFragments := astvisitor.NewWalker(8)
+	mergeInlineFragments := astvisitor.NewWalkerWithID(8, "MergeInlineFragmentSelections")
 	mergeInlineFragmentSelections(&mergeInlineFragments)
 	o.operationWalkers = append(o.operationWalkers, walkerStage{
 		name:   "mergeInlineFragmentSelections",
@@ -268,7 +268,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.removeFragmentDefinitions {
-		removeFragments := astvisitor.NewWalker(8)
+		removeFragments := astvisitor.NewWalkerWithID(8, "RemoveFragmentDefinitions")
 		removeFragmentDefinitions(&removeFragments)
 
 		o.operationWalkers = append(o.operationWalkers, walkerStage{
@@ -283,7 +283,7 @@ func (o *OperationNormalizer) setupOperationWalkers() {
 	})
 
 	if o.options.extractVariables {
-		variablesProcessing := astvisitor.NewWalker(8)
+		variablesProcessing := astvisitor.NewWalkerWithID(8, "VariablesProcessing")
 		inputCoercionForList(&variablesProcessing)
 		extractVariablesDefaultValue(&variablesProcessing)
 		injectInputFieldDefaults(&variablesProcessing)
@@ -356,21 +356,21 @@ type VariablesNormalizer struct {
 func NewVariablesNormalizer() *VariablesNormalizer {
 	// delete unused modifying variables refs,
 	// so it is safer to run it sequentially with the extraction
-	thirdDeleteUnused := astvisitor.NewWalker(8)
+	thirdDeleteUnused := astvisitor.NewWalkerWithID(8, "DeleteUnusedVariables")
 	del := deleteUnusedVariables(&thirdDeleteUnused)
 
 	// register variable usage detection on the first stage
 	// and pass usage information to the deletion visitor
 	// so it keeps variables that are defined but not used at all
 	// ensuring that validation can still catch them
-	firstDetectUnused := astvisitor.NewWalker(8)
+	firstDetectUnused := astvisitor.NewWalkerWithID(8, "DetectVariableUsage")
 	detectVariableUsage(&firstDetectUnused, del)
 
-	secondExtract := astvisitor.NewWalker(8)
+	secondExtract := astvisitor.NewWalkerWithID(8, "ExtractVariables")
 	variablesExtractionVisitor := extractVariables(&secondExtract)
 	extractVariablesDefaultValue(&secondExtract)
 
-	fourthCoerce := astvisitor.NewWalker(0)
+	fourthCoerce := astvisitor.NewWalkerWithID(0, "VariablesCoercion")
 	inputCoercionForList(&fourthCoerce)
 
 	return &VariablesNormalizer{

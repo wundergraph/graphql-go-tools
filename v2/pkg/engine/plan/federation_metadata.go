@@ -13,6 +13,8 @@ type FederationMetaData struct {
 	Provides         FederationFieldConfigurations
 	EntityInterfaces []EntityInterfaceConfiguration
 	InterfaceObjects []EntityInterfaceConfiguration
+
+	entityTypeNames map[string]struct{}
 }
 
 type FederationInfo interface {
@@ -34,7 +36,8 @@ func (d *FederationMetaData) RequiredFieldsByKey(typeName string) []FederationFi
 }
 
 func (d *FederationMetaData) HasEntity(typeName string) bool {
-	return len(d.Keys.FilterByTypeAndResolvability(typeName, false)) > 0
+	_, ok := d.entityTypeNames[typeName]
+	return ok
 }
 
 func (d *FederationMetaData) RequiredFieldsByRequires(typeName, fieldName string) (cfg FederationFieldConfiguration, exists bool) {
