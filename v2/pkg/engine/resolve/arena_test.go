@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wundergraph/go-arena"
 )
 
@@ -27,7 +28,8 @@ func TestArenaPool_Acquire_EmptyPool(t *testing.T) {
 
 	// Verify we can use the arena
 	buf := arena.NewArenaBuffer(item.Arena)
-	buf.WriteString("test")
+	_, err := buf.WriteString("test")
+	assert.NoError(t, err)
 
 	assert.Equal(t, 0, len(pool.pool), "pool should still be empty")
 }
@@ -41,7 +43,8 @@ func TestArenaPool_ReleaseAndAcquire(t *testing.T) {
 
 	// Use the arena
 	buf := arena.NewArenaBuffer(item1.Arena)
-	buf.WriteString("test data")
+	_, err := buf.WriteString("test data")
+	assert.NoError(t, err)
 
 	// Release it
 	pool.Release(id, item1)
@@ -59,7 +62,8 @@ func TestArenaPool_ReleaseAndAcquire(t *testing.T) {
 
 	// The acquired arena should be reset and usable
 	buf2 := arena.NewArenaBuffer(item2.Arena)
-	buf2.WriteString("new data")
+	_, err = buf2.WriteString("new data")
+	assert.NoError(t, err)
 
 	assert.Equal(t, "new data", buf2.String())
 }
