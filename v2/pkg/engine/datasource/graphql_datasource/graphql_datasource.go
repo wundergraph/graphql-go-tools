@@ -83,6 +83,10 @@ type Planner[T Configuration] struct {
 	// to the downstream subgraph fetch.
 	propagatedOperationName string
 
+	// caching
+
+	cacheKeyTemplate resolve.CacheKeyTemplate
+
 	// federation
 
 	addedInlineFragments map[onTypeInlineFragment]struct{}
@@ -385,6 +389,9 @@ func (p *Planner[T]) ConfigureFetch() resolve.FetchConfiguration {
 		SetTemplateOutputToNullOnVariableNull: requiresEntityFetch || requiresEntityBatchFetch,
 		QueryPlan:                             p.queryPlan,
 		OperationName:                         p.propagatedOperationName,
+		Caching: resolve.FetchCacheConfiguration{
+			CacheKeyTemplate: p.cacheKeyTemplate,
+		},
 	}
 }
 
@@ -836,6 +843,9 @@ func (p *Planner[T]) addRepresentationsVariable() {
 	}
 
 	representationsVariable := resolve.NewResolvableObjectVariable(p.buildRepresentationsVariable())
+	p.cacheKeyTemplate = &resolve.EntityQueryCacheKeyTemplate{
+		Keys: representationsVariable,
+	}
 	variable, _ := p.variables.AddVariable(representationsVariable)
 
 	p.upstreamVariables, _ = sjson.SetRawBytes(p.upstreamVariables, "representations", []byte(fmt.Sprintf("[%s]", variable)))

@@ -1558,14 +1558,6 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 									DataSource:     &Source{},
 									PostProcessing: DefaultPostProcessingConfiguration,
-									Caching: resolve.FetchCacheConfiguration{
-										Enabled:   true,
-										CacheName: "default",
-										TTL:       time.Second * 30,
-										CacheKeyTemplate: &resolve.InputTemplate{
-											Segments: []resolve.TemplateSegment{},
-										},
-									},
 								},
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "user.service",
@@ -1844,54 +1836,48 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 										Enabled:   true,
 										CacheName: "default",
 										TTL:       time.Second * 30,
-										CacheKeyTemplate: &resolve.InputTemplate{
-											Segments: []resolve.TemplateSegment{
-												{
-													SegmentType:  resolve.VariableSegmentType,
-													VariableKind: resolve.ResolvableObjectVariableKind,
-													Renderer: resolve.NewGraphQLVariableResolveRenderer(&resolve.Object{
-														Nullable: true,
-														Fields: []*resolve.Field{
-															{
-																Name:        []byte("__typename"),
-																OnTypeNames: [][]byte{[]byte("Account")},
-																Value: &resolve.String{
-																	Path: []string{"__typename"},
+										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
+											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
+												Nullable: true,
+												Fields: []*resolve.Field{
+													{
+														Name:        []byte("__typename"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.String{
+															Path: []string{"__typename"},
+														},
+													},
+													{
+														Name:        []byte("id"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Scalar{
+															Path: []string{"id"},
+														},
+													},
+													{
+														Name:        []byte("info"),
+														OnTypeNames: [][]byte{[]byte("Account")},
+														Value: &resolve.Object{
+															Path:     []string{"info"},
+															Nullable: true,
+															Fields: []*resolve.Field{
+																{
+																	Name: []byte("a"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"a"},
+																	},
 																},
-															},
-															{
-																Name:        []byte("id"),
-																OnTypeNames: [][]byte{[]byte("Account")},
-																Value: &resolve.Scalar{
-																	Path: []string{"id"},
-																},
-															},
-															{
-																Name:        []byte("info"),
-																OnTypeNames: [][]byte{[]byte("Account")},
-																Value: &resolve.Object{
-																	Path:     []string{"info"},
-																	Nullable: true,
-																	Fields: []*resolve.Field{
-																		{
-																			Name: []byte("a"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"a"},
-																			},
-																		},
-																		{
-																			Name: []byte("b"),
-																			Value: &resolve.Scalar{
-																				Path: []string{"b"},
-																			},
-																		},
+																{
+																	Name: []byte("b"),
+																	Value: &resolve.Scalar{
+																		Path: []string{"b"},
 																	},
 																},
 															},
 														},
-													}),
+													},
 												},
-											},
+											}),
 										},
 									},
 								},

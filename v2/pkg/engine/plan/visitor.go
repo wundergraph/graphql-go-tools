@@ -1645,21 +1645,14 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	if !v.Config.DisableEntityCaching {
-		cacheKeyTemplate := &resolve.InputTemplate{
-			SetTemplateOutputToNullOnVariableNull: false,
-			Segments:                              make([]resolve.TemplateSegment, len(external.Variables)),
-		}
 
-		for i, variable := range external.Variables {
-			segment := variable.TemplateSegment()
-			cacheKeyTemplate.Segments[i] = segment
-		}
-
-		external.Caching = resolve.FetchCacheConfiguration{
-			Enabled:          true,
-			CacheName:        "default",
-			TTL:              time.Second * time.Duration(30),
-			CacheKeyTemplate: cacheKeyTemplate,
+		if external.RequiresEntityFetch || external.RequiresEntityBatchFetch {
+			external.Caching = resolve.FetchCacheConfiguration{
+				Enabled:          true,
+				CacheName:        "default",
+				TTL:              time.Second * time.Duration(30),
+				CacheKeyTemplate: external.Caching.CacheKeyTemplate,
+			}
 		}
 	} else {
 		external.Caching = resolve.FetchCacheConfiguration{
@@ -1692,7 +1685,6 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			singleFetch.Info.ProvidesData = providesData
 		}
 	}
-	singleFetch.Info.CoordinateDependencies = v.resolveFetchDependencies(internal.fetchID)
 	if v.Config.DisableIncludeFieldDependencies {
 		return singleFetch
 	}
