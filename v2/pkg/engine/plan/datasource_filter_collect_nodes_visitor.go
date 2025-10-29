@@ -414,20 +414,23 @@ func (f *collectNodesDSVisitor) EnterField(fieldRef int, itemIds []int, treeNode
 		return err
 	}
 
-	// we need to check that we have entity with such name in the datasource
-	// for pubsub such entity could also be a child node, so checking for only root nodes is not enough
-	hasEntityWithName := f.dataSource.HasEntity(info.typeName)
-	if hasEntityWithName {
+	// For pubsub entities could also be a child node, so checking for only root nodes is not enough, so we check for entity keys existence
+	// when we have no keys, it is still expensive to create an index entry for a seen key path,
+	// so we skip check as a whole when there is no entity with such a name
+	if f.dataSource.HasEntity(info.typeName) {
 		// should be done after handling provides
 		if err := f.collectKeysForPath(info.typeName, info.parentPath); err != nil {
 			return err
 		}
-		if info.possibleTypeNames != nil {
-			// We need to collect keys for all possible types of abstract type too
-			// because during initial planning we do not know yet if the abstract selection will be rewritten,
-			// This means that in the unmodified query we could try to match abstract to concrete type, which won't match
-			// So we have to add possible choices for each of concrete types, to make this match possible
-			for _, possibleTypeName := range info.possibleTypeNames {
+	}
+	if info.possibleTypeNames != nil {
+		// We need to collect keys for all possible types of an abstract type too
+		// because during initial planning we do not know yet if the abstract selection will be rewritten,
+		// This means that in the unmodified query we could try to match abstract to concrete type, which won't match
+		// So we have to add possible choices for each of the concrete types, to make this match possible
+		for _, possibleTypeName := range info.possibleTypeNames {
+			// for each of the possible typenames we also check if we have an entity
+			if f.dataSource.HasEntity(possibleTypeName) {
 				if err := f.collectKeysForPath(possibleTypeName, info.parentPath); err != nil {
 					return err
 				}
