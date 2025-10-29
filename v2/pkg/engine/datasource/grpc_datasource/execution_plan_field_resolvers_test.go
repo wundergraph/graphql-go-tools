@@ -892,3 +892,220 @@ func TestExecutionPlanFieldResolvers(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with nested field resolvers",
+			query: "query CategoriesWithNestedResolvers($metricType: String, $baseline: Float!) { categories { categoryMetrics(metricType: $metricType) { id metricType value normalizedScore(baseline: $baseline) } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryCategoryMetrics",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												ResolvePath:   buildPath("categories.name"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsArgs",
+										Fields: []RPCField{
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryCategoryMetricsResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryCategoryMetricsResult",
+										Fields: []RPCField{
+											{
+												Name:          "category_metrics",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "categoryMetrics",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name: "CategoryMetrics",
+													Fields: []RPCField{
+														{
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+														},
+														{
+															Name:          "metric_type",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "metricType",
+														},
+														{
+															Name:          "value",
+															ProtoTypeName: DataTypeDouble,
+															JSONPath:      "value",
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{1},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryMetricsNormalizedScore",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.categoryMetrics.normalizedScore"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryMetricsNormalizedScoreRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsNormalizedScoreContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.categoryMetrics.id"),
+											},
+											{
+												Name:          "value",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "value",
+												ResolvePath:   buildPath("categories.categoryMetrics.value"),
+											},
+											{
+												Name:          "metric_type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "metricType",
+												ResolvePath:   buildPath("categories.categoryMetrics.metricType"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsNormalizedScoreArgs",
+										Fields: []RPCField{
+											{
+												Name:          "baseline",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "baseline",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryMetricsNormalizedScoreResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMetricsNormalizedScoreResult",
+										Fields: []RPCField{
+											{
+												Name:          "normalized_score",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "normalizedScore",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
+		})
+	}
+}

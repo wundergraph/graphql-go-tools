@@ -261,6 +261,19 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Response: "ResolveCategoryCategoryMetricsResponse",
 				},
 			},
+			"CategoryMetrics": {
+				"normalizedScore": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "normalized_score",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"baseline": "baseline",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsNormalizedScore",
+					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
+					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
+				},
+			},
 			"Product": {
 				"shippingEstimate": {
 					FieldMappingData: grpcdatasource.FieldMapData{
@@ -839,6 +852,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"categoryId": {
 					TargetName: "category_id",
+				},
+				"normalizedScore": {
+					TargetName: "normalized_score",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"baseline": "baseline",
+					},
+				},
+				"relatedCategory": {
+					TargetName: "related_category",
 				},
 			},
 			"Cat": {

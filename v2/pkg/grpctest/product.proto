@@ -56,6 +56,7 @@ service ProductService {
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
+  rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
@@ -775,6 +776,31 @@ message ResolveSubcategoryItemCountResponse {
   repeated ResolveSubcategoryItemCountResult result = 1;
 }
 
+message ResolveCategoryMetricsNormalizedScoreArgs {
+  double baseline = 1;
+}
+
+message ResolveCategoryMetricsNormalizedScoreContext {
+  string id = 1;
+  string metricType = 2;
+  double value = 3;
+}
+
+message ResolveCategoryMetricsNormalizedScoreRequest {
+  // context provides the resolver context for the field normalizedScore of type CategoryMetrics.
+  repeated ResolveCategoryMetricsNormalizedScoreContext context = 1;
+  // field_args provides the arguments for the resolver field normalizedScore of type CategoryMetrics.
+  ResolveCategoryMetricsNormalizedScoreArgs field_args = 2;
+}
+
+message ResolveCategoryMetricsNormalizedScoreResult {
+  double normalized_score = 1;
+}
+
+message ResolveCategoryMetricsNormalizedScoreResponse {
+  repeated ResolveCategoryMetricsNormalizedScoreResult result = 1;
+}
+
 message Product {
   string id = 1;
   string name = 2;
@@ -1052,6 +1078,7 @@ message CategoryMetrics {
   double value = 3;
   string timestamp = 4;
   string category_id = 5;
+  Category related_category = 6;
 }
 
 enum CategoryKind {

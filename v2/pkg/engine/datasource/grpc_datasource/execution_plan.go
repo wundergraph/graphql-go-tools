@@ -60,7 +60,7 @@ type RPCExecutionPlan struct {
 }
 
 // CallKind is the type of call operation to perform.
-type CallKind int
+type CallKind uint8
 
 const (
 	// CallKindStandard is a basic fetch operation.
@@ -729,7 +729,7 @@ func (r *rpcPlanningContext) resolveServiceName(subgraphName string) string {
 
 type resolvedField struct {
 	callerRef              int
-	parentTypeRef          int
+	parentTypeNode         ast.Node
 	fieldRef               int
 	fieldDefinitionTypeRef int
 	fieldsSelectionSetRef  int
@@ -737,6 +737,15 @@ type resolvedField struct {
 
 	contextFields  []contextField
 	fieldArguments []fieldArgument
+}
+
+// isFieldResolver checks if a field is a field resolver.
+func (r *rpcPlanningContext) isFieldResolver(fieldRef int, isRootField bool) bool {
+	if isRootField {
+		return false
+	}
+
+	return len(r.operation.FieldArguments(fieldRef)) > 0
 }
 
 // setResolvedField sets the resolved field for a given field definition reference.
@@ -832,7 +841,7 @@ func (r *rpcPlanningContext) getFieldsFromFieldResolverDirective(parentNode ast.
 	defer walker.Release()
 
 	v := newRequiredFieldsVisitor(walker, &RPCMessage{}, r)
-	if err := v.visitRequiredFields(r.definition, parentNode.NameString(r.definition), fieldsString); err != nil {
+	if err := v.visitWithDefaults(r.definition, parentNode.NameString(r.definition), fieldsString); err != nil {
 		return nil, err
 	}
 
@@ -896,16 +905,41 @@ type resolveRPCCallConfig struct {
 }
 
 func (r *rpcPlanningContext) resolveRequiredFields(typeName string, requiredFieldSelection int) (*RPCMessage, error) {
-	walker := astvisitor.WalkerFromPool()
-	defer walker.Release()
 	message := &RPCMessage{
 		Name: typeName,
 	}
 
-	rfv := newRequiredFieldsVisitor(walker, message, r)
-	if err := rfv.visitWithMemberTypes(r.definition, typeName, r.operation.SelectionSetFieldSetString(requiredFieldSelection), nil); err != nil {
-		return nil, err
+	parentTypeNode, found := r.definition.NodeByNameStr(typeName)
+	if !found {
+		return nil, fmt.Errorf("parent type node not found for type %s", typeName)
 	}
+
+	fieldRefs := r.operation.SelectionSetFieldSelections(requiredFieldSelection)
+	message.Fields = make(RPCFields, 0, len(fieldRefs))
+
+	for _, fieldRef := range fieldRefs {
+		if r.isFieldResolver(fieldRef, false) {
+			continue
+		}
+
+		if message.Fields.Exists(r.operation.FieldNameString(fieldRef), "") {
+			continue
+		}
+
+		fieldDef, found := r.definition.NodeFieldDefinitionByName(parentTypeNode, r.operation.FieldNameBytes(fieldRef))
+		if !found {
+			return nil, fmt.Errorf("field definition not found for field %s", r.operation.FieldNameString(fieldRef))
+		}
+
+		field, err := r.buildField(parentTypeNode, fieldDef, r.operation.FieldNameString(fieldRef), "")
+		if err != nil {
+			return nil, err
+		}
+
+		message.Fields = append(message.Fields, field)
+	}
+
+	message.Fields = slices.Clip(message.Fields)
 	return message, nil
 }
 
@@ -916,12 +950,12 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 
 	for _, resolvedField := range resolvedFields {
 		resolveConfig := r.mapping.FindResolveTypeFieldMapping(
-			r.definition.ObjectTypeDefinitionNameString(resolvedField.parentTypeRef),
+			resolvedField.parentTypeNode.NameString(r.definition),
 			r.operation.FieldNameString(resolvedField.fieldRef),
 		)
 
 		if resolveConfig == nil {
-			return nil, fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef), r.operation.FieldAliasString(resolvedField.fieldRef))
+			return nil, fmt.Errorf("resolve config not found for type: %s, field: %s", r.definition.NodeNameString(resolvedField.parentTypeNode), r.operation.FieldAliasString(resolvedField.fieldRef))
 		}
 
 		contextMessage := &RPCMessage{
@@ -947,13 +981,9 @@ func (r *rpcPlanningContext) createResolverRPCCalls(subgraphName string, resolve
 
 		contextMessage.Fields = make(RPCFields, len(resolvedField.contextFields))
 		for i := range resolvedField.contextFields {
-			typeDefNode, found := r.definition.NodeByNameStr(r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
-			if !found {
-				return nil, fmt.Errorf("type definition node not found for type: %s", r.definition.ResolveTypeNameString(resolvedField.parentTypeRef))
-			}
 
 			field, err := r.buildField(
-				typeDefNode,
+				resolvedField.parentTypeNode,
 				resolvedField.contextFields[i].fieldRef,
 				r.definition.FieldDefinitionNameString(resolvedField.contextFields[i].fieldRef),
 				"",

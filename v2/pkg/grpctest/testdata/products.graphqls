@@ -134,6 +134,9 @@ type CategoryMetrics {
   value: Float!
   timestamp: String!
   categoryId: ID!
+  normalizedScore(baseline: Float!): Float! @connect__fieldResolver(context: "id value metricType")
+  # This will currently not generate a resolver as it is missing arguments.
+  relatedCategory: Category @connect__fieldResolver(context: "categoryId") 
 }
 
 enum CategoryKind {

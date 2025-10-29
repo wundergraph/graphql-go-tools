@@ -20,6 +20,32 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveCategoryMetricsNormalizedScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsNormalizedScore(_ context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsNormalizedScoreResult, 0, len(req.GetContext()))
+
+	baseline := req.GetFieldArgs().GetBaseline()
+	if baseline == 0 {
+		baseline = 1.0 // Avoid division by zero
+	}
+
+	for _, ctx := range req.GetContext() {
+		// Calculate normalized score: (value / baseline) * 100
+		// This gives a percentage relative to the baseline
+		normalizedScore := (ctx.GetValue() / baseline) * 100.0
+
+		results = append(results, &productv1.ResolveCategoryMetricsNormalizedScoreResult{
+			NormalizedScore: normalizedScore,
+		})
+	}
+
+	resp := &productv1.ResolveCategoryMetricsNormalizedScoreResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
 // ResolveProductRecommendedCategory implements productv1.ProductServiceServer.
 func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *productv1.ResolveProductRecommendedCategoryRequest) (*productv1.ResolveProductRecommendedCategoryResponse, error) {
 	results := make([]*productv1.ResolveProductRecommendedCategoryResult, 0, len(req.GetContext()))

@@ -19,57 +19,58 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProductService_LookupProductById_FullMethodName                 = "/productv1.ProductService/LookupProductById"
-	ProductService_LookupStorageById_FullMethodName                 = "/productv1.ProductService/LookupStorageById"
-	ProductService_LookupWarehouseById_FullMethodName               = "/productv1.ProductService/LookupWarehouseById"
-	ProductService_MutationBulkCreateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkCreateAuthors"
-	ProductService_MutationBulkCreateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkCreateBlogPosts"
-	ProductService_MutationBulkUpdateAuthors_FullMethodName         = "/productv1.ProductService/MutationBulkUpdateAuthors"
-	ProductService_MutationBulkUpdateBlogPosts_FullMethodName       = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
-	ProductService_MutationCreateAuthor_FullMethodName              = "/productv1.ProductService/MutationCreateAuthor"
-	ProductService_MutationCreateBlogPost_FullMethodName            = "/productv1.ProductService/MutationCreateBlogPost"
-	ProductService_MutationCreateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationCreateNullableFieldsType"
-	ProductService_MutationCreateUser_FullMethodName                = "/productv1.ProductService/MutationCreateUser"
-	ProductService_MutationPerformAction_FullMethodName             = "/productv1.ProductService/MutationPerformAction"
-	ProductService_MutationUpdateAuthor_FullMethodName              = "/productv1.ProductService/MutationUpdateAuthor"
-	ProductService_MutationUpdateBlogPost_FullMethodName            = "/productv1.ProductService/MutationUpdateBlogPost"
-	ProductService_MutationUpdateNullableFieldsType_FullMethodName  = "/productv1.ProductService/MutationUpdateNullableFieldsType"
-	ProductService_QueryAllAuthors_FullMethodName                   = "/productv1.ProductService/QueryAllAuthors"
-	ProductService_QueryAllBlogPosts_FullMethodName                 = "/productv1.ProductService/QueryAllBlogPosts"
-	ProductService_QueryAllNullableFieldsTypes_FullMethodName       = "/productv1.ProductService/QueryAllNullableFieldsTypes"
-	ProductService_QueryAllPets_FullMethodName                      = "/productv1.ProductService/QueryAllPets"
-	ProductService_QueryAuthor_FullMethodName                       = "/productv1.ProductService/QueryAuthor"
-	ProductService_QueryAuthorById_FullMethodName                   = "/productv1.ProductService/QueryAuthorById"
-	ProductService_QueryAuthorsWithFilter_FullMethodName            = "/productv1.ProductService/QueryAuthorsWithFilter"
-	ProductService_QueryBlogPost_FullMethodName                     = "/productv1.ProductService/QueryBlogPost"
-	ProductService_QueryBlogPostById_FullMethodName                 = "/productv1.ProductService/QueryBlogPostById"
-	ProductService_QueryBlogPostsWithFilter_FullMethodName          = "/productv1.ProductService/QueryBlogPostsWithFilter"
-	ProductService_QueryBulkSearchAuthors_FullMethodName            = "/productv1.ProductService/QueryBulkSearchAuthors"
-	ProductService_QueryBulkSearchBlogPosts_FullMethodName          = "/productv1.ProductService/QueryBulkSearchBlogPosts"
-	ProductService_QueryCalculateTotals_FullMethodName              = "/productv1.ProductService/QueryCalculateTotals"
-	ProductService_QueryCategories_FullMethodName                   = "/productv1.ProductService/QueryCategories"
-	ProductService_QueryCategoriesByKind_FullMethodName             = "/productv1.ProductService/QueryCategoriesByKind"
-	ProductService_QueryCategoriesByKinds_FullMethodName            = "/productv1.ProductService/QueryCategoriesByKinds"
-	ProductService_QueryComplexFilterType_FullMethodName            = "/productv1.ProductService/QueryComplexFilterType"
-	ProductService_QueryFilterCategories_FullMethodName             = "/productv1.ProductService/QueryFilterCategories"
-	ProductService_QueryNestedType_FullMethodName                   = "/productv1.ProductService/QueryNestedType"
-	ProductService_QueryNullableFieldsType_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsType"
-	ProductService_QueryNullableFieldsTypeById_FullMethodName       = "/productv1.ProductService/QueryNullableFieldsTypeById"
-	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
-	ProductService_QueryRandomPet_FullMethodName                    = "/productv1.ProductService/QueryRandomPet"
-	ProductService_QueryRandomSearchResult_FullMethodName           = "/productv1.ProductService/QueryRandomSearchResult"
-	ProductService_QueryRecursiveType_FullMethodName                = "/productv1.ProductService/QueryRecursiveType"
-	ProductService_QuerySearch_FullMethodName                       = "/productv1.ProductService/QuerySearch"
-	ProductService_QueryTypeFilterWithArguments_FullMethodName      = "/productv1.ProductService/QueryTypeFilterWithArguments"
-	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
-	ProductService_QueryUser_FullMethodName                         = "/productv1.ProductService/QueryUser"
-	ProductService_QueryUsers_FullMethodName                        = "/productv1.ProductService/QueryUsers"
-	ProductService_ResolveCategoryCategoryMetrics_FullMethodName    = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
-	ProductService_ResolveCategoryPopularityScore_FullMethodName    = "/productv1.ProductService/ResolveCategoryPopularityScore"
-	ProductService_ResolveCategoryProductCount_FullMethodName       = "/productv1.ProductService/ResolveCategoryProductCount"
-	ProductService_ResolveProductRecommendedCategory_FullMethodName = "/productv1.ProductService/ResolveProductRecommendedCategory"
-	ProductService_ResolveProductShippingEstimate_FullMethodName    = "/productv1.ProductService/ResolveProductShippingEstimate"
-	ProductService_ResolveSubcategoryItemCount_FullMethodName       = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_LookupProductById_FullMethodName                     = "/productv1.ProductService/LookupProductById"
+	ProductService_LookupStorageById_FullMethodName                     = "/productv1.ProductService/LookupStorageById"
+	ProductService_LookupWarehouseById_FullMethodName                   = "/productv1.ProductService/LookupWarehouseById"
+	ProductService_MutationBulkCreateAuthors_FullMethodName             = "/productv1.ProductService/MutationBulkCreateAuthors"
+	ProductService_MutationBulkCreateBlogPosts_FullMethodName           = "/productv1.ProductService/MutationBulkCreateBlogPosts"
+	ProductService_MutationBulkUpdateAuthors_FullMethodName             = "/productv1.ProductService/MutationBulkUpdateAuthors"
+	ProductService_MutationBulkUpdateBlogPosts_FullMethodName           = "/productv1.ProductService/MutationBulkUpdateBlogPosts"
+	ProductService_MutationCreateAuthor_FullMethodName                  = "/productv1.ProductService/MutationCreateAuthor"
+	ProductService_MutationCreateBlogPost_FullMethodName                = "/productv1.ProductService/MutationCreateBlogPost"
+	ProductService_MutationCreateNullableFieldsType_FullMethodName      = "/productv1.ProductService/MutationCreateNullableFieldsType"
+	ProductService_MutationCreateUser_FullMethodName                    = "/productv1.ProductService/MutationCreateUser"
+	ProductService_MutationPerformAction_FullMethodName                 = "/productv1.ProductService/MutationPerformAction"
+	ProductService_MutationUpdateAuthor_FullMethodName                  = "/productv1.ProductService/MutationUpdateAuthor"
+	ProductService_MutationUpdateBlogPost_FullMethodName                = "/productv1.ProductService/MutationUpdateBlogPost"
+	ProductService_MutationUpdateNullableFieldsType_FullMethodName      = "/productv1.ProductService/MutationUpdateNullableFieldsType"
+	ProductService_QueryAllAuthors_FullMethodName                       = "/productv1.ProductService/QueryAllAuthors"
+	ProductService_QueryAllBlogPosts_FullMethodName                     = "/productv1.ProductService/QueryAllBlogPosts"
+	ProductService_QueryAllNullableFieldsTypes_FullMethodName           = "/productv1.ProductService/QueryAllNullableFieldsTypes"
+	ProductService_QueryAllPets_FullMethodName                          = "/productv1.ProductService/QueryAllPets"
+	ProductService_QueryAuthor_FullMethodName                           = "/productv1.ProductService/QueryAuthor"
+	ProductService_QueryAuthorById_FullMethodName                       = "/productv1.ProductService/QueryAuthorById"
+	ProductService_QueryAuthorsWithFilter_FullMethodName                = "/productv1.ProductService/QueryAuthorsWithFilter"
+	ProductService_QueryBlogPost_FullMethodName                         = "/productv1.ProductService/QueryBlogPost"
+	ProductService_QueryBlogPostById_FullMethodName                     = "/productv1.ProductService/QueryBlogPostById"
+	ProductService_QueryBlogPostsWithFilter_FullMethodName              = "/productv1.ProductService/QueryBlogPostsWithFilter"
+	ProductService_QueryBulkSearchAuthors_FullMethodName                = "/productv1.ProductService/QueryBulkSearchAuthors"
+	ProductService_QueryBulkSearchBlogPosts_FullMethodName              = "/productv1.ProductService/QueryBulkSearchBlogPosts"
+	ProductService_QueryCalculateTotals_FullMethodName                  = "/productv1.ProductService/QueryCalculateTotals"
+	ProductService_QueryCategories_FullMethodName                       = "/productv1.ProductService/QueryCategories"
+	ProductService_QueryCategoriesByKind_FullMethodName                 = "/productv1.ProductService/QueryCategoriesByKind"
+	ProductService_QueryCategoriesByKinds_FullMethodName                = "/productv1.ProductService/QueryCategoriesByKinds"
+	ProductService_QueryComplexFilterType_FullMethodName                = "/productv1.ProductService/QueryComplexFilterType"
+	ProductService_QueryFilterCategories_FullMethodName                 = "/productv1.ProductService/QueryFilterCategories"
+	ProductService_QueryNestedType_FullMethodName                       = "/productv1.ProductService/QueryNestedType"
+	ProductService_QueryNullableFieldsType_FullMethodName               = "/productv1.ProductService/QueryNullableFieldsType"
+	ProductService_QueryNullableFieldsTypeById_FullMethodName           = "/productv1.ProductService/QueryNullableFieldsTypeById"
+	ProductService_QueryNullableFieldsTypeWithFilter_FullMethodName     = "/productv1.ProductService/QueryNullableFieldsTypeWithFilter"
+	ProductService_QueryRandomPet_FullMethodName                        = "/productv1.ProductService/QueryRandomPet"
+	ProductService_QueryRandomSearchResult_FullMethodName               = "/productv1.ProductService/QueryRandomSearchResult"
+	ProductService_QueryRecursiveType_FullMethodName                    = "/productv1.ProductService/QueryRecursiveType"
+	ProductService_QuerySearch_FullMethodName                           = "/productv1.ProductService/QuerySearch"
+	ProductService_QueryTypeFilterWithArguments_FullMethodName          = "/productv1.ProductService/QueryTypeFilterWithArguments"
+	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName     = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
+	ProductService_QueryUser_FullMethodName                             = "/productv1.ProductService/QueryUser"
+	ProductService_QueryUsers_FullMethodName                            = "/productv1.ProductService/QueryUsers"
+	ProductService_ResolveCategoryCategoryMetrics_FullMethodName        = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
+	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
+	ProductService_ResolveCategoryPopularityScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryPopularityScore"
+	ProductService_ResolveCategoryProductCount_FullMethodName           = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveProductRecommendedCategory_FullMethodName     = "/productv1.ProductService/ResolveProductRecommendedCategory"
+	ProductService_ResolveProductShippingEstimate_FullMethodName        = "/productv1.ProductService/ResolveProductShippingEstimate"
+	ProductService_ResolveSubcategoryItemCount_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryItemCount"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -127,6 +128,7 @@ type ProductServiceClient interface {
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
@@ -602,6 +604,16 @@ func (c *productServiceClient) ResolveCategoryCategoryMetrics(ctx context.Contex
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryMetricsNormalizedScoreResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryPopularityScoreResponse)
@@ -707,6 +719,7 @@ type ProductServiceServer interface {
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
@@ -859,6 +872,9 @@ func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsers
 }
 func (UnimplementedProductServiceServer) ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryCategoryMetrics not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryMetricsNormalizedScore not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryPopularityScore not implemented")
@@ -1724,6 +1740,24 @@ func _ProductService_ResolveCategoryCategoryMetrics_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveCategoryMetricsNormalizedScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryMetricsNormalizedScoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryMetricsNormalizedScore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryMetricsNormalizedScore(ctx, req.(*ResolveCategoryMetricsNormalizedScoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryPopularityScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryPopularityScoreRequest)
 	if err := dec(in); err != nil {
@@ -2004,6 +2038,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveCategoryCategoryMetrics",
 			Handler:    _ProductService_ResolveCategoryCategoryMetrics_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryMetricsNormalizedScore",
+			Handler:    _ProductService_ResolveCategoryMetricsNormalizedScore_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryPopularityScore",

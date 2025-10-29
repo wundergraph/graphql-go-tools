@@ -254,6 +254,19 @@ func testMapping() *GRPCMapping {
 					Response: "ResolveCategoryCategoryMetricsResponse",
 				},
 			},
+			"CategoryMetrics": {
+				"normalizedScore": {
+					FieldMappingData: FieldMapData{
+						TargetName: "normalized_score",
+						ArgumentMappings: FieldArgumentMap{
+							"baseline": "baseline",
+						},
+					},
+					RPC:      "ResolveCategoryMetricsNormalizedScore",
+					Request:  "ResolveCategoryMetricsNormalizedScoreRequest",
+					Response: "ResolveCategoryMetricsNormalizedScoreResponse",
+				},
+			},
 			"Product": {
 				"shippingEstimate": {
 					FieldMappingData: FieldMapData{
@@ -833,6 +846,15 @@ func testMapping() *GRPCMapping {
 				"categoryId": {
 					TargetName: "category_id",
 				},
+				"normalizedScore": {
+					TargetName: "normalized_score",
+					ArgumentMappings: FieldArgumentMap{
+						"baseline": "baseline",
+					},
+				},
+				"relatedCategory": {
+					TargetName: "related_category",
+				},
 			},
 			"Cat": {
 				"id": {
@@ -1224,4 +1246,5 @@ func testMapping() *GRPCMapping {
 			},
 		},
 	}
+
 }
