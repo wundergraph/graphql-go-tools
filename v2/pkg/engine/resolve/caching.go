@@ -3,6 +3,7 @@ package resolve
 import (
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
+
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
 

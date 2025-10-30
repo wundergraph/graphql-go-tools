@@ -277,7 +277,7 @@ func newTools(options ResolverOptions, allowedExtensionFields map[string]struct{
 			validateRequiredExternalFields:               options.ValidateRequiredExternalFields,
 			sf:                                           sf,
 			jsonArena:                                    a,
-			caches: options.Caches,
+			caches:                                       options.Caches,
 		},
 	}
 }

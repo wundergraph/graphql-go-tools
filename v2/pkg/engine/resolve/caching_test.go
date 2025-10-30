@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/wundergraph/astjson"
 	"github.com/wundergraph/go-arena"
 )

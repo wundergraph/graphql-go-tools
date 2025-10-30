@@ -518,7 +518,7 @@ func cacheKeysToEntries(cacheKeys []*CacheKey, responseData *astjson.Value, json
 	// Check if responseData is an array
 	responseArray := responseData.GetArray()
 
-	if responseArray != nil && len(responseArray) > 1 {
+	if len(responseArray) > 1 {
 		// Multiple items: extract per-item data from batch response
 		if len(responseArray) != len(cacheKeys) {
 			return nil, errors.Errorf("cache key count (%d) doesn't match response array length (%d)", len(cacheKeys), len(responseArray))
@@ -542,7 +542,7 @@ func cacheKeysToEntries(cacheKeys []*CacheKey, responseData *astjson.Value, json
 		// Single item: store same value under all keys
 		// This handles both single object and single-item array cases
 		var dataToStore *astjson.Value
-		if responseArray != nil && len(responseArray) == 1 {
+		if len(responseArray) == 1 {
 			dataToStore = responseArray[0]
 		} else {
 			dataToStore = responseData

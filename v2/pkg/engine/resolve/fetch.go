@@ -201,6 +201,7 @@ func (*BatchEntityFetch) FetchKind() FetchKind {
 // representations variable will contain single item
 type EntityFetch struct {
 	FetchDependencies
+
 	CoordinateDependencies []FetchDependency
 	Input                  EntityInput
 	DataSource             DataSource
