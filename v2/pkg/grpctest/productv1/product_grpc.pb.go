@@ -65,6 +65,8 @@ const (
 	ProductService_QueryUser_FullMethodName                             = "/productv1.ProductService/QueryUser"
 	ProductService_QueryUsers_FullMethodName                            = "/productv1.ProductService/QueryUsers"
 	ProductService_ResolveCategoryCategoryMetrics_FullMethodName        = "/productv1.ProductService/ResolveCategoryCategoryMetrics"
+	ProductService_ResolveCategoryCategoryStatus_FullMethodName         = "/productv1.ProductService/ResolveCategoryCategoryStatus"
+	ProductService_ResolveCategoryMascot_FullMethodName                 = "/productv1.ProductService/ResolveCategoryMascot"
 	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
 	ProductService_ResolveCategoryPopularityScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryPopularityScore"
 	ProductService_ResolveCategoryProductCount_FullMethodName           = "/productv1.ProductService/ResolveCategoryProductCount"
@@ -128,6 +130,8 @@ type ProductServiceClient interface {
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
 	QueryUsers(ctx context.Context, in *QueryUsersRequest, opts ...grpc.CallOption) (*QueryUsersResponse, error)
 	ResolveCategoryCategoryMetrics(ctx context.Context, in *ResolveCategoryCategoryMetricsRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error)
+	ResolveCategoryMascot(ctx context.Context, in *ResolveCategoryMascotRequest, opts ...grpc.CallOption) (*ResolveCategoryMascotResponse, error)
 	ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
@@ -604,6 +608,26 @@ func (c *productServiceClient) ResolveCategoryCategoryMetrics(ctx context.Contex
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveCategoryCategoryStatus(ctx context.Context, in *ResolveCategoryCategoryStatusRequest, opts ...grpc.CallOption) (*ResolveCategoryCategoryStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryCategoryStatusResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryCategoryStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveCategoryMascot(ctx context.Context, in *ResolveCategoryMascotRequest, opts ...grpc.CallOption) (*ResolveCategoryMascotResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveCategoryMascotResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveCategoryMascot_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveCategoryMetricsNormalizedScoreResponse)
@@ -719,6 +743,8 @@ type ProductServiceServer interface {
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
 	QueryUsers(context.Context, *QueryUsersRequest) (*QueryUsersResponse, error)
 	ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error)
+	ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error)
+	ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error)
 	ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
@@ -872,6 +898,12 @@ func (UnimplementedProductServiceServer) QueryUsers(context.Context, *QueryUsers
 }
 func (UnimplementedProductServiceServer) ResolveCategoryCategoryMetrics(context.Context, *ResolveCategoryCategoryMetricsRequest) (*ResolveCategoryCategoryMetricsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryCategoryMetrics not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryCategoryStatus(context.Context, *ResolveCategoryCategoryStatusRequest) (*ResolveCategoryCategoryStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryCategoryStatus not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveCategoryMascot(context.Context, *ResolveCategoryMascotRequest) (*ResolveCategoryMascotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryMascot not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryMetricsNormalizedScore not implemented")
@@ -1740,6 +1772,42 @@ func _ProductService_ResolveCategoryCategoryMetrics_Handler(srv interface{}, ctx
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveCategoryCategoryStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryCategoryStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryCategoryStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryCategoryStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryCategoryStatus(ctx, req.(*ResolveCategoryCategoryStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveCategoryMascot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveCategoryMascotRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveCategoryMascot(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveCategoryMascot_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveCategoryMascot(ctx, req.(*ResolveCategoryMascotRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveCategoryMetricsNormalizedScore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveCategoryMetricsNormalizedScoreRequest)
 	if err := dec(in); err != nil {
@@ -2038,6 +2106,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveCategoryCategoryMetrics",
 			Handler:    _ProductService_ResolveCategoryCategoryMetrics_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryCategoryStatus",
+			Handler:    _ProductService_ResolveCategoryCategoryStatus_Handler,
+		},
+		{
+			MethodName: "ResolveCategoryMascot",
+			Handler:    _ProductService_ResolveCategoryMascot_Handler,
 		},
 		{
 			MethodName: "ResolveCategoryMetricsNormalizedScore",

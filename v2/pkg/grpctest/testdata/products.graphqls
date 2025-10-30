@@ -118,6 +118,8 @@ type Category {
   subcategories: [Subcategory!]
   popularityScore(threshold: Int): Int @connect__fieldResolver(context: "id")
   categoryMetrics(metricType: String!): CategoryMetrics @connect__fieldResolver(context: "id name")
+  mascot(includeVolume: Boolean!): Animal @connect__fieldResolver(context: "id kind")
+  categoryStatus(checkHealth: Boolean!): ActionResult! @connect__fieldResolver(context: "id name")
 }
 
 type Subcategory {

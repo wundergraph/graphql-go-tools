@@ -56,6 +56,8 @@ service ProductService {
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
   rpc QueryUsers(QueryUsersRequest) returns (QueryUsersResponse) {}
   rpc ResolveCategoryCategoryMetrics(ResolveCategoryCategoryMetricsRequest) returns (ResolveCategoryCategoryMetricsResponse) {}
+  rpc ResolveCategoryCategoryStatus(ResolveCategoryCategoryStatusRequest) returns (ResolveCategoryCategoryStatusResponse) {}
+  rpc ResolveCategoryMascot(ResolveCategoryMascotRequest) returns (ResolveCategoryMascotResponse) {}
   rpc ResolveCategoryMetricsNormalizedScore(ResolveCategoryMetricsNormalizedScoreRequest) returns (ResolveCategoryMetricsNormalizedScoreResponse) {}
   rpc ResolveCategoryPopularityScore(ResolveCategoryPopularityScoreRequest) returns (ResolveCategoryPopularityScoreResponse) {}
   rpc ResolveCategoryProductCount(ResolveCategoryProductCountRequest) returns (ResolveCategoryProductCountResponse) {}
@@ -751,6 +753,54 @@ message ResolveCategoryCategoryMetricsResult {
 
 message ResolveCategoryCategoryMetricsResponse {
   repeated ResolveCategoryCategoryMetricsResult result = 1;
+}
+
+message ResolveCategoryMascotArgs {
+  bool include_volume = 1;
+}
+
+message ResolveCategoryMascotContext {
+  string id = 1;
+  CategoryKind kind = 2;
+}
+
+message ResolveCategoryMascotRequest {
+  // context provides the resolver context for the field mascot of type Category.
+  repeated ResolveCategoryMascotContext context = 1;
+  // field_args provides the arguments for the resolver field mascot of type Category.
+  ResolveCategoryMascotArgs field_args = 2;
+}
+
+message ResolveCategoryMascotResult {
+  Animal mascot = 1;
+}
+
+message ResolveCategoryMascotResponse {
+  repeated ResolveCategoryMascotResult result = 1;
+}
+
+message ResolveCategoryCategoryStatusArgs {
+  bool check_health = 1;
+}
+
+message ResolveCategoryCategoryStatusContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveCategoryCategoryStatusRequest {
+  // context provides the resolver context for the field categoryStatus of type Category.
+  repeated ResolveCategoryCategoryStatusContext context = 1;
+  // field_args provides the arguments for the resolver field categoryStatus of type Category.
+  ResolveCategoryCategoryStatusArgs field_args = 2;
+}
+
+message ResolveCategoryCategoryStatusResult {
+  ActionResult category_status = 1;
+}
+
+message ResolveCategoryCategoryStatusResponse {
+  repeated ResolveCategoryCategoryStatusResult result = 1;
 }
 
 message ResolveSubcategoryItemCountArgs {

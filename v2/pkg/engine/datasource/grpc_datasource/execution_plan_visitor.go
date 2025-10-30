@@ -189,6 +189,30 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 
 }
 
+func (r *rpcPlanVisitor) enterResolverCompositeSelectionSet(oneOfType OneOfType, selectionSetRef int) {
+	inlineFragmentSelections := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
+	if len(inlineFragmentSelections) == 0 {
+		return
+	}
+
+	ancestor := r.fieldResolverAncestors.peek()
+	for _, inlineFragmentSelectionRef := range inlineFragmentSelections {
+		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
+		ss, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
+		if !ok {
+			continue
+		}
+
+		r.resolvedFields[ancestor].fragmentSelections = append(r.resolvedFields[ancestor].fragmentSelections, fragmentSelection{
+			typeName:        r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef),
+			selectionSetRef: ss,
+		})
+	}
+
+	// r.resolvedFields[ancestor].fragmentSelections = append(r.resolvedFields[ancestor].fragmentSelections, *fragmentSelection)
+	r.resolvedFields[ancestor].fragmentType = oneOfType
+}
+
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
 // Checks if this is in the root level below the operation definition.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
@@ -198,8 +222,26 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 
 	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
 	if r.fieldResolverAncestors.len() > 0 {
+		if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
+			return
+		}
+
+		resolvedFieldAncestor := r.fieldResolverAncestors.peek()
+		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
+			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
+			if err != nil {
+				r.walker.StopWithInternalErr(err)
+				return
+			}
+			r.resolvedFields[resolvedFieldAncestor].memberTypes = memberTypes
+			r.resolvedFields[resolvedFieldAncestor].fieldsSelectionSetRef = ast.InvalidRef
+
+			r.enterResolverCompositeSelectionSet(compositType, ref)
+			return
+		}
+
 		// TODO: handle nested resolved fields.
-		r.resolvedFields[r.fieldResolverAncestors.peek()].fieldsSelectionSetRef = ref
+		r.resolvedFields[resolvedFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}
 

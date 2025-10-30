@@ -1,6 +1,7 @@
 package grpcdatasource
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -735,8 +736,16 @@ type resolvedField struct {
 	fieldsSelectionSetRef  int
 	responsePath           ast.Path
 
-	contextFields  []contextField
-	fieldArguments []fieldArgument
+	contextFields      []contextField
+	fieldArguments     []fieldArgument
+	fragmentSelections []fragmentSelection
+	fragmentType       OneOfType
+	memberTypes        []string
+}
+
+type fragmentSelection struct {
+	typeName        string
+	selectionSetRef int
 }
 
 // isFieldResolver checks if a field is a field resolver.
@@ -746,6 +755,48 @@ func (r *rpcPlanningContext) isFieldResolver(fieldRef int, isRootField bool) boo
 	}
 
 	return len(r.operation.FieldArguments(fieldRef)) > 0
+}
+
+// getCompositeType returns the most recent composite type from the type definitions.
+func (r *rpcPlanningContext) getCompositeType(node ast.Node) OneOfType {
+	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		return OneOfTypeInterface
+	case ast.NodeKindUnionTypeDefinition:
+		return OneOfTypeUnion
+	default:
+		return OneOfTypeNone
+	}
+}
+
+func (r *rpcPlanningContext) getMemberTypes(node ast.Node) ([]string, error) {
+	switch node.Kind {
+	case ast.NodeKindInterfaceTypeDefinition:
+		memberTypes, ok := r.definition.InterfaceTypeDefinitionImplementedByObjectWithNames(node.Ref)
+		if !ok {
+			return nil, fmt.Errorf("interface type %s is not implemented by any object", r.definition.InterfaceTypeDefinitionNameString(node.Ref))
+		}
+		return memberTypes, nil
+	case ast.NodeKindUnionTypeDefinition:
+		memberTypes, ok := r.definition.UnionTypeDefinitionMemberTypeNames(node.Ref)
+		if !ok {
+			return nil, fmt.Errorf("union type %s is not defined", r.definition.UnionTypeDefinitionNameString(node.Ref))
+		}
+		return memberTypes, nil
+	default:
+		return nil, fmt.Errorf("invalid node kind: %s", node.Kind)
+	}
+}
+
+func (r *rpcPlanningContext) getFragmentSelection(node ast.Node, selectionSetRef int) (*fragmentSelection, error) {
+	if node.Ref == ast.InvalidRef {
+		return nil, nil
+	}
+
+	return &fragmentSelection{
+		typeName:        node.NameString(r.definition),
+		selectionSetRef: selectionSetRef,
+	}, nil
 }
 
 // setResolvedField sets the resolved field for a given field definition reference.
@@ -904,7 +955,7 @@ type resolveRPCCallConfig struct {
 	fieldArgsMessage *RPCMessage
 }
 
-func (r *rpcPlanningContext) resolveRequiredFields(typeName string, requiredFieldSelection int) (*RPCMessage, error) {
+func (r *rpcPlanningContext) resolveRequiredFields(typeName string, resolvedField *resolvedField) (*RPCMessage, error) {
 	message := &RPCMessage{
 		Name: typeName,
 	}
@@ -914,7 +965,29 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName string, requiredFiel
 		return nil, fmt.Errorf("parent type node not found for type %s", typeName)
 	}
 
-	fieldRefs := r.operation.SelectionSetFieldSelections(requiredFieldSelection)
+	// TODO: handle composite types.
+	if len(resolvedField.fragmentSelections) > 0 {
+		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolvedField.fragmentSelections))
+		message.OneOfType = resolvedField.fragmentType
+		message.MemberTypes = resolvedField.memberTypes
+
+		for _, fragmentSelection := range resolvedField.fragmentSelections {
+			fields, err := r.buildCompositeField(parentTypeNode, fragmentSelection)
+			if err != nil {
+				return nil, err
+			}
+
+			message.FieldSelectionSet[fragmentSelection.typeName] = fields
+		}
+
+		return message, nil
+	}
+
+	if resolvedField.fieldsSelectionSetRef == ast.InvalidRef {
+		return nil, errors.New("unable to resolve required fields: no fields selection set found")
+	}
+
+	fieldRefs := r.operation.SelectionSetFieldSelections(resolvedField.fieldsSelectionSetRef)
 	message.Fields = make(RPCFields, 0, len(fieldRefs))
 
 	for _, fieldRef := range fieldRefs {
@@ -941,6 +1014,20 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName string, requiredFiel
 
 	message.Fields = slices.Clip(message.Fields)
 	return message, nil
+}
+
+func (r *rpcPlanningContext) buildCompositeField(parentNode ast.Node, fragmentSelection fragmentSelection) ([]RPCField, error) {
+	fieldRefs := r.operation.SelectionSetFieldRefs(fragmentSelection.selectionSetRef)
+	result := make([]RPCField, 0, len(fieldRefs))
+
+	for _, fieldRef := range fieldRefs {
+		field, err := r.buildField(parentNode, fieldRef, r.operation.FieldNameString(fieldRef), "")
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, field)
+	}
+	return result, nil
 }
 
 // createResolverRPCCalls creates a new call for each resolved field.
@@ -1034,7 +1121,7 @@ func (r *rpcPlanningContext) newResolveRPCCall(config *resolveRPCCallConfig) (RP
 		var err error
 		responseFieldsMessage, err = r.resolveRequiredFields(
 			r.definition.ResolveTypeNameString(underlyingTypeRef),
-			resolvedField.fieldsSelectionSetRef,
+			resolvedField,
 		)
 
 		if err != nil {

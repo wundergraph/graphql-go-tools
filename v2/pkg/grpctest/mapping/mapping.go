@@ -260,6 +260,28 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveCategoryCategoryMetricsRequest",
 					Response: "ResolveCategoryCategoryMetricsResponse",
 				},
+				"mascot": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "mascot",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeVolume": "include_volume",
+						},
+					},
+					RPC:      "ResolveCategoryMascot",
+					Request:  "ResolveCategoryMascotRequest",
+					Response: "ResolveCategoryMascotResponse",
+				},
+				"categoryStatus": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "category_status",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"checkHealth": "check_health",
+						},
+					},
+					RPC:      "ResolveCategoryCategoryStatus",
+					Request:  "ResolveCategoryCategoryStatusRequest",
+					Response: "ResolveCategoryCategoryStatusResponse",
+				},
 			},
 			"CategoryMetrics": {
 				"normalizedScore": {
@@ -814,6 +836,18 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					TargetName: "category_metrics",
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"metricType": "metric_type",
+					},
+				},
+				"mascot": {
+					TargetName: "mascot",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeVolume": "include_volume",
+					},
+				},
+				"categoryStatus": {
+					TargetName: "category_status",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"checkHealth": "check_health",
 					},
 				},
 			},

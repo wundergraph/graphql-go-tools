@@ -1109,3 +1109,147 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 		})
 	}
 }
+
+func TestExecutionPlanFieldResolvers_WithOneOfTypes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name          string
+		query         string
+		expectedPlan  *RPCExecutionPlan
+		expectedError string
+	}{
+		{
+			name:  "Should create an execution plan for a query with interface type",
+			query: "query CategoriesWithNestedResolvers($includeValue: Boolean!) { categories { mascot(includeVolume: $includeVolume) { ... on Cat { name  } ... on Dog { name } } } }",
+			expectedPlan: &RPCExecutionPlan{
+				Calls: []RPCCall{
+					{
+						ServiceName: "Products",
+						MethodName:  "QueryCategories",
+						Request: RPCMessage{
+							Name: "QueryCategoriesRequest",
+						},
+						Response: RPCMessage{
+							Name: "QueryCategoriesResponse",
+							Fields: []RPCField{
+								{
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name:   "Category",
+										Fields: []RPCField{},
+									},
+								},
+							},
+						},
+					},
+					{
+						DependentCalls: []int{0},
+						ServiceName:    "Products",
+						MethodName:     "ResolveCategoryMascot",
+						Kind:           CallKindResolve,
+						ResponsePath:   buildPath("categories.mascot"),
+						Request: RPCMessage{
+							Name: "ResolveCategoryMascotRequest",
+							Fields: []RPCField{
+								{
+									Name:          "context",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMascotContext",
+										Fields: []RPCField{
+											{
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												ResolvePath:   buildPath("categories.id"),
+											},
+											{
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												EnumName:      "CategoryKind",
+												ResolvePath:   buildPath("categories.kind"),
+											},
+										},
+									},
+								},
+								{
+									Name:          "field_args",
+									ProtoTypeName: DataTypeMessage,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMascotArgs",
+										Fields: []RPCField{
+											{
+												Name:          "include_volume",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "includeVolume",
+											},
+										},
+									},
+								},
+							},
+						},
+						Response: RPCMessage{
+							Name: "ResolveCategoryMascotResponse",
+							Fields: []RPCField{
+								{
+									Name:          "result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "result",
+									Repeated:      true,
+									Message: &RPCMessage{
+										Name: "ResolveCategoryMascotResult",
+										Fields: []RPCField{
+											{
+												Name:          "mascot",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "mascot",
+												Optional:      true,
+												Message: &RPCMessage{
+													Name:        "Animal",
+													OneOfType:   OneOfTypeInterface,
+													MemberTypes: []string{"Cat", "Dog"},
+													FieldSelectionSet: RPCFieldSelectionSet{
+														"Cat": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+														},
+														"Dog": {
+															{
+																Name:          "name",
+																ProtoTypeName: DataTypeString,
+																JSONPath:      "name",
+															},
+														},
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			runTest(t, testCase{
+				query:         tt.query,
+				expectedPlan:  tt.expectedPlan,
+				expectedError: tt.expectedError,
+			})
+		})
+	}
+}
