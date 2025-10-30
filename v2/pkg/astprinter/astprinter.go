@@ -341,7 +341,7 @@ func (p *printVisitor) EnterSelectionSet(ref int) {
 				p.printFieldInfo(a.Ref, false)
 			case ast.NodeKindInlineFragment:
 				p.write([]byte(" fragmentRef:"))
-				p.write([]byte(strconv.Itoa(ref)))
+				p.write([]byte(strconv.Itoa(a.Ref)))
 			default:
 			}
 		}
