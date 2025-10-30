@@ -91,6 +91,7 @@ func (p *Parser) Parse(document *ast.Document, report *operationreport.Report) {
 	p.report = report
 	p.tokenize()
 	p.parse()
+	p.precalculate()
 }
 
 func (p *Parser) tokenize() {
@@ -106,7 +107,16 @@ func (p *Parser) ParseWithLimits(limits TokenizerLimits, document *ast.Document,
 		return stats, err
 	}
 	p.parse()
+	p.precalculate()
 	return stats, nil
+}
+
+func (p *Parser) precalculate() {
+	if p.report.HasErrors() {
+		return
+	}
+
+	p.document.PopulateInterfaceTypeDefinitionImplementedByObjects()
 }
 
 func (p *Parser) parse() {

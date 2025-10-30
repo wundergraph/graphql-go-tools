@@ -88,10 +88,13 @@ func (d *DataSourceMetadata) Init() error {
 }
 
 func (d *DataSourceMetadata) InitKeys() error {
+	d.FederationMetaData.entityTypeNames = make(map[string]struct{})
+
 	for i := 0; i < len(d.FederationMetaData.Keys); i++ {
 		if err := d.FederationMetaData.Keys[i].parseSelectionSet(); err != nil {
 			return err
 		}
+		d.FederationMetaData.entityTypeNames[d.FederationMetaData.Keys[i].TypeName] = struct{}{}
 	}
 
 	return nil
