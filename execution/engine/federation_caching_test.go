@@ -279,7 +279,7 @@ func TestFederationCaching(t *testing.T) {
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterThird := defaultCache.GetLog()
-		assert.Equal(t, 4, len(logAfterThird))
+		assert.Equal(t, 2, len(logAfterThird))
 
 		wantLogThird := []CacheLogEntry{
 			{
@@ -288,23 +288,12 @@ func TestFederationCaching(t *testing.T) {
 				Hits:      []bool{true}, // Should be a hit from second query
 			},
 			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
-			{
 				Operation: "get",
 				Keys: []string{
 					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
 					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
 				},
 				Hits: []bool{true, true}, // Should be hits from second query
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
-				},
 			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogThird), sortCacheLogKeys(logAfterThird))

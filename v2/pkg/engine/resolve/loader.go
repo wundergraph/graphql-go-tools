@@ -604,6 +604,7 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 	if err != nil {
 		return false, err
 	}
+	res.cacheTTL = cfg.TTL
 	missing, canSkip := l.canSkipFetch(info, res)
 	if canSkip {
 		res.cacheSkippedFetch = true
@@ -703,12 +704,35 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if res.cacheSkippedFetch {
+		// Merge cached data into items
+		mergedData := make([]*astjson.Value, len(res.cacheKeys))
 		for i, key := range res.cacheKeys {
-			_, _, err := astjson.MergeValues(l.jsonArena, items[i], key.FromCache)
+			// Merge cached data into item
+			merged, _, err := astjson.MergeValues(l.jsonArena, items[i], key.FromCache)
 			if err != nil {
 				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 			}
+			mergedData[i] = merged
 		}
+
+		// Update cache with merged data to refresh TTL, even when skipping fetch
+		if res.cacheMustBeUpdated && len(mergedData) > 0 {
+			// Construct responseData from merged items for cache update
+			// For batch responses, create an array; for single items, use the first item
+			var responseData *astjson.Value
+			if len(mergedData) == 1 {
+				responseData = mergedData[0]
+			} else {
+				// Create array from merged items
+				responseData = astjson.ArrayValue(l.jsonArena)
+				for i, item := range mergedData {
+					responseData.SetArrayItem(l.jsonArena, i, item)
+				}
+			}
+			res.cacheResponseData = responseData
+			defer l.updateCache(res)
+		}
+
 		return nil
 	}
 	if res.fetchSkipped {
@@ -2173,7 +2197,31 @@ func (l *Loader) canSkipFetch(info *FetchInfo, res *result) ([]*CacheKey, bool) 
 	// Check each item and remove those that have sufficient data
 	remaining := make([]*CacheKey, 0, len(res.cacheKeys))
 	for i, key := range res.cacheKeys {
-		if !l.validateItemHasRequiredData(key.Item, info.ProvidesData) {
+		// When we have cached data, we should check if merging Item + FromCache gives us all required fields
+		// Otherwise, check Item.
+		var dataToCheck *astjson.Value
+		if key.FromCache != nil {
+			// If we have cached data, merge it with Item to get the complete picture
+			if key.Item != nil {
+				// Create a temporary merged value to check
+				// Note: We use a temporary arena here since we're just checking, not storing
+				merged, _, err := astjson.MergeValues(nil, key.Item, key.FromCache)
+				if err == nil && merged != nil {
+					dataToCheck = merged
+				} else {
+					// Fallback to FromCache if merge fails
+					dataToCheck = key.FromCache
+				}
+			} else {
+				dataToCheck = key.FromCache
+			}
+		} else {
+			dataToCheck = key.Item
+		}
+
+		hasRequiredData := l.validateItemHasRequiredData(dataToCheck, info.ProvidesData)
+
+		if !hasRequiredData {
 			remaining = append(remaining, res.cacheKeys[i])
 		}
 	}
