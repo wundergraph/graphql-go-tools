@@ -44,7 +44,8 @@ type nodeSelectionVisitor struct {
 	secondaryRun bool // secondaryRun is a flag to indicate that we're running the nodeSelectionVisitor not the first time
 	hasNewFields bool // hasNewFields is used to determine if we need to run the planner again. It will be true in case required fields were added
 
-	rewrittenFieldRefs []int
+	rewrittenFieldRefs          []int            // rewrittenFieldRefs holds field refs which had their selection sets rewritten during the current walk
+	persistedRewrittenFieldRefs map[int]struct{} // persistedRewrittenFieldRefs holds field refs which had their selection sets rewritten during any of the walks
 
 	// addTypenameInNestedSelections controls forced addition of __typename to nested selection sets
 	// used by "requires" keys, not only when fragments are present.
@@ -148,6 +149,7 @@ func (c *nodeSelectionVisitor) EnterDocument(operation, definition *ast.Document
 		c.skipFieldsRefs = make([]int, 0, 8)
 	}
 
+	c.persistedRewrittenFieldRefs = make(map[int]struct{})
 	c.visitedFieldsAbstractChecks = make(map[int]struct{})
 	c.visitedFieldsRequiresChecks = make(map[fieldIndexKey]struct{})
 	c.visitedFieldsKeyChecks = make(map[fieldIndexKey]struct{})
@@ -675,7 +677,16 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 		return
 	}
 
-	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds)
+	var options []rewriterOption
+	if _, wasRewritten := c.persistedRewrittenFieldRefs[fieldRef]; wasRewritten {
+		// When field was already rewritten in previous walker runs,
+		// but we are visiting it again - it means that we have appended more required fields to it.
+		// So we have to force rewriting it again, because without force we could end up with duplicated fields outside of fragments.
+		// When newly added fields are local - rewriter will consider that rewrite is not necessary.
+		options = append(options, withForceRewrite())
+	}
+
+	rewriter, err := newFieldSelectionRewriter(c.operation, c.definition, ds, options...)
 	if err != nil {
 		c.walker.StopWithInternalErr(err)
 		return
@@ -694,6 +705,7 @@ func (c *nodeSelectionVisitor) rewriteSelectionSetHavingAbstractFragments(fieldR
 	c.addSkipFieldRefs(rewriter.skipFieldRefs...)
 	c.hasNewFields = true
 	c.rewrittenFieldRefs = append(c.rewrittenFieldRefs, fieldRef)
+	c.persistedRewrittenFieldRefs[fieldRef] = struct{}{}
 
 	c.updateFieldDependsOn(result.changedFieldRefs)
 	c.updateSkipFieldRefs(result.changedFieldRefs)
