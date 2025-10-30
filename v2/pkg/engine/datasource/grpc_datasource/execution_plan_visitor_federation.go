@@ -50,7 +50,7 @@ type rpcPlanVisitorFederation struct {
 	subgraphName string
 	currentCall  *RPCCall
 
-	relatedCallID      int
+	parentCallID       int
 	resolvedFieldIndex int
 	resolvedFields     []resolvedField
 
@@ -71,7 +71,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		federationConfigData: parseFederationConfigData(config.federationConfigs),
 		resolvedFields:       make([]resolvedField, 0),
 		resolvedFieldIndex:   ast.InvalidRef,
-		relatedCallID:        ast.InvalidRef,
+		parentCallID:         ast.InvalidRef,
 		fieldPath:            ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
 
@@ -142,7 +142,7 @@ func (r *rpcPlanVisitorFederation) EnterInlineFragment(ref int) {
 		Kind:        CallKindEntity,
 	}
 
-	r.relatedCallID = len(r.plan.Calls)
+	r.parentCallID = len(r.plan.Calls)
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -320,7 +320,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 	if fieldArgs := r.operation.FieldArguments(ref); !inRootField && len(fieldArgs) > 0 {
 		// We don't want to add fields from the selection set to the actual call
 		resolvedField := resolvedField{
-			callerRef:              r.relatedCallID,
+			callerRef:              r.parentCallID,
 			parentTypeRef:          r.walker.EnclosingTypeDefinition.Ref,
 			fieldRef:               ref,
 			responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
@@ -337,7 +337,7 @@ func (r *rpcPlanVisitorFederation) EnterField(ref int) {
 		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
 
 		// In case of nested fields with arguments, we need to increment the related call ID.
-		r.relatedCallID++
+		r.parentCallID++
 		return
 	}
 
@@ -379,7 +379,7 @@ func (r *rpcPlanVisitorFederation) LeaveField(ref int) {
 		// This is because we can also have nested arguments, which require the underlying field to be resolved
 		// by values provided by the parent call.
 		if r.operation.FieldHasArguments(ref) {
-			r.relatedCallID--
+			r.parentCallID--
 		}
 
 		r.planInfo.currentResponseFieldIndex++
