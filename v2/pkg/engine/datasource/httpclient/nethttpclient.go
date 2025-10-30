@@ -20,7 +20,6 @@ import (
 	"github.com/buger/jsonparser"
 
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/lexer/literal"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/pool"
 )
 
 const (
@@ -28,6 +27,7 @@ const (
 	AcceptEncodingHeader  = "Accept-Encoding"
 	AcceptHeader          = "Accept"
 	ContentTypeHeader     = "Content-Type"
+	ContentLengthHeader   = "Content-Length"
 
 	EncodingGzip    = "gzip"
 	EncodingDeflate = "deflate"
@@ -130,21 +130,38 @@ func respBodyReader(res *http.Response) (io.Reader, error) {
 	}
 }
 
-type bodyHashContextKey struct{}
+type httpClientContext string
 
-func BodyHashFromContext(ctx context.Context) (uint64, bool) {
-	value := ctx.Value(bodyHashContextKey{})
-	if value == nil {
-		return 0, false
-	}
-	return value.(uint64), true
+const (
+	sizeHintKey httpClientContext = "size-hint"
+)
+
+// WithHTTPClientSizeHint allows the engine to keep track of response sizes per subgraph fetch
+// If a hint is supplied, we can create a buffer of size close to the required size
+// This reduces allocations by reducing the buffer grow calls, which always copies the buffer
+func WithHTTPClientSizeHint(ctx context.Context, size int) context.Context {
+	return context.WithValue(ctx, sizeHintKey, size)
 }
 
-func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, out *bytes.Buffer, contentType string) (err error) {
+func buffer(ctx context.Context) *bytes.Buffer {
+	if sizeHint, ok := ctx.Value(sizeHintKey).(int); ok && sizeHint > 0 {
+		return bytes.NewBuffer(make([]byte, 0, sizeHint))
+	}
+	// if we start with zero, doubling will take a while until we reach the required size
+	// if we start with a high number, e.g. 1024, we just increase the memory usage of the engine
+	// 64 seems to be a healthy middle ground
+	return bytes.NewBuffer(make([]byte, 0, 64))
+}
+
+func makeHTTPRequest(client *http.Client, ctx context.Context, baseHeaders http.Header, url, method, headers, queryParams []byte, body io.Reader, enableTrace bool, contentType string, contentLength int) ([]byte, error) {
 
 	request, err := http.NewRequestWithContext(ctx, string(method), string(url), body)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	if baseHeaders != nil {
+		request.Header = baseHeaders
 	}
 
 	if headers != nil {
@@ -161,7 +178,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 			return err
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -190,7 +207,7 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 			}
 		})
 		if err != nil {
-			return err
+			return nil, err
 		}
 		request.URL.RawQuery = query.Encode()
 	}
@@ -199,12 +216,17 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	request.Header.Add(ContentTypeHeader, contentType)
 	request.Header.Set(AcceptEncodingHeader, EncodingGzip)
 	request.Header.Add(AcceptEncodingHeader, EncodingDeflate)
+	if contentLength > 0 {
+		// always set the ContentLength field so that chunking can be avoided
+		// and other parties can more efficiently parse
+		request.ContentLength = int64(contentLength)
+	}
 
 	setRequest(ctx, request)
 
 	response, err := client.Do(request)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer response.Body.Close()
 
@@ -212,23 +234,26 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 
 	respReader, err := respBodyReader(response)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	// we intentionally don't use a pool of sorts here
+	// we're buffering the response and then later, in the engine,
+	// parse it into an JSON AST with the use of an arena, which is quite efficient
+	// Through trial and error it turned out that it's best to leave this buffer to the GC
+	// It'll know best the lifecycle of the buffer
+	// Using an arena here just increased overall memory usage
+	out := buffer(ctx)
+	_, err = out.ReadFrom(respReader)
+	if err != nil {
+		return nil, err
 	}
 
 	if !enableTrace {
-		if response.ContentLength > 0 {
-			out.Grow(int(response.ContentLength))
-		} else {
-			out.Grow(1024 * 4)
-		}
-		_, err = out.ReadFrom(respReader)
-		return
+		return out.Bytes(), nil
 	}
 
-	data, err := io.ReadAll(respReader)
-	if err != nil {
-		return err
-	}
+	data := out.Bytes()
 	responseTrace := TraceHTTP{
 		Request: TraceHTTPRequest{
 			Method:  request.Method,
@@ -244,38 +269,28 @@ func makeHTTPRequest(client *http.Client, ctx context.Context, url, method, head
 	}
 	trace, err := json.Marshal(responseTrace)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	responseWithTraceExtension, err := jsonparser.Set(data, trace, "extensions", "trace")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	_, err = out.Write(responseWithTraceExtension)
-	return err
+	return responseWithTraceExtension, nil
 }
 
-func Do(client *http.Client, ctx context.Context, requestInput []byte, out *bytes.Buffer) (err error) {
+func Do(client *http.Client, ctx context.Context, baseHeaders http.Header, requestInput []byte) (data []byte, err error) {
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-	h := pool.Hash64.Get()
-	_, _ = h.Write(body)
-	bodyHash := h.Sum64()
-	pool.Hash64.Put(h)
-	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, out, ContentTypeJSON)
+	return makeHTTPRequest(client, ctx, baseHeaders, url, method, headers, queryParams, bytes.NewReader(body), enableTrace, ContentTypeJSON, len(body))
 }
 
 func DoMultipartForm(
-	client *http.Client, ctx context.Context, requestInput []byte, files []*FileUpload, out *bytes.Buffer,
-) (err error) {
+	client *http.Client, ctx context.Context, baseHeaders http.Header, requestInput []byte, files []*FileUpload,
+) (data []byte, err error) {
 	if len(files) == 0 {
-		return errors.New("no files provided")
+		return nil, errors.New("no files provided")
 	}
 
 	url, method, body, headers, queryParams, enableTrace := requestInputParams(requestInput)
-
-	h := pool.Hash64.Get()
-	defer pool.Hash64.Put(h)
-	_, _ = h.Write(body)
 
 	formValues := map[string]io.Reader{
 		"operations": bytes.NewReader(body),
@@ -293,14 +308,13 @@ func DoMultipartForm(
 		}
 		hasWrittenFileName = true
 
-		fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
+		_, _ = fmt.Fprintf(fileMap, `"%d":["%s"]`, i, file.variablePath)
 
 		key := fmt.Sprintf("%d", i)
-		_, _ = h.WriteString(file.Path())
 		temporaryFile, err := os.Open(file.Path())
 		tempFiles = append(tempFiles, temporaryFile)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		formValues[key] = bufio.NewReader(temporaryFile)
 	}
@@ -309,7 +323,7 @@ func DoMultipartForm(
 
 	multipartBody, contentType, err := multipartBytes(formValues, files)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer func() {
@@ -324,10 +338,7 @@ func DoMultipartForm(
 		}
 	}()
 
-	bodyHash := h.Sum64()
-	ctx = context.WithValue(ctx, bodyHashContextKey{}, bodyHash)
-
-	return makeHTTPRequest(client, ctx, url, method, headers, queryParams, multipartBody, enableTrace, out, contentType)
+	return makeHTTPRequest(client, ctx, baseHeaders, url, method, headers, queryParams, multipartBody, enableTrace, contentType, 0)
 }
 
 func multipartBytes(values map[string]io.Reader, files []*FileUpload) (*io.PipeReader, string, error) {
