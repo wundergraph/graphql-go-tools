@@ -615,14 +615,18 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 		// setup deps between key chain items
 		if currentFieldRefs != nil && previousJump != nil {
 			for _, requestedByFieldRef := range addFieldsResult.requiredFieldRefs {
-				if slices.Contains(currentFieldRefs, requestedByFieldRef) {
-					// we should not add field ref to fieldDependsOn map if it is part of a key
-					continue
+				fieldKey := fieldIndexKey{requestedByFieldRef, jump.From}
+
+				for _, requiredFieldRef := range currentFieldRefs {
+					if requiredFieldRef == requestedByFieldRef {
+						// we should not add field ref to fieldDependsOn map if it is part of a key,
+						// e.g., if it depends on itself
+						continue
+					}
+					c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
+					c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRef)
 				}
 
-				fieldKey := fieldIndexKey{requestedByFieldRef, jump.From}
-				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], currentFieldRefs...)
-				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], currentFieldRefs...)
 				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
 					TypeName:     previousJump.TypeName,
 					SelectionSet: previousJump.SelectionSet,
@@ -638,19 +642,23 @@ func (c *nodeSelectionVisitor) addKeyRequirementsToOperation(selectionSetRef int
 		if lastJump {
 			// add mapping for the field dependencies
 			for _, requestedByFieldRef := range pendingKey.requestedByFieldRefs {
-				if slices.Contains(currentFieldRefs, requestedByFieldRef) {
-					// we should not add field ref to fieldDependsOn map if it is part of a key
-					continue
+				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
+
+				for _, requiredFieldRef := range currentFieldRefs {
+					if requiredFieldRef == requestedByFieldRef {
+						// we should not add field ref to fieldDependsOn map if it is part of a key,
+						// e.g., if it depends on itself
+						continue
+					}
+					c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], requiredFieldRef)
+					c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], requiredFieldRef)
 				}
 
-				fieldKey := fieldIndexKey{requestedByFieldRef, pendingKey.targetDSHash}
-				c.fieldDependsOn[fieldKey] = append(c.fieldDependsOn[fieldKey], addFieldsResult.requiredFieldRefs...)
-				c.fieldRefDependsOn[requestedByFieldRef] = append(c.fieldRefDependsOn[requestedByFieldRef], addFieldsResult.requiredFieldRefs...)
 				c.fieldRequirementsConfigs[fieldKey] = append(c.fieldRequirementsConfigs[fieldKey], FederationFieldConfiguration{
 					TypeName:     jump.TypeName,
 					SelectionSet: jump.SelectionSet,
 				})
-				for _, requiredFieldRef := range addFieldsResult.requiredFieldRefs {
+				for _, requiredFieldRef := range currentFieldRefs {
 					c.fieldDependencyKind[fieldDependencyKey{field: requestedByFieldRef, dependsOn: requiredFieldRef}] = fieldDependencyKindKey
 				}
 			}
