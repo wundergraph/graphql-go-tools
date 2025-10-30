@@ -28,9 +28,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"users"}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"users"}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "users", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("single field single argument", func(t *testing.T) {
@@ -59,9 +63,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"droid","args":{"id":1}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"droid","args":{"id":1}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "droid", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("single field single string argument", func(t *testing.T) {
@@ -90,9 +98,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"name":"john"}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"user","args":{"name":"john"}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "user", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("single field multiple arguments", func(t *testing.T) {
@@ -128,9 +140,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"search","args":{"term":"C3PO","max":10}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"search","args":{"term":"C3PO","max":10}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "search", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("single field multiple arguments with boolean", func(t *testing.T) {
@@ -166,9 +182,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"products","args":{"includeDeleted":true,"limit":20}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"products","args":{"includeDeleted":true,"limit":20}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "products", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("multiple fields single argument each", func(t *testing.T) {
@@ -214,9 +234,15 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		data := astjson.MustParse(`{}`)
 
 		// Test RenderCacheKeys returns multiple keys
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"droid","args":{"id":1}}`, `{"__typename":"Query","field":"user","args":{"name":"john"}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 2)
+		assert.Equal(t, `{"__typename":"Query","field":"droid","args":{"id":1}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "droid", cacheKeys[0].Keys[0].Path)
+		assert.Equal(t, `{"__typename":"Query","field":"user","args":{"name":"john"}}`, cacheKeys[0].Keys[1].Name)
+		assert.Equal(t, "user", cacheKeys[0].Keys[1].Path)
 	})
 
 	t.Run("multiple fields with mixed arguments", func(t *testing.T) {
@@ -261,9 +287,15 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 		data := astjson.MustParse(`{}`)
 
 		// Test RenderCacheKeys returns multiple keys
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"product","args":{"id":"123","includeReviews":true}}`, `{"__typename":"Query","field":"hero"}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 2)
+		assert.Equal(t, `{"__typename":"Query","field":"product","args":{"id":"123","includeReviews":true}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "product", cacheKeys[0].Keys[0].Path)
+		assert.Equal(t, `{"__typename":"Query","field":"hero"}`, cacheKeys[0].Keys[1].Name)
+		assert.Equal(t, "hero", cacheKeys[0].Keys[1].Path)
 	})
 
 	t.Run("field with object variable argument", func(t *testing.T) {
@@ -292,9 +324,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{"filter":{"category":"electronics","price":100}}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"search","args":{"filter":{"category":"electronics","price":100}}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"search","args":{"filter":{"category":"electronics","price":100}}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "search", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("field with null argument", func(t *testing.T) {
@@ -323,9 +359,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"id":null}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"user","args":{"id":null}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "user", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("field with missing argument", func(t *testing.T) {
@@ -354,9 +394,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"id":null}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"user","args":{"id":null}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "user", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("field with array argument", func(t *testing.T) {
@@ -385,9 +429,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"products","args":{"ids":[1,2,3]}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"products","args":{"ids":[1,2,3]}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "products", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("non-Query type", func(t *testing.T) {
@@ -416,9 +464,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Subscription","field":"messageAdded","args":{"roomId":"123"}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Subscription","field":"messageAdded","args":{"roomId":"123"}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "messageAdded", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("single field with arena", func(t *testing.T) {
@@ -448,9 +500,13 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		keys, err := tmpl.RenderCacheKeys(ar, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(ar, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"name":"john"}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Query","field":"user","args":{"name":"john"}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "user", cacheKeys[0].Keys[0].Path)
 	})
 }
 
@@ -480,9 +536,13 @@ func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{"__typename":"Product","id":"123"}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Product","keys":{"id":"123"}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Product","keys":{"id":"123"}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("single entity with multiple keys", func(t *testing.T) {
@@ -516,9 +576,13 @@ func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{"__typename":"Product","sku":"ABC123","upc":"DEF456","name":"Trilby"}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"Product","keys":{"sku":"ABC123","upc":"DEF456"}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"Product","keys":{"sku":"ABC123","upc":"DEF456"}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "", cacheKeys[0].Keys[0].Path)
 	})
 
 	t.Run("entity with nested object key", func(t *testing.T) {
@@ -559,9 +623,13 @@ func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{"__typename":"VersionedEntity","key":{"id":"123","version":"1"}}`)
-		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		cacheKeys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{`{"__typename":"VersionedEntity","keys":{"key":{"id":"123","version":"1"}}}`}, keys)
+		assert.Len(t, cacheKeys, 1)
+		assert.Equal(t, data, cacheKeys[0].Item)
+		assert.Len(t, cacheKeys[0].Keys, 1)
+		assert.Equal(t, `{"__typename":"VersionedEntity","keys":{"key":{"id":"123","version":"1"}}}`, cacheKeys[0].Keys[0].Name)
+		assert.Equal(t, "", cacheKeys[0].Keys[0].Path)
 	})
 }
 

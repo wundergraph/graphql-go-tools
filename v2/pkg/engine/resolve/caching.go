@@ -9,7 +9,18 @@ import (
 type CacheKeyTemplate interface {
 	// RenderCacheKeys returns multiple cache keys (one per root field or entity)
 	// Generates keys for all items at once
-	RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]string, error)
+	RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error)
+}
+
+type CacheKey struct {
+	Item      *astjson.Value
+	FromCache *astjson.Value
+	Keys      []KeyEntry
+}
+
+type KeyEntry struct {
+	Name string
+	Path string
 }
 
 type RootQueryCacheKeyTemplate struct {
@@ -26,24 +37,33 @@ type FieldArgument struct {
 	Variable Variable
 }
 
-// RenderCacheKeys returns multiple cache keys, one per root field per item
-func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]string, error) {
+// RenderCacheKeys returns multiple cache keys, one per item
+// Each cache key contains one or more KeyEntry objects (one per root field)
+func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error) {
 	if len(r.RootFields) == 0 {
 		return nil, nil
 	}
-	// Estimate capacity: each item can generate keys for all root fields
-	keys := arena.AllocateSlice[string](a, 0, len(r.RootFields)*len(items))
+	// Estimate capacity: one CacheKey per item
+	cacheKeys := arena.AllocateSlice[*CacheKey](a, 0, len(items))
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
-	var (
-		key string
-	)
+
 	for _, item := range items {
+		// Create KeyEntry for each root field
+		keyEntries := arena.AllocateSlice[KeyEntry](a, 0, len(r.RootFields))
 		for _, field := range r.RootFields {
+			var key string
 			key, jsonBytes = r.renderField(a, ctx, item, jsonBytes, field)
-			keys = arena.SliceAppend(a, keys, key)
+			keyEntries = arena.SliceAppend(a, keyEntries, KeyEntry{
+				Name: key,
+				Path: field.Coordinate.FieldName,
+			})
 		}
+		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
+			Item: item,
+			Keys: keyEntries,
+		})
 	}
-	return keys, nil
+	return cacheKeys, nil
 }
 
 // renderField renders a single field cache key as JSON
@@ -115,9 +135,9 @@ type EntityQueryCacheKeyTemplate struct {
 }
 
 // RenderCacheKeys returns one cache key per item for entity queries with keys nested under "keys"
-func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]string, error) {
+func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error) {
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
-	keys := arena.AllocateSlice[string](a, 0, len(items))
+	cacheKeys := arena.AllocateSlice[*CacheKey](a, 0, len(items))
 
 	for _, item := range items {
 		if item == nil {
@@ -163,10 +183,21 @@ func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Contex
 		jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
 		slice := arena.AllocateSlice[byte](a, len(jsonBytes), len(jsonBytes))
 		copy(slice, jsonBytes)
-		keys = arena.SliceAppend(a, keys, unsafebytes.BytesToString(slice))
+
+		// Create KeyEntry with empty path for entity queries
+		keyEntries := arena.AllocateSlice[KeyEntry](a, 0, 1)
+		keyEntries = arena.SliceAppend(a, keyEntries, KeyEntry{
+			Name: unsafebytes.BytesToString(slice),
+			Path: "",
+		})
+
+		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
+			Item: item,
+			Keys: keyEntries,
+		})
 	}
 
-	return keys, nil
+	return cacheKeys, nil
 }
 
 // resolveFieldValue resolves a field value from data based on its template definition

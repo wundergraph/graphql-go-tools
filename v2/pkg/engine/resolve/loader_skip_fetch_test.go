@@ -16,8 +16,8 @@ func TestLoader_canSkipFetch(t *testing.T) {
 		info          *FetchInfo
 		items         []*astjson.Value
 		wantResult    bool
-		wantRemaining int                                            // -1 means check for empty, otherwise check exact count
-		checkFn       func(t *testing.T, remaining []*astjson.Value) // optional custom validation
+		wantRemaining int                                       // -1 means check for empty, otherwise check exact count
+		checkFn       func(t *testing.T, remaining []*CacheKey) // optional custom validation
 	}{
 		{
 			name: "single item with Query operation",
@@ -73,7 +73,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 				astjson.MustParseBytes([]byte(`null`)),
 			},
 			wantResult:    true,
-			wantRemaining: 1, // null item remains
+			wantRemaining: -1, // empty - can skip fetch since no fields required
 		},
 		{
 			name: "single item with all required data",
@@ -321,9 +321,9 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			},
 			wantResult:    false,
 			wantRemaining: 1,
-			checkFn: func(t *testing.T, remaining []*astjson.Value) {
+			checkFn: func(t *testing.T, remaining []*CacheKey) {
 				// Check that the remaining item is the incomplete one
-				user := remaining[0].Get("user")
+				user := remaining[0].Item.Get("user")
 				assert.Equal(t, "456", string(user.Get("id").GetStringBytes()))
 			},
 		},
@@ -888,7 +888,20 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			itemsCopy := make([]*astjson.Value, len(tt.items))
 			copy(itemsCopy, tt.items)
 
-			remaining, result := loader.canSkipFetch(tt.info, itemsCopy)
+			// Create cache keys with Item set to the corresponding test items
+			cacheKeys := make([]*CacheKey, len(itemsCopy))
+			for i, item := range itemsCopy {
+				cacheKeys[i] = &CacheKey{
+					Item: item,
+				}
+			}
+
+			// Create a result struct for canSkipFetch
+			res := &result{
+				cacheKeys: cacheKeys,
+			}
+
+			remaining, result := loader.canSkipFetch(tt.info, res)
 
 			assert.Equal(t, tt.wantResult, result, "result mismatch")
 

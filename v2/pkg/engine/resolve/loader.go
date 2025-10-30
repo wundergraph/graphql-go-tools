@@ -132,8 +132,7 @@ type result struct {
 
 	cache              LoaderCache
 	cacheMustBeUpdated bool
-	cacheKeys          []string
-	cacheItems         []*astjson.Value
+	cacheKeys          []*CacheKey
 	cacheTTL           time.Duration
 	cacheSkippedFetch  bool
 }
@@ -444,9 +443,9 @@ func (l *Loader) itemsData(items []*astjson.Value) *astjson.Value {
 }
 
 type LoaderCache interface {
-	Get(ctx context.Context, keys []string) ([][]byte, error)
-	Set(ctx context.Context, keys []string, items [][]byte, ttl time.Duration) error
-	Delete(ctx context.Context, keys []string) error
+	Get(ctx context.Context, keys []*CacheKey) error
+	Set(ctx context.Context, keys []*CacheKey, ttl time.Duration) error
+	Delete(ctx context.Context, keys []*CacheKey) error
 }
 
 func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg FetchCacheConfiguration, inputItems []*astjson.Value, res *result) (skipFetch bool, err error) {
@@ -464,31 +463,19 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 		return false, nil
 	}
 	// Generate cache keys for all items at once
-	keys, err := cfg.CacheKeyTemplate.RenderCacheKeys(nil, l.ctx, inputItems)
+	res.cacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(nil, l.ctx, inputItems)
 	if err != nil {
 		return false, err
 	}
-	if len(keys) == 0 {
+	if len(res.cacheKeys) == 0 {
 		// If no cache keys were generated, we skip the cache
 		return false, nil
 	}
-	res.cacheKeys = keys
-	cachedItems, err := res.cache.Get(ctx, res.cacheKeys)
+	err = res.cache.Get(ctx, res.cacheKeys)
 	if err != nil {
 		return false, err
 	}
-	res.cacheItems = make([]*astjson.Value, len(cachedItems))
-	for i := range cachedItems {
-		if cachedItems[i] == nil {
-			res.cacheItems[i] = astjson.NullValue
-			continue
-		}
-		res.cacheItems[i], err = astjson.ParseBytes(cachedItems[i])
-		if err != nil {
-			return false, errors.WithStack(err)
-		}
-	}
-	missing, canSkip := l.canSkipFetch(info, res.cacheItems)
+	missing, canSkip := l.canSkipFetch(info, res)
 	if canSkip {
 		res.cacheSkippedFetch = true
 		return true, nil
@@ -587,8 +574,8 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return nil
 	}
 	if res.cacheSkippedFetch {
-		for i, item := range res.cacheItems {
-			_, _, err := astjson.MergeValues(l.jsonArena, items[i], item)
+		for i, key := range res.cacheKeys {
+			_, _, err := astjson.MergeValues(l.jsonArena, items[i], key.FromCache)
 			if err != nil {
 				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 			}
@@ -602,7 +589,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		return l.renderErrorsFailedToFetch(fetchItem, res, emptyGraphQLResponse)
 	}
 	if res.cacheMustBeUpdated {
-		defer l.updateCache(res, items)
+		defer l.updateCache(res)
 	}
 	// before parsing bytes with an arena.Arena, it's important to first allocate the bytes ON the same arena.Arena
 	// this ties their lifecycles together
@@ -779,24 +766,13 @@ func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem) []byte {
 	return out.Bytes()
 }
 
-func (l *Loader) updateCache(res *result, items []*astjson.Value) {
-	if res.cache == nil || len(res.cacheKeys) == 0 || len(res.cacheItems) == 0 {
+func (l *Loader) updateCache(res *result) {
+	if res.cache == nil || len(res.cacheKeys) == 0 {
 		return
 	}
-	var (
-		keys       []string
-		cacheItems [][]byte
-	)
-	for i, item := range res.cacheItems {
-		if item != nil && item.Type() == astjson.TypeNull && items[i] != nil && items[i].Type() != astjson.TypeNull {
-			keys = append(keys, res.cacheKeys[i])
-			value := items[i].MarshalTo(nil)
-			cacheItems = append(cacheItems, value)
-		}
-	}
-	err := res.cache.Set(context.Background(), keys, cacheItems, res.cacheTTL)
+	err := res.cache.Set(context.Background(), res.cacheKeys, res.cacheTTL)
 	if err != nil {
-		panic(err)
+		fmt.Printf("error cache.Set: %s", err)
 	}
 }
 
@@ -2045,24 +2021,16 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 	return v.MarshalTo(nil), nil
 }
 
-func (l *Loader) canSkipFetch(info *FetchInfo, items []*astjson.Value) ([]*astjson.Value, bool) {
-	if info == nil || info.OperationType != ast.OperationTypeQuery {
-		return items, false
-	}
-	if len(items) == 1 && items[0].Type() == astjson.TypeNull {
-		return items, true
-	}
-
-	// If ProvidesData is nil, we cannot validate the data - do not skip fetch
-	if info.ProvidesData == nil {
-		return items, false
+func (l *Loader) canSkipFetch(info *FetchInfo, res *result) ([]*CacheKey, bool) {
+	if info == nil || info.OperationType != ast.OperationTypeQuery || info.ProvidesData == nil {
+		return res.cacheKeys, false
 	}
 
 	// Check each item and remove those that have sufficient data
-	remaining := make([]*astjson.Value, 0, len(items))
-	for _, item := range items {
-		if !l.validateItemHasRequiredData(item, info.ProvidesData) {
-			remaining = append(remaining, item)
+	remaining := make([]*CacheKey, 0, len(res.cacheKeys))
+	for i, key := range res.cacheKeys {
+		if !l.validateItemHasRequiredData(key.Item, info.ProvidesData) {
+			remaining = append(remaining, res.cacheKeys[i])
 		}
 	}
 
@@ -2073,10 +2041,9 @@ func (l *Loader) canSkipFetch(info *FetchInfo, items []*astjson.Value) ([]*astjs
 // validateItemHasRequiredData checks if the given item contains all required data
 // as specified by the provided Object schema
 func (l *Loader) validateItemHasRequiredData(item *astjson.Value, obj *Object) bool {
-	if obj == nil {
-		return true
+	if item == nil {
+		return false
 	}
-
 	// Validate each field in the object
 	for _, field := range obj.Fields {
 		if !l.validateFieldData(item, field) {
