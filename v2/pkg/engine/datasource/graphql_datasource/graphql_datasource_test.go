@@ -402,19 +402,38 @@ func TestGraphQLDataSource(t *testing.T) {
 							CacheName: "default",
 							TTL:       30 * time.Second,
 							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
-								Fields: []resolve.CacheKeyQueryRootField{
+								RootFields: []resolve.QueryField{
 									{
-										Name: "droid",
-										Args: []resolve.CacheKeyQueryRootFieldArgument{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "droid",
+										},
+										Args: []resolve.FieldArgument{
 											{
 												Name: "id",
-												Variables: resolve.NewVariables(
-													&resolve.ContextVariable{
-														Path:     []string{"id"},
-														Renderer: resolve.NewJSONVariableRenderer(),
-													},
-												),
+												Variable: &resolve.ContextVariable{
+													Path:     []string{"id"},
+													Renderer: resolve.NewJSONVariableRenderer(),
+												},
 											},
+										},
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "hero",
+										},
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "stringList",
+										},
+									},
+									{
+										Coordinate: resolve.GraphCoordinate{
+											TypeName:  "Query",
+											FieldName: "nestedStringList",
 										},
 									},
 								},

@@ -1645,14 +1645,12 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 	dataSourceType = strings.TrimPrefix(dataSourceType, "*")
 
 	if !v.Config.DisableEntityCaching {
-
-		if external.RequiresEntityFetch || external.RequiresEntityBatchFetch {
-			external.Caching = resolve.FetchCacheConfiguration{
-				Enabled:          true,
-				CacheName:        "default",
-				TTL:              time.Second * time.Duration(30),
-				CacheKeyTemplate: external.Caching.CacheKeyTemplate,
-			}
+		external.Caching = resolve.FetchCacheConfiguration{
+			Enabled:   true,
+			CacheName: "default",
+			TTL:       time.Second * time.Duration(30),
+			// templates come prepared from the DataSource
+			CacheKeyTemplate: external.Caching.CacheKeyTemplate,
 		}
 	} else {
 		external.Caching = resolve.FetchCacheConfiguration{

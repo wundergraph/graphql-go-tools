@@ -463,24 +463,16 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 	if res.cache == nil {
 		return false, nil
 	}
-	res.cacheKeys = make([]string, 0, len(inputItems))
-	buf := &bytes.Buffer{}
-	for _, item := range inputItems {
-		err = cfg.CacheKeyTemplate.RenderCacheKey(l.ctx, item, buf)
-		if err != nil {
-			return false, err
-		}
-		if buf.Len() == 0 {
-			// If the cache key is empty, we skip the cache
-			continue
-		}
-		res.cacheKeys = append(res.cacheKeys, buf.String())
-		buf.Reset()
+	// Generate cache keys for all items at once
+	keys, err := cfg.CacheKeyTemplate.RenderCacheKeys(nil, l.ctx, inputItems)
+	if err != nil {
+		return false, err
 	}
-	if len(res.cacheKeys) == 0 {
+	if len(keys) == 0 {
 		// If no cache keys were generated, we skip the cache
 		return false, nil
 	}
+	res.cacheKeys = keys
 	cachedItems, err := res.cache.Get(ctx, res.cacheKeys)
 	if err != nil {
 		return false, err

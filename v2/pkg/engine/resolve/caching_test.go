@@ -1,33 +1,52 @@
 package resolve
 
 import (
-	"bytes"
 	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wundergraph/astjson"
+	"github.com/wundergraph/go-arena"
 )
 
 func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
+	t.Run("single field no arguments", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "users",
+					},
+					Args: []FieldArgument{},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"users"}`}, keys)
+	})
+
 	t.Run("single field single argument", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
-			Fields: []CacheKeyQueryRootField{
+			RootFields: []QueryField{
 				{
-					Name: "droid",
-					Args: []CacheKeyQueryRootFieldArgument{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "droid",
+					},
+					Args: []FieldArgument{
 						{
 							Name: "id",
-							Variables: InputTemplate{
-								SetTemplateOutputToNullOnVariableNull: true,
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"id"},
-										Renderer:           NewCacheKeyVariableRenderer(),
-									},
-								},
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
 							},
 						},
 					},
@@ -40,44 +59,63 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			ctx:       context.Background(),
 		}
 		data := astjson.MustParse(`{}`)
-		out := &bytes.Buffer{}
-		err := tmpl.RenderCacheKey(ctx, data, out)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, `Query::droid:id:1`, out.String())
+		assert.Equal(t, []string{`{"__typename":"Query","field":"droid","args":{"id":1}}`}, keys)
+	})
+
+	t.Run("single field single string argument", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "name",
+							Variable: &ContextVariable{
+								Path:     []string{"name"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"name":"john"}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"name":"john"}}`}, keys)
 	})
 
 	t.Run("single field multiple arguments", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
-			Fields: []CacheKeyQueryRootField{
+			RootFields: []QueryField{
 				{
-					Name: "search",
-					Args: []CacheKeyQueryRootFieldArgument{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "search",
+					},
+					Args: []FieldArgument{
 						{
 							Name: "term",
-							Variables: InputTemplate{
-								SetTemplateOutputToNullOnVariableNull: true,
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"term"},
-										Renderer:           NewCacheKeyVariableRenderer(),
-									},
-								},
+							Variable: &ContextVariable{
+								Path:     []string{"term"},
+								Renderer: NewCacheKeyVariableRenderer(),
 							},
 						},
 						{
 							Name: "max",
-							Variables: InputTemplate{
-								SetTemplateOutputToNullOnVariableNull: true,
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"max"},
-										Renderer:           NewCacheKeyVariableRenderer(),
-									},
-								},
+							Variable: &ContextVariable{
+								Path:     []string{"max"},
+								Renderer: NewCacheKeyVariableRenderer(),
 							},
 						},
 					},
@@ -89,50 +127,79 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			Variables: astjson.MustParse(`{"term":"C3PO","max":10}`),
 			ctx:       context.Background(),
 		}
-		out := &bytes.Buffer{}
 		data := astjson.MustParse(`{}`)
-		err := tmpl.RenderCacheKey(ctx, data, out)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, `Query::search:term:C3PO:max:10`, out.String())
+		assert.Equal(t, []string{`{"__typename":"Query","field":"search","args":{"term":"C3PO","max":10}}`}, keys)
+	})
+
+	t.Run("single field multiple arguments with boolean", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "products",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "includeDeleted",
+							Variable: &ContextVariable{
+								Path:     []string{"includeDeleted"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+						{
+							Name: "limit",
+							Variable: &ContextVariable{
+								Path:     []string{"limit"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"includeDeleted":true,"limit":20}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"products","args":{"includeDeleted":true,"limit":20}}`}, keys)
 	})
 
 	t.Run("multiple fields single argument each", func(t *testing.T) {
 		tmpl := &RootQueryCacheKeyTemplate{
-			Fields: []CacheKeyQueryRootField{
+			RootFields: []QueryField{
 				{
-					Name: "droid",
-					Args: []CacheKeyQueryRootFieldArgument{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "droid",
+					},
+					Args: []FieldArgument{
 						{
 							Name: "id",
-							Variables: InputTemplate{
-								SetTemplateOutputToNullOnVariableNull: true,
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"id"},
-										Renderer:           NewCacheKeyVariableRenderer(),
-									},
-								},
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
 							},
 						},
 					},
 				},
 				{
-					Name: "user",
-					Args: []CacheKeyQueryRootFieldArgument{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
 						{
 							Name: "name",
-							Variables: InputTemplate{
-								SetTemplateOutputToNullOnVariableNull: true,
-								Segments: []TemplateSegment{
-									{
-										SegmentType:        VariableSegmentType,
-										VariableKind:       ContextVariableKind,
-										VariableSourcePath: []string{"name"},
-										Renderer:           NewCacheKeyVariableRenderer(),
-									},
-								},
+							Variable: &ContextVariable{
+								Path:     []string{"name"},
+								Renderer: NewCacheKeyVariableRenderer(),
 							},
 						},
 					},
@@ -144,10 +211,528 @@ func TestCachingRenderRootQueryCacheKeyTemplate(t *testing.T) {
 			Variables: astjson.MustParse(`{"id":1,"name":"john"}`),
 			ctx:       context.Background(),
 		}
-		out := &bytes.Buffer{}
 		data := astjson.MustParse(`{}`)
-		err := tmpl.RenderCacheKey(ctx, data, out)
+
+		// Test RenderCacheKeys returns multiple keys
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
 		assert.NoError(t, err)
-		assert.Equal(t, `Query::droid:id:1::user:name:john`, out.String())
+		assert.Equal(t, []string{`{"__typename":"Query","field":"droid","args":{"id":1}}`, `{"__typename":"Query","field":"user","args":{"name":"john"}}`}, keys)
+	})
+
+	t.Run("multiple fields with mixed arguments", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "product",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "id",
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+						{
+							Name: "includeReviews",
+							Variable: &ContextVariable{
+								Path:     []string{"includeReviews"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "hero",
+					},
+					Args: []FieldArgument{},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"id":"123","includeReviews":true}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+
+		// Test RenderCacheKeys returns multiple keys
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"product","args":{"id":"123","includeReviews":true}}`, `{"__typename":"Query","field":"hero"}`}, keys)
+	})
+
+	t.Run("field with object variable argument", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "search",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "filter",
+							Variable: &ObjectVariable{
+								Path:     []string{"filter"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{"filter":{"category":"electronics","price":100}}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"search","args":{"filter":{"category":"electronics","price":100}}}`}, keys)
+	})
+
+	t.Run("field with null argument", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "id",
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"id":null}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"id":null}}`}, keys)
+	})
+
+	t.Run("field with missing argument", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "id",
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"id":null}}`}, keys)
+	})
+
+	t.Run("field with array argument", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "products",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "ids",
+							Variable: &ContextVariable{
+								Path:     []string{"ids"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"ids":[1,2,3]}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"products","args":{"ids":[1,2,3]}}`}, keys)
+	})
+
+	t.Run("non-Query type", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Subscription",
+						FieldName: "messageAdded",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "roomId",
+							Variable: &ContextVariable{
+								Path:     []string{"roomId"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"roomId":"123"}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Subscription","field":"messageAdded","args":{"roomId":"123"}}`}, keys)
+	})
+
+	t.Run("single field with arena", func(t *testing.T) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "name",
+							Variable: &ContextVariable{
+								Path:     []string{"name"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		ar := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+		ctx := &Context{
+			Variables: astjson.MustParse(`{"name":"john"}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{}`)
+		keys, err := tmpl.RenderCacheKeys(ar, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Query","field":"user","args":{"name":"john"}}`}, keys)
+	})
+}
+
+func TestCachingRenderEntityQueryCacheKeyTemplate(t *testing.T) {
+	t.Run("single entity with typename and id", func(t *testing.T) {
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{
+						Name: []byte("__typename"),
+						Value: &String{
+							Path: []string{"__typename"},
+						},
+					},
+					{
+						Name: []byte("id"),
+						Value: &String{
+							Path: []string{"id"},
+						},
+					},
+				},
+			}),
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{"__typename":"Product","id":"123"}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Product","keys":{"id":"123"}}`}, keys)
+	})
+
+	t.Run("single entity with multiple keys", func(t *testing.T) {
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{
+						Name: []byte("__typename"),
+						Value: &String{
+							Path: []string{"__typename"},
+						},
+					},
+					{
+						Name: []byte("sku"),
+						Value: &String{
+							Path: []string{"sku"},
+						},
+					},
+					{
+						Name: []byte("upc"),
+						Value: &String{
+							Path: []string{"upc"},
+						},
+					},
+				},
+			}),
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{"__typename":"Product","sku":"ABC123","upc":"DEF456","name":"Trilby"}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"Product","keys":{"sku":"ABC123","upc":"DEF456"}}`}, keys)
+	})
+
+	t.Run("entity with nested object key", func(t *testing.T) {
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{
+						Name: []byte("__typename"),
+						Value: &String{
+							Path: []string{"__typename"},
+						},
+					},
+					{
+						Name: []byte("key"),
+						Value: &Object{
+							Fields: []*Field{
+								{
+									Name: []byte("id"),
+									Value: &String{
+										Path: []string{"key", "id"},
+									},
+								},
+								{
+									Name: []byte("version"),
+									Value: &String{
+										Path: []string{"key", "version"},
+									},
+								},
+							},
+						},
+					},
+				},
+			}),
+		}
+
+		ctx := &Context{
+			Variables: astjson.MustParse(`{}`),
+			ctx:       context.Background(),
+		}
+		data := astjson.MustParse(`{"__typename":"VersionedEntity","key":{"id":"123","version":"1"}}`)
+		keys, err := tmpl.RenderCacheKeys(nil, ctx, []*astjson.Value{data})
+		assert.NoError(t, err)
+		assert.Equal(t, []string{`{"__typename":"VersionedEntity","keys":{"key":{"id":"123","version":"1"}}}`}, keys)
+	})
+}
+
+func BenchmarkRenderCacheKeys(b *testing.B) {
+	a := arena.NewMonotonicArena(arena.WithMinBufferSize(1024))
+
+	ctxRootQuery := &Context{
+		Variables: astjson.MustParse(`{"id":1,"name":"john","term":"C3PO","max":10}`),
+		ctx:       context.Background(),
+	}
+
+	ctxEntityQuery := &Context{
+		Variables: astjson.MustParse(`{}`),
+		ctx:       context.Background(),
+	}
+
+	b.Run("RootQuery/SingleField", func(b *testing.B) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "id",
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		data := astjson.MustParse(`{}`)
+		items := []*astjson.Value{data}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			a.Reset()
+			_, err := tmpl.RenderCacheKeys(a, ctxRootQuery, items)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("RootQuery/MultipleFields", func(b *testing.B) {
+		tmpl := &RootQueryCacheKeyTemplate{
+			RootFields: []QueryField{
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "droid",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "id",
+							Variable: &ContextVariable{
+								Path:     []string{"id"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "user",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "name",
+							Variable: &ContextVariable{
+								Path:     []string{"name"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+				{
+					Coordinate: GraphCoordinate{
+						TypeName:  "Query",
+						FieldName: "search",
+					},
+					Args: []FieldArgument{
+						{
+							Name: "term",
+							Variable: &ContextVariable{
+								Path:     []string{"term"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+						{
+							Name: "max",
+							Variable: &ContextVariable{
+								Path:     []string{"max"},
+								Renderer: NewCacheKeyVariableRenderer(),
+							},
+						},
+					},
+				},
+			},
+		}
+
+		data := astjson.MustParse(`{}`)
+		items := []*astjson.Value{data}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			a.Reset()
+			_, err := tmpl.RenderCacheKeys(a, ctxRootQuery, items)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("EntityQuery", func(b *testing.B) {
+		tmpl := &EntityQueryCacheKeyTemplate{
+			Keys: NewResolvableObjectVariable(&Object{
+				Fields: []*Field{
+					{
+						Name: []byte("__typename"),
+						Value: &String{
+							Path: []string{"__typename"},
+						},
+					},
+					{
+						Name: []byte("id"),
+						Value: &String{
+							Path: []string{"id"},
+						},
+					},
+					{
+						Name: []byte("sku"),
+						Value: &String{
+							Path: []string{"sku"},
+						},
+					},
+					{
+						Name: []byte("upc"),
+						Value: &String{
+							Path: []string{"upc"},
+						},
+					},
+				},
+			}),
+		}
+
+		data1 := astjson.MustParse(`{"__typename":"Product","id":"123","sku":"ABC123","upc":"DEF456","name":"Trilby"}`)
+		data2 := astjson.MustParse(`{"__typename":"Product","id":"456","sku":"XYZ789","upc":"GHI012","name":"Fedora"}`)
+		data3 := astjson.MustParse(`{"__typename":"Product","id":"789","sku":"JKL345","upc":"MNO678","name":"Boater"}`)
+		items := []*astjson.Value{data1, data2, data3}
+
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			a.Reset()
+			_, err := tmpl.RenderCacheKeys(a, ctxEntityQuery, items)
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
 	})
 }

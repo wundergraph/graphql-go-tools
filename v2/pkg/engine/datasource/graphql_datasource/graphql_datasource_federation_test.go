@@ -1558,6 +1558,22 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									Input:          `{"method":"POST","url":"http://user.service","body":{"query":"{user {account {__typename id info {a b}}}}"}}`,
 									DataSource:     &Source{},
 									PostProcessing: DefaultPostProcessingConfiguration,
+									Caching: resolve.FetchCacheConfiguration{
+										Enabled:   true,
+										CacheName: "default",
+										TTL:       30 * time.Second,
+										CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
+											RootFields: []resolve.QueryField{
+												{
+													Coordinate: resolve.GraphCoordinate{
+														TypeName:  "Query",
+														FieldName: "user",
+													},
+													Args: []resolve.FieldArgument{},
+												},
+											},
+										},
+									},
 								},
 								Info: &resolve.FetchInfo{
 									DataSourceID:   "user.service",
