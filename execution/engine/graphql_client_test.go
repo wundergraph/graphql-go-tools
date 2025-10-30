@@ -74,6 +74,22 @@ func (g *GraphqlClient) Query(ctx context.Context, addr, queryFilePath string, v
 	return responseBodyBytes
 }
 
+func (g *GraphqlClient) QueryString(ctx context.Context, addr, query string, variables queryVariables, t *testing.T) []byte {
+	reqBody := requestBody(t, query, variables)
+	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
+	require.NoError(t, err)
+	req = req.WithContext(ctx)
+	resp, err := g.httpClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	responseBodyBytes, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Contains(t, resp.Header.Get("Content-Type"), "application/json")
+
+	return responseBodyBytes
+}
+
 func (g *GraphqlClient) QueryStatusCode(ctx context.Context, addr, queryFilePath string, variables queryVariables, expectedStatusCode int, t *testing.T) []byte {
 	reqBody := loadQuery(t, queryFilePath, variables)
 	req, err := http.NewRequest(http.MethodPost, addr, bytes.NewBuffer(reqBody))
