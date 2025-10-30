@@ -692,7 +692,7 @@ func (v *AbstractFieldPathCollector) EnterField(ref int) {
 }
 
 func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
-	walker := astvisitor.NewWalker(4)
+	walker := astvisitor.NewWalkerWithID(4, "AbstractFieldPathCollector")
 
 	c := &AbstractFieldPathCollector{
 		Walker:         &walker,

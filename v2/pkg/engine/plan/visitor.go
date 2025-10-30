@@ -391,7 +391,7 @@ func (v *Visitor) EnterField(ref int) {
 			v.currentField.Value = str
 		}
 	} else {
-		path := v.resolveFieldPath(ref)
+		path := []string{v.Operation.FieldAliasOrNameString(ref)}
 		v.currentField.Value = v.resolveFieldValue(ref, fieldDefinitionTypeRef, true, path)
 	}
 
@@ -1020,6 +1020,7 @@ func (v *Visitor) EnterOperationDefinition(ref int) {
 	}
 }
 
+// TODO: cleanup - field alias override logic is disabled
 func (v *Visitor) resolveFieldPath(ref int) []string {
 	typeName := v.Walker.EnclosingTypeDefinition.NameString(v.Definition)
 	fieldName := v.Operation.FieldNameUnsafeString(ref)

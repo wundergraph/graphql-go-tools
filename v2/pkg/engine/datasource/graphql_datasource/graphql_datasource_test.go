@@ -281,6 +281,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Name: []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
+							Path:     []string{"stringList"},
 							Item: &resolve.String{
 								Nullable: true,
 							},
@@ -348,11 +349,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
 			},
 			{
 				TypeName:  "Query",
@@ -588,6 +584,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Name: []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
+							Path:     []string{"stringList"},
 							Item: &resolve.String{
 								Nullable: true,
 							},
@@ -675,11 +672,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
 			},
 			{
 				TypeName:  "Query",
@@ -1698,6 +1690,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Name: []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
+							Path:     []string{"stringList"},
 							Item: &resolve.String{
 								Nullable: true,
 							},
@@ -1765,11 +1758,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
 			},
 			{
 				TypeName:  "Query",
@@ -2527,6 +2515,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("addFriend"),
 							Value: &resolve.Object{
+								Path: []string{"addFriend"},
 								PossibleTypes: map[string]struct{}{
 									"Friend": {},
 								},
@@ -2588,9 +2577,8 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			Fields: []plan.FieldConfiguration{
 				{
-					TypeName:              "Mutation",
-					FieldName:             "addFriend",
-					DisableDefaultMapping: true,
+					TypeName:  "Mutation",
+					FieldName: "addFriend",
 					Arguments: []plan.ArgumentConfiguration{
 						{
 							Name:       "name",
@@ -5009,12 +4997,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								TypeName:   "Query",
 								FieldNames: []string{"me", "user"},
 							},
-						},
-						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
 								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 							},
+						},
+						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "UserMetadata",
 								FieldNames: []string{"name", "address", "description"},
@@ -5395,12 +5383,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								TypeName:   "Query",
 								FieldNames: []string{"me", "user"},
 							},
-						},
-						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
 								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 							},
+						},
+						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "UserMetadata",
 								FieldNames: []string{"name", "address", "description"},

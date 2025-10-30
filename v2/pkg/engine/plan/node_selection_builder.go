@@ -50,10 +50,11 @@ type NodeSelectionResult struct {
 }
 
 func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
-	nodeSelectionsWalker := astvisitor.NewWalker(48)
+	nodeSelectionsWalker := astvisitor.NewWalkerWithID(48, "NodeSelectionsWalker")
 	nodeSelectionVisitor := &nodeSelectionVisitor{
 		walker:                        &nodeSelectionsWalker,
 		addTypenameInNestedSelections: config.ValidateRequiredExternalFields,
+		newFieldRefs:                  make(map[int]struct{}),
 	}
 
 	nodeSelectionsWalker.RegisterEnterDocumentVisitor(nodeSelectionVisitor)
@@ -61,7 +62,7 @@ func NewNodeSelectionBuilder(config *Configuration) *NodeSelectionBuilder {
 	nodeSelectionsWalker.RegisterEnterOperationVisitor(nodeSelectionVisitor)
 	nodeSelectionsWalker.RegisterSelectionSetVisitor(nodeSelectionVisitor)
 
-	nodeResolvableWalker := astvisitor.NewWalker(32)
+	nodeResolvableWalker := astvisitor.NewWalkerWithID(32, "NodeResolvableWalker")
 	nodeResolvableVisitor := &nodesResolvableVisitor{
 		walker: &nodeResolvableWalker,
 	}
@@ -83,10 +84,11 @@ func (p *NodeSelectionBuilder) SetOperationName(name string) {
 
 func (p *NodeSelectionBuilder) ResetSkipFieldRefs() {
 	p.nodeSelectionsVisitor.skipFieldsRefs = nil
+	p.nodeSelectionsVisitor.newFieldRefs = make(map[int]struct{})
 }
 
 func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, report *operationreport.Report) (out *NodeSelectionResult) {
-	dsFilter := NewDataSourceFilter(operation, definition, report)
+	dsFilter := NewDataSourceFilter(operation, definition, report, p.config.DataSources, p.nodeSelectionsVisitor.newFieldRefs)
 
 	if p.config.Debug.PrintNodeSuggestions {
 		dsFilter.EnableSelectionReasons()
@@ -101,7 +103,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 
 	// set initial suggestions and used data sources
 	p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-		dsFilter.FilterDataSources(p.config.DataSources, nil, nil, nil)
+		dsFilter.FilterDataSources(nil, nil)
 	if report.HasErrors() {
 		return
 	}
@@ -136,7 +138,7 @@ func (p *NodeSelectionBuilder) SelectNodes(operation, definition *ast.Document, 
 		if p.nodeSelectionsVisitor.hasNewFields {
 			// update suggestions for the new required fields
 			p.nodeSelectionsVisitor.dataSources, p.nodeSelectionsVisitor.nodeSuggestions =
-				dsFilter.FilterDataSources(p.config.DataSources, p.nodeSelectionsVisitor.nodeSuggestions, p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
+				dsFilter.FilterDataSources(p.nodeSelectionsVisitor.fieldLandedTo, p.nodeSelectionsVisitor.fieldRefDependsOn)
 			if report.HasErrors() {
 				return
 			}
