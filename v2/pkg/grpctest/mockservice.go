@@ -20,6 +20,426 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveProductMascotRecommendation implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req *productv1.ResolveProductMascotRecommendationRequest) (*productv1.ResolveProductMascotRecommendationResponse, error) {
+	results := make([]*productv1.ResolveProductMascotRecommendationResult, 0, len(req.GetContext()))
+
+	includeDetails := false
+	if req.GetFieldArgs() != nil {
+		includeDetails = req.GetFieldArgs().GetIncludeDetails()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Alternate between Cat and Dog based on index
+		var animal *productv1.Animal
+		if i%2 == 0 {
+			volume := int32(5)
+			if includeDetails {
+				volume = int32((i + 1) * 8)
+			}
+			animal = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("mascot-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotCat for %s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: volume,
+					},
+				},
+			}
+		} else {
+			volume := int32(7)
+			if includeDetails {
+				volume = int32((i + 1) * 10)
+			}
+			animal = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("mascot-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotDog for %s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: volume,
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductMascotRecommendationResult{
+			MascotRecommendation: animal,
+		})
+	}
+
+	return &productv1.ResolveProductMascotRecommendationResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductProductDetails implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductProductDetails(_ context.Context, req *productv1.ResolveProductProductDetailsRequest) (*productv1.ResolveProductProductDetailsResponse, error) {
+	results := make([]*productv1.ResolveProductProductDetailsResult, 0, len(req.GetContext()))
+
+	includeExtended := false
+	if req.GetFieldArgs() != nil {
+		includeExtended = req.GetFieldArgs().GetIncludeExtended()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Create recommended pet (alternate between Cat and Dog)
+		var pet *productv1.Animal
+		if i%2 == 0 {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("details-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedCat for %s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: int32((i + 1) * 6),
+					},
+				},
+			}
+		} else {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("details-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedDog for %s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: int32((i + 1) * 9),
+					},
+				},
+			}
+		}
+
+		// Create review summary (alternate between success and error based on price and extended flag)
+		var reviewSummary *productv1.ActionResult
+		if includeExtended && ctx.GetPrice() > 500 {
+			reviewSummary = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Product %s has negative reviews", ctx.GetName()),
+						Code:    "NEGATIVE_REVIEWS",
+					},
+				},
+			}
+		} else {
+			reviewSummary = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Product %s has positive reviews", ctx.GetName()),
+						Timestamp: "2024-01-01T15:00:00Z",
+					},
+				},
+			}
+		}
+
+		description := fmt.Sprintf("Standard details for %s", ctx.GetName())
+		if includeExtended {
+			description = fmt.Sprintf("Extended details for %s with comprehensive information", ctx.GetName())
+		}
+
+		results = append(results, &productv1.ResolveProductProductDetailsResult{
+			ProductDetails: &productv1.ProductDetails{
+				Id:             fmt.Sprintf("details-%s-%d", ctx.GetId(), i),
+				Description:    description,
+				ReviewSummary:  reviewSummary,
+				RecommendedPet: pet,
+			},
+		})
+	}
+
+	return &productv1.ResolveProductProductDetailsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductStockStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductStockStatus(_ context.Context, req *productv1.ResolveProductStockStatusRequest) (*productv1.ResolveProductStockStatusResponse, error) {
+	results := make([]*productv1.ResolveProductStockStatusResult, 0, len(req.GetContext()))
+
+	checkAvailability := false
+	if req.GetFieldArgs() != nil {
+		checkAvailability = req.GetFieldArgs().GetCheckAvailability()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var stockStatus *productv1.ActionResult
+
+		// If checking availability and price is high, return out of stock error
+		if checkAvailability && ctx.GetPrice() > 300 && i%2 == 0 {
+			stockStatus = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Product %s is currently out of stock", ctx.GetName()),
+						Code:    "OUT_OF_STOCK",
+					},
+				},
+			}
+		} else {
+			stockStatus = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Product %s is in stock and available", ctx.GetName()),
+						Timestamp: "2024-01-01T10:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductStockStatusResult{
+			StockStatus: stockStatus,
+		})
+	}
+
+	return &productv1.ResolveProductStockStatusResponse{
+		Result: results,
+	}, nil
+}
+
+// QueryTestContainer implements productv1.ProductServiceServer.
+func (s *MockService) QueryTestContainer(_ context.Context, req *productv1.QueryTestContainerRequest) (*productv1.QueryTestContainerResponse, error) {
+	id := req.GetId()
+
+	return &productv1.QueryTestContainerResponse{
+		TestContainer: &productv1.TestContainer{
+			Id:          id,
+			Name:        fmt.Sprintf("TestContainer-%s", id),
+			Description: &wrapperspb.StringValue{Value: fmt.Sprintf("Description for TestContainer %s", id)},
+		},
+	}, nil
+}
+
+// QueryTestContainers implements productv1.ProductServiceServer.
+func (s *MockService) QueryTestContainers(_ context.Context, _ *productv1.QueryTestContainersRequest) (*productv1.QueryTestContainersResponse, error) {
+	var containers []*productv1.TestContainer
+
+	// Generate 3 test containers
+	for i := 1; i <= 3; i++ {
+		containers = append(containers, &productv1.TestContainer{
+			Id:          fmt.Sprintf("container-%d", i),
+			Name:        fmt.Sprintf("TestContainer %d", i),
+			Description: &wrapperspb.StringValue{Value: fmt.Sprintf("Description for container %d", i)},
+		})
+	}
+
+	return &productv1.QueryTestContainersResponse{
+		TestContainers: containers,
+	}, nil
+}
+
+// ResolveTestContainerDetails implements productv1.ProductServiceServer.
+func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *productv1.ResolveTestContainerDetailsRequest) (*productv1.ResolveTestContainerDetailsResponse, error) {
+	results := make([]*productv1.ResolveTestContainerDetailsResult, 0, len(req.GetContext()))
+
+	includeExtended := false
+	if req.GetFieldArgs() != nil {
+		includeExtended = req.GetFieldArgs().GetIncludeExtended()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Alternate between Cat and Dog for the pet field (Animal interface)
+		var pet *productv1.Animal
+		if i%2 == 0 {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("test-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestCat-%s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: int32((i + 1) * 5),
+					},
+				},
+			}
+		} else {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("test-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestDog-%s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: int32((i + 1) * 7),
+					},
+				},
+			}
+		}
+
+		// Alternate between ActionSuccess and ActionError for the status field (ActionResult union)
+		var status *productv1.ActionResult
+		if includeExtended && i%3 == 0 {
+			// Return error status for extended mode on certain items
+			status = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Extended check failed for %s", ctx.GetName()),
+						Code:    "EXTENDED_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			status = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("TestContainer %s details loaded successfully", ctx.GetName()),
+						Timestamp: "2024-01-01T12:00:00Z",
+					},
+				},
+			}
+		}
+
+		summary := fmt.Sprintf("Summary for %s", ctx.GetName())
+		if includeExtended {
+			summary = fmt.Sprintf("Extended summary for %s with additional details", ctx.GetName())
+		}
+
+		results = append(results, &productv1.ResolveTestContainerDetailsResult{
+			Details: &productv1.TestDetails{
+				Id:      fmt.Sprintf("details-%s-%d", ctx.GetId(), i),
+				Summary: summary,
+				Pet:     pet,
+				Status:  status,
+			},
+		})
+	}
+
+	return &productv1.ResolveTestContainerDetailsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveCategoryMetricsNormalizedScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMetricsNormalizedScore(_ context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryMetricsNormalizedScoreResult, 0, len(req.GetContext()))
+
+	baseline := req.GetFieldArgs().GetBaseline()
+	if baseline == 0 {
+		baseline = 1.0 // Avoid division by zero
+	}
+
+	for _, ctx := range req.GetContext() {
+		// Calculate normalized score: (value / baseline) * 100
+		// This gives a percentage relative to the baseline
+		normalizedScore := (ctx.GetValue() / baseline) * 100.0
+
+		results = append(results, &productv1.ResolveCategoryMetricsNormalizedScoreResult{
+			NormalizedScore: normalizedScore,
+		})
+	}
+
+	resp := &productv1.ResolveCategoryMetricsNormalizedScoreResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryMascot implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryMascot(_ context.Context, req *productv1.ResolveCategoryMascotRequest) (*productv1.ResolveCategoryMascotResponse, error) {
+	results := make([]*productv1.ResolveCategoryMascotResult, 0, len(req.GetContext()))
+
+	includeVolume := false
+	if req.GetFieldArgs() != nil {
+		includeVolume = req.GetFieldArgs().GetIncludeVolume()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for certain categories to test optional return
+		if ctx.GetKind() == productv1.CategoryKind_CATEGORY_KIND_OTHER {
+			results = append(results, &productv1.ResolveCategoryMascotResult{
+				Mascot: nil,
+			})
+		} else {
+			// Alternate between Cat and Dog based on category kind
+			var animal *productv1.Animal
+			if ctx.GetKind() == productv1.CategoryKind_CATEGORY_KIND_BOOK || ctx.GetKind() == productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS {
+				volume := int32(0)
+				if includeVolume {
+					volume = int32(i*10 + 5)
+				}
+				animal = &productv1.Animal{
+					Instance: &productv1.Animal_Cat{
+						Cat: &productv1.Cat{
+							Id:         fmt.Sprintf("cat-mascot-%s", ctx.GetId()),
+							Name:       fmt.Sprintf("Whiskers-%s", ctx.GetId()),
+							Kind:       "Cat",
+							MeowVolume: volume,
+						},
+					},
+				}
+			} else {
+				volume := int32(0)
+				if includeVolume {
+					volume = int32(i*10 + 10)
+				}
+				animal = &productv1.Animal{
+					Instance: &productv1.Animal_Dog{
+						Dog: &productv1.Dog{
+							Id:         fmt.Sprintf("dog-mascot-%s", ctx.GetId()),
+							Name:       fmt.Sprintf("Buddy-%s", ctx.GetId()),
+							Kind:       "Dog",
+							BarkVolume: volume,
+						},
+					},
+				}
+			}
+			results = append(results, &productv1.ResolveCategoryMascotResult{
+				Mascot: animal,
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryMascotResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryCategoryStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryCategoryStatus(_ context.Context, req *productv1.ResolveCategoryCategoryStatusRequest) (*productv1.ResolveCategoryCategoryStatusResponse, error) {
+	results := make([]*productv1.ResolveCategoryCategoryStatusResult, 0, len(req.GetContext()))
+
+	checkHealth := false
+	if req.GetFieldArgs() != nil {
+		checkHealth = req.GetFieldArgs().GetCheckHealth()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var actionResult *productv1.ActionResult
+
+		if checkHealth && i%3 == 0 {
+			// Return error status for health check failures
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Health check failed for category %s", ctx.GetName()),
+						Code:    "HEALTH_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			actionResult = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Category %s is healthy", ctx.GetName()),
+						Timestamp: "2024-01-01T00:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveCategoryCategoryStatusResult{
+			CategoryStatus: actionResult,
+		})
+	}
+
+	resp := &productv1.ResolveCategoryCategoryStatusResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
 // ResolveProductRecommendedCategory implements productv1.ProductServiceServer.
 func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *productv1.ResolveProductRecommendedCategoryRequest) (*productv1.ResolveProductRecommendedCategoryResponse, error) {
 	results := make([]*productv1.ResolveProductRecommendedCategoryResult, 0, len(req.GetContext()))
