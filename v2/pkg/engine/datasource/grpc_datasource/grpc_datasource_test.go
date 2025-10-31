@@ -3898,6 +3898,253 @@ func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
 				require.Empty(t, errData)
 			},
 		},
+		{
+			name:  "Query with field resolvers and Interface type",
+			query: "query CategoriesWithInterfaceType($includeVolume: Boolean!) { categories { kind mascot(includeVolume: $includeVolume) { ... on Cat { name } ... on Dog { name } } } }",
+			vars:  `{"variables":{"includeVolume":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["kind"])
+					if category["kind"] == "OTHER" {
+						require.Empty(t, category["mascot"])
+						continue
+					}
+
+					require.NotEmpty(t, category["mascot"])
+					mascot, ok := category["mascot"].(map[string]interface{})
+					require.True(t, ok, "mascot should be an object")
+					require.NotEmpty(t, mascot["name"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and Union type",
+			query: "query CategoriesWithUnionType($checkHealth: Boolean!) { categories { id name categoryStatus(checkHealth: $checkHealth) { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } }",
+			vars:  `{"variables":{"checkHealth":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 4 categories")
+
+				// Based on mockservice.go implementation:
+				// - If checkHealth && i%3 == 0, returns ActionError
+				// - Otherwise, returns ActionSuccess
+				for i, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["categoryStatus"])
+
+					categoryStatus, ok := category["categoryStatus"].(map[string]interface{})
+					require.True(t, ok, "categoryStatus should be an object")
+
+					if i%3 == 0 {
+						// Should be ActionError
+						require.NotEmpty(t, categoryStatus["message"], "ActionError should have message")
+						require.NotEmpty(t, categoryStatus["code"], "ActionError should have code")
+						require.Empty(t, categoryStatus["timestamp"], "ActionError should not have timestamp")
+						require.Contains(t, categoryStatus["message"], "Health check failed", "ActionError message should contain 'Health check failed'")
+						require.Equal(t, "HEALTH_CHECK_FAILED", categoryStatus["code"], "ActionError code should be HEALTH_CHECK_FAILED")
+					} else {
+						// Should be ActionSuccess
+						require.NotEmpty(t, categoryStatus["message"], "ActionSuccess should have message")
+						require.NotEmpty(t, categoryStatus["timestamp"], "ActionSuccess should have timestamp")
+						require.Empty(t, categoryStatus["code"], "ActionSuccess should not have code")
+						require.Contains(t, categoryStatus["message"], "is healthy", "ActionSuccess message should contain 'is healthy'")
+						require.Equal(t, "2024-01-01T00:00:00Z", categoryStatus["timestamp"], "ActionSuccess timestamp should match")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning interface type",
+			query: "query TestContainersWithInterface($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } } } }",
+			vars:  `{"variables":{"includeExtended":false}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Based on mockservice.go implementation:
+				// - Even indices (0, 2) return Cat
+				// - Odd indices (1) return Dog
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.NotEmpty(t, details["pet"])
+
+					pet, ok := details["pet"].(map[string]interface{})
+					require.True(t, ok, "pet should be an object")
+					require.NotEmpty(t, pet["name"])
+
+					if i%2 == 0 {
+						// Should be Cat
+						require.NotEmpty(t, pet["meowVolume"], "Cat should have meowVolume")
+						require.Empty(t, pet["barkVolume"], "Cat should not have barkVolume")
+						require.Contains(t, pet["name"], "TestCat", "Cat name should contain 'TestCat'")
+					} else {
+						// Should be Dog
+						require.NotEmpty(t, pet["barkVolume"], "Dog should have barkVolume")
+						require.Empty(t, pet["meowVolume"], "Dog should not have meowVolume")
+						require.Contains(t, pet["name"], "TestDog", "Dog name should contain 'TestDog'")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning union type",
+			query: "query TestContainersWithUnion($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
+			vars:  `{"variables":{"includeExtended":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Based on mockservice.go implementation:
+				// - When includeExtended=true && i%3 == 0, returns ActionError
+				// - Otherwise, returns ActionSuccess
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.Contains(t, details["summary"], "Extended summary", "Summary should contain 'Extended summary'")
+					require.NotEmpty(t, details["status"])
+
+					status, ok := details["status"].(map[string]interface{})
+					require.True(t, ok, "status should be an object")
+
+					if i%3 == 0 {
+						// Should be ActionError
+						require.NotEmpty(t, status["message"], "ActionError should have message")
+						require.NotEmpty(t, status["code"], "ActionError should have code")
+						require.Empty(t, status["timestamp"], "ActionError should not have timestamp")
+						require.Contains(t, status["message"], "Extended check failed", "ActionError message should contain 'Extended check failed'")
+						require.Equal(t, "EXTENDED_CHECK_FAILED", status["code"], "ActionError code should be EXTENDED_CHECK_FAILED")
+					} else {
+						// Should be ActionSuccess
+						require.NotEmpty(t, status["message"], "ActionSuccess should have message")
+						require.NotEmpty(t, status["timestamp"], "ActionSuccess should have timestamp")
+						require.Empty(t, status["code"], "ActionSuccess should not have code")
+						require.Contains(t, status["message"], "details loaded successfully", "ActionSuccess message should contain 'details loaded successfully'")
+						require.Equal(t, "2024-01-01T12:00:00Z", status["timestamp"], "ActionSuccess timestamp should match")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with nested field resolver returning both interface and union types",
+			query: "query TestContainersWithBoth($includeExtended: Boolean!) { testContainers { id name details(includeExtended: $includeExtended) { id summary pet { ... on Cat { name meowVolume } ... on Dog { name barkVolume } } status { ... on ActionSuccess { message timestamp } ... on ActionError { message code } } } } }",
+			vars:  `{"variables":{"includeExtended":true}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				containers, ok := data["testContainers"].([]interface{})
+				require.True(t, ok, "testContainers should be an array")
+				require.NotEmpty(t, containers, "testContainers should not be empty")
+				require.Len(t, containers, 3, "Should return 3 test containers")
+
+				// Validate both pet (interface) and status (union) fields
+				for i, container := range containers {
+					container, ok := container.(map[string]interface{})
+					require.True(t, ok, "container should be an object")
+					require.NotEmpty(t, container["id"])
+					require.NotEmpty(t, container["name"])
+					require.NotEmpty(t, container["details"])
+
+					details, ok := container["details"].(map[string]interface{})
+					require.True(t, ok, "details should be an object")
+					require.NotEmpty(t, details["id"])
+					require.NotEmpty(t, details["summary"])
+					require.NotEmpty(t, details["pet"])
+					require.NotEmpty(t, details["status"])
+
+					// Validate pet (Animal interface)
+					pet, ok := details["pet"].(map[string]interface{})
+					require.True(t, ok, "pet should be an object")
+					require.NotEmpty(t, pet["name"])
+
+					if i%2 == 0 {
+						// Should be Cat
+						require.NotEmpty(t, pet["meowVolume"], "Cat should have meowVolume")
+						require.Empty(t, pet["barkVolume"], "Cat should not have barkVolume")
+						require.Contains(t, pet["name"], "TestCat", "Cat name should contain 'TestCat'")
+					} else {
+						// Should be Dog
+						require.NotEmpty(t, pet["barkVolume"], "Dog should have barkVolume")
+						require.Empty(t, pet["meowVolume"], "Dog should not have meowVolume")
+						require.Contains(t, pet["name"], "TestDog", "Dog name should contain 'TestDog'")
+					}
+
+					// Validate status (ActionResult union)
+					status, ok := details["status"].(map[string]interface{})
+					require.True(t, ok, "status should be an object")
+
+					if i%3 == 0 {
+						// Should be ActionError
+						require.NotEmpty(t, status["message"], "ActionError should have message")
+						require.NotEmpty(t, status["code"], "ActionError should have code")
+						require.Empty(t, status["timestamp"], "ActionError should not have timestamp")
+						require.Contains(t, status["message"], "Extended check failed", "ActionError message should contain 'Extended check failed'")
+						require.Equal(t, "EXTENDED_CHECK_FAILED", status["code"], "ActionError code should be EXTENDED_CHECK_FAILED")
+					} else {
+						// Should be ActionSuccess
+						require.NotEmpty(t, status["message"], "ActionSuccess should have message")
+						require.NotEmpty(t, status["timestamp"], "ActionSuccess should have timestamp")
+						require.Empty(t, status["code"], "ActionSuccess should not have code")
+						require.Contains(t, status["message"], "details loaded successfully", "ActionSuccess message should contain 'details loaded successfully'")
+						require.Equal(t, "2024-01-01T12:00:00Z", status["timestamp"], "ActionSuccess timestamp should match")
+					}
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
 	}
 
 	for _, tc := range testCases {

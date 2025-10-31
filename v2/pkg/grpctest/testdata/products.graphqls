@@ -186,6 +186,21 @@ type ActionError {
   code: String!
 }
 
+# Test container type for testing field resolvers with interface and union returns
+type TestContainer {
+  id: ID!
+  name: String!
+  description: String
+  details(includeExtended: Boolean!): TestDetails @connect__fieldResolver(context: "id name")
+}
+
+type TestDetails {
+  id: ID!
+  summary: String!
+  pet: Animal!
+  status: ActionResult!
+}
+
 # Input types for union operations
 input SearchInput {
   query: String!
@@ -418,6 +433,10 @@ type Query {
   
   # Bulk search operations for blog posts
   bulkSearchBlogPosts(filters: [BlogPostFilter!]): [BlogPost!]!
+  
+  # Test container queries (testing field resolvers with interface and union returns)
+  testContainer(id: ID!): TestContainer!
+  testContainers: [TestContainer!]!
 }
 
 input UserInput {

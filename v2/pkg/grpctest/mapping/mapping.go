@@ -161,6 +161,16 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				Request:  "QueryBulkSearchBlogPostsRequest",
 				Response: "QueryBulkSearchBlogPostsResponse",
 			},
+			"testContainer": {
+				RPC:      "QueryTestContainer",
+				Request:  "QueryTestContainerRequest",
+				Response: "QueryTestContainerResponse",
+			},
+			"testContainers": {
+				RPC:      "QueryTestContainers",
+				Request:  "QueryTestContainersRequest",
+				Response: "QueryTestContainersResponse",
+			},
 		},
 		MutationRPCs: grpcdatasource.RPCConfigMap[grpcdatasource.RPCConfig]{
 			"createUser": {
@@ -331,6 +341,19 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					RPC:      "ResolveSubcategoryItemCount",
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
+				},
+			},
+			"TestContainer": {
+				"details": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "details",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveTestContainerDetails",
+					Request:  "ResolveTestContainerDetailsRequest",
+					Response: "ResolveTestContainerDetailsResponse",
 				},
 			},
 		},
@@ -522,6 +545,15 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"filters": "filters",
 					},
+				},
+				"testContainer": {
+					TargetName: "test_container",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"id": "id",
+					},
+				},
+				"testContainers": {
+					TargetName: "test_containers",
 				},
 			},
 			"Mutation": {
@@ -939,6 +971,37 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 				},
 				"code": {
 					TargetName: "code",
+				},
+			},
+			"TestContainer": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"details": {
+					TargetName: "details",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"TestDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"summary": {
+					TargetName: "summary",
+				},
+				"pet": {
+					TargetName: "pet",
+				},
+				"status": {
+					TargetName: "status",
 				},
 			},
 			"SearchInput": {

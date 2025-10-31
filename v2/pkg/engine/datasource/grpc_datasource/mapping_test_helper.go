@@ -154,6 +154,16 @@ func testMapping() *GRPCMapping {
 				Request:  "QueryBulkSearchBlogPostsRequest",
 				Response: "QueryBulkSearchBlogPostsResponse",
 			},
+			"testContainer": {
+				RPC:      "QueryTestContainer",
+				Request:  "QueryTestContainerRequest",
+				Response: "QueryTestContainerResponse",
+			},
+			"testContainers": {
+				RPC:      "QueryTestContainers",
+				Request:  "QueryTestContainersRequest",
+				Response: "QueryTestContainersResponse",
+			},
 		},
 		MutationRPCs: RPCConfigMap[RPCConfig]{
 			"createUser": {
@@ -324,6 +334,19 @@ func testMapping() *GRPCMapping {
 					RPC:      "ResolveSubcategoryItemCount",
 					Request:  "ResolveSubcategoryItemCountRequest",
 					Response: "ResolveSubcategoryItemCountResponse",
+				},
+			},
+			"TestContainer": {
+				"details": {
+					FieldMappingData: FieldMapData{
+						TargetName: "details",
+						ArgumentMappings: FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveTestContainerDetails",
+					Request:  "ResolveTestContainerDetailsRequest",
+					Response: "ResolveTestContainerDetailsResponse",
 				},
 			},
 		},
@@ -515,6 +538,15 @@ func testMapping() *GRPCMapping {
 					ArgumentMappings: FieldArgumentMap{
 						"filters": "filters",
 					},
+				},
+				"testContainer": {
+					TargetName: "test_container",
+					ArgumentMappings: FieldArgumentMap{
+						"id": "id",
+					},
+				},
+				"testContainers": {
+					TargetName: "test_containers",
 				},
 			},
 			"Mutation": {
@@ -932,6 +964,37 @@ func testMapping() *GRPCMapping {
 				},
 				"code": {
 					TargetName: "code",
+				},
+			},
+			"TestContainer": {
+				"id": {
+					TargetName: "id",
+				},
+				"name": {
+					TargetName: "name",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"details": {
+					TargetName: "details",
+					ArgumentMappings: FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"TestDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"summary": {
+					TargetName: "summary",
+				},
+				"pet": {
+					TargetName: "pet",
+				},
+				"status": {
+					TargetName: "status",
 				},
 			},
 			"SearchInput": {

@@ -142,7 +142,7 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 
 	fd, ok := r.walker.FieldDefinition(ref)
 	if !ok {
-		r.walker.StopWithInternalErr(fmt.Errorf("field definition not found for field %s", fieldName))
+		r.walker.StopWithInternalErr(fmt.Errorf("RequiredFieldsVisitor: field definition not found for field %s", fieldName))
 		return
 	}
 

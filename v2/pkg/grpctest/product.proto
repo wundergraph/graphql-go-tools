@@ -51,6 +51,8 @@ service ProductService {
   rpc QueryRandomSearchResult(QueryRandomSearchResultRequest) returns (QueryRandomSearchResultResponse) {}
   rpc QueryRecursiveType(QueryRecursiveTypeRequest) returns (QueryRecursiveTypeResponse) {}
   rpc QuerySearch(QuerySearchRequest) returns (QuerySearchResponse) {}
+  rpc QueryTestContainer(QueryTestContainerRequest) returns (QueryTestContainerResponse) {}
+  rpc QueryTestContainers(QueryTestContainersRequest) returns (QueryTestContainersResponse) {}
   rpc QueryTypeFilterWithArguments(QueryTypeFilterWithArgumentsRequest) returns (QueryTypeFilterWithArgumentsResponse) {}
   rpc QueryTypeWithMultipleFilterFields(QueryTypeWithMultipleFilterFieldsRequest) returns (QueryTypeWithMultipleFilterFieldsResponse) {}
   rpc QueryUser(QueryUserRequest) returns (QueryUserResponse) {}
@@ -64,6 +66,7 @@ service ProductService {
   rpc ResolveProductRecommendedCategory(ResolveProductRecommendedCategoryRequest) returns (ResolveProductRecommendedCategoryResponse) {}
   rpc ResolveProductShippingEstimate(ResolveProductShippingEstimateRequest) returns (ResolveProductShippingEstimateResponse) {}
   rpc ResolveSubcategoryItemCount(ResolveSubcategoryItemCountRequest) returns (ResolveSubcategoryItemCountResponse) {}
+  rpc ResolveTestContainerDetails(ResolveTestContainerDetailsRequest) returns (ResolveTestContainerDetailsResponse) {}
 }
 
 // Wrapper message for a list of AuthorFilter.
@@ -536,6 +539,21 @@ message QueryBulkSearchBlogPostsRequest {
 message QueryBulkSearchBlogPostsResponse {
   repeated BlogPost bulk_search_blog_posts = 1;
 }
+// Request message for testContainer operation.
+message QueryTestContainerRequest {
+  string id = 1;
+}
+// Response message for testContainer operation.
+message QueryTestContainerResponse {
+  TestContainer test_container = 1;
+}
+// Request message for testContainers operation.
+message QueryTestContainersRequest {
+}
+// Response message for testContainers operation.
+message QueryTestContainersResponse {
+  repeated TestContainer test_containers = 1;
+}
 // Request message for createUser operation.
 message MutationCreateUserRequest {
   UserInput input = 1;
@@ -851,6 +869,30 @@ message ResolveCategoryMetricsNormalizedScoreResponse {
   repeated ResolveCategoryMetricsNormalizedScoreResult result = 1;
 }
 
+message ResolveTestContainerDetailsArgs {
+  bool include_extended = 1;
+}
+
+message ResolveTestContainerDetailsContext {
+  string id = 1;
+  string name = 2;
+}
+
+message ResolveTestContainerDetailsRequest {
+  // context provides the resolver context for the field details of type TestContainer.
+  repeated ResolveTestContainerDetailsContext context = 1;
+  // field_args provides the arguments for the resolver field details of type TestContainer.
+  ResolveTestContainerDetailsArgs field_args = 2;
+}
+
+message ResolveTestContainerDetailsResult {
+  TestDetails details = 1;
+}
+
+message ResolveTestContainerDetailsResponse {
+  repeated ResolveTestContainerDetailsResult result = 1;
+}
+
 message Product {
   string id = 1;
   string name = 2;
@@ -1022,6 +1064,12 @@ message AuthorFilter {
   google.protobuf.Int32Value skill_count = 3;
 }
 
+message TestContainer {
+  string id = 1;
+  string name = 2;
+  google.protobuf.StringValue description = 3;
+}
+
 message UserInput {
   string name = 1;
 }
@@ -1161,6 +1209,13 @@ message ActionSuccess {
 message ActionError {
   string message = 1;
   string code = 2;
+}
+
+message TestDetails {
+  string id = 1;
+  string summary = 2;
+  Animal pet = 3;
+  ActionResult status = 4;
 }
 
 message CategoryInput {

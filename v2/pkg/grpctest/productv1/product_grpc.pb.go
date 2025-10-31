@@ -60,6 +60,8 @@ const (
 	ProductService_QueryRandomSearchResult_FullMethodName               = "/productv1.ProductService/QueryRandomSearchResult"
 	ProductService_QueryRecursiveType_FullMethodName                    = "/productv1.ProductService/QueryRecursiveType"
 	ProductService_QuerySearch_FullMethodName                           = "/productv1.ProductService/QuerySearch"
+	ProductService_QueryTestContainer_FullMethodName                    = "/productv1.ProductService/QueryTestContainer"
+	ProductService_QueryTestContainers_FullMethodName                   = "/productv1.ProductService/QueryTestContainers"
 	ProductService_QueryTypeFilterWithArguments_FullMethodName          = "/productv1.ProductService/QueryTypeFilterWithArguments"
 	ProductService_QueryTypeWithMultipleFilterFields_FullMethodName     = "/productv1.ProductService/QueryTypeWithMultipleFilterFields"
 	ProductService_QueryUser_FullMethodName                             = "/productv1.ProductService/QueryUser"
@@ -73,6 +75,7 @@ const (
 	ProductService_ResolveProductRecommendedCategory_FullMethodName     = "/productv1.ProductService/ResolveProductRecommendedCategory"
 	ProductService_ResolveProductShippingEstimate_FullMethodName        = "/productv1.ProductService/ResolveProductShippingEstimate"
 	ProductService_ResolveSubcategoryItemCount_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryItemCount"
+	ProductService_ResolveTestContainerDetails_FullMethodName           = "/productv1.ProductService/ResolveTestContainerDetails"
 )
 
 // ProductServiceClient is the client API for ProductService service.
@@ -125,6 +128,8 @@ type ProductServiceClient interface {
 	QueryRandomSearchResult(ctx context.Context, in *QueryRandomSearchResultRequest, opts ...grpc.CallOption) (*QueryRandomSearchResultResponse, error)
 	QueryRecursiveType(ctx context.Context, in *QueryRecursiveTypeRequest, opts ...grpc.CallOption) (*QueryRecursiveTypeResponse, error)
 	QuerySearch(ctx context.Context, in *QuerySearchRequest, opts ...grpc.CallOption) (*QuerySearchResponse, error)
+	QueryTestContainer(ctx context.Context, in *QueryTestContainerRequest, opts ...grpc.CallOption) (*QueryTestContainerResponse, error)
+	QueryTestContainers(ctx context.Context, in *QueryTestContainersRequest, opts ...grpc.CallOption) (*QueryTestContainersResponse, error)
 	QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(ctx context.Context, in *QueryTypeWithMultipleFilterFieldsRequest, opts ...grpc.CallOption) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(ctx context.Context, in *QueryUserRequest, opts ...grpc.CallOption) (*QueryUserResponse, error)
@@ -138,6 +143,7 @@ type ProductServiceClient interface {
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(ctx context.Context, in *ResolveProductShippingEstimateRequest, opts ...grpc.CallOption) (*ResolveProductShippingEstimateResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
+	ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error)
 }
 
 type productServiceClient struct {
@@ -558,6 +564,26 @@ func (c *productServiceClient) QuerySearch(ctx context.Context, in *QuerySearchR
 	return out, nil
 }
 
+func (c *productServiceClient) QueryTestContainer(ctx context.Context, in *QueryTestContainerRequest, opts ...grpc.CallOption) (*QueryTestContainerResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryTestContainerResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryTestContainer_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) QueryTestContainers(ctx context.Context, in *QueryTestContainersRequest, opts ...grpc.CallOption) (*QueryTestContainersResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QueryTestContainersResponse)
+	err := c.cc.Invoke(ctx, ProductService_QueryTestContainers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) QueryTypeFilterWithArguments(ctx context.Context, in *QueryTypeFilterWithArgumentsRequest, opts ...grpc.CallOption) (*QueryTypeFilterWithArgumentsResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(QueryTypeFilterWithArgumentsResponse)
@@ -688,6 +714,16 @@ func (c *productServiceClient) ResolveSubcategoryItemCount(ctx context.Context, 
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveTestContainerDetailsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveTestContainerDetails_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ProductServiceServer is the server API for ProductService service.
 // All implementations must embed UnimplementedProductServiceServer
 // for forward compatibility.
@@ -738,6 +774,8 @@ type ProductServiceServer interface {
 	QueryRandomSearchResult(context.Context, *QueryRandomSearchResultRequest) (*QueryRandomSearchResultResponse, error)
 	QueryRecursiveType(context.Context, *QueryRecursiveTypeRequest) (*QueryRecursiveTypeResponse, error)
 	QuerySearch(context.Context, *QuerySearchRequest) (*QuerySearchResponse, error)
+	QueryTestContainer(context.Context, *QueryTestContainerRequest) (*QueryTestContainerResponse, error)
+	QueryTestContainers(context.Context, *QueryTestContainersRequest) (*QueryTestContainersResponse, error)
 	QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error)
 	QueryTypeWithMultipleFilterFields(context.Context, *QueryTypeWithMultipleFilterFieldsRequest) (*QueryTypeWithMultipleFilterFieldsResponse, error)
 	QueryUser(context.Context, *QueryUserRequest) (*QueryUserResponse, error)
@@ -751,6 +789,7 @@ type ProductServiceServer interface {
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
+	ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
 }
 
@@ -884,6 +923,12 @@ func (UnimplementedProductServiceServer) QueryRecursiveType(context.Context, *Qu
 func (UnimplementedProductServiceServer) QuerySearch(context.Context, *QuerySearchRequest) (*QuerySearchResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QuerySearch not implemented")
 }
+func (UnimplementedProductServiceServer) QueryTestContainer(context.Context, *QueryTestContainerRequest) (*QueryTestContainerResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryTestContainer not implemented")
+}
+func (UnimplementedProductServiceServer) QueryTestContainers(context.Context, *QueryTestContainersRequest) (*QueryTestContainersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method QueryTestContainers not implemented")
+}
 func (UnimplementedProductServiceServer) QueryTypeFilterWithArguments(context.Context, *QueryTypeFilterWithArgumentsRequest) (*QueryTypeFilterWithArgumentsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method QueryTypeFilterWithArguments not implemented")
 }
@@ -922,6 +967,9 @@ func (UnimplementedProductServiceServer) ResolveProductShippingEstimate(context.
 }
 func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveTestContainerDetails not implemented")
 }
 func (UnimplementedProductServiceServer) mustEmbedUnimplementedProductServiceServer() {}
 func (UnimplementedProductServiceServer) testEmbeddedByValue()                        {}
@@ -1682,6 +1730,42 @@ func _ProductService_QuerySearch_Handler(srv interface{}, ctx context.Context, d
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_QueryTestContainer_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryTestContainerRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryTestContainer(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryTestContainer_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryTestContainer(ctx, req.(*QueryTestContainerRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_QueryTestContainers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryTestContainersRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).QueryTestContainers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_QueryTestContainers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).QueryTestContainers(ctx, req.(*QueryTestContainersRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_QueryTypeFilterWithArguments_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(QueryTypeFilterWithArgumentsRequest)
 	if err := dec(in); err != nil {
@@ -1916,6 +2000,24 @@ func _ProductService_ResolveSubcategoryItemCount_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveTestContainerDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveTestContainerDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveTestContainerDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveTestContainerDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveTestContainerDetails(ctx, req.(*ResolveTestContainerDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ProductService_ServiceDesc is the grpc.ServiceDesc for ProductService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -2088,6 +2190,14 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_QuerySearch_Handler,
 		},
 		{
+			MethodName: "QueryTestContainer",
+			Handler:    _ProductService_QueryTestContainer_Handler,
+		},
+		{
+			MethodName: "QueryTestContainers",
+			Handler:    _ProductService_QueryTestContainers_Handler,
+		},
+		{
 			MethodName: "QueryTypeFilterWithArguments",
 			Handler:    _ProductService_QueryTypeFilterWithArguments_Handler,
 		},
@@ -2138,6 +2248,10 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveSubcategoryItemCount",
 			Handler:    _ProductService_ResolveSubcategoryItemCount_Handler,
+		},
+		{
+			MethodName: "ResolveTestContainerDetails",
+			Handler:    _ProductService_ResolveTestContainerDetails_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

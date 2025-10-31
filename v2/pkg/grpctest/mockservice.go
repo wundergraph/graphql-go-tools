@@ -20,6 +20,117 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// QueryTestContainer implements productv1.ProductServiceServer.
+func (s *MockService) QueryTestContainer(_ context.Context, req *productv1.QueryTestContainerRequest) (*productv1.QueryTestContainerResponse, error) {
+	id := req.GetId()
+
+	return &productv1.QueryTestContainerResponse{
+		TestContainer: &productv1.TestContainer{
+			Id:          id,
+			Name:        fmt.Sprintf("TestContainer-%s", id),
+			Description: &wrapperspb.StringValue{Value: fmt.Sprintf("Description for TestContainer %s", id)},
+		},
+	}, nil
+}
+
+// QueryTestContainers implements productv1.ProductServiceServer.
+func (s *MockService) QueryTestContainers(_ context.Context, _ *productv1.QueryTestContainersRequest) (*productv1.QueryTestContainersResponse, error) {
+	var containers []*productv1.TestContainer
+
+	// Generate 3 test containers
+	for i := 1; i <= 3; i++ {
+		containers = append(containers, &productv1.TestContainer{
+			Id:          fmt.Sprintf("container-%d", i),
+			Name:        fmt.Sprintf("TestContainer %d", i),
+			Description: &wrapperspb.StringValue{Value: fmt.Sprintf("Description for container %d", i)},
+		})
+	}
+
+	return &productv1.QueryTestContainersResponse{
+		TestContainers: containers,
+	}, nil
+}
+
+// ResolveTestContainerDetails implements productv1.ProductServiceServer.
+func (s *MockService) ResolveTestContainerDetails(_ context.Context, req *productv1.ResolveTestContainerDetailsRequest) (*productv1.ResolveTestContainerDetailsResponse, error) {
+	results := make([]*productv1.ResolveTestContainerDetailsResult, 0, len(req.GetContext()))
+
+	includeExtended := false
+	if req.GetFieldArgs() != nil {
+		includeExtended = req.GetFieldArgs().GetIncludeExtended()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Alternate between Cat and Dog for the pet field (Animal interface)
+		var pet *productv1.Animal
+		if i%2 == 0 {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("test-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestCat-%s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: int32((i + 1) * 5),
+					},
+				},
+			}
+		} else {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("test-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("TestDog-%s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: int32((i + 1) * 7),
+					},
+				},
+			}
+		}
+
+		// Alternate between ActionSuccess and ActionError for the status field (ActionResult union)
+		var status *productv1.ActionResult
+		if includeExtended && i%3 == 0 {
+			// Return error status for extended mode on certain items
+			status = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Extended check failed for %s", ctx.GetName()),
+						Code:    "EXTENDED_CHECK_FAILED",
+					},
+				},
+			}
+		} else {
+			// Return success status
+			status = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("TestContainer %s details loaded successfully", ctx.GetName()),
+						Timestamp: "2024-01-01T12:00:00Z",
+					},
+				},
+			}
+		}
+
+		summary := fmt.Sprintf("Summary for %s", ctx.GetName())
+		if includeExtended {
+			summary = fmt.Sprintf("Extended summary for %s with additional details", ctx.GetName())
+		}
+
+		results = append(results, &productv1.ResolveTestContainerDetailsResult{
+			Details: &productv1.TestDetails{
+				Id:      fmt.Sprintf("details-%s-%d", ctx.GetId(), i),
+				Summary: summary,
+				Pet:     pet,
+				Status:  status,
+			},
+		})
+	}
+
+	return &productv1.ResolveTestContainerDetailsResponse{
+		Result: results,
+	}, nil
+}
+
 // ResolveCategoryMetricsNormalizedScore implements productv1.ProductServiceServer.
 func (s *MockService) ResolveCategoryMetricsNormalizedScore(_ context.Context, req *productv1.ResolveCategoryMetricsNormalizedScoreRequest) (*productv1.ResolveCategoryMetricsNormalizedScoreResponse, error) {
 	results := make([]*productv1.ResolveCategoryMetricsNormalizedScoreResult, 0, len(req.GetContext()))
