@@ -133,19 +133,22 @@ type result struct {
 	cache              LoaderCache
 	cacheMustBeUpdated bool
 	cacheKeys          []*CacheKey
-	cacheTTL           time.Duration
-	cacheSkippedFetch  bool
-	cacheResponseData  *astjson.Value // Response data to cache (set in mergeResult)
+	cacheSkipFetch     bool
+	cacheConfig        FetchCacheConfiguration
 }
 
-func (r *result) init(postProcessing PostProcessingConfiguration, info *FetchInfo) {
-	r.postProcessing = postProcessing
+func (l *Loader) createOrInitResult(res *result, postProcessing PostProcessingConfiguration, info *FetchInfo) *result {
+	if res == nil {
+		res = &result{}
+	}
+	res.postProcessing = postProcessing
 	if info != nil {
-		r.ds = DataSourceInfo{
+		res.ds = DataSourceInfo{
 			ID:   info.DataSourceID,
 			Name: info.DataSourceName,
 		}
 	}
+	return res
 }
 
 func IsIntrospectionDataSource(dataSourceID string) bool {
@@ -299,7 +302,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 
 	switch f := item.Fetch.(type) {
 	case *SingleFetch:
-		res := &result{}
+		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoadFetch(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -316,7 +319,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		return err
 	case *BatchEntityFetch:
-		res := &result{}
+		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		defer batchEntityToolPool.Put(res.tools)
 		skip, err := l.tryCacheLoadFetch(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
@@ -334,7 +337,7 @@ func (l *Loader) resolveSingle(item *FetchItem) error {
 		}
 		return err
 	case *EntityFetch:
-		res := &result{}
+		res := l.createOrInitResult(nil, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoadFetch(l.ctx.ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -455,51 +458,38 @@ type LoaderCache interface {
 }
 
 // extractCacheKeysStrings extracts all unique cache key strings from CacheKeys
-func extractCacheKeysStrings(cacheKeys []*CacheKey) []string {
+// If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
+func (l *Loader) extractCacheKeysStrings(a arena.Arena, cacheKeys []*CacheKey) []string {
 	if len(cacheKeys) == 0 {
 		return nil
 	}
-	keySet := make(map[string]struct{})
-	for _, cacheKey := range cacheKeys {
-		for _, entry := range cacheKey.Keys {
-			keySet[entry.Name] = struct{}{}
+	out := arena.AllocateSlice[string](a, 0, len(cacheKeys))
+	for i := range cacheKeys {
+		for j := range cacheKeys[i].Keys {
+			l := len(cacheKeys[i].Keys[j])
+			key := arena.AllocateSlice[byte](a, 0, l)
+			key = arena.SliceAppend(a, key, unsafebytes.StringToBytes(cacheKeys[i].Keys[j])...)
+			out = arena.SliceAppend(a, out, unsafebytes.BytesToString(key))
 		}
 	}
-	keys := make([]string, 0, len(keySet))
-	for key := range keySet {
-		keys = append(keys, key)
-	}
-	return keys
+	return out
 }
 
 // populateFromCache populates CacheKey.FromCache fields from cache entries
-func populateFromCache(cacheKeys []*CacheKey, entries []*CacheEntry) error {
-	// Create a map of key -> value for quick lookup
-	entryMap := make(map[string][]byte)
-	for _, entry := range entries {
-		if entry != nil && entry.Value != nil {
-			entryMap[entry.Key] = entry.Value
-		}
-	}
-
-	// For each CacheKey, find matching entries and populate FromCache
-	// Since multiple KeyEntries can map to the same value, we use the first match
-	for _, cacheKey := range cacheKeys {
-		if cacheKey.FromCache != nil {
-			// Already populated, skip
+// If includePrefix is true and subgraphName is provided, keys are looked up with the subgraph header hash prefix.
+func (l *Loader) populateFromCache(a arena.Arena, cacheKeys []*CacheKey, entries []*CacheEntry) (err error) {
+	for i := range entries {
+		if entries[i] == nil || entries[i].Value == nil {
 			continue
 		}
-		for _, keyEntry := range cacheKey.Keys {
-			if cachedValue, found := entryMap[keyEntry.Name]; found {
-				// Parse the cached JSON value
-				// Note: We use nil arena here because this is temporary data
-				// The FromCache will be merged into items which are on the jsonArena
-				parsedValue, err := astjson.ParseBytes(cachedValue)
-				if err != nil {
-					return errors.WithStack(err)
+		for j := range cacheKeys {
+			for k := range cacheKeys[j].Keys {
+				if cacheKeys[j].Keys[k] == entries[i].Key {
+					cacheKeys[j].FromCache, err = astjson.ParseBytesWithArena(a, entries[i].Value)
+					if err != nil {
+						return errors.WithStack(err)
+					}
 				}
-				cacheKey.FromCache = parsedValue
-				break // Use first match
 			}
 		}
 	}
@@ -508,62 +498,25 @@ func populateFromCache(cacheKeys []*CacheKey, entries []*CacheEntry) error {
 
 // cacheKeysToEntries converts CacheKeys to CacheEntries for storage
 // For each CacheKey, creates entries for all its KeyEntries with the same value
-func cacheKeysToEntries(cacheKeys []*CacheKey, responseData *astjson.Value, jsonArena arena.Arena) ([]*CacheEntry, error) {
-	if len(cacheKeys) == 0 {
-		return nil, nil
-	}
-
-	entries := make([]*CacheEntry, 0)
-
-	// Check if responseData is an array
-	responseArray := responseData.GetArray()
-
-	if len(responseArray) > 1 {
-		// Multiple items: extract per-item data from batch response
-		if len(responseArray) != len(cacheKeys) {
-			return nil, errors.Errorf("cache key count (%d) doesn't match response array length (%d)", len(cacheKeys), len(responseArray))
-		}
-
-		// For each CacheKey, serialize its corresponding item and store under all its KeyEntries
-		for i, cacheKey := range cacheKeys {
-			itemData := responseArray[i]
-			itemBytes := itemData.MarshalTo(nil)
-
-			for _, keyEntry := range cacheKey.Keys {
-				valueCopy := make([]byte, len(itemBytes))
-				copy(valueCopy, itemBytes)
-				entries = append(entries, &CacheEntry{
-					Key:   keyEntry.Name,
-					Value: valueCopy,
-				})
+// If includePrefix is true and subgraphName is provided, keys are prefixed with the subgraph header hash.
+func (l *Loader) cacheKeysToEntries(a arena.Arena, cacheKeys []*CacheKey) ([]*CacheEntry, error) {
+	out := arena.AllocateSlice[*CacheEntry](a, 0, len(cacheKeys))
+	buf := arena.AllocateSlice[byte](a, 64, 64)
+	for i := range cacheKeys {
+		for j := range cacheKeys[i].Keys {
+			if cacheKeys[i].Item == nil {
+				continue
 			}
-		}
-	} else {
-		// Single item: store same value under all keys
-		// This handles both single object and single-item array cases
-		var dataToStore *astjson.Value
-		if len(responseArray) == 1 {
-			dataToStore = responseArray[0]
-		} else {
-			dataToStore = responseData
-		}
-
-		dataBytes := dataToStore.MarshalTo(nil)
-
-		// Store under all KeyEntries for all CacheKeys
-		for _, cacheKey := range cacheKeys {
-			for _, keyEntry := range cacheKey.Keys {
-				valueCopy := make([]byte, len(dataBytes))
-				copy(valueCopy, dataBytes)
-				entries = append(entries, &CacheEntry{
-					Key:   keyEntry.Name,
-					Value: valueCopy,
-				})
+			buf = cacheKeys[i].Item.MarshalTo(buf[:0])
+			entry := &CacheEntry{
+				Key:   cacheKeys[i].Keys[j],
+				Value: arena.AllocateSlice[byte](a, len(buf), len(buf)),
 			}
+			copy(entry.Value, buf)
+			out = arena.SliceAppend(a, out, entry)
 		}
 	}
-
-	return entries, nil
+	return out, nil
 }
 
 func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg FetchCacheConfiguration, inputItems []*astjson.Value, res *result) (skipFetch bool, err error) {
@@ -576,12 +529,20 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 	if l.caches == nil {
 		return false, nil
 	}
+	res.cacheConfig = cfg
 	res.cache = l.caches[cfg.CacheName]
 	if res.cache == nil {
 		return false, nil
 	}
+	var prefix string
+	if cfg.IncludeSubgraphHeaderPrefix && l.ctx.SubgraphHeadersBuilder != nil {
+		_, headersHash := l.ctx.SubgraphHeadersBuilder.HeadersForSubgraph(info.DataSourceName)
+		var buf [20]byte
+		b := strconv.AppendUint(buf[:0], headersHash, 10)
+		prefix = string(b)
+	}
 	// Generate cache keys for all items at once
-	res.cacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(nil, l.ctx, inputItems)
+	res.cacheKeys, err = cfg.CacheKeyTemplate.RenderCacheKeys(nil, l.ctx, inputItems, prefix)
 	if err != nil {
 		return false, err
 	}
@@ -589,8 +550,7 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 		// If no cache keys were generated, we skip the cache
 		return false, nil
 	}
-	// Extract all unique cache key strings
-	cacheKeyStrings := extractCacheKeysStrings(res.cacheKeys)
+	cacheKeyStrings := l.extractCacheKeysStrings(nil, res.cacheKeys)
 	if len(cacheKeyStrings) == 0 {
 		return false, nil
 	}
@@ -600,25 +560,23 @@ func (l *Loader) tryCacheLoadFetch(ctx context.Context, info *FetchInfo, cfg Fet
 		return false, err
 	}
 	// Populate FromCache fields in CacheKeys
-	err = populateFromCache(res.cacheKeys, cacheEntries)
+	err = l.populateFromCache(nil, res.cacheKeys, cacheEntries)
 	if err != nil {
 		return false, err
 	}
-	res.cacheTTL = cfg.TTL
-	missing, canSkip := l.canSkipFetch(info, res)
+	canSkip := l.canSkipFetch(info, res)
 	if canSkip {
-		res.cacheSkippedFetch = true
+		res.cacheSkipFetch = true
 		return true, nil
 	}
 	res.cacheMustBeUpdated = true
-	res.cacheTTL = cfg.TTL
-	_ = missing
 	return false, nil
 }
 
 func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
 	switch f := fetch.(type) {
 	case *SingleFetch:
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoadFetch(ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -628,6 +586,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		}
 		return l.loadSingleFetch(ctx, f, fetchItem, items, res)
 	case *EntityFetch:
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoadFetch(ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -637,6 +596,7 @@ func (l *Loader) loadFetch(ctx context.Context, fetch Fetch, fetchItem *FetchIte
 		}
 		return l.loadEntityFetch(ctx, fetchItem, f, items, res)
 	case *BatchEntityFetch:
+		res = l.createOrInitResult(res, f.PostProcessing, f.Info)
 		skip, err := l.tryCacheLoadFetch(ctx, f.Info, f.Caching, items, res)
 		if err != nil {
 			return errors.WithStack(err)
@@ -675,64 +635,18 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 	if res.err != nil {
 		return l.renderErrorsFailedToFetch(fetchItem, res, failedToFetchNoReason)
 	}
-	if res.authorizationRejected {
-		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
-		if err != nil {
-			return err
-		}
-		trueValue := astjson.MustParse(`true`)
-		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
-		copy(skipErrorsPath, res.postProcessing.MergePath)
-		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
-		for _, item := range items {
-			astjson.SetValue(item, trueValue, skipErrorsPath...)
-		}
-		return nil
+	if rejected, err := l.evaluateRejected(fetchItem, res, items); err != nil || rejected {
+		return err
 	}
-	if res.rateLimitRejected {
-		err := l.renderRateLimitRejectedErrors(fetchItem, res)
-		if err != nil {
-			return err
-		}
-		trueValue := astjson.MustParse(`true`)
-		skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
-		copy(skipErrorsPath, res.postProcessing.MergePath)
-		skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
-		for _, item := range items {
-			astjson.SetValue(item, trueValue, skipErrorsPath...)
-		}
-		return nil
-	}
-	if res.cacheSkippedFetch {
+	if res.cacheSkipFetch {
 		// Merge cached data into items
-		mergedData := make([]*astjson.Value, len(res.cacheKeys))
-		for i, key := range res.cacheKeys {
+		for _, key := range res.cacheKeys {
 			// Merge cached data into item
-			merged, _, err := astjson.MergeValues(l.jsonArena, items[i], key.FromCache)
+			_, _, err := astjson.MergeValues(l.jsonArena, key.Item, key.FromCache)
 			if err != nil {
 				return l.renderErrorsFailedToFetch(fetchItem, res, "invalid cache item")
 			}
-			mergedData[i] = merged
 		}
-
-		// Update cache with merged data to refresh TTL, even when skipping fetch
-		if res.cacheMustBeUpdated && len(mergedData) > 0 {
-			// Construct responseData from merged items for cache update
-			// For batch responses, create an array; for single items, use the first item
-			var responseData *astjson.Value
-			if len(mergedData) == 1 {
-				responseData = mergedData[0]
-			} else {
-				// Create array from merged items
-				responseData = astjson.ArrayValue(l.jsonArena)
-				for i, item := range mergedData {
-					responseData.SetArrayItem(l.jsonArena, i, item)
-				}
-			}
-			res.cacheResponseData = responseData
-			defer l.updateCache(res)
-		}
-
 		return nil
 	}
 	if res.fetchSkipped {
@@ -760,12 +674,6 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		responseData = response.Get(res.postProcessing.SelectResponseDataPath...)
 	} else {
 		responseData = response
-	}
-
-	// Store responseData for caching if needed
-	if res.cacheMustBeUpdated {
-		res.cacheResponseData = responseData
-		defer l.updateCache(res)
 	}
 
 	hasErrors := false
@@ -823,7 +731,7 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 		// no data
 		return nil
 	}
-
+	defer l.updateCache(res)
 	if len(items) == 0 {
 		// If the data is set, it must be an object according to GraphQL over HTTP spec
 		if responseData.Type() != astjson.TypeObject {
@@ -892,7 +800,38 @@ func (l *Loader) mergeResult(fetchItem *FetchItem, res *result, items []*astjson
 			l.taintedObjs.add(items[i])
 		}
 	}
+
 	return nil
+}
+
+func (l *Loader) evaluateRejected(fetchItem *FetchItem, res *result, items []*astjson.Value) (bool, error) {
+	if res.authorizationRejected {
+		err := l.renderAuthorizationRejectedErrors(fetchItem, res)
+		if err != nil {
+			return false, err
+		}
+		l.setSkipErrors(res, items)
+		return true, nil
+	}
+	if res.rateLimitRejected {
+		err := l.renderRateLimitRejectedErrors(fetchItem, res)
+		if err != nil {
+			return false, err
+		}
+		l.setSkipErrors(res, items)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (l *Loader) setSkipErrors(res *result, items []*astjson.Value) {
+	trueValue := astjson.TrueValue(l.jsonArena)
+	skipErrorsPath := make([]string, len(res.postProcessing.MergePath)+1)
+	copy(skipErrorsPath, res.postProcessing.MergePath)
+	skipErrorsPath[len(skipErrorsPath)-1] = "__skipErrors"
+	for _, item := range items {
+		astjson.SetValue(item, trueValue, skipErrorsPath...)
+	}
 }
 
 var (
@@ -923,12 +862,12 @@ func (l *Loader) renderErrorsInvalidInput(fetchItem *FetchItem) []byte {
 }
 
 func (l *Loader) updateCache(res *result) {
-	if res.cache == nil || len(res.cacheKeys) == 0 || res.cacheResponseData == nil {
+	if res.cache == nil || len(res.cacheKeys) == 0 || !res.cacheMustBeUpdated {
 		return
 	}
 
 	// Convert CacheKeys to CacheEntries
-	cacheEntries, err := cacheKeysToEntries(res.cacheKeys, res.cacheResponseData, l.jsonArena)
+	cacheEntries, err := l.cacheKeysToEntries(l.jsonArena, res.cacheKeys)
 	if err != nil {
 		fmt.Printf("error converting cache keys to entries: %s", err)
 		return
@@ -938,7 +877,7 @@ func (l *Loader) updateCache(res *result) {
 		return
 	}
 
-	err = res.cache.Set(context.Background(), cacheEntries, res.cacheTTL)
+	err = res.cache.Set(l.ctx.ctx, cacheEntries, res.cacheConfig.TTL)
 	if err != nil {
 		fmt.Printf("error cache.Set: %s", err)
 	}
@@ -1532,9 +1471,7 @@ func (l *Loader) validatePreFetch(input []byte, info *FetchInfo, res *result) (a
 }
 
 func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchItem *FetchItem, items []*astjson.Value, res *result) error {
-	res.init(fetch.PostProcessing, fetch.Info)
 	buf := bytes.NewBuffer(nil)
-
 	inputData := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1573,7 +1510,6 @@ func (l *Loader) loadSingleFetch(ctx context.Context, fetch *SingleFetch, fetchI
 }
 
 func (l *Loader) loadEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *EntityFetch, items []*astjson.Value, res *result) error {
-	res.init(fetch.PostProcessing, fetch.Info)
 	input := l.itemsData(items)
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
@@ -1694,8 +1630,6 @@ var (
 )
 
 func (l *Loader) loadBatchEntityFetch(ctx context.Context, fetchItem *FetchItem, fetch *BatchEntityFetch, items []*astjson.Value, res *result) error {
-	res.init(fetch.PostProcessing, fetch.Info)
-
 	if l.ctx.TracingOptions.Enable {
 		fetch.Trace = &DataSourceLoadTrace{}
 		if !l.ctx.TracingOptions.ExcludeRawInputData && len(items) != 0 {
@@ -2189,45 +2123,19 @@ func (l *Loader) compactJSON(data []byte) ([]byte, error) {
 	return v.MarshalTo(nil), nil
 }
 
-func (l *Loader) canSkipFetch(info *FetchInfo, res *result) ([]*CacheKey, bool) {
+// canSkipFetch returns true if the cache provided exactly the information required to satisfy the query plan
+// the query planner generates info.ProvidesData which tells precisely which fields the fetch must load
+// if a single value is missing, we will execute the fetch
+func (l *Loader) canSkipFetch(info *FetchInfo, res *result) bool {
 	if info == nil || info.OperationType != ast.OperationTypeQuery || info.ProvidesData == nil {
-		return res.cacheKeys, false
+		return false
 	}
-
-	// Check each item and remove those that have sufficient data
-	remaining := make([]*CacheKey, 0, len(res.cacheKeys))
-	for i, key := range res.cacheKeys {
-		// When we have cached data, we should check if merging Item + FromCache gives us all required fields
-		// Otherwise, check Item.
-		var dataToCheck *astjson.Value
-		if key.FromCache != nil {
-			// If we have cached data, merge it with Item to get the complete picture
-			if key.Item != nil {
-				// Create a temporary merged value to check
-				// Note: We use a temporary arena here since we're just checking, not storing
-				merged, _, err := astjson.MergeValues(nil, key.Item, key.FromCache)
-				if err == nil && merged != nil {
-					dataToCheck = merged
-				} else {
-					// Fallback to FromCache if merge fails
-					dataToCheck = key.FromCache
-				}
-			} else {
-				dataToCheck = key.FromCache
-			}
-		} else {
-			dataToCheck = key.Item
-		}
-
-		hasRequiredData := l.validateItemHasRequiredData(dataToCheck, info.ProvidesData)
-
-		if !hasRequiredData {
-			remaining = append(remaining, res.cacheKeys[i])
+	for i := range res.cacheKeys {
+		if !l.validateItemHasRequiredData(res.cacheKeys[i].FromCache, info.ProvidesData) {
+			return false
 		}
 	}
-
-	// Return the remaining items and whether fetch can be skipped
-	return remaining, len(remaining) == 0
+	return true
 }
 
 // validateItemHasRequiredData checks if the given item contains all required data

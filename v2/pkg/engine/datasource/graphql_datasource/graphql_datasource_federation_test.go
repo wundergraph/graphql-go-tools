@@ -1559,9 +1559,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									DataSource:     &Source{},
 									PostProcessing: DefaultPostProcessingConfiguration,
 									Caching: resolve.FetchCacheConfiguration{
-										Enabled:   true,
-										CacheName: "default",
-										TTL:       30 * time.Second,
+										Enabled:                     true,
+										CacheName:                   "default",
+										TTL:                         30 * time.Second,
+										IncludeSubgraphHeaderPrefix: true,
 										CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
 											RootFields: []resolve.QueryField{
 												{
@@ -1849,9 +1850,10 @@ func TestGraphQLDataSourceFederation(t *testing.T) {
 									},
 									PostProcessing: SingleEntityPostProcessingConfiguration,
 									Caching: resolve.FetchCacheConfiguration{
-										Enabled:   true,
-										CacheName: "default",
-										TTL:       time.Second * 30,
+										Enabled:                     true,
+										CacheName:                   "default",
+										TTL:                         time.Second * 30,
+										IncludeSubgraphHeaderPrefix: true,
 										CacheKeyTemplate: &resolve.EntityQueryCacheKeyTemplate{
 											Keys: resolve.NewResolvableObjectVariable(&resolve.Object{
 												Nullable: true,

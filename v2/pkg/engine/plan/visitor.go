@@ -1650,7 +1650,8 @@ func (v *Visitor) configureFetch(internal *objectFetchConfiguration, external re
 			CacheName: "default",
 			TTL:       time.Second * time.Duration(30),
 			// templates come prepared from the DataSource
-			CacheKeyTemplate: external.Caching.CacheKeyTemplate,
+			CacheKeyTemplate:            external.Caching.CacheKeyTemplate,
+			IncludeSubgraphHeaderPrefix: true,
 		}
 	} else {
 		external.Caching = resolve.FetchCacheConfiguration{

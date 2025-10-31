@@ -325,6 +325,10 @@ type FetchCacheConfiguration struct {
 	// In case of a root fetch, the variables will be one or more field arguments
 	// For entity fetches, the variables will be a single Object Variable with @key and @requires fields
 	CacheKeyTemplate CacheKeyTemplate
+	// IncludeSubgraphHeaderPrefix indicates if cache keys should be prefixed with the subgraph header hash.
+	// The prefix format is "id:cacheKey" where id is the hash from HeadersForSubgraph.
+	// Defaults to true.
+	IncludeSubgraphHeaderPrefix bool
 }
 
 // FetchDependency explains how a GraphCoordinate depends on other GraphCoordinates from other fetches

@@ -14,12 +14,10 @@ func TestLoader_canSkipFetch(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		info          *FetchInfo
-		items         []*astjson.Value
-		wantResult    bool
-		wantRemaining int                                       // -1 means check for empty, otherwise check exact count
-		checkFn       func(t *testing.T, remaining []*CacheKey) // optional custom validation
+		name            string
+		info            *FetchInfo
+		items           []*astjson.Value
+		expectSkipFetch bool
 	}{
 		{
 			name: "single item with Query operation",
@@ -40,8 +38,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"id": "123"}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "single item with Mutation operation",
@@ -62,8 +59,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"id": "123"}`)),
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "single item with null type",
@@ -74,8 +70,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`null`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty - can skip fetch since no fields required
+			expectSkipFetch: true,
 		},
 		{
 			name: "single item with all required data",
@@ -112,8 +107,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": "123", "name": "John"}}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "single item missing required field",
@@ -150,8 +144,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": "123"}}`)), // missing "name"
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "single item missing nullable field",
@@ -188,8 +181,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": "123"}}`)), // missing nullable "email"
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "single item with null value on required path",
@@ -219,8 +211,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": null}}`)), // null value on required field
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "single item with null value on nullable path",
@@ -257,8 +248,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": "123", "email": null}}`)), // null value on nullable field
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "multiple items all can be skipped",
@@ -281,8 +271,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 				astjson.MustParseBytes([]byte(`{"id": "456"}`)),
 				astjson.MustParseBytes([]byte(`{"id": "789"}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "multiple items some can be skipped",
@@ -321,13 +310,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 				astjson.MustParseBytes([]byte(`{"user": {"id": "456"}}`)),                  // missing name
 				astjson.MustParseBytes([]byte(`{"user": {"id": "789", "name": "Alice"}}`)), // complete
 			},
-			wantResult:    false,
-			wantRemaining: 1,
-			checkFn: func(t *testing.T, remaining []*CacheKey) {
-				// Check that the remaining item is the incomplete one
-				user := remaining[0].Item.Get("user")
-				assert.Equal(t, "456", string(user.Get("id").GetStringBytes()))
-			},
+			expectSkipFetch: false,
 		},
 		{
 			name: "multiple items none can be skipped",
@@ -366,8 +349,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 				astjson.MustParseBytes([]byte(`{"user": {"id": "456"}}`)), // missing name
 				astjson.MustParseBytes([]byte(`{"user": {"id": "789"}}`)), // missing name
 			},
-			wantResult:    false,
-			wantRemaining: 3,
+			expectSkipFetch: false,
 		},
 		{
 			name: "nullable array that is null",
@@ -404,8 +386,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": "123", "tags": null}}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "nullable array that is empty",
@@ -442,8 +423,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"user": {"id": "123", "tags": []}}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "deeply nested structure",
@@ -523,8 +503,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 					}
 				}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "nil info",
@@ -532,8 +511,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"id": "123"}`)),
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "nil ProvidesData",
@@ -544,8 +522,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"id": "123"}`)),
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "array with scalar items - valid",
@@ -570,8 +547,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"tags": ["tag1", "tag2", "tag3"]}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "array with scalar items - invalid (null item in non-nullable array)",
@@ -596,8 +572,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"tags": ["tag1", null, "tag3"]}`)), // null item in non-nullable array
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "array with scalar items - valid (null item in nullable array)",
@@ -622,8 +597,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"tags": ["tag1", null, "tag3"]}`)), // null item in nullable array
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "array with object items - valid",
@@ -664,8 +638,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"users": [{"id": "1", "name": "John"}, {"id": "2", "name": "Jane"}]}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "array with object items - invalid (missing required field)",
@@ -706,8 +679,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"users": [{"id": "1", "name": "John"}, {"id": "2"}]}`)), // missing "name" field
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "nested arrays - valid",
@@ -736,8 +708,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"matrix": [["a", "b"], ["c", "d"], ["e", "f"]]}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "nested arrays - invalid (null in inner non-nullable array)",
@@ -766,8 +737,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"matrix": [["a", "b"], ["c", null], ["e", "f"]]}`)), // null in inner array
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 		{
 			name: "array of objects with nested arrays - complex valid case",
@@ -821,8 +791,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"groups": [{"name": "admins", "members": [{"id": "1"}, {"id": "2"}]}, {"name": "users", "members": [{"id": "3"}]}]}`)),
 			},
-			wantResult:    true,
-			wantRemaining: -1, // empty
+			expectSkipFetch: true,
 		},
 		{
 			name: "array of objects with nested arrays - complex invalid case",
@@ -876,8 +845,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			items: []*astjson.Value{
 				astjson.MustParseBytes([]byte(`{"groups": [{"name": "admins", "members": [{"id": "1"}, {}]}, {"name": "users", "members": [{"id": "3"}]}]}`)), // missing id in one member
 			},
-			wantResult:    false,
-			wantRemaining: 1,
+			expectSkipFetch: false,
 		},
 	}
 
@@ -894,7 +862,7 @@ func TestLoader_canSkipFetch(t *testing.T) {
 			cacheKeys := make([]*CacheKey, len(itemsCopy))
 			for i, item := range itemsCopy {
 				cacheKeys[i] = &CacheKey{
-					Item: item,
+					FromCache: item,
 				}
 			}
 
@@ -903,19 +871,8 @@ func TestLoader_canSkipFetch(t *testing.T) {
 				cacheKeys: cacheKeys,
 			}
 
-			remaining, result := loader.canSkipFetch(tt.info, res)
-
-			assert.Equal(t, tt.wantResult, result, "result mismatch")
-
-			if tt.wantRemaining == -1 {
-				assert.Empty(t, remaining, "expected empty remaining items")
-			} else {
-				assert.Len(t, remaining, tt.wantRemaining, "remaining items count mismatch")
-			}
-
-			if tt.checkFn != nil {
-				tt.checkFn(t, remaining)
-			}
+			canSkipFetch := loader.canSkipFetch(tt.info, res)
+			assert.Equal(t, tt.expectSkipFetch, canSkipFetch, "skip fetch")
 		})
 	}
 }

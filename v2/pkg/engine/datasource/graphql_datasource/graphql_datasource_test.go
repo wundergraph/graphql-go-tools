@@ -398,9 +398,10 @@ func TestGraphQLDataSource(t *testing.T) {
 						),
 						PostProcessing: DefaultPostProcessingConfiguration,
 						Caching: resolve.FetchCacheConfiguration{
-							Enabled:   true,
-							CacheName: "default",
-							TTL:       30 * time.Second,
+							Enabled:                     true,
+							CacheName:                   "default",
+							TTL:                         30 * time.Second,
+							IncludeSubgraphHeaderPrefix: true,
 							CacheKeyTemplate: &resolve.RootQueryCacheKeyTemplate{
 								RootFields: []resolve.QueryField{
 									{

@@ -10,18 +10,13 @@ import (
 type CacheKeyTemplate interface {
 	// RenderCacheKeys returns multiple cache keys (one per root field or entity)
 	// Generates keys for all items at once
-	RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error)
+	RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error)
 }
 
 type CacheKey struct {
 	Item      *astjson.Value
 	FromCache *astjson.Value
-	Keys      []KeyEntry
-}
-
-type KeyEntry struct {
-	Name string
-	Path string
+	Keys      []string
 }
 
 type RootQueryCacheKeyTemplate struct {
@@ -40,7 +35,7 @@ type FieldArgument struct {
 
 // RenderCacheKeys returns multiple cache keys, one per item
 // Each cache key contains one or more KeyEntry objects (one per root field)
-func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error) {
+func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
 	if len(r.RootFields) == 0 {
 		return nil, nil
 	}
@@ -50,14 +45,19 @@ func (r *RootQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context,
 
 	for _, item := range items {
 		// Create KeyEntry for each root field
-		keyEntries := arena.AllocateSlice[KeyEntry](a, 0, len(r.RootFields))
+		keyEntries := arena.AllocateSlice[string](a, 0, len(r.RootFields))
 		for _, field := range r.RootFields {
 			var key string
 			key, jsonBytes = r.renderField(a, ctx, item, jsonBytes, field)
-			keyEntries = arena.SliceAppend(a, keyEntries, KeyEntry{
-				Name: key,
-				Path: field.Coordinate.FieldName,
-			})
+			if prefix != "" {
+				l := len(prefix) + 1 + len(key)
+				tmp := arena.AllocateSlice[byte](a, 0, l)
+				tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(prefix)...)
+				tmp = arena.SliceAppend(a, tmp, []byte(`:`)...)
+				tmp = arena.SliceAppend(a, tmp, unsafebytes.StringToBytes(key)...)
+				key = unsafebytes.BytesToString(tmp)
+			}
+			keyEntries = arena.SliceAppend(a, keyEntries, key)
 		}
 		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
 			Item: item,
@@ -136,7 +136,7 @@ type EntityQueryCacheKeyTemplate struct {
 }
 
 // RenderCacheKeys returns one cache key per item for entity queries with keys nested under "keys"
-func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value) ([]*CacheKey, error) {
+func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Context, items []*astjson.Value, prefix string) ([]*CacheKey, error) {
 	jsonBytes := arena.AllocateSlice[byte](a, 0, 64)
 	cacheKeys := arena.AllocateSlice[*CacheKey](a, 0, len(items))
 
@@ -178,19 +178,24 @@ func (e *EntityQueryCacheKeyTemplate) RenderCacheKeys(a arena.Arena, ctx *Contex
 			}
 		}
 
-		keyObj.Set(a, "keys", keysObj)
+		keyObj.Set(a, "key", keysObj)
 
 		// Marshal to JSON and write to buffer
 		jsonBytes = keyObj.MarshalTo(jsonBytes[:0])
-		slice := arena.AllocateSlice[byte](a, len(jsonBytes), len(jsonBytes))
-		copy(slice, jsonBytes)
+		l := len(jsonBytes)
+		if prefix != "" {
+			l += 1 + len(prefix)
+		}
+		slice := arena.AllocateSlice[byte](a, 0, l)
+		if prefix != "" {
+			slice = arena.SliceAppend(a, slice, unsafebytes.StringToBytes(prefix)...)
+			slice = arena.SliceAppend(a, slice, []byte(`:`)...)
+		}
+		slice = arena.SliceAppend(a, slice, jsonBytes...)
 
 		// Create KeyEntry with empty path for entity queries
-		keyEntries := arena.AllocateSlice[KeyEntry](a, 0, 1)
-		keyEntries = arena.SliceAppend(a, keyEntries, KeyEntry{
-			Name: unsafebytes.BytesToString(slice),
-			Path: "",
-		})
+		keyEntries := arena.AllocateSlice[string](a, 0, 1)
+		keyEntries = arena.SliceAppend(a, keyEntries, unsafebytes.BytesToString(slice))
 
 		cacheKeys = arena.SliceAppend(a, cacheKeys, &CacheKey{
 			Item: item,

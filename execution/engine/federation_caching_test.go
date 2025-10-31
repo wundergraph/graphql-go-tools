@@ -70,16 +70,16 @@ func TestFederationCaching(t *testing.T) {
 			{
 				Operation: "get",
 				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
+					`{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 				Hits: []bool{false, false},
 			},
 			{
 				Operation: "set",
 				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
+					`{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 			},
 		}
@@ -103,7 +103,7 @@ func TestFederationCaching(t *testing.T) {
 		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
 
 		logAfterSecond := defaultCache.GetLog()
-		assert.Equal(t, 4, len(logAfterSecond))
+		assert.Equal(t, 2, len(logAfterSecond))
 
 		wantLogSecond := []CacheLogEntry{
 			{
@@ -112,23 +112,12 @@ func TestFederationCaching(t *testing.T) {
 				Hits:      []bool{true}, // Should be a hit now
 			},
 			{
-				Operation: "set",
-				Keys:      []string{`{"__typename":"Query","field":"topProducts"}`},
-			},
-			{
 				Operation: "get",
 				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
+					`{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 				Hits: []bool{true, true}, // Should be hits now, no misses
-			},
-			{
-				Operation: "set",
-				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
-				},
 			},
 		}
 		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
@@ -138,8 +127,8 @@ func TestFederationCaching(t *testing.T) {
 		reviewsCallsSecond := tracker.GetCount(reviewsHost)
 		accountsCallsSecond := tracker.GetCount(accountsHost)
 
-		assert.Equal(t, 1, productsCallsSecond, "Second query should hit cache and not call products subgraph again")
-		assert.Equal(t, 1, reviewsCallsSecond, "Second query should hit cache and not call reviews subgraph again")
+		assert.Equal(t, 0, productsCallsSecond, "Second query should hit cache and not call products subgraph again")
+		assert.Equal(t, 0, reviewsCallsSecond, "Second query should hit cache and not call reviews subgraph again")
 		assert.Equal(t, 0, accountsCallsSecond, "accounts not involved")
 	})
 
@@ -237,16 +226,16 @@ func TestFederationCaching(t *testing.T) {
 			{
 				Operation: "get",
 				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
+					`{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 				Hits: []bool{false, false}, // Miss because second query requests different fields (reviews)
 			},
 			{
 				Operation: "set",
 				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
+					`{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 			},
 		}
@@ -290,8 +279,8 @@ func TestFederationCaching(t *testing.T) {
 			{
 				Operation: "get",
 				Keys: []string{
-					`{"__typename":"Product","keys":{"upc":"top-1"}}`,
-					`{"__typename":"Product","keys":{"upc":"top-2"}}`,
+					`{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`{"__typename":"Product","key":{"upc":"top-2"}}`,
 				},
 				Hits: []bool{true, true}, // Should be hits from second query
 			},
@@ -307,6 +296,128 @@ func TestFederationCaching(t *testing.T) {
 		assert.Equal(t, 0, productsCallsThird, "Third query does not call products subgraph (all cache hits)")
 		assert.Equal(t, 0, reviewsCallsThird, "Third query does not call reviews subgraph (all cache hits)")
 		assert.Equal(t, 0, accountsCallsThird, "Third query does not call accounts subgraph")
+	})
+
+	t.Run("two subgraphs - with subgraph header prefix", func(t *testing.T) {
+		defaultCache := NewFakeLoaderCache()
+		caches := map[string]resolve.LoaderCache{
+			"default": defaultCache,
+		}
+
+		// Create HTTP client with tracking
+		tracker := newSubgraphCallTracker(http.DefaultTransport)
+		trackingClient := &http.Client{
+			Transport: tracker,
+		}
+
+		// Create mock SubgraphHeadersBuilder that returns a fixed hash for each subgraph
+		mockHeadersBuilder := &mockSubgraphHeadersBuilder{
+			hashes: map[string]uint64{
+				"1": 11111,
+				"2": 22222,
+				"3": 33333,
+			},
+		}
+
+		setup := federationtesting.NewFederationSetup(addCachingGateway(
+			withCachingEnableART(false),
+			withCachingLoaderCache(caches),
+			withHTTPClient(trackingClient),
+			withSubgraphHeadersBuilder(mockHeadersBuilder),
+		))
+		t.Cleanup(setup.Close)
+		gqlClient := NewGraphqlClient(http.DefaultClient)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		// Extract hostnames for tracking (URL.Host includes host:port)
+		accountsURLParsed, _ := url.Parse(setup.AccountsUpstreamServer.URL)
+		productsURLParsed, _ := url.Parse(setup.ProductsUpstreamServer.URL)
+		reviewsURLParsed, _ := url.Parse(setup.ReviewsUpstreamServer.URL)
+		accountsHost := accountsURLParsed.Host
+		productsHost := productsURLParsed.Host
+		reviewsHost := reviewsURLParsed.Host
+
+		// First query - should miss cache and then set with prefixed keys
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp := gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+
+		logAfterFirst := defaultCache.GetLog()
+		assert.Equal(t, 4, len(logAfterFirst))
+
+		wantLog := []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{`11111:{"__typename":"Query","field":"topProducts"}`},
+				Hits:      []bool{false},
+			},
+			{
+				Operation: "set",
+				Keys:      []string{`11111:{"__typename":"Query","field":"topProducts"}`},
+			},
+			{
+				Operation: "get",
+				Keys: []string{
+					`22222:{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`22222:{"__typename":"Product","key":{"upc":"top-2"}}`,
+				},
+				Hits: []bool{false, false},
+			},
+			{
+				Operation: "set",
+				Keys: []string{
+					`22222:{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`22222:{"__typename":"Product","key":{"upc":"top-2"}}`,
+				},
+			},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLog), sortCacheLogKeys(logAfterFirst))
+
+		// Verify subgraph calls for first query
+		productsCallsFirst := tracker.GetCount(productsHost)
+		reviewsCallsFirst := tracker.GetCount(reviewsHost)
+		accountsCallsFirst := tracker.GetCount(accountsHost)
+
+		assert.Equal(t, 1, productsCallsFirst, "First query should call products subgraph exactly once")
+		assert.Equal(t, 1, reviewsCallsFirst, "First query should call reviews subgraph exactly once")
+		assert.Equal(t, 0, accountsCallsFirst, "First query should not call accounts subgraph")
+
+		// Second query - should hit cache with prefixed keys
+		defaultCache.ClearLog()
+		tracker.Reset()
+		resp = gqlClient.Query(ctx, setup.GatewayServer.URL, cachingTestQueryPath("queries/multiple_upstream.query"), nil, t)
+		assert.Equal(t, `{"data":{"topProducts":[{"name":"Trilby","reviews":[{"body":"A highly effective form of birth control.","author":{"username":"Me"}}]},{"name":"Fedora","reviews":[{"body":"Fedoras are one of the most fashionable hats around and can look great with a variety of outfits.","author":{"username":"Me"}}]}]}}`, string(resp))
+
+		logAfterSecond := defaultCache.GetLog()
+		assert.Equal(t, 2, len(logAfterSecond))
+
+		wantLogSecond := []CacheLogEntry{
+			{
+				Operation: "get",
+				Keys:      []string{`11111:{"__typename":"Query","field":"topProducts"}`},
+				Hits:      []bool{true}, // Should be a hit now
+			},
+			{
+				Operation: "get",
+				Keys: []string{
+					`22222:{"__typename":"Product","key":{"upc":"top-1"}}`,
+					`22222:{"__typename":"Product","key":{"upc":"top-2"}}`,
+				},
+				Hits: []bool{true, true}, // Should be hits now
+			},
+		}
+		assert.Equal(t, sortCacheLogKeys(wantLogSecond), sortCacheLogKeys(logAfterSecond))
+
+		// Verify subgraph calls for second query
+		productsCallsSecond := tracker.GetCount(productsHost)
+		reviewsCallsSecond := tracker.GetCount(reviewsHost)
+		accountsCallsSecond := tracker.GetCount(accountsHost)
+
+		assert.Equal(t, 0, productsCallsSecond, "Second query should hit cache and not call products subgraph again")
+		assert.Equal(t, 0, reviewsCallsSecond, "Second query should hit cache and not call reviews subgraph again")
+		assert.Equal(t, 0, accountsCallsSecond, "accounts not involved")
 	})
 }
 
@@ -362,9 +473,10 @@ func (t *subgraphCallTracker) DebugPrint() string {
 
 // Helper functions for gateway setup with HTTP client support
 type cachingGatewayOptions struct {
-	enableART       bool
-	withLoaderCache map[string]resolve.LoaderCache
-	httpClient      *http.Client
+	enableART              bool
+	withLoaderCache        map[string]resolve.LoaderCache
+	httpClient             *http.Client
+	subgraphHeadersBuilder resolve.SubgraphHeadersBuilder
 }
 
 func withCachingEnableART(enableART bool) func(*cachingGatewayOptions) {
@@ -382,6 +494,12 @@ func withCachingLoaderCache(loaderCache map[string]resolve.LoaderCache) func(*ca
 func withHTTPClient(client *http.Client) func(*cachingGatewayOptions) {
 	return func(opts *cachingGatewayOptions) {
 		opts.httpClient = client
+	}
+}
+
+func withSubgraphHeadersBuilder(builder resolve.SubgraphHeadersBuilder) func(*cachingGatewayOptions) {
+	return func(opts *cachingGatewayOptions) {
+		opts.subgraphHeadersBuilder = builder
 	}
 }
 
@@ -404,7 +522,7 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 			{Name: "reviews", URL: setup.ReviewsUpstreamServer.URL},
 		}, httpClient)
 
-		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache)
+		gtw := gateway.Handler(abstractlogger.NoopLogger, poller, httpClient, opts.enableART, opts.withLoaderCache, opts.subgraphHeadersBuilder)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 		defer cancel()
@@ -412,6 +530,30 @@ func addCachingGateway(options ...cachingGatewayOptionsToFunc) func(setup *feder
 		poller.Run(ctx)
 		return httptest.NewServer(gtw)
 	}
+}
+
+// mockSubgraphHeadersBuilder is a mock implementation of SubgraphHeadersBuilder
+type mockSubgraphHeadersBuilder struct {
+	hashes map[string]uint64
+}
+
+func (m *mockSubgraphHeadersBuilder) HeadersForSubgraph(subgraphName string) (http.Header, uint64) {
+	hash := m.hashes[subgraphName]
+	if hash == 0 {
+		// Return default hash if not found - this helps debug what names are being requested
+		// Note: This will cause test failures if subgraph names don't match
+		return nil, 99999
+	}
+	return nil, hash
+}
+
+func (m *mockSubgraphHeadersBuilder) HashAll() uint64 {
+	// Return a simple hash of all subgraph hashes combined
+	var result uint64
+	for _, hash := range m.hashes {
+		result ^= hash
+	}
+	return result
 }
 
 func cachingTestQueryPath(name string) string {
