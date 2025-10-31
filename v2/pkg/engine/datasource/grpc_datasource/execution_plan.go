@@ -735,10 +735,6 @@ func (r *rpcPlanningContext) buildFieldMessage(fieldTypeNode ast.Node, fieldRef 
 		}
 	}
 
-	fmt.Println("fieldName", r.operation.FieldNameString(fieldRef))
-
-	fmt.Println("fieldRefs", fieldRefs, "inlineFragmentRefs", inlineFragmentRefs)
-
 	message := &RPCMessage{
 		Name: fieldTypeNode.NameString(r.definition),
 	}
