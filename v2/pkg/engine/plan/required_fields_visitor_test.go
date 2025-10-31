@@ -607,7 +607,7 @@ func TestQueryPlanRequiredFieldsFragment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fragment, report := QueryPlanRequiredFieldsFragment(tt.fieldName, tt.typeName, tt.requiredFields)
+			fragment, report := QueryPlanRequiredFieldsFragment(tt.typeName, tt.fieldName, tt.requiredFields)
 
 			require.False(t, report.HasErrors(), "unexpected error")
 			require.NotNil(t, fragment)

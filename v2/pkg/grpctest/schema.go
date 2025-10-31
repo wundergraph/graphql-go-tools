@@ -72,7 +72,7 @@ func GraphQLSchemaWithoutBaseDefinitions() (ast.Document, error) {
 	return doc, nil
 }
 
-func MustGraphQLSchema(t *testing.T) ast.Document {
+func MustGraphQLSchema(t testing.TB) ast.Document {
 	schemaBytes, err := getSchemaBytes()
 	require.NoError(t, err)
 	doc := unsafeparser.ParseGraphqlDocumentStringWithBaseSchema(string(schemaBytes))
@@ -95,7 +95,7 @@ func ProtoSchema() (string, error) {
 	return string(protoBytes), nil
 }
 
-func MustProtoSchema(t *testing.T) string {
+func MustProtoSchema(t testing.TB) string {
 	schema, err := ProtoSchema()
 	require.NoError(t, err)
 	return schema

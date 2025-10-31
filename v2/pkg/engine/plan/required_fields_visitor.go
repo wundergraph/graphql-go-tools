@@ -12,29 +12,42 @@ import (
 )
 
 const (
-	requiredFieldsFragmentTemplate             = `fragment Key on %s {%s}`
-	requiredFieldsFragmentTemplateWithTypeName = `fragment Key on %s { __typename %s}`
+	keyFieldsFragmentTemplate = `fragment Key on %s {%s}`
+	requiresFragmentTemplate  = `fragment Requires_for_%s on %s { %s }`
 )
 
-func RequiredFieldsFragment(typeName, requiredFields string, includeTypename bool) (*ast.Document, *operationreport.Report) {
-	template := requiredFieldsFragmentTemplate
+func RequiredFieldsFragmentString(typeName, fieldName, requiredFields string, includeTypename bool) (fragment string) {
 	if includeTypename {
-		template = requiredFieldsFragmentTemplateWithTypeName
+		requiredFields = "__typename " + requiredFields
 	}
 
-	key, report := astparser.ParseGraphqlDocumentString(fmt.Sprintf(template, typeName, requiredFields))
+	if fieldName == "" {
+		fragment = fmt.Sprintf(keyFieldsFragmentTemplate, typeName, requiredFields)
+	} else {
+		fragment = fmt.Sprintf(requiresFragmentTemplate, fieldName, typeName, requiredFields)
+	}
+
+	return fragment
+}
+
+func RequiredFieldsFragment(typeName, requiredFields string, includeTypename bool) (*ast.Document, *operationreport.Report) {
+	return ParseRequiredFieldsFragment(typeName, "", requiredFields, includeTypename)
+}
+
+func ParseRequiredFieldsFragment(typeName, fieldName, requiredFields string, includeTypename bool) (*ast.Document, *operationreport.Report) {
+	fragment := RequiredFieldsFragmentString(typeName, fieldName, requiredFields, includeTypename)
+
+	key, report := astparser.ParseGraphqlDocumentString(fragment)
+	if report.HasErrors() {
+		return nil, &report
+	}
+
 	return &key, &report
 }
 
-func QueryPlanRequiredFieldsFragment(fieldName, typeName, requiredFields string) (*ast.Document, *operationreport.Report) {
-	var fragment string
-	if fieldName == "" {
-		fragment = fmt.Sprintf("fragment Key on %s { __typename %s }", typeName, requiredFields)
-	} else {
-		fragment = fmt.Sprintf("fragment Requires_for_%s on %s { %s }", fieldName, typeName, requiredFields)
-	}
-	key, report := astparser.ParseGraphqlDocumentString(fragment)
-	return &key, &report
+func QueryPlanRequiredFieldsFragment(typeName, fieldName, requiredFields string) (*ast.Document, *operationreport.Report) {
+	// fieldName == "" - is not fully accurate, for interface objects we do not request a __typename
+	return ParseRequiredFieldsFragment(typeName, fieldName, requiredFields, fieldName == "")
 }
 
 type addRequiredFieldsConfiguration struct {

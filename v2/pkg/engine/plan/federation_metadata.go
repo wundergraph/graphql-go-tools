@@ -94,6 +94,8 @@ type FieldCoordinate struct {
 	FieldName string `json:"field_name"`
 }
 
+// parseSelectionSet parses the selection set and stores the parsed AST in parsedSelectionSet.
+// should have pointer receiver to preserve the value
 func (f *FederationFieldConfiguration) parseSelectionSet() error {
 	if f.parsedSelectionSet != nil {
 		return nil
@@ -108,7 +110,9 @@ func (f *FederationFieldConfiguration) parseSelectionSet() error {
 	return nil
 }
 
-func (f *FederationFieldConfiguration) String() string {
+// String - implements fmt.Stringer
+// NOTE: do not change to pointer receiver, it won't work for not pointer values
+func (f FederationFieldConfiguration) String() string {
 	b, _ := json.Marshal(f)
 	return string(b)
 }

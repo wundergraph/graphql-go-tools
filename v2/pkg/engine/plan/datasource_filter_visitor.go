@@ -108,7 +108,9 @@ func (f *DataSourceFilter) applyLandedTo(landedTo map[int]DSHash) {
 
 		node, ok := f.nodes.responseTree.Find(treeNodeID)
 		if !ok {
-			panic("node not found")
+			// no such node in the tree
+			// we may removed it as orphaned
+			continue
 		}
 
 		nodeData := node.GetData()
@@ -217,6 +219,10 @@ const (
 func (f *DataSourceFilter) selectUniqueNodes() {
 
 	for i := range f.nodes.items {
+		if f.nodes.items[i].IsOrphan {
+			continue
+		}
+
 		if f.nodes.items[i].Selected {
 			continue
 		}
