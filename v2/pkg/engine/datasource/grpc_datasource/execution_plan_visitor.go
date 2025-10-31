@@ -55,7 +55,7 @@ type rpcPlanVisitor struct {
 	currentCallID      int
 
 	parentCallID           int
-	fieldResolverAncestors ancestor[int]
+	fieldResolverAncestors stack[int]
 	resolvedFields         []resolvedField
 
 	fieldPath ast.Path
@@ -79,7 +79,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		operationFieldRef:      ast.InvalidRef,
 		resolvedFields:         make([]resolvedField, 0),
 		parentCallID:           ast.InvalidRef,
-		fieldResolverAncestors: newAncestor[int](),
+		fieldResolverAncestors: newStack[int](0),
 		fieldPath:              make(ast.Path, 0),
 	}
 

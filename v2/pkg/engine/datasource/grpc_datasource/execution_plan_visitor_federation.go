@@ -51,7 +51,7 @@ type rpcPlanVisitorFederation struct {
 	currentCall  *RPCCall
 
 	parentCallID           int
-	fieldResolverAncestors ancestor[int]
+	fieldResolverAncestors stack[int]
 	resolvedFields         []resolvedField
 
 	fieldPath ast.Path
@@ -70,7 +70,7 @@ func newRPCPlanVisitorFederation(config rpcPlanVisitorConfig) *rpcPlanVisitorFed
 		},
 		federationConfigData:   parseFederationConfigData(config.federationConfigs),
 		resolvedFields:         make([]resolvedField, 0),
-		fieldResolverAncestors: newAncestor[int](),
+		fieldResolverAncestors: newStack[int](0),
 		parentCallID:           ast.InvalidRef,
 		fieldPath:              ast.Path{}.WithFieldNameItem([]byte("result")),
 	}
