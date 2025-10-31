@@ -12,7 +12,6 @@ type FetchKind int
 
 const (
 	FetchKindSingle FetchKind = iota + 1
-	FetchKindParallelListItem
 	FetchKindEntity
 	FetchKindEntityBatch
 )
@@ -227,27 +226,6 @@ func (*EntityFetch) FetchKind() FetchKind {
 	return FetchKindEntity
 }
 
-// The ParallelListItemFetch can be used to make nested parallel fetches within a list
-// Usually, you want to batch fetches within a list, which is the default behavior of SingleFetch
-// However, if the data source does not support batching, you can use this fetch to make parallel fetches within a list
-type ParallelListItemFetch struct {
-	Fetch  *SingleFetch
-	Traces []*SingleFetch
-	Trace  *DataSourceLoadTrace
-}
-
-func (p *ParallelListItemFetch) Dependencies() *FetchDependencies {
-	return &p.Fetch.FetchDependencies
-}
-
-func (p *ParallelListItemFetch) FetchInfo() *FetchInfo {
-	return p.Fetch.Info
-}
-
-func (*ParallelListItemFetch) FetchKind() FetchKind {
-	return FetchKindParallelListItem
-}
-
 type QueryPlan struct {
 	DependsOnFields []Representation
 	Query           string
@@ -271,12 +249,6 @@ type FetchConfiguration struct {
 	Input      string
 	Variables  Variables
 	DataSource DataSource
-
-	// RequiresParallelListItemFetch indicates that the single fetches should be executed without batching.
-	// If we have multiple fetches attached to the object, then after post-processing of a plan
-	// we will get ParallelListItemFetch instead of ParallelFetch.
-	// Happens only for objects under the array path and used only for the introspection.
-	RequiresParallelListItemFetch bool
 
 	// RequiresEntityFetch will be set to true if the fetch is an entity fetch on an object.
 	// After post-processing, we will get EntityFetch.
@@ -313,9 +285,6 @@ func (fc *FetchConfiguration) Equals(other *FetchConfiguration) bool {
 
 	// Note: we do not compare datasources, as they will always be a different instance.
 
-	if fc.RequiresParallelListItemFetch != other.RequiresParallelListItemFetch {
-		return false
-	}
 	if fc.RequiresEntityFetch != other.RequiresEntityFetch {
 		return false
 	}
@@ -505,5 +474,4 @@ var (
 	_ Fetch = (*SingleFetch)(nil)
 	_ Fetch = (*BatchEntityFetch)(nil)
 	_ Fetch = (*EntityFetch)(nil)
-	_ Fetch = (*ParallelListItemFetch)(nil)
 )
