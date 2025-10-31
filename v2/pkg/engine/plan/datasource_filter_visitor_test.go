@@ -940,8 +940,8 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 11, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
@@ -958,10 +958,10 @@ func TestFindBestDataSourceSet(t *testing.T) {
 					suggestions: newNodeSuggestions([]NodeSuggestion{
 						{TypeName: "Query", FieldName: "user", DataSourceHash: 11, Path: "query.user", ParentPath: "query", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 						{TypeName: "User", FieldName: "id", DataSourceHash: 11, Path: "query.user.id", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
-						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "User", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
-						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
+						{TypeName: "User", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested", ParentPath: "query.user", IsRootNode: true, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 11, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
+						{TypeName: "NestedOne", FieldName: "nested", DataSourceHash: 22, Path: "query.user.nested.nested", ParentPath: "query.user.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: same source parent of unique node"}},
 						{TypeName: "NestedTwo", FieldName: "shared", DataSourceHash: 22, Path: "query.user.nested.nested.shared", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage2: node on the same source as selected parent"}},
 						{TypeName: "NestedTwo", FieldName: "uniqueOne", DataSourceHash: 11, Path: "query.user.nested.nested.uniqueOne", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: unique"}},
 						{TypeName: "NestedTwo", FieldName: "uniqueTwo", DataSourceHash: 22, Path: "query.user.nested.nested.uniqueTwo", ParentPath: "query.user.nested.nested", IsRootNode: false, Selected: true, SelectionReasons: []string{"stage1: unique"}},
@@ -1039,13 +1039,12 @@ func TestFindBestDataSourceSet(t *testing.T) {
 			t.Fatal(report.Error())
 		}
 
-		dsFilter := NewDataSourceFilter(&operation, &definition, &report)
+		dsFilter := NewDataSourceFilter(&operation, &definition, &report, DataSources, nil)
 		if report.HasErrors() {
 			t.Fatal(report.Error())
 		}
 		dsFilter.EnableSelectionReasons()
-		dsFilter.dataSources = DataSources
-		planned, _ := dsFilter.findBestDataSourceSet(nil, nil)
+		planned, _ := dsFilter.findBestDataSourceSet(nil)
 		if report.HasErrors() {
 			t.Fatal(report.Error())
 		}

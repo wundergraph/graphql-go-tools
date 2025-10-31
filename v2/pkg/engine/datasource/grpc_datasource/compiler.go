@@ -507,10 +507,6 @@ func (p *RPCCompiler) CompileNode(graph *DependencyGraph, fetch FetchItem, input
 			return ServiceCall{}, err
 		}
 
-		if len(context) == 0 {
-			return ServiceCall{}, fmt.Errorf("context is required for resolve calls")
-		}
-
 		request, err = p.buildProtoMessageWithContext(inputMessage, &call.Request, inputData, context)
 		if err != nil {
 			return ServiceCall{}, err
@@ -570,6 +566,10 @@ func (p *RPCCompiler) newEmptyMessage(message Message) (protoref.Message, error)
 func (p *RPCCompiler) buildProtoMessageWithContext(inputMessage Message, rpcMessage *RPCMessage, data gjson.Result, context []FetchItem) (protoref.Message, error) {
 	if rpcMessage == nil {
 		return nil, fmt.Errorf("rpc message is nil")
+	}
+
+	if len(context) == 0 {
+		return nil, fmt.Errorf("context is required for resolve calls")
 	}
 
 	if p.doc.MessageRefByName(rpcMessage.Name) == InvalidRef {

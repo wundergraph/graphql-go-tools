@@ -77,17 +77,35 @@ type RewriteResult struct {
 
 var resultNotRewritten = RewriteResult{}
 
-func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, dsConfiguration DataSource) (*fieldSelectionRewriter, error) {
+type rewriterOption func(*rewriterOptions)
+
+type rewriterOptions struct {
+	forceRewrite bool
+}
+
+func withForceRewrite() rewriterOption {
+	return func(o *rewriterOptions) {
+		o.forceRewrite = true
+	}
+}
+
+func newFieldSelectionRewriter(operation *ast.Document, definition *ast.Document, dsConfiguration DataSource, options ...rewriterOption) (*fieldSelectionRewriter, error) {
 	upstreamDefinition, ok := dsConfiguration.UpstreamSchema()
 	if !ok {
 		return nil, ErrNoUpstreamSchema
 	}
+
+	opts := &rewriterOptions{}
+	for _, option := range options {
+		option(opts)
+	}
+
 	return &fieldSelectionRewriter{
 		operation:          operation,
 		definition:         definition,
 		upstreamDefinition: upstreamDefinition,
 		dsConfiguration:    dsConfiguration,
-		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments,
+		alwaysRewrite:      dsConfiguration.PlanningBehavior().AlwaysFlattenFragments || opts.forceRewrite,
 	}, nil
 }
 
@@ -692,7 +710,7 @@ func (v *AbstractFieldPathCollector) EnterField(ref int) {
 }
 
 func collectPath(operation *ast.Document, definition *ast.Document, fieldRef int, fieldToPath bool) (fieldRefPaths map[int]string, pathFieldRefs map[string][]int, err error) {
-	walker := astvisitor.NewWalker(4)
+	walker := astvisitor.NewWalkerWithID(4, "AbstractFieldPathCollector")
 
 	c := &AbstractFieldPathCollector{
 		Walker:         &walker,

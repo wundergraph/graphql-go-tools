@@ -54,7 +54,7 @@ type rpcPlanVisitor struct {
 	currentCall        *RPCCall
 	currentCallID      int
 
-	relatedCallID          int
+	parentCallID           int
 	fieldResolverAncestors ancestor[int]
 	resolvedFields         []resolvedField
 
@@ -78,7 +78,7 @@ func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 		mapping:                config.mapping,
 		operationFieldRef:      ast.InvalidRef,
 		resolvedFields:         make([]resolvedField, 0),
-		relatedCallID:          ast.InvalidRef,
+		parentCallID:           ast.InvalidRef,
 		fieldResolverAncestors: newAncestor[int](),
 		fieldPath:              make(ast.Path, 0),
 	}
@@ -342,7 +342,7 @@ func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
 
-	r.relatedCallID = r.currentCallID
+	r.parentCallID = r.currentCallID
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -441,7 +441,7 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 		// This is because we can also have nested arguments, which require the underlying field to be resolved
 		// by values provided by the parent call.
 		if r.operation.FieldHasArguments(ref) {
-			r.relatedCallID--
+			r.parentCallID--
 		}
 
 		r.planInfo.currentResponseFieldIndex++
@@ -468,7 +468,7 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	fieldArgs := r.operation.FieldArguments(ref)
 	// We don't want to add fields from the selection set to the actual call
 	resolvedField := resolvedField{
-		callerRef:              r.relatedCallID,
+		callerRef:              r.parentCallID,
 		parentTypeNode:         r.walker.EnclosingTypeDefinition,
 		fieldRef:               ref,
 		responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
@@ -485,5 +485,5 @@ func (r *rpcPlanVisitor) enterFieldResolver(ref int, fieldDefRef int) {
 	r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
 
 	// In case of nested fields with arguments, we need to increment the related call ID.
-	r.relatedCallID++
+	r.parentCallID++
 }

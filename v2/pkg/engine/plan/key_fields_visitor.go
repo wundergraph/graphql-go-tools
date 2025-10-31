@@ -87,7 +87,7 @@ type Entity {
 
 */
 
-func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
+func (f *collectNodesDSVisitor) collectKeysForPath(typeName, parentPath string) error {
 	indexKey := SeenKeyPath{
 		TypeName: typeName,
 		Path:     parentPath,
@@ -95,12 +95,12 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 	}
 	// global seen keys is used when we recollect nodes
 	if _, ok := f.globalSeenKeys[indexKey]; ok {
-		return
+		return nil
 	}
 	// local seen fields is used when we have multipe fields on a path, and we visit it first time
 	if _, ok := f.localSeenKeys[indexKey]; ok {
 		// we already collected keys for this path
-		return
+		return nil
 	}
 	// WARNING: we are not writing to global map from go routine
 	f.localSeenKeys[indexKey] = struct{}{}
@@ -108,7 +108,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 	allKeys := f.dataSource.FederationConfiguration().Keys
 	keys := allKeys.FilterByTypeAndResolvability(typeName, false)
 	if len(keys) == 0 {
-		return
+		return nil
 	}
 
 	typeNameKeys := make([]KeyInfo, 0, len(keys))
@@ -130,8 +130,7 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 
 		keyPaths, hasExternalFields := getKeyPaths(input)
 		if report.HasErrors() {
-			f.walker.StopWithInternalErr(report)
-			return
+			return report
 		}
 
 		target := !key.DisableEntityResolver
@@ -168,10 +167,12 @@ func (f *collectNodesVisitor) collectKeysForPath(typeName, parentPath string) {
 		Path:     parentPath,
 		Keys:     typeNameKeys,
 	})
+
+	return nil
 }
 
 func getKeyPaths(input *keyVisitorInput) (keyPaths []KeyInfoFieldPath, hasExternalFields bool) {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "KeyInfoVisitor")
 	visitor := &keyInfoVisitor{
 		walker: &walker,
 		input:  input,

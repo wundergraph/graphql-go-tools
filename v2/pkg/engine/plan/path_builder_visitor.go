@@ -54,6 +54,13 @@ type pathBuilderVisitor struct {
 
 	currentFetchPath    []resolve.FetchItemPathElement
 	currentResponsePath []string
+
+	skipDS []DSSkip // skipDS is a list of datasources to skip when walking field children
+}
+
+type DSSkip struct {
+	popOnFieldRef int
+	DSHash        DSHash
 }
 
 type FailedToCreatePlanningPathsError struct {
@@ -459,6 +466,12 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 	suggestions := c.nodeSuggestions.SuggestionsForPath(typeName, fieldName, currentPath)
 	shareable := len(suggestions) > 1
 	for _, suggestion := range suggestions {
+		if idx := slices.IndexFunc(c.skipDS, func(skip DSSkip) bool {
+			return skip.DSHash == suggestion.DataSourceHash
+		}); idx != -1 {
+			continue
+		}
+
 		dsIdx := slices.IndexFunc(c.dataSources, func(d DataSource) bool {
 			return d.Hash() == suggestion.DataSourceHash
 		})
@@ -471,26 +484,68 @@ func (c *pathBuilderVisitor) EnterField(fieldRef int) {
 		if !c.couldPlanField(fieldRef, ds.Hash()) {
 			c.handleMissingPath(false, typeName, fieldName, currentPath, shareable)
 
-			// if we could not plan the field, we should skip walking into it
-			// as the dependencies conditions are tight to this field,
-			// and we could mistakenly plan the nested fields on this datasource without current field
-			// It could happen when there are the same field as current on another datasource, and it is allowed to plan it
-			c.walker.SkipNode()
-			return
+			/*
+				if we could not plan the field, we should skip planning children on the same datasource
+				as the dependency conditions are tight to this field.
+				We could mistakenly plan the nested fields on this datasource without current field/
+				It could happen when there is the same field as current on another datasource, and it is allowed to plan it.
+				We want to be able to plan fields on other datasource, because current field on this datasource
+				could depend on the child fields of the same field on another datasource
+
+				example:
+
+				type Entity @key(fields: "nested { a b }") {
+					nested: NestedType
+				}
+
+				type NestedType {
+					a: String
+					b: String
+					c: String
+				}
+
+				We want to get Entity.nested.c but it depends on Entity.nested.a and Entity.nested.b as keys
+				Within query it will mean that field Entity.nested depends on fields Entity.nested.a and Entity.nested.b
+				But as we track all fields including parent, it will mean that Entity.nested depends on Entity.nested within
+				the same query and field ref will be the same
+
+				So we need to allow processing nested fields on other datasources, but not on the current one
+			*/
+
+			c.skipDS = append(c.skipDS, DSSkip{
+				popOnFieldRef: fieldRef,
+				DSHash:        ds.Hash(),
+			})
+
+			continue
 		}
 
 		c.handlePlanningField(fieldRef, typeName, fieldName, currentPath, parentPath, precedingParentPath, suggestion, ds, shareable)
 	}
 
-	// we should update response path and array fields only when we are able to plan - so field is not skipped
-	// 1. Because current response path for the field should not include field itself
-	// 2. To have correct state - when we add something in the EnterField callback,
-	// but we call walker.SkipNode - LeaveField callback won't be called,
-	// and we will have an incorrect state
-
 	c.addArrayField(fieldRef, currentPath)
 	// pushResponsePath uses array fields so it should be called after addArrayField
 	c.pushResponsePath(fieldRef, fieldAliasOrName)
+}
+
+func (c *pathBuilderVisitor) LeaveField(ref int) {
+	if c.isNotOperationDefinitionRoot() {
+		return
+	}
+
+	if c.plannerConfiguration.Debug.ConfigurationVisitor {
+		fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
+		typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
+		c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldAliasOrName, "typeName:", typeName)
+	}
+
+	// pop response path uses array fields so it should be called before removeArrayField
+	c.popResponsePath(ref)
+	c.removeArrayField(ref)
+
+	c.skipDS = slices.DeleteFunc(c.skipDS, func(s DSSkip) bool {
+		return s.popOnFieldRef == ref
+	})
 }
 
 func (c *pathBuilderVisitor) handlePlanningField(fieldRef int, typeName, fieldName, currentPath, parentPath, precedingParentPath string, suggestion *NodeSuggestion, ds DataSource, shareable bool) {
@@ -1209,24 +1264,6 @@ func (c *pathBuilderVisitor) handleMissingPath(planned bool, typeName string, fi
 		// all suggestions were planned, so we should not record a missing path
 		return
 	}
-
-	if !shareable {
-		c.walker.SkipNode()
-	}
-}
-
-func (c *pathBuilderVisitor) LeaveField(ref int) {
-	if c.isNotOperationDefinitionRoot() {
-		return
-	}
-
-	fieldAliasOrName := c.operation.FieldAliasOrNameString(ref)
-	typeName := c.walker.EnclosingTypeDefinition.NameString(c.definition)
-	c.debugPrint("LeaveField ref:", ref, "fieldName:", fieldAliasOrName, "typeName:", typeName)
-
-	// pop response path uses array fields so it should be called before removeArrayField
-	c.popResponsePath(ref)
-	c.removeArrayField(ref)
 }
 
 // addPlannerPathForTypename adds a path for the __typename field.
