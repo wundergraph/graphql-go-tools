@@ -188,7 +188,28 @@ func (r *rpcPlanVisitorFederation) EnterSelectionSet(ref int) {
 
 	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
 	if r.fieldResolverAncestors.len() > 0 {
-		r.resolvedFields[r.fieldResolverAncestors.peek()].fieldsSelectionSetRef = ref
+		if r.walker.Ancestor().Kind == ast.NodeKindInlineFragment {
+			return
+		}
+
+		resolvedFieldAncestor := r.fieldResolverAncestors.peek()
+		if compositType := r.planCtx.getCompositeType(r.walker.EnclosingTypeDefinition); compositType != OneOfTypeNone {
+			memberTypes, err := r.planCtx.getMemberTypes(r.walker.EnclosingTypeDefinition)
+			if err != nil {
+				r.walker.StopWithInternalErr(err)
+				return
+			}
+			resolvedField := &r.resolvedFields[resolvedFieldAncestor]
+
+			resolvedField.memberTypes = memberTypes
+			resolvedField.fieldsSelectionSetRef = ast.InvalidRef
+
+			r.planCtx.enterResolverCompositeSelectionSet(compositType, ref, resolvedField)
+			return
+		}
+
+		// TODO: handle nested resolved fields.
+		r.resolvedFields[resolvedFieldAncestor].fieldsSelectionSetRef = ref
 		return
 	}
 

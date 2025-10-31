@@ -329,6 +329,39 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					Request:  "ResolveProductRecommendedCategoryRequest",
 					Response: "ResolveProductRecommendedCategoryResponse",
 				},
+				"mascotRecommendation": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "mascot_recommendation",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeDetails": "include_details",
+						},
+					},
+					RPC:      "ResolveProductMascotRecommendation",
+					Request:  "ResolveProductMascotRecommendationRequest",
+					Response: "ResolveProductMascotRecommendationResponse",
+				},
+				"stockStatus": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "stock_status",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"checkAvailability": "check_availability",
+						},
+					},
+					RPC:      "ResolveProductStockStatus",
+					Request:  "ResolveProductStockStatusRequest",
+					Response: "ResolveProductStockStatusResponse",
+				},
+				"productDetails": {
+					FieldMappingData: grpcdatasource.FieldMapData{
+						TargetName: "product_details",
+						ArgumentMappings: grpcdatasource.FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveProductProductDetails",
+					Request:  "ResolveProductProductDetailsRequest",
+					Response: "ResolveProductProductDetailsResponse",
+				},
 			},
 			"Subcategory": {
 				"itemCount": {
@@ -654,6 +687,38 @@ func DefaultGRPCMapping() *grpcdatasource.GRPCMapping {
 					ArgumentMappings: grpcdatasource.FieldArgumentMap{
 						"maxPrice": "max_price",
 					},
+				},
+				"mascotRecommendation": {
+					TargetName: "mascot_recommendation",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeDetails": "include_details",
+					},
+				},
+				"stockStatus": {
+					TargetName: "stock_status",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"checkAvailability": "check_availability",
+					},
+				},
+				"productDetails": {
+					TargetName: "product_details",
+					ArgumentMappings: grpcdatasource.FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"ProductDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"reviewSummary": {
+					TargetName: "review_summary",
+				},
+				"recommendedPet": {
+					TargetName: "recommended_pet",
 				},
 			},
 			"Storage": {

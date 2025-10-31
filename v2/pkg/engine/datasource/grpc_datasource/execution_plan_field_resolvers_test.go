@@ -1110,7 +1110,7 @@ func TestExecutionPlanFieldResolvers_WithNestedResolvers(t *testing.T) {
 	}
 }
 
-func TestExecutionPlanFieldResolvers_WithOneOfTypes(t *testing.T) {
+func TestExecutionPlanFieldResolvers_WithCompositeTypes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name          string

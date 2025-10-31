@@ -5,6 +5,16 @@ type Product @key(fields: "id") {
   price: Float!
   shippingEstimate(input: ShippingEstimateInput!): Float! @connect__fieldResolver(context: "id price")
   recommendedCategory(maxPrice: Int!): Category @connect__fieldResolver(context: "id name price")
+  mascotRecommendation(includeDetails: Boolean!): Animal @connect__fieldResolver(context: "id name")
+  stockStatus(checkAvailability: Boolean!): ActionResult! @connect__fieldResolver(context: "id name price")
+  productDetails(includeExtended: Boolean!): ProductDetails @connect__fieldResolver(context: "id name price")
+}
+
+type ProductDetails {
+  id: ID!
+  description: String!
+  reviewSummary: ActionResult!
+  recommendedPet: Animal!
 }
 
 type Storage @key(fields: "id") {

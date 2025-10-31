@@ -20,6 +20,181 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveProductMascotRecommendation implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductMascotRecommendation(_ context.Context, req *productv1.ResolveProductMascotRecommendationRequest) (*productv1.ResolveProductMascotRecommendationResponse, error) {
+	results := make([]*productv1.ResolveProductMascotRecommendationResult, 0, len(req.GetContext()))
+
+	includeDetails := false
+	if req.GetFieldArgs() != nil {
+		includeDetails = req.GetFieldArgs().GetIncludeDetails()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Alternate between Cat and Dog based on index
+		var animal *productv1.Animal
+		if i%2 == 0 {
+			volume := int32(5)
+			if includeDetails {
+				volume = int32((i + 1) * 8)
+			}
+			animal = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("mascot-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotCat for %s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: volume,
+					},
+				},
+			}
+		} else {
+			volume := int32(7)
+			if includeDetails {
+				volume = int32((i + 1) * 10)
+			}
+			animal = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("mascot-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("MascotDog for %s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: volume,
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductMascotRecommendationResult{
+			MascotRecommendation: animal,
+		})
+	}
+
+	return &productv1.ResolveProductMascotRecommendationResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductProductDetails implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductProductDetails(_ context.Context, req *productv1.ResolveProductProductDetailsRequest) (*productv1.ResolveProductProductDetailsResponse, error) {
+	results := make([]*productv1.ResolveProductProductDetailsResult, 0, len(req.GetContext()))
+
+	includeExtended := false
+	if req.GetFieldArgs() != nil {
+		includeExtended = req.GetFieldArgs().GetIncludeExtended()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Create recommended pet (alternate between Cat and Dog)
+		var pet *productv1.Animal
+		if i%2 == 0 {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Cat{
+					Cat: &productv1.Cat{
+						Id:         fmt.Sprintf("details-cat-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedCat for %s", ctx.GetName()),
+						Kind:       "Cat",
+						MeowVolume: int32((i + 1) * 6),
+					},
+				},
+			}
+		} else {
+			pet = &productv1.Animal{
+				Instance: &productv1.Animal_Dog{
+					Dog: &productv1.Dog{
+						Id:         fmt.Sprintf("details-dog-%s", ctx.GetId()),
+						Name:       fmt.Sprintf("RecommendedDog for %s", ctx.GetName()),
+						Kind:       "Dog",
+						BarkVolume: int32((i + 1) * 9),
+					},
+				},
+			}
+		}
+
+		// Create review summary (alternate between success and error based on price and extended flag)
+		var reviewSummary *productv1.ActionResult
+		if includeExtended && ctx.GetPrice() > 500 {
+			reviewSummary = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Product %s has negative reviews", ctx.GetName()),
+						Code:    "NEGATIVE_REVIEWS",
+					},
+				},
+			}
+		} else {
+			reviewSummary = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Product %s has positive reviews", ctx.GetName()),
+						Timestamp: "2024-01-01T15:00:00Z",
+					},
+				},
+			}
+		}
+
+		description := fmt.Sprintf("Standard details for %s", ctx.GetName())
+		if includeExtended {
+			description = fmt.Sprintf("Extended details for %s with comprehensive information", ctx.GetName())
+		}
+
+		results = append(results, &productv1.ResolveProductProductDetailsResult{
+			ProductDetails: &productv1.ProductDetails{
+				Id:             fmt.Sprintf("details-%s-%d", ctx.GetId(), i),
+				Description:    description,
+				ReviewSummary:  reviewSummary,
+				RecommendedPet: pet,
+			},
+		})
+	}
+
+	return &productv1.ResolveProductProductDetailsResponse{
+		Result: results,
+	}, nil
+}
+
+// ResolveProductStockStatus implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductStockStatus(_ context.Context, req *productv1.ResolveProductStockStatusRequest) (*productv1.ResolveProductStockStatusResponse, error) {
+	results := make([]*productv1.ResolveProductStockStatusResult, 0, len(req.GetContext()))
+
+	checkAvailability := false
+	if req.GetFieldArgs() != nil {
+		checkAvailability = req.GetFieldArgs().GetCheckAvailability()
+	}
+
+	for i, ctx := range req.GetContext() {
+		var stockStatus *productv1.ActionResult
+
+		// If checking availability and price is high, return out of stock error
+		if checkAvailability && ctx.GetPrice() > 300 && i%2 == 0 {
+			stockStatus = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionError{
+					ActionError: &productv1.ActionError{
+						Message: fmt.Sprintf("Product %s is currently out of stock", ctx.GetName()),
+						Code:    "OUT_OF_STOCK",
+					},
+				},
+			}
+		} else {
+			stockStatus = &productv1.ActionResult{
+				Value: &productv1.ActionResult_ActionSuccess{
+					ActionSuccess: &productv1.ActionSuccess{
+						Message:   fmt.Sprintf("Product %s is in stock and available", ctx.GetName()),
+						Timestamp: "2024-01-01T10:00:00Z",
+					},
+				},
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductStockStatusResult{
+			StockStatus: stockStatus,
+		})
+	}
+
+	return &productv1.ResolveProductStockStatusResponse{
+		Result: results,
+	}, nil
+}
+
 // QueryTestContainer implements productv1.ProductServiceServer.
 func (s *MockService) QueryTestContainer(_ context.Context, req *productv1.QueryTestContainerRequest) (*productv1.QueryTestContainerResponse, error) {
 	id := req.GetId()

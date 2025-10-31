@@ -820,6 +820,30 @@ type fragmentSelection struct {
 	selectionSetRef int
 }
 
+// enterResolverCompositeSelectionSet handles logic when entering a composite selection set for a given field resolver.
+// It appends the inline fragment selections to the resolved field and sets the fragment type.
+func (r *rpcPlanningContext) enterResolverCompositeSelectionSet(oneOfType OneOfType, selectionSetRef int, resolvedField *resolvedField) {
+	inlineFragSelections := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
+	if len(inlineFragSelections) == 0 {
+		return
+	}
+
+	for _, inlineFragSelectionRef := range inlineFragSelections {
+		inlineFragRef := r.operation.Selections[inlineFragSelectionRef].Ref
+		inlinFragSelectionSetRef, ok := r.operation.InlineFragmentSelectionSet(inlineFragRef)
+		if !ok {
+			continue
+		}
+
+		resolvedField.fragmentSelections = append(resolvedField.fragmentSelections, fragmentSelection{
+			typeName:        r.operation.InlineFragmentTypeConditionNameString(inlineFragRef),
+			selectionSetRef: inlinFragSelectionSetRef,
+		})
+	}
+
+	resolvedField.fragmentType = oneOfType
+}
+
 // isFieldResolver checks if a field is a field resolver.
 func (r *rpcPlanningContext) isFieldResolver(fieldRef int, isRootField bool) bool {
 	if isRootField {

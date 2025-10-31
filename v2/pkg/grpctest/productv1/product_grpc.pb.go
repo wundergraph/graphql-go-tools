@@ -72,8 +72,11 @@ const (
 	ProductService_ResolveCategoryMetricsNormalizedScore_FullMethodName = "/productv1.ProductService/ResolveCategoryMetricsNormalizedScore"
 	ProductService_ResolveCategoryPopularityScore_FullMethodName        = "/productv1.ProductService/ResolveCategoryPopularityScore"
 	ProductService_ResolveCategoryProductCount_FullMethodName           = "/productv1.ProductService/ResolveCategoryProductCount"
+	ProductService_ResolveProductMascotRecommendation_FullMethodName    = "/productv1.ProductService/ResolveProductMascotRecommendation"
+	ProductService_ResolveProductProductDetails_FullMethodName          = "/productv1.ProductService/ResolveProductProductDetails"
 	ProductService_ResolveProductRecommendedCategory_FullMethodName     = "/productv1.ProductService/ResolveProductRecommendedCategory"
 	ProductService_ResolveProductShippingEstimate_FullMethodName        = "/productv1.ProductService/ResolveProductShippingEstimate"
+	ProductService_ResolveProductStockStatus_FullMethodName             = "/productv1.ProductService/ResolveProductStockStatus"
 	ProductService_ResolveSubcategoryItemCount_FullMethodName           = "/productv1.ProductService/ResolveSubcategoryItemCount"
 	ProductService_ResolveTestContainerDetails_FullMethodName           = "/productv1.ProductService/ResolveTestContainerDetails"
 )
@@ -140,8 +143,11 @@ type ProductServiceClient interface {
 	ResolveCategoryMetricsNormalizedScore(ctx context.Context, in *ResolveCategoryMetricsNormalizedScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(ctx context.Context, in *ResolveCategoryPopularityScoreRequest, opts ...grpc.CallOption) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(ctx context.Context, in *ResolveCategoryProductCountRequest, opts ...grpc.CallOption) (*ResolveCategoryProductCountResponse, error)
+	ResolveProductMascotRecommendation(ctx context.Context, in *ResolveProductMascotRecommendationRequest, opts ...grpc.CallOption) (*ResolveProductMascotRecommendationResponse, error)
+	ResolveProductProductDetails(ctx context.Context, in *ResolveProductProductDetailsRequest, opts ...grpc.CallOption) (*ResolveProductProductDetailsResponse, error)
 	ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(ctx context.Context, in *ResolveProductShippingEstimateRequest, opts ...grpc.CallOption) (*ResolveProductShippingEstimateResponse, error)
+	ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error)
 	ResolveSubcategoryItemCount(ctx context.Context, in *ResolveSubcategoryItemCountRequest, opts ...grpc.CallOption) (*ResolveSubcategoryItemCountResponse, error)
 	ResolveTestContainerDetails(ctx context.Context, in *ResolveTestContainerDetailsRequest, opts ...grpc.CallOption) (*ResolveTestContainerDetailsResponse, error)
 }
@@ -684,6 +690,26 @@ func (c *productServiceClient) ResolveCategoryProductCount(ctx context.Context, 
 	return out, nil
 }
 
+func (c *productServiceClient) ResolveProductMascotRecommendation(ctx context.Context, in *ResolveProductMascotRecommendationRequest, opts ...grpc.CallOption) (*ResolveProductMascotRecommendationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveProductMascotRecommendationResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveProductMascotRecommendation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveProductProductDetails(ctx context.Context, in *ResolveProductProductDetailsRequest, opts ...grpc.CallOption) (*ResolveProductProductDetailsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveProductProductDetailsResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveProductProductDetails_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *productServiceClient) ResolveProductRecommendedCategory(ctx context.Context, in *ResolveProductRecommendedCategoryRequest, opts ...grpc.CallOption) (*ResolveProductRecommendedCategoryResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveProductRecommendedCategoryResponse)
@@ -698,6 +724,16 @@ func (c *productServiceClient) ResolveProductShippingEstimate(ctx context.Contex
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveProductShippingEstimateResponse)
 	err := c.cc.Invoke(ctx, ProductService_ResolveProductShippingEstimate_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *productServiceClient) ResolveProductStockStatus(ctx context.Context, in *ResolveProductStockStatusRequest, opts ...grpc.CallOption) (*ResolveProductStockStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveProductStockStatusResponse)
+	err := c.cc.Invoke(ctx, ProductService_ResolveProductStockStatus_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -786,8 +822,11 @@ type ProductServiceServer interface {
 	ResolveCategoryMetricsNormalizedScore(context.Context, *ResolveCategoryMetricsNormalizedScoreRequest) (*ResolveCategoryMetricsNormalizedScoreResponse, error)
 	ResolveCategoryPopularityScore(context.Context, *ResolveCategoryPopularityScoreRequest) (*ResolveCategoryPopularityScoreResponse, error)
 	ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error)
+	ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error)
+	ResolveProductProductDetails(context.Context, *ResolveProductProductDetailsRequest) (*ResolveProductProductDetailsResponse, error)
 	ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error)
 	ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error)
+	ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error)
 	ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error)
 	ResolveTestContainerDetails(context.Context, *ResolveTestContainerDetailsRequest) (*ResolveTestContainerDetailsResponse, error)
 	mustEmbedUnimplementedProductServiceServer()
@@ -959,11 +998,20 @@ func (UnimplementedProductServiceServer) ResolveCategoryPopularityScore(context.
 func (UnimplementedProductServiceServer) ResolveCategoryProductCount(context.Context, *ResolveCategoryProductCountRequest) (*ResolveCategoryProductCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveCategoryProductCount not implemented")
 }
+func (UnimplementedProductServiceServer) ResolveProductMascotRecommendation(context.Context, *ResolveProductMascotRecommendationRequest) (*ResolveProductMascotRecommendationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductMascotRecommendation not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveProductProductDetails(context.Context, *ResolveProductProductDetailsRequest) (*ResolveProductProductDetailsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductProductDetails not implemented")
+}
 func (UnimplementedProductServiceServer) ResolveProductRecommendedCategory(context.Context, *ResolveProductRecommendedCategoryRequest) (*ResolveProductRecommendedCategoryResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductRecommendedCategory not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveProductShippingEstimate(context.Context, *ResolveProductShippingEstimateRequest) (*ResolveProductShippingEstimateResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductShippingEstimate not implemented")
+}
+func (UnimplementedProductServiceServer) ResolveProductStockStatus(context.Context, *ResolveProductStockStatusRequest) (*ResolveProductStockStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveProductStockStatus not implemented")
 }
 func (UnimplementedProductServiceServer) ResolveSubcategoryItemCount(context.Context, *ResolveSubcategoryItemCountRequest) (*ResolveSubcategoryItemCountResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveSubcategoryItemCount not implemented")
@@ -1946,6 +1994,42 @@ func _ProductService_ResolveCategoryProductCount_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ProductService_ResolveProductMascotRecommendation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveProductMascotRecommendationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveProductMascotRecommendation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveProductMascotRecommendation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveProductMascotRecommendation(ctx, req.(*ResolveProductMascotRecommendationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveProductProductDetails_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveProductProductDetailsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveProductProductDetails(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveProductProductDetails_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveProductProductDetails(ctx, req.(*ResolveProductProductDetailsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ProductService_ResolveProductRecommendedCategory_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveProductRecommendedCategoryRequest)
 	if err := dec(in); err != nil {
@@ -1978,6 +2062,24 @@ func _ProductService_ResolveProductShippingEstimate_Handler(srv interface{}, ctx
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProductServiceServer).ResolveProductShippingEstimate(ctx, req.(*ResolveProductShippingEstimateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProductService_ResolveProductStockStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveProductStockStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProductServiceServer).ResolveProductStockStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProductService_ResolveProductStockStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProductServiceServer).ResolveProductStockStatus(ctx, req.(*ResolveProductStockStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -2238,12 +2340,24 @@ var ProductService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ProductService_ResolveCategoryProductCount_Handler,
 		},
 		{
+			MethodName: "ResolveProductMascotRecommendation",
+			Handler:    _ProductService_ResolveProductMascotRecommendation_Handler,
+		},
+		{
+			MethodName: "ResolveProductProductDetails",
+			Handler:    _ProductService_ResolveProductProductDetails_Handler,
+		},
+		{
 			MethodName: "ResolveProductRecommendedCategory",
 			Handler:    _ProductService_ResolveProductRecommendedCategory_Handler,
 		},
 		{
 			MethodName: "ResolveProductShippingEstimate",
 			Handler:    _ProductService_ResolveProductShippingEstimate_Handler,
+		},
+		{
+			MethodName: "ResolveProductStockStatus",
+			Handler:    _ProductService_ResolveProductStockStatus_Handler,
 		},
 		{
 			MethodName: "ResolveSubcategoryItemCount",

@@ -322,6 +322,39 @@ func testMapping() *GRPCMapping {
 					Request:  "ResolveProductRecommendedCategoryRequest",
 					Response: "ResolveProductRecommendedCategoryResponse",
 				},
+				"mascotRecommendation": {
+					FieldMappingData: FieldMapData{
+						TargetName: "mascot_recommendation",
+						ArgumentMappings: FieldArgumentMap{
+							"includeDetails": "include_details",
+						},
+					},
+					RPC:      "ResolveProductMascotRecommendation",
+					Request:  "ResolveProductMascotRecommendationRequest",
+					Response: "ResolveProductMascotRecommendationResponse",
+				},
+				"stockStatus": {
+					FieldMappingData: FieldMapData{
+						TargetName: "stock_status",
+						ArgumentMappings: FieldArgumentMap{
+							"checkAvailability": "check_availability",
+						},
+					},
+					RPC:      "ResolveProductStockStatus",
+					Request:  "ResolveProductStockStatusRequest",
+					Response: "ResolveProductStockStatusResponse",
+				},
+				"productDetails": {
+					FieldMappingData: FieldMapData{
+						TargetName: "product_details",
+						ArgumentMappings: FieldArgumentMap{
+							"includeExtended": "include_extended",
+						},
+					},
+					RPC:      "ResolveProductProductDetails",
+					Request:  "ResolveProductProductDetailsRequest",
+					Response: "ResolveProductProductDetailsResponse",
+				},
 			},
 			"Subcategory": {
 				"itemCount": {
@@ -647,6 +680,38 @@ func testMapping() *GRPCMapping {
 					ArgumentMappings: FieldArgumentMap{
 						"maxPrice": "max_price",
 					},
+				},
+				"mascotRecommendation": {
+					TargetName: "mascot_recommendation",
+					ArgumentMappings: FieldArgumentMap{
+						"includeDetails": "include_details",
+					},
+				},
+				"stockStatus": {
+					TargetName: "stock_status",
+					ArgumentMappings: FieldArgumentMap{
+						"checkAvailability": "check_availability",
+					},
+				},
+				"productDetails": {
+					TargetName: "product_details",
+					ArgumentMappings: FieldArgumentMap{
+						"includeExtended": "include_extended",
+					},
+				},
+			},
+			"ProductDetails": {
+				"id": {
+					TargetName: "id",
+				},
+				"description": {
+					TargetName: "description",
+				},
+				"reviewSummary": {
+					TargetName: "review_summary",
+				},
+				"recommendedPet": {
+					TargetName: "recommended_pet",
 				},
 			},
 			"Storage": {

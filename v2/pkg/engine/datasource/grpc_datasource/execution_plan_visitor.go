@@ -189,30 +189,6 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 
 }
 
-func (r *rpcPlanVisitor) enterResolverCompositeSelectionSet(oneOfType OneOfType, selectionSetRef int) {
-	inlineFragmentSelections := r.operation.SelectionSetInlineFragmentSelections(selectionSetRef)
-	if len(inlineFragmentSelections) == 0 {
-		return
-	}
-
-	ancestor := r.fieldResolverAncestors.peek()
-	for _, inlineFragmentSelectionRef := range inlineFragmentSelections {
-		inlineFragmentRef := r.operation.Selections[inlineFragmentSelectionRef].Ref
-		ss, ok := r.operation.InlineFragmentSelectionSet(inlineFragmentRef)
-		if !ok {
-			continue
-		}
-
-		r.resolvedFields[ancestor].fragmentSelections = append(r.resolvedFields[ancestor].fragmentSelections, fragmentSelection{
-			typeName:        r.operation.InlineFragmentTypeConditionNameString(inlineFragmentRef),
-			selectionSetRef: ss,
-		})
-	}
-
-	// r.resolvedFields[ancestor].fragmentSelections = append(r.resolvedFields[ancestor].fragmentSelections, *fragmentSelection)
-	r.resolvedFields[ancestor].fragmentType = oneOfType
-}
-
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
 // Checks if this is in the root level below the operation definition.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
@@ -233,10 +209,11 @@ func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 				r.walker.StopWithInternalErr(err)
 				return
 			}
-			r.resolvedFields[resolvedFieldAncestor].memberTypes = memberTypes
-			r.resolvedFields[resolvedFieldAncestor].fieldsSelectionSetRef = ast.InvalidRef
+			resolvedField := &r.resolvedFields[resolvedFieldAncestor]
+			resolvedField.memberTypes = memberTypes
+			resolvedField.fieldsSelectionSetRef = ast.InvalidRef
 
-			r.enterResolverCompositeSelectionSet(compositType, ref)
+			r.planCtx.enterResolverCompositeSelectionSet(compositType, ref, resolvedField)
 			return
 		}
 
