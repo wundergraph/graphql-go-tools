@@ -15,8 +15,9 @@ type requiredFieldsVisitor struct {
 	operation  *ast.Document
 	definition *ast.Document
 
-	walker  *astvisitor.Walker
-	message *RPCMessage
+	walker              *astvisitor.Walker
+	message             *RPCMessage
+	fieldDefinitionRefs []int
 
 	planCtx *rpcPlanningContext
 
@@ -27,10 +28,11 @@ type requiredFieldsVisitor struct {
 // It registers the visitor with the walker and returns it.
 func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, planCtx *rpcPlanningContext) *requiredFieldsVisitor {
 	visitor := &requiredFieldsVisitor{
-		walker:           walker,
-		message:          message,
-		planCtx:          planCtx,
-		messageAncestors: []*RPCMessage{},
+		walker:              walker,
+		message:             message,
+		planCtx:             planCtx,
+		messageAncestors:    []*RPCMessage{},
+		fieldDefinitionRefs: []int{},
 	}
 
 	walker.RegisterEnterDocumentVisitor(visitor)
@@ -44,12 +46,16 @@ func newRequiredFieldsVisitor(walker *astvisitor.Walker, message *RPCMessage, pl
 // It creates a new document with the required fields and walks it.
 // To achieve that we create a fragment with the required fields and walk it.
 func (r *requiredFieldsVisitor) visitRequiredFields(definition *ast.Document, typeName, requiredFields string) error {
+	return r.visitWithMemberTypes(definition, typeName, requiredFields, []string{typeName})
+}
+
+func (r *requiredFieldsVisitor) visitWithMemberTypes(definition *ast.Document, typeName, requiredFields string, memberTypes []string) error {
 	doc, report := plan.RequiredFieldsFragment(typeName, requiredFields, false)
 	if report.HasErrors() {
 		return report
 	}
 
-	r.message.MemberTypes = []string{typeName}
+	r.message.MemberTypes = memberTypes
 	r.walker.Walk(doc, definition, report)
 	if report.HasErrors() {
 		return report
@@ -130,6 +136,7 @@ func (r *requiredFieldsVisitor) EnterField(ref int) {
 		return
 	}
 
+	r.fieldDefinitionRefs = append(r.fieldDefinitionRefs, fd)
 	r.message.Fields = append(r.message.Fields, field)
 }
 

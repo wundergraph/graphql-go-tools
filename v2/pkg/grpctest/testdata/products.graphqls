@@ -1,8 +1,10 @@
+# Directive for gRPC field resolvers
 type Product @key(fields: "id") {
   id: ID!
   name: String!
   price: Float!
-  # shippingEstimate(input: ShippingEstimateInput!): Float!
+  shippingEstimate(input: ShippingEstimateInput!): Float! @connect__fieldResolver(context: "id price")
+  recommendedCategory(maxPrice: Int!): Category @connect__fieldResolver(context: "id name price")
 }
 
 type Storage @key(fields: "id") {
@@ -16,7 +18,6 @@ type Warehouse @key(fields: "id") {
   name: String!
   location: String!
 }
-
 
 type User {
   id: ID!
@@ -113,6 +114,26 @@ type Category {
   id: ID!
   name: String!
   kind: CategoryKind!
+  productCount(filters: ProductCountFilter): Int! @connect__fieldResolver(context: "id name")
+  subcategories: [Subcategory!]
+  popularityScore(threshold: Int): Int @connect__fieldResolver(context: "id")
+  categoryMetrics(metricType: String!): CategoryMetrics @connect__fieldResolver(context: "id name")
+}
+
+type Subcategory {
+  id: ID!
+  name: String!
+  description: String
+  isActive: Boolean!
+  itemCount(filters: SubcategoryItemFilter): Int! @connect__fieldResolver(context: "id")
+}
+
+type CategoryMetrics {
+  id: ID!
+  metricType: String!
+  value: Float!
+  timestamp: String!
+  categoryId: ID!
 }
 
 enum CategoryKind {
@@ -314,6 +335,33 @@ input CategoryInput {
   kind: CategoryKind!
 }
 
+input ProductCountFilter {
+  minPrice: Float
+  maxPrice: Float
+  inStock: Boolean
+  searchTerm: String
+}
+
+input SubcategoryItemFilter {
+  minPrice: Float
+  maxPrice: Float
+  inStock: Boolean
+  isActive: Boolean
+  searchTerm: String
+}
+
+enum ShippingDestination {
+  DOMESTIC
+  EXPRESS
+  INTERNATIONAL
+}
+
+input ShippingEstimateInput {
+  destination: ShippingDestination!
+  weight: Float!
+  expedited: Boolean
+}
+
 type Query {
   _entities(representations: [_Any!]!): [_Entity!]!
   users: [User!]!
@@ -398,7 +446,9 @@ type Mutation {
   bulkUpdateBlogPosts(blogPosts: [BlogPostInput!]): [BlogPost!]!
 }
 
-
-
 union _Entity = Product | Storage | Warehouse
 scalar _Any
+scalar openfed__FieldSet
+
+scalar connect__FieldSet
+directive @connect__fieldResolver(context: connect__FieldSet!) on FIELD_DEFINITION

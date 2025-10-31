@@ -20,6 +20,188 @@ type MockService struct {
 	productv1.UnimplementedProductServiceServer
 }
 
+// ResolveProductRecommendedCategory implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductRecommendedCategory(_ context.Context, req *productv1.ResolveProductRecommendedCategoryRequest) (*productv1.ResolveProductRecommendedCategoryResponse, error) {
+	results := make([]*productv1.ResolveProductRecommendedCategoryResult, 0, len(req.GetContext()))
+
+	maxPrice := int32(0)
+	if req.GetFieldArgs() != nil {
+		maxPrice = req.GetFieldArgs().GetMaxPrice()
+	}
+
+	for _, ctx := range req.GetContext() {
+		// Return nil for products with high price to test optional return
+		if maxPrice > 0 && ctx.GetPrice() > float64(maxPrice) {
+			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
+				RecommendedCategory: nil,
+			})
+		} else {
+			// Create a recommended category based on product context
+			var categoryKind productv1.CategoryKind
+			if ctx.GetPrice() < 50 {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_BOOK
+			} else if ctx.GetPrice() < 200 {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS
+			} else {
+				categoryKind = productv1.CategoryKind_CATEGORY_KIND_FURNITURE
+			}
+
+			results = append(results, &productv1.ResolveProductRecommendedCategoryResult{
+				RecommendedCategory: &productv1.Category{
+					Id:            fmt.Sprintf("recommended-cat-%s", ctx.GetId()),
+					Name:          fmt.Sprintf("Recommended for %s", ctx.GetName()),
+					Kind:          categoryKind,
+					Subcategories: createSubcategories(fmt.Sprintf("recommended-cat-%s", ctx.GetId()), categoryKind, 2),
+				},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveProductRecommendedCategoryResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveProductShippingEstimate implements productv1.ProductServiceServer.
+func (s *MockService) ResolveProductShippingEstimate(_ context.Context, req *productv1.ResolveProductShippingEstimateRequest) (*productv1.ResolveProductShippingEstimateResponse, error) {
+	results := make([]*productv1.ResolveProductShippingEstimateResult, 0, len(req.GetContext()))
+
+	for _, ctx := range req.GetContext() {
+		// Base shipping cost calculation
+		baseCost := ctx.GetPrice() * 0.1 // 10% of product price
+
+		// Add weight-based cost if input provided
+		if req.GetFieldArgs() != nil && req.GetFieldArgs().GetInput() != nil {
+			input := req.GetFieldArgs().GetInput()
+
+			// Add weight cost
+			weightCost := float64(input.GetWeight()) * 2.5
+			baseCost += weightCost
+
+			// Add expedited shipping cost
+			if input.GetExpedited() != nil && input.GetExpedited().GetValue() {
+				baseCost *= 1.5 // 50% surcharge for expedited
+			}
+
+			// Add destination-based cost
+			destination := input.GetDestination()
+			switch destination {
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_INTERNATIONAL:
+				baseCost += 25.0
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_EXPRESS:
+				baseCost += 10.0
+			case productv1.ShippingDestination_SHIPPING_DESTINATION_DOMESTIC:
+				// No additional cost for domestic shipping
+			}
+		}
+
+		results = append(results, &productv1.ResolveProductShippingEstimateResult{
+			ShippingEstimate: baseCost,
+		})
+	}
+
+	resp := &productv1.ResolveProductShippingEstimateResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryCategoryMetrics implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryCategoryMetrics(_ context.Context, req *productv1.ResolveCategoryCategoryMetricsRequest) (*productv1.ResolveCategoryCategoryMetricsResponse, error) {
+	results := make([]*productv1.ResolveCategoryCategoryMetricsResult, 0, len(req.GetContext()))
+
+	metricType := ""
+	if req.GetFieldArgs() != nil {
+		metricType = req.GetFieldArgs().GetMetricType()
+	}
+
+	for i, ctx := range req.GetContext() {
+		// Return nil for certain metric types to test optional return
+		if metricType == "unavailable" {
+			results = append(results, &productv1.ResolveCategoryCategoryMetricsResult{
+				CategoryMetrics: nil,
+			})
+		} else {
+			results = append(results, &productv1.ResolveCategoryCategoryMetricsResult{
+				CategoryMetrics: &productv1.CategoryMetrics{
+					Id:         fmt.Sprintf("metrics-%s-%d", ctx.GetId(), i),
+					MetricType: metricType,
+					Value:      float64(i*25 + 100), // Different values based on index
+					Timestamp:  "2024-01-01T00:00:00Z",
+					CategoryId: ctx.GetId(),
+				},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryCategoryMetricsResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryPopularityScore implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryPopularityScore(_ context.Context, req *productv1.ResolveCategoryPopularityScoreRequest) (*productv1.ResolveCategoryPopularityScoreResponse, error) {
+	results := make([]*productv1.ResolveCategoryPopularityScoreResult, 0, len(req.GetContext()))
+
+	threshold := req.GetFieldArgs().GetThreshold()
+
+	baseScore := 50
+	for range req.GetContext() {
+		if int(threshold.GetValue()) > baseScore {
+			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
+				PopularityScore: nil,
+			})
+		} else {
+			results = append(results, &productv1.ResolveCategoryPopularityScoreResult{
+				PopularityScore: &wrapperspb.Int32Value{Value: int32(baseScore)},
+			})
+		}
+	}
+
+	resp := &productv1.ResolveCategoryPopularityScoreResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveSubcategoryItemCount implements productv1.ProductServiceServer.
+func (s *MockService) ResolveSubcategoryItemCount(_ context.Context, req *productv1.ResolveSubcategoryItemCountRequest) (*productv1.ResolveSubcategoryItemCountResponse, error) {
+	results := make([]*productv1.ResolveSubcategoryItemCountResult, 0, len(req.GetContext()))
+	for i := range req.GetContext() {
+		results = append(results, &productv1.ResolveSubcategoryItemCountResult{
+			ItemCount: int32(i * 10), // Different multiplier to distinguish from productCount
+		})
+	}
+
+	resp := &productv1.ResolveSubcategoryItemCountResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
+// ResolveCategoryProductCount implements productv1.ProductServiceServer.
+func (s *MockService) ResolveCategoryProductCount(_ context.Context, req *productv1.ResolveCategoryProductCountRequest) (*productv1.ResolveCategoryProductCountResponse, error) {
+	results := make([]*productv1.ResolveCategoryProductCountResult, 0, len(req.GetContext()))
+	for i := range req.GetContext() {
+		results = append(results, &productv1.ResolveCategoryProductCountResult{
+			ProductCount: int32(i),
+		})
+	}
+
+	resp := &productv1.ResolveCategoryProductCountResponse{
+		Result: results,
+	}
+
+	return resp, nil
+}
+
 // LookupWarehouseById implements productv1.ProductServiceServer.
 func (s *MockService) LookupWarehouseById(ctx context.Context, in *productv1.LookupWarehouseByIdRequest) (*productv1.LookupWarehouseByIdResponse, error) {
 	var results []*productv1.Warehouse
@@ -53,6 +235,33 @@ func (s *MockService) LookupWarehouseById(ctx context.Context, in *productv1.Loo
 	}, nil
 }
 
+// Helper function to create subcategories for a category
+func createSubcategories(categoryId string, kind productv1.CategoryKind, count int) *productv1.ListOfSubcategory {
+	if count <= 0 {
+		return &productv1.ListOfSubcategory{
+			List: &productv1.ListOfSubcategory_List{
+				Items: []*productv1.Subcategory{},
+			},
+		}
+	}
+
+	subcategories := make([]*productv1.Subcategory, 0, count)
+	for j := 1; j <= count; j++ {
+		subcategories = append(subcategories, &productv1.Subcategory{
+			Id:          fmt.Sprintf("%s-subcategory-%d", categoryId, j),
+			Name:        fmt.Sprintf("%s Subcategory %d", kind.String(), j),
+			Description: &wrapperspb.StringValue{Value: fmt.Sprintf("Subcategory %d for %s", j, categoryId)},
+			IsActive:    true,
+		})
+	}
+
+	return &productv1.ListOfSubcategory{
+		List: &productv1.ListOfSubcategory_List{
+			Items: subcategories,
+		},
+	}
+}
+
 // Helper functions to convert input types to output types
 func convertCategoryInputsToCategories(inputs []*productv1.CategoryInput) []*productv1.Category {
 	if inputs == nil {
@@ -61,9 +270,10 @@ func convertCategoryInputsToCategories(inputs []*productv1.CategoryInput) []*pro
 	results := make([]*productv1.Category, len(inputs))
 	for i, input := range inputs {
 		results[i] = &productv1.Category{
-			Id:   fmt.Sprintf("cat-input-%d", i),
-			Name: input.GetName(),
-			Kind: input.GetKind(),
+			Id:            fmt.Sprintf("cat-input-%d", i),
+			Name:          input.GetName(),
+			Kind:          input.GetKind(),
+			Subcategories: createSubcategories(fmt.Sprintf("cat-input-%d", i), input.GetKind(), i+1),
 		}
 	}
 	return results
@@ -76,9 +286,10 @@ func convertCategoryInputListToCategories(inputs *productv1.ListOfCategoryInput)
 	results := make([]*productv1.Category, len(inputs.List.Items))
 	for i, input := range inputs.List.Items {
 		results[i] = &productv1.Category{
-			Id:   fmt.Sprintf("cat-list-input-%d", i),
-			Name: input.GetName(),
-			Kind: input.GetKind(),
+			Id:            fmt.Sprintf("cat-list-input-%d", i),
+			Name:          input.GetName(),
+			Kind:          input.GetKind(),
+			Subcategories: createSubcategories(fmt.Sprintf("cat-list-input-%d", i), input.GetKind(), i+1),
 		}
 	}
 	return results
@@ -144,9 +355,10 @@ func convertNestedCategoryInputsToCategories(nestedInputs *productv1.ListOfListO
 		categories := make([]*productv1.Category, len(categoryList.List.Items))
 		for j, categoryInput := range categoryList.List.Items {
 			categories[j] = &productv1.Category{
-				Id:   fmt.Sprintf("nested-cat-%d-%d", i, j),
-				Name: categoryInput.GetName(),
-				Kind: categoryInput.GetKind(),
+				Id:            fmt.Sprintf("nested-cat-%d-%d", i, j),
+				Name:          categoryInput.GetName(),
+				Kind:          categoryInput.GetKind(),
+				Subcategories: createSubcategories(fmt.Sprintf("nested-cat-%d-%d", i, j), categoryInput.GetKind(), j+1),
 			}
 		}
 		results[i] = &productv1.ListOfCategory{
@@ -519,12 +731,14 @@ func (s *MockService) QueryRandomSearchResult(ctx context.Context, in *productv1
 		}
 	default:
 		// Return a Category
+		kind := productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS
 		result = &productv1.SearchResult{
 			Value: &productv1.SearchResult_Category{
 				Category: &productv1.Category{
-					Id:   "category-random-1",
-					Name: "Random Category",
-					Kind: productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
+					Id:            "category-random-1",
+					Name:          "Random Category",
+					Kind:          kind,
+					Subcategories: createSubcategories("category-random-1", kind, 2),
 				},
 			},
 		}
@@ -579,12 +793,14 @@ func (s *MockService) QuerySearch(ctx context.Context, in *productv1.QuerySearch
 				productv1.CategoryKind_CATEGORY_KIND_ELECTRONICS,
 				productv1.CategoryKind_CATEGORY_KIND_FURNITURE,
 			}
+			kind := kinds[i%int32(len(kinds))]
 			results = append(results, &productv1.SearchResult{
 				Value: &productv1.SearchResult_Category{
 					Category: &productv1.Category{
-						Id:   fmt.Sprintf("category-search-%d", i+1),
-						Name: fmt.Sprintf("Category matching '%s' #%d", query, i+1),
-						Kind: kinds[i%int32(len(kinds))],
+						Id:            fmt.Sprintf("category-search-%d", i+1),
+						Name:          fmt.Sprintf("Category matching '%s' #%d", query, i+1),
+						Kind:          kind,
+						Subcategories: createSubcategories(fmt.Sprintf("category-search-%d", i+1), kind, int(i%3)+1),
 					},
 				},
 			})
@@ -855,9 +1071,10 @@ func (s *MockService) QueryCategories(ctx context.Context, in *productv1.QueryCa
 
 	for i, kind := range categoryKinds {
 		categories = append(categories, &productv1.Category{
-			Id:   fmt.Sprintf("category-%d", i+1),
-			Name: fmt.Sprintf("%s Category", kind.String()),
-			Kind: kind,
+			Id:            fmt.Sprintf("category-%d", i+1),
+			Name:          fmt.Sprintf("%s Category", kind.String()),
+			Kind:          kind,
+			Subcategories: createSubcategories(fmt.Sprintf("category-%d", i+1), kind, i+1),
 		})
 	}
 
@@ -875,10 +1092,26 @@ func (s *MockService) QueryCategoriesByKind(ctx context.Context, in *productv1.Q
 
 	// Create 3 categories of the requested kind
 	for i := 1; i <= 3; i++ {
+
+		subcategoties := make([]*productv1.Subcategory, 0, i)
+		for j := 1; j <= i; j++ {
+			subcategoties = append(subcategoties, &productv1.Subcategory{
+				Id:          fmt.Sprintf("%s-subcategory-%d", kind.String(), j),
+				Name:        fmt.Sprintf("%s Subcategory %d", kind.String(), j),
+				Description: &wrapperspb.StringValue{Value: fmt.Sprintf("%s Subcategory %d", kind.String(), j)},
+				IsActive:    true,
+			})
+		}
+
 		categories = append(categories, &productv1.Category{
 			Id:   fmt.Sprintf("%s-category-%d", kind.String(), i),
 			Name: fmt.Sprintf("%s Category %d", kind.String(), i),
 			Kind: kind,
+			Subcategories: &productv1.ListOfSubcategory{
+				List: &productv1.ListOfSubcategory_List{
+					Items: subcategoties,
+				},
+			},
 		})
 	}
 
@@ -894,9 +1127,10 @@ func (s *MockService) QueryCategoriesByKinds(ctx context.Context, in *productv1.
 
 	for i, kind := range kinds {
 		categories = append(categories, &productv1.Category{
-			Id:   fmt.Sprintf("%s-category-%d", kind.String(), i),
-			Name: fmt.Sprintf("%s Category %d", kind.String(), i),
-			Kind: kind,
+			Id:            fmt.Sprintf("%s-category-%d", kind.String(), i),
+			Name:          fmt.Sprintf("%s Category %d", kind.String(), i),
+			Kind:          kind,
+			Subcategories: createSubcategories(fmt.Sprintf("%s-category-%d", kind.String(), i), kind, i+1),
 		})
 	}
 
@@ -923,9 +1157,10 @@ func (s *MockService) QueryFilterCategories(ctx context.Context, in *productv1.Q
 	// Create categories that match the filter
 	for i := 1; i <= 5; i++ {
 		categories = append(categories, &productv1.Category{
-			Id:   fmt.Sprintf("filtered-%s-category-%d", kind.String(), i),
-			Name: fmt.Sprintf("Filtered %s Category %d", kind.String(), i),
-			Kind: kind,
+			Id:            fmt.Sprintf("filtered-%s-category-%d", kind.String(), i),
+			Name:          fmt.Sprintf("Filtered %s Category %d", kind.String(), i),
+			Kind:          kind,
+			Subcategories: createSubcategories(fmt.Sprintf("filtered-%s-category-%d", kind.String(), i), kind, i),
 		})
 	}
 
