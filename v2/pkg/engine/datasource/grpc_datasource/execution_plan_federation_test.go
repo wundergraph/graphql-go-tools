@@ -1480,7 +1480,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 																JSONPath:      "name",
 															},
 															{
-																Name:          "meowVolume",
+																Name:          "meow_volume",
 																ProtoTypeName: DataTypeInt32,
 																JSONPath:      "meowVolume",
 															},
@@ -1492,7 +1492,7 @@ func TestEntityLookupWithFieldResolvers_WithCompositeTypes(t *testing.T) {
 																JSONPath:      "name",
 															},
 															{
-																Name:          "barkVolume",
+																Name:          "bark_volume",
 																ProtoTypeName: DataTypeInt32,
 																JSONPath:      "barkVolume",
 															},

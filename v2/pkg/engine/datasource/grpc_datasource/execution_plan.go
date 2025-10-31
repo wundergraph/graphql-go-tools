@@ -1045,11 +1045,6 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName string, resolvedFiel
 		Name: typeName,
 	}
 
-	parentTypeNode, found := r.definition.NodeByNameStr(typeName)
-	if !found {
-		return nil, fmt.Errorf("parent type node not found for type %s", typeName)
-	}
-
 	// TODO: handle composite types.
 	if len(resolvedField.fragmentSelections) > 0 {
 		message.FieldSelectionSet = make(RPCFieldSelectionSet, len(resolvedField.fragmentSelections))
@@ -1057,7 +1052,12 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName string, resolvedFiel
 		message.MemberTypes = resolvedField.memberTypes
 
 		for _, fragmentSelection := range resolvedField.fragmentSelections {
-			fields, err := r.buildCompositeField(parentTypeNode, fragmentSelection)
+			inlineFragmentTypeNode, found := r.definition.NodeByNameStr(fragmentSelection.typeName)
+			if !found {
+				return nil, fmt.Errorf("unable to build composite field: underlying fragment type node not found for type %s", fragmentSelection.typeName)
+			}
+
+			fields, err := r.buildCompositeField(inlineFragmentTypeNode, fragmentSelection)
 			if err != nil {
 				return nil, err
 			}
@@ -1070,6 +1070,11 @@ func (r *rpcPlanningContext) resolveRequiredFields(typeName string, resolvedFiel
 
 	if resolvedField.fieldsSelectionSetRef == ast.InvalidRef {
 		return nil, errors.New("unable to resolve required fields: no fields selection set found")
+	}
+
+	parentTypeNode, found := r.definition.NodeByNameStr(typeName)
+	if !found {
+		return nil, fmt.Errorf("parent type node not found for type %s", typeName)
 	}
 
 	fieldRefs := r.operation.SelectionSetFieldRefs(resolvedField.fieldsSelectionSetRef)
@@ -1126,7 +1131,7 @@ func (r *rpcPlanningContext) buildRequiredField(typeNode ast.Node, fieldRef int)
 	return field, nil
 }
 
-func (r *rpcPlanningContext) buildCompositeField(parentNode ast.Node, fragmentSelection fragmentSelection) ([]RPCField, error) {
+func (r *rpcPlanningContext) buildCompositeField(inlineFragmentNode ast.Node, fragmentSelection fragmentSelection) ([]RPCField, error) {
 	fieldRefs := r.operation.SelectionSetFieldRefs(fragmentSelection.selectionSetRef)
 	result := make([]RPCField, 0, len(fieldRefs))
 
@@ -1136,7 +1141,7 @@ func (r *rpcPlanningContext) buildCompositeField(parentNode ast.Node, fragmentSe
 			return nil, fmt.Errorf("unable to build composite field: field definition not found for field %s", r.operation.FieldNameString(fieldRef))
 		}
 
-		field, err := r.buildField(parentNode, fieldDef, r.operation.FieldNameString(fieldRef), "")
+		field, err := r.buildField(inlineFragmentNode, fieldDef, r.operation.FieldNameString(fieldRef), "")
 		if err != nil {
 			return nil, err
 		}
