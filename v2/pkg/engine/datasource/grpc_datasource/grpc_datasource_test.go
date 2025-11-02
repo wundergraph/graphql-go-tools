@@ -24,6 +24,79 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest/productv1"
 )
 
+func Benchmark_DataSource_Load(b *testing.B) {
+	conn, cleanup := setupTestGRPCServer(b)
+	b.Cleanup(cleanup)
+
+	schemaDoc := grpctest.MustGraphQLSchema(b)
+
+	query := `query ComplexFilterTypeQuery($filter: ComplexFilterTypeInput!) { complexFilterType(filter: $filter) { id name } }`
+	variables := `{"variables":{"filter":{"name":"test","filterField1":"test","filterField2":"test"}}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		b.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
+	require.NoError(b, err)
+
+	ds, err := NewDataSource(conn, DataSourceConfig{
+		Operation:    &queryDoc,
+		Definition:   &schemaDoc,
+		SubgraphName: "Products",
+		Compiler:     compiler,
+		Mapping:      testMapping(),
+	})
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
+		require.NoError(b, err)
+	}
+}
+
+func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
+	conn, cleanup := setupTestGRPCServer(b)
+	b.Cleanup(cleanup)
+
+	schemaDoc := grpctest.MustGraphQLSchema(b)
+
+	query := `query CategoriesWithNullableTypes($nullType: String, $valueType: String) { categories { nullMetrics: categoryMetrics(metricType: $nullType) { id metricType value } valueMetrics: categoryMetrics(metricType: $valueType) { id metricType value } } }`
+	variables := `{"variables":{"nullType":"unavailable","valueType":"popularity_score"}}`
+
+	// Parse the GraphQL query
+	queryDoc, report := astparser.ParseGraphqlDocumentString(query)
+	if report.HasErrors() {
+		b.Fatalf("failed to parse query: %s", report.Error())
+	}
+
+	compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(b), testMapping())
+	require.NoError(b, err)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	const subgraphName = "Products"
+
+	mapping := testMapping()
+	for b.Loop() {
+		ds, err := NewDataSource(conn, DataSourceConfig{
+			Operation:    &queryDoc,
+			Definition:   &schemaDoc,
+			SubgraphName: subgraphName,
+			Compiler:     compiler,
+			Mapping:      mapping,
+		})
+		require.NoError(b, err)
+
+		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
+		require.NoError(b, err)
+	}
+}
+
 // mockInterface provides a simple implementation of grpc.ClientConnInterface for testing
 type mockInterface struct {
 }
@@ -55,7 +128,7 @@ func (m mockInterface) NewStream(ctx context.Context, desc *grpc.StreamDesc, met
 
 var _ grpc.ClientConnInterface = (*mockInterface)(nil)
 
-func setupTestGRPCServer(t *testing.T) (conn *grpc.ClientConn, cleanup func()) {
+func setupTestGRPCServer(t testing.TB) (conn *grpc.ClientConn, cleanup func()) {
 	t.Helper()
 
 	// Set up the bufconn listener
@@ -127,7 +200,7 @@ func Test_DataSource_Load(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"complexFilterType": {
 					RPC:      "QueryComplexFilterType",
 					Request:  "QueryComplexFilterTypeRequest",
@@ -184,7 +257,7 @@ func Test_DataSource_Load_WithMockService(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"complexFilterType": {
 					RPC:      "QueryComplexFilterType",
 					Request:  "QueryComplexFilterTypeRequest",
@@ -273,7 +346,7 @@ func Test_DataSource_Load_WithMockService_WithResponseMapping(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"complexFilterType": {
 					RPC:      "QueryComplexFilterType",
 					Request:  "QueryComplexFilterTypeRequest",
@@ -374,7 +447,7 @@ func Test_DataSource_Load_WithGrpcError(t *testing.T) {
 		Compiler:     compiler,
 		Mapping: &GRPCMapping{
 			Service: "Products",
-			QueryRPCs: RPCConfigMap{
+			QueryRPCs: RPCConfigMap[RPCConfig]{
 				"user": {
 					RPC:      "QueryUser",
 					Request:  "QueryUserRequest",
@@ -437,33 +510,33 @@ func TestMarshalResponseJSON(t *testing.T) {
 		Name: "LookupProductByIdResponse",
 		Fields: []RPCField{
 			{
-				Name:     "result",
-				TypeName: string(DataTypeMessage),
-				Repeated: true,
-				JSONPath: "_entities",
+				Name:          "result",
+				ProtoTypeName: DataTypeMessage,
+				Repeated:      true,
+				JSONPath:      "_entities",
 				Message: &RPCMessage{
 					Name: "Product",
 					Fields: []RPCField{
 						{
-							Name:        "__typename",
-							TypeName:    string(DataTypeString),
-							JSONPath:    "__typename",
-							StaticValue: "Product",
+							Name:          "__typename",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "__typename",
+							StaticValue:   "Product",
 						},
 						{
-							Name:     "id",
-							TypeName: string(DataTypeString),
-							JSONPath: "id",
+							Name:          "id",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "id",
 						},
 						{
-							Name:     "name",
-							TypeName: string(DataTypeString),
-							JSONPath: "name_different",
+							Name:          "name",
+							ProtoTypeName: DataTypeString,
+							JSONPath:      "name_different",
 						},
 						{
-							Name:     "price",
-							TypeName: string(DataTypeDouble),
-							JSONPath: "price_different",
+							Name:          "price",
+							ProtoTypeName: DataTypeDouble,
+							JSONPath:      "price_different",
 						},
 					},
 				},
@@ -490,7 +563,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
-	jsonBuilder := newJSONBuilder(nil, gjson.Result{})
+	jsonBuilder := newJSONBuilder(nil, nil, gjson.Result{})
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
@@ -3570,6 +3643,239 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			validateError: func(t *testing.T, errorData []graphqlError) {
 				require.NotEmpty(t, errorData)
 				require.Equal(t, "entity type Warehouse received 3 entities in the subgraph response, but 4 are expected", errorData[0].Message)
+			},
+		},
+		{
+			name:  "Query Product with field resolvers",
+			query: `query($representations: [_Any!]!, $input: ShippingEstimateInput!) { _entities(representations: $representations) { ...on Product { id name price shippingEstimate(input: $input) } } }`,
+			vars: `
+			{
+			  "variables":
+			  {
+			    "representations":[
+				  {"__typename":"Product","id":"1"},
+				  {"__typename":"Product","id":"2"},
+				  {"__typename":"Product","id":"3"}
+				],
+				"input":{
+				  "destination":"INTERNATIONAL",
+				  "weight":10.0,
+				  "expedited":true
+				}
+			}`,
+			federationConfigs: plan.FederationFieldConfigurations{
+				{
+					TypeName:     "Product",
+					SelectionSet: "id",
+				},
+			},
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				entities, ok := data["_entities"].([]interface{})
+				require.True(t, ok, "_entities should be an array")
+				require.NotEmpty(t, entities, "_entities should not be empty")
+				require.Len(t, entities, 3, "Should return 3 entities")
+				for index, entity := range entities {
+					entity, ok := entity.(map[string]interface{})
+					require.True(t, ok, "entity should be an object")
+					productID := index + 1
+
+					require.Equal(t, fmt.Sprintf("%d", productID), entity["id"])
+					require.Equal(t, fmt.Sprintf("Product %d", productID), entity["name"])
+					require.InDelta(t, float64(99.99), entity["price"], 0.01)
+					require.InDelta(t, float64(77.49), entity["shippingEstimate"], 0.01)
+				}
+
+			},
+			validateError: func(t *testing.T, errorData []graphqlError) {
+				require.Empty(t, errorData)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Parse the GraphQL schema
+			schemaDoc := grpctest.MustGraphQLSchema(t)
+
+			// Parse the GraphQL query
+			queryDoc, report := astparser.ParseGraphqlDocumentString(tc.query)
+			if report.HasErrors() {
+				t.Fatalf("failed to parse query: %s", report.Error())
+			}
+
+			compiler, err := NewProtoCompiler(grpctest.MustProtoSchema(t), testMapping())
+			if err != nil {
+				t.Fatalf("failed to compile proto: %v", err)
+			}
+
+			// Create the datasource
+			ds, err := NewDataSource(conn, DataSourceConfig{
+				Operation:         &queryDoc,
+				Definition:        &schemaDoc,
+				SubgraphName:      "Products",
+				Mapping:           testMapping(),
+				Compiler:          compiler,
+				FederationConfigs: tc.federationConfigs,
+			})
+			require.NoError(t, err)
+
+			// Execute the query through our datasource
+			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
+			output, err := ds.Load(context.Background(), nil, []byte(input))
+			require.NoError(t, err)
+
+			// Parse the response
+			var resp graphqlResponse
+
+			err = json.Unmarshal(output, &resp)
+			require.NoError(t, err, "Failed to unmarshal response")
+
+			tc.validate(t, resp.Data)
+			tc.validateError(t, resp.Errors)
+		})
+	}
+}
+
+func Test_Datasource_Load_WithFieldResolvers(t *testing.T) {
+	conn, cleanup := setupTestGRPCServer(t)
+	t.Cleanup(cleanup)
+
+	type graphqlError struct {
+		Message string `json:"message"`
+	}
+	type graphqlResponse struct {
+		Data   map[string]interface{} `json:"data"`
+		Errors []graphqlError         `json:"errors,omitempty"`
+	}
+
+	testCases := []struct {
+		name              string
+		query             string
+		vars              string
+		federationConfigs plan.FederationFieldConfigurations
+		validate          func(t *testing.T, data map[string]interface{})
+		validateError     func(t *testing.T, errData []graphqlError)
+	}{
+		{
+			name:  "Query with field resolvers",
+			query: `query CategoriesWithFieldResolvers($filters: ProductCountFilter) { categories { id name kind productCount(filters: $filters) } }`,
+			vars:  `{"variables":{"filters":{"minPrice":100}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for productCount, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["id"])
+					require.NotEmpty(t, category["name"])
+					require.NotEmpty(t, category["kind"])
+					require.Equal(t, float64(productCount), category["productCount"])
+				}
+
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and nullable lists",
+			query: "query SubcategoriesWithFieldResolvers($filter: SubcategoryItemFilter) { categories { id subcategories { id name description isActive itemCount(filters: $filter) } } }",
+			vars:  `{"variables":{"filter":{"isActive":true}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and aliases",
+			query: "query CategoriesWithFieldResolversAndAliases($filter1: ProductCountFilter, $filter2: ProductCountFilter) { categories { productCount1: productCount(filters: $filter1) productCount2: productCount(filters: $filter2) } }",
+			vars:  `{"variables":{"filter1":{"minPrice":100},"filter2":{"minPrice":200}}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for productCount, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.Equal(t, float64(productCount), category["productCount1"])
+					require.Equal(t, float64(productCount), category["productCount2"])
+				}
+
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and message type",
+			query: "query CategoriesWithNullableTypes($nullType: String, $valueType: String) { categories { nullMetrics: categoryMetrics(metricType: $nullType) { id metricType value } valueMetrics: categoryMetrics(metricType: $valueType) { id metricType value } } }",
+			vars:  `{"variables":{"nullType":"unavailable","valueType":"popularity_score"}}`,
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["valueMetrics"])
+					valueMetrics, ok := category["valueMetrics"].(map[string]interface{})
+					require.True(t, ok, "categoryMetrics should be an object")
+					require.NotEmpty(t, valueMetrics, "valueMetrics should not be empty")
+					require.Len(t, valueMetrics, 3, "Should return 1 valueMetrics")
+					require.NotEmpty(t, valueMetrics["id"])
+					require.NotEmpty(t, valueMetrics["metricType"])
+					require.NotEmpty(t, valueMetrics["value"])
+
+					require.Empty(t, category["nullMetrics"], "nullMetrics should be empty")
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
+			},
+		},
+		{
+			name:  "Query with field resolvers and null fields",
+			query: "query CategoriesWithNullableTypes($threshold1: Int, $threshold2: Int) { categories { nullScore: popularityScore(threshold: $threshold1) valueScore: popularityScore(threshold: $threshold2)  } }",
+			vars:  `{"variables":{"threshold1":100, "threshold2":50}}`, // Threshold above 50 should return null
+			validate: func(t *testing.T, data map[string]interface{}) {
+				require.NotEmpty(t, data)
+
+				categories, ok := data["categories"].([]interface{})
+				require.True(t, ok, "categories should be an array")
+				require.NotEmpty(t, categories, "categories should not be empty")
+				require.Len(t, categories, 4, "Should return 1 category")
+
+				for _, category := range categories {
+					category, ok := category.(map[string]interface{})
+					require.True(t, ok, "category should be an object")
+					require.NotEmpty(t, category["valueScore"])
+					require.Empty(t, category["nullScore"])
+				}
+			},
+			validateError: func(t *testing.T, errData []graphqlError) {
+				require.Empty(t, errData)
 			},
 		},
 	}

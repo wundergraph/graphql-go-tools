@@ -8,10 +8,11 @@ package grpcdatasource
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
-	"sync"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -22,7 +23,14 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/datasource/httpclient"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/plan"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/internal/unsafebytes"
 )
+
+type resultData struct {
+	kind         CallKind
+	response     *astjson.Value
+	responsePath ast.Path
+}
 
 // Verify DataSource implements the resolve.DataSource interface
 var _ resolve.DataSource = (*DataSource)(nil)
@@ -31,13 +39,15 @@ var _ resolve.DataSource = (*DataSource)(nil)
 // It handles the conversion of GraphQL queries to gRPC requests and
 // transforms the responses back to GraphQL format.
 type DataSource struct {
-	// Invocations is a list of gRPC invocations to be executed
 	plan              *RPCExecutionPlan
+	graph             *DependencyGraph
 	cc                grpc.ClientConnInterface
 	rc                *RPCCompiler
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
 	disabled          bool
+
+	pool *resolve.ArenaPool
 }
 
 type ProtoConfig struct {
@@ -56,7 +66,10 @@ type DataSourceConfig struct {
 
 // NewDataSource creates a new gRPC datasource
 func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*DataSource, error) {
-	planner := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
+	planner, err := NewPlanner(config.SubgraphName, config.Mapping, config.FederationConfigs)
+	if err != nil {
+		return nil, err
+	}
 	plan, err := planner.PlanOperation(config.Operation, config.Definition)
 	if err != nil {
 		return nil, err
@@ -64,11 +77,13 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 
 	return &DataSource{
 		plan:              plan,
+		graph:             NewDependencyGraph(plan),
 		cc:                client,
 		rc:                config.Compiler,
 		mapping:           config.Mapping,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
+		pool:              resolve.NewArenaPool(),
 	}, nil
 }
 
@@ -80,68 +95,110 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 // a gRPC call, including service name, method name, and request data.
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	// get variables from input
-	variables := gjson.Parse(string(input)).Get("body.variables")
-	builder := newJSONBuilder(d.mapping, variables)
+	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
+
+	var (
+		poolItems []*resolve.ArenaPoolItem
+	)
+	defer func() {
+		d.pool.ReleaseMany(poolItems)
+	}()
+
+	item := d.acquirePoolItem(input, 0)
+	poolItems = append(poolItems, item)
+	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
 	}
 
-	// get invocations from plan
-	invocations, err := d.rc.Compile(d.plan, variables)
-	if err != nil {
-		return nil, err
-	}
+	root := astjson.ObjectValue(nil)
 
-	responses := make([]*astjson.Value, len(invocations))
-	errGrp, errGrpCtx := errgroup.WithContext(ctx)
+	failed := false
 
-	mu := sync.Mutex{}
-	// make gRPC calls
-	for index, invocation := range invocations {
-		errGrp.Go(func() error {
-			// Invoke the gRPC method - this will populate invocation.Output
-			methodName := fmt.Sprintf("/%s/%s", invocation.ServiceName, invocation.MethodName)
-
-			err := d.cc.Invoke(errGrpCtx, methodName, invocation.Input, invocation.Output)
-			if err != nil {
-				return err
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-
-			response, err := builder.marshalResponseJSON(&invocation.Call.Response, invocation.Output)
-			if err != nil {
-				return err
-			}
-
-			// In case of a federated response, we need to ensure that the response is valid.
-			// The number of entities per type must match the number of lookup keys in the variables.
-			err = builder.validateFederatedResponse(response)
-			if err != nil {
-				return err
-			}
-
-			responses[index] = response
-			return nil
-		})
-	}
-
-	if err := errGrp.Wait(); err != nil {
-		return builder.writeErrorBytes(err), nil
-	}
-
-	root := astjson.ObjectValue(builder.jsonArena)
-	for _, response := range responses {
-		root, err = builder.mergeValues(root, response)
+	if err := d.graph.TopologicalSortResolve(func(nodes []FetchItem) error {
+		serviceCalls, err := d.rc.CompileFetches(d.graph, nodes, variables)
 		if err != nil {
-			return builder.writeErrorBytes(err), err
+			return err
 		}
+
+		results := make([]resultData, len(serviceCalls))
+		errGrp, errGrpCtx := errgroup.WithContext(ctx)
+
+		// make gRPC calls
+		for index, serviceCall := range serviceCalls {
+			item := d.acquirePoolItem(input, index)
+			poolItems = append(poolItems, item)
+			builder := newJSONBuilder(item.Arena, d.mapping, variables)
+			errGrp.Go(func() error {
+				// Invoke the gRPC method - this will populate serviceCall.Output
+
+				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
+				if err != nil {
+					return err
+				}
+
+				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
+				if err != nil {
+					return err
+				}
+
+				// In case of a federated response, we need to ensure that the response is valid.
+				// The number of entities per type must match the number of lookup keys in the variablese
+				if serviceCall.RPC.Kind == CallKindEntity {
+					err = builder.validateFederatedResponse(response)
+					if err != nil {
+						return err
+					}
+				}
+
+				results[index] = resultData{
+					kind:         serviceCall.RPC.Kind,
+					response:     response,
+					responsePath: serviceCall.RPC.ResponsePath,
+				}
+
+				return nil
+			})
+		}
+
+		if err := errGrp.Wait(); err != nil {
+			data = builder.writeErrorBytes(err)
+			failed = true
+			return nil
+		}
+
+		for _, result := range results {
+			switch result.kind {
+			case CallKindResolve:
+				err = builder.mergeWithPath(root, result.response, result.responsePath)
+			default:
+				root, err = builder.mergeValues(root, result.response)
+			}
+			if err != nil {
+				data = builder.writeErrorBytes(err)
+				return err
+			}
+		}
+
+		return nil
+	}); err != nil || failed {
+		return data, err
 	}
 
-	dataObj := builder.toDataObject(root)
-	return dataObj.MarshalTo(nil), nil
+	value := builder.toDataObject(root)
+	return value.MarshalTo(nil), err
+}
+
+func (d *DataSource) acquirePoolItem(input []byte, index int) *resolve.ArenaPoolItem {
+	keyGen := xxhash.New()
+	_, _ = keyGen.Write(input)
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], uint64(index))
+	_, _ = keyGen.Write(b[:])
+	key := keyGen.Sum64()
+	item := d.pool.Acquire(key)
+	return item
 }
 
 // LoadWithFiles implements resolve.DataSource interface.

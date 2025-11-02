@@ -33,6 +33,10 @@ type PathItem struct {
 
 type Path []PathItem
 
+func (p Path) Len() int {
+	return len(p)
+}
+
 func (p Path) Equals(another Path) bool {
 	if len(p) != len(another) {
 		return false
@@ -75,6 +79,28 @@ func (p Path) WithoutInlineFragmentNames() Path {
 		}
 	}
 	return out
+}
+
+func (p Path) WithPathItem(element PathItem) Path {
+	res := make(Path, len(p)+1)
+	copy(res, p)
+	res[len(res)-1] = element
+	return res
+}
+
+func (p Path) WithFieldNameItem(fieldName []byte) Path {
+	return p.WithPathItem(PathItem{
+		Kind:      FieldName,
+		FieldName: fieldName,
+	})
+}
+
+func (p Path) RemoveLastItem() Path {
+	if len(p) == 0 {
+		return p
+	}
+
+	return p[:len(p)-1]
 }
 
 func (p Path) String() string {

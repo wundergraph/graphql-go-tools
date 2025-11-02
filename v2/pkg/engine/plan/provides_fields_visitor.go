@@ -39,7 +39,7 @@ func (a *addTypenamesVisitor) EnterSelectionSet(ref int) {
 }
 
 func addTypenames(operation, definition *ast.Document, report *operationreport.Report) {
-	walker := astvisitor.NewWalker(32)
+	walker := astvisitor.NewWalkerWithID(32, "AddTypenamesVisitor")
 	visitor := &addTypenamesVisitor{
 		walker:           &walker,
 		providesFieldSet: operation,
@@ -66,7 +66,7 @@ func providesFragment(fieldTypeName string, providesSelectionSet string, definit
 }
 
 func providesSuggestions(input *providesInput) []*NodeSuggestion {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "ProvidesVisitor")
 
 	visitor := &providesVisitor{
 		walker: &walker,

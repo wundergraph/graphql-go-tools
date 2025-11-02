@@ -3,8 +3,10 @@ package plan
 import (
 	"encoding/json"
 	"fmt"
+	"iter"
 
 	"github.com/kingledion/go-tools/tree"
+	"github.com/phf/go-queue/queue"
 )
 
 const treeRootID = ^uint(0)
@@ -26,6 +28,7 @@ type NodeSuggestion struct {
 	IsRequiredKeyField        bool   `json:"isRequiredKeyField"`
 	IsLeaf                    bool   `json:"isLeaf"`
 	isTypeName                bool
+	IsOrphan                  bool // if node is orphan it should not be taken into account for planning
 
 	parentPathWithoutFragment string
 	onFragment                bool
@@ -95,6 +98,28 @@ type NodeSuggestions struct {
 	responseTree    tree.Tree[[]int]
 }
 
+func TraverseBFS(data tree.Tree[[]int]) iter.Seq2[uint, tree.Node[[]int]] {
+	return func(yield func(uint, tree.Node[[]int]) bool) {
+		q := queue.New()
+		q.PushBack(data.Root())
+
+		for {
+			current := q.PopFront()
+			switch node := current.(type) {
+			case tree.Node[[]int]:
+				for _, child := range node.GetChildren() {
+					q.PushBack(child)
+				}
+				if !yield(node.GetID(), node) {
+					return
+				}
+			case nil:
+				return
+			}
+		}
+	}
+}
+
 func NewNodeSuggestions() *NodeSuggestions {
 	return NewNodeSuggestionsWithSize(32)
 }
@@ -132,7 +157,26 @@ func (f *NodeSuggestions) RemoveTreeNodeChilds(fieldRef int) {
 		return
 	}
 
+	// mark all nested suggestions as orphans
+	f.abandonNodeChildren(node, false)
+
+	// remove rewritten children nodes from the current node
 	node.ReplaceChildren()
+}
+
+// abandonNodeChildren recursively marks all nested suggestions as orphans
+func (f *NodeSuggestions) abandonNodeChildren(node tree.Node[[]int], clearData bool) {
+	for _, child := range node.GetChildren() {
+		f.abandonNodeChildren(child, true)
+	}
+
+	if clearData {
+		for _, idx := range node.GetData() {
+			// we can't reslice f.items because tree data stores indexes of f.items
+			f.items[idx].IsOrphan = true
+			f.items[idx].unselect()
+		}
+	}
 }
 
 func (f *NodeSuggestions) addSuggestion(node *NodeSuggestion) (suggestionIdx int) {
@@ -147,6 +191,10 @@ func (f *NodeSuggestions) SuggestionsForPath(typeName, fieldName, path string) (
 	}
 
 	for i := range items {
+		if items[i].IsOrphan {
+			continue
+		}
+
 		if items[i].Selected && typeName == items[i].TypeName && fieldName == items[i].FieldName {
 			suggestions = append(suggestions, items[i])
 		}
@@ -162,6 +210,10 @@ func (f *NodeSuggestions) HasSuggestionForPath(typeName, fieldName, path string)
 	}
 
 	for i := range items {
+		if items[i].IsOrphan {
+			continue
+		}
+
 		if typeName == items[i].TypeName && fieldName == items[i].FieldName && items[i].Selected {
 			return items[i].DataSourceHash, true
 		}
@@ -312,6 +364,10 @@ func (f *NodeSuggestions) populateHasSuggestions() map[DSHash]struct{} {
 	f.pathSuggestions = make(map[string][]*NodeSuggestion, len(f.pathSuggestions))
 
 	for i := range f.items {
+		if f.items[i].IsOrphan {
+			continue
+		}
+
 		if !f.items[i].Selected {
 			continue
 		}

@@ -7,6 +7,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astvalidation"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/grpctest"
@@ -49,6 +50,31 @@ func runTest(t *testing.T, testCase testCase) {
 	}
 }
 
+// buildPath builds a path from a string which is a dot-separated list of field names.
+func buildPath(path string) ast.Path {
+	b := make([]byte, len(path))
+	copy(b, path)
+	n := 1
+	for i := 0; i < len(b); i++ {
+		if b[i] == '.' {
+			n++
+		}
+	}
+	items := make([]ast.PathItem, n)
+	start, seg := 0, 0
+	for i := 0; i <= len(b); i++ {
+		if i == len(b) || b[i] == '.' {
+			items[seg] = ast.PathItem{
+				Kind:      ast.FieldName,
+				FieldName: b[start:i],
+			}
+			seg++
+			start = i + 1
+		}
+	}
+	return items
+}
+
 func TestQueryExecutionPlans(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -74,28 +100,28 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUsersResponse",
 							Fields: []RPCField{
 								{
-									Name:     "users",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "users",
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "users",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:        "__typename",
-												TypeName:    string(DataTypeString),
-												JSONPath:    "__typename",
-												StaticValue: "User",
+												Name:          "__typename",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "__typename",
+												StaticValue:   "User",
 											},
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -125,22 +151,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUsersResponse",
 							Fields: []RPCField{
 								{
-									Name:     "users",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "users",
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "users",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -155,9 +181,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "id",
-									TypeName: string(DataTypeString),
-									JSONPath: "id",
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
 								},
 							},
 						},
@@ -165,22 +191,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUserResponse",
 							Fields: []RPCField{
 								{
-									Name:     "user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "user",
-									Optional: true,
+									Name:          "user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "user",
+									Optional:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -204,14 +230,14 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryTypeFilterWithArgumentsRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter_field_1",
-									TypeName: string(DataTypeString),
-									JSONPath: "filterField1",
+									Name:          "filter_field_1",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "filterField1",
 								},
 								{
-									Name:     "filter_field_2",
-									TypeName: string(DataTypeString),
-									JSONPath: "filterField2",
+									Name:          "filter_field_2",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "filterField2",
 								},
 							},
 						},
@@ -219,32 +245,32 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryTypeFilterWithArgumentsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "type_filter_with_arguments",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "typeFilterWithArguments",
+									Name:          "type_filter_with_arguments",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "typeFilterWithArguments",
 									Message: &RPCMessage{
 										Name: "TypeWithMultipleFilterFields",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "filter_field_1",
-												TypeName: string(DataTypeString),
-												JSONPath: "filterField1",
+												Name:          "filter_field_1",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "filterField1",
 											},
 											{
-												Name:     "filter_field_2",
-												TypeName: string(DataTypeString),
-												JSONPath: "filterField2",
+												Name:          "filter_field_2",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "filterField2",
 											},
 										},
 									},
@@ -268,51 +294,51 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryComplexFilterTypeRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "filter",
+									Name:          "filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filter",
 									Message: &RPCMessage{
 										Name: "ComplexFilterTypeInput",
 										Fields: []RPCField{
 											{
-												Name:     "filter",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "filter",
+												Name:          "filter",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "filter",
 												Message: &RPCMessage{
 													Name: "FilterType",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "filter_field_1",
-															TypeName: string(DataTypeString),
-															JSONPath: "filterField1",
+															Name:          "filter_field_1",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "filterField1",
 														},
 														{
-															Name:     "filter_field_2",
-															TypeName: string(DataTypeString),
-															JSONPath: "filterField2",
+															Name:          "filter_field_2",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "filterField2",
 														},
 														{
-															Name:     "pagination",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "pagination",
-															Optional: true,
+															Name:          "pagination",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "pagination",
+															Optional:      true,
 															Message: &RPCMessage{
 																Name: "Pagination",
 																Fields: []RPCField{
 																	{
-																		Name:     "page",
-																		TypeName: string(DataTypeInt32),
-																		JSONPath: "page",
+																		Name:          "page",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "page",
 																	},
 																	{
-																		Name:     "per_page",
-																		TypeName: string(DataTypeInt32),
-																		JSONPath: "perPage",
+																		Name:          "per_page",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "perPage",
 																	},
 																},
 															},
@@ -329,22 +355,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryComplexFilterTypeResponse",
 							Fields: []RPCField{
 								{
-									Repeated: true,
-									Name:     "complex_filter_type",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "complexFilterType",
+									Repeated:      true,
+									Name:          "complex_filter_type",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "complexFilterType",
 									Message: &RPCMessage{
 										Name: "TypeWithComplexFilterInput",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -368,51 +394,51 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryComplexFilterTypeRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "filter",
+									Name:          "filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filter",
 									Message: &RPCMessage{
 										Name: "ComplexFilterTypeInput",
 										Fields: []RPCField{
 											{
-												Name:     "filter",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "filter",
+												Name:          "filter",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "filter",
 												Message: &RPCMessage{
 													Name: "FilterType",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "filter_field_1",
-															TypeName: string(DataTypeString),
-															JSONPath: "filterField1",
+															Name:          "filter_field_1",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "filterField1",
 														},
 														{
-															Name:     "filter_field_2",
-															TypeName: string(DataTypeString),
-															JSONPath: "filterField2",
+															Name:          "filter_field_2",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "filterField2",
 														},
 														{
-															Name:     "pagination",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "pagination",
-															Optional: true,
+															Name:          "pagination",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "pagination",
+															Optional:      true,
 															Message: &RPCMessage{
 																Name: "Pagination",
 																Fields: []RPCField{
 																	{
-																		Name:     "page",
-																		TypeName: string(DataTypeInt32),
-																		JSONPath: "page",
+																		Name:          "page",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "page",
 																	},
 																	{
-																		Name:     "per_page",
-																		TypeName: string(DataTypeInt32),
-																		JSONPath: "perPage",
+																		Name:          "per_page",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "perPage",
 																	},
 																},
 															},
@@ -429,22 +455,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryComplexFilterTypeResponse",
 							Fields: []RPCField{
 								{
-									Repeated: true,
-									Name:     "complex_filter_type",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "complexFilterType",
+									Repeated:      true,
+									Name:          "complex_filter_type",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "complexFilterType",
 									Message: &RPCMessage{
 										Name: "TypeWithComplexFilterInput",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -469,51 +495,51 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryComplexFilterTypeRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "foobar",
+									Name:          "filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "foobar",
 									Message: &RPCMessage{
 										Name: "ComplexFilterTypeInput",
 										Fields: []RPCField{
 											{
-												Name:     "filter",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "filter",
+												Name:          "filter",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "filter",
 												Message: &RPCMessage{
 													Name: "FilterType",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "filter_field_1",
-															TypeName: string(DataTypeString),
-															JSONPath: "filterField1",
+															Name:          "filter_field_1",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "filterField1",
 														},
 														{
-															Name:     "filter_field_2",
-															TypeName: string(DataTypeString),
-															JSONPath: "filterField2",
+															Name:          "filter_field_2",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "filterField2",
 														},
 														{
-															Name:     "pagination",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "pagination",
-															Optional: true,
+															Name:          "pagination",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "pagination",
+															Optional:      true,
 															Message: &RPCMessage{
 																Name: "Pagination",
 																Fields: []RPCField{
 																	{
-																		Name:     "page",
-																		TypeName: string(DataTypeInt32),
-																		JSONPath: "page",
+																		Name:          "page",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "page",
 																	},
 																	{
-																		Name:     "per_page",
-																		TypeName: string(DataTypeInt32),
-																		JSONPath: "perPage",
+																		Name:          "per_page",
+																		ProtoTypeName: DataTypeInt32,
+																		JSONPath:      "perPage",
 																	},
 																},
 															},
@@ -530,22 +556,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryComplexFilterTypeResponse",
 							Fields: []RPCField{
 								{
-									Repeated: true,
-									Name:     "complex_filter_type",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "complexFilterType",
+									Repeated:      true,
+									Name:          "complex_filter_type",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "complexFilterType",
 									Message: &RPCMessage{
 										Name: "TypeWithComplexFilterInput",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -569,23 +595,23 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryTypeWithMultipleFilterFieldsRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "filter",
+									Name:          "filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filter",
 									Message: &RPCMessage{
 										Name: "FilterTypeInput",
 										Fields: []RPCField{
 											{
-												Repeated: false,
-												Name:     "filter_field_1",
-												TypeName: string(DataTypeString),
-												JSONPath: "filterField1",
+												Repeated:      false,
+												Name:          "filter_field_1",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "filterField1",
 											},
 											{
-												Repeated: false,
-												Name:     "filter_field_2",
-												TypeName: string(DataTypeString),
-												JSONPath: "filterField2",
+												Repeated:      false,
+												Name:          "filter_field_2",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "filterField2",
 											},
 										},
 									},
@@ -596,22 +622,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryTypeWithMultipleFilterFieldsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "type_with_multiple_filter_fields",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "typeWithMultipleFilterFields",
+									Name:          "type_with_multiple_filter_fields",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "typeWithMultipleFilterFields",
 									Message: &RPCMessage{
 										Name: "TypeWithMultipleFilterFields",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -638,22 +664,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUsersResponse",
 							Fields: []RPCField{
 								{
-									Name:     "users",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "users",
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "users",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -691,9 +717,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "id",
-									TypeName: string(DataTypeString),
-									JSONPath: "id",
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
 								},
 							},
 						},
@@ -701,22 +727,22 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryUserResponse",
 							Fields: []RPCField{
 								{
-									Name:     "user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "user",
-									Optional: true,
+									Name:          "user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "user",
+									Optional:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -743,56 +769,56 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryNestedTypeResponse",
 							Fields: []RPCField{
 								{
-									Name:     "nested_type",
-									TypeName: string(DataTypeMessage),
-									Repeated: true,
-									JSONPath: "nestedType",
+									Name:          "nested_type",
+									ProtoTypeName: DataTypeMessage,
+									Repeated:      true,
+									JSONPath:      "nestedType",
 									Message: &RPCMessage{
 										Name: "NestedTypeA",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "b",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "b",
+												Name:          "b",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "b",
 												Message: &RPCMessage{
 													Name: "NestedTypeB",
 													Fields: []RPCField{
 														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
 														},
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "c",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "c",
+															Name:          "c",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "c",
 															Message: &RPCMessage{
 																Name: "NestedTypeC",
 																Fields: []RPCField{
 																	{
-																		Name:     "id",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "id",
+																		Name:          "id",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "id",
 																	},
 																	{
-																		Name:     "name",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "name",
+																		Name:          "name",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "name",
 																	},
 																},
 															},
@@ -825,67 +851,67 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryRecursiveTypeResponse",
 							Fields: []RPCField{
 								{
-									Name:     "recursive_type",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "recursiveType",
+									Name:          "recursive_type",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "recursiveType",
 									Message: &RPCMessage{
 										Name: "RecursiveType",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "recursive_type",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "recursiveType",
+												Name:          "recursive_type",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "recursiveType",
 												Message: &RPCMessage{
 													Name: "RecursiveType",
 													Fields: []RPCField{
 														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
 														},
 														{
-															Name:     "recursive_type",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "recursiveType",
+															Name:          "recursive_type",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "recursiveType",
 															Message: &RPCMessage{
 																Name: "RecursiveType",
 																Fields: []RPCField{
 																	{
-																		Name:     "id",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "id",
+																		Name:          "id",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "id",
 																	},
 																	{
-																		Name:     "name",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "name",
+																		Name:          "name",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "name",
 																	},
 																	{
-																		Name:     "recursive_type",
-																		TypeName: string(DataTypeMessage),
-																		JSONPath: "recursiveType",
+																		Name:          "recursive_type",
+																		ProtoTypeName: DataTypeMessage,
+																		JSONPath:      "recursiveType",
 																		Message: &RPCMessage{
 																			Name: "RecursiveType",
 																			Fields: []RPCField{
 																				{
-																					Name:     "id",
-																					TypeName: string(DataTypeString),
-																					JSONPath: "id",
+																					Name:          "id",
+																					ProtoTypeName: DataTypeString,
+																					JSONPath:      "id",
 																				},
 																				{
-																					Name:     "name",
-																					TypeName: string(DataTypeString),
-																					JSONPath: "name",
+																					Name:          "name",
+																					ProtoTypeName: DataTypeString,
+																					JSONPath:      "name",
 																				},
 																			},
 																		},
@@ -894,9 +920,9 @@ func TestQueryExecutionPlans(t *testing.T) {
 															},
 														},
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 													},
 												},
@@ -984,48 +1010,48 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryCalculateTotalsRequest",
 							Fields: []RPCField{
 								{
-									Name:     "orders",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "orders",
-									Repeated: true,
+									Name:          "orders",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "orders",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "OrderInput",
 										Fields: []RPCField{
 											{
-												Name:     "order_id",
-												TypeName: string(DataTypeString),
-												JSONPath: "orderId",
+												Name:          "order_id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "orderId",
 											},
 											{
-												Name:     "customer_name",
-												TypeName: string(DataTypeString),
-												JSONPath: "customerName",
+												Name:          "customer_name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "customerName",
 											},
 											{
-												Name:     "lines",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "lines",
-												Repeated: true,
+												Name:          "lines",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "lines",
+												Repeated:      true,
 												Message: &RPCMessage{
 													Name: "OrderLineInput",
 													Fields: []RPCField{
 														{
-															Name:     "product_id",
-															TypeName: string(DataTypeString),
-															JSONPath: "productId",
+															Name:          "product_id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "productId",
 														},
 														{
-															Name:     "quantity",
-															TypeName: string(DataTypeInt32),
-															JSONPath: "quantity",
+															Name:          "quantity",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "quantity",
 														},
 														{
-															Name:       "modifiers",
-															TypeName:   string(DataTypeString),
-															Repeated:   false,
-															Optional:   true,
-															IsListType: true,
-															JSONPath:   "modifiers",
+															Name:          "modifiers",
+															ProtoTypeName: DataTypeString,
+															Repeated:      false,
+															Optional:      true,
+															IsListType:    true,
+															JSONPath:      "modifiers",
 															ListMetadata: &ListMetadata{
 																NestingLevel: 1,
 																LevelInfo: []LevelInfo{
@@ -1047,27 +1073,27 @@ func TestQueryExecutionPlans(t *testing.T) {
 							Name: "QueryCalculateTotalsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "calculate_totals",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "calculateTotals",
-									Repeated: true,
+									Name:          "calculate_totals",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "calculateTotals",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Order",
 										Fields: []RPCField{
 											{
-												Name:     "order_id",
-												TypeName: string(DataTypeString),
-												JSONPath: "orderId",
+												Name:          "order_id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "orderId",
 											},
 											{
-												Name:     "customer_name",
-												TypeName: string(DataTypeString),
-												JSONPath: "customerName",
+												Name:          "customer_name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "customerName",
 											},
 											{
-												Name:     "total_items",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "totalItems",
+												Name:          "total_items",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "totalItems",
 											},
 										},
 									},
@@ -1133,10 +1159,10 @@ func TestProductExecutionPlan(t *testing.T) {
 							Name: "QueryCategoriesByKindRequest",
 							Fields: []RPCField{
 								{
-									Name:     "kind",
-									TypeName: string(DataTypeEnum),
-									JSONPath: "kind",
-									EnumName: "CategoryKind",
+									Name:          "kind",
+									ProtoTypeName: DataTypeEnum,
+									JSONPath:      "kind",
+									EnumName:      "CategoryKind",
 								},
 							},
 						},
@@ -1144,28 +1170,28 @@ func TestProductExecutionPlan(t *testing.T) {
 							Name: "QueryCategoriesByKindResponse",
 							Fields: []RPCField{
 								{
-									Name:     "categories_by_kind",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "categoriesByKind",
-									Repeated: true,
+									Name:          "categories_by_kind",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categoriesByKind",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Category",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												EnumName: "CategoryKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												EnumName:      "CategoryKind",
 											},
 										},
 									},
@@ -1188,11 +1214,11 @@ func TestProductExecutionPlan(t *testing.T) {
 							Name: "QueryCategoriesByKindsRequest",
 							Fields: []RPCField{
 								{
-									Name:     "kinds",
-									TypeName: string(DataTypeEnum),
-									JSONPath: "kinds",
-									EnumName: "CategoryKind",
-									Repeated: true,
+									Name:          "kinds",
+									ProtoTypeName: DataTypeEnum,
+									JSONPath:      "kinds",
+									EnumName:      "CategoryKind",
+									Repeated:      true,
 								},
 							},
 						},
@@ -1200,28 +1226,28 @@ func TestProductExecutionPlan(t *testing.T) {
 							Name: "QueryCategoriesByKindsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "categories_by_kinds",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "categoriesByKinds",
-									Repeated: true,
+									Name:          "categories_by_kinds",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categoriesByKinds",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Category",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												EnumName: "CategoryKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												EnumName:      "CategoryKind",
 											},
 										},
 									},
@@ -1244,35 +1270,35 @@ func TestProductExecutionPlan(t *testing.T) {
 							Name: "QueryFilterCategoriesRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "filter",
+									Name:          "filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filter",
 									Message: &RPCMessage{
 										Name: "CategoryFilter",
 										Fields: []RPCField{
 											{
-												Name:     "category",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "category",
-												EnumName: "CategoryKind",
+												Name:          "category",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "category",
+												EnumName:      "CategoryKind",
 											},
 											{
-												Name:     "pagination",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "pagination",
-												Optional: true,
+												Name:          "pagination",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "pagination",
+												Optional:      true,
 												Message: &RPCMessage{
 													Name: "Pagination",
 													Fields: []RPCField{
 														{
-															Name:     "page",
-															TypeName: string(DataTypeInt32),
-															JSONPath: "page",
+															Name:          "page",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "page",
 														},
 														{
-															Name:     "per_page",
-															TypeName: string(DataTypeInt32),
-															JSONPath: "perPage",
+															Name:          "per_page",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "perPage",
 														},
 													},
 												},
@@ -1286,28 +1312,28 @@ func TestProductExecutionPlan(t *testing.T) {
 							Name: "QueryFilterCategoriesResponse",
 							Fields: []RPCField{
 								{
-									Name:     "filter_categories",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "filterCategories",
-									Repeated: true,
+									Name:          "filter_categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filterCategories",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Category",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												EnumName: "CategoryKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												EnumName:      "CategoryKind",
 											},
 										},
 									},
@@ -1343,8 +1369,14 @@ func TestProductExecutionPlan(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", testMapping(), nil)
+			planner, err := NewPlanner("Products", testMapping(), nil)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
 
 			if tt.expectedError != "" {
 				if err == nil {
@@ -1391,23 +1423,23 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUsersResponse",
 							Fields: RPCFields{
 								{
-									Name:     "users",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "users",
-									Alias:    "foo",
-									Repeated: true,
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "users",
+									Alias:         "foo",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -1430,9 +1462,9 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "id",
-									TypeName: string(DataTypeString),
-									JSONPath: "id",
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
 								},
 							},
 						},
@@ -1440,25 +1472,25 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserResponse",
 							Fields: RPCFields{
 								{
-									Name:     "user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "user",
-									Alias:    "specificUser",
-									Optional: true,
+									Name:          "user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "user",
+									Alias:         "specificUser",
+									Optional:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-												Alias:    "userId",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												Alias:         "userId",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "userName",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "userName",
 											},
 										},
 									},
@@ -1484,23 +1516,23 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUsersResponse",
 							Fields: RPCFields{
 								{
-									Name:     "users",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "users",
-									Alias:    "allUsers",
-									Repeated: true,
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "users",
+									Alias:         "allUsers",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -1518,30 +1550,30 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryCategoriesResponse",
 							Fields: RPCFields{
 								{
-									Name:     "categories",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "categories",
-									Alias:    "allCategories",
-									Repeated: true,
+									Name:          "categories",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categories",
+									Alias:         "allCategories",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Category",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												Alias:    "categoryType",
-												EnumName: "CategoryKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												Alias:         "categoryType",
+												EnumName:      "CategoryKind",
 											},
 										},
 									},
@@ -1567,65 +1599,65 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryNestedTypeResponse",
 							Fields: RPCFields{
 								{
-									Name:     "nested_type",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "nestedType",
-									Alias:    "nestedData",
-									Repeated: true,
+									Name:          "nested_type",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "nestedType",
+									Alias:         "nestedData",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "NestedTypeA",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-												Alias:    "identifier",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												Alias:         "identifier",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "title",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "title",
 											},
 											{
-												Name:     "b",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "b",
-												Alias:    "childB",
+												Name:          "b",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "b",
+												Alias:         "childB",
 												Message: &RPCMessage{
 													Name: "NestedTypeB",
 													Fields: RPCFields{
 														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
-															Alias:    "identifier",
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
+															Alias:         "identifier",
 														},
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
-															Alias:    "title",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+															Alias:         "title",
 														},
 														{
-															Name:     "c",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "c",
-															Alias:    "grandChild",
+															Name:          "c",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "c",
+															Alias:         "grandChild",
 															Message: &RPCMessage{
 																Name: "NestedTypeC",
 																Fields: RPCFields{
 																	{
-																		Name:     "id",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "id",
-																		Alias:    "identifier",
+																		Name:          "id",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "id",
+																		Alias:         "identifier",
 																	},
 																	{
-																		Name:     "name",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "name",
-																		Alias:    "title",
+																		Name:          "name",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "name",
+																		Alias:         "title",
 																	},
 																},
 															},
@@ -1657,10 +1689,10 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryRandomPetResponse",
 							Fields: RPCFields{
 								{
-									Name:     "random_pet",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomPet",
-									Alias:    "pet",
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
+									Alias:         "pet",
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -1671,39 +1703,39 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Cat": {
 												{
-													Name:     "meow_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "meowVolume",
-													Alias:    "volumeLevel",
+													Name:          "meow_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "meowVolume",
+													Alias:         "volumeLevel",
 												},
 											},
 											"Dog": {
 												{
-													Name:     "bark_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "barkVolume",
-													Alias:    "volumeLevel",
+													Name:          "bark_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "barkVolume",
+													Alias:         "volumeLevel",
 												},
 											},
 										},
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-												Alias:    "identifier",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												Alias:         "identifier",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "petName",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "petName",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeString),
-												JSONPath: "kind",
-												Alias:    "animalKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kind",
+												Alias:         "animalKind",
 											},
 										},
 									},
@@ -1729,10 +1761,10 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryRandomSearchResultResponse",
 							Fields: RPCFields{
 								{
-									Name:     "random_search_result",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomSearchResult",
-									Alias:    "searchResults",
+									Name:          "random_search_result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomSearchResult",
+									Alias:         "searchResults",
 									Message: &RPCMessage{
 										Name:      "SearchResult",
 										OneOfType: OneOfTypeUnion,
@@ -1745,57 +1777,57 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Product": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
-													Alias:    "productId",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
+													Alias:         "productId",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "productName",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "productName",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
-													Alias:    "cost",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
+													Alias:         "cost",
 												},
 											},
 											"User": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
-													Alias:    "userId",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
+													Alias:         "userId",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "userName",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "userName",
 												},
 											},
 											"Category": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
-													Alias:    "categoryId",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
+													Alias:         "categoryId",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "categoryName",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "categoryName",
 												},
 												{
-													Name:     "kind",
-													TypeName: string(DataTypeEnum),
-													JSONPath: "kind",
-													Alias:    "categoryType",
-													EnumName: "CategoryKind",
+													Name:          "kind",
+													ProtoTypeName: DataTypeEnum,
+													JSONPath:      "kind",
+													Alias:         "categoryType",
+													EnumName:      "CategoryKind",
 												},
 											},
 										},
@@ -1819,16 +1851,16 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "MutationCreateUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "UserInput",
 										Fields: []RPCField{
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -1839,24 +1871,24 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "MutationCreateUserResponse",
 							Fields: RPCFields{
 								{
-									Name:     "create_user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "createUser",
-									Alias:    "newUser",
+									Name:          "create_user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "createUser",
+									Alias:         "newUser",
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-												Alias:    "userId",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												Alias:         "userId",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "fullName",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "fullName",
 											},
 										},
 									},
@@ -1879,10 +1911,10 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryCategoriesByKindRequest",
 							Fields: []RPCField{
 								{
-									Name:     "kind",
-									TypeName: string(DataTypeEnum),
-									JSONPath: "kind",
-									EnumName: "CategoryKind",
+									Name:          "kind",
+									ProtoTypeName: DataTypeEnum,
+									JSONPath:      "kind",
+									EnumName:      "CategoryKind",
 								},
 							},
 						},
@@ -1890,32 +1922,32 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryCategoriesByKindResponse",
 							Fields: RPCFields{
 								{
-									Name:     "categories_by_kind",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "categoriesByKind",
-									Alias:    "bookCategories",
-									Repeated: true,
+									Name:          "categories_by_kind",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categoriesByKind",
+									Alias:         "bookCategories",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Category",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-												Alias:    "identifier",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												Alias:         "identifier",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "title",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "title",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												Alias:    "type",
-												EnumName: "CategoryKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												Alias:         "type",
+												EnumName:      "CategoryKind",
 											},
 										},
 									},
@@ -1941,35 +1973,35 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUsersResponse",
 							Fields: RPCFields{
 								{
-									Name:     "users",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "users",
-									Repeated: true,
+									Name:          "users",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "users",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name1",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name1",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name2",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name2",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name3",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name3",
 											},
 										},
 									},
@@ -1992,9 +2024,9 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "id",
-									TypeName: string(DataTypeString),
-									JSONPath: "id",
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
 								},
 							},
 						},
@@ -2002,23 +2034,23 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserResponse",
 							Fields: RPCFields{
 								{
-									Name:     "user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "user",
-									Alias:    "user1",
-									Optional: true,
+									Name:          "user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "user",
+									Alias:         "user1",
+									Optional:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -2033,9 +2065,9 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "id",
-									TypeName: string(DataTypeString),
-									JSONPath: "id",
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
 								},
 							},
 						},
@@ -2043,23 +2075,23 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserResponse",
 							Fields: RPCFields{
 								{
-									Name:     "user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "user",
-									Alias:    "user2",
-									Optional: true,
+									Name:          "user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "user",
+									Alias:         "user2",
+									Optional:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 										},
 									},
@@ -2074,9 +2106,9 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserRequest",
 							Fields: []RPCField{
 								{
-									Name:     "id",
-									TypeName: string(DataTypeString),
-									JSONPath: "id",
+									Name:          "id",
+									ProtoTypeName: DataTypeString,
+									JSONPath:      "id",
 								},
 							},
 						},
@@ -2084,25 +2116,25 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryUserResponse",
 							Fields: RPCFields{
 								{
-									Name:     "user",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "user",
-									Alias:    "sameUser",
-									Optional: true,
+									Name:          "user",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "user",
+									Alias:         "sameUser",
+									Optional:      true,
 									Message: &RPCMessage{
 										Name: "User",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
-												Alias:    "userId",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
+												Alias:         "userId",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "userName",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "userName",
 											},
 										},
 									},
@@ -2128,77 +2160,77 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryNestedTypeResponse",
 							Fields: RPCFields{
 								{
-									Name:     "nested_type",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "nestedType",
-									Repeated: true,
+									Name:          "nested_type",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "nestedType",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "NestedTypeA",
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name1",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name1",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name2",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name2",
 											},
 											{
-												Name:     "b",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "b",
+												Name:          "b",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "b",
 												Message: &RPCMessage{
 													Name: "NestedTypeB",
 													Fields: RPCFields{
 														{
-															Name:     "id",
-															TypeName: string(DataTypeString),
-															JSONPath: "id",
+															Name:          "id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "id",
 														},
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
-															Alias:    "title1",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+															Alias:         "title1",
 														},
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
-															Alias:    "title2",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
+															Alias:         "title2",
 														},
 														{
-															Name:     "c",
-															TypeName: string(DataTypeMessage),
-															JSONPath: "c",
+															Name:          "c",
+															ProtoTypeName: DataTypeMessage,
+															JSONPath:      "c",
 															Message: &RPCMessage{
 																Name: "NestedTypeC",
 																Fields: RPCFields{
 																	{
-																		Name:     "id",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "id",
+																		Name:          "id",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "id",
 																	},
 																	{
-																		Name:     "name",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "name",
-																		Alias:    "label1",
+																		Name:          "name",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "name",
+																		Alias:         "label1",
 																	},
 																	{
-																		Name:     "name",
-																		TypeName: string(DataTypeString),
-																		JSONPath: "name",
-																		Alias:    "label2",
+																		Name:          "name",
+																		ProtoTypeName: DataTypeString,
+																		JSONPath:      "name",
+																		Alias:         "label2",
 																	},
 																},
 															},
@@ -2230,9 +2262,9 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryRandomPetResponse",
 							Fields: RPCFields{
 								{
-									Name:     "random_pet",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomPet",
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -2243,55 +2275,55 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Cat": {
 												{
-													Name:     "meow_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "meowVolume",
-													Alias:    "volume1",
+													Name:          "meow_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "meowVolume",
+													Alias:         "volume1",
 												},
 												{
-													Name:     "meow_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "meowVolume",
-													Alias:    "volume2",
+													Name:          "meow_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "meowVolume",
+													Alias:         "volume2",
 												},
 											},
 											"Dog": {
 												{
-													Name:     "bark_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "barkVolume",
-													Alias:    "volume1",
+													Name:          "bark_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "barkVolume",
+													Alias:         "volume1",
 												},
 												{
-													Name:     "bark_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "barkVolume",
-													Alias:    "volume2",
+													Name:          "bark_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "barkVolume",
+													Alias:         "volume2",
 												},
 											},
 										},
 										Fields: RPCFields{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name1",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name1",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Alias:    "name2",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Alias:         "name2",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeString),
-												JSONPath: "kind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kind",
 											},
 										},
 									},
@@ -2317,9 +2349,9 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 							Name: "QueryRandomSearchResultResponse",
 							Fields: RPCFields{
 								{
-									Name:     "random_search_result",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomSearchResult",
+									Name:          "random_search_result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomSearchResult",
 									Message: &RPCMessage{
 										Name:      "SearchResult",
 										OneOfType: OneOfTypeUnion,
@@ -2332,85 +2364,85 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Product": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "name1",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "name1",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "name2",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "name2",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
-													Alias:    "price1",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
+													Alias:         "price1",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
-													Alias:    "price2",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
+													Alias:         "price2",
 												},
 											},
 											"User": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "name1",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "name1",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "name2",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "name2",
 												},
 											},
 											"Category": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "name1",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "name1",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
-													Alias:    "name2",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
+													Alias:         "name2",
 												},
 												{
-													Name:     "kind",
-													TypeName: string(DataTypeEnum),
-													JSONPath: "kind",
-													Alias:    "kind1",
-													EnumName: "CategoryKind",
+													Name:          "kind",
+													ProtoTypeName: DataTypeEnum,
+													JSONPath:      "kind",
+													Alias:         "kind1",
+													EnumName:      "CategoryKind",
 												},
 												{
-													Name:     "kind",
-													TypeName: string(DataTypeEnum),
-													JSONPath: "kind",
-													Alias:    "kind2",
-													EnumName: "CategoryKind",
+													Name:          "kind",
+													ProtoTypeName: DataTypeEnum,
+													JSONPath:      "kind",
+													Alias:         "kind2",
+													EnumName:      "CategoryKind",
 												},
 											},
 										},
@@ -2447,8 +2479,15 @@ func TestProductExecutionPlanWithAliases(t *testing.T) {
 				t.Fatalf("failed to validate query: %s", report.Error())
 			}
 
-			planner := NewPlanner("Products", testMapping(), nil)
+			planner, err := NewPlanner("Products", testMapping(), nil)
+			if err != nil {
+				t.Fatalf("failed to create planner: %s", err)
+			}
+
 			outPlan, err := planner.PlanOperation(&queryDoc, &schemaDoc)
+			if err != nil {
+				t.Fatalf("failed to plan operation: %s", err)
+			}
 
 			if tt.expectedError != "" {
 				if err == nil {

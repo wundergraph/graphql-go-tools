@@ -345,7 +345,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	err = t.resolvable.Init(ctx, nil, response.Info.OperationType)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
-		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+		r.resolveArenaPool.Release(resolveArena)
 		return nil, err
 	}
 
@@ -353,7 +353,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 		err = t.loader.LoadGraphQLResponseData(ctx, response, t.resolvable)
 		if err != nil {
 			r.inboundRequestSingleFlight.FinishErr(inflight, err)
-			r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+			r.resolveArenaPool.Release(resolveArena)
 			return nil, err
 		}
 	}
@@ -364,14 +364,14 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	err = t.resolvable.Resolve(ctx.ctx, response.Data, response.Fetches, buf)
 	if err != nil {
 		r.inboundRequestSingleFlight.FinishErr(inflight, err)
-		r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
-		r.responseBufferPool.Release(ctx.Request.ID, responseArena)
+		r.resolveArenaPool.Release(resolveArena)
+		r.responseBufferPool.Release(responseArena)
 		return nil, err
 	}
 
 	// first release resolverArena
 	// all data is resolved and written into the response arena
-	r.resolveArenaPool.Release(ctx.Request.ID, resolveArena)
+	r.resolveArenaPool.Release(resolveArena)
 	// next we write back to the client
 	// this includes flushing and syscalls
 	// as such, it can take some time
@@ -380,7 +380,7 @@ func (r *Resolver) ArenaResolveGraphQLResponse(ctx *Context, response *GraphQLRe
 	r.inboundRequestSingleFlight.FinishOk(inflight, buf.Bytes())
 	// all data is written to the client
 	// we're safe to release our buffer
-	r.responseBufferPool.Release(ctx.Request.ID, responseArena)
+	r.responseBufferPool.Release(responseArena)
 	return resp, err
 }
 
@@ -518,7 +518,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	t := newTools(r.options, r.allowedErrorExtensionFields, r.allowedErrorFields, r.subgraphRequestSingleFlight, resolveArena.Arena)
 
 	if err := t.resolvable.InitSubscription(resolveCtx, input, sub.resolve.Trigger.PostProcessing); err != nil {
-		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
+		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:init:failed:%d\n", sub.id.SubscriptionID)
@@ -530,7 +530,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	}
 
 	if err := t.loader.LoadGraphQLResponseData(resolveCtx, sub.resolve.Response, t.resolvable); err != nil {
-		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
+		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:load:failed:%d\n", sub.id.SubscriptionID)
@@ -542,7 +542,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 	}
 
 	if err := t.resolvable.Resolve(resolveCtx.ctx, sub.resolve.Response.Data, sub.resolve.Response.Fetches, sub.writer); err != nil {
-		r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
+		r.resolveArenaPool.Release(resolveArena)
 		r.asyncErrorWriter.WriteError(resolveCtx, err, sub.resolve.Response, sub.writer)
 		if r.options.Debug {
 			fmt.Printf("resolver:trigger:subscription:resolve:failed:%d\n", sub.id.SubscriptionID)
@@ -553,7 +553,7 @@ func (r *Resolver) executeSubscriptionUpdate(resolveCtx *Context, sub *sub, shar
 		return
 	}
 
-	r.resolveArenaPool.Release(resolveCtx.Request.ID, resolveArena)
+	r.resolveArenaPool.Release(resolveArena)
 
 	if err := sub.writer.Flush(); err != nil {
 		// If flush fails (e.g. client disconnected), remove the subscription.

@@ -3,6 +3,7 @@ package grpcdatasource
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -17,8 +18,7 @@ type planningInfo struct {
 	operationType      ast.OperationType
 	operationFieldName string
 
-	requestMessageAncestors []*RPCMessage
-	currentRequestMessage   *RPCMessage
+	currentRequestMessage *RPCMessage
 
 	responseMessageAncestors  []*RPCMessage
 	currentResponseMessage    *RPCMessage
@@ -27,12 +27,24 @@ type planningInfo struct {
 	responseFieldIndexAncestors []int
 }
 
+type contextField struct {
+	fieldRef    int
+	resolvePath ast.Path
+}
+
+type fieldArgument struct {
+	parentTypeNode        ast.Node
+	jsonPath              string
+	fieldDefinitionRef    int
+	argumentDefinitionRef int
+}
+
 type rpcPlanVisitor struct {
 	walker     *astvisitor.Walker
 	operation  *ast.Document
 	definition *ast.Document
-	planCtx    *rpcPlanningContext
 	planInfo   planningInfo
+	planCtx    *rpcPlanningContext
 
 	subgraphName       string
 	mapping            *GRPCMapping
@@ -41,6 +53,12 @@ type rpcPlanVisitor struct {
 	operationFieldRefs []int
 	currentCall        *RPCCall
 	currentCallID      int
+
+	parentCallID       int
+	resolvedFieldIndex int
+	resolvedFields     []resolvedField
+
+	fieldPath ast.Path
 }
 
 type rpcPlanVisitorConfig struct {
@@ -54,14 +72,18 @@ type rpcPlanVisitorConfig struct {
 func newRPCPlanVisitor(config rpcPlanVisitorConfig) *rpcPlanVisitor {
 	walker := astvisitor.NewWalker(48)
 	visitor := &rpcPlanVisitor{
-		walker:            &walker,
-		plan:              &RPCExecutionPlan{},
-		subgraphName:      cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
-		mapping:           config.mapping,
-		operationFieldRef: -1,
+		walker:             &walker,
+		plan:               &RPCExecutionPlan{},
+		subgraphName:       cases.Title(language.Und, cases.NoLower).String(config.subgraphName),
+		mapping:            config.mapping,
+		operationFieldRef:  ast.InvalidRef,
+		resolvedFields:     make([]resolvedField, 0),
+		parentCallID:       ast.InvalidRef,
+		resolvedFieldIndex: ast.InvalidRef,
+		fieldPath:          make(ast.Path, 0),
 	}
 
-	walker.RegisterEnterDocumentVisitor(visitor)
+	walker.RegisterDocumentVisitor(visitor)
 	walker.RegisterEnterOperationVisitor(visitor)
 	walker.RegisterFieldVisitor(visitor)
 	walker.RegisterSelectionSetVisitor(visitor)
@@ -88,6 +110,22 @@ func (r *rpcPlanVisitor) EnterDocument(operation *ast.Document, definition *ast.
 	r.planCtx = newRPCPlanningContext(operation, definition, r.mapping)
 }
 
+// LeaveDocument implements astvisitor.DocumentVisitor.
+func (r *rpcPlanVisitor) LeaveDocument(_, _ *ast.Document) {
+	if len(r.resolvedFields) == 0 {
+		return
+	}
+
+	calls, err := r.planCtx.createResolverRPCCalls(r.subgraphName, r.resolvedFields)
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	r.plan.Calls = append(r.plan.Calls, calls...)
+	r.resolvedFields = nil
+}
+
 // EnterOperationDefinition implements astvisitor.EnterOperationDefinitionVisitor.
 // This is called when entering the operation definition node.
 // It retrieves information about the operation
@@ -106,11 +144,9 @@ func (r *rpcPlanVisitor) EnterOperationDefinition(ref int) {
 // EnterArgument implements astvisitor.EnterArgumentVisitor.
 // This method retrieves the input value definition for the argument
 // and builds the request message from the input argument.
-//
-// TODO handle field arguments to define resolvers
 func (r *rpcPlanVisitor) EnterArgument(ref int) {
-	a := r.walker.Ancestor()
-	if a.Kind != ast.NodeKindField && a.Ref != r.operationFieldRef {
+	ancestor := r.walker.Ancestor()
+	if ancestor.Kind != ast.NodeKindField || ancestor.Ref != r.operationFieldRef {
 		return
 	}
 	argumentInputValueDefinitionRef, exists := r.walker.ArgumentInputValueDefinition(ref)
@@ -118,15 +154,53 @@ func (r *rpcPlanVisitor) EnterArgument(ref int) {
 		return
 	}
 
+	if len(r.walker.TypeDefinitions) < 2 {
+		r.walker.StopWithInternalErr(fmt.Errorf("internal: unexpected type stack depth for argument on %s", r.operation.FieldNameString(ancestor.Ref)))
+		return
+	}
+
+	// As we check that we are inside of a field we can safely access the second to last type definition.
+	parentTypeNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
+	fieldDefinitionRef, exists := r.definition.NodeFieldDefinitionByName(parentTypeNode, r.operation.FieldNameBytes(ancestor.Ref))
+	if !exists {
+		return
+	}
+
+	argument := r.operation.ArgumentValue(ref)
+	jsonPath := r.operation.ArgumentNameString(ref)
+	if argument.Kind == ast.ValueKindVariable {
+		jsonPath = r.operation.Input.ByteSliceString(r.operation.VariableValues[argument.Ref].Name)
+	}
+
 	// Retrieve the type of the input value definition, and build the request message
-	inputValueDefinitionTypeRef := r.definition.InputValueDefinitionType(argumentInputValueDefinitionRef)
-	r.enrichRequestMessageFromInputArgument(ref, inputValueDefinitionTypeRef)
+	field, err := r.planCtx.createRPCFieldFromFieldArgument(fieldArgument{
+		fieldDefinitionRef:    fieldDefinitionRef,
+		parentTypeNode:        parentTypeNode,
+		argumentDefinitionRef: argumentInputValueDefinitionRef,
+		jsonPath:              jsonPath,
+	})
+
+	if err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
+	}
+
+	r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
+
 }
 
 // EnterSelectionSet implements astvisitor.EnterSelectionSetVisitor.
 // Checks if this is in the root level below the operation definition.
 func (r *rpcPlanVisitor) EnterSelectionSet(ref int) {
 	if r.walker.Ancestor().Kind == ast.NodeKindOperationDefinition {
+		return
+	}
+
+	// If we are inside of a resolved field that selects multiple fields, we get all the fields from the input and pass them to the required fields visitor.
+	if r.resolvedFieldIndex != ast.InvalidRef {
+		// TODO: handle nested resolved fields.
+		r.resolvedFields[r.resolvedFieldIndex].fieldsSelectionSetRef = ref
+		r.walker.SkipNode()
 		return
 	}
 
@@ -215,13 +289,19 @@ func (r *rpcPlanVisitor) LeaveSelectionSet(ref int) {
 	}
 }
 
-func (r *rpcPlanVisitor) handleRootField(ref int) error {
+func (r *rpcPlanVisitor) handleRootField(isRootField bool, ref int) error {
+	if !isRootField {
+		return nil
+	}
+
 	r.operationFieldRef = ref
 	r.planInfo.operationFieldName = r.operation.FieldNameString(ref)
 
 	r.currentCall = &RPCCall{
 		ServiceName: r.planCtx.resolveServiceName(r.subgraphName),
 	}
+
+	r.parentCallID = r.currentCallID
 
 	r.planInfo.currentRequestMessage = &r.currentCall.Request
 	r.planInfo.currentResponseMessage = &r.currentCall.Response
@@ -242,11 +322,10 @@ func (r *rpcPlanVisitor) handleRootField(ref int) error {
 // EnterField implements astvisitor.EnterFieldVisitor.
 func (r *rpcPlanVisitor) EnterField(ref int) {
 	fieldName := r.operation.FieldNameString(ref)
-	if r.walker.InRootField() {
-		if err := r.handleRootField(ref); err != nil {
-			r.walker.StopWithInternalErr(err)
-			return
-		}
+	inRootField := r.walker.InRootField()
+	if err := r.handleRootField(inRootField, ref); err != nil {
+		r.walker.StopWithInternalErr(err)
+		return
 	}
 
 	if fieldName == "_entities" {
@@ -268,11 +347,46 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 		return
 	}
 
+	// Field arguments for non root types will be handled as resolver calls.
+	// We need to make sure to handle a hierarchy of arguments in order to perform parallel calls in order to retrieve the data.
+	// TODO: this needs to be available for both visitors and added to the plancontext
+	if fieldArgs := r.operation.FieldArguments(ref); !inRootField && len(fieldArgs) > 0 {
+		// We don't want to add fields from the selection set to the actual call
+		resolvedField := resolvedField{
+			callerRef:              r.parentCallID,
+			parentTypeRef:          r.walker.EnclosingTypeDefinition.Ref,
+			fieldRef:               ref,
+			responsePath:           r.walker.Path[1:].WithoutInlineFragmentNames().WithFieldNameItem(r.operation.FieldAliasOrNameBytes(ref)),
+			fieldDefinitionTypeRef: r.definition.FieldDefinitionType(fd),
+		}
+
+		if err := r.planCtx.setResolvedField(r.walker, fd, fieldArgs, r.fieldPath, &resolvedField); err != nil {
+			r.walker.StopWithInternalErr(err)
+			return
+		}
+
+		r.resolvedFields = append(r.resolvedFields, resolvedField)
+		r.resolvedFieldIndex = len(r.resolvedFields) - 1
+		r.fieldPath = r.fieldPath.WithFieldNameItem(r.operation.FieldNameBytes(ref))
+
+		// In case of nested fields with arguments, we need to increment the related call ID.
+		r.parentCallID++
+		return
+	}
+
 	field, err := r.planCtx.buildField(r.walker.EnclosingTypeDefinition, fd, fieldName, fieldAlias)
 	if err != nil {
 		r.walker.StopWithInternalErr(err)
 		return
 	}
+
+	// If we have a nested or nullable list, we add a @ prefix to indicate the nesting level.
+	prefix := ""
+	if field.ListMetadata != nil {
+		prefix = strings.Repeat("@", field.ListMetadata.NestingLevel)
+	}
+
+	r.fieldPath = r.fieldPath.WithFieldNameItem([]byte(prefix + field.Name))
 
 	// check if we are inside of an inline fragment
 	if ref, ok := r.walker.ResolveInlineFragment(); ok {
@@ -290,8 +404,18 @@ func (r *rpcPlanVisitor) EnterField(ref int) {
 
 // LeaveField implements astvisitor.FieldVisitor.
 func (r *rpcPlanVisitor) LeaveField(ref int) {
+	r.fieldPath = r.fieldPath.RemoveLastItem()
+	r.resolvedFieldIndex = ast.InvalidRef
+
 	// If we are not in the operation field, we can increment the response field index.
 	if !r.walker.InRootField() {
+		// If the field has arguments, we need to decrement the related call ID.
+		// This is because we can also have nested arguments, which require the underlying field to be resolved
+		// by values provided by the parent call.
+		if r.operation.FieldHasArguments(ref) {
+			r.parentCallID--
+		}
+
 		r.planInfo.currentResponseFieldIndex++
 		return
 	}
@@ -305,174 +429,4 @@ func (r *rpcPlanVisitor) LeaveField(ref int) {
 	}
 
 	r.planInfo.currentResponseFieldIndex = 0
-}
-
-// enrichRequestMessageFromInputArgument constructs a request message from an input argument based on its type.
-// It retrieves the underlying type and builds the request message from the underlying type.
-// If the underlying type is an input object type, it creates a new message and adds it to the current request message.
-// Otherwise, it adds the field to the current request message.
-func (r *rpcPlanVisitor) enrichRequestMessageFromInputArgument(argRef, typeRef int) {
-	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
-	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
-	if !found {
-		return
-	}
-
-	fieldName := r.operation.ArgumentNameString(argRef)
-	jsonPath := fieldName
-	argument := r.operation.Arguments[argRef]
-
-	// TODO: We should only work with variables as after normalization we don't have and direct input values.
-	// Therefore we should error out when we don't have a variable.
-	if argument.Value.Kind == ast.ValueKindVariable {
-		jsonPath = r.operation.Input.ByteSliceString(r.operation.VariableValues[argument.Value.Ref].Name)
-	}
-
-	rootNode := r.walker.TypeDefinitions[len(r.walker.TypeDefinitions)-2]
-	baseType := r.definition.NodeNameString(rootNode)
-	mappedInputName := r.resolveInputArgument(baseType, r.walker.Ancestor().Ref, fieldName)
-
-	// If the underlying type is an input object type, create a new message and add it to the current request message.
-	switch underlyingTypeNode.Kind {
-	case ast.NodeKindInputObjectTypeDefinition:
-		msg := &RPCMessage{
-			Name:   underlyingTypeName,
-			Fields: RPCFields{},
-		}
-
-		field := r.buildInputMessageField(typeRef, mappedInputName, jsonPath, DataTypeMessage)
-		field.Message = msg
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
-
-		// Add the current request message to the ancestors and set the current request message to the new message.
-		r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
-		r.planInfo.currentRequestMessage = msg
-
-		r.buildMessageFromNode(underlyingTypeNode)
-
-		r.planInfo.currentRequestMessage = r.planInfo.requestMessageAncestors[len(r.planInfo.requestMessageAncestors)-1]
-		r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
-
-	case ast.NodeKindScalarTypeDefinition, ast.NodeKindEnumTypeDefinition:
-		dt := r.planCtx.toDataType(&r.definition.Types[typeRef])
-
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields,
-			r.buildInputMessageField(typeRef, mappedInputName, jsonPath, dt))
-	default:
-		// TODO unions, interfaces, etc.
-		r.walker.Report.AddInternalError(fmt.Errorf("unsupported type: %s", underlyingTypeNode.Kind))
-		r.walker.Stop()
-		return
-	}
-}
-
-// buildMessageFromNode builds a message structure from an AST node.
-func (r *rpcPlanVisitor) buildMessageFromNode(node ast.Node) {
-	switch node.Kind {
-	case ast.NodeKindInputObjectTypeDefinition:
-		inputObjectDefinition := r.definition.InputObjectTypeDefinitions[node.Ref]
-		r.planInfo.currentRequestMessage.Fields = make(RPCFields, 0, len(inputObjectDefinition.InputFieldsDefinition.Refs))
-
-		for _, inputFieldRef := range inputObjectDefinition.InputFieldsDefinition.Refs {
-			fieldDefinition := r.definition.InputValueDefinitions[inputFieldRef]
-			fieldName := r.definition.Input.ByteSliceString(fieldDefinition.Name)
-			r.buildMessageField(fieldName, fieldDefinition.Type, node.Ref)
-		}
-	}
-}
-
-// buildMessageField creates a field in the current request message based on the field type.
-func (r *rpcPlanVisitor) buildMessageField(fieldName string, typeRef, parentTypeRef int) {
-	inputValueDefinitionType := r.definition.Types[typeRef]
-	underlyingTypeName := r.definition.ResolveTypeNameString(typeRef)
-	underlyingTypeNode, found := r.definition.NodeByNameStr(underlyingTypeName)
-	if !found {
-		return
-	}
-
-	parentTypeName := r.definition.InputObjectTypeDefinitionNameString(parentTypeRef)
-	mappedName := r.resolveFieldMapping(parentTypeName, fieldName)
-
-	// If the type is not an object, directly add the field to the request message
-	if underlyingTypeNode.Kind != ast.NodeKindInputObjectTypeDefinition {
-		dt := r.planCtx.toDataType(&inputValueDefinitionType)
-
-		r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields,
-			r.buildInputMessageField(typeRef, mappedName, fieldName, dt))
-
-		return
-	}
-
-	msg := &RPCMessage{
-		Name: underlyingTypeName,
-	}
-
-	field := r.buildInputMessageField(typeRef, mappedName, fieldName, DataTypeMessage)
-	field.Message = msg
-
-	r.planInfo.currentRequestMessage.Fields = append(r.planInfo.currentRequestMessage.Fields, field)
-
-	r.planInfo.requestMessageAncestors = append(r.planInfo.requestMessageAncestors, r.planInfo.currentRequestMessage)
-	r.planInfo.currentRequestMessage = msg
-
-	r.buildMessageFromNode(underlyingTypeNode)
-
-	r.planInfo.currentRequestMessage = r.planInfo.requestMessageAncestors[len(r.planInfo.requestMessageAncestors)-1]
-	r.planInfo.requestMessageAncestors = r.planInfo.requestMessageAncestors[:len(r.planInfo.requestMessageAncestors)-1]
-}
-
-func (r *rpcPlanVisitor) buildInputMessageField(typeRef int, fieldName, jsonPath string, dt DataType) RPCField {
-	field := RPCField{
-		Name:     fieldName,
-		Optional: !r.definition.TypeIsNonNull(typeRef),
-		TypeName: dt.String(),
-		JSONPath: jsonPath,
-	}
-
-	if r.definition.TypeIsList(typeRef) {
-		switch {
-		// for nullable or nested lists we need to build a wrapper message
-		// Nullability is handled by the datasource during the execution.
-		case r.planCtx.typeIsNullableOrNestedList(typeRef):
-			md, err := r.planCtx.createListMetadata(typeRef)
-			if err != nil {
-				r.walker.StopWithInternalErr(err)
-				return field
-			}
-			field.ListMetadata = md
-			field.IsListType = true
-		default:
-			// For non-nullable single lists we can directly use the repeated syntax in protobuf.
-			field.Repeated = true
-		}
-	}
-
-	if dt == DataTypeEnum {
-		field.EnumName = r.definition.ResolveTypeNameString(typeRef)
-	}
-
-	return field
-}
-
-// This applies both for complex types in the input and for all fields in the response.
-func (r *rpcPlanVisitor) resolveFieldMapping(typeName, fieldName string) string {
-	grpcFieldName, ok := r.mapping.ResolveFieldMapping(typeName, fieldName)
-	if !ok {
-		return fieldName
-	}
-
-	return grpcFieldName
-}
-
-// resolveInputArgument resolves the input argument mapping for a field.
-// This only applies if the input arguments are scalar values.
-// If the input argument is a message, the mapping is resolved by the
-// resolveFieldMapping function.
-func (r *rpcPlanVisitor) resolveInputArgument(baseType string, fieldRef int, argumentName string) string {
-	grpcFieldName, ok := r.mapping.ResolveFieldArgumentMapping(baseType, r.operation.FieldNameString(fieldRef), argumentName)
-	if !ok {
-		return argumentName
-	}
-
-	return grpcFieldName
 }

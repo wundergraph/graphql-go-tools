@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.0-rc.236](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.235...v2.0.0-rc.236) (2025-10-31)
+
+
+### Bug Fixes
+
+* fix conflict of rewriter and required fields ([#1338](https://github.com/wundergraph/graphql-go-tools/issues/1338)) ([03189bc](https://github.com/wundergraph/graphql-go-tools/commit/03189bc270a551c2875b3b01dbc11d166d703e4a))
+
+## [2.0.0-rc.235](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.234...v2.0.0-rc.235) (2025-10-29)
+
+
+### Bug Fixes
+
+* improve query planning time ([#1326](https://github.com/wundergraph/graphql-go-tools/issues/1326)) ([373cf2a](https://github.com/wundergraph/graphql-go-tools/commit/373cf2abf1459ded5997e5a84d1a282dc544844c))
+
 ## [2.0.0-rc.234](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.233...v2.0.0-rc.234) (2025-10-24)
 
 
