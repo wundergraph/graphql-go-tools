@@ -8,11 +8,11 @@ package grpcdatasource
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net/http"
-	"sync"
-	"errors"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/tidwall/gjson"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -46,6 +46,8 @@ type DataSource struct {
 	mapping           *GRPCMapping
 	federationConfigs plan.FederationFieldConfigurations
 	disabled          bool
+
+	pool *resolve.ArenaPool
 }
 
 type ProtoConfig struct {
@@ -81,6 +83,7 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 		mapping:           config.Mapping,
 		federationConfigs: config.FederationConfigs,
 		disabled:          config.Disabled,
+		pool:              resolve.NewArenaPool(),
 	}, nil
 }
 
@@ -93,15 +96,23 @@ func NewDataSource(client grpc.ClientConnInterface, config DataSourceConfig) (*D
 func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte) (data []byte, err error) {
 	// get variables from input
 	variables := gjson.Parse(unsafebytes.BytesToString(input)).Get("body.variables")
-	builder := newJSONBuilder(d.mapping, variables)
+
+	var (
+		poolItems []*resolve.ArenaPoolItem
+	)
+	defer func() {
+		d.pool.ReleaseMany(poolItems)
+	}()
+
+	item := d.acquirePoolItem(input, 0)
+	poolItems = append(poolItems, item)
+	builder := newJSONBuilder(item.Arena, d.mapping, variables)
 
 	if d.disabled {
 		return builder.writeErrorBytes(fmt.Errorf("gRPC datasource needs to be enabled to be used")), nil
 	}
 
-	arena := astjson.Arena{}
-	defer arena.Reset()
-	root := arena.NewObject()
+	root := astjson.ObjectValue(nil)
 
 	failed := false
 
@@ -116,8 +127,10 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 
 		// make gRPC calls
 		for index, serviceCall := range serviceCalls {
+			item := d.acquirePoolItem(input, index)
+			poolItems = append(poolItems, item)
+			builder := newJSONBuilder(item.Arena, d.mapping, variables)
 			errGrp.Go(func() error {
-				a := astjson.Arena{}
 				// Invoke the gRPC method - this will populate serviceCall.Output
 
 				err := d.cc.Invoke(errGrpCtx, serviceCall.MethodFullName(), serviceCall.Input, serviceCall.Output)
@@ -125,7 +138,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 					return err
 				}
 
-				response, err := builder.marshalResponseJSON(&a, &serviceCall.RPC.Response, serviceCall.Output)
+				response, err := builder.marshalResponseJSON(&serviceCall.RPC.Response, serviceCall.Output)
 				if err != nil {
 					return err
 				}
@@ -150,7 +163,7 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 		}
 
 		if err := errGrp.Wait(); err != nil {
-			out.Write(builder.writeErrorBytes(err))
+			data = builder.writeErrorBytes(err)
 			failed = true
 			return nil
 		}
@@ -163,19 +176,29 @@ func (d *DataSource) Load(ctx context.Context, headers http.Header, input []byte
 				root, err = builder.mergeValues(root, result.response)
 			}
 			if err != nil {
-				out.Write(builder.writeErrorBytes(err))
+				data = builder.writeErrorBytes(err)
 				return err
 			}
 		}
 
 		return nil
 	}); err != nil || failed {
-		return err
+		return data, err
 	}
 
-	data := builder.toDataObject(root)
-	out.Write(data.MarshalTo(nil))
-	return nil
+	value := builder.toDataObject(root)
+	return value.MarshalTo(nil), err
+}
+
+func (d *DataSource) acquirePoolItem(input []byte, index int) *resolve.ArenaPoolItem {
+	keyGen := xxhash.New()
+	_, _ = keyGen.Write(input)
+	var b [8]byte
+	binary.LittleEndian.PutUint64(b[:], uint64(index))
+	_, _ = keyGen.Write(b[:])
+	key := keyGen.Sum64()
+	item := d.pool.Acquire(key)
+	return item
 }
 
 // LoadWithFiles implements resolve.DataSource interface.

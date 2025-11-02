@@ -32,6 +32,7 @@ type arenaPoolItemSize struct {
 // ArenaPoolItem wraps an arena.Arena for use in the pool
 type ArenaPoolItem struct {
 	Arena arena.Arena
+	Key   uint64
 }
 
 // NewArenaPool creates a new ArenaPool instance
@@ -43,7 +44,7 @@ func NewArenaPool() *ArenaPool {
 
 // Acquire gets an arena from the pool or creates a new one if none are available.
 // The id parameter is used to track arena sizes per use case for optimization.
-func (p *ArenaPool) Acquire(id uint64) *ArenaPoolItem {
+func (p *ArenaPool) Acquire(key uint64) *ArenaPoolItem {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -56,21 +57,23 @@ func (p *ArenaPool) Acquire(id uint64) *ArenaPoolItem {
 
 		v := wp.Value()
 		if v != nil {
+			v.Key = key
 			return v
 		}
 		// If weak pointer was nil (GC collected), continue to next item
 	}
 
 	// No arena available, create a new one
-	size := arena.WithMinBufferSize(p.getArenaSize(id))
+	size := arena.WithMinBufferSize(p.getArenaSize(key))
 	return &ArenaPoolItem{
 		Arena: arena.NewMonotonicArena(size),
+		Key:   key,
 	}
 }
 
 // Release returns an arena to the pool for reuse.
 // The peak memory usage is recorded to optimize future arena sizes for this use case.
-func (p *ArenaPool) Release(id uint64, item *ArenaPoolItem) {
+func (p *ArenaPool) Release(item *ArenaPoolItem) {
 	peak := item.Arena.Peak()
 	item.Arena.Reset()
 
@@ -78,7 +81,7 @@ func (p *ArenaPool) Release(id uint64, item *ArenaPoolItem) {
 	defer p.mu.Unlock()
 
 	// Record the peak usage for this use case
-	if size, ok := p.sizes[id]; ok {
+	if size, ok := p.sizes[item.Key]; ok {
 		if size.count == 50 {
 			size.count = 1
 			size.totalBytes = size.totalBytes / 50
@@ -86,15 +89,49 @@ func (p *ArenaPool) Release(id uint64, item *ArenaPoolItem) {
 		size.count++
 		size.totalBytes += peak
 	} else {
-		p.sizes[id] = &arenaPoolItemSize{
+		p.sizes[item.Key] = &arenaPoolItemSize{
 			count:      1,
 			totalBytes: peak,
 		}
 	}
 
+	item.Key = 0
+
 	// Add the arena back to the pool using a weak pointer
 	w := weak.Make(item)
 	p.pool = append(p.pool, w)
+}
+
+func (p *ArenaPool) ReleaseMany(items []*ArenaPoolItem) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	for _, item := range items {
+
+		peak := item.Arena.Peak()
+		item.Arena.Reset()
+
+		// Record the peak usage for this use case
+		if size, ok := p.sizes[item.Key]; ok {
+			if size.count == 50 {
+				size.count = 1
+				size.totalBytes = size.totalBytes / 50
+			}
+			size.count++
+			size.totalBytes += peak
+		} else {
+			p.sizes[item.Key] = &arenaPoolItemSize{
+				count:      1,
+				totalBytes: peak,
+			}
+		}
+
+		item.Key = 0
+
+		// Add the arena back to the pool using a weak pointer
+		w := weak.Make(item)
+		p.pool = append(p.pool, w)
+	}
 }
 
 // getArenaSize returns the optimal arena size for a given use case ID.

@@ -47,7 +47,7 @@ func TestArenaPool_ReleaseAndAcquire(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Release it
-	pool.Release(id, item1)
+	pool.Release(item1)
 
 	// Pool should have one item
 	assert.Equal(t, 1, len(pool.pool), "expected pool to have 1 item")
@@ -88,7 +88,7 @@ func TestArenaPool_Acquire_ProvesBugFix(t *testing.T) {
 
 	// Release all while keeping strong references
 	for i := 0; i < numItems; i++ {
-		pool.Release(id, items[i])
+		pool.Release(items[i])
 	}
 
 	// Pool should have all items
@@ -137,7 +137,7 @@ func TestArenaPool_Release_PeakTracking(t *testing.T) {
 	peak1 := item1.Arena.Peak()
 	assert.Equal(t, peak1, 5)
 
-	pool.Release(id, item1)
+	pool.Release(item1)
 
 	// Check that size was tracked
 	size, exists := pool.sizes[id]
@@ -150,7 +150,7 @@ func TestArenaPool_Release_PeakTracking(t *testing.T) {
 	_, err = buf2.WriteString("larger data")
 	assert.NoError(t, err)
 
-	pool.Release(id, item2)
+	pool.Release(item2)
 
 	// Check updated tracking
 	assert.Equal(t, 2, size.count, "expected count 2")
@@ -170,7 +170,7 @@ func TestArenaPool_GetArenaSize(t *testing.T) {
 	buf := arena.NewArenaBuffer(item.Arena)
 	_, err := buf.WriteString("some data")
 	assert.NoError(t, err)
-	pool.Release(id, item)
+	pool.Release(item)
 
 	size2 := pool.getArenaSize(id)
 	assert.NotEqual(t, 0, size2, "expected non-zero size after usage")
@@ -193,7 +193,7 @@ func TestArenaPool_MultipleItemsInPool(t *testing.T) {
 
 	// Release all while keeping references
 	for i := 0; i < numItems; i++ {
-		pool.Release(id, items[i])
+		pool.Release(items[i])
 	}
 
 	// Should have all items in pool
@@ -221,7 +221,7 @@ func TestArenaPool_Release_MovingWindow(t *testing.T) {
 		buf := arena.NewArenaBuffer(item.Arena)
 		_, err := buf.WriteString("test data")
 		assert.NoError(t, err)
-		pool.Release(id, item)
+		pool.Release(item)
 	}
 
 	// After 50 releases, verify count and total
@@ -237,7 +237,7 @@ func TestArenaPool_Release_MovingWindow(t *testing.T) {
 	_, err := buf51.WriteString("test data")
 	assert.NoError(t, err)
 	peak51 := item51.Arena.Peak()
-	pool.Release(id, item51)
+	pool.Release(item51)
 
 	// After 51st release, verify the window was reset
 	// count should be 2 (reset to 1, then incremented)
@@ -253,7 +253,7 @@ func TestArenaPool_Release_MovingWindow(t *testing.T) {
 		buf := arena.NewArenaBuffer(item.Arena)
 		_, err := buf.WriteString("more data")
 		assert.NoError(t, err)
-		pool.Release(id, item)
+		pool.Release(item)
 	}
 
 	// After 10 more releases, count should be 12 (2 + 10)

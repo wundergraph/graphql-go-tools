@@ -114,12 +114,12 @@ type jsonBuilder struct {
 // newJSONBuilder creates a new JSON builder instance with the provided mapping
 // and variables. The builder automatically creates an index map for proper
 // federation entity ordering if representations are present in the variables.
-func newJSONBuilder(mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
+func newJSONBuilder(a arena.Arena, mapping *GRPCMapping, variables gjson.Result) *jsonBuilder {
 	return &jsonBuilder{
 		mapping:   mapping,
 		variables: variables,
 		indexMap:  createRepresentationIndexMap(variables),
-		jsonArena: arena.NewMonotonicArena(),
+		jsonArena: a,
 	}
 }
 
@@ -259,7 +259,7 @@ func (j *jsonBuilder) mergeWithPath(base *astjson.Value, resolved *astjson.Value
 	}
 
 	for i := range responseValues {
-		responseValues[i].Set(elementName, resolvedValues[i].Get(elementName))
+		responseValues[i].Set(j.jsonArena, elementName, resolvedValues[i].Get(elementName))
 	}
 
 	return nil

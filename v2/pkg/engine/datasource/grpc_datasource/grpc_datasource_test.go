@@ -54,8 +54,7 @@ func Benchmark_DataSource_Load(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		output := new(bytes.Buffer)
-		err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), output)
+		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 		require.NoError(b, err)
 	}
 }
@@ -93,7 +92,7 @@ func Benchmark_DataSource_Load_WithFieldArguments(b *testing.B) {
 		})
 		require.NoError(b, err)
 
-		err = ds.Load(context.Background(), []byte(`{"query":"`+query+`","body":`+variables+`}`), new(bytes.Buffer))
+		_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","body":`+variables+`}`))
 		require.NoError(b, err)
 	}
 }
@@ -564,7 +563,7 @@ func TestMarshalResponseJSON(t *testing.T) {
 	responseMessage := dynamicpb.NewMessage(responseMessageDesc)
 	responseMessage.Mutable(responseMessageDesc.Fields().ByName("result")).List().Append(protoref.ValueOfMessage(productMessage))
 
-	jsonBuilder := newJSONBuilder(nil, gjson.Result{})
+	jsonBuilder := newJSONBuilder(nil, nil, gjson.Result{})
 	responseJSON, err := jsonBuilder.marshalResponseJSON(&response, responseMessage)
 	require.NoError(t, err)
 	require.Equal(t, `{"_entities":[{"__typename":"Product","id":"123","name_different":"test","price_different":123.45}]}`, responseJSON.String())
@@ -3723,15 +3722,14 @@ func Test_DataSource_Load_WithEntity_Calls(t *testing.T) {
 			require.NoError(t, err)
 
 			// Execute the query through our datasource
-			output := new(bytes.Buffer)
 			input := fmt.Sprintf(`{"query":%q,"body":%s}`, tc.query, tc.vars)
-			err = ds.Load(context.Background(), []byte(input), output)
+			output, err := ds.Load(context.Background(), nil, []byte(input))
 			require.NoError(t, err)
 
 			// Parse the response
 			var resp graphqlResponse
 
-			err = json.Unmarshal(output.Bytes(), &resp)
+			err = json.Unmarshal(output, &resp)
 			require.NoError(t, err, "Failed to unmarshal response")
 
 			tc.validate(t, resp.Data)
