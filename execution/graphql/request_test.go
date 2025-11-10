@@ -90,7 +90,7 @@ func TestRequest_parseQueryOnce(t *testing.T) {
 func TestRequest_CalculateComplexity(t *testing.T) {
 	t.Run("should return error when schema is nil", func(t *testing.T) {
 		request := Request{}
-		result, err := request.CalculateComplexity(DefaultComplexityCalculator, nil)
+		result, err := request.CalculateComplexity(DefaultComplexityCalculator, nil, false)
 		assert.Error(t, err)
 		assert.Equal(t, ErrNilSchema, err)
 		assert.Equal(t, 0, result.NodeCount, "unexpected node count")
@@ -103,7 +103,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		schema := StarwarsSchema(t)
 
 		request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
-		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
+		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema, false)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, result.NodeCount, "unexpected node count")
 		assert.Equal(t, 1, result.Complexity, "unexpected complexity")
@@ -124,7 +124,7 @@ func TestRequest_CalculateComplexity(t *testing.T) {
 		schema := StarwarsSchema(t)
 
 		request := StarwarsRequestForQuery(t, starwars.FileHeroWithAliasesQuery)
-		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema)
+		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema, false)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, result.NodeCount, "unexpected node count")
 		assert.Equal(t, 2, result.Complexity, "unexpected complexity")

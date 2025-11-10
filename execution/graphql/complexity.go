@@ -10,15 +10,15 @@ import (
 var DefaultComplexityCalculator = defaultComplexityCalculator{}
 
 type ComplexityCalculator interface {
-	Calculate(operation, definition *ast.Document) (ComplexityResult, error)
+	Calculate(operation, definition *ast.Document, skipIntrospection bool) (ComplexityResult, error)
 }
 
 type defaultComplexityCalculator struct {
 }
 
-func (d defaultComplexityCalculator) Calculate(operation, definition *ast.Document) (ComplexityResult, error) {
+func (d defaultComplexityCalculator) Calculate(operation, definition *ast.Document, skipIntrospection bool) (ComplexityResult, error) {
 	report := operationreport.Report{}
-	globalComplexityResult, fieldsComplexityResult := operation_complexity.CalculateOperationComplexity(operation, definition, &report)
+	globalComplexityResult, fieldsComplexityResult := operation_complexity.CalculateOperationComplexity(operation, definition, skipIntrospection, &report)
 
 	return complexityResult(globalComplexityResult, fieldsComplexityResult, report)
 }

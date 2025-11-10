@@ -468,6 +468,26 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	t.Run("introspection query", func(t *testing.T) {
 		run(t, testDefinition, introspectionQuery,
 			OperationStats{
+				NodeCount:  59,
+				Complexity: 59,
+				Depth:      13,
+			},
+			[]RootFieldStats{
+				{
+					TypeName:  "Query",
+					FieldName: "__schema",
+					Stats: OperationStats{
+						NodeCount:  59,
+						Complexity: 59,
+						Depth:      12,
+					},
+				},
+			},
+		)
+	})
+	t.Run("introspection query with skip", func(t *testing.T) {
+		runSkipIntrospection(t, testDefinition, introspectionQuery,
+			OperationStats{
 				NodeCount:  0,
 				Complexity: 0,
 				Depth:      0,
@@ -477,14 +497,14 @@ func TestCalculateOperationComplexity(t *testing.T) {
 	})
 }
 
-var run = func(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
+func runConfig(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats, skipIntrospection bool) {
 	def := unsafeparser.ParseGraphqlDocumentString(definition)
 	op := unsafeparser.ParseGraphqlDocumentString(operation)
 	report := operationreport.Report{}
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	actualGlobalComplexityResult, actualFieldsComplexityResult := CalculateOperationComplexity(&op, &def, &report)
+	actualGlobalComplexityResult, actualFieldsComplexityResult := CalculateOperationComplexity(&op, &def, skipIntrospection, &report)
 	if report.HasErrors() {
 		require.NoError(t, report)
 	}
@@ -495,11 +515,22 @@ var run = func(t *testing.T, definition, operation string, expectedGlobalComplex
 	assert.Equal(t, expectedFieldsComplexityResult, actualFieldsComplexityResult, "unexpected fields complexity result")
 }
 
+func run(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
+	runConfig(t, definition, operation, expectedGlobalComplexityResult, expectedFieldsComplexityResult, false)
+}
+
+func runSkipIntrospection(t *testing.T, definition, operation string, expectedGlobalComplexityResult OperationStats, expectedFieldsComplexityResult []RootFieldStats) {
+	runConfig(t, definition, operation, expectedGlobalComplexityResult, expectedFieldsComplexityResult, true)
+}
+
 func BenchmarkEstimateComplexity(b *testing.B) {
 	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
 
-	estimator := NewOperationComplexityEstimator()
+	// We use CalculateOperationComplexity in production. We might want to move
+	// NewOperationComplexityEstimator into the benchmarking loop or just benchmark what we do
+	// in production.
+	estimator := NewOperationComplexityEstimator(false)
 	report := operationreport.Report{}
 
 	b.ResetTimer()

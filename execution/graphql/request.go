@@ -67,7 +67,7 @@ func (r *Request) SetHeader(header http.Header) {
 	r.request.Header = header
 }
 
-func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator, schema *Schema) (ComplexityResult, error) {
+func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator, schema *Schema, skipIntrospection bool) (ComplexityResult, error) {
 	if schema == nil {
 		return ComplexityResult{}, ErrNilSchema
 	}
@@ -81,7 +81,7 @@ func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator,
 		)
 	}
 
-	return complexityCalculator.Calculate(&r.document, &schema.document)
+	return complexityCalculator.Calculate(&r.document, &schema.document, skipIntrospection)
 }
 
 func (r *Request) Document() *ast.Document {
