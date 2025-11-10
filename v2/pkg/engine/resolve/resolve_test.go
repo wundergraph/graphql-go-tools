@@ -5753,7 +5753,6 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		defer cancel()
 
 		messagesToSendFromHook := int32(100)
-		messagesDroppedFromHook := &atomic.Int32{}
 		messagesToSendFromOtherSources := int32(100)
 
 		firstMessageArrived := make(chan bool, 1)
@@ -5816,7 +5815,7 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 				messagesHeartbeat++
 			}
 		}
-		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources-messagesDroppedFromHook.Load()+messagesHeartbeat), int32(len(recorder.Messages())))
+		assert.Equal(t, int32(messagesToSendFromHook+messagesToSendFromOtherSources+messagesHeartbeat), int32(len(recorder.Messages())))
 		assert.Equal(t, `{"data":{"counter":20000}}`, recorder.Messages()[0])
 	})
 
@@ -5868,6 +5867,37 @@ func TestResolver_ResolveGraphQLSubscription(t *testing.T) {
 		require.Equal(t, 101, len(recorder2.Messages()))
 		assert.Equal(t, `{"data":{"counter":0}}`, recorder2.Messages()[0])
 		assert.Equal(t, `{"data":{"counter":100}}`, recorder2.Messages()[100])
+	})
+
+	t.Run("should propagate errors from SubscriptionOnStart hook", func(t *testing.T) {
+		c, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		expectedErr := errors.New("startup hook failed")
+		fakeStream := createFakeStream(func(counter int) (message string, done bool) {
+			return fmt.Sprintf(`{"data":{"counter":%d}}`, counter), counter == 0
+		}, 1*time.Millisecond, func(input []byte) {
+			assert.Equal(t, `{"method":"POST","url":"http://localhost:4000","body":{"query":"subscription { counter }"}}`, string(input))
+		}, func(ctx StartupHookContext, input []byte) (err error) {
+			return expectedErr
+		})
+
+		resolver, plan, recorder, id := setup(c, fakeStream)
+
+		ctx := &Context{
+			ctx: context.Background(),
+		}
+
+		err := resolver.AsyncResolveGraphQLSubscription(ctx, plan, recorder, id)
+		assert.NoError(t, err)
+
+		recorder.AwaitAnyMessageCount(t, defaultTimeout)
+		messages := recorder.Messages()
+		require.Greater(t, len(messages), 0, "Expected error message to be written to recorder")
+
+		errorMessage := messages[0]
+		assert.Contains(t, errorMessage, "errors", "Expected error message in GraphQL format")
+		assert.Contains(t, errorMessage, expectedErr.Error(), "Expected actual error message to be included")
 	})
 }
 
