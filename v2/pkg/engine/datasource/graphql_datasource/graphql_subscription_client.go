@@ -505,7 +505,7 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	// Any failure will be stored here, needed for deferred body closer.
 	var err error
 
-	conn, subProtocol, err := c.dial(requestContext, options)
+	conn, subProtocol, err := c.wsDial(requestContext, options)
 	if err != nil {
 		return nil, err
 	}
@@ -562,6 +562,26 @@ func (c *subscriptionClient) newWSConnectionHandler(requestContext, engineContex
 	default:
 		return nil, NewInvalidWsSubprotocolError(subProtocol)
 	}
+}
+
+func (c *subscriptionClient) wsDial(ctx context.Context, options GraphQLSubscriptionOptions) (net.Conn, string, error) {
+	subProtocols := []string{ProtocolGraphQLTWS, ProtocolGraphQLWS}
+
+	if options.WsSubProtocol != "" && options.WsSubProtocol != "auto" {
+		subProtocols = []string{options.WsSubProtocol}
+	}
+
+	dialer := ws.Dialer{
+		Protocols: subProtocols,
+		Header:    ws.HandshakeHeaderHTTP(options.Header),
+	}
+
+	conn, _, hs, err := dialer.Dial(ctx, options.URL)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to dial websocket: %w", err)
+	}
+
+	return conn, hs.Protocol, nil
 }
 
 func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscriptionOptions) (conn net.Conn, subProtocol string, err error) {
