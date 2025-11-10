@@ -282,6 +282,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Name: []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
+							Path:     []string{"stringList"},
 							Item: &resolve.String{
 								Nullable: true,
 							},
@@ -349,11 +350,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
 			},
 			{
 				TypeName:  "Query",
@@ -589,6 +585,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Name: []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
+							Path:     []string{"stringList"},
 							Item: &resolve.String{
 								Nullable: true,
 							},
@@ -676,11 +673,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
 			},
 			{
 				TypeName:  "Query",
@@ -1699,6 +1691,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						Name: []byte("stringList"),
 						Value: &resolve.Array{
 							Nullable: true,
+							Path:     []string{"stringList"},
 							Item: &resolve.String{
 								Nullable: true,
 							},
@@ -1766,11 +1759,6 @@ func TestGraphQLDataSource(t *testing.T) {
 						SourceType: plan.FieldArgumentSource,
 					},
 				},
-			},
-			{
-				TypeName:              "Query",
-				FieldName:             "stringList",
-				DisableDefaultMapping: true,
 			},
 			{
 				TypeName:  "Query",
@@ -2528,6 +2516,7 @@ func TestGraphQLDataSource(t *testing.T) {
 						{
 							Name: []byte("addFriend"),
 							Value: &resolve.Object{
+								Path: []string{"addFriend"},
 								PossibleTypes: map[string]struct{}{
 									"Friend": {},
 								},
@@ -2589,9 +2578,8 @@ func TestGraphQLDataSource(t *testing.T) {
 			},
 			Fields: []plan.FieldConfiguration{
 				{
-					TypeName:              "Mutation",
-					FieldName:             "addFriend",
-					DisableDefaultMapping: true,
+					TypeName:  "Mutation",
+					FieldName: "addFriend",
 					Arguments: []plan.ArgumentConfiguration{
 						{
 							Name:       "name",
@@ -5006,12 +4994,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								TypeName:   "Query",
 								FieldNames: []string{"me", "user"},
 							},
-						},
-						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
 								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 							},
+						},
+						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "UserMetadata",
 								FieldNames: []string{"name", "address", "description"},
@@ -5392,12 +5380,12 @@ func TestGraphQLDataSource(t *testing.T) {
 								TypeName:   "Query",
 								FieldNames: []string{"me", "user"},
 							},
-						},
-						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "User",
 								FieldNames: []string{"id", "name", "username", "birthDate", "account", "metadata", "ssn"},
 							},
+						},
+						ChildNodes: []plan.TypeField{
 							{
 								TypeName:   "UserMetadata",
 								FieldNames: []string{"name", "address", "description"},
@@ -8261,6 +8249,80 @@ func (f *FailingSubscriptionClient) UniqueRequestID(ctx *resolve.Context, option
 	return errSubscriptionClientFail
 }
 
+type testSubscriptionUpdaterChan struct {
+	updates  chan string
+	complete chan struct{}
+	closed   chan resolve.SubscriptionCloseKind
+}
+
+func newTestSubscriptionUpdaterChan() *testSubscriptionUpdaterChan {
+	return &testSubscriptionUpdaterChan{
+		updates:  make(chan string),
+		complete: make(chan struct{}),
+		closed:   make(chan resolve.SubscriptionCloseKind),
+	}
+}
+
+func (t *testSubscriptionUpdaterChan) Heartbeat() {
+	t.updates <- "{}"
+}
+
+func (t *testSubscriptionUpdaterChan) Update(data []byte) {
+	t.updates <- string(data)
+}
+
+func (t *testSubscriptionUpdaterChan) Complete() {
+	close(t.complete)
+}
+
+func (t *testSubscriptionUpdaterChan) Close(kind resolve.SubscriptionCloseKind) {
+	t.closed <- kind
+}
+
+func (t *testSubscriptionUpdaterChan) AwaitUpdateWithT(tt *testing.T, timeout time.Duration, f func(t *testing.T, update string), msgAndArgs ...any) {
+	tt.Helper()
+
+	select {
+	case args := <-t.updates:
+		f(tt, args)
+	case <-time.After(timeout):
+		require.Fail(tt, "unable to receive update before timeout", msgAndArgs...)
+	}
+}
+
+func (t *testSubscriptionUpdaterChan) AwaitClose(tt *testing.T, timeout time.Duration, msgAndArgs ...any) {
+	tt.Helper()
+
+	select {
+	case <-t.closed:
+	case <-time.After(timeout):
+		require.Fail(tt, "updater not closed before timeout", msgAndArgs...)
+	}
+}
+
+func (t *testSubscriptionUpdaterChan) AwaitCloseKind(tt *testing.T, timeout time.Duration, expectedCloseKind resolve.SubscriptionCloseKind, msgAndArgs ...any) {
+	tt.Helper()
+
+	select {
+	case closeKind := <-t.closed:
+		require.Equal(tt, expectedCloseKind, closeKind, msgAndArgs...)
+	case <-time.After(timeout):
+		require.Fail(tt, "updater not closed before timeout", msgAndArgs...)
+	}
+}
+
+func (t *testSubscriptionUpdaterChan) AwaitComplete(tt *testing.T, timeout time.Duration, msgAndArgs ...any) {
+	tt.Helper()
+
+	select {
+	case <-t.complete:
+	case <-time.After(timeout):
+		require.Fail(tt, "updater not completed before timeout", msgAndArgs...)
+	}
+}
+
+// !! If you see this in a test you're working on, please replace it with the new testSubscriptionUpdaterChan
+// It's faster, more ergonomic and more reliable. See SSE handler tests for usage examples.
 type testSubscriptionUpdater struct {
 	updates []string
 	done    bool
@@ -8269,6 +8331,8 @@ type testSubscriptionUpdater struct {
 }
 
 func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Duration, count int) {
+	tt.Helper()
+
 	ticker := time.NewTicker(timeout)
 	defer ticker.Stop()
 	for {
@@ -8288,6 +8352,8 @@ func (t *testSubscriptionUpdater) AwaitUpdates(tt *testing.T, timeout time.Durat
 }
 
 func (t *testSubscriptionUpdater) AwaitDone(tt *testing.T, timeout time.Duration) {
+	tt.Helper()
+
 	ticker := time.NewTicker(timeout)
 	defer ticker.Stop()
 	for {

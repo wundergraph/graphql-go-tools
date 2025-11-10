@@ -33,9 +33,9 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QueryRandomPetResponse",
 							Fields: []RPCField{
 								{
-									Name:     "random_pet",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomPet",
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -46,27 +46,27 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Cat": {
 												{
-													Name:     "meow_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "meowVolume",
+													Name:          "meow_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "meowVolume",
 												},
 											},
 										},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeString),
-												JSONPath: "kind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kind",
 											},
 										},
 									},
@@ -92,9 +92,9 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QueryRandomPetResponse",
 							Fields: []RPCField{
 								{
-									Name:     "random_pet",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomPet",
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -105,34 +105,34 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Cat": {
 												{
-													Name:     "meow_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "meowVolume",
+													Name:          "meow_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "meowVolume",
 												},
 											},
 											"Dog": {
 												{
-													Name:     "bark_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "barkVolume",
+													Name:          "bark_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "barkVolume",
 												},
 											},
 										},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeString),
-												JSONPath: "kind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kind",
 											},
 										},
 									},
@@ -158,10 +158,10 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QueryAllPetsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "all_pets",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "allPets",
-									Repeated: true,
+									Name:          "all_pets",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "allPets",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -172,34 +172,34 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Cat": {
 												{
-													Name:     "meow_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "meowVolume",
+													Name:          "meow_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "meowVolume",
 												},
 											},
 											"Dog": {
 												{
-													Name:     "bark_volume",
-													TypeName: string(DataTypeInt32),
-													JSONPath: "barkVolume",
+													Name:          "bark_volume",
+													ProtoTypeName: DataTypeInt32,
+													JSONPath:      "barkVolume",
 												},
 											},
 										},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeString),
-												JSONPath: "kind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kind",
 											},
 										},
 									},
@@ -225,10 +225,10 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QueryAllPetsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "all_pets",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "allPets",
-									Repeated: true,
+									Name:          "all_pets",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "allPets",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -240,19 +240,19 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Animal": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "kind",
-													TypeName: string(DataTypeString),
-													JSONPath: "kind",
+													Name:          "kind",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "kind",
 												},
 											},
 										},
@@ -279,9 +279,9 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QueryRandomPetResponse",
 							Fields: []RPCField{
 								{
-									Name:     "random_pet",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomPet",
+									Name:          "random_pet",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomPet",
 									Message: &RPCMessage{
 										Name:      "Animal",
 										OneOfType: OneOfTypeInterface,
@@ -291,19 +291,19 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										},
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeString),
-												JSONPath: "kind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "kind",
 											},
 										},
 									},
@@ -326,22 +326,22 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QuerySearchRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "SearchInput",
 										Fields: []RPCField{
 											{
-												Name:     "query",
-												TypeName: string(DataTypeString),
-												JSONPath: "query",
+												Name:          "query",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "query",
 											},
 											{
-												Name:     "limit",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "limit",
-												Optional: true,
+												Name:          "limit",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "limit",
+												Optional:      true,
 											},
 										},
 									},
@@ -352,10 +352,10 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QuerySearchResponse",
 							Fields: []RPCField{
 								{
-									Name:     "search",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "search",
-									Repeated: true,
+									Name:          "search",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "search",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name:      "SearchResult",
 										OneOfType: OneOfTypeUnion,
@@ -368,49 +368,49 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Product": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
 												},
 											},
 											"User": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 											},
 											"Category": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "kind",
-													TypeName: string(DataTypeEnum),
-													JSONPath: "kind",
-													EnumName: "CategoryKind",
+													Name:          "kind",
+													ProtoTypeName: DataTypeEnum,
+													JSONPath:      "kind",
+													EnumName:      "CategoryKind",
 												},
 											},
 										},
@@ -437,9 +437,9 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QueryRandomSearchResultResponse",
 							Fields: []RPCField{
 								{
-									Name:     "random_search_result",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "randomSearchResult",
+									Name:          "random_search_result",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "randomSearchResult",
 									Message: &RPCMessage{
 										Name:      "SearchResult",
 										OneOfType: OneOfTypeUnion,
@@ -452,49 +452,49 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Product": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "price",
-													TypeName: string(DataTypeDouble),
-													JSONPath: "price",
+													Name:          "price",
+													ProtoTypeName: DataTypeDouble,
+													JSONPath:      "price",
 												},
 											},
 											"User": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 											},
 											"Category": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 												{
-													Name:     "kind",
-													TypeName: string(DataTypeEnum),
-													JSONPath: "kind",
-													EnumName: "CategoryKind",
+													Name:          "kind",
+													ProtoTypeName: DataTypeEnum,
+													JSONPath:      "kind",
+													EnumName:      "CategoryKind",
 												},
 											},
 										},
@@ -518,22 +518,22 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QuerySearchRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "SearchInput",
 										Fields: []RPCField{
 											{
-												Name:     "query",
-												TypeName: string(DataTypeString),
-												JSONPath: "query",
+												Name:          "query",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "query",
 											},
 											{
-												Name:     "limit",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "limit",
-												Optional: true,
+												Name:          "limit",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "limit",
+												Optional:      true,
 											},
 										},
 									},
@@ -544,10 +544,10 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 							Name: "QuerySearchResponse",
 							Fields: []RPCField{
 								{
-									Name:     "search",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "search",
-									Repeated: true,
+									Name:          "search",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "search",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name:      "SearchResult",
 										OneOfType: OneOfTypeUnion,
@@ -560,26 +560,26 @@ func TestCompositeTypeExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"Product": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 											},
 											"User": {
 												{
-													Name:     "id",
-													TypeName: string(DataTypeString),
-													JSONPath: "id",
+													Name:          "id",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "id",
 												},
 												{
-													Name:     "name",
-													TypeName: string(DataTypeString),
-													JSONPath: "name",
+													Name:          "name",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "name",
 												},
 											},
 										},
@@ -647,21 +647,21 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 							Name: "MutationPerformActionRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "ActionInput",
 										Fields: []RPCField{
 											{
-												Name:     "type",
-												TypeName: string(DataTypeString),
-												JSONPath: "type",
+												Name:          "type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "type",
 											},
 											{
-												Name:     "payload",
-												TypeName: string(DataTypeString),
-												JSONPath: "payload",
+												Name:          "payload",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "payload",
 											},
 										},
 									},
@@ -672,9 +672,9 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 							Name: "MutationPerformActionResponse",
 							Fields: []RPCField{
 								{
-									Name:     "perform_action",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "performAction",
+									Name:          "perform_action",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "performAction",
 									Message: &RPCMessage{
 										Name:      "ActionResult",
 										OneOfType: OneOfTypeUnion,
@@ -686,26 +686,26 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"ActionSuccess": {
 												{
-													Name:     "message",
-													TypeName: string(DataTypeString),
-													JSONPath: "message",
+													Name:          "message",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "message",
 												},
 												{
-													Name:     "timestamp",
-													TypeName: string(DataTypeString),
-													JSONPath: "timestamp",
+													Name:          "timestamp",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "timestamp",
 												},
 											},
 											"ActionError": {
 												{
-													Name:     "message",
-													TypeName: string(DataTypeString),
-													JSONPath: "message",
+													Name:          "message",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "message",
 												},
 												{
-													Name:     "code",
-													TypeName: string(DataTypeString),
-													JSONPath: "code",
+													Name:          "code",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "code",
 												},
 											},
 										},
@@ -729,21 +729,21 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 							Name: "MutationPerformActionRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "ActionInput",
 										Fields: []RPCField{
 											{
-												Name:     "type",
-												TypeName: string(DataTypeString),
-												JSONPath: "type",
+												Name:          "type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "type",
 											},
 											{
-												Name:     "payload",
-												TypeName: string(DataTypeString),
-												JSONPath: "payload",
+												Name:          "payload",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "payload",
 											},
 										},
 									},
@@ -754,9 +754,9 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 							Name: "MutationPerformActionResponse",
 							Fields: []RPCField{
 								{
-									Name:     "perform_action",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "performAction",
+									Name:          "perform_action",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "performAction",
 									Message: &RPCMessage{
 										Name:      "ActionResult",
 										OneOfType: OneOfTypeUnion,
@@ -768,14 +768,14 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"ActionSuccess": {
 												{
-													Name:     "message",
-													TypeName: string(DataTypeString),
-													JSONPath: "message",
+													Name:          "message",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "message",
 												},
 												{
-													Name:     "timestamp",
-													TypeName: string(DataTypeString),
-													JSONPath: "timestamp",
+													Name:          "timestamp",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "timestamp",
 												},
 											},
 										},
@@ -799,21 +799,21 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 							Name: "MutationPerformActionRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "ActionInput",
 										Fields: []RPCField{
 											{
-												Name:     "type",
-												TypeName: string(DataTypeString),
-												JSONPath: "type",
+												Name:          "type",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "type",
 											},
 											{
-												Name:     "payload",
-												TypeName: string(DataTypeString),
-												JSONPath: "payload",
+												Name:          "payload",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "payload",
 											},
 										},
 									},
@@ -824,9 +824,9 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 							Name: "MutationPerformActionResponse",
 							Fields: []RPCField{
 								{
-									Name:     "perform_action",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "performAction",
+									Name:          "perform_action",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "performAction",
 									Message: &RPCMessage{
 										Name:      "ActionResult",
 										OneOfType: OneOfTypeUnion,
@@ -838,14 +838,14 @@ func TestMutationUnionExecutionPlan(t *testing.T) {
 										FieldSelectionSet: RPCFieldSelectionSet{
 											"ActionError": {
 												{
-													Name:     "message",
-													TypeName: string(DataTypeString),
-													JSONPath: "message",
+													Name:          "message",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "message",
 												},
 												{
-													Name:     "code",
-													TypeName: string(DataTypeString),
-													JSONPath: "code",
+													Name:          "code",
+													ProtoTypeName: DataTypeString,
+													JSONPath:      "code",
 												},
 											},
 										},

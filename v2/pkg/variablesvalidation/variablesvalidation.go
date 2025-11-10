@@ -78,7 +78,7 @@ type VariablesValidatorOptions struct {
 }
 
 func NewVariablesValidator(options VariablesValidatorOptions) *VariablesValidator {
-	walker := astvisitor.NewWalker(8)
+	walker := astvisitor.NewWalkerWithID(8, "VariablesValidator")
 	visitor := &variablesVisitor{
 		walker: &walker,
 		opts:   options,
@@ -372,6 +372,64 @@ func (v *variablesVisitor) traverseFieldDefinitionType(fieldTypeDefinitionNodeKi
 	v.traverseNamedTypeNode(jsonValue, v.definition.ResolveTypeNameBytes(typeRef))
 }
 
+func (v *variablesVisitor) violatesOneOfConstraint(inputObjectDefRef int, jsonValue *astjson.Value, typeName []byte) bool {
+	def := v.definition.InputObjectTypeDefinitions[inputObjectDefRef]
+
+	// Check if the input object type has @oneOf directive
+	if !def.HasDirectives {
+		return false
+	}
+	hasOneOfDirective := def.Directives.HasDirectiveByName(v.definition, "oneOf")
+	if !hasOneOfDirective {
+		return false
+	}
+
+	obj := jsonValue.GetObject()
+	totalFieldCount := obj.Len()
+
+	// Prioritize the count error
+	if totalFieldCount != 1 {
+		variableContent := string(jsonValue.MarshalTo(nil))
+		var path string
+		if len(v.path) > 1 {
+			path = fmt.Sprintf(` at "%s"`, v.renderPath())
+		}
+		message := fmt.Sprintf(`%s%s; OneOf input object "%s" must have exactly one field provided, but %d fields were provided.`,
+			v.invalidValueMessage(string(v.currentVariableName), variableContent),
+			path,
+			string(typeName),
+			totalFieldCount)
+		v.err = v.newInvalidVariableError(message)
+		return true
+	}
+
+	// Check if the single field has a null value
+	var nullFieldName []byte
+	obj.Visit(func(key []byte, val *astjson.Value) {
+		if val.Type() == astjson.TypeNull {
+			nullFieldName = key
+		}
+	})
+
+	if nullFieldName == nil {
+		// We have exactly one field, and it's non-null
+		return false
+	}
+
+	variableContent := string(jsonValue.MarshalTo(nil))
+	var path string
+	if len(v.path) > 1 {
+		path = fmt.Sprintf(` at "%s"`, v.renderPath())
+	}
+	v.err = v.newInvalidVariableError(
+		fmt.Sprintf(`%s%s; OneOf input object "%s" field "%s" value must be non-null.`,
+			v.invalidValueMessage(string(v.currentVariableName), variableContent),
+			path,
+			string(typeName),
+			string(nullFieldName)))
+	return true
+}
+
 func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeName []byte) {
 	if v.err != nil {
 		return
@@ -414,6 +472,9 @@ func (v *variablesVisitor) traverseNamedTypeNode(jsonValue *astjson.Value, typeN
 				v.renderVariableFieldNotDefinedError(inputFieldName, typeName)
 				return
 			}
+		}
+		if v.violatesOneOfConstraint(fieldTypeDefinitionNode.Ref, jsonValue, typeName) {
+			return // Error already reported
 		}
 	case ast.NodeKindScalarTypeDefinition:
 		switch unsafebytes.BytesToString(typeName) {

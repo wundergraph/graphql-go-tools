@@ -1,5 +1,0 @@
-#import "../nested2/nested2.graphql"
-
-type Bar {
-    baz: Int
-}

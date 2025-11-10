@@ -247,6 +247,8 @@ func TestClient_DisconnectWithReason(t *testing.T) {
 			assert.Equal(t, ws.OpClose, actualServerResult.opCode)
 			assert.Equal(t, ws.StatusCode(4400), actualServerResult.statusCode)
 			assert.Equal(t, "unknown reason", actualServerResult.closeReason)
+			// Connection could be still not closed, give it time to reach the state:
+			time.Sleep(4 * time.Millisecond)
 			assert.Equal(t, false, websocketClient.IsConnected())
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
@@ -272,6 +274,8 @@ func TestClient_DisconnectWithReason(t *testing.T) {
 			assert.Equal(t, ws.OpClose, actualServerResult.opCode)
 			assert.Equal(t, ws.StatusCode(4400), actualServerResult.statusCode)
 			assert.Equal(t, "error occurred", actualServerResult.closeReason)
+			// Connection could be still not closed, give it time to reach the state:
+			time.Sleep(4 * time.Millisecond)
 			assert.Equal(t, false, websocketClient.IsConnected())
 			return true
 		}, 1*time.Second, 2*time.Millisecond)
@@ -297,6 +301,8 @@ func TestClient_DisconnectWithReason(t *testing.T) {
 			assert.Equal(t, ws.OpClose, actualServerResult.opCode)
 			assert.Equal(t, ws.StatusCode(1000), actualServerResult.statusCode)
 			assert.Equal(t, "Normal Closure", actualServerResult.closeReason)
+			// Connection could be still not closed, give it time to reach the state:
+			time.Sleep(4 * time.Millisecond)
 			assert.Equal(t, false, websocketClient.IsConnected())
 			return true
 		}, 1*time.Second, 2*time.Millisecond)

@@ -15,7 +15,7 @@ Check out the [currently open positions](https://wundergraph.com/jobs#open-posit
 
 ## The State of GraphQL Federation 2024
 
-Get insights from industry experts and Federation practicioners across all industries and learn how companies are using GraphQL Federation.
+Get insights from industry experts and Federation practitioners across all industries and learn how companies are using GraphQL Federation.
 Head over to the [State of GraphQL Federation 2024](https://wundergraph.com/state-of-graphql-federation/2024) page and download the full **48 page PDF report** for free!
 
 ## From the WunderGraph Blog
@@ -63,22 +63,20 @@ This repository contains multiple packages joined via [workspace](https://github
 | [graphql-go-tools v2](https://github.com/wundergraph/graphql-go-tools/blob/master/v2/go.mod)                  | GraphQL engine implementation consisting of lexer, parser, ast, ast validation, ast normalization, datasources, query planner and resolver. Supports GraphQL Federation. Has built-in support for batching federation entity calls | -                                                                                                                                                                                               | actual version, active development |
 | [execution](https://github.com/wundergraph/graphql-go-tools/blob/master/execution/go.mod)                     | Execution helpers for the request handling and engine configuration builder                                                                                                                                                        | depends on [graphql-go-tools v2](https://github.com/wundergraph/graphql-go-tools/blob/master/v2/go.mod) and [composition](https://github.com/wundergraph/cosmo/blob/main/composition-go/go.mod) | actual version                     |
 | [examples/federation](https://github.com/wundergraph/graphql-go-tools/blob/master/examples/federation/go.mod) | Example implementation of graphql federation gateway. This example is not production ready. For production ready solution please consider using [cosmo router](https://github.com/wundergraph/cosmo/tree/main)                     | depends on [execution](https://github.com/wundergraph/graphql-go-tools/blob/master/execution/go.mod) package                                                                                    | actual federation gateway example  |
-| [graphql-go-tools v1](https://github.com/wundergraph/graphql-go-tools/blob/master/go.mod)                     | Legacy GraphQL engine implementation. This version 1 package is in maintenance mode and accepts only pull requests with critical bug fixes. All new features will be implemented in the version 2 package only.                    | -                                                                                                                                                                                               | deprecated, maintenance mode       |
+| [graphql-go-tools v1](https://github.com/wundergraph/graphql-go-tools/blob/v1.67.4/go.mod)                    | Deprecated and retracted GraphQL engine implementation. Not supported nor maintained. It was removed from the repo in v1.67.5.                                                                                                     | -                                                                                                                                                                                               | deprecated                         |
 
 
 ## Notes
 
 This library is used in production at [WunderGraph](https://wundergraph.com/).
-We've recently introduced a v2 module that is not completely backwards compatible with v1, hence the major version bump.
-The v2 module contains big rewrites in the engine package, mainly to better support GraphQL Federation.
-Please consider the v1 module as deprecated and move to v2 as soon as possible.
+We support and actively improve only the v2 module.
 
 We have customers who pay us to maintain this library and steer the direction of the project.
 [Contact us](https://wundergraph.com/contact/sales) if you're looking for commercial support, features or consulting.
 
 ## Performance
 
-The architecture of this library is designed for performance, high-throughput and low garbage collection overhead.
+The architecture of this library is designed for performance, high throughput and low garbage collection overhead.
 The following benchmark measures the "overhead" of loading and resolving a GraphQL response from four static in-memory Subgraphs at 0,007459 ms/op.
 In more complete end-to-end benchmarks, we've measured up to 8x more requests per second and 8x lower p99 latency compared to Apollo Router, which is written in Rust.
 
@@ -94,7 +92,7 @@ Benchmark_NestedBatchingWithoutChecks-10          473186              7134 ns/op
 ## Tutorial
 
 If you're here to learn how to use this library to build your own custom GraphQL Router or API Gateway,
-here's a speed run tutorial for you, based on how we use this library in Cosmo Router.
+here's a speed-run tutorial, based on how we use this library in Cosmo Router.
 
 ```go
 package main
@@ -783,7 +781,7 @@ Following, here's a list of all the important packages in this library and what 
   - Fixed various bugs in the parser & visitor & printer
   - Refactored and enhanced the astimport package
   - Current maintainer of the plan package
-- [Patric Vormstein][patric-vormstein-github] (Active Maintainer)
+- [Patric Vormstein][patric-vormstein-github] (Inactive)
   - Fixed lexer on windows
   - Author of the graphql package to simplify the usage of the library
   - Refactored the http package to simplify usage with http servers

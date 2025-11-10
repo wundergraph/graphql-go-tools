@@ -45,8 +45,9 @@ const _Keyword_name = "UNDEFINEDIDENTCOMMENTEOFCOLONBANGLTTABSPACECOMMAATDOTSPRE
 var _Keyword_index = [...]uint8{0, 9, 14, 21, 24, 29, 33, 35, 38, 43, 48, 50, 53, 59, 63, 68, 74, 77, 80, 85, 91, 97, 108, 115, 120, 126, 132, 138, 144, 150, 156}
 
 func (i Keyword) String() string {
-	if i < 0 || i >= Keyword(len(_Keyword_index)-1) {
+	idx := int(i) - 0
+	if i < 0 || idx >= len(_Keyword_index)-1 {
 		return "Keyword(" + strconv.FormatInt(int64(i), 10) + ")"
 	}
-	return _Keyword_name[_Keyword_index[i]:_Keyword_index[i+1]]
+	return _Keyword_name[_Keyword_index[idx]:_Keyword_index[idx+1]]
 }

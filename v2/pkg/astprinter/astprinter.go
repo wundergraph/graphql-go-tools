@@ -269,12 +269,26 @@ func (p *printVisitor) EnterArgument(ref int) {
 }
 
 func (p *printVisitor) LeaveArgument(ref int) {
-	if len(p.document.ArgumentsAfter(p.Ancestors[len(p.Ancestors)-1], ref)) == 0 {
-		p.write(literal.RPAREN)
+	if len(p.document.ArgumentsAfter(p.Ancestors[len(p.Ancestors)-1], ref)) > 0 {
+		// if not the last argument
+		return
+	}
+
+	// last argument
+	p.write(literal.RPAREN)
+
+	a := p.Ancestors[len(p.Ancestors)-1]
+	if p.debug && a.Kind == ast.NodeKindField && !p.document.FieldHasSelections(a.Ref) && !p.document.FieldHasDirectives(a.Ref) {
+		p.printFieldInfo(a.Ref, true)
 	}
 }
 
 func (p *printVisitor) EnterOperationDefinition(ref int) {
+
+	if p.document.OperationDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.OperationDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.LINETERMINATOR)
+	}
 
 	hasName := p.document.OperationDefinitions[ref].Name.Length() > 0
 	hasVariables := p.document.OperationDefinitions[ref].HasVariableDefinitions
@@ -314,14 +328,23 @@ func (p *printVisitor) LeaveOperationDefinition(ref int) {
 }
 
 func (p *printVisitor) EnterSelectionSet(ref int) {
+	p.write(literal.LBRACE)
+
 	if p.debug {
-		p.writeIndented(literal.LINETERMINATOR)
-		p.writeIndented([]byte("# SelectionSet ref:"))
+		p.write([]byte(" # setRef:"))
 		p.write([]byte(strconv.Itoa(ref)))
-		p.write(literal.LINETERMINATOR)
-		p.writeIndented(literal.LBRACE)
-	} else {
-		p.write(literal.LBRACE)
+
+		if l := len(p.SimpleWalker.Ancestors); l > 0 {
+			a := p.SimpleWalker.Ancestors[l-1]
+			switch a.Kind {
+			case ast.NodeKindField:
+				p.printFieldInfo(a.Ref, false)
+			case ast.NodeKindInlineFragment:
+				p.write([]byte(" fragmentRef:"))
+				p.write([]byte(strconv.Itoa(a.Ref)))
+			default:
+			}
+		}
 	}
 
 	if p.indent != nil {
@@ -337,15 +360,6 @@ func (p *printVisitor) LeaveSelectionSet(ref int) {
 }
 
 func (p *printVisitor) EnterField(ref int) {
-	if p.debug {
-		p.writeIndented([]byte("# Field ref:"))
-		p.write([]byte(strconv.Itoa(ref)))
-		if p.fieldCallback != nil {
-			p.fieldCallback(ref, p.out)
-		}
-		p.write(literal.LINETERMINATOR)
-	}
-
 	if p.document.Fields[ref].Alias.IsDefined {
 		p.writeIndented(p.document.Input.ByteSlice(p.document.Fields[ref].Alias.Name))
 		p.write(literal.COLON)
@@ -356,6 +370,23 @@ func (p *printVisitor) EnterField(ref int) {
 	}
 	if !p.document.FieldHasArguments(ref) && (p.document.FieldHasSelections(ref) || p.document.FieldHasDirectives(ref)) {
 		p.write(literal.SPACE)
+	}
+
+	if p.debug && !p.document.FieldHasArguments(ref) && !p.document.FieldHasSelections(ref) && !p.document.FieldHasDirectives(ref) {
+		p.printFieldInfo(ref, true)
+	}
+}
+
+func (p *printVisitor) printFieldInfo(ref int, comment bool) {
+	if p.debug {
+		if comment {
+			p.write([]byte(" #"))
+		}
+		p.write([]byte(" fieldRef:"))
+		p.write([]byte(strconv.Itoa(ref)))
+		if p.fieldCallback != nil {
+			p.fieldCallback(ref, p.out)
+		}
 	}
 }
 
@@ -394,12 +425,6 @@ func (p *printVisitor) LeaveFragmentSpread(ref int) {
 }
 
 func (p *printVisitor) EnterInlineFragment(ref int) {
-	if p.debug {
-		p.write(literal.LINETERMINATOR)
-		p.writeIndented([]byte("# InlineFragment ref:"))
-		p.write([]byte(strconv.Itoa(ref)))
-		p.write(literal.LINETERMINATOR)
-	}
 	p.writeIndented(literal.SPREAD)
 
 	if p.document.InlineFragmentHasTypeCondition(ref) && !p.document.InlineFragmentIsOfTheSameType(ref) {
@@ -425,6 +450,12 @@ func (p *printVisitor) LeaveInlineFragment(ref int) {
 }
 
 func (p *printVisitor) EnterFragmentDefinition(ref int) {
+
+	if p.document.FragmentDefinitions[ref].Description.IsDefined {
+		p.must(p.document.PrintDescription(p.document.FragmentDefinitions[ref].Description, nil, 0, p.out))
+		p.write(literal.LINETERMINATOR)
+	}
+
 	p.write(literal.FRAGMENT)
 	p.write(literal.SPACE)
 	p.write(p.document.Input.ByteSlice(p.document.FragmentDefinitions[ref].Name))

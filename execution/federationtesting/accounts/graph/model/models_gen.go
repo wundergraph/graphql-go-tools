@@ -3,6 +3,7 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
@@ -101,7 +102,7 @@ func (B) IsNamer()             {}
 func (this B) GetName() string { return this.Name }
 
 type C struct {
-	Name *CDerObj `json:"name"`
+	Name *CDerObj `json:"name,omitempty"`
 }
 
 func (C) IsCd() {}
@@ -134,7 +135,7 @@ func (ConcreteListItem2) IsAbstractListItem()         {}
 func (this ConcreteListItem2) GetObj() OtherInterface { return this.Obj }
 
 type D struct {
-	Name *CDerObj `json:"name"`
+	Name *CDerObj `json:"name,omitempty"`
 }
 
 func (D) IsCd() {}
@@ -150,7 +151,7 @@ func (Product) IsEntity() {}
 
 type Purchase struct {
 	Product  *Product `json:"product"`
-	Wallet   Wallet   `json:"wallet"`
+	Wallet   Wallet   `json:"wallet,omitempty"`
 	Quantity int      `json:"quantity"`
 }
 
@@ -158,6 +159,9 @@ func (Purchase) IsHistory() {}
 
 func (Purchase) IsInfo()               {}
 func (this Purchase) GetQuantity() int { return this.Quantity }
+
+type Query struct {
+}
 
 type Sale struct {
 	Product  *Product `json:"product"`
@@ -171,7 +175,7 @@ func (Sale) IsStore()                 {}
 func (this Sale) GetLocation() string { return this.Location }
 
 type SomeNestedType1 struct {
-	OtherInterfaces []SomeInterface `json:"otherInterfaces"`
+	OtherInterfaces []SomeInterface `json:"otherInterfaces,omitempty"`
 }
 
 func (SomeNestedType1) IsSomeNestedInterface() {}
@@ -187,7 +191,7 @@ func (this SomeNestedType1) GetOtherInterfaces() []SomeInterface {
 }
 
 type SomeNestedType2 struct {
-	OtherInterfaces []SomeInterface `json:"otherInterfaces"`
+	OtherInterfaces []SomeInterface `json:"otherInterfaces,omitempty"`
 }
 
 func (SomeNestedType2) IsSomeNestedInterface() {}
@@ -331,7 +335,7 @@ func (e Which) String() string {
 	return string(e)
 }
 
-func (e *Which) UnmarshalGQL(v interface{}) error {
+func (e *Which) UnmarshalGQL(v any) error {
 	str, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("enums must be strings")
@@ -346,4 +350,18 @@ func (e *Which) UnmarshalGQL(v interface{}) error {
 
 func (e Which) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *Which) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e Which) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

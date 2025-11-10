@@ -236,6 +236,11 @@ func (d *Document) NodeByNameStr(name string) (Node, bool) {
 	return d.Index.FirstNodeByNameStr(name)
 }
 
+// ResolveNodeFromTypeRef returns the `ast.Node` for a given type reference.
+func (d *Document) ResolveNodeFromTypeRef(typeRef int) (Node, bool) {
+	return d.Index.FirstNodeByNameStr(d.ResolveTypeNameString(typeRef))
+}
+
 func (d *Document) TypeDefinitionContainsImplementsInterface(typeName, interfaceName ByteSlice) bool {
 	typeDefinition, exists := d.Index.FirstNodeByNameBytes(typeName)
 	if !exists {

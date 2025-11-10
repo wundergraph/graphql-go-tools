@@ -15,14 +15,15 @@ import (
 //		name: String
 //	}
 type InterfaceTypeDefinition struct {
-	Description          Description        // optional, describes the interface
-	InterfaceLiteral     position.Position  // interface
-	Name                 ByteSliceReference // e.g. NamedEntity
-	ImplementsInterfaces TypeList           // e.g implements Bar & Baz
-	HasDirectives        bool
-	Directives           DirectiveList // optional, e.g. @foo
-	HasFieldDefinitions  bool
-	FieldsDefinition     FieldDefinitionList // optional, e.g. { name: String }
+	Description                    Description        // optional, describes the interface
+	InterfaceLiteral               position.Position  // interface
+	Name                           ByteSliceReference // e.g. NamedEntity
+	ImplementsInterfaces           TypeList           // e.g implements Bar & Baz
+	HasDirectives                  bool
+	Directives                     DirectiveList // optional, e.g. @foo
+	HasFieldDefinitions            bool
+	FieldsDefinition               FieldDefinitionList // optional, e.g. { name: String }
+	ImplementedByObjectDefinitions []int               // list of ObjectTypeDefinition refs that implement this interface
 }
 
 func (d *Document) InterfaceTypeDefinitionNameBytes(ref int) ByteSlice {
@@ -163,15 +164,21 @@ func (d *Document) InterfaceTypeDefinitionFieldWithName(ref int, fieldName []byt
 
 // InterfaceTypeDefinitionImplementedByObjectWithNames returns object type names implementing the interface.
 func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNames(interfaceDefRef int) (typeNames []string, ok bool) {
-	implementedByNodes := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
-
-	typeNames = make([]string, 0, len(implementedByNodes))
-	for _, implementedByNode := range implementedByNodes {
-		if implementedByNode.Kind != NodeKindObjectTypeDefinition {
-			continue
+	implementedByObjectRefs := d.InterfaceTypeDefinitions[interfaceDefRef].ImplementedByObjectDefinitions
+	if implementedByObjectRefs == nil {
+		// fallback for documents not precalculated (e.g., built programmatically)
+		implementors := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
+		typeNames = make([]string, 0, len(implementors))
+		for _, n := range implementors {
+			if n.Kind == NodeKindObjectTypeDefinition {
+				typeNames = append(typeNames, d.ObjectTypeDefinitionNameString(n.Ref))
+			}
 		}
-
-		typeNames = append(typeNames, implementedByNode.NameString(d))
+	} else {
+		typeNames = make([]string, 0, len(implementedByObjectRefs))
+		for _, implementedByObjectRef := range d.InterfaceTypeDefinitions[interfaceDefRef].ImplementedByObjectDefinitions {
+			typeNames = append(typeNames, d.ObjectTypeDefinitionNameString(implementedByObjectRef))
+		}
 	}
 
 	if len(typeNames) > 0 {
@@ -183,15 +190,21 @@ func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNames(interface
 }
 
 func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNamesAsBytes(interfaceDefRef int) (typeNames [][]byte, ok bool) {
-	implementedByNodes := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
-
-	typeNames = make([][]byte, 0, len(implementedByNodes))
-	for _, implementedByNode := range implementedByNodes {
-		if implementedByNode.Kind != NodeKindObjectTypeDefinition {
-			continue
+	implementedByObjectRefs := d.InterfaceTypeDefinitions[interfaceDefRef].ImplementedByObjectDefinitions
+	if implementedByObjectRefs == nil {
+		implementors := d.InterfaceTypeDefinitionImplementedByRootNodes(interfaceDefRef)
+		typeNames = make([][]byte, 0, len(implementors))
+		// fallback for documents not precalculated (e.g., built programmatically)
+		for _, n := range implementors {
+			if n.Kind == NodeKindObjectTypeDefinition {
+				typeNames = append(typeNames, d.ObjectTypeDefinitionNameBytes(n.Ref))
+			}
 		}
-
-		typeNames = append(typeNames, implementedByNode.NameBytes(d))
+	} else {
+		typeNames = make([][]byte, 0, len(implementedByObjectRefs))
+		for _, implementedByObjectRef := range d.InterfaceTypeDefinitions[interfaceDefRef].ImplementedByObjectDefinitions {
+			typeNames = append(typeNames, d.ObjectTypeDefinitionNameBytes(implementedByObjectRef))
+		}
 	}
 
 	if len(typeNames) > 0 {
@@ -200,4 +213,19 @@ func (d *Document) InterfaceTypeDefinitionImplementedByObjectWithNamesAsBytes(in
 	}
 
 	return nil, false
+}
+
+func (d *Document) PopulateInterfaceTypeDefinitionImplementedByObjects() {
+	for ref := 0; ref < len(d.InterfaceTypeDefinitions); ref++ {
+		implementedByNodes := d.InterfaceTypeDefinitionImplementedByRootNodes(ref)
+		implementedByObjectRefs := make([]int, 0, len(implementedByNodes))
+		for _, implementedByNode := range implementedByNodes {
+			if implementedByNode.Kind != NodeKindObjectTypeDefinition {
+				continue
+			}
+
+			implementedByObjectRefs = append(implementedByObjectRefs, implementedByNode.Ref)
+		}
+		d.InterfaceTypeDefinitions[ref].ImplementedByObjectDefinitions = implementedByObjectRefs
+	}
 }

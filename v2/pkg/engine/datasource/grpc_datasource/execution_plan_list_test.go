@@ -25,22 +25,22 @@ func TestListExecutionPlan(t *testing.T) {
 							Name: "QueryBlogPostResponse",
 							Fields: RPCFields{
 								{
-									Name:     "blog_post",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "blogPost",
+									Name:          "blog_post",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "blogPost",
 									Message: &RPCMessage{
 										Name: "BlogPost",
 										Fields: RPCFields{
 											{
-												Name:     "title",
-												TypeName: string(DataTypeString),
-												JSONPath: "title",
+												Name:          "title",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "title",
 											},
 											{
-												Name:     "tags",
-												TypeName: string(DataTypeString),
-												Repeated: true,
-												JSONPath: "tags",
+												Name:          "tags",
+												ProtoTypeName: DataTypeString,
+												Repeated:      true,
+												JSONPath:      "tags",
 											},
 										},
 									},
@@ -66,23 +66,23 @@ func TestListExecutionPlan(t *testing.T) {
 							Name: "QueryBlogPostResponse",
 							Fields: RPCFields{
 								{
-									Name:     "blog_post",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "blogPost",
+									Name:          "blog_post",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "blogPost",
 									Message: &RPCMessage{
 										Name: "BlogPost",
 										Fields: RPCFields{
 											{
-												Name:     "title",
-												TypeName: string(DataTypeString),
-												JSONPath: "title",
+												Name:          "title",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "title",
 											},
 											{
-												Name:       "optional_tags",
-												TypeName:   string(DataTypeString),
-												Optional:   true,
-												JSONPath:   "optionalTags",
-												IsListType: true,
+												Name:          "optional_tags",
+												ProtoTypeName: DataTypeString,
+												Optional:      true,
+												JSONPath:      "optionalTags",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -116,18 +116,18 @@ func TestListExecutionPlan(t *testing.T) {
 							Name: "QueryBlogPostResponse",
 							Fields: RPCFields{
 								{
-									Name:     "blog_post",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "blogPost",
+									Name:          "blog_post",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "blogPost",
 									Message: &RPCMessage{
 										Name: "BlogPost",
 										Fields: RPCFields{
 											{
-												Name:       "tag_groups",
-												TypeName:   string(DataTypeString),
-												Repeated:   false,
-												JSONPath:   "tagGroups",
-												IsListType: true,
+												Name:          "tag_groups",
+												ProtoTypeName: DataTypeString,
+												Repeated:      false,
+												JSONPath:      "tagGroups",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -183,11 +183,11 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryCategoriesByKindsRequest",
 							Fields: []RPCField{
 								{
-									Name:     "kinds",
-									TypeName: string(DataTypeEnum),
-									JSONPath: "kinds",
-									EnumName: "CategoryKind",
-									Repeated: true,
+									Name:          "kinds",
+									ProtoTypeName: DataTypeEnum,
+									JSONPath:      "kinds",
+									EnumName:      "CategoryKind",
+									Repeated:      true,
 								},
 							},
 						},
@@ -195,28 +195,28 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryCategoriesByKindsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "categories_by_kinds",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "categoriesByKinds",
-									Repeated: true,
+									Name:          "categories_by_kinds",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "categoriesByKinds",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Category",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "kind",
-												TypeName: string(DataTypeEnum),
-												JSONPath: "kind",
-												EnumName: "CategoryKind",
+												Name:          "kind",
+												ProtoTypeName: DataTypeEnum,
+												JSONPath:      "kind",
+												EnumName:      "CategoryKind",
 											},
 										},
 									},
@@ -239,47 +239,47 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryCalculateTotalsRequest",
 							Fields: []RPCField{
 								{
-									Name:     "orders",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "orders",
-									Repeated: true,
+									Name:          "orders",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "orders",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "OrderInput",
 										Fields: []RPCField{
 											{
-												Name:     "order_id",
-												TypeName: string(DataTypeString),
-												JSONPath: "orderId",
+												Name:          "order_id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "orderId",
 											},
 											{
-												Name:     "customer_name",
-												TypeName: string(DataTypeString),
-												JSONPath: "customerName",
+												Name:          "customer_name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "customerName",
 											},
 											{
-												Name:     "lines",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "lines",
-												Repeated: true,
+												Name:          "lines",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "lines",
+												Repeated:      true,
 												Message: &RPCMessage{
 													Name: "OrderLineInput",
 													Fields: []RPCField{
 														{
-															Name:     "product_id",
-															TypeName: string(DataTypeString),
-															JSONPath: "productId",
+															Name:          "product_id",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "productId",
 														},
 														{
-															Name:     "quantity",
-															TypeName: string(DataTypeInt32),
-															JSONPath: "quantity",
+															Name:          "quantity",
+															ProtoTypeName: DataTypeInt32,
+															JSONPath:      "quantity",
 														},
 														{
-															Name:       "modifiers",
-															TypeName:   string(DataTypeString),
-															JSONPath:   "modifiers",
-															Optional:   true,
-															IsListType: true,
+															Name:          "modifiers",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "modifiers",
+															Optional:      true,
+															IsListType:    true,
 															ListMetadata: &ListMetadata{
 																NestingLevel: 1,
 																LevelInfo: []LevelInfo{
@@ -301,27 +301,27 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryCalculateTotalsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "calculate_totals",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "calculateTotals",
-									Repeated: true,
+									Name:          "calculate_totals",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "calculateTotals",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Order",
 										Fields: []RPCField{
 											{
-												Name:     "order_id",
-												TypeName: string(DataTypeString),
-												JSONPath: "orderId",
+												Name:          "order_id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "orderId",
 											},
 											{
-												Name:     "customer_name",
-												TypeName: string(DataTypeString),
-												JSONPath: "customerName",
+												Name:          "customer_name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "customerName",
 											},
 											{
-												Name:     "total_items",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "totalItems",
+												Name:          "total_items",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "totalItems",
 											},
 										},
 									},
@@ -344,34 +344,34 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "MutationCreateBlogPostRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "BlogPostInput",
 										Fields: []RPCField{
 											{
-												Name:     "title",
-												TypeName: string(DataTypeString),
-												JSONPath: "title",
+												Name:          "title",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "title",
 											},
 											{
-												Name:     "content",
-												TypeName: string(DataTypeString),
-												JSONPath: "content",
+												Name:          "content",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "content",
 											},
 											{
-												Name:     "tags",
-												TypeName: string(DataTypeString),
-												JSONPath: "tags",
-												Repeated: true,
+												Name:          "tags",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "tags",
+												Repeated:      true,
 											},
 											{
-												Name:       "optional_tags",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "optionalTags",
-												Optional:   true,
-												IsListType: true,
+												Name:          "optional_tags",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "optionalTags",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -382,17 +382,17 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:     "categories",
-												TypeName: string(DataTypeString),
-												JSONPath: "categories",
-												Repeated: true,
+												Name:          "categories",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "categories",
+												Repeated:      true,
 											},
 											{
-												Name:       "keywords",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "keywords",
-												Optional:   true,
-												IsListType: true,
+												Name:          "keywords",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "keywords",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -403,17 +403,17 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:     "view_counts",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "viewCounts",
-												Repeated: true,
+												Name:          "view_counts",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "viewCounts",
+												Repeated:      true,
 											},
 											{
-												Name:       "ratings",
-												TypeName:   string(DataTypeDouble),
-												JSONPath:   "ratings",
-												Optional:   true,
-												IsListType: true,
+												Name:          "ratings",
+												ProtoTypeName: DataTypeDouble,
+												JSONPath:      "ratings",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -424,11 +424,11 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "is_published",
-												TypeName:   string(DataTypeBool),
-												JSONPath:   "isPublished",
-												Optional:   true,
-												IsListType: true,
+												Name:          "is_published",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "isPublished",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -439,10 +439,10 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "tag_groups",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "tagGroups",
-												IsListType: true,
+												Name:          "tag_groups",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "tagGroups",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -456,10 +456,10 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "related_topics",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "relatedTopics",
-												IsListType: true,
+												Name:          "related_topics",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "relatedTopics",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -473,10 +473,10 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "comment_threads",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "commentThreads",
-												IsListType: true,
+												Name:          "comment_threads",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "commentThreads",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -490,11 +490,11 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "suggestions",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "suggestions",
-												Optional:   true,
-												IsListType: true,
+												Name:          "suggestions",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "suggestions",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -508,12 +508,12 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "related_categories",
-												TypeName:   string(DataTypeMessage),
-												JSONPath:   "relatedCategories",
-												Repeated:   false,
-												Optional:   true,
-												IsListType: true,
+												Name:          "related_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "relatedCategories",
+												Repeated:      false,
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -526,26 +526,26 @@ func TestListParametersExecutionPlan(t *testing.T) {
 													Name: "CategoryInput",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "kind",
-															TypeName: string(DataTypeEnum),
-															JSONPath: "kind",
-															EnumName: "CategoryKind",
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
 														},
 													},
 												},
 											},
 											{
-												Name:       "contributors",
-												TypeName:   string(DataTypeMessage),
-												JSONPath:   "contributors",
-												Repeated:   false,
-												Optional:   true,
-												IsListType: true,
+												Name:          "contributors",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "contributors",
+												Repeated:      false,
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -558,20 +558,20 @@ func TestListParametersExecutionPlan(t *testing.T) {
 													Name: "UserInput",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 													},
 												},
 											},
 											{
-												Name:       "category_groups",
-												TypeName:   string(DataTypeMessage),
-												JSONPath:   "categoryGroups",
-												Repeated:   false,
-												Optional:   true,
-												IsListType: true,
+												Name:          "category_groups",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "categoryGroups",
+												Repeated:      false,
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -587,15 +587,15 @@ func TestListParametersExecutionPlan(t *testing.T) {
 													Name: "CategoryInput",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "kind",
-															TypeName: string(DataTypeEnum),
-															JSONPath: "kind",
-															EnumName: "CategoryKind",
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
 														},
 													},
 												},
@@ -609,34 +609,34 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "MutationCreateBlogPostResponse",
 							Fields: []RPCField{
 								{
-									Name:     "create_blog_post",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "createBlogPost",
+									Name:          "create_blog_post",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "createBlogPost",
 									Message: &RPCMessage{
 										Name: "BlogPost",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "title",
-												TypeName: string(DataTypeString),
-												JSONPath: "title",
+												Name:          "title",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "title",
 											},
 											{
-												Name:     "tags",
-												TypeName: string(DataTypeString),
-												JSONPath: "tags",
-												Repeated: true,
+												Name:          "tags",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "tags",
+												Repeated:      true,
 											},
 											{
-												Name:       "optional_tags",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "optionalTags",
-												Optional:   true,
-												IsListType: true,
+												Name:          "optional_tags",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "optionalTags",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -647,17 +647,17 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:     "categories",
-												TypeName: string(DataTypeString),
-												JSONPath: "categories",
-												Repeated: true,
+												Name:          "categories",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "categories",
+												Repeated:      true,
 											},
 											{
-												Name:       "keywords",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "keywords",
-												Optional:   true,
-												IsListType: true,
+												Name:          "keywords",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "keywords",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -688,41 +688,41 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "MutationCreateAuthorRequest",
 							Fields: []RPCField{
 								{
-									Name:     "input",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "input",
+									Name:          "input",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "input",
 									Message: &RPCMessage{
 										Name: "AuthorInput",
 										Fields: []RPCField{
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "email",
-												TypeName: string(DataTypeString),
-												JSONPath: "email",
-												Optional: true,
+												Name:          "email",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "email",
+												Optional:      true,
 											},
 											{
-												Name:     "skills",
-												TypeName: string(DataTypeString),
-												JSONPath: "skills",
-												Repeated: true,
+												Name:          "skills",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "skills",
+												Repeated:      true,
 											},
 											{
-												Name:     "languages",
-												TypeName: string(DataTypeString),
-												JSONPath: "languages",
-												Repeated: true,
+												Name:          "languages",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "languages",
+												Repeated:      true,
 											},
 											{
-												Name:       "social_links",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "socialLinks",
-												Optional:   true,
-												IsListType: true,
+												Name:          "social_links",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "socialLinks",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 1,
 													LevelInfo: []LevelInfo{
@@ -733,10 +733,10 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "teams_by_project",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "teamsByProject",
-												IsListType: true,
+												Name:          "teams_by_project",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "teamsByProject",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -750,11 +750,11 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "collaborations",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "collaborations",
-												Optional:   true,
-												IsListType: true,
+												Name:          "collaborations",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "collaborations",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -768,34 +768,34 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:     "favorite_categories",
-												TypeName: string(DataTypeMessage),
-												JSONPath: "favoriteCategories",
-												Repeated: true,
+												Name:          "favorite_categories",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "favoriteCategories",
+												Repeated:      true,
 												Message: &RPCMessage{
 													Name: "CategoryInput",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 														{
-															Name:     "kind",
-															TypeName: string(DataTypeEnum),
-															JSONPath: "kind",
-															EnumName: "CategoryKind",
+															Name:          "kind",
+															ProtoTypeName: DataTypeEnum,
+															JSONPath:      "kind",
+															EnumName:      "CategoryKind",
 														},
 													},
 												},
 											},
 											{
-												Name:       "author_groups",
-												TypeName:   string(DataTypeMessage),
-												JSONPath:   "authorGroups",
-												Repeated:   false,
-												Optional:   true,
-												IsListType: true,
+												Name:          "author_groups",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "authorGroups",
+												Repeated:      false,
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -811,20 +811,20 @@ func TestListParametersExecutionPlan(t *testing.T) {
 													Name: "UserInput",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 													},
 												},
 											},
 											{
-												Name:       "project_teams",
-												TypeName:   string(DataTypeMessage),
-												JSONPath:   "projectTeams",
-												Repeated:   false,
-												Optional:   true,
-												IsListType: true,
+												Name:          "project_teams",
+												ProtoTypeName: DataTypeMessage,
+												JSONPath:      "projectTeams",
+												Repeated:      false,
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -840,9 +840,9 @@ func TestListParametersExecutionPlan(t *testing.T) {
 													Name: "UserInput",
 													Fields: []RPCField{
 														{
-															Name:     "name",
-															TypeName: string(DataTypeString),
-															JSONPath: "name",
+															Name:          "name",
+															ProtoTypeName: DataTypeString,
+															JSONPath:      "name",
 														},
 													},
 												},
@@ -856,33 +856,33 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "MutationCreateAuthorResponse",
 							Fields: []RPCField{
 								{
-									Name:     "create_author",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "createAuthor",
+									Name:          "create_author",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "createAuthor",
 									Message: &RPCMessage{
 										Name: "Author",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "skills",
-												TypeName: string(DataTypeString),
-												JSONPath: "skills",
-												Repeated: true,
+												Name:          "skills",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "skills",
+												Repeated:      true,
 											},
 											{
-												Name:       "teams_by_project",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "teamsByProject",
-												IsListType: true,
+												Name:          "teams_by_project",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "teamsByProject",
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -896,11 +896,11 @@ func TestListParametersExecutionPlan(t *testing.T) {
 												},
 											},
 											{
-												Name:       "collaborations",
-												TypeName:   string(DataTypeString),
-												JSONPath:   "collaborations",
-												Optional:   true,
-												IsListType: true,
+												Name:          "collaborations",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "collaborations",
+												Optional:      true,
+												IsListType:    true,
 												ListMetadata: &ListMetadata{
 													NestingLevel: 2,
 													LevelInfo: []LevelInfo{
@@ -934,29 +934,29 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryBlogPostsWithFilterRequest",
 							Fields: []RPCField{
 								{
-									Name:     "filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "filter",
+									Name:          "filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filter",
 									Message: &RPCMessage{
 										Name: "BlogPostFilter",
 										Fields: []RPCField{
 											{
-												Name:     "title",
-												TypeName: string(DataTypeString),
-												JSONPath: "title",
-												Optional: true,
+												Name:          "title",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "title",
+												Optional:      true,
 											},
 											{
-												Name:     "has_categories",
-												TypeName: string(DataTypeBool),
-												JSONPath: "hasCategories",
-												Optional: true,
+												Name:          "has_categories",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "hasCategories",
+												Optional:      true,
 											},
 											{
-												Name:     "min_tags",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "minTags",
-												Optional: true,
+												Name:          "min_tags",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "minTags",
+												Optional:      true,
 											},
 										},
 									},
@@ -967,28 +967,28 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryBlogPostsWithFilterResponse",
 							Fields: []RPCField{
 								{
-									Name:     "blog_posts_with_filter",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "blogPostsWithFilter",
-									Repeated: true,
+									Name:          "blog_posts_with_filter",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "blogPostsWithFilter",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "BlogPost",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "title",
-												TypeName: string(DataTypeString),
-												JSONPath: "title",
+												Name:          "title",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "title",
 											},
 											{
-												Name:     "tags",
-												TypeName: string(DataTypeString),
-												JSONPath: "tags",
-												Repeated: true,
+												Name:          "tags",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "tags",
+												Repeated:      true,
 											},
 										},
 									},
@@ -1011,11 +1011,11 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryBulkSearchAuthorsRequest",
 							Fields: []RPCField{
 								{
-									Name:       "filters",
-									TypeName:   string(DataTypeMessage),
-									JSONPath:   "filters",
-									IsListType: true,
-									Optional:   true,
+									Name:          "filters",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "filters",
+									IsListType:    true,
+									Optional:      true,
 									ListMetadata: &ListMetadata{
 										NestingLevel: 1,
 										LevelInfo: []LevelInfo{
@@ -1028,22 +1028,22 @@ func TestListParametersExecutionPlan(t *testing.T) {
 										Name: "AuthorFilter",
 										Fields: []RPCField{
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
-												Optional: true,
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
+												Optional:      true,
 											},
 											{
-												Name:     "has_teams",
-												TypeName: string(DataTypeBool),
-												JSONPath: "hasTeams",
-												Optional: true,
+												Name:          "has_teams",
+												ProtoTypeName: DataTypeBool,
+												JSONPath:      "hasTeams",
+												Optional:      true,
 											},
 											{
-												Name:     "skill_count",
-												TypeName: string(DataTypeInt32),
-												JSONPath: "skillCount",
-												Optional: true,
+												Name:          "skill_count",
+												ProtoTypeName: DataTypeInt32,
+												JSONPath:      "skillCount",
+												Optional:      true,
 											},
 										},
 									},
@@ -1054,34 +1054,34 @@ func TestListParametersExecutionPlan(t *testing.T) {
 							Name: "QueryBulkSearchAuthorsResponse",
 							Fields: []RPCField{
 								{
-									Name:     "bulk_search_authors",
-									TypeName: string(DataTypeMessage),
-									JSONPath: "bulkSearchAuthors",
-									Repeated: true,
+									Name:          "bulk_search_authors",
+									ProtoTypeName: DataTypeMessage,
+									JSONPath:      "bulkSearchAuthors",
+									Repeated:      true,
 									Message: &RPCMessage{
 										Name: "Author",
 										Fields: []RPCField{
 											{
-												Name:     "id",
-												TypeName: string(DataTypeString),
-												JSONPath: "id",
+												Name:          "id",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "id",
 											},
 											{
-												Name:     "name",
-												TypeName: string(DataTypeString),
-												JSONPath: "name",
+												Name:          "name",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "name",
 											},
 											{
-												Name:     "email",
-												TypeName: string(DataTypeString),
-												JSONPath: "email",
-												Optional: true,
+												Name:          "email",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "email",
+												Optional:      true,
 											},
 											{
-												Name:     "skills",
-												TypeName: string(DataTypeString),
-												JSONPath: "skills",
-												Repeated: true,
+												Name:          "skills",
+												ProtoTypeName: DataTypeString,
+												JSONPath:      "skills",
+												Repeated:      true,
 											},
 										},
 									},

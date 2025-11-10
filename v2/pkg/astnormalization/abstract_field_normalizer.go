@@ -17,7 +17,7 @@ type AbstractFieldNormalizer struct {
 }
 
 func NewAbstractFieldNormalizer(operation *ast.Document, definition *ast.Document, fieldRef int) *AbstractFieldNormalizer {
-	walker := astvisitor.NewWalker(48)
+	walker := astvisitor.NewWalkerWithID(48, "AbstractFieldNormalizer")
 
 	normalizer := &AbstractFieldNormalizer{
 		Walker:         &walker,
