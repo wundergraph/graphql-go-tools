@@ -8271,6 +8271,19 @@ func (t *testSubscriptionUpdaterChan) Update(data []byte) {
 	t.updates <- string(data)
 }
 
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdaterChan) UpdateSubscription(id resolve.SubscriptionIdentifier, data []byte) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdaterChan) CloseSubscription(kind resolve.SubscriptionCloseKind, id resolve.SubscriptionIdentifier) {
+}
+
+// empty method to satisfy the interface, not used in this tests
+func (t *testSubscriptionUpdaterChan) Subscriptions() map[context.Context]resolve.SubscriptionIdentifier {
+	return make(map[context.Context]resolve.SubscriptionIdentifier)
+}
+
 func (t *testSubscriptionUpdaterChan) Complete() {
 	close(t.complete)
 }
