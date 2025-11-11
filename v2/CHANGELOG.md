@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.0-rc.237](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.236...v2.0.0-rc.237) (2025-10-31)
+
+
+### Features
+
+* add support for field resolvers ([#1323](https://github.com/wundergraph/graphql-go-tools/issues/1323)) ([0e3c00f](https://github.com/wundergraph/graphql-go-tools/commit/0e3c00f7498c95ba979fe0a96fd1072deb9a2895))
+
 ## [2.0.0-rc.236](https://github.com/wundergraph/graphql-go-tools/compare/v2.0.0-rc.235...v2.0.0-rc.236) (2025-10-31)
 
 
