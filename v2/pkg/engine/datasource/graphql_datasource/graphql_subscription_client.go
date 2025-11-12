@@ -217,7 +217,6 @@ func IsDefaultGraphQLSubscriptionClient(client GraphQLSubscriptionClient) bool {
 }
 
 func NewGraphQLSubscriptionClient(httpClient, streamingClient *http.Client, engineCtx context.Context, options ...Options) GraphQLSubscriptionClient {
-
 	// Defaults
 	op := &opts{
 		readTimeout:  5 * time.Second,
@@ -572,16 +571,35 @@ func (c *subscriptionClient) wsDial(ctx context.Context, options GraphQLSubscrip
 	}
 
 	dialer := ws.Dialer{
+		Timeout:   10 * time.Second,
 		Protocols: subProtocols,
 		Header:    ws.HandshakeHeaderHTTP(options.Header),
 	}
 
 	conn, _, hs, err := dialer.Dial(ctx, options.URL)
 	if err != nil {
+		// convert ws.StatusError to UpgradeRequestError
+		var upgradeErr ws.StatusError
+		if errors.As(err, &upgradeErr) {
+			return nil, "", &UpgradeRequestError{
+				URL:        options.URL,
+				StatusCode: int(upgradeErr),
+			}
+		}
+
 		return nil, "", fmt.Errorf("failed to dial websocket: %w", err)
 	}
 
-	return conn, hs.Protocol, nil
+	subProtocol := subProtocols[0]
+	if options.WsSubProtocol == "" || options.WsSubProtocol == "auto" {
+		subProtocol = hs.Protocol
+		if subProtocol == "" {
+			c.log.Warn("Subgraph did not provide Sec-WebSocket-Protocol in upgrade response, please update your subgraph to respond with its preferred protocol")
+			subProtocol = ProtocolGraphQLWS
+		}
+	}
+
+	return conn, subProtocol, nil
 }
 
 func (c *subscriptionClient) dial(ctx context.Context, options GraphQLSubscriptionOptions) (conn net.Conn, subProtocol string, err error) {

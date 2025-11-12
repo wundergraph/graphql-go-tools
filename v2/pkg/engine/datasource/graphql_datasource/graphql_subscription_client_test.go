@@ -2443,20 +2443,15 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 			}))
 			defer server.Close()
 
-			ctx, cancel := context.WithCancel(context.Background())
-			defer cancel()
-			serverCtx, serverCancel := context.WithCancel(context.Background())
-			defer serverCancel()
-
-			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, serverCtx,
+			client := NewGraphQLSubscriptionClient(http.DefaultClient, http.DefaultClient, t.Context(),
 				WithLogger(logger()),
 			).(*subscriptionClient)
 
 			wsURL := strings.Replace(server.URL, "http://", "ws://", 1)
 
 			updater := &testSubscriptionUpdater{}
-			err := client.Subscribe(resolve.NewContext(ctx), GraphQLSubscriptionOptions{
-				URL: wsURL,
+			err := client.Subscribe(resolve.NewContext(t.Context()), GraphQLSubscriptionOptions{
+				URL: server.URL,
 				Body: GraphQLBody{
 					Query: `subscription {messageAdded(roomName: "room"){text}}`,
 				},
@@ -2469,7 +2464,7 @@ func TestWebSocketUpgradeFailures(t *testing.T) {
 				var upgradeErr *UpgradeRequestError
 				require.ErrorAs(t, err, &upgradeErr)
 				require.Equal(t, tc.statusCode, upgradeErr.StatusCode)
-				require.Equal(t, server.URL, upgradeErr.URL)
+				require.Equal(t, wsURL, upgradeErr.URL)
 			} else {
 				assert.NoError(t, err, "Expected no error for status code %d", tc.statusCode)
 			}
@@ -2492,7 +2487,7 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 				return "" // Don't set the header
 			},
 			expectError:   true,
-			errorContains: "invalid Sec-WebSocket-Accept",
+			errorContains: "bad \"Sec-WebSocket-Accept\"",
 		},
 		{
 			name: "Malformed base64 Sec-WebSocket-Accept",
@@ -2500,7 +2495,7 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 				return "not-valid-base64!!!"
 			},
 			expectError:   true,
-			errorContains: "invalid Sec-WebSocket-Accept",
+			errorContains: "bad \"Sec-WebSocket-Accept\"",
 		},
 		{
 			name: "Correct length but wrong content",
@@ -2509,7 +2504,7 @@ func TestInvalidWebSocketAcceptKey(t *testing.T) {
 				return base64.StdEncoding.EncodeToString([]byte("12345678901234567890"))
 			},
 			expectError:   true,
-			errorContains: "invalid Sec-WebSocket-Accept",
+			errorContains: "bad \"Sec-WebSocket-Accept\"",
 		},
 	}
 
