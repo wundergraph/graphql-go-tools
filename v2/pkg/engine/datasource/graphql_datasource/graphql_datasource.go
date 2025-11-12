@@ -424,7 +424,7 @@ func (p *Planner[T]) ConfigureSubscription() plan.SubscriptionConfiguration {
 		p.stopWithError(errors.WithStack(fmt.Errorf("ConfigureSubscription: failed to marshal header: %w", err)))
 		return plan.SubscriptionConfiguration{}
 	}
-	if err == nil && len(header) != 0 && !bytes.Equal(header, literal.NULL) {
+	if len(header) != 0 && !bytes.Equal(header, literal.NULL) {
 		input = httpclient.SetInputHeader(input, header)
 	}
 
