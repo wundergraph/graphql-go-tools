@@ -9,7 +9,6 @@ import (
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/ast"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/astparser"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/engine/resolve"
-	"github.com/wundergraph/graphql-go-tools/v2/pkg/middleware/operation_complexity"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/operationreport"
 )
 
@@ -65,23 +64,6 @@ func UnmarshalHttpRequest(r *http.Request, request *Request) error {
 
 func (r *Request) SetHeader(header http.Header) {
 	r.request.Header = header
-}
-
-func (r *Request) CalculateComplexity(complexityCalculator ComplexityCalculator, schema *Schema, skipIntrospection bool) (ComplexityResult, error) {
-	if schema == nil {
-		return ComplexityResult{}, ErrNilSchema
-	}
-
-	report := r.parseQueryOnce()
-	if report.HasErrors() {
-		return complexityResult(
-			operation_complexity.OperationStats{},
-			[]operation_complexity.RootFieldStats{},
-			report,
-		)
-	}
-
-	return complexityCalculator.Calculate(&r.document, &schema.document, skipIntrospection)
 }
 
 func (r *Request) Document() *ast.Document {

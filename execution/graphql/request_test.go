@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wundergraph/graphql-go-tools/v2/pkg/middleware/operation_complexity"
 	"github.com/wundergraph/graphql-go-tools/v2/pkg/starwars"
 )
 
@@ -88,64 +89,69 @@ func TestRequest_parseQueryOnce(t *testing.T) {
 }
 
 func TestRequest_CalculateComplexity(t *testing.T) {
-	t.Run("should return error when schema is nil", func(t *testing.T) {
-		request := Request{}
-		result, err := request.CalculateComplexity(DefaultComplexityCalculator, nil, false)
-		assert.Error(t, err)
-		assert.Equal(t, ErrNilSchema, err)
-		assert.Equal(t, 0, result.NodeCount, "unexpected node count")
-		assert.Equal(t, 0, result.Complexity, "unexpected complexity")
-		assert.Equal(t, 0, result.Depth, "unexpected depth")
-		assert.Nil(t, result.PerRootField, "per root field results is not nil")
-	})
-
 	t.Run("should successfully calculate the complexity of request", func(t *testing.T) {
 		schema := StarwarsSchema(t)
-
 		request := StarwarsRequestForQuery(t, starwars.FileSimpleHeroQuery)
-		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema, false)
-		assert.NoError(t, err)
-		assert.Equal(t, 1, result.NodeCount, "unexpected node count")
-		assert.Equal(t, 1, result.Complexity, "unexpected complexity")
-		assert.Equal(t, 2, result.Depth, "unexpected depth")
-		assert.Equal(t, []FieldComplexityResult{
+
+		report := request.parseQueryOnce()
+		assert.False(t, report.HasErrors())
+
+		estimator := operation_complexity.NewOperationComplexityEstimator(false)
+		global, rootFields := estimator.Do(request.Document(), schema.Document(), &report)
+		assert.False(t, report.HasErrors())
+
+		assert.Equal(t, 1, global.NodeCount, "unexpected node count")
+		assert.Equal(t, 1, global.Complexity, "unexpected complexity")
+		assert.Equal(t, 2, global.Depth, "unexpected depth")
+		assert.Equal(t, []operation_complexity.RootFieldStats{
 			{
-				TypeName:   "Query",
-				FieldName:  "hero",
-				Alias:      "",
-				NodeCount:  1,
-				Complexity: 1,
-				Depth:      1,
+				TypeName:  "Query",
+				FieldName: "hero",
+				Alias:     "",
+				Stats: operation_complexity.OperationStats{
+					NodeCount:  1,
+					Complexity: 1,
+					Depth:      1,
+				},
 			},
-		}, result.PerRootField, "unexpected per root field results")
+		}, rootFields, "unexpected per root field results")
 	})
 
 	t.Run("should successfully calculate the complexity of request with multiple query fields", func(t *testing.T) {
 		schema := StarwarsSchema(t)
-
 		request := StarwarsRequestForQuery(t, starwars.FileHeroWithAliasesQuery)
-		result, err := request.CalculateComplexity(DefaultComplexityCalculator, schema, false)
-		assert.NoError(t, err)
-		assert.Equal(t, 2, result.NodeCount, "unexpected node count")
-		assert.Equal(t, 2, result.Complexity, "unexpected complexity")
-		assert.Equal(t, 2, result.Depth, "unexpected depth")
-		assert.Equal(t, []FieldComplexityResult{
+
+		report := request.parseQueryOnce()
+		assert.False(t, report.HasErrors())
+
+		estimator := operation_complexity.NewOperationComplexityEstimator(false)
+		global, rootFields := estimator.Do(request.Document(), schema.Document(), &report)
+		assert.False(t, report.HasErrors())
+
+		assert.Equal(t, 2, global.NodeCount, "unexpected node count")
+		assert.Equal(t, 2, global.Complexity, "unexpected complexity")
+		assert.Equal(t, 2, global.Depth, "unexpected depth")
+		assert.Equal(t, []operation_complexity.RootFieldStats{
 			{
-				TypeName:   "Query",
-				FieldName:  "hero",
-				Alias:      "empireHero",
-				NodeCount:  1,
-				Complexity: 1,
-				Depth:      1,
+				TypeName:  "Query",
+				FieldName: "hero",
+				Alias:     "empireHero",
+				Stats: operation_complexity.OperationStats{
+					NodeCount:  1,
+					Complexity: 1,
+					Depth:      1,
+				},
 			},
 			{
-				TypeName:   "Query",
-				FieldName:  "hero",
-				Alias:      "jediHero",
-				NodeCount:  1,
-				Complexity: 1,
-				Depth:      1,
-			}}, result.PerRootField, "unexpected per root field results")
+				TypeName:  "Query",
+				FieldName: "hero",
+				Alias:     "jediHero",
+				Stats: operation_complexity.OperationStats{
+					NodeCount:  1,
+					Complexity: 1,
+					Depth:      1,
+				},
+			}}, rootFields, "unexpected per root field results")
 	})
 }
 

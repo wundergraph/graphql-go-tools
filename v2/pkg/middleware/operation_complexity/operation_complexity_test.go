@@ -504,7 +504,8 @@ func runConfig(t *testing.T, definition, operation string, expectedGlobalComplex
 
 	astnormalization.NormalizeOperation(&op, &def, &report)
 
-	actualGlobalComplexityResult, actualFieldsComplexityResult := CalculateOperationComplexity(&op, &def, skipIntrospection, &report)
+	estimator := NewOperationComplexityEstimator(skipIntrospection)
+	actualGlobalComplexityResult, actualFieldsComplexityResult := estimator.Do(&op, &def, &report)
 	if report.HasErrors() {
 		require.NoError(t, report)
 	}
@@ -527,16 +528,14 @@ func BenchmarkEstimateComplexity(b *testing.B) {
 	def := unsafeparser.ParseGraphqlDocumentString(testDefinition)
 	op := unsafeparser.ParseGraphqlDocumentString(complexQuery)
 
-	// We use CalculateOperationComplexity in production. We might want to move
-	// NewOperationComplexityEstimator into the benchmarking loop or just benchmark what we do
-	// in production.
-	estimator := NewOperationComplexityEstimator(false)
-	report := operationreport.Report{}
-
 	b.ResetTimer()
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
+		// We use NewOperationComplexityEstimator for every operation in production, thus
+		// we want it in the benchmarking loop.
+		estimator := NewOperationComplexityEstimator(false)
+		report := operationreport.Report{}
 		globalComplexityResult, _ := estimator.Do(&op, &def, &report)
 		if report.HasErrors() {
 			b.Fatal(report)

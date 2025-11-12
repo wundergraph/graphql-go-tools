@@ -115,8 +115,9 @@ func (n *OperationComplexityEstimator) Do(operation, definition *ast.Document, r
 	return globalResult, n.visitor.calculatedRootFieldStats
 }
 
-func CalculateOperationComplexity(operation, definition *ast.Document, skipIntrospection bool, report *operationreport.Report) (OperationStats, []RootFieldStats) {
-	estimator := NewOperationComplexityEstimator(skipIntrospection)
+// Deprecated: use NewOperationComplexityEstimator.
+func CalculateOperationComplexity(operation, definition *ast.Document, report *operationreport.Report) (OperationStats, []RootFieldStats) {
+	estimator := NewOperationComplexityEstimator(false)
 	return estimator.Do(operation, definition, report)
 }
 
