@@ -506,9 +506,7 @@ func runConfig(t *testing.T, definition, operation string, expectedGlobalComplex
 
 	estimator := NewOperationComplexityEstimator(skipIntrospection)
 	actualGlobalComplexityResult, actualFieldsComplexityResult := estimator.Do(&op, &def, &report)
-	if report.HasErrors() {
-		require.NoError(t, report)
-	}
+	require.False(t, report.HasErrors())
 
 	assert.Equal(t, expectedGlobalComplexityResult.NodeCount, actualGlobalComplexityResult.NodeCount, "unexpected global node count")
 	assert.Equal(t, expectedGlobalComplexityResult.Complexity, actualGlobalComplexityResult.Complexity, "unexpected global complexity")
