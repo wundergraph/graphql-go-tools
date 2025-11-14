@@ -219,10 +219,8 @@ func Test_DataSource_Load(t *testing.T) {
 
 	require.NoError(t, err)
 
-	output, err := ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
+	_, err = ds.Load(context.Background(), nil, []byte(`{"query":"`+query+`","variables":`+variables+`}`))
 	require.NoError(t, err)
-
-	fmt.Println(string(output))
 }
 
 // Test_DataSource_Load_WithMockService tests the datasource.Load method with an actual gRPC server

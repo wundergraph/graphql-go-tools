@@ -1662,7 +1662,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 		return l.loadByContextDirect(ctx, source, headers, input, res)
 	}
 
-	sfKey, fetchKey, item, shared := l.sf.GetOrCreateItem(fetchItem, input, extraKey)
+	item, shared := l.sf.GetOrCreateItem(fetchItem, input, extraKey)
 	if res.singleFlightStats != nil {
 		res.singleFlightStats.used = true
 		res.singleFlightStats.shared = shared
@@ -1686,7 +1686,7 @@ func (l *Loader) loadByContext(ctx context.Context, source DataSource, fetchItem
 	// helps the http client to create buffers at the right size
 	ctx = httpclient.WithHTTPClientSizeHint(ctx, item.sizeHint)
 
-	defer l.sf.Finish(sfKey, fetchKey, item)
+	defer l.sf.Finish(item)
 
 	// Perform the actual load
 	err := l.loadByContextDirect(ctx, source, headers, input, res)

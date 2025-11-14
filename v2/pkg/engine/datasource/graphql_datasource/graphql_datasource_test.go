@@ -8866,8 +8866,10 @@ func TestLoadFiles(t *testing.T) {
 		input = httpclient.SetInputURL(input, []byte(serverUrl))
 
 		ctx := context.Background()
-		_, err = src.LoadWithFiles(ctx, nil, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")})
+		got, err := src.LoadWithFiles(ctx, nil, input, []*httpclient.FileUpload{httpclient.NewFileUpload(f.Name(), fileName, "variables.file")})
 		require.NoError(t, err)
+		require.Equal(t, []byte{}, got)
+
 	})
 
 	t.Run("multiple files", func(t *testing.T) {
@@ -8921,11 +8923,12 @@ func TestLoadFiles(t *testing.T) {
 		assert.NoError(t, err)
 
 		ctx := context.Background()
-		_, err = src.LoadWithFiles(ctx, nil, input,
+		got, err := src.LoadWithFiles(ctx, nil, input,
 			[]*httpclient.FileUpload{
 				httpclient.NewFileUpload(f1.Name(), file1Name, "variables.files.0"),
 				httpclient.NewFileUpload(f2.Name(), file2Name, "variables.files.1")})
 		require.NoError(t, err)
+		require.Equal(t, []byte{}, got)
 	})
 }
 

@@ -16,8 +16,7 @@ type InboundRequestSingleFlight struct {
 }
 
 type requestShard struct {
-	mu sync.Mutex
-	m  map[uint64]*InflightRequest
+	m sync.Map
 }
 
 const defaultRequestSingleFlightShardCount = 4
@@ -31,20 +30,17 @@ func NewRequestSingleFlight(shardCount int) *InboundRequestSingleFlight {
 	r := &InboundRequestSingleFlight{
 		shards: make([]requestShard, shardCount),
 	}
-	for i := range r.shards {
-		r.shards[i] = requestShard{
-			m: make(map[uint64]*InflightRequest),
-		}
-	}
 	return r
 }
 
 type InflightRequest struct {
-	Done         chan struct{}
-	Data         []byte
-	Err          error
-	ID           uint64
+	Done chan struct{}
+	Data []byte
+	Err  error
+	ID   uint64
+
 	HasFollowers bool
+	Mu           sync.Mutex
 }
 
 // GetOrCreate creates a new InflightRequest or returns an existing (shared) one
@@ -75,11 +71,12 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 	key := xxhash.Sum64(b[:])
 
 	shard := r.shardFor(key)
-	shard.mu.Lock()
-	req, shared := shard.m[key]
+	req, shared := shard.m.Load(key)
 	if shared {
+		req := req.(*InflightRequest)
+		req.Mu.Lock()
 		req.HasFollowers = true
-		shard.mu.Unlock()
+		req.Mu.Unlock()
 		select {
 		case <-req.Done:
 			if req.Err != nil {
@@ -91,14 +88,13 @@ func (r *InboundRequestSingleFlight) GetOrCreate(ctx *Context, response *GraphQL
 		}
 	}
 
-	req = &InflightRequest{
+	value := &InflightRequest{
 		Done: make(chan struct{}),
 		ID:   key,
 	}
 
-	shard.m[key] = req
-	shard.mu.Unlock()
-	return req, nil
+	shard.m.Store(key, value)
+	return value, nil
 }
 
 func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte) {
@@ -106,10 +102,10 @@ func (r *InboundRequestSingleFlight) FinishOk(req *InflightRequest, data []byte)
 		return
 	}
 	shard := r.shardFor(req.ID)
-	shard.mu.Lock()
-	delete(shard.m, req.ID)
+	shard.m.Delete(req.ID)
+	req.Mu.Lock()
 	hasFollowers := req.HasFollowers
-	shard.mu.Unlock()
+	req.Mu.Unlock()
 	if hasFollowers {
 		// optimization to only copy when we actually have to
 		req.Data = make([]byte, len(data))
@@ -123,9 +119,7 @@ func (r *InboundRequestSingleFlight) FinishErr(req *InflightRequest, err error) 
 		return
 	}
 	shard := r.shardFor(req.ID)
-	shard.mu.Lock()
-	delete(shard.m, req.ID)
-	shard.mu.Unlock()
+	shard.m.Delete(req.ID)
 	req.Err = err
 	close(req.Done)
 }
